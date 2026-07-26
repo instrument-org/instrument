@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { type AbsolutePath } from "../schemas/paths";
+import { recordWorkspaceSkillWrite } from "./workspace-skill-index";
 
 export async function writeFileWithDir(
   filePath: AbsolutePath,
@@ -19,6 +20,7 @@ export async function writeFileWithDir(
 
   try {
     await fs.writeFile(filePath, content, { signal: options?.signal });
+    recordWorkspaceSkillWrite(filePath);
   } catch (error) {
     throw new Error(
       `Failed to write file ${filePath}: ${error instanceof Error ? error.message : "Unknown error"}`,

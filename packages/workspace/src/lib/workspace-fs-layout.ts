@@ -8,7 +8,7 @@ import {
 import { realpathSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 
-import { REGISTRY_FOLDER_NAMES, TASK_FOLDER_NAMES } from "../constants";
+import { TASK_FOLDER_NAMES } from "../constants";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
@@ -18,7 +18,10 @@ import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { ReadOnlyBaseFs } from "./read-only-base-fs";
-import { getWorkspaceConfig } from "./workspace-config";
+import { skillWriteTrackingFs } from "./skill-write-tracking-fs";
+import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
+
+export { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
 /**
  * Virtual mount point of the writable task directory.
@@ -144,10 +147,11 @@ export async function buildBashFs(
   // Unlike an attached folder, it cannot be detached out from under us, so it
   // always mounts.
   await mkdir(layout.skills.hostRoot, { recursive: true });
-  fs.mount(
-    layout.skills.mountPoint,
-    new ReadWriteFs({ maxFileReadSize, root: layout.skills.hostRoot }),
-  );
+  const skillsFs = new ReadWriteFs({
+    maxFileReadSize,
+    root: layout.skills.hostRoot,
+  });
+  fs.mount(layout.skills.mountPoint, skillWriteTrackingFs(skillsFs));
 
   return fs;
 }
@@ -185,14 +189,6 @@ export function buildWorkspaceFsLayout({
       readOnly: false,
     },
   };
-}
-
-/** The workspace's own `skills/` directory, which always mounts writable. */
-export function getWorkspaceSkillsDir(): AbsolutePath {
-  return absolutePathJoin(
-    getWorkspaceConfig().rootDir,
-    REGISTRY_FOLDER_NAMES.skills,
-  );
 }
 
 /**

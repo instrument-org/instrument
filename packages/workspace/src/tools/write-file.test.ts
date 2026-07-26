@@ -1,8 +1,13 @@
 import mockFs from "mock-fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import {
+  beginSkillChangeTracking,
+  consumeSkillChanges,
+} from "../lib/workspace-skill-index";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../schemas/paths";
+import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import {
@@ -96,6 +101,34 @@ describe("WriteFile - path policy", () => {
       }),
     );
     expect(result._unsafeUnwrap().filePath).toBe("./output/report.md");
+  });
+
+  it("attributes a workspace skill write to the executing session", async () => {
+    mockFs({
+      "/tmp/workspace": {
+        skills: {},
+        tasks: { [taskId]: {} },
+      },
+    });
+    const sessionId = StoreId.newSessionId();
+    const turn = { id: taskId, sessionId };
+    await beginSkillChangeTracking(turn);
+
+    const result = await runTool(WriteFile, {
+      ...makeExecuteArgs({
+        content: "---\ndescription: Brief\n---\n\nBody.\n",
+        explanation: "test",
+        filePath: "/skills/brief/SKILL.md",
+      }),
+      sessionId,
+    });
+
+    expect(result.isOk()).toBe(true);
+    await expect(consumeSkillChanges(turn)).resolves.toEqual({
+      created: ["brief"],
+      removed: [],
+      updated: [],
+    });
   });
 
   it("rejects writes into a read-only attached mount", async () => {

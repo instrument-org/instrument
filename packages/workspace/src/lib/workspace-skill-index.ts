@@ -1,9 +1,11 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs/promises";
 import path from "node:path";
 
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
-import { getWorkspaceSkillsDir } from "./workspace-fs-layout";
+import { pathIsWithin } from "./path-is-within";
+import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
 export interface WorkspaceSkillChanges {
   created: string[];
@@ -26,11 +28,15 @@ interface SkillStamp {
   size: number;
 }
 
-/**
- * Per-turn snapshots, keyed by task and session so concurrent tasks writing to
- * the shared skills directory each diff against their own turn's start.
- */
-const TURNS = new Map<string, WorkspaceSkillIndex>();
+interface TurnTracker {
+  before: WorkspaceSkillIndex;
+  touched: Set<string>;
+  touchedAll: boolean;
+}
+
+/** Per-turn writes keyed by task and session. */
+const TURNS = new Map<string, TurnTracker>();
+const TURN_CONTEXT = new AsyncLocalStorage<TurnKey>();
 
 interface TurnKey {
   id: TaskId;
@@ -39,40 +45,51 @@ interface TurnKey {
 
 /** Snapshots the skills directory as a turn's "before" state. */
 export async function beginSkillChangeTracking(turn: TurnKey): Promise<void> {
-  TURNS.set(turnKey(turn), await readWorkspaceSkillIndex());
+  TURNS.set(turnKey(turn), {
+    before: await readWorkspaceSkillIndex(),
+    touched: new Set(),
+    touchedAll: false,
+  });
 }
 
 /**
- * Diffs the skills directory against the turn's "before" snapshot and drops it.
+ * Classifies only the packages this session mutated, then drops its tracker.
  * Safe to call unconditionally; reports nothing when the turn was not tracked.
  */
 export async function consumeSkillChanges(
   turn: TurnKey,
 ): Promise<WorkspaceSkillChanges> {
   const key = turnKey(turn);
-  const before = TURNS.get(key);
+  const tracker = TURNS.get(key);
   TURNS.delete(key);
-  if (!before) {
+  if (!tracker) {
     return emptyChanges();
   }
-  return diffWorkspaceSkillIndexes({
-    after: await readWorkspaceSkillIndex(),
-    before,
-  });
-}
-
-export function hasSkillChanges(changes: WorkspaceSkillChanges): boolean {
-  return (
-    changes.created.length > 0 ||
-    changes.removed.length > 0 ||
-    changes.updated.length > 0
-  );
+  const after = await readWorkspaceSkillIndex();
+  const names = tracker.touchedAll
+    ? new Set([...after.keys(), ...tracker.before.keys()])
+    : tracker.touched;
+  const changes = emptyChanges();
+  for (const name of names) {
+    const existedBefore = tracker.before.has(name);
+    const existsAfter = after.has(name);
+    if (!existedBefore && existsAfter) {
+      changes.created.push(name);
+    } else if (existedBefore && existsAfter) {
+      changes.updated.push(name);
+    } else if (existedBefore) {
+      changes.removed.push(name);
+    }
+  }
+  changes.created.sort();
+  changes.removed.sort();
+  changes.updated.sort();
+  return changes;
 }
 
 /**
- * One shallow read of the skills directory plus a stat per entry: cheap enough
- * to run on every turn boundary, which is what makes a skill the agent just
- * wrote reach the UI without watching anything.
+ * One shallow read of the skills directory plus a stat per entry, used to
+ * classify a session-owned mutation as a creation, update, or removal.
  */
 export async function readWorkspaceSkillIndex(): Promise<WorkspaceSkillIndex> {
   const skillsDir = getWorkspaceSkillsDir();
@@ -109,41 +126,49 @@ export async function readWorkspaceSkillIndex(): Promise<WorkspaceSkillIndex> {
 }
 
 /**
- * What changed between two snapshots.
- *
- * An update is detected from SKILL.md alone, so a revision that only rewrites a
- * script or reference the skill ships goes unreported. Reading every file of
- * every skill to catch those would cost far more than the signal is worth, and
- * the case this exists for -- a skill appearing -- is exact either way.
+ * Records one successful mutation routed through this session's writable
+ * skills mount. `mountPath` is relative to that mount, as just-bash sees it.
  */
-function diffWorkspaceSkillIndexes({
-  after,
-  before,
-}: {
-  after: WorkspaceSkillIndex;
-  before: WorkspaceSkillIndex;
-}): WorkspaceSkillChanges {
-  const changes = emptyChanges();
-
-  for (const [name, stamp] of after) {
-    const previous = before.get(name);
-    if (!previous) {
-      changes.created.push(name);
-    } else if (
-      previous.mtimeMs !== stamp.mtimeMs ||
-      previous.size !== stamp.size
-    ) {
-      changes.updated.push(name);
-    }
+export function recordWorkspaceSkillMutation(mountPath: string): void {
+  const turn = TURN_CONTEXT.getStore();
+  if (!turn) {
+    return;
   }
-
-  for (const name of before.keys()) {
-    if (!after.has(name)) {
-      changes.removed.push(name);
-    }
+  const tracker = TURNS.get(turnKey(turn));
+  if (!tracker) {
+    return;
   }
+  const normalized = mountPath.replaceAll("\\", "/");
+  const relative = normalized.startsWith("/")
+    ? normalized.slice(1)
+    : normalized;
+  const name = relative.split("/")[0];
+  if (!name || name === ".") {
+    tracker.touchedAll = true;
+    return;
+  }
+  tracker.touched.add(name);
+}
 
-  return changes;
+/** Records a host write when it lands inside the workspace skills directory. */
+export function recordWorkspaceSkillWrite(filePath: string): void {
+  if (!TURN_CONTEXT.getStore()) {
+    return;
+  }
+  const skillsDir = getWorkspaceSkillsDir();
+  if (!pathIsWithin(filePath, skillsDir)) {
+    return;
+  }
+  const relative = path.relative(skillsDir, filePath);
+  recordWorkspaceSkillMutation(relative || "/");
+}
+
+/** Runs one tool call with its mutation records bound to the owning session. */
+export function withWorkspaceSkillTracking<T>(
+  turn: TurnKey,
+  callback: () => T,
+): T {
+  return TURN_CONTEXT.run(turn, callback);
 }
 
 function emptyChanges(): WorkspaceSkillChanges {

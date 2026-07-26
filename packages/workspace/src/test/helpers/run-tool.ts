@@ -2,7 +2,7 @@ import { type Result } from "neverthrow";
 import { type output } from "zod";
 
 import { type ExecuteError } from "../../lib/execute-error";
-import { isAsyncIterable } from "../../lib/is-async-iterable";
+import { streamTool } from "../../lib/stream-tool";
 import { StoreId } from "../../schemas/store-id";
 import { type AgentTool, type AnyAgentTool } from "../../tools/types";
 
@@ -20,25 +20,19 @@ export async function runTool<T extends AnyAgentTool>(
     sessionId?: StoreId.Session;
   },
 ): Promise<ExecuteOutput<T>> {
-  const result = tool.execute({
+  const executeOptions = {
     messageId: StoreId.newMessageId(),
     partId: StoreId.newPartId(),
     sessionId: StoreId.newSessionId(),
     ...options,
-  });
-
-  if (isAsyncIterable(result)) {
-    let lastOutput: Result<unknown, ExecuteError> | undefined;
-    for await (const output of result) {
-      lastOutput = output;
+  };
+  for await (const { output: result, type } of streamTool({
+    execute: tool.execute,
+    options: executeOptions,
+  })) {
+    if (type === "final") {
+      return result as ExecuteOutput<T>;
     }
-    if (lastOutput === undefined) {
-      throw new Error("AsyncGenerator yielded no values");
-    }
-    return lastOutput as ExecuteOutput<T>;
   }
-
-  return result as Promise<Result<unknown, ExecuteError>> as Promise<
-    ExecuteOutput<T>
-  >;
+  throw new Error("Tool produced no final output");
 }

@@ -11,6 +11,7 @@ import {
   TaskDirSchema,
   WorkspaceDirSchema,
 } from "../schemas/paths";
+import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
@@ -20,6 +21,11 @@ import {
   SKILLS_MOUNT_POINT,
   TASK_MOUNT_POINT,
 } from "./workspace-fs-layout";
+import {
+  beginSkillChangeTracking,
+  consumeSkillChanges,
+  withWorkspaceSkillTracking,
+} from "./workspace-skill-index";
 
 describe("buildBashFs", () => {
   let tmpDir: string;
@@ -254,6 +260,25 @@ describe("buildBashFs skills mount", () => {
     await expect(
       fs.readFile(path.join(tmpDir, "skills", "made-up", "SKILL.md"), "utf8"),
     ).resolves.toBe("body\n");
+  });
+
+  it("attributes bash mutations through the mounted filesystem", async () => {
+    const bash = await makeBash();
+    const turn = {
+      id: TaskIdSchema.parse("skills-mount-test"),
+      sessionId: StoreId.newSessionId(),
+    };
+    await beginSkillChangeTracking(turn);
+
+    await withWorkspaceSkillTracking(turn, () =>
+      bash.exec(
+        `mkdir -p ${SKILLS_MOUNT_POINT}/tracked && echo body > ${SKILLS_MOUNT_POINT}/tracked/SKILL.md`,
+      ),
+    );
+
+    await expect(consumeSkillChanges(turn)).resolves.toMatchObject({
+      created: ["tracked"],
+    });
   });
 
   it("lists the skills mount at the virtual root", async () => {

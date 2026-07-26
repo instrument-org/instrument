@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { WorkspaceDirSchema } from "../schemas/paths";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import {
@@ -15,9 +15,11 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import {
   beginSkillChangeTracking,
   consumeSkillChanges,
-  hasSkillChanges,
   readWorkspaceSkillIndex,
+  recordWorkspaceSkillMutation,
+  withWorkspaceSkillTracking,
 } from "./workspace-skill-index";
+import { writeFileWithDir } from "./write-file-with-dir";
 
 createMockTaskConfigForDir(
   `${MOCK_WORKSPACE_DIRS.tasks}/workspace-skill-index`,
@@ -65,6 +67,11 @@ describe("consumeSkillChanges", () => {
     await writeSkill("brief", "Write a brief.");
     await writeSkill("tidy", "Tidy things, thoroughly and well.");
     await fs.rm(path.join(skillsDir, "stale"), { recursive: true });
+    withWorkspaceSkillTracking(turn, () => {
+      for (const name of ["brief", "tidy", "stale"]) {
+        recordWorkspaceSkillMutation(`/${name}`);
+      }
+    });
 
     await expect(consumeSkillChanges(turn)).resolves.toMatchInlineSnapshot(`
       {
@@ -86,23 +93,88 @@ describe("consumeSkillChanges", () => {
     await beginSkillChangeTracking(turn);
 
     const changes = await consumeSkillChanges(turn);
-    expect(hasSkillChanges(changes)).toBe(false);
+    expect(changes).toEqual({ created: [], removed: [], updated: [] });
   });
 
   it("reports nothing for a turn that was never tracked", async () => {
     await writeSkill("tidy", "Tidy things.");
 
     const changes = await consumeSkillChanges(turn);
-    expect(hasSkillChanges(changes)).toBe(false);
+    expect(changes).toEqual({ created: [], removed: [], updated: [] });
   });
 
   it("forgets the turn once consumed", async () => {
     await beginSkillChangeTracking(turn);
     await writeSkill("brief", "Write a brief.");
+    withWorkspaceSkillTracking(turn, () => {
+      recordWorkspaceSkillMutation("/brief/SKILL.md");
+    });
 
     const changes = await consumeSkillChanges(turn);
     expect(changes.created).toEqual(["brief"]);
-    expect(hasSkillChanges(await consumeSkillChanges(turn))).toBe(false);
+    await expect(consumeSkillChanges(turn)).resolves.toEqual({
+      created: [],
+      removed: [],
+      updated: [],
+    });
+  });
+
+  it("does not attribute another session's write", async () => {
+    const otherTurn = { ...turn, sessionId: StoreId.newSessionId() };
+    await Promise.all([
+      beginSkillChangeTracking(turn),
+      beginSkillChangeTracking(otherTurn),
+    ]);
+
+    await writeSkill("brief", "Write a brief.");
+    withWorkspaceSkillTracking(turn, () => {
+      recordWorkspaceSkillMutation("/brief/SKILL.md");
+    });
+
+    await expect(consumeSkillChanges(otherTurn)).resolves.toEqual({
+      created: [],
+      removed: [],
+      updated: [],
+    });
+    await expect(consumeSkillChanges(turn)).resolves.toEqual({
+      created: ["brief"],
+      removed: [],
+      updated: [],
+    });
+  });
+
+  it("attributes a change outside SKILL.md to the writing session", async () => {
+    await writeSkill("tidy", "Tidy things.");
+    await beginSkillChangeTracking(turn);
+
+    await fs.mkdir(path.join(skillsDir, "tidy", "scripts"));
+    await fs.writeFile(path.join(skillsDir, "tidy", "scripts", "run.ts"), "");
+    withWorkspaceSkillTracking(turn, () => {
+      recordWorkspaceSkillMutation("/tidy/scripts/run.ts");
+    });
+
+    await expect(consumeSkillChanges(turn)).resolves.toEqual({
+      created: [],
+      removed: [],
+      updated: ["tidy"],
+    });
+  });
+
+  it("attributes dedicated file writes through the shared write boundary", async () => {
+    await beginSkillChangeTracking(turn);
+
+    await withWorkspaceSkillTracking(turn, () =>
+      writeFileWithDir(
+        AbsolutePathSchema.parse(path.join(skillsDir, "brief", "SKILL.md")),
+        "---\ndescription: Brief\n---\n\nBody.\n",
+      ),
+    );
+
+    await expect(consumeSkillChanges(turn)).resolves.toEqual({
+      created: ["brief"],
+      removed: [],
+      updated: [],
+    });
   });
 });
 

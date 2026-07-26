@@ -120,7 +120,7 @@ describe("consumeSkillChanges", () => {
   });
 
   it("forgets a turn consumed while its initial snapshot is pending", async () => {
-    let unblockRead = () => {};
+    let unblockRead: (() => void) | undefined;
     const blockedRead = new Promise<void>((resolve) => {
       unblockRead = resolve;
     });
@@ -134,7 +134,7 @@ describe("consumeSkillChanges", () => {
       expect(readdir).toHaveBeenCalledOnce();
     });
     const consume = consumeSkillChanges(turn);
-    unblockRead();
+    unblockRead?.();
     await Promise.all([begin, consume]);
 
     await writeSkill("brief", "Write a brief.");

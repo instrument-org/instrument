@@ -46,10 +46,11 @@ export function OpenTaskFileButton({
   };
 
   return (
-    <ButtonGroup aria-label={control.openLabel}>
+    <ButtonGroup aria-label={control.openLabel} className="max-w-full">
       <Button
         aria-label={control.openLabel}
         className={cn(
+          "min-w-0 shrink",
           className,
           control.showOpenWithDropdown && "rounded-r-none",
         )}
@@ -59,7 +60,9 @@ export function OpenTaskFileButton({
         variant={variant}
       >
         <OpenTargetIcon className={iconClassName} file={file} />
-        <span className={labelClassName}>{control.openLabel}</span>
+        <span className={cn("min-w-0 truncate", labelClassName)}>
+          {control.openLabel}
+        </span>
       </Button>
       {control.showOpenWithDropdown && (
         <OpenWithDropdown file={file}>

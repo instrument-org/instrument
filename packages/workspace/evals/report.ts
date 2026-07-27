@@ -12,7 +12,11 @@ import {
   setWorkspaceConfig,
 } from "../src/lib/workspace-config";
 import { type Session } from "../src/schemas/session";
-import { type AssertionResult, type EvalCase } from "./harness";
+import {
+  type AssertionResult,
+  type CompletedRun,
+  type EvalCase,
+} from "./harness";
 import { buildReportWorkspaceConfig, c } from "./utils";
 
 interface RollupSummary {
@@ -32,14 +36,26 @@ export async function generateReport({
   evalCases = [],
   includeContextMessages = false,
   outputDir,
+  runs = [],
   workspaceRootDir,
 }: {
   evalCases?: EvalCase[];
   includeContextMessages?: boolean;
   outputDir: string;
+  runs?: CompletedRun[];
   workspaceRootDir: string;
 }): Promise<RollupSummary> {
   const evalCasesByName = new Map(evalCases.map((e) => [e.name, e]));
+  // A task's id is slugified from its prompt, not from the case name, so a name
+  // can only be recovered from the run that produced it. Without this the match
+  // below almost never succeeds and every committed assertion silently reports
+  // nothing, which reads exactly like having no assertions to begin with.
+  const evalCasesByTaskId = new Map(
+    runs.flatMap((run) => {
+      const found = evalCasesByName.get(run.name);
+      return found ? [[run.taskId, found] as const] : [];
+    }),
+  );
   const absoluteWorkspaceDir = path.resolve(workspaceRootDir);
   const workspaceConfig = buildReportWorkspaceConfig(absoluteWorkspaceDir);
   // `taskDir()` and friends read the config from its module singleton, which the
@@ -158,6 +174,7 @@ export async function generateReport({
     });
 
     const evalCase =
+      evalCasesByTaskId.get(task.id) ??
       evalCasesByName.get(task.id) ??
       [...evalCasesByName.entries()].find(([name]) =>
         task.id.endsWith(`-${name}`),

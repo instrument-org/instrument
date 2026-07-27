@@ -61,7 +61,7 @@ export function ExportZipModal({ isOpen, onClose, task }: ExportZipModalProps) {
     <Dialog onOpenChange={onClose} open={isOpen}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Export Task</DialogTitle>
+          <DialogTitle>Export task</DialogTitle>
           <DialogDescription className="text-left">
             The export will include:
           </DialogDescription>

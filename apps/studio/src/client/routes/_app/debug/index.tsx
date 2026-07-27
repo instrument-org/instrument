@@ -38,7 +38,7 @@ function RouteComponent() {
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-8">
         <header className="flex flex-col gap-1">
           <p className="text-sm font-medium text-muted-foreground">
-            Debug Home
+            Debug home
           </p>
           <h1 className="text-2xl font-semibold tracking-tight">
             Jump to a debug route.
@@ -75,7 +75,7 @@ function RouteComponent() {
 
         <Card>
           <CardHeader>
-            <CardTitle>System Info</CardTitle>
+            <CardTitle>System info</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>

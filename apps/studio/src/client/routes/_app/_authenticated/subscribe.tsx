@@ -366,7 +366,7 @@ function SubscribePage() {
             <div className="mx-auto mt-12 max-w-4xl">
               <Card className="relative overflow-hidden bg-card p-8">
                 <div className="text-center">
-                  <h2 className="mb-2 text-2xl font-bold">Custom Plans</h2>
+                  <h2 className="mb-2 text-2xl font-bold">Custom plans</h2>
                   <p className="mx-auto mb-6 max-w-xl text-sm text-muted-foreground">
                     Whether you&apos;re a team, agency, or enterprise,
                     we&apos;ll build a plan that fits your needs.
@@ -400,7 +400,7 @@ function SubscribePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-lg">
             <h2 className="mb-4 text-xl font-bold">
-              {isUpgrade ? "Confirm Upgrade" : "Confirm Downgrade"}
+              {isUpgrade ? "Confirm upgrade" : "Confirm downgrade"}
             </h2>
             <p className="mb-4 text-muted-foreground">
               You are {isUpgrade ? "upgrading" : "downgrading"} to the{" "}

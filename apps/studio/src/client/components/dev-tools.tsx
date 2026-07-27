@@ -195,7 +195,7 @@ export function DevTools() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Load PostHog Analytics Toolbar</DialogTitle>
+            <DialogTitle>Load PostHog analytics toolbar</DialogTitle>
             <DialogDescription>
               Enter the PostHog toolbar code, JavaScript snippet, or URL search
               params containing the __posthog parameter.

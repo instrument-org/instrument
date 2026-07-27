@@ -395,7 +395,7 @@ function SkillPage() {
             <aside className="min-w-0 lg:sticky lg:top-10 lg:self-start">
               <div className="overflow-hidden rounded-lg bg-card shadow-xs">
                 <div className="border-b px-3 py-2">
-                  <h2 className="text-xs font-medium">Skill Files</h2>
+                  <h2 className="text-xs font-medium">Skill files</h2>
                 </div>
                 <div className="grid max-h-96 gap-0.5 overflow-y-auto scroll-fade-y p-1.5 text-xs">
                   {skill.files.map((file) => (

@@ -33,7 +33,7 @@ export function ProvidersSection({
     <div className="flex min-h-0 flex-1 flex-col gap-6">
       <div className="flex shrink-0 items-center justify-between">
         <h3 className="text-sm font-medium text-muted-foreground">
-          AI Providers
+          AI providers
         </h3>
         <Button
           onClick={() => {

@@ -135,7 +135,7 @@ export function TaskDebugDialog({
       <DialogContent className="max-h-[90vh] w-[95vw] bg-background sm:max-w-[95vw]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3 text-dev-700 dark:text-dev-300">
-            <span>Debug Chat</span>
+            <span>Debug chat</span>
             <Tabs
               onValueChange={(v) => {
                 setTab(v as DebugTab);

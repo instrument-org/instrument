@@ -9,7 +9,7 @@ import { SessionBuilder } from "../-sessions/helpers";
 export const Route = createFileRoute("/_app/debug/components/data-parts")({
   component: RouteComponent,
   head: () => ({
-    meta: [{ title: "Debug Data Parts" }],
+    meta: [{ title: "Debug data parts" }],
   }),
 });
 

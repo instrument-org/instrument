@@ -9,7 +9,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/_app/debug/components/alerts")({
   component: RouteComponent,
   head: () => ({
-    meta: [{ title: "Debug Alerts" }],
+    meta: [{ title: "Debug alerts" }],
   }),
 });
 
@@ -56,7 +56,7 @@ function RouteComponent() {
 
         <section className="flex flex-col gap-3">
           <div>
-            <h2 className="text-base font-semibold">Upgrade / Credit Alert</h2>
+            <h2 className="text-base font-semibold">Upgrade / credit alert</h2>
             <p className="text-sm text-muted-foreground">
               Shown inline in the chat when a session fails due to credits.
             </p>
@@ -82,7 +82,7 @@ function RouteComponent() {
 
         <section className="flex flex-col gap-3">
           <div>
-            <h2 className="text-base font-semibold">Contact Error Alert</h2>
+            <h2 className="text-base font-semibold">Contact error alert</h2>
             <p className="text-sm text-muted-foreground">
               Shown when an operation fails and the user may need support.
             </p>

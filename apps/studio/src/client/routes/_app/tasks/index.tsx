@@ -48,7 +48,7 @@ export const Route = createFileRoute("/_app/tasks/")({
   component: RouteComponent,
   head: () => {
     return {
-      meta: [{ title: "Your Tasks" }],
+      meta: [{ title: "Your tasks" }],
     };
   },
   staticData: { tabIcon: "table-properties" },
@@ -379,7 +379,7 @@ function RouteComponent() {
         <div className="mx-auto px-4 pt-10 @xl/app-content:px-6 @5xl/app-content:px-8 @5xl/app-content:pt-20 @5xl/app-content:pb-4">
           <div className="flex flex-col items-center gap-y-4 text-center">
             <h1 className="text-3xl font-bold tracking-tight @5xl/app-content:text-4xl">
-              Your Tasks
+              Your tasks
             </h1>
             <CommandMenuCTA />
           </div>

@@ -71,7 +71,7 @@ async function seedLiveQuery<T>({
 }
 
 function title(task?: Task) {
-  return task?.title ?? "Not Found";
+  return task?.title ?? "Not found";
 }
 
 /* eslint-disable perfectionist/sort-objects */

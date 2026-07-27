@@ -19,7 +19,7 @@ import { formatDistanceToNow } from "date-fns";
 export const Route = createFileRoute("/_app/release-notes")({
   component: RouteComponent,
   head: () => ({
-    meta: [{ title: "Release Notes" }],
+    meta: [{ title: "Release notes" }],
   }),
   staticData: { tabIcon: "file-text" },
 });
@@ -73,7 +73,7 @@ function RouteComponent() {
     <div className="container mx-auto space-y-6 p-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Release Notes</h1>
+          <h1 className="text-3xl font-bold">Release notes</h1>
           <p className="mt-2 text-muted-foreground">
             Latest updates and changes to {APP_NAME}
           </p>

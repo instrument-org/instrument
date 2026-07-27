@@ -308,7 +308,7 @@ export function StudioCommandMenu() {
       }}
       open={open}
       shouldFilter={false}
-      title="Open Task"
+      title="Open task"
     >
       <CommandInput
         onValueChange={setSearch}

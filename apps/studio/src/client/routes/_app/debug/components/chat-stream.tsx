@@ -15,7 +15,7 @@ const searchSchema = z.object({
 export const Route = createFileRoute("/_app/debug/components/chat-stream")({
   component: RouteComponent,
   head: () => ({
-    meta: [{ title: "Debug Chat Stream" }],
+    meta: [{ title: "Debug chat stream" }],
   }),
   validateSearch: searchSchema,
 });

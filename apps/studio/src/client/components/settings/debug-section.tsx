@@ -18,7 +18,7 @@ function SafeStorage() {
   return (
     <div className="space-y-3">
       <div>
-        <h3 className="text-base font-semibold">Secure Storage</h3>
+        <h3 className="text-base font-semibold">Secure storage</h3>
       </div>
       <div className="space-y-2 rounded-lg bg-muted/50 p-4">
         <div className="flex items-center justify-between">

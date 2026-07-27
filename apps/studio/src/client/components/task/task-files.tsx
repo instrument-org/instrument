@@ -175,7 +175,7 @@ export function TaskFiles({
               forceOpen={computed.hiddenFiles.some(
                 (f) => f.filePath === activeFilePath,
               )}
-              label="Other Files"
+              label="Other files"
               labelClassName="text-muted-foreground/60"
             >
               {computed.hiddenTree.map((node, i) => (

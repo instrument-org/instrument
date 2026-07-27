@@ -2,10 +2,10 @@ const debugRoutes = [
   {
     description: "Start here and jump into focused debug tools.",
     id: "index",
-    label: "Debug Home",
+    label: "Debug home",
     showCard: false,
     showNav: true,
-    title: "Debug Home",
+    title: "Debug home",
     to: "/debug",
   },
   {
@@ -14,7 +14,7 @@ const debugRoutes = [
     label: "Components",
     showCard: true,
     showNav: true,
-    title: "Debug Components",
+    title: "Debug components",
     to: "/debug/components",
   },
   {
@@ -23,16 +23,16 @@ const debugRoutes = [
     label: "Errors",
     showCard: true,
     showNav: true,
-    title: "Debug Errors",
+    title: "Debug errors",
     to: "/debug/errors",
   },
   {
     description: "Watch agent browser state.",
     id: "browserViews",
-    label: "Browser Views",
+    label: "Browser views",
     showCard: true,
     showNav: true,
-    title: "Debug Browser Views",
+    title: "Debug browser views",
     to: "/debug/browser-views",
   },
   {
@@ -41,14 +41,14 @@ const debugRoutes = [
     label: "Notifications",
     showCard: true,
     showNav: true,
-    title: "Debug Notifications",
+    title: "Debug notifications",
     to: "/debug/notifications",
   },
   {
     id: "browserView",
     showCard: false,
     showNav: false,
-    title: "Debug Browser View",
+    title: "Debug browser view",
   },
 ] as const;
 
@@ -68,12 +68,12 @@ export const componentPages = [
   },
   {
     id: "data-parts",
-    label: "Data Parts",
+    label: "Data parts",
     to: "/debug/components/data-parts",
   },
   {
     id: "error-card",
-    label: "Error Card",
+    label: "Error card",
     to: "/debug/components/error-card",
   },
   {
@@ -88,7 +88,7 @@ export const componentPages = [
   },
   {
     id: "provider-icons",
-    label: "Provider Icons",
+    label: "Provider icons",
     to: "/debug/components/provider-icons",
   },
   {
@@ -103,7 +103,7 @@ export const componentPages = [
   },
   {
     id: "form-elements",
-    label: "Form Elements",
+    label: "Form elements",
     to: "/debug/components/form-elements",
   },
 ] as const;

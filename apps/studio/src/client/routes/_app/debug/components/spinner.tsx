@@ -4,7 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 export const Route = createFileRoute("/_app/debug/components/spinner")({
   component: RouteComponent,
   head: () => ({
-    meta: [{ title: "Debug Spinner" }],
+    meta: [{ title: "Debug spinner" }],
   }),
 });
 

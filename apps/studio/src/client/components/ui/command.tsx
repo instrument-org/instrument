@@ -42,7 +42,7 @@ function CommandDialog({
   description = "Search for a command to run...",
   shouldFilter,
   showCloseButton = true,
-  title = "Command Palette",
+  title = "Command palette",
   ...props
 }: React.ComponentProps<typeof Dialog> & {
   className?: string;

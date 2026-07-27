@@ -255,6 +255,7 @@ if (subcommand === "list") {
       evalCases: filteredEvals,
       includeContextMessages,
       outputDir,
+      runs,
       workspaceRootDir,
     });
 

@@ -60,6 +60,8 @@ export const MODELS = [
 export interface CompletedRun {
   label: string;
   modelURI: string;
+  /** The eval case this run came from, so a report can find it by task id. */
+  name: string;
   taskId: TaskId;
 }
 
@@ -231,7 +233,7 @@ export async function runEvals(
 
       process.stdout.write(`${evalPrefix(label)}${c.green}Done.${c.reset}\n`);
 
-      return { label, modelURI: uri, taskId: id };
+      return { label, modelURI: uri, name: evalCase.name, taskId: id };
     },
   );
 

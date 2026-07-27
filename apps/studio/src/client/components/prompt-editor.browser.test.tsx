@@ -1,3 +1,6 @@
+// The scroll fade is a real stylesheet rule driven by a real scroll timeline,
+// so this file needs the app's CSS rather than bare markup.
+import "@/client/styles/globals.css";
 import { type ComponentProps, createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
@@ -141,6 +144,41 @@ describe("PromptEditor in a browser", () => {
     await userEvent.keyboard("one{Shift>}{Enter}{/Shift}two");
 
     expect(onChange).toHaveBeenLastCalledWith("one\ntwo");
+  });
+
+  // Chromium holds a scroll-driven animation at its last committed value once
+  // its scroller stops being scrollable, so a draft cleared from a scrolled
+  // position left the top fade painted over an empty composer. Only a real
+  // browser runs the scroll timeline at all.
+  it("drops the scroll fade once the draft no longer overflows", async () => {
+    const { ref } = renderEditor();
+    const scroller = () => {
+      const found = document.querySelector(
+        '[aria-label="Prompt"]',
+      )?.parentElement;
+      if (!found) {
+        throw new Error("editor is not mounted");
+      }
+      return found;
+    };
+    await userEvent.click(editor());
+
+    ref.current?.setValue(
+      Array.from({ length: 40 }, (_, line) => `line ${line}`).join("\n"),
+    );
+    scroller().scrollTo(0, scroller().scrollHeight);
+
+    await vi.waitFor(() => {
+      expect(
+        getComputedStyle(scroller()).getPropertyValue("--scroll-fade-top"),
+      ).toBe("24px");
+    });
+
+    ref.current?.clear();
+
+    await vi.waitFor(() => {
+      expect(getComputedStyle(scroller()).maskImage).toBe("none");
+    });
   });
 
   it.each(["/ffmpeg is cool", "/instrument:ffmpeg is cool"])(

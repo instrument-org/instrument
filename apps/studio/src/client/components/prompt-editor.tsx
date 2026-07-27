@@ -167,6 +167,7 @@ export function PromptEditor({
   // would scroll a partly visible row under a stationary cursor, which lands the
   // cursor on the next row and scrolls again.
   const scrollToSelectionRef = useRef(false);
+  const [overflowing, setOverflowing] = useState(false);
   const initialPropsRef = useRef({ autoFocus, placeholder });
   // Kept current rather than captured, because the view below is not built only
   // once: a hidden `<Activity>` runs every effect's cleanup, so the task page
@@ -404,6 +405,30 @@ export function PromptEditor({
     viewRef.current?.setProps({ attributes: editorAttributes(placeholder) });
   }, [placeholder]);
 
+  // `scroll-fade-y` is only correct while there is something to scroll: Chromium
+  // holds a scroll-driven animation at its last committed value once the
+  // scroller stops being scrollable, so clearing a draft that was scrolled down
+  // would leave the top fade painted over an empty composer. Carrying the
+  // utility on and off is what actually retires the animation. Both boxes are
+  // measured because they move independently -- the scroller stops growing at
+  // its max height, and the editor inside it keeps going.
+  useEffect(() => {
+    const scroller = mountRef.current;
+    if (!scroller) {
+      return;
+    }
+    const observer = new ResizeObserver(() => {
+      setOverflowing(scroller.scrollHeight > scroller.clientHeight);
+    });
+    observer.observe(scroller);
+    for (const child of scroller.children) {
+      observer.observe(child);
+    }
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
   // Replace the content through a transaction rather than a fresh EditorState:
   // recreating the state drops the history stack, so an external write (the
   // skill prefill, a clear after submit) would silently make undo a no-op.
@@ -471,8 +496,11 @@ export function PromptEditor({
     <Popover open={menu !== null && matches.length > 0}>
       <PopoverAnchor asChild>
         <div className={className}>
+          {/* The fade masks the text only: the composer's background sits on
+              the container around this, so the faded edge dissolves into it
+              whichever theme is on. */}
           <div
-            className="overflow-y-auto"
+            className={cn("overflow-y-auto", overflowing && "scroll-fade-y")}
             ref={mountRef}
             style={{ maxHeight }}
           />

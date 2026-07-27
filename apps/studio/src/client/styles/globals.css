@@ -477,9 +477,17 @@ body {
 /* Scroll-driven edge fade for a vertical scroll area. The mask's top/bottom
    stops are registered as animatable lengths and driven by the element's own
    scroll timeline, so the top fade appears only once scrolled down and the
-   bottom fade clears at the end. When the area isn't scrollable the timeline is
-   inactive and both stops fall back to their 0 initial value, leaving no fade.
-   No JS. Registering the stops via @property is what makes them interpolate. */
+   bottom fade clears at the end. No JS. Registering the stops via @property is
+   what makes them interpolate.
+
+   An area that has never been scrollable has an inactive timeline and shows no
+   fade, since both stops sit at their 0 initial value. One that stops being
+   scrollable is a different case: Chromium holds the animation at its last
+   committed value rather than retiring it, so a scroller that shrinks back
+   under its own height keeps whatever fade it had when it last scrolled. A
+   scroller whose content can shrink that far has to carry this utility
+   conditionally -- `scroll-state()` queries reach only descendants, and the
+   mask has to live on the scroll container itself, so CSS alone cannot tell. */
 @property --scroll-fade-top {
   syntax: "<length>";
   inherits: false;

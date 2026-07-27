@@ -154,6 +154,7 @@
     "squircle",
     "srcs",
     "Subdeps",
+    "subframe",
     "syscalls",
     "textnodes",
     "tldts",

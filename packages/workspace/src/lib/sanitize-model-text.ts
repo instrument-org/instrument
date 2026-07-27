@@ -1,4 +1,4 @@
-import type { ModelMessage } from "ai";
+import type { ModelMessage, ToolResultPart } from "ai";
 
 // A surrogate that lost its partner: a high surrogate with no low one after it,
 // or a low surrogate with no high one before it.
@@ -6,12 +6,21 @@ const LONE_SURROGATE =
   /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
 
 /**
- * Strip unpaired surrogates from every outgoing text part.
+ * Strip unpaired surrogates from outgoing text.
  *
  * Sits beside the image pass and for the same reason: whatever a provider
  * refuses is already saved and replayed on every later turn, so the last point
  * before sending is the only place that covers every source at once instead of
  * each one separately.
+ *
+ * Covers prose text parts and the text a tool returns, in every role that can
+ * carry either. Tool results matter most: file contents and command output are
+ * the largest source of text we did not write, so a pass that skipped them
+ * would miss most of what it exists to catch.
+ *
+ * A `json` tool output is left alone. `JSON.stringify` escapes a lone surrogate
+ * as `\uXXXX` rather than emitting it raw, so it cannot break the encoding of
+ * the request the way a bare string can. No tool returns that shape today.
  */
 export function sanitizeModelText(messages: ModelMessage[]): ModelMessage[] {
   return messages.map((message) => {
@@ -19,7 +28,13 @@ export function sanitizeModelText(messages: ModelMessage[]): ModelMessage[] {
       return { ...message, content: sanitizeSurrogates(message.content) };
     }
     if (message.role === "tool") {
-      return message;
+      return {
+        ...message,
+        // An approval response sits alongside the results and carries no text.
+        content: message.content.map((part) =>
+          part.type === "tool-result" ? sanitizeToolResult(part) : part,
+        ),
+      };
     }
     if (typeof message.content === "string") {
       return { ...message, content: sanitizeSurrogates(message.content) };
@@ -36,11 +51,13 @@ export function sanitizeModelText(messages: ModelMessage[]): ModelMessage[] {
     }
     return {
       ...message,
-      content: message.content.map((part) =>
-        part.type === "text"
-          ? { ...part, text: sanitizeSurrogates(part.text) }
-          : part,
-      ),
+      content: message.content.map((part) => {
+        if (part.type === "text") {
+          return { ...part, text: sanitizeSurrogates(part.text) };
+        }
+        // An assistant message carries these for a provider-executed tool.
+        return part.type === "tool-result" ? sanitizeToolResult(part) : part;
+      }),
     };
   });
 }
@@ -78,4 +95,31 @@ export function truncateWithoutSplitting(text: string, maxLength: number) {
   const endsMidCharacter =
     last !== undefined && last >= 0xd8_00 && last <= 0xdb_ff;
   return endsMidCharacter ? cut.slice(0, -1) : cut;
+}
+
+function sanitizeToolResult(part: ToolResultPart): ToolResultPart {
+  const { output } = part;
+
+  if (output.type === "error-text" || output.type === "text") {
+    return {
+      ...part,
+      output: { ...output, value: sanitizeSurrogates(output.value) },
+    };
+  }
+
+  if (output.type === "content") {
+    return {
+      ...part,
+      output: {
+        ...output,
+        value: output.value.map((item) =>
+          item.type === "text"
+            ? { ...item, text: sanitizeSurrogates(item.text) }
+            : item,
+        ),
+      },
+    };
+  }
+
+  return part;
 }

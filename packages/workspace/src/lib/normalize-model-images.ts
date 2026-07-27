@@ -1,11 +1,14 @@
 import type { LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
 import type { FilePart, ModelMessage } from "ai";
 
-import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import crypto from "node:crypto";
 
-import { imageViewLimits, imageViewSize } from "./image-view-size";
-import { measureImage, renderImage } from "./render-image";
+import {
+  type ImageViewLimits,
+  imageViewSize,
+  PREVIEW_LIMITS,
+} from "./image-view-size";
+import { exceedsDecodeBudget, measureImage, renderImage } from "./render-image";
 
 type ContentOutput = Extract<
   LanguageModelV2ToolResultOutput,
@@ -30,6 +33,8 @@ const UNREADABLE_NOTE =
   "[Image omitted: the file is not readable as an image. It may be truncated, or it may not be the format its name claims.]";
 const OVERSIZED_NOTE =
   "[Image omitted: it could not be reduced to a size this model accepts.]";
+const TOO_MANY_PIXELS_NOTE =
+  "[Image omitted: its dimensions are too large to decode. Downscale it and attach the smaller copy.]";
 
 // One turn re-sends the whole transcript, so without this every image in the
 // history is re-encoded on every request. Keyed on the source bytes and the
@@ -52,18 +57,15 @@ const RENDER_CACHE_LIMIT = 32;
  */
 export async function normalizeModelImages({
   messages,
-  model,
   signal,
 }: {
   messages: ModelMessage[];
-  model: AIGatewayModel.Type;
   signal?: AbortSignal;
 }): Promise<ModelMessage[]> {
   async function normalizeFilePart(part: FilePart) {
     const normalized = await normalizeImage({
       data: part.data,
       declaredMediaType: part.mediaType,
-      model,
       signal,
     });
     if (normalized.state === "dropped") {
@@ -92,7 +94,6 @@ export async function normalizeModelImages({
       const normalized = await normalizeImage({
         data: item.data,
         declaredMediaType: item.mediaType,
-        model,
         signal,
       });
       if (normalized.state === "dropped") {
@@ -160,7 +161,7 @@ export async function normalizeModelImages({
   return result;
 }
 
-function cacheKey(bytes: Buffer, limits: ReturnType<typeof imageViewLimits>) {
+function cacheKey(bytes: Buffer, limits: ImageViewLimits) {
   const digest = crypto.createHash("sha1").update(bytes).digest("hex");
   return `${digest}:${limits.maxEdge}:${limits.maxPatches}:${limits.patchSize}`;
 }
@@ -239,12 +240,10 @@ function isImagePart(part: { type: string }): part is FilePart {
 async function normalizeImage({
   data,
   declaredMediaType,
-  model,
   signal,
 }: {
   data: unknown;
   declaredMediaType: string;
-  model: AIGatewayModel.Type;
   signal?: AbortSignal;
 }): Promise<
   | { data: string | Uint8Array; mediaType: string; state: "replaced" }
@@ -265,8 +264,14 @@ async function normalizeImage({
     return { note: UNREADABLE_NOTE, state: "dropped" };
   }
 
-  const limits = imageViewLimits(model.params.provider);
-  const target = imageViewSize({ ...size, limits });
+  if (exceedsDecodeBudget(size)) {
+    // `read_file` refuses these up front, so what reaches here came from
+    // somewhere else: a user upload, a generated image, or a session recorded
+    // before that check existed.
+    return { note: TOO_MANY_PIXELS_NOTE, state: "dropped" };
+  }
+
+  const target = imageViewSize({ ...size, limits: PREVIEW_LIMITS });
   const withinBudget =
     target.width === size.width && target.height === size.height;
   // A media type that contradicts the bytes is rejected as surely as bad bytes
@@ -280,7 +285,7 @@ async function normalizeImage({
     return { state: "unchanged" };
   }
 
-  const key = cacheKey(bytes, limits);
+  const key = cacheKey(bytes, PREVIEW_LIMITS);
   let rendered = RENDER_CACHE.get(key);
   if (!RENDER_CACHE.has(key)) {
     rendered = await renderImage({

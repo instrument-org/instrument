@@ -1,21 +1,17 @@
-import { type ProviderImageView } from "@instrument-org/ai-gateway";
 import { describe, expect, it } from "vitest";
 
 import {
   imagePatchCount,
-  imageViewLimits,
+  type ImageViewLimits,
   imageViewSize,
+  PREVIEW_LIMITS,
 } from "./image-view-size";
 
-const DEFAULT_LIMITS: ProviderImageView = {
-  maxEdge: 1568,
-  maxPatches: 1568,
-  patchSize: 28,
-};
+const DEFAULT_LIMITS = PREVIEW_LIMITS;
 
-// The high-resolution tier documented for Claude. Not what any provider is
-// configured with today, but the math has to hold for whatever we set.
-const HIGH_TIER_LIMITS: ProviderImageView = {
+// The high-resolution tier documented for Claude. Not what anything is
+// configured with, but the math has to hold for whatever we set.
+const HIGH_TIER_LIMITS: ImageViewLimits = {
   maxEdge: 2576,
   maxPatches: 4784,
   patchSize: 28,
@@ -23,7 +19,7 @@ const HIGH_TIER_LIMITS: ProviderImageView = {
 
 function fits(
   size: { height: number; width: number },
-  limits: ProviderImageView,
+  limits: ImageViewLimits,
 ) {
   return (
     Math.ceil(size.width / limits.patchSize) * limits.patchSize <=
@@ -114,15 +110,17 @@ describe("imageViewSize", () => {
   });
 });
 
-describe("imageViewLimits", () => {
-  it("gives every provider the conservative floor until one is raised", () => {
-    expect(imageViewLimits("anthropic")).toMatchInlineSnapshot(`
+describe("PREVIEW_LIMITS", () => {
+  it("is one budget, not a per-provider lookup", () => {
+    // A coordinate space that changes with the active model cannot be referred
+    // to by a message written before the switch, so this is deliberately a
+    // constant and the test exists to keep it one.
+    expect(PREVIEW_LIMITS).toMatchInlineSnapshot(`
       {
         "maxEdge": 1568,
         "maxPatches": 1568,
         "patchSize": 28,
       }
     `);
-    expect(imageViewLimits("openai")).toEqual(imageViewLimits("anthropic"));
   });
 });

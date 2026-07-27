@@ -3,7 +3,7 @@ import type { ModelMessage } from "ai";
 import { execa } from "execa";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
+import { pngHeaderBytes } from "../test/helpers/png-header";
 import { FFMPEG_PATH } from "./ffmpeg";
 import { normalizeModelImages } from "./normalize-model-images";
 import { measureImage } from "./render-image";
@@ -33,11 +33,7 @@ async function drawPng(size: string) {
   return Buffer.from(result.stdout);
 }
 
-const model = createMockAIGatewayModel({
-  features: ["inputText", "inputImage", "outputText"],
-});
-
-/** Well past the 1568-edge/1568-patch floor every provider starts at. */
+/** Well past the fixed preview budget. */
 let oversized: string;
 /** Comfortably inside it. */
 let small: string;
@@ -70,7 +66,7 @@ describe("normalizeModelImages", () => {
       },
     ];
 
-    const [result] = await normalizeModelImages({ messages, model });
+    const [result] = await normalizeModelImages({ messages });
 
     expect(imageDataOf(result)).toBe(small);
   }, 60_000);
@@ -86,7 +82,7 @@ describe("normalizeModelImages", () => {
       },
     ];
 
-    const [result] = await normalizeModelImages({ messages, model });
+    const [result] = await normalizeModelImages({ messages });
     const data = imageDataOf(result);
 
     expect(data).not.toBe(oversized);
@@ -114,7 +110,7 @@ describe("normalizeModelImages", () => {
       },
     ];
 
-    const [result] = await normalizeModelImages({ messages, model });
+    const [result] = await normalizeModelImages({ messages });
 
     expect(imageDataOf(result)?.startsWith("data:image/png;base64,")).toBe(
       true,
@@ -142,7 +138,7 @@ describe("normalizeModelImages", () => {
       },
     ];
 
-    const [result] = await normalizeModelImages({ messages, model });
+    const [result] = await normalizeModelImages({ messages });
     const part =
       result && Array.isArray(result.content) ? result.content[0] : undefined;
     const value =
@@ -192,7 +188,7 @@ describe("normalizeModelImages", () => {
         },
       ];
 
-      const [result] = await normalizeModelImages({ messages, model });
+      const [result] = await normalizeModelImages({ messages });
       const part = Array.isArray(result?.content)
         ? result.content[0]
         : undefined;
@@ -205,6 +201,35 @@ describe("normalizeModelImages", () => {
     60_000,
   );
 
+  it("drops an image declaring more pixels than a decoder should hold", async () => {
+    // `read_file` refuses these up front, so anything reaching here came from a
+    // user upload, a generated image, or a session recorded before that check.
+    // Says why rather than reusing the generic note, since the fix is different:
+    // downscale and re-attach, not "the file is broken".
+    const messages: ModelMessage[] = [
+      {
+        content: [
+          {
+            data: pngHeaderBytes({ height: 16_000, width: 16_000 }).toString(
+              "base64",
+            ),
+            mediaType: "image/png",
+            type: "file",
+          },
+        ],
+        role: "user",
+      },
+    ];
+
+    const [result] = await normalizeModelImages({ messages });
+    const part = Array.isArray(result?.content) ? result.content[0] : undefined;
+
+    expect(part?.type).toBe("text");
+    expect(part && "text" in part ? part.text : "").toContain(
+      "too large to decode",
+    );
+  });
+
   it("corrects a media type the bytes contradict", async () => {
     // A download served as PNG under a `.jpg` name is the ordinary way this
     // happens, and the mismatch alone is enough to get the request rejected.
@@ -215,7 +240,7 @@ describe("normalizeModelImages", () => {
       },
     ];
 
-    const [result] = await normalizeModelImages({ messages, model });
+    const [result] = await normalizeModelImages({ messages });
     const part = Array.isArray(result?.content) ? result.content[0] : undefined;
 
     expect(part && "mediaType" in part ? part.mediaType : undefined).toBe(
@@ -237,7 +262,7 @@ describe("normalizeModelImages", () => {
       },
     ];
 
-    const [result] = await normalizeModelImages({ messages, model });
+    const [result] = await normalizeModelImages({ messages });
 
     expect(result).toEqual(messages[0]);
   }, 60_000);
@@ -254,7 +279,7 @@ describe("normalizeModelImages", () => {
       { content: "system prompt", role: "system" },
     ];
 
-    const result = await normalizeModelImages({ messages, model });
+    const result = await normalizeModelImages({ messages });
 
     expect(result).toEqual(messages);
   }, 60_000);
@@ -267,8 +292,8 @@ describe("normalizeModelImages", () => {
       },
     ];
 
-    const first = await normalizeModelImages({ messages, model });
-    const second = await normalizeModelImages({ messages, model });
+    const first = await normalizeModelImages({ messages });
+    const second = await normalizeModelImages({ messages });
 
     // Byte-identical across turns, or the prompt cache breaks on every request.
     expect(imageDataOf(second[0])).toBe(imageDataOf(first[0]));

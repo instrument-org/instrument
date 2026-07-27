@@ -93,10 +93,108 @@ describe("sanitizeModelText", () => {
     ]);
   });
 
+  it("cleans the text a tool returned, in both output shapes", () => {
+    // Where file contents and command output reach the model, so the largest
+    // source of text nobody on our side wrote.
+    const messages: ModelMessage[] = [
+      {
+        content: [
+          {
+            output: { type: "text", value: `file ${HIGH} contents` },
+            toolCallId: "call-1",
+            toolName: "read_file",
+            type: "tool-result",
+          },
+          {
+            output: { type: "error-text", value: `stderr ${LOW}` },
+            toolCallId: "call-2",
+            toolName: "bash",
+            type: "tool-result",
+          },
+          {
+            output: {
+              type: "content",
+              value: [
+                { text: `caption ${HIGH}`, type: "text" },
+                { data: "abc", mediaType: "image/png", type: "media" },
+              ],
+            },
+            toolCallId: "call-3",
+            toolName: "read_file",
+            type: "tool-result",
+          },
+        ],
+        role: "tool",
+      },
+    ];
+
+    const result = sanitizeModelText(messages);
+
+    expect(JSON.stringify(result)).not.toMatch(/[\uD800-\uDFFF]/);
+    expect(result[0]?.content).toEqual([
+      {
+        output: { type: "text", value: "file  contents" },
+        toolCallId: "call-1",
+        toolName: "read_file",
+        type: "tool-result",
+      },
+      {
+        output: { type: "error-text", value: "stderr " },
+        toolCallId: "call-2",
+        toolName: "bash",
+        type: "tool-result",
+      },
+      {
+        output: {
+          type: "content",
+          value: [
+            { text: "caption ", type: "text" },
+            { data: "abc", mediaType: "image/png", type: "media" },
+          ],
+        },
+        toolCallId: "call-3",
+        toolName: "read_file",
+        type: "tool-result",
+      },
+    ]);
+  });
+
+  it("cleans a provider-executed tool result on an assistant message", () => {
+    const messages: ModelMessage[] = [
+      {
+        content: [
+          {
+            output: { type: "text", value: `result ${HIGH}` },
+            toolCallId: "call-4",
+            toolName: "web_search",
+            type: "tool-result",
+          },
+        ],
+        role: "assistant",
+      },
+    ];
+
+    expect(encodable(JSON.stringify(sanitizeModelText(messages)))).toBe(true);
+    expect(JSON.stringify(sanitizeModelText(messages))).not.toMatch(
+      /[\uD800-\uDFFF]/,
+    );
+  });
+
   it("leaves clean messages alone", () => {
     const messages: ModelMessage[] = [
       { content: "nothing wrong here 🙈", role: "system" },
       { content: [{ text: "also fine", type: "text" }], role: "user" },
+      {
+        content: [
+          {
+            output: { type: "text", value: "fine too 🙈" },
+            toolCallId: "call-1",
+            toolName: "read_file",
+            type: "tool-result",
+          },
+        ],
+        role: "tool",
+      },
     ];
 
     expect(sanitizeModelText(messages)).toEqual(messages);

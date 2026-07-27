@@ -5,6 +5,10 @@ import { page, userEvent } from "vitest/browser";
 
 import { PromptEditor, type PromptEditorRef } from "./prompt-editor";
 
+vi.mock("@/client/components/skill-mention", () => ({
+  SkillMention: ({ name }: { name: string }) => <span>/{name}</span>,
+}));
+
 // What jsdom cannot observe: a real caret, a real selection, and text that
 // arrives by being typed rather than by being handed in as a prop. Everything
 // here needs a browser to mean anything; anything that does not belongs in
@@ -22,7 +26,18 @@ const editorProps = {
   skills: [] as ComponentProps<typeof PromptEditor>["skills"],
 };
 
-function renderEditor(defaultValue = "") {
+const ffmpegSkill = {
+  aliases: ["instrument:ffmpeg"],
+  description: "Edit video and audio with FFmpeg",
+  id: "instrument:ffmpeg",
+  name: "ffmpeg",
+  path: "/skills/ffmpeg",
+  qualifiedName: "ffmpeg",
+  source: "instrument",
+  title: "FFmpeg",
+} satisfies ComponentProps<typeof PromptEditor>["skills"][number];
+
+function renderEditor(defaultValue = "", skills = editorProps.skills) {
   const onChange = vi.fn();
   const ref = createRef<PromptEditorRef>();
   // `render` reports a thenable so it can be awaited; nothing here needs to.
@@ -33,6 +48,7 @@ function renderEditor(defaultValue = "") {
       defaultValue={defaultValue}
       onChange={onChange}
       ref={ref}
+      skills={skills}
     />,
   );
   return { onChange, ref };
@@ -41,6 +57,17 @@ function renderEditor(defaultValue = "") {
 // The editor is a contenteditable div, which carries no implicit role, so it is
 // found by the label ProseMirror puts on it rather than by role.
 const editor = () => page.getByLabelText("Prompt");
+
+async function pasteText(text: string) {
+  await userEvent.click(editor());
+  const target = document.querySelector<HTMLElement>('[aria-label="Prompt"]');
+  const clipboardData = new DataTransfer();
+  clipboardData.setData("text/plain", text);
+  clipboardData.setData("text/html", `<p>${text}</p>`);
+  target?.dispatchEvent(
+    new ClipboardEvent("paste", { bubbles: true, clipboardData }),
+  );
+}
 
 describe("PromptEditor in a browser", () => {
   it("reports what was typed", async () => {
@@ -103,4 +130,21 @@ describe("PromptEditor in a browser", () => {
 
     expect(onChange).toHaveBeenLastCalledWith("one src/app.ts !two");
   });
+
+  it.each(["/ffmpeg is cool", "/instrument:ffmpeg is cool"])(
+    "tokenizes a recognized pasted skill command: %s",
+    async (text) => {
+      const { onChange, ref } = renderEditor("", [ffmpegSkill]);
+
+      await pasteText(text);
+
+      expect(ref.current?.getValue()).toBe(
+        "[$instrument:ffmpeg](skill:instrument:ffmpeg) is cool",
+      );
+      expect(
+        document.querySelector('[data-skill="instrument:ffmpeg"]'),
+      ).not.toBeNull();
+      expect(onChange).toHaveBeenLastCalledWith(ref.current?.getValue());
+    },
+  );
 });

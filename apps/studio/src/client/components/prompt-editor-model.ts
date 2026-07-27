@@ -1,3 +1,4 @@
+import { splitSkillText } from "@/client/lib/skill-text";
 import { SKILL_TOKEN_CLASS_NAME } from "@/client/lib/skill-tokens";
 import {
   skillMentionLabel,
@@ -75,6 +76,39 @@ export const deleteSkillForward: Command = (state, dispatch) => {
   dispatch?.(state.tr.delete($cursor.pos, $cursor.pos + after.nodeSize));
   return true;
 };
+
+export function promptDocFromPastedText(
+  value: string,
+  skills: {
+    aliases: string[];
+    id: string;
+    qualifiedName: string;
+  }[],
+) {
+  const skillIdsByName = new Map<string, string>();
+  for (const skill of skills) {
+    for (const name of [...skill.aliases, skill.qualifiedName]) {
+      skillIdsByName.set(name, skill.id);
+    }
+  }
+
+  const paragraphs = value.split("\n").map((line) => {
+    const nodes: ProseMirrorNode[] = splitSkillText(line).map((segment) => {
+      if (segment.type === "text") {
+        return promptSchema.text(segment.text);
+      }
+      const name =
+        segment.type === "skill"
+          ? segment.name
+          : skillIdsByName.get(segment.name);
+      return name
+        ? promptSchema.nodes.skill.create({ name })
+        : promptSchema.text(skillMentionLabel(segment.name));
+    });
+    return promptSchema.nodes.paragraph.create(null, Fragment.from(nodes));
+  });
+  return promptSchema.nodes.doc.create(null, paragraphs);
+}
 
 export function promptDocFromText(value: string) {
   const paragraphs = value.split("\n").map((line) => {

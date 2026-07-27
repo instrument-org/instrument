@@ -6,6 +6,7 @@ describe("splitSkillText", () => {
   it("separates composer tokens, bare slash commands and the text around them", () => {
     const lines = [
       "Use /release to ship",
+      "Use /workspace:release to ship",
       "Use [$release](skill:release) to ship",
       "/release",
       "Read use /release. Then /docx, maybe.",
@@ -78,6 +79,20 @@ describe("splitSkillText", () => {
           },
           {
             "name": "release",
+            "type": "slash",
+          },
+          {
+            "text": " to ship",
+            "type": "text",
+          },
+        ],
+        "Use /workspace:release to ship": [
+          {
+            "text": "Use ",
+            "type": "text",
+          },
+          {
+            "name": "workspace:release",
             "type": "slash",
           },
           {

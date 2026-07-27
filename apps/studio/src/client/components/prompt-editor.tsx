@@ -38,6 +38,7 @@ import { createPortal } from "react-dom";
 import {
   deleteSkillBackward,
   deleteSkillForward,
+  promptDocFromPastedText,
   promptDocFromText,
   promptSchema,
   promptTextFromDoc,
@@ -237,7 +238,7 @@ export function PromptEditor({
     const view = new EditorView(mount, {
       attributes: editorAttributes(initialProps.placeholder),
       clipboardTextParser: (text) =>
-        Slice.maxOpen(promptDocFromText(text).content),
+        Slice.maxOpen(promptDocFromPastedText(text, skillsRef.current).content),
       clipboardTextSerializer: (slice) =>
         promptTextFromDoc(promptSchema.nodes.doc.create(null, slice.content)),
       dispatchTransaction: (transaction) => {
@@ -304,6 +305,26 @@ export function PromptEditor({
           return true;
         }
         return false;
+      },
+      handlePaste: (editorView, event) => {
+        const clipboardData = event.clipboardData;
+        const text =
+          clipboardData?.getData("text/plain") ||
+          clipboardData?.getData("Text");
+        if (!text) {
+          return false;
+        }
+        const slice = Slice.maxOpen(
+          promptDocFromPastedText(text, skillsRef.current).content,
+        );
+        editorView.dispatch(
+          editorView.state.tr
+            .replaceSelection(slice)
+            .scrollIntoView()
+            .setMeta("paste", true)
+            .setMeta("uiEvent", "paste"),
+        );
+        return true;
       },
       // A token in the draft is the same token the sent message will show, so
       // the chip is the transcript's component rendered through a portal rather
@@ -409,8 +430,8 @@ export function PromptEditor({
     const leading =
       before && !(before.isText && /\s$/.test(before.text ?? "")) ? " " : "";
     const trailing = after?.isText && /^\s/.test(after.text ?? "") ? "" : " ";
-    // Parsed the way pasted text is, so a skill mention in what was handed in
-    // becomes a chip rather than its own markup.
+    // Parse the composer's serialized skill mentions so one handed in from
+    // outside becomes a chip rather than its own markup.
     view.dispatch(
       view.state.tr.replaceSelection(
         Slice.maxOpen(promptDocFromText(leading + text + trailing).content),

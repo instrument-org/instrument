@@ -12,7 +12,7 @@ export type SkillTextSegment =
 // (`src/lib`) and the tail of a URL never read as one, and bounded by the
 // characters a skill name may hold so trailing punctuation ("use /release.")
 // stays text.
-const SLASH_COMMAND_PATTERN = /(^|\s)\/([\w-]+)/g;
+const SLASH_COMMAND_PATTERN = /(^|\s)\/([\w:-]+)/g;
 
 /**
  * Split one line into the skill references it carries and the text around them.

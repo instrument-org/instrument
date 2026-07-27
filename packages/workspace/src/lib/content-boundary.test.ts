@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { boundContent } from "./content-boundary";
+import { boundContent, drawNonce } from "./content-boundary";
 
 const NONCE = /^[0-9a-f]{32}$/;
 
@@ -89,15 +89,20 @@ describe("boundContent", () => {
     );
     expect(block.split(`nonce=${nonce}`)).toHaveLength(3);
   });
+});
 
-  it("never picks a nonce the content already contains", () => {
-    // Every 32-hex string the content holds is a nonce that must not be drawn.
-    const decoys = Array.from({ length: 64 }, (_, index) =>
-      index.toString(16).padStart(32, "0"),
-    ).join("\n");
+describe("drawNonce", () => {
+  it("redraws until it has one the content does not already contain", () => {
+    const draws = ["aaaa", "bbbb", "cccc"];
 
-    const { nonce } = boundContent({ content: decoys, label: "L" });
+    expect(
+      drawNonce("bbbb and aaaa appear here", () => draws.shift() ?? ""),
+    ).toBe("cccc");
+  });
 
-    expect(decoys).not.toContain(nonce);
+  it("gives up rather than looping when every draw collides", () => {
+    expect(() =>
+      drawNonce("aaaa", () => "aaaa"),
+    ).toThrowErrorMatchingInlineSnapshot(`[Error: Could not draw a content boundary nonce]`);
   });
 });

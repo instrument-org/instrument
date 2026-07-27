@@ -69,7 +69,7 @@ describe("streamTool", () => {
     // only when the generator was created would have been lost.
     const types = [];
     for await (const { type } of streamTool({
-      async *execute () {
+      async *execute() {
         for (const step of [1, 2, 3]) {
           seen.push(await sampleTurn());
           yield ok({ step });
@@ -97,7 +97,7 @@ describe("streamTool", () => {
     const seen: (TurnId | undefined)[] = [];
 
     for await (const { type } of streamTool({
-      async *execute () {
+      async *execute() {
         try {
           yield ok({ step: 1 });
           yield ok({ step: 2 });

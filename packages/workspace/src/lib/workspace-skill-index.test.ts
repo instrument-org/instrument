@@ -218,6 +218,26 @@ describe("consumeSkillChanges", () => {
     });
   });
 
+  it("keeps a named package's change when the turn also mutates the root", async () => {
+    await writeSkill("tidy", "Tidy things.");
+    await beginSkillChangeTracking(turn);
+
+    await fs.mkdir(path.join(skillsDir, "tidy", "scripts"));
+    await fs.writeFile(path.join(skillsDir, "tidy", "scripts", "run.ts"), "");
+    withTurnContext(turn, () => {
+      recordWorkspaceSkillMutation("/tidy/scripts/run.ts");
+      // Installing a package copies into the mount root, which names nothing.
+      // The turn still named `tidy`, so that evidence has to survive.
+      recordWorkspaceSkillMutation("/");
+    });
+
+    await expect(consumeSkillChanges(turn)).resolves.toEqual({
+      created: [],
+      removed: [],
+      updated: ["tidy"],
+    });
+  });
+
   it("attributes a change outside SKILL.md to the writing session", async () => {
     await writeSkill("tidy", "Tidy things.");
     await beginSkillChangeTracking(turn);

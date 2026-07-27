@@ -41,11 +41,10 @@ interface TurnTracker {
 }
 
 /**
- * Per-turn writes keyed by task and session, holding the turn each tracker
- * belongs to. Keying by session rather than by turn id keeps a turn that never
- * reached `consumeSkillChanges` from accumulating: the next turn on that
- * session replaces it. The turn id on the tracker is what makes an arriving
- * write prove it belongs to the turn now running.
+ * Per-turn writes keyed by task and session. Keying by session rather than by
+ * turn id keeps a turn that never reached `consumeSkillChanges` from
+ * accumulating: the next turn on that session replaces it. The turn id on the
+ * tracker is what makes an arriving write prove which turn it came from.
  */
 const TURNS = new Map<string, TurnTracker>();
 
@@ -74,12 +73,11 @@ export async function beginSkillChangeTracking(turn: TurnKey): Promise<void> {
  * Classifies only the packages this session mutated, then drops its tracker.
  * Safe to call unconditionally; reports nothing when the turn was not tracked.
  *
- * A package the turn named is reported as updated on the strength of the write
- * itself, not the stamp: editing `scripts/run.ts` is a real revision that
- * leaves SKILL.md untouched. `touchedAll` has no such evidence -- it is the
- * fallback for a mutation aimed at the mount root, where the boundary cannot
- * say which package moved -- so there a changed SKILL.md is the only thing
- * separating the packages this turn edited from the rest of the directory.
+ * A package the turn named counts as updated on the write alone: editing
+ * `scripts/run.ts` is a real revision that leaves SKILL.md untouched. The
+ * `touchedAll` fallback -- a mutation aimed at the mount root, which names no
+ * package -- has no such evidence, so the packages it sweeps in need a changed
+ * SKILL.md to separate them from the rest of the directory.
  */
 export async function consumeSkillChanges(
   turn: TurnKey,
@@ -107,7 +105,7 @@ export async function consumeSkillChanges(
     } else if (
       stampBefore &&
       stampAfter &&
-      (!tracker.touchedAll || stampChanged(stampBefore, stampAfter))
+      (tracker.touched.has(name) || stampChanged(stampBefore, stampAfter))
     ) {
       changes.updated.push(name);
     }

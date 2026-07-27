@@ -34,13 +34,8 @@ const ACTIVE_TURNS = new Map<string, TurnId>();
 const TURN_CONTEXT = new AsyncLocalStorage<TurnContext>();
 
 /**
- * Starts a turn and returns its id.
- *
- * The workspace holds a single process-wide registry rather than threading the
- * turn through every call, because the code that needs to know the turn -- the
- * shared write boundaries -- sits many frames below the agent loop and takes no
- * session argument. `withTurnContext` is the only way that registry reaches
- * them, so nothing outside a tool call can observe a turn.
+ * Starts a turn and returns its id. `withTurnContext` is the only way this
+ * registry reaches a caller, so nothing outside a tool call can observe a turn.
  */
 export function beginTurn(turn: TurnKey): TurnId {
   const turnId = TurnIdSchema.parse(`trn_${ulid()}`);
@@ -70,12 +65,9 @@ export function turnKey({ id, sessionId }: TurnKey): string {
 /**
  * Runs a tool call bound to the turn that owns it.
  *
- * Nested execution keeps the outer turn. When a tool spawns a sub-agent, that
- * sub-agent's own tool calls run inside this scope on a different session, but
- * the work still belongs to the turn the user started -- that is the turn whose
- * end-of-turn report they are reading, and the session they are looking at.
- * Attributing it to the inner session would strand the report inside a
- * sub-agent nobody has open.
+ * Nested execution keeps the outer turn: a sub-agent spawned by a tool runs on
+ * its own session, but its work belongs to the turn the user started, which is
+ * the session they have open and the report they will read.
  */
 export function withTurnContext<T>(turn: TurnKey, callback: () => T): T {
   const inherited = TURN_CONTEXT.getStore();

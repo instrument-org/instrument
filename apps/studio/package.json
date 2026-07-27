@@ -77,6 +77,7 @@
     "detect-port": "^2.1.0",
     "dugite": "3.0.0-rc11",
     "electron-context-menu": "^4.1.2",
+    "electron-dl": "^4.0.0",
     "electron-log": "^5.4.1",
     "electron-store": "^10.1.0",
     "electron-updater": "^6.8.3",

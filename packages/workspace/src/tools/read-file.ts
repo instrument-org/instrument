@@ -1,4 +1,3 @@
-import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 // Adapted from
 // https://github.com/sst/opencode/blob/dev/packages/opencode/src/tool/read.ts
 import { isBinaryFile } from "isbinaryfile";
@@ -17,12 +16,19 @@ import { formatBytes } from "../lib/format-bytes";
 import { getMimeType } from "../lib/get-mime-type";
 import {
   type ImageSize,
-  imageViewLimits,
+  type ImageViewLimits,
   imageViewSize,
+  PREVIEW_LIMITS,
 } from "../lib/image-view-size";
 import { listFiles } from "../lib/list-files";
 import { pathExists } from "../lib/path-exists";
-import { measureImage, renderImage } from "../lib/render-image";
+import { canDecodeMedia, isReadablePdf } from "../lib/probe-media";
+import {
+  exceedsDecodeBudget,
+  MAX_DECODED_PIXELS,
+  measureImage,
+  renderImage,
+} from "../lib/render-image";
 import {
   getSimilarPathSuggestions,
   resolveExistingFilePath,
@@ -85,8 +91,10 @@ const MEDIA_CONFIG: Record<MediaFileState, { label: string; maxSize: number }> =
       // Providers cap a single image around 5 MB encoded, but an image over
       // that no longer has to be refused: outgoing images are resized to the
       // provider's budget on the way out (`normalize-model-images.ts`), which
-      // brings a large photo or scan under the cap on its own. This is only a
-      // guard against decoding something pathological into memory.
+      // brings a large photo or scan under the cap on its own. So this bounds
+      // only how much is read off disk and base64'd. What a decode would cost
+      // is a separate question that bytes cannot answer -- see
+      // `MAX_DECODED_PIXELS`.
       maxSize: 50 * 1024 * 1024,
     },
     pdf: {
@@ -120,7 +128,7 @@ async function cropRegion({
   view,
 }: {
   fileData: Buffer;
-  limits: ReturnType<typeof imageViewLimits>;
+  limits: ImageViewLimits;
   region: RegionInput;
   signal: AbortSignal;
   size: ImageSize;
@@ -141,13 +149,26 @@ async function cropRegion({
     );
   }
 
-  // The resize preserved the aspect ratio, so one factor carries both axes.
-  const scale = size.width / view.width;
+  // Both corners are mapped, each on its own axis, rather than mapping the
+  // origin and scaling the extent. The view's height is a rounded value, so its
+  // aspect ratio is not exactly the original's and one shared factor drifts
+  // vertically. Deriving the extent from two clamped corners also keeps
+  // `left + width` inside the source, which rounding them apart does not: a
+  // region touching the right or bottom edge could ask ffmpeg to crop one pixel
+  // past the image and fail the render instead of landing on the edge.
+  const scaleX = size.width / view.width;
+  const scaleY = size.height / view.height;
+  const sourceLeft = clamp(Math.round(left * scaleX), 0, size.width - 1);
+  const sourceTop = clamp(Math.round(top * scaleY), 0, size.height - 1);
   const source = {
-    height: Math.max(1, Math.round((bottom - top) * scale)),
-    left: Math.round(left * scale),
-    top: Math.round(top * scale),
-    width: Math.max(1, Math.round((right - left) * scale)),
+    height:
+      clamp(Math.round(bottom * scaleY), sourceTop + 1, size.height) -
+      sourceTop,
+    left: sourceLeft,
+    top: sourceTop,
+    width:
+      clamp(Math.round(right * scaleX), sourceLeft + 1, size.width) -
+      sourceLeft,
   };
 
   // Ask for a size far past the budget so the search comes back down to the
@@ -245,7 +266,6 @@ async function handleMediaFile({
   absolutePath,
   fixedPath,
   mimeType,
-  model,
   region,
   signal,
   state,
@@ -253,7 +273,6 @@ async function handleMediaFile({
   absolutePath: string;
   fixedPath: string;
   mimeType: string;
-  model: AIGatewayModel.Type;
   region?: RegionInput;
   signal: AbortSignal;
   state: MediaFileState;
@@ -284,6 +303,27 @@ async function handleMediaFile({
   const fileData = await fs.readFile(absolutePath, { signal });
 
   if (state !== "image") {
+    // Same reason images are checked: these go out as media with nothing but a
+    // size cap between them and the provider, so a corrupt PDF or a half-
+    // downloaded video ends the conversation the way a corrupt image used to.
+    const decodable =
+      state === "pdf"
+        ? isReadablePdf(fileData)
+        : await canDecodeMedia({ absolutePath, signal });
+
+    if (!decodable) {
+      return ok({
+        filePath: fixedPath,
+        mimeType,
+        modifiedAt: stats.mtimeMs,
+        reason:
+          state === "pdf"
+            ? ("undecodable-pdf" as const)
+            : ("undecodable-media" as const),
+        state: "unsupported-format" as const,
+      });
+    }
+
     return ok({
       base64Data: fileData.toString("base64"),
       filePath: fixedPath,
@@ -293,9 +333,8 @@ async function handleMediaFile({
     });
   }
 
-  const limits = imageViewLimits(model.params.provider);
   const size = measureImage(fileData);
-  const view = size && imageViewSize({ ...size, limits });
+  const target = size && imageViewSize({ ...size, limits: PREVIEW_LIMITS });
 
   // Report what the bytes are, not what the name claims. `getMimeType` reads
   // the extension, and a downloaded `.jpg` that is really a PNG would otherwise
@@ -303,7 +342,7 @@ async function handleMediaFile({
   // already written to disk and replayed every turn after.
   const sniffedMimeType = size?.mediaType ?? mimeType;
 
-  if (!size || !view) {
+  if (!size || !target) {
     // Nothing could read these bytes as an image. Say so rather than handing
     // them on: the send would be rejected for content that is already saved and
     // replayed on every later turn.
@@ -316,6 +355,35 @@ async function handleMediaFile({
     });
   }
 
+  if (exceedsDecodeBudget(size)) {
+    // Refused before it enters the transcript, not just before it is rendered:
+    // once the part is saved, every later turn hands the same declared
+    // dimensions to the resize pass and pays for the attempt again.
+    return ok({
+      filePath: fixedPath,
+      mimeType: sniffedMimeType,
+      modifiedAt: stats.mtimeMs,
+      reason: "image-too-large" as const,
+      state: "unsupported-format" as const,
+    });
+  }
+
+  // The preview is produced here, so the dimensions announced below are measured
+  // from the bytes that go with them rather than predicted for bytes something
+  // else will render later. Two things used to break that agreement: the send-time
+  // resize ran against whichever model was active by then, and it could shrink
+  // below its own target to fit the byte cap while the text still named the
+  // target. Neither can happen to a size read off the result.
+  const preview = await previewImage({ fileData, signal, size, target });
+  if (preview.isErr()) {
+    return err(preview.error);
+  }
+  const {
+    bytes: previewBytes,
+    mediaType: previewMediaType,
+    view,
+  } = preview.value;
+
   const dimensions = {
     height: size.height,
     viewHeight: view.height,
@@ -325,9 +393,9 @@ async function handleMediaFile({
 
   if (!region) {
     return ok({
-      base64Data: fileData.toString("base64"),
+      base64Data: previewBytes.toString("base64"),
       filePath: fixedPath,
-      mimeType: sniffedMimeType,
+      mimeType: previewMediaType,
       modifiedAt: stats.mtimeMs,
       state,
       ...dimensions,
@@ -336,7 +404,7 @@ async function handleMediaFile({
 
   const cropped = await cropRegion({
     fileData,
-    limits,
+    limits: PREVIEW_LIMITS,
     region,
     signal,
     size,
@@ -359,6 +427,76 @@ async function handleMediaFile({
   });
 }
 
+/**
+ * The bytes the model is shown, and the size those bytes actually are.
+ *
+ * `view` is measured from what came back, never assumed from what was asked for,
+ * because the whole coordinate contract rests on the announced pixel space
+ * matching the pixels sent.
+ *
+ * An image already inside the budget is passed through byte for byte. That is
+ * worth keeping deliberately: re-encoding it would soften exactly the hairlines
+ * and small text a region read exists to make legible, and there is nothing to
+ * gain when the file is already the size the model will see.
+ */
+async function previewImage({
+  fileData,
+  signal,
+  size,
+  target,
+}: {
+  fileData: Buffer;
+  signal: AbortSignal;
+  size: ImageSize & { mediaType?: string };
+  target: ImageSize;
+}) {
+  const { mediaType } = size;
+  const withinBudget =
+    target.width === size.width && target.height === size.height;
+
+  if (
+    mediaType !== undefined &&
+    SUPPORTED_IMAGE_FORMATS.includes(mediaType) &&
+    withinBudget &&
+    fileData.byteLength <= MAX_RENDERED_BYTES
+  ) {
+    return ok({
+      bytes: fileData,
+      mediaType,
+      view: { height: size.height, width: size.width },
+    });
+  }
+
+  const rendered = await renderImage({
+    bytes: fileData,
+    maxBytes: MAX_RENDERED_BYTES,
+    signal,
+    target,
+  });
+
+  if (!rendered) {
+    return executeError(
+      [
+        "Could not produce a viewable copy of this image.",
+        "Convert it to PNG or JPEG, or downscale it, and read the result.",
+      ].join(" "),
+    );
+  }
+
+  // Read back off the encoded result rather than trusting the size it was asked
+  // for. Same principle as the rest of this function, applied one level down.
+  const measured = measureImage(rendered.bytes);
+
+  return ok({
+    bytes: rendered.bytes,
+    mediaType: rendered.mediaType,
+    view: {
+      height: measured?.height ?? rendered.height,
+      width: measured?.width ?? rendered.width,
+    },
+  });
+}
+
 export const ReadFile = setupTool({
   inputSchema: BaseInputSchema.extend({
     [INPUT_PARAMS.filePath]: z.string().meta({
@@ -377,7 +515,7 @@ export const ReadFile = setupTool({
     }),
     [INPUT_PARAMS.region]: RegionSchema.optional().meta({
       description:
-        "Images only. Two opposite corners of a rectangle, in the pixel space of the image as you were shown it (origin at the top-left, x right, y down). Returns that region cropped from the full-resolution file and magnified.",
+        "Images only. Two opposite corners of a rectangle, in the pixel space of the whole image as you were first shown it (origin at the top-left, x right, y down) -- not the pixel space of a magnified crop from an earlier read. Returns that region cropped from the full-resolution file and magnified.",
     }),
   }),
   name: "read_file",
@@ -444,7 +582,10 @@ export const ReadFile = setupTool({
       modifiedAt: z.number(),
       reason: z.enum([
         "binary-file",
+        "image-too-large",
         "undecodable-image",
+        "undecodable-media",
+        "undecodable-pdf",
         "unsupported-image-format",
       ]),
       state: z.literal("unsupported-format"),
@@ -471,9 +612,9 @@ export const ReadFile = setupTool({
     - If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.
     - You can read images, PDFs, audio files, and video files by using this tool.
     - Reading an image tells you its pixel dimensions, and the smaller size you are shown it at when it is too large to render whole.
-    - To read a detail that is too small to make out -- a chart label, a value in a dense table, which of two lines sits higher, text in a screenshot -- read the image again with ${INPUT_PARAMS.region} set to the corners of the area in question. It comes back cropped from the full-resolution file and magnified, so what was a few pixels becomes legible. Coordinates are pixels in the image as you were shown it. Narrow it further by reading a ${INPUT_PARAMS.region} of what you get back. Trust what you read magnified over your first impression of the whole image.
+    - To read a detail that is too small to make out -- a chart label, a value in a dense table, which of two lines sits higher, text in a screenshot -- read the image again with ${INPUT_PARAMS.region} set to the corners of the area in question. It comes back cropped from the full-resolution file and magnified, so what was a few pixels becomes legible. Coordinates are always pixels in the whole image as you were first shown it, never pixels in a magnified crop you got back. To narrow further, give a smaller rectangle in those same whole-image coordinates; each response repeats the rectangle it used, so subdivide that. Trust what you read magnified over your first impression of the whole image.
   `,
-  execute: async ({ input, model, signal, taskId, taskState }) => {
+  execute: async ({ input, signal, taskId, taskState }) => {
     const layout = buildWorkspaceFsLayout({
       attachedFolders: taskState.attachedFolders,
       taskHostRoot: taskDir(taskId),
@@ -605,7 +746,6 @@ export const ReadFile = setupTool({
         absolutePath,
         fixedPath: displayPath,
         mimeType,
-        model,
         region: input.region,
         signal,
         state: "image",
@@ -617,7 +757,6 @@ export const ReadFile = setupTool({
         absolutePath,
         fixedPath: displayPath,
         mimeType,
-        model,
         signal,
         state: "pdf",
       });
@@ -628,7 +767,6 @@ export const ReadFile = setupTool({
         absolutePath,
         fixedPath: displayPath,
         mimeType,
-        model,
         signal,
         state: "audio",
       });
@@ -639,7 +777,6 @@ export const ReadFile = setupTool({
         absolutePath,
         fixedPath: displayPath,
         mimeType,
-        model,
         signal,
         state: "video",
       });
@@ -689,6 +826,40 @@ export const ReadFile = setupTool({
             "The file may be truncated or incomplete, or it may not be the format its name says it is.",
             `Check what it really is with \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json ${output.filePath}\`,`,
             "and convert it before reading.",
+          ].join(" "),
+        };
+      }
+
+      if (output.reason === "image-too-large") {
+        return {
+          type: "error-text",
+          value: [
+            `${output.filePath} declares more than ${MAX_DECODED_PIXELS / 1_000_000} megapixels, too large to decode.`,
+            "Downscale it first, then read the smaller copy.",
+          ].join(" "),
+        };
+      }
+
+      if (output.reason === "undecodable-media") {
+        const mimeInfo = output.mimeType ? ` (${output.mimeType})` : "";
+        return {
+          type: "error-text",
+          value: [
+            `Cannot decode ${output.filePath}${mimeInfo}.`,
+            "The file may be truncated or incomplete, or it may not be the format its name says it is.",
+            `Check what it really is with \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json ${output.filePath}\`,`,
+            "and convert it before reading.",
+          ].join(" "),
+        };
+      }
+
+      if (output.reason === "undecodable-pdf") {
+        return {
+          type: "error-text",
+          value: [
+            `Cannot read ${output.filePath} as a PDF.`,
+            "Its header or its end marker is missing, so it is truncated, incomplete, or not a PDF at all.",
+            "Fetch it again or convert it before reading.",
           ].join(" "),
         };
       }

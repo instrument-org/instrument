@@ -1,13 +1,42 @@
-import {
-  getProviderMetadata,
-  type ProviderImageView,
-} from "@instrument-org/ai-gateway";
-import { type AIProviderType } from "@instrument-org/shared";
-
 export interface ImageSize {
   height: number;
   width: number;
 }
+
+/**
+ * How large an image is shown to a model, in patches and in pixels.
+ *
+ * Providers bill and sample images in square patches, so a budget has two
+ * halves: a cap on the longest edge and a cap on the total patch count.
+ */
+export interface ImageViewLimits {
+  maxEdge: number;
+  maxPatches: number;
+  patchSize: number;
+}
+
+/**
+ * The one size every image is previewed at, for every provider and every model.
+ *
+ * Fixed on purpose, and the reason is the coordinate contract rather than
+ * simplicity. A region read names a pixel space in text and hands over bytes to
+ * match; if that space were derived from the active model, then switching models
+ * mid-session would silently redefine the coordinates every earlier message was
+ * written in, and no message can be reinterpreted after the fact.
+ *
+ * These numbers are the smallest budget any provider we support is known to
+ * render at. A model with a larger budget therefore sees no more of the image on
+ * first look than the floor allows, which is the price of a stable space -- and
+ * a cheap one, because a `region` read goes back to the full-resolution file for
+ * the detail. Raising this per model would reintroduce exactly the instability
+ * above, so it needs a different answer to coordinate stability first, not just
+ * better numbers.
+ */
+export const PREVIEW_LIMITS: ImageViewLimits = {
+  maxEdge: 1568,
+  maxPatches: 1568,
+  patchSize: 28,
+};
 
 /**
  * Patches an image of this size costs the provider, one per patchSize square.
@@ -18,16 +47,12 @@ export function imagePatchCount({
   width,
 }: {
   height: number;
-  limits: ProviderImageView;
+  limits: ImageViewLimits;
   width: number;
 }) {
   return (
     Math.ceil(width / limits.patchSize) * Math.ceil(height / limits.patchSize)
   );
-}
-
-export function imageViewLimits(provider: AIProviderType): ProviderImageView {
-  return getProviderMetadata(provider).imageView;
 }
 
 /**
@@ -49,7 +74,7 @@ export function imageViewSize({
   width,
 }: {
   height: number;
-  limits: ProviderImageView;
+  limits: ImageViewLimits;
   width: number;
 }): ImageSize {
   if (width < 1 || height < 1) {
@@ -90,7 +115,7 @@ function fitsBudget({
   width,
 }: {
   height: number;
-  limits: ProviderImageView;
+  limits: ImageViewLimits;
   width: number;
 }) {
   const { maxEdge, maxPatches, patchSize } = limits;

@@ -1,4 +1,4 @@
-import { APP_NAME_SLUG } from "@instrument-org/shared";
+import { type AIProviderType, APP_NAME_SLUG } from "@instrument-org/shared";
 import { execa } from "execa";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -6,16 +6,22 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FFMPEG_PATH } from "../lib/ffmpeg";
+import { measureImage } from "../lib/render-image";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { TaskDirSchema } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { pngHeaderBytes } from "../test/helpers/png-header";
 import { runTool } from "../test/helpers/run-tool";
 import { TOOLS } from "./all";
 import { ReadFile } from "./read-file";
 
 const model = createMockAIGatewayModel();
+
+// Mirrors `MEDIA_CONFIG.image.maxSize`, to show the byte cap is not what catches
+// a decode bomb.
+const MEDIA_CONFIG_IMAGE_MAX_SIZE = 50 * 1024 * 1024;
 
 async function drawPngFixture(destination: string, size: string) {
   await execa(FFMPEG_PATH, [
@@ -184,6 +190,76 @@ describe("ReadFile", () => {
       60_000,
     );
 
+    it.each([
+      // The passthrough branch and the render branch. The third way the two used
+      // to disagree -- a render shrinking below its own target to fit the byte
+      // cap -- is covered where it happens, in `renderImage`.
+      { name: "in-budget", size: "320x240" },
+      { name: "oversized", size: "3840x2160" },
+    ])(
+      "sends bytes measuring exactly the view it announces for a $name image",
+      async ({ size }) => {
+        // The contract the region read rests on, checked the only way that
+        // settles it: measure the bytes in the result rather than compare two
+        // numbers computed the same way.
+        const name = `announce-probe-${size}.png`;
+        const imagePath = path.join(fixturesPath, name);
+        await drawPngFixture(imagePath, size);
+
+        try {
+          const value = (
+            await runTool(TOOLS.ReadFile, {
+              ...baseInput,
+              input: { explanation: "read", filePath: `./${name}` },
+            })
+          )._unsafeUnwrap();
+
+          expect(value.state).toBe("image");
+          if (value.state !== "image") {
+            return;
+          }
+
+          const measured = measureImage(
+            Buffer.from(value.base64Data, "base64"),
+          );
+          expect(measured).toMatchObject({
+            height: value.viewHeight,
+            width: value.viewWidth,
+          });
+          expect(measured?.mediaType).toBe(value.mimeType);
+        } finally {
+          await fs.rm(imagePath, { force: true });
+        }
+      },
+      60_000,
+    );
+
+    it("describes an image in the same pixel space whatever model is active", async () => {
+      // A coordinate space derived from the active model would be redefined by a
+      // model switch, silently invalidating every earlier message that referred
+      // to it. Nothing here may vary with the model.
+      const imagePath = path.join(fixturesPath, "model-switch-probe.png");
+      await drawPngFixture(imagePath, "3840x2160");
+
+      try {
+        const read = async (provider: AIProviderType) =>
+          (
+            await runTool(TOOLS.ReadFile, {
+              ...baseInput,
+              input: {
+                explanation: "read",
+                filePath: "./model-switch-probe.png",
+              },
+              model: createMockAIGatewayModel({ provider }),
+            })
+          )._unsafeUnwrap();
+
+        expect(await read("anthropic")).toEqual(await read("openai"));
+      } finally {
+        await fs.rm(imagePath, { force: true });
+      }
+    }, 60_000);
+
     it("does not cut a character in half when truncating a long line", async () => {
       // A line over the cap whose 2000th code unit is the first half of an
       // emoji. Slicing at a fixed index leaves a surrogate with no partner,
@@ -238,6 +314,128 @@ describe("ReadFile", () => {
         }
       } finally {
         await fs.rm(imagePath, { force: true });
+      }
+    }, 60_000);
+
+    it("refuses an image whose declared dimensions are too large to decode", async () => {
+      // Bytes on disk say nothing about pixels in memory, so the size cap never
+      // sees this coming. Refused from the header, before a decode -- and built
+      // as a header alone, so the test does not spend what the guard refuses.
+      const imagePath = path.join(fixturesPath, "decode-bomb.png");
+      await fs.writeFile(
+        imagePath,
+        pngHeaderBytes({ height: 16_000, width: 16_000 }),
+      );
+
+      try {
+        const stats = await fs.stat(imagePath);
+        expect(stats.size).toBeLessThan(MEDIA_CONFIG_IMAGE_MAX_SIZE);
+
+        const value = (
+          await runTool(TOOLS.ReadFile, {
+            ...baseInput,
+            input: { explanation: "read", filePath: "./decode-bomb.png" },
+          })
+        )._unsafeUnwrap();
+
+        expect(value.state).toBe("unsupported-format");
+        if (value.state === "unsupported-format") {
+          expect(value.reason).toBe("image-too-large");
+        }
+      } finally {
+        await fs.rm(imagePath, { force: true });
+      }
+    }, 60_000);
+
+    it("refuses a PDF that stops before its end marker", async () => {
+      // A PDF goes out as media with nothing but a size cap in front of it, so
+      // a truncated one bricks a session exactly the way a truncated image did.
+      const pdfPath = path.join(fixturesPath, "truncated.pdf");
+      await fs.writeFile(pdfPath, "%PDF-1.7\n1 0 obj<</Type/Catalog>>endobj\n");
+
+      try {
+        const value = (
+          await runTool(TOOLS.ReadFile, {
+            ...baseInput,
+            input: { explanation: "read", filePath: "./truncated.pdf" },
+          })
+        )._unsafeUnwrap();
+
+        expect(value.state).toBe("unsupported-format");
+        if (value.state === "unsupported-format") {
+          expect(value.reason).toBe("undecodable-pdf");
+        }
+      } finally {
+        await fs.rm(pdfPath, { force: true });
+      }
+    });
+
+    it("refuses a video whose bytes cannot be decoded", async () => {
+      // Half of a real download. MP4 keeps its index at the end of the file, so
+      // the half that arrived is undecodable rather than merely short.
+      const wholePath = path.join(fixturesPath, "whole.mp4");
+      const videoPath = path.join(fixturesPath, "not-really.mp4");
+      await execa(FFMPEG_PATH, [
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=size=64x64:duration=0.2:rate=10",
+        "-pix_fmt",
+        "yuv420p",
+        wholePath,
+      ]);
+      const whole = await fs.readFile(wholePath);
+      await fs.writeFile(videoPath, whole.subarray(0, whole.byteLength / 2));
+      await fs.rm(wholePath, { force: true });
+
+      try {
+        const value = (
+          await runTool(TOOLS.ReadFile, {
+            ...baseInput,
+            input: { explanation: "read", filePath: "./not-really.mp4" },
+          })
+        )._unsafeUnwrap();
+
+        expect(value.state).toBe("unsupported-format");
+        if (value.state === "unsupported-format") {
+          expect(value.reason).toBe("undecodable-media");
+        }
+      } finally {
+        await fs.rm(videoPath, { force: true });
+      }
+    }, 60_000);
+
+    it("reads a video ffprobe can decode", async () => {
+      const videoPath = path.join(fixturesPath, "bars.mp4");
+      await execa(FFMPEG_PATH, [
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=size=64x64:duration=0.2:rate=10",
+        "-pix_fmt",
+        "yuv420p",
+        videoPath,
+      ]);
+
+      try {
+        const value = (
+          await runTool(TOOLS.ReadFile, {
+            ...baseInput,
+            input: { explanation: "read", filePath: "./bars.mp4" },
+          })
+        )._unsafeUnwrap();
+
+        expect(value.state).toBe("video");
+      } finally {
+        await fs.rm(videoPath, { force: true });
       }
     }, 60_000);
 
@@ -334,6 +532,68 @@ describe("ReadFile", () => {
         await fs.rm(imagePath, { force: true });
       }
     }, 60_000);
+
+    it.each([
+      // Elongated enough that the view's short edge rounds hard: a single
+      // width-derived scale factor is then several percent wrong on the other
+      // axis, and a region spanning that edge maps to one pixel past the source
+      // and fails the render rather than landing on the edge.
+      { name: "a wide image", size: "4001x37" },
+      { name: "a tall image", size: "37x4001" },
+    ])(
+      "renders a region spanning the far edges of $name",
+      async ({ size }) => {
+        const name = `region-edge-${size}.png`;
+        const imagePath = path.join(fixturesPath, name);
+        await drawPngFixture(imagePath, size);
+
+        try {
+          // Learn the view first, the way the tool tells the model to: a region
+          // is expressed in the view's pixel space, not the file's.
+          const whole = (
+            await runTool(TOOLS.ReadFile, {
+              ...baseInput,
+              input: { explanation: "look", filePath: `./${name}` },
+            })
+          )._unsafeUnwrap();
+
+          expect(whole.state).toBe("image");
+          if (whole.state !== "image") {
+            return;
+          }
+          const { viewHeight, viewWidth } = whole;
+          expect(viewWidth).toBeDefined();
+          expect(viewHeight).toBeDefined();
+          if (viewWidth === undefined || viewHeight === undefined) {
+            return;
+          }
+
+          const zoomed = (
+            await runTool(TOOLS.ReadFile, {
+              ...baseInput,
+              input: {
+                explanation: "zoom",
+                filePath: `./${name}`,
+                region: { x1: 0, x2: viewWidth, y1: 0, y2: viewHeight },
+              },
+            })
+          )._unsafeUnwrap();
+
+          expect(zoomed.state).toBe("image");
+          if (zoomed.state === "image") {
+            expect(zoomed.region).toEqual({
+              x1: 0,
+              x2: viewWidth,
+              y1: 0,
+              y2: viewHeight,
+            });
+          }
+        } finally {
+          await fs.rm(imagePath, { force: true });
+        }
+      },
+      60_000,
+    );
 
     it("reports an empty region back to the model instead of failing", async () => {
       const imagePath = path.join(fixturesPath, "region-empty-probe.png");

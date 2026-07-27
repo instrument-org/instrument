@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { sanitizeSurrogates } from "./sanitize-model-text";
 import {
   TRUNCATE_HEAD_BYTES,
   TRUNCATE_MAX_BYTES,
@@ -192,6 +193,43 @@ describe("truncateMiddle", () => {
     // Tail should end with the last line
     expect(result.content.endsWith(line)).toBe(true);
   });
+});
+
+describe("character boundaries", () => {
+  // Every emoji here is two UTF-16 code units and four UTF-8 bytes. Cut one in
+  // half and what is left is either a code unit with no UTF-8 encoding or a
+  // replacement character where a character used to be. The first is rejected
+  // by the provider, the second is silent corruption, and tool output is
+  // written to disk and replayed every turn, so both outlive the turn.
+  const emojiLine = "🙂".repeat(64);
+
+  // Every offset in an emoji: the boundary itself and each byte inside one.
+  const caps = [4, 5, 6, 7, 8].map((offset) => 1024 + offset);
+
+  it.each(caps)("keeps whole characters at a %i byte cap", (maxBytes) => {
+    const text = Array.from({ length: 40 }, () => emojiLine).join("\n");
+
+    for (const { content } of [
+      truncateHead(text, { maxBytes }),
+      truncateTail(text, { maxBytes }),
+      truncateMiddle(text, { headBytes: maxBytes, tailBytes: maxBytes }),
+    ]) {
+      expect(sanitizeSurrogates(content)).toBe(content);
+      expect(content).not.toContain("�");
+    }
+  });
+
+  it.each([101, 102, 103, 104])(
+    "keeps whole characters when one line alone is over a %i byte cap",
+    (maxBytes) => {
+      // The only path here that cuts inside a line rather than between two of
+      // them, so the only one where the alignment can be got wrong.
+      const { content, truncatedBy } = truncateTail(emojiLine, { maxBytes });
+      expect(truncatedBy).toBe("bytes");
+      expect(sanitizeSurrogates(content)).toBe(content);
+      expect(content).not.toContain("�");
+    },
+  );
 });
 
 describe("exported constants", () => {

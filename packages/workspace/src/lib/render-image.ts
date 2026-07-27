@@ -32,6 +32,20 @@ const JPEG_STEPS = [
 const SHRINK_STEPS = 6;
 const SHRINK_FACTOR = 0.75;
 
+/**
+ * Ceiling on the pixels a decoder will be asked to hold.
+ *
+ * A file's size on disk does not bound this. Compression ratio is unbounded for
+ * synthetic images -- a PNG of one flat color is a few hundred bytes at any
+ * dimensions it likes -- so a small file can declare a size that costs gigabytes
+ * the moment something decodes it. Dimensions come from the header, so the
+ * refusal happens before any decode rather than during one.
+ *
+ * Set to admit a large scan and refuse the absurd: a 12000x12000 archival scan
+ * is 144M pixels and passes.
+ */
+export const MAX_DECODED_PIXELS = 200_000_000;
+
 // image-size's format names, mapped to the media types a provider is told.
 // Anything it can identify but that is missing here still reads as an image;
 // it just has to be re-encoded before it can be sent.
@@ -41,6 +55,11 @@ const SNIFFED_MEDIA_TYPES: Record<string, string> = {
   png: "image/png",
   webp: "image/webp",
 };
+
+/** Whether decoding an image of this size would cost more memory than we allow. */
+export function exceedsDecodeBudget({ height, width }: ImageSize) {
+  return width * height > MAX_DECODED_PIXELS;
+}
 
 /**
  * What an image actually is, read from its bytes.
@@ -82,8 +101,13 @@ export function measureImage(
  * PNG comes first and usually wins: these are screenshots, charts, and
  * documents, where lossy artifacts land on exactly the small text the caller
  * wants read. JPEG is the fallback for when PNG will not fit, and shrinking is
- * the fallback for when no quality setting will. Returns undefined only when
- * every step failed, which leaves the caller holding the original.
+ * the fallback for when no quality setting will.
+ *
+ * Returns undefined when every step failed, and without trying when the source
+ * declares more pixels than `MAX_DECODED_PIXELS`. That check lives here because
+ * this is the only place that starts a decode: callers test it too, so they can
+ * name the cause in a message, but the enforcement cannot depend on them
+ * remembering to.
  */
 export async function renderImage({
   bytes,
@@ -98,6 +122,15 @@ export async function renderImage({
   signal?: AbortSignal;
   target: ImageSize;
 }): Promise<RenderedImage | undefined> {
+  // Measured here rather than taken as an argument: a size a caller passes is a
+  // size a caller can get wrong, and this has to hold for every caller there
+  // will ever be. An unmeasurable source is left to ffmpeg, which is the only
+  // thing that can read some of the formats image-size cannot.
+  const source = measureImage(bytes);
+  if (source && exceedsDecodeBudget(source)) {
+    return undefined;
+  }
+
   let attempt = target;
 
   for (let step = 0; step < SHRINK_STEPS; step++) {

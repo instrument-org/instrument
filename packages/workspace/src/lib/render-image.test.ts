@@ -1,8 +1,18 @@
-import { execa } from "execa";
-import { beforeAll, describe, expect, it } from "vitest";
+import type * as ExecaModule from "execa";
 
+import { execa } from "execa";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+
+import { pngHeaderBytes } from "../test/helpers/png-header";
 import { FFMPEG_PATH } from "./ffmpeg";
-import { measureImage, renderImage } from "./render-image";
+import { exceedsDecodeBudget, measureImage, renderImage } from "./render-image";
+
+// A spy that still calls through, so the fixtures below keep using real ffmpeg
+// while one test can assert that ffmpeg was never reached.
+vi.mock("execa", async (importOriginal) => {
+  const actual = await importOriginal<typeof ExecaModule>();
+  return { ...actual, execa: vi.fn(actual.execa) };
+});
 
 async function drawTestImage(args: string[]) {
   const result = await execa(
@@ -62,6 +72,30 @@ beforeAll(async () => {
   ]);
 }, 30_000);
 
+describe("exceedsDecodeBudget", () => {
+  it.each([
+    { name: "an ordinary screenshot", size: { height: 1080, width: 1920 } },
+    { name: "a 144M archival scan", size: { height: 12_000, width: 12_000 } },
+  ])("admits $name", ({ size }) => {
+    expect(exceedsDecodeBudget(size)).toBe(false);
+  });
+
+  it("refuses dimensions no decoder should be asked to hold", () => {
+    expect(exceedsDecodeBudget({ height: 50_000, width: 50_000 })).toBe(true);
+  });
+
+  it("judges a decode bomb by its header, not its file size", () => {
+    // 33 bytes declaring 256M pixels. A real flat-color PNG would be small too,
+    // but building one costs the resources the guard exists to refuse.
+    const bomb = pngHeaderBytes({ height: 16_000, width: 16_000 });
+    const size = measureImage(bomb);
+
+    expect(bomb.byteLength).toBeLessThan(64);
+    expect(size).toMatchObject({ height: 16_000, width: 16_000 });
+    expect(size && exceedsDecodeBudget(size)).toBe(true);
+  });
+});
+
 describe("measureImage", () => {
   it("reads plain dimensions", () => {
     expect(measureImage(landscape)).toEqual({
@@ -76,11 +110,23 @@ describe("measureImage", () => {
   });
 
   it.each([
-    { expected: { height: 400, mediaType: "image/jpeg", width: 800 }, orientation: 1 },
-    { expected: { height: 400, mediaType: "image/jpeg", width: 800 }, orientation: 3 },
+    {
+      expected: { height: 400, mediaType: "image/jpeg", width: 800 },
+      orientation: 1,
+    },
+    {
+      expected: { height: 400, mediaType: "image/jpeg", width: 800 },
+      orientation: 3,
+    },
     // 5-8 store the pixels a quarter turn from how they are displayed.
-    { expected: { height: 800, mediaType: "image/jpeg", width: 400 }, orientation: 6 },
-    { expected: { height: 800, mediaType: "image/jpeg", width: 400 }, orientation: 8 },
+    {
+      expected: { height: 800, mediaType: "image/jpeg", width: 400 },
+      orientation: 6,
+    },
+    {
+      expected: { height: 800, mediaType: "image/jpeg", width: 400 },
+      orientation: 8,
+    },
   ])(
     "reports displayed dimensions for EXIF orientation $orientation",
     async ({ expected, orientation }) => {
@@ -152,7 +198,30 @@ describe("renderImage", () => {
 
     expect(result?.bytes.byteLength).toBeLessThanOrEqual(4000);
     expect(result?.width).toBeLessThan(800);
+    // The size it reports has to be the size it produced, not the size it was
+    // asked for. A caller announcing this in text has nothing else to go on.
+    expect(measureImage(result?.bytes ?? Buffer.alloc(0))).toMatchObject({
+      height: result?.height,
+      width: result?.width,
+    });
   }, 30_000);
+
+  it("refuses a source over the pixel budget without starting ffmpeg", async () => {
+    // The guard belongs here because this is the only place a decode begins, so
+    // it has to hold for a caller that never checked. Returning undefined proves
+    // little on its own -- these bytes have no pixel data, so ffmpeg would fail
+    // on them anyway -- which is why the assertion is that ffmpeg never ran.
+    vi.mocked(execa).mockClear();
+
+    const result = await renderImage({
+      bytes: pngHeaderBytes({ height: 20_000, width: 20_000 }),
+      maxBytes: MAX_BYTES,
+      target: { height: 200, width: 200 },
+    });
+
+    expect(result).toBeUndefined();
+    expect(execa).not.toHaveBeenCalled();
+  });
 
   it("gives up rather than returning something over budget", async () => {
     const result = await renderImage({

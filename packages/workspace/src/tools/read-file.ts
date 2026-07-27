@@ -58,6 +58,32 @@ const INPUT_PARAMS = {
 
 type MediaFileState = "audio" | "image" | "pdf" | "video";
 
+/**
+ * Tell a region the model asked for from one it merely filled in.
+ *
+ * An all-zero rectangle is the shape of an object whose fields were populated
+ * with defaults, not a place on the picture: it names no location and no area,
+ * so there is nothing in it to honor or to correct. Measured across models, one
+ * family sends it on the first read of every image, which cost a round trip and
+ * an error that taught it nothing.
+ *
+ * Only all four corners at zero. Any other empty or out-of-bounds rectangle
+ * still fails loudly, because that one does express a location -- the model
+ * meant somewhere and got the coordinate space wrong, and the error naming the
+ * space it should have used is what recovers it.
+ */
+function requestedRegion(region?: RegionInput) {
+  if (
+    region?.x1 === 0 &&
+    region.x2 === 0 &&
+    region.y1 === 0 &&
+    region.y2 === 0
+  ) {
+    return;
+  }
+  return region;
+}
+
 const MEDIA_CONFIG: Record<MediaFileState, { label: string; maxSize: number }> =
   {
     audio: {
@@ -368,6 +394,7 @@ export const ReadFile = setupTool({
     - To read a detail that is too small to make out -- a chart label, a value in a dense table, which of two lines sits higher, text in a screenshot -- read the image again with ${INPUT_PARAMS.region} set to the corners of the area in question. It comes back cropped from the full-resolution file and magnified, so what was a few pixels becomes legible. Coordinates are always pixels in the whole image as you were first shown it, never pixels in a magnified crop you got back. To narrow further, give a smaller rectangle in those same whole-image coordinates; each response repeats the rectangle it used, so subdivide that. Trust what you read magnified over your first impression of the whole image.
   `,
   execute: async ({ input, signal, taskId, taskState }) => {
+    const region = requestedRegion(input.region);
     const layout = buildWorkspaceFsLayout({
       attachedFolders: taskState.attachedFolders,
       taskHostRoot: taskDir(taskId),
@@ -421,7 +448,7 @@ export const ReadFile = setupTool({
       });
     }
 
-    if (input.region && !isReadableImage(getMimeType(absolutePath))) {
+    if (region && !isReadableImage(getMimeType(absolutePath))) {
       return executeError(
         `${INPUT_PARAMS.region} only applies to images, and ${displayPath} is not one.`,
       );
@@ -499,7 +526,7 @@ export const ReadFile = setupTool({
         absolutePath,
         fixedPath: displayPath,
         mimeType,
-        region: input.region,
+        region,
         signal,
         state: "image",
       });

@@ -101,6 +101,16 @@ export function initializeRPC({
   workspaceRef: WorkspaceActorRef;
 }) {
   ipcMain.on("start-orpc-server", (event) => {
+    // The port handshake is the renderer's one route to the whole router, so
+    // only the top frame gets to open it. Preload is the sole sender and today
+    // it loads in the main frame alone (`nodeIntegrationInSubFrames` is off),
+    // which makes this inert -- it is here so enabling that flag later cannot
+    // quietly hand embedded content a channel to the main process.
+    if (event.senderFrame !== event.sender.mainFrame) {
+      logger.scope("rpc").error("Ignoring RPC port from a subframe");
+      return;
+    }
+
     const [serverPort] = event.ports;
 
     if (!serverPort) {

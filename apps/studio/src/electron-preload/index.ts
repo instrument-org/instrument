@@ -82,6 +82,17 @@ if (process.contextIsolated) {
 }
 
 window.addEventListener("message", (event) => {
+  // Only the renderer's own main world may hand over an RPC port. A child frame
+  // calling `parent.postMessage` raises the same event on this window, and the
+  // file viewer previews task HTML in an iframe that runs scripts -- without
+  // this check that content could pass its own port and drive the entire oRPC
+  // router (file I/O, shell, workspace) from inside the sandbox. `event.origin`
+  // cannot tell them apart: the packaged app loads over `file://`, which
+  // serializes to "null", exactly like a sandboxed frame's opaque origin.
+  if (event.source !== window) {
+    return;
+  }
+
   if (event.data === "start-orpc-client") {
     const [serverPort] = event.ports;
 

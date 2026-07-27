@@ -15,7 +15,7 @@ export function ProjectFolders({
   folders: string[];
   projectId: ProjectId;
 }) {
-  const { mutateAsync: addFolder } = useMutation(
+  const { mutate: addFolder } = useMutation(
     rpcClient.workspace.project.addFolder.mutationOptions({
       onError: (error) => {
         toast.error("Failed to attach folder", { description: error.message });
@@ -43,7 +43,7 @@ export function ProjectFolders({
         toast.info("That folder is already attached to this project");
         return;
       }
-      await addFolder({ id: projectId, path: result.path });
+      addFolder({ id: projectId, path: result.path });
     }
   };
 

@@ -24,6 +24,7 @@ import {
   TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { TaskProjectMenuItem } from "../project/task-project-menu-item";
 import { dropdownMenuComponents } from "../ui/menu-components";
@@ -54,12 +55,20 @@ export function TaskActionsCell({
   );
   const isPinned = pinnedTaskIds?.includes(id);
 
-  const { mutateAsync: removePin } = useMutation(
-    rpcClient.workspace.pin.remove.mutationOptions(),
+  const { mutate: removePin } = useMutation(
+    rpcClient.workspace.pin.remove.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to unpin task", { description: error.message });
+      },
+    }),
   );
 
-  const { mutateAsync: addPin } = useMutation(
-    rpcClient.workspace.pin.add.mutationOptions(),
+  const { mutate: addPin } = useMutation(
+    rpcClient.workspace.pin.add.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to pin task", { description: error.message });
+      },
+    }),
   );
 
   return (
@@ -107,9 +116,9 @@ export function TaskActionsCell({
           <DropdownMenuItem
             onSelect={() => {
               if (isPinned) {
-                void removePin({ id });
+                removePin({ id });
               } else {
-                void addPin({ id });
+                addPin({ id });
               }
             }}
           >

@@ -23,6 +23,14 @@ export const SUPPORTED_IMAGE_FORMATS = [
   "image/webp",
 ];
 
+// Said to the agent when ffmpeg cannot run at all. It names the missing piece
+// rather than the file, so the agent stops re-reading something that is fine,
+// and it points at the one thing left that might work.
+const FFMPEG_UNAVAILABLE_NOTE = [
+  "Image conversion is unavailable on this system, so this image cannot be resized or magnified.",
+  "Read it without a region, or convert it to a smaller PNG or JPEG and read that.",
+].join(" ");
+
 export const RegionSchema = z.object({
   x1: z.number().int().meta({ description: "Left edge, in pixels" }),
   x2: z.number().int().meta({ description: "Right edge, in pixels" }),
@@ -109,13 +117,20 @@ export async function cropRegion({
     target,
   });
 
-  if (!rendered) {
+  if (rendered.state === "unavailable") {
+    return executeError(FFMPEG_UNAVAILABLE_NOTE);
+  }
+
+  if (rendered.state === "failed") {
     return executeError(
       "Could not render that region of the image. Try a larger region.",
     );
   }
 
-  return ok({ region: { x1: left, x2: right, y1: top, y2: bottom }, rendered });
+  return ok({
+    region: { x1: left, x2: right, y1: top, y2: bottom },
+    rendered: rendered.image,
+  });
 }
 
 /**
@@ -236,7 +251,27 @@ export async function previewImage({
     target,
   });
 
-  if (!rendered) {
+  if (rendered.state === "unavailable") {
+    // Nothing is wrong with the file, so refusing to show it would be the wrong
+    // answer. Send it as it is and let the provider do the downscale we would
+    // have done. What is lost is the coordinate contract, not the picture: the
+    // view is reported as the file's own size, which stops the text claiming a
+    // pixel space nobody produced, and a region read says so outright.
+    if (
+      mediaType !== undefined &&
+      SUPPORTED_IMAGE_FORMATS.includes(mediaType) &&
+      fileData.byteLength <= MAX_RENDERED_BYTES
+    ) {
+      return ok({
+        bytes: fileData,
+        mediaType,
+        view: { height: size.height, width: size.width },
+      });
+    }
+    return executeError(FFMPEG_UNAVAILABLE_NOTE);
+  }
+
+  if (rendered.state === "failed") {
     return executeError(
       [
         "Could not produce a viewable copy of this image.",
@@ -247,14 +282,14 @@ export async function previewImage({
 
   // Read back off the encoded result rather than trusting the size it was asked
   // for. Same principle as the rest of this function, applied one level down.
-  const measured = measureImage(rendered.bytes);
+  const measured = measureImage(rendered.image.bytes);
 
   return ok({
-    bytes: rendered.bytes,
-    mediaType: rendered.mediaType,
+    bytes: rendered.image.bytes,
+    mediaType: rendered.image.mediaType,
     view: {
-      height: measured?.height ?? rendered.height,
-      width: measured?.width ?? rendered.width,
+      height: measured?.height ?? rendered.image.height,
+      width: measured?.width ?? rendered.image.width,
     },
   });
 }

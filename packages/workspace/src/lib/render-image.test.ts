@@ -5,7 +5,12 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { pngHeaderBytes } from "../test/helpers/png-header";
 import { FFMPEG_PATH } from "./ffmpeg";
-import { exceedsDecodeBudget, measureImage, renderImage } from "./render-image";
+import {
+  exceedsDecodeBudget,
+  measureImage,
+  renderImage,
+  type RenderImageResult,
+} from "./render-image";
 
 // A spy that still calls through, so the fixtures below keep using real ffmpeg
 // while one test can assert that ffmpeg was never reached.
@@ -170,8 +175,9 @@ describe("renderImage", () => {
       target: { height: 200, width: 400 },
     });
 
-    expect(result?.mediaType).toBe("image/png");
-    expect(measureImage(result?.bytes ?? Buffer.alloc(0))).toEqual({
+    const image = renderedImage(result);
+    expect(image?.mediaType).toBe("image/png");
+    expect(measureImage(image?.bytes ?? Buffer.alloc(0))).toEqual({
       height: 200,
       mediaType: "image/png",
       width: 400,
@@ -185,8 +191,9 @@ describe("renderImage", () => {
       target: { height: 400, width: 800 },
     });
 
-    expect(result?.mediaType).toBe("image/jpeg");
-    expect(result?.bytes.byteLength).toBeLessThanOrEqual(6000);
+    const image = renderedImage(result);
+    expect(image?.mediaType).toBe("image/jpeg");
+    expect(image?.bytes.byteLength).toBeLessThanOrEqual(6000);
   }, 30_000);
 
   it("shrinks past the target when no encoding of it fits", async () => {
@@ -196,21 +203,22 @@ describe("renderImage", () => {
       target: { height: 400, width: 800 },
     });
 
-    expect(result?.bytes.byteLength).toBeLessThanOrEqual(4000);
-    expect(result?.width).toBeLessThan(800);
+    const image = renderedImage(result);
+    expect(image?.bytes.byteLength).toBeLessThanOrEqual(4000);
+    expect(image?.width).toBeLessThan(800);
     // The size it reports has to be the size it produced, not the size it was
     // asked for. A caller announcing this in text has nothing else to go on.
-    expect(measureImage(result?.bytes ?? Buffer.alloc(0))).toMatchObject({
-      height: result?.height,
-      width: result?.width,
+    expect(measureImage(image?.bytes ?? Buffer.alloc(0))).toMatchObject({
+      height: image?.height,
+      width: image?.width,
     });
   }, 30_000);
 
   it("refuses a source over the pixel budget without starting ffmpeg", async () => {
     // The guard belongs here because this is the only place a decode begins, so
-    // it has to hold for a caller that never checked. Returning undefined proves
-    // little on its own -- these bytes have no pixel data, so ffmpeg would fail
-    // on them anyway -- which is why the assertion is that ffmpeg never ran.
+    // it has to hold for a caller that never checked. The refusal proves little
+    // on its own -- these bytes have no pixel data, so ffmpeg would fail on them
+    // anyway -- which is why the assertion is that ffmpeg never ran.
     vi.mocked(execa).mockClear();
 
     const result = await renderImage({
@@ -219,7 +227,7 @@ describe("renderImage", () => {
       target: { height: 200, width: 200 },
     });
 
-    expect(result).toBeUndefined();
+    expect(result).toEqual({ state: "failed" });
     expect(execa).not.toHaveBeenCalled();
   });
 
@@ -230,7 +238,7 @@ describe("renderImage", () => {
       target: { height: 400, width: 800 },
     });
 
-    expect(result).toBeUndefined();
+    expect(result).toEqual({ state: "failed" });
   }, 30_000);
 
   it("crops the requested region and magnifies it", async () => {
@@ -241,7 +249,9 @@ describe("renderImage", () => {
       target: { height: 400, width: 800 },
     });
 
-    expect(measureImage(result?.bytes ?? Buffer.alloc(0))).toEqual({
+    expect(
+      measureImage(renderedImage(result)?.bytes ?? Buffer.alloc(0)),
+    ).toEqual({
       height: 400,
       mediaType: "image/png",
       width: 800,
@@ -281,20 +291,26 @@ describe("renderImage", () => {
       target: { height: 700, width: 300 },
     });
 
-    expect(measureImage(result?.bytes ?? Buffer.alloc(0))).toEqual({
+    expect(
+      measureImage(renderedImage(result)?.bytes ?? Buffer.alloc(0)),
+    ).toEqual({
       height: 700,
       mediaType: "image/png",
       width: 300,
     });
   }, 30_000);
 
-  it("returns undefined for bytes ffmpeg cannot decode", async () => {
+  it("blames the bytes when ffmpeg ran and could not decode them", async () => {
     const result = await renderImage({
       bytes: Buffer.from("not an image"),
       maxBytes: MAX_BYTES,
       target: { height: 10, width: 10 },
     });
 
-    expect(result).toBeUndefined();
+    expect(result).toEqual({ state: "failed" });
   }, 30_000);
 });
+
+function renderedImage(result: RenderImageResult) {
+  return result.state === "rendered" ? result.image : undefined;
+}

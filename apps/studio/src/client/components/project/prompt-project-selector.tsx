@@ -108,7 +108,7 @@ function SelectedChip({
         <span className="flex items-center overflow-hidden">
           <button
             aria-label="Remove from project"
-            className="-mr-0.5 flex translate-x-1 items-center rounded-sm opacity-0 transition-[opacity,transform] duration-150 ease-out group-hover/chip:translate-x-0 group-hover/chip:opacity-60 hover:!opacity-100"
+            className="-mr-0.5 flex translate-x-1 items-center rounded-sm p-0.5 opacity-0 transition-[opacity,transform,background-color] duration-150 ease-out group-hover/chip:translate-x-0 group-hover/chip:opacity-60 hover:bg-foreground/10 hover:!opacity-100"
             {...immediateClickHandlers<HTMLButtonElement>({
               // Hover-revealed remove target: it appears under the pointer, so
               // a press must stay cancelable.

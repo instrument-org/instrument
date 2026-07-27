@@ -85,12 +85,12 @@ export function NavProjects({
             </SidebarGroupLabel>
             <button
               aria-label="Add a project"
-              className="flex size-5 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/40 opacity-0 group-hover/projects:opacity-100 hover:text-sidebar-foreground"
+              className="flex size-5 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/40 opacity-0 transition-colors group-hover/projects:opacity-100 hover:bg-sidebar-accent hover:text-sidebar-foreground"
               {...immediateClickHandlers<HTMLButtonElement>({
-        onClick: () => {
-                openCreateProject();
-              },
-      })}
+                onClick: () => {
+                  openCreateProject();
+                },
+              })}
               type="button"
             >
               <PlusIcon className="!size-3" />

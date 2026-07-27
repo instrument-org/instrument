@@ -1,8 +1,8 @@
 # Making the image coordinate contract sound
 
-Status: **in progress**. Owner: TBD. Corrections to the work described in [image-zoom-for-fine-detail.md](image-zoom-for-fine-detail.md), from a review of that branch. Everything here is agreed as a real defect.
+Status: **complete**. Owner: TBD. Corrections to the work described in [image-zoom-for-fine-detail.md](image-zoom-for-fine-detail.md), from a review of that branch. Everything here was agreed as a real defect, and all five have landed.
 
-All five items have landed. The remaining follow-ups are item 4's shared traversal and, separately, measuring whether the region read earns its cost.
+One follow-up outlives this plan and is deliberately not closed with it: item 4's shared `ModelMessage` traversal. Move this file to `completed/` when the branch merges.
 
 ## The through-line
 

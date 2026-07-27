@@ -116,6 +116,7 @@ Use a scope-first subject: `scope: description of what changed`. No conventional
 
 Durable, versioned docs are the system of record; prefer them over chat/history. Keep them evergreen and safe to share: leave out secrets and anything tied to one machine, person, or moment.
 
+- Do not hard-wrap Markdown prose. Keep each paragraph and list item on one source line unless the file already wraps prose.
 - `docs/architecture/` — evergreen maps of a subsystem or domain and how it layers together, edited in place as the code changes. One file per subsystem.
 - `docs/findings/` — non-obvious issues, what we tried, what might resolve them later. One file per finding.
 - `docs/plans/` — execution plans for non-trivial work (`active/` vs `completed/`). One file per plan.
@@ -123,7 +124,7 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 
 ## Code review
 
-`REVIEW.md` at the repo root holds the review-only rules: what counts as a blocking finding here, what to skip because a check already enforces it, and the repo-specific things to look at every time. Claude Code Review injects it verbatim, so it holds instructions rather than context — put project context in this file and keep `REVIEW.md` to rules that change what a review flags.
+`REVIEW.md` at the repo root holds review-only calibration: severity, skip rules, repo-specific checks, and reporting. Claude Code Review injects it verbatim at highest priority; keep project context in this file and only behavior-changing review instructions in `REVIEW.md`.
 
 ## Additional guidance
 

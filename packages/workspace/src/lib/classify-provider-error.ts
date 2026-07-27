@@ -116,7 +116,11 @@ export function classifyProviderError(
   }
 
   const { statusCode } = error;
-  if (statusCode === 401 || statusCode === 403) {
+  // 402 is an account that cannot pay for the request rather than one that may
+  // not make it, but the session is in the same position either way: nothing it
+  // can send will help, and a human has to act before the next turn works. Not
+  // `rate-limit`, which promises that waiting is the fix.
+  if (statusCode === 401 || statusCode === 402 || statusCode === 403) {
     return { evidence: "status", kind: "auth" };
   }
   if (statusCode === 429) {

@@ -62,6 +62,25 @@ const cases: {
     name: "413",
   },
   {
+    // Seen running the evals: the account ran dry mid-suite. The body puts the
+    // code in as a number, which `structuredCodes` deliberately ignores, so the
+    // status is the only thing naming this.
+    error: apiCallError({
+      message:
+        "This request requires more credits, or fewer max_tokens. You requested up to 32000 tokens, but can only afford 3338.",
+      responseBody: JSON.stringify({
+        error: {
+          code: 402,
+          message:
+            "This request requires more credits, or fewer max_tokens. You requested up to 32000 tokens, but can only afford 3338.",
+        },
+      }),
+      statusCode: 402,
+    }),
+    expected: { evidence: "status", kind: "auth" },
+    name: "OpenRouter out of credits",
+  },
+  {
     error: apiCallError({
       responseBody: JSON.stringify({
         error: {

@@ -134,12 +134,25 @@ describe("browserFreeReadEnv", () => {
 
     expect(result).toMatchInlineSnapshot(`
       {
+        "AGENT_BROWSER_CONTENT_BOUNDARIES": "true",
         "AGENT_BROWSER_IDLE_TIMEOUT_MS": "300000",
         "AGENT_BROWSER_SOCKET_DIR": "/tmp/.instrument-browser",
         "HOME": "/task/.instrument/agent-browser-home",
         "PATH": "/usr/bin",
       }
     `);
+  });
+
+  it("keeps content boundaries even though it drops AGENT_BROWSER_ vars", () => {
+    // A `read <url>` fetches from a host nobody here chose, so it is the last
+    // invocation that should lose its boundary markers -- and the only one
+    // whose env is rebuilt from scratch rather than inherited.
+    const result = browserFreeReadEnv({
+      AGENT_BROWSER_CONTENT_BOUNDARIES: "true",
+      PATH: "/usr/bin",
+    });
+
+    expect(result.AGENT_BROWSER_CONTENT_BOUNDARIES).toBe("true");
   });
 });
 

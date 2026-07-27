@@ -93,7 +93,7 @@ describe("webSearch", () => {
         ],
         toolCallId: "call-1",
       }),
-      ...textDelta("Summarising both searches."),
+      ...textDelta("Summarizing both searches."),
       perplexityResult({
         results: [
           { snippet: "Second snippet.", title: "Two", url: "https://two.test" },
@@ -107,7 +107,7 @@ describe("webSearch", () => {
 
       Second snippet.
 
-      Summarising both searches."
+      Summarizing both searches."
     `);
     expect(value.sources.map((source) => source.id)).toMatchInlineSnapshot(`
       [

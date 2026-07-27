@@ -63,6 +63,22 @@ export const WEB_SEARCH_EVALS = [
     prompt: "What is OpenAI's current valuation?",
     shouldStop: stopOnWebSearch,
   }),
+  defineEval({
+    assertions: [assertUsedWebSearch],
+    // Tricky: shaped like advice, so it reads as answerable directly, but the
+    // options being recommended among are whatever the product ships today
+    name: "which-copilot-model-to-use",
+    prompt: "Which model should I pick in GitHub Copilot for a big refactor?",
+    shouldStop: stopOnWebSearch,
+  }),
+  defineEval({
+    assertions: [assertUsedWebSearch],
+    // Tricky: dictated product name matches nothing, and the answer is also
+    // time-sensitive. Should search the nearest real name, not stall on it.
+    name: "misheard-product-name",
+    prompt: "What's the newest version of Tale Wind CSS?",
+    shouldStop: stopOnWebSearch,
+  }),
 
   // Should NOT trigger web search
   defineEval({

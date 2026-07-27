@@ -626,6 +626,30 @@ describe("ReadFile", () => {
       }
     }, 60_000);
 
+    it("reads the whole image when the region is all zeros", async () => {
+      const imagePath = path.join(fixturesPath, "region-zero-probe.png");
+      await drawPngFixture(imagePath, "320x240");
+
+      try {
+        const result = await runTool(TOOLS.ReadFile, {
+          ...baseInput,
+          input: {
+            explanation: "read",
+            filePath: "./region-zero-probe.png",
+            region: { x1: 0, x2: 0, y1: 0, y2: 0 },
+          },
+        });
+
+        // No rectangle comes back, because none was asked for. The empty-region
+        // error above still fires for a rectangle that names a place and misses.
+        const value = result._unsafeUnwrap();
+        expect(value.state).toBe("image");
+        expect(value).not.toHaveProperty("region");
+      } finally {
+        await fs.rm(imagePath, { force: true });
+      }
+    }, 60_000);
+
     it("refuses a region on something that is not an image", async () => {
       const result = await runTool(TOOLS.ReadFile, {
         ...baseInput,

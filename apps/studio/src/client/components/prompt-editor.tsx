@@ -15,7 +15,7 @@ import { skillLocationHint, skillSourceLabel } from "@/client/lib/skill-source";
 import { SKILL_NAME_MATCH_CLASS_NAME } from "@/client/lib/skill-tokens";
 import { cn } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";
-import { baseKeymap } from "prosemirror-commands";
+import { baseKeymap, splitBlock } from "prosemirror-commands";
 import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { Slice } from "prosemirror-model";
@@ -60,6 +60,12 @@ const editorPlugins = () => [
     Delete: deleteSkillForward,
     "Mod-y": redo,
     "Mod-z": undo,
+    // A line in this document is a paragraph -- `promptTextFromDoc` joins them
+    // with newlines -- so splitting the block is the soft break. `baseKeymap`
+    // binds nothing to Shift-Enter, and the line break the browser would insert
+    // on its own has no home in a schema without a hard-break node, so without
+    // this the key does nothing at all.
+    "Shift-Enter": splitBlock,
     "Shift-Mod-z": redo,
   }),
   keymap(baseKeymap),

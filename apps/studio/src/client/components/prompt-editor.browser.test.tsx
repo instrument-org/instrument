@@ -131,6 +131,18 @@ describe("PromptEditor in a browser", () => {
     expect(onChange).toHaveBeenLastCalledWith("one src/app.ts !two");
   });
 
+  // Plain Enter sends, so Shift-Enter is the only way to write a second line.
+  // The schema has no hard-break node, which makes the break a paragraph split
+  // and the key binding the only thing that produces one.
+  it("breaks the line on shift+enter", async () => {
+    const { onChange } = renderEditor();
+
+    await userEvent.click(editor());
+    await userEvent.keyboard("one{Shift>}{Enter}{/Shift}two");
+
+    expect(onChange).toHaveBeenLastCalledWith("one\ntwo");
+  });
+
   it.each(["/ffmpeg is cool", "/instrument:ffmpeg is cool"])(
     "tokenizes a recognized pasted skill command: %s",
     async (text) => {

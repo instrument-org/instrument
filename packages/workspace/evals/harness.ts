@@ -151,6 +151,14 @@ export async function runEvals(
     return evals.map((evalCase) => ({ evalCase, modelPrefix, uri }));
   });
 
+  // A task id is slugified from the prompt, and the name is claimed by creating
+  // the directory. Running one case against several models means several runs
+  // want the same slug at the same moment, and they all read it as free before
+  // any of them takes it. Creation is serialized so the numeric suffix that
+  // already exists for collisions actually gets a chance to apply; only the
+  // agent turn is worth running concurrently anyway.
+  let creating = Promise.resolve();
+
   const completed = await _.parallel(
     concurrency,
     runs,
@@ -167,17 +175,23 @@ export async function runEvals(
         workspaceRef: actor,
       };
 
-      const { id, sessionId } = await call(
-        taskRoute.create,
-        {
-          files: evalCase.files,
-          folders: evalCase.folders,
-          modelURI: uri,
-          name: evalCase.name,
-          prompt: evalCase.prompt,
-        },
-        { context },
+      const created = creating.then(() =>
+        call(
+          taskRoute.create,
+          {
+            files: evalCase.files,
+            folders: evalCase.folders,
+            modelURI: uri,
+            name: evalCase.name,
+            prompt: evalCase.prompt,
+          },
+          { context },
+        ),
       );
+      // Chained off the settled result so one failed creation does not strand
+      // every run behind it.
+      creating = created.then(_.noop, _.noop);
+      const { id, sessionId } = await created;
 
       process.stdout.write(
         `${evalPrefix(label)}${c.green}Task created${c.reset}${c.dim} (id: ${id})${c.reset}\n`,

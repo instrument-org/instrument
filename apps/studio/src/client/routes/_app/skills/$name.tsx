@@ -370,7 +370,7 @@ function SkillPage() {
                       {SKILL_FILE}
                     </h2>
                     <CopyButton
-                      className="rounded-sm p-1 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+                      className="rounded-sm p-1 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
                       iconSize={14}
                       onCopy={() =>
                         navigator.clipboard.writeText(skill.rawSkillFile)
@@ -475,7 +475,7 @@ function SkillTitle({
     <Tooltip open={isTooltipOpen}>
       <TooltipTrigger asChild>
         <button
-          className="rounded-sm font-serif text-3xl tracking-tight transition-colors hover:bg-accent/40 focus-visible:bg-accent/40"
+          className="rounded-sm font-serif text-3xl tracking-tight hover:bg-accent/40 focus-visible:bg-accent/40"
           onBlur={() => {
             setTooltipOpen(false);
           }}

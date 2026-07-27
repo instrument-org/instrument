@@ -164,15 +164,15 @@ function SkillsPage() {
               {q ? (
                 <button
                   aria-label="Clear search"
-                  className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+                  className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
                   {...immediateClickHandlers<HTMLButtonElement>({
-        onClick: () => {
-                    void navigate({
-                      replace: true,
-                      search: (prev) => ({ ...prev, q: undefined }),
-                    });
-                  },
-      })}
+                    onClick: () => {
+                      void navigate({
+                        replace: true,
+                        search: (prev) => ({ ...prev, q: undefined }),
+                      });
+                    },
+                  })}
                   type="button"
                 >
                   <XIcon className="size-4" />
@@ -213,7 +213,7 @@ function SkillsPage() {
                           const ranges = matchBySkill.get(skill);
                           return (
                             <div
-                              className="group relative isolate flex items-center gap-4 px-4 py-2.5 transition-colors hover:bg-accent/40"
+                              className="group relative isolate flex items-center gap-4 px-4 py-2.5 hover:bg-accent/40"
                               key={skill.id}
                             >
                               <InternalLink
@@ -232,7 +232,7 @@ function SkillsPage() {
                                 </span>
                                 {skill.userInvocable ? (
                                   <CopyButton
-                                    className="relative z-10 shrink-0 rounded-sm p-0.5 text-muted-foreground opacity-0 transition-[color,opacity] group-hover:opacity-100 hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100"
+                                    className="relative z-10 shrink-0 rounded-sm p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100"
                                     iconSize={13}
                                     onCopy={() =>
                                       navigator.clipboard.writeText(

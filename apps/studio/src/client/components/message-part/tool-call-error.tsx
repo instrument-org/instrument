@@ -46,13 +46,13 @@ export function ToolCallError({ part }: { part: ErrorPart }) {
           <button
             className={cn(
               "group/toggle flex w-full items-center gap-2 px-4 py-2.5",
-              "text-xs text-muted-foreground transition-colors hover:text-foreground",
+              "text-xs text-muted-foreground hover:text-foreground",
             )}
             {...immediateClickHandlers<HTMLButtonElement>({
-        onClick: () => {
-              setIsRawOpen((v) => !v);
-            },
-      })}
+              onClick: () => {
+                setIsRawOpen((v) => !v);
+              },
+            })}
             type="button"
           >
             <CaretDownIcon

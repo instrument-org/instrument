@@ -203,7 +203,7 @@ function ThemeCard({
       </div>
       <span
         className={cn(
-          "text-sm font-medium transition-colors",
+          "text-sm font-medium",
           isSelected ? "text-foreground" : "text-muted-foreground",
         )}
       >

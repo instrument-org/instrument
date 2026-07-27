@@ -78,9 +78,9 @@ const CodeWithCopy = ({
   content: string;
 }) => (
   <div className="group relative isolate">
-    <div className="absolute top-1 right-1 z-10 opacity-0 transition-opacity group-hover:opacity-100">
+    <div className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100">
       <CopyButton
-        className="rounded-md border border-border/50 bg-background/80 p-1 text-muted-foreground backdrop-blur-sm transition-colors hover:bg-muted hover:text-foreground"
+        className="rounded-md border border-border/50 bg-background/80 p-1 text-muted-foreground backdrop-blur-sm hover:bg-muted hover:text-foreground"
         iconSize={12}
         onCopy={async () => {
           await navigator.clipboard.writeText(content);
@@ -238,7 +238,7 @@ const TaskFileLink = ({
         onClick: openInPanel,
       })}
       className={cn(
-        "inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted/50 px-1.5 py-0.5 align-text-bottom text-sm font-medium text-foreground no-underline transition-colors hover:bg-muted",
+        "inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted/50 px-1.5 py-0.5 align-text-bottom text-sm font-medium text-foreground no-underline hover:bg-muted",
         className,
       )}
       title={file.filePath}

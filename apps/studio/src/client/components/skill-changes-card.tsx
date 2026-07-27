@@ -140,14 +140,14 @@ function SkillChangeRow({
     <InternalLink
       className={cn(
         CARD_CLASS_NAME,
-        "group/skill transition-colors select-none hover:bg-muted/40 dark:hover:bg-muted/40",
+        "group/skill select-none hover:bg-muted/40 dark:hover:bg-muted/40",
       )}
       openInCurrentTab
       params={{ name: addressableName }}
       to="/skills/$name"
     >
       {body}
-      <CaretRightIcon className="size-4 shrink-0 text-muted-foreground/40 transition-colors group-hover/skill:text-muted-foreground" />
+      <CaretRightIcon className="size-4 shrink-0 text-muted-foreground/40 group-hover/skill:text-muted-foreground" />
     </InternalLink>
   );
 }

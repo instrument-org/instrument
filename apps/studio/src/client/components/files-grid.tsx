@@ -258,14 +258,14 @@ export function FilesGrid({
       {hasMoreFiles && (
         <button
           className={cn(
-            "flex h-7 w-full items-center justify-center gap-1 rounded-lg text-xs text-muted-foreground transition-colors",
+            "flex h-7 w-full items-center justify-center gap-1 rounded-lg text-xs text-muted-foreground",
             "hover:bg-muted hover:text-foreground",
           )}
           {...immediateClickHandlers<HTMLButtonElement>({
-        onClick: () => {
-            setIsExpanded((expanded) => !expanded);
-          },
-      })}
+            onClick: () => {
+              setIsExpanded((expanded) => !expanded);
+            },
+          })}
           type="button"
         >
           {isExpanded ? "Show less" : `Show ${hiddenFileCount} more`}

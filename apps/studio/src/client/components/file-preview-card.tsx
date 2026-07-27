@@ -165,7 +165,7 @@ function FileRowCard({
     <div
       {...immediateClickHandlers<HTMLDivElement>({ onClick })}
       className={cn(
-        "group relative flex items-center gap-3 overflow-hidden rounded-2xl px-3 py-3 transition-colors select-none",
+        "group relative flex items-center gap-3 overflow-hidden rounded-2xl px-3 py-3 select-none",
         isSelected
           ? "border border-black/5 bg-brand-600/8 dark:bg-brand-300/8"
           : "bg-card shadow-xs hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40",
@@ -196,7 +196,7 @@ function FileRowCard({
       </div>
       {!hideActionsMenu && hasFileActions && (
         <div
-          className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100"
+          className="flex shrink-0 items-center opacity-0 group-hover:opacity-100"
           onClick={(e) => {
             e.stopPropagation();
           }}

@@ -33,7 +33,7 @@ export function TaskUsageSummary({
           }}
         >
           <UsageSummaryText
-            className="min-w-0 truncate text-[10px] transition-colors hover:text-dev-700 dark:hover:text-dev-300"
+            className="min-w-0 truncate text-[10px] hover:text-dev-700 dark:hover:text-dev-300"
             messageCount={data.messageCount}
             onClick={onClick}
             totalTokens={data.totalTokens}

@@ -73,7 +73,7 @@ export function SkillFileView({
           <div className="flex items-center justify-between gap-3 px-3 py-2">
             <h2 className="font-mono text-xs font-medium">{file}</h2>
             <CopyButton
-              className="rounded-sm p-1 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+              className="rounded-sm p-1 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
               iconSize={14}
               onCopy={() => navigator.clipboard.writeText(data.content)}
             />
@@ -97,7 +97,7 @@ export function SkillFileView({
         <div className="flex items-center justify-between gap-3 px-3 py-2">
           <h2 className="font-mono text-xs font-medium">{file}</h2>
           <CopyButton
-            className="rounded-sm p-1 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+            className="rounded-sm p-1 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
             iconSize={14}
             onCopy={() => navigator.clipboard.writeText(data.content)}
           />

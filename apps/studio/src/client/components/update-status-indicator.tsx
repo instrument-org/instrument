@@ -356,7 +356,7 @@ function UpdateStatusBadge({
     <button
       aria-label={getAriaLabel(state)}
       className={cn(
-        "inline-flex h-5 shrink-0 items-center justify-center gap-1 rounded-full border px-1.5 text-xs leading-none font-semibold whitespace-nowrap shadow-xs transition-colors [-webkit-app-region:no-drag]",
+        "inline-flex h-5 shrink-0 items-center justify-center gap-1 rounded-full border px-1.5 text-xs leading-none font-semibold whitespace-nowrap shadow-xs [-webkit-app-region:no-drag]",
         BADGE_META[state.type].className,
       )}
       {...immediateClickHandlers<HTMLButtonElement>({ onClick })}

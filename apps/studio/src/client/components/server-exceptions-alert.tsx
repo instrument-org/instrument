@@ -109,7 +109,7 @@ export function ServerExceptionsAlert() {
         <Tooltip>
           <TooltipTrigger asChild>
             <CopyButton
-              className="size-5 rounded-sm p-0.5 text-muted-foreground transition-colors select-none hover:bg-foreground/5 hover:text-foreground"
+              className="size-5 rounded-sm p-0.5 text-muted-foreground select-none hover:bg-foreground/5 hover:text-foreground"
               iconSize={12}
               onCopy={() =>
                 navigator.clipboard.writeText(
@@ -146,7 +146,7 @@ export function ServerExceptionsAlert() {
               key={exception.id}
               value={exception.id}
             >
-              <AccordionTrigger className="min-w-0 gap-2 py-1.5 pr-12 pl-1 transition-colors hover:bg-muted/50 hover:no-underline data-[state=open]:bg-muted/50">
+              <AccordionTrigger className="min-w-0 gap-2 py-1.5 pr-12 pl-1 hover:bg-muted/50 hover:no-underline data-[state=open]:bg-muted/50">
                 <div className="flex min-w-0 flex-1 items-center gap-0.5">
                   {exception.count > 1 && (
                     <Badge
@@ -167,7 +167,7 @@ export function ServerExceptionsAlert() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <CopyButton
-                      className="size-5 rounded-sm p-0.5 text-muted-foreground transition-colors select-none hover:bg-foreground/5 hover:text-foreground"
+                      className="size-5 rounded-sm p-0.5 text-muted-foreground select-none hover:bg-foreground/5 hover:text-foreground"
                       iconSize={12}
                       onCopy={() =>
                         navigator.clipboard.writeText(

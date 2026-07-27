@@ -17,7 +17,7 @@ function ResizableHandle({
     <Separator
       className={cn(
         "relative z-10 flex shrink-0 items-center justify-center",
-        "bg-transparent transition-colors duration-200",
+        "bg-transparent duration-200",
         "outline-none",
         "after:absolute after:transition-all after:duration-200",
         "aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:w-full",

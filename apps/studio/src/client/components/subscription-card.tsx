@@ -121,10 +121,10 @@ export function SubscriptionCard() {
               <button
                 className="underline"
                 {...immediateClickHandlers<HTMLButtonElement>({
-        onClick: () => {
-                  openSettings({ tab: "Providers" });
-                },
-      })}
+                  onClick: () => {
+                    openSettings({ tab: "Providers" });
+                  },
+                })}
                 type="button"
               >
                 add API keys

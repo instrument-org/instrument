@@ -3,7 +3,7 @@ import { type TabIconName } from "@instrument-org/shared/icons";
 import { tv, type VariantProps } from "tailwind-variants";
 
 const taskIconVariants = tv({
-  base: "shrink-0 transition-colors",
+  base: "shrink-0",
   defaultVariants: {
     isSelected: false,
     size: "sm",

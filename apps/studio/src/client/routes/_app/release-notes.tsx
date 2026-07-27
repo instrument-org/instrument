@@ -129,7 +129,7 @@ function RouteComponent() {
                           )}
                       </CardTitle>
                       <ExternalLink
-                        className="inline-flex shrink-0 items-center gap-1 text-sm text-primary transition-colors hover:text-primary/80"
+                        className="inline-flex shrink-0 items-center gap-1 text-sm text-primary hover:text-primary/80"
                         href={release.html_url}
                       >
                         View on GitHub
@@ -180,7 +180,7 @@ function RouteComponent() {
           hasMoreReleases && (
             <div className="pt-8 pb-4 text-center">
               <ExternalLink
-                className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
                 href={RELEASE_NOTES_URL}
               >
                 View older releases on GitHub

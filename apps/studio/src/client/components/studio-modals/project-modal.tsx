@@ -408,7 +408,7 @@ function ProjectModalForm({
                   </div>
                   <button
                     aria-label="Remove folder"
-                    className="-mr-1 shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                    className="-mr-1 shrink-0 rounded-sm p-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                     {...immediateClickHandlers<HTMLButtonElement>({
                       // A small remove target with no undo: keep the escape a
                       // release gives, as destructive `Button`s do.

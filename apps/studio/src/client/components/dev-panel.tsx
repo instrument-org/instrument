@@ -721,7 +721,7 @@ function ThemeToggle() {
                 aria-label={label}
                 aria-pressed={active}
                 className={cn(
-                  "flex size-4 items-center justify-center rounded-sm transition-colors",
+                  "flex size-4 items-center justify-center rounded-sm",
                   active
                     ? "bg-dev-500/15 text-dev-700/90 dark:bg-dev-400/15 dark:text-dev-300/90"
                     : "text-dev-700/40 hover:bg-dev-500/10 hover:text-dev-700/70 dark:text-dev-300/40 dark:hover:bg-dev-400/10 dark:hover:text-dev-300/70",

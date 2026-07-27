@@ -139,7 +139,7 @@ describe("immediate click activation", () => {
   it("acts on the first click, with no hover or arming delay in front of it", async () => {
     // A press-activated control that guards its own handler drops the click
     // entirely, because the release is suppressed too. Guarding the open action
-    // behind a hover delay made file cards unclickable until the delay elapsed.
+    // behind a hover delay made file cards dead until the delay elapsed.
     const onClick = vi.fn();
     await render(<Button onClick={onClick}>Open</Button>);
 

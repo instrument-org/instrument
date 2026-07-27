@@ -113,7 +113,7 @@ export const Tab = ({
         {item.title ? (
           <motion.span
             className={cn(
-              "min-w-0 flex-1 overflow-hidden text-sm font-medium text-clip whitespace-nowrap transition-colors",
+              "min-w-0 flex-1 overflow-hidden text-sm font-medium text-clip whitespace-nowrap",
               isSelected
                 ? "text-foreground"
                 : "text-muted-foreground group-hover:text-foreground",
@@ -134,7 +134,7 @@ export const Tab = ({
         ) : null}
         <button
           className={cn(
-            "rounded-md p-1 opacity-70 ring-offset-background transition-opacity hover:bg-muted/80 hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none",
+            "rounded-md p-1 opacity-70 ring-offset-background hover:bg-muted/80 hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none",
             isSelected ? "flex" : "hidden group-hover:flex",
           )}
           {...immediateClickHandlers<HTMLButtonElement>({
@@ -157,7 +157,7 @@ export const Tab = ({
         >
           <XIcon
             className={cn(
-              "size-3 transition-colors",
+              "size-3",
               isSelected ? "text-foreground" : "text-muted-foreground",
             )}
           />

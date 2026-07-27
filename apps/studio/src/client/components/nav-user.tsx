@@ -46,10 +46,10 @@ export function NavUser() {
           <button
             className={`${rowClassName} text-gray-400 dark:text-gray-600`}
             {...immediateClickHandlers<HTMLButtonElement>({
-        onClick: () => {
-              openSettings({ tab: "General" });
-            },
-      })}
+              onClick: () => {
+                openSettings({ tab: "General" });
+              },
+            })}
             type="button"
           >
             <FadersHorizontalIcon className="size-4 shrink-0" />
@@ -66,10 +66,10 @@ export function NavUser() {
         <button
           className={rowClassName}
           {...immediateClickHandlers<HTMLButtonElement>({
-        onClick: () => {
-            openSettings({ tab: "General" });
-          },
-      })}
+            onClick: () => {
+              openSettings({ tab: "General" });
+            },
+          })}
           title={userError?.message ?? subscriptionError?.message}
           type="button"
         >

@@ -51,7 +51,7 @@ interface PricingPlan {
 
 const planCardVariants = tv({
   slots: {
-    card: "relative flex flex-col overflow-hidden bg-card p-6 transition-all",
+    card: "relative flex flex-col overflow-hidden bg-card p-6",
     title: "text-4xl font-bold",
   },
   variants: {
@@ -214,7 +214,7 @@ function SubscribePage() {
               <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-card px-4 py-3 shadow-sm">
                 <span
                   className={cn(
-                    "text-sm font-medium transition-colors",
+                    "text-sm font-medium",
                     billingCycle === "monthly"
                       ? "text-foreground"
                       : "text-muted-foreground",
@@ -234,7 +234,7 @@ function SubscribePage() {
                 />
                 <span
                   className={cn(
-                    "flex items-center gap-2 text-sm font-medium transition-colors",
+                    "flex items-center gap-2 text-sm font-medium",
                     billingCycle === "yearly"
                       ? "text-foreground"
                       : "text-muted-foreground",

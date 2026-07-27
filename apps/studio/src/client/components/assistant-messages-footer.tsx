@@ -145,7 +145,7 @@ export function AssistantMessagesFooter({
       >
         <div
           className={cn(
-            "flex min-w-0 items-center gap-2 transition-opacity",
+            "flex min-w-0 items-center gap-2",
             sources.length > 0
               ? "opacity-100"
               : "opacity-0 group-hover/assistant-message-footer:opacity-100",
@@ -273,7 +273,7 @@ export function AssistantMessagesFooter({
               }}
             >
               <UsageSummaryText
-                className="min-w-0 text-[10px] text-dev-700/60 transition-colors hover:text-dev-700 dark:text-dev-300/60 dark:hover:text-dev-300"
+                className="min-w-0 text-[10px] text-dev-700/60 hover:text-dev-700 dark:text-dev-300/60 dark:hover:text-dev-300"
                 messageCount={usageSummary.messageCount}
                 totalTokens={usageSummary.totalTokens}
               />

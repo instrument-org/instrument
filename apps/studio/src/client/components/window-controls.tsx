@@ -85,7 +85,7 @@ function WindowControlButton({
     <button
       aria-label={label}
       className={cn(
-        "flex h-full w-12 items-center justify-center text-foreground/70 transition-colors",
+        "flex h-full w-12 items-center justify-center text-foreground/70",
         variant === "close"
           ? "hover:bg-destructive hover:text-white"
           : "hover:bg-foreground/10 hover:text-foreground",

@@ -1,10 +1,15 @@
-import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
 import { pathIsWithin } from "./path-is-within";
+import {
+  beginTurn,
+  endTurn,
+  getTurnContext,
+  type TurnId,
+  type TurnKey,
+  turnKey,
+} from "./turn-context";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
 export interface WorkspaceSkillChanges {
@@ -32,16 +37,16 @@ interface TurnTracker {
   before: Promise<WorkspaceSkillIndex>;
   touched: Set<string>;
   touchedAll: boolean;
+  turnId: TurnId;
 }
 
-/** Per-turn writes keyed by task and session. */
+/**
+ * Per-turn writes keyed by task and session. Keying by session rather than by
+ * turn id keeps a turn that never reached `consumeSkillChanges` from
+ * accumulating: the next turn on that session replaces it. The turn id on the
+ * tracker is what makes an arriving write prove which turn it came from.
+ */
 const TURNS = new Map<string, TurnTracker>();
-const TURN_CONTEXT = new AsyncLocalStorage<TurnKey>();
-
-interface TurnKey {
-  id: TaskId;
-  sessionId: StoreId.Session;
-}
 
 /** Snapshots the skills directory as a turn's "before" state. */
 export async function beginSkillChangeTracking(turn: TurnKey): Promise<void> {
@@ -50,6 +55,7 @@ export async function beginSkillChangeTracking(turn: TurnKey): Promise<void> {
     before: readWorkspaceSkillIndex(),
     touched: new Set(),
     touchedAll: false,
+    turnId: beginTurn(turn),
   };
   TURNS.set(key, tracker);
   try {
@@ -57,6 +63,7 @@ export async function beginSkillChangeTracking(turn: TurnKey): Promise<void> {
   } catch (error) {
     if (TURNS.get(key) === tracker) {
       TURNS.delete(key);
+      endTurn(turn);
     }
     throw error;
   }
@@ -65,6 +72,12 @@ export async function beginSkillChangeTracking(turn: TurnKey): Promise<void> {
 /**
  * Classifies only the packages this session mutated, then drops its tracker.
  * Safe to call unconditionally; reports nothing when the turn was not tracked.
+ *
+ * A package the turn named counts as updated on the write alone: editing
+ * `scripts/run.ts` is a real revision that leaves SKILL.md untouched. The
+ * `touchedAll` fallback -- a mutation aimed at the mount root, which names no
+ * package -- has no such evidence, so the packages it sweeps in need a changed
+ * SKILL.md to separate them from the rest of the directory.
  */
 export async function consumeSkillChanges(
   turn: TurnKey,
@@ -72,6 +85,7 @@ export async function consumeSkillChanges(
   const key = turnKey(turn);
   const tracker = TURNS.get(key);
   TURNS.delete(key);
+  endTurn(turn);
   if (!tracker) {
     return emptyChanges();
   }
@@ -82,14 +96,18 @@ export async function consumeSkillChanges(
     : tracker.touched;
   const changes = emptyChanges();
   for (const name of names) {
-    const existedBefore = before.has(name);
-    const existsAfter = after.has(name);
-    if (!existedBefore && existsAfter) {
+    const stampBefore = before.get(name);
+    const stampAfter = after.get(name);
+    if (!stampBefore && stampAfter) {
       changes.created.push(name);
-    } else if (existedBefore && existsAfter) {
-      changes.updated.push(name);
-    } else if (existedBefore) {
+    } else if (stampBefore && !stampAfter) {
       changes.removed.push(name);
+    } else if (
+      stampBefore &&
+      stampAfter &&
+      (tracker.touched.has(name) || stampChanged(stampBefore, stampAfter))
+    ) {
+      changes.updated.push(name);
     }
   }
   changes.created.sort();
@@ -141,11 +159,7 @@ export async function readWorkspaceSkillIndex(): Promise<WorkspaceSkillIndex> {
  * skills mount. `mountPath` is relative to that mount, as just-bash sees it.
  */
 export function recordWorkspaceSkillMutation(mountPath: string): void {
-  const turn = TURN_CONTEXT.getStore();
-  if (!turn) {
-    return;
-  }
-  const tracker = TURNS.get(turnKey(turn));
+  const tracker = trackerForCurrentTurn();
   if (!tracker) {
     return;
   }
@@ -163,7 +177,7 @@ export function recordWorkspaceSkillMutation(mountPath: string): void {
 
 /** Records a host write when it lands inside the workspace skills directory. */
 export function recordWorkspaceSkillWrite(filePath: string): void {
-  if (!TURN_CONTEXT.getStore()) {
+  if (!getTurnContext()) {
     return;
   }
   const skillsDir = getWorkspaceSkillsDir();
@@ -174,18 +188,27 @@ export function recordWorkspaceSkillWrite(filePath: string): void {
   recordWorkspaceSkillMutation(relative || "/");
 }
 
-/** Runs one tool call with its mutation records bound to the owning session. */
-export function withWorkspaceSkillTracking<T>(
-  turn: TurnKey,
-  callback: () => T,
-): T {
-  return TURN_CONTEXT.run(turn, callback);
-}
-
 function emptyChanges(): WorkspaceSkillChanges {
   return { created: [], removed: [], updated: [] };
 }
 
-function turnKey({ id, sessionId }: TurnKey): string {
-  return `${id}:${sessionId}`;
+function stampChanged(before: SkillStamp, after: SkillStamp): boolean {
+  return before.mtimeMs !== after.mtimeMs || before.size !== after.size;
+}
+
+/**
+ * The tracker a write should land in, or undefined when the write has no owner.
+ *
+ * A continuation started during an earlier turn still carries that turn's
+ * context. The tracker under its key belongs to whatever turn is running now,
+ * so a mismatched turn id means the write arrived too late to be attributed and
+ * is dropped rather than billed to a turn that did not make it.
+ */
+function trackerForCurrentTurn(): TurnTracker | undefined {
+  const context = getTurnContext();
+  if (!context) {
+    return undefined;
+  }
+  const tracker = TURNS.get(turnKey(context));
+  return tracker?.turnId === context.turnId ? tracker : undefined;
 }

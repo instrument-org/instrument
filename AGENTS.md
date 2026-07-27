@@ -121,6 +121,10 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `docs/plans/` — execution plans for non-trivial work (`active/` vs `completed/`). One file per plan.
 - `docs/decisions/` — why we chose one approach over another, dated. One file per decision.
 
+## Code review
+
+`REVIEW.md` at the repo root holds the review-only rules: what counts as a blocking finding here, what to skip because a check already enforces it, and the repo-specific things to look at every time. Claude Code Review injects it verbatim, so it holds instructions rather than context — put project context in this file and keep `REVIEW.md` to rules that change what a review flags.
+
 ## Additional guidance
 
 - `.agents/skills/validate-changes/SKILL.md` — **How to check your work.** The ways to run this product (sandbox shell, real agent across models, the app), what each one can and cannot tell you, and which to reach for. Read this before concluding a change works.

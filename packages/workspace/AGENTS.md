@@ -21,6 +21,7 @@ Core AI agents, workflow logic, RPC, tools, and runtime.
 
 - Prefer neverthrow `Result` for fallible operations; use `toORPCError` when throwing from RPC handlers.
 - Tools use Zod input/output schemas and the shared `create-tool` / `setupTool` pattern.
+- Turn identity (task, session, minted turn id) reaches shared write boundaries through the `turn-context.ts` `AsyncLocalStorage`, entered only by `streamTool`. Read it with `getTurnContext()`; `undefined` means "not inside a tool call" and must be treated as "do not attribute" rather than looked up another way. See `docs/decisions/2026-07-27-turn-context-through-async-local-storage.md`.
 
 ## Evals
 

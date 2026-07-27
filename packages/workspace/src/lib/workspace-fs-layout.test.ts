@@ -14,6 +14,7 @@ import {
 import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { withTurnContext } from "./turn-context";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import {
   buildBashFs,
@@ -24,7 +25,6 @@ import {
 import {
   beginSkillChangeTracking,
   consumeSkillChanges,
-  withWorkspaceSkillTracking,
 } from "./workspace-skill-index";
 
 describe("buildBashFs", () => {
@@ -270,7 +270,7 @@ describe("buildBashFs skills mount", () => {
     };
     await beginSkillChangeTracking(turn);
 
-    await withWorkspaceSkillTracking(turn, () =>
+    await withTurnContext(turn, () =>
       bash.exec(
         `mkdir -p ${SKILLS_MOUNT_POINT}/tracked && echo body > ${SKILLS_MOUNT_POINT}/tracked/SKILL.md`,
       ),

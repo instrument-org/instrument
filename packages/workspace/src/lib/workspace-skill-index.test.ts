@@ -11,13 +11,13 @@ import {
   createMockTaskConfigForDir,
   MOCK_WORKSPACE_DIRS,
 } from "../test/helpers/mock-task-config";
+import { withTurnContext } from "./turn-context";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import {
   beginSkillChangeTracking,
   consumeSkillChanges,
   readWorkspaceSkillIndex,
   recordWorkspaceSkillMutation,
-  withWorkspaceSkillTracking,
 } from "./workspace-skill-index";
 import { writeFileWithDir } from "./write-file-with-dir";
 
@@ -67,7 +67,7 @@ describe("consumeSkillChanges", () => {
     await writeSkill("brief", "Write a brief.");
     await writeSkill("tidy", "Tidy things, thoroughly and well.");
     await fs.rm(path.join(skillsDir, "stale"), { recursive: true });
-    withWorkspaceSkillTracking(turn, () => {
+    withTurnContext(turn, () => {
       for (const name of ["brief", "tidy", "stale"]) {
         recordWorkspaceSkillMutation(`/${name}`);
       }
@@ -106,7 +106,7 @@ describe("consumeSkillChanges", () => {
   it("forgets the turn once consumed", async () => {
     await beginSkillChangeTracking(turn);
     await writeSkill("brief", "Write a brief.");
-    withWorkspaceSkillTracking(turn, () => {
+    withTurnContext(turn, () => {
       recordWorkspaceSkillMutation("/brief/SKILL.md");
     });
 
@@ -138,7 +138,7 @@ describe("consumeSkillChanges", () => {
     await Promise.all([begin, consume]);
 
     await writeSkill("brief", "Write a brief.");
-    withWorkspaceSkillTracking(turn, () => {
+    withTurnContext(turn, () => {
       recordWorkspaceSkillMutation("/brief/SKILL.md");
     });
     await expect(consumeSkillChanges(turn)).resolves.toEqual({
@@ -156,7 +156,7 @@ describe("consumeSkillChanges", () => {
     ]);
 
     await writeSkill("brief", "Write a brief.");
-    withWorkspaceSkillTracking(turn, () => {
+    withTurnContext(turn, () => {
       recordWorkspaceSkillMutation("/brief/SKILL.md");
     });
 
@@ -172,13 +172,59 @@ describe("consumeSkillChanges", () => {
     });
   });
 
+  it("drops a write that arrives after its turn ended", async () => {
+    await beginSkillChangeTracking(turn);
+    let releaseWrite: (() => void) | undefined;
+    const blocked = new Promise<void>((resolve) => {
+      releaseWrite = resolve;
+    });
+    // A continuation still running inside the finished turn's context. The next
+    // turn on this session shares its task and session, so only the turn id
+    // keeps this write off that turn's report.
+    const lateWrite = withTurnContext(turn, async () => {
+      await blocked;
+      recordWorkspaceSkillMutation("/brief/SKILL.md");
+    });
+    await consumeSkillChanges(turn);
+
+    await beginSkillChangeTracking(turn);
+    await writeSkill("brief", "Write a brief.");
+    releaseWrite?.();
+    await lateWrite;
+
+    await expect(consumeSkillChanges(turn)).resolves.toEqual({
+      created: [],
+      removed: [],
+      updated: [],
+    });
+  });
+
+  it("reports only the changed skills when a mutation names no package", async () => {
+    await writeSkill("tidy", "Tidy things.");
+    await writeSkill("brief", "Write a brief.");
+    await beginSkillChangeTracking(turn);
+
+    await writeSkill("tidy", "Tidy things, thoroughly and well.");
+    // A mutation aimed at the mount root: the boundary cannot say which package
+    // it landed in, so the turn falls back to diffing the whole directory.
+    withTurnContext(turn, () => {
+      recordWorkspaceSkillMutation("/");
+    });
+
+    await expect(consumeSkillChanges(turn)).resolves.toEqual({
+      created: [],
+      removed: [],
+      updated: ["tidy"],
+    });
+  });
+
   it("attributes a change outside SKILL.md to the writing session", async () => {
     await writeSkill("tidy", "Tidy things.");
     await beginSkillChangeTracking(turn);
 
     await fs.mkdir(path.join(skillsDir, "tidy", "scripts"));
     await fs.writeFile(path.join(skillsDir, "tidy", "scripts", "run.ts"), "");
-    withWorkspaceSkillTracking(turn, () => {
+    withTurnContext(turn, () => {
       recordWorkspaceSkillMutation("/tidy/scripts/run.ts");
     });
 
@@ -192,7 +238,7 @@ describe("consumeSkillChanges", () => {
   it("attributes dedicated file writes through the shared write boundary", async () => {
     await beginSkillChangeTracking(turn);
 
-    await withWorkspaceSkillTracking(turn, () =>
+    await withTurnContext(turn, () =>
       writeFileWithDir(
         AbsolutePathSchema.parse(path.join(skillsDir, "brief", "SKILL.md")),
         "---\ndescription: Brief\n---\n\nBody.\n",

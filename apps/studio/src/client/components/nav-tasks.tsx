@@ -7,6 +7,7 @@ import {
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { cn } from "@/client/lib/utils";
 import { type Task, type TaskId } from "@instrument-org/workspace/client";
+import { PlusIcon } from "@phosphor-icons/react";
 import { type MakeRouteMatchUnion } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtomValue } from "jotai";
@@ -53,17 +54,27 @@ export function NavTasks({
 
   return (
     <SidebarGroup className="px-3 py-2 group-data-[collapsible=icon]:hidden">
-      <SidebarGroupLabel
-        asChild
-        className={cn(
-          "font-semibold text-sidebar-foreground/40",
-          isActive && "text-sidebar-foreground/60",
-        )}
-      >
-        <InternalLink openInCurrentTab search={{ filter: "all" }} to="/tasks">
-          {title}
+      <div className="group/tasks flex h-8 items-center">
+        <SidebarGroupLabel
+          asChild
+          className={cn(
+            "h-8 flex-1 font-semibold text-sidebar-foreground/40",
+            isActive && "text-sidebar-foreground/60",
+          )}
+        >
+          <InternalLink openInCurrentTab search={{ filter: "all" }} to="/tasks">
+            {title}
+          </InternalLink>
+        </SidebarGroupLabel>
+        <InternalLink
+          aria-label="New task"
+          className="flex size-5 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/40 opacity-0 transition-colors group-hover/tasks:opacity-100 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          openInCurrentTab
+          to="/new-tab"
+        >
+          <PlusIcon className="!size-3" />
         </InternalLink>
-      </SidebarGroupLabel>
+      </div>
       <SidebarMenu className="gap-0.5">
         <TasksList
           matches={matches}

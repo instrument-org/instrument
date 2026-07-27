@@ -6,6 +6,7 @@ import { RevealPath } from "@/client/components/reveal-path";
 import { SkillBadges } from "@/client/components/skill-badges";
 import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
+import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { matchSkills } from "@/client/lib/skill-search";
 import { isProvidedSource, skillSourceLabel } from "@/client/lib/skill-source";
 import { SKILL_NAME_MATCH_CLASS_NAME } from "@/client/lib/skill-tokens";
@@ -164,12 +165,14 @@ function SkillsPage() {
                 <button
                   aria-label="Clear search"
                   className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
-                  onClick={() => {
+                  {...immediateClickHandlers<HTMLButtonElement>({
+        onClick: () => {
                     void navigate({
                       replace: true,
                       search: (prev) => ({ ...prev, q: undefined }),
                     });
-                  }}
+                  },
+      })}
                   type="button"
                 >
                   <XIcon className="size-4" />

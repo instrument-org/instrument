@@ -50,6 +50,12 @@ export default [
           selector:
             "ImportDeclaration[source.value='@tanstack/react-router'] > ImportSpecifier[imported.name='Link']",
         },
+        {
+          message:
+            "Controls activate on press. Use the Button component, or spread immediateClickHandlers({ onClick }) so this element states its activation. Pass activation: 'release' for remove/close targets that must stay cancelable.",
+          selector:
+            "JSXOpeningElement[name.name='button'] > JSXAttribute[name.name='onClick']",
+        },
       ],
     },
   },

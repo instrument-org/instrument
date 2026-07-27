@@ -1,3 +1,7 @@
+import {
+  type ClickActivation,
+  immediateClickHandlers,
+} from "@/client/lib/immediate-click";
 import { cn } from "@/client/lib/utils";
 import { CaretDownIcon } from "@phosphor-icons/react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
@@ -39,13 +43,23 @@ function AccordionItem({
 }
 
 function AccordionTrigger({
+  activation,
   children,
   className,
+  onClick,
+  onPointerDown,
   ...props
-}: React.ComponentProps<typeof AccordionPrimitive.Trigger>) {
+}: React.ComponentProps<typeof AccordionPrimitive.Trigger> & {
+  activation?: ClickActivation;
+}) {
   return (
     <AccordionPrimitive.Header className="flex">
       <AccordionPrimitive.Trigger
+        {...immediateClickHandlers<HTMLButtonElement>({
+          activation,
+          onClick,
+          onPointerDown,
+        })}
         className={cn(
           "flex flex-1 items-center justify-between gap-4 rounded-md py-4 text-left text-sm font-medium transition-all outline-none not-disabled:hover:underline focus-visible:border-ring focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid] disabled:cursor-not-allowed disabled:opacity-50 [&[data-state=open]>svg]:rotate-180",
           className,

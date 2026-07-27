@@ -1,3 +1,4 @@
+import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import {
   getUsageSummaryFromMessages,
   type SessionMessage,
@@ -164,9 +165,11 @@ export function AssistantMessagesFooter({
                 <button
                   aria-label="Branch from here"
                   className="text-muted-foreground"
-                  onClick={() => {
+                  {...immediateClickHandlers<HTMLButtonElement>({
+        onClick: () => {
                     setIsBranchOpen(true);
-                  }}
+                  },
+      })}
                   type="button"
                 >
                   <GitBranchIcon size={16} />

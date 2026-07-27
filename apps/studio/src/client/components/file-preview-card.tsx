@@ -9,6 +9,7 @@ import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibili
 import { useTaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getFileKindLabel, getFileType } from "@/client/lib/get-file-type";
+import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { cn } from "@/client/lib/utils";
 import {
   ArrowLineDownIcon,
@@ -162,13 +163,13 @@ function FileRowCard({
 
   const row = (
     <div
+      {...immediateClickHandlers<HTMLDivElement>({ onClick })}
       className={cn(
         "group relative flex items-center gap-3 overflow-hidden rounded-2xl px-3 py-3 transition-colors select-none",
         isSelected
           ? "border border-black/5 bg-brand-600/8 dark:bg-brand-300/8"
           : "bg-card shadow-xs hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40",
       )}
-      onClick={onClick}
       onMouseEnter={() => {
         prefetchOpenTarget(file);
       }}
@@ -197,6 +198,9 @@ function FileRowCard({
         <div
           className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100"
           onClick={(e) => {
+            e.stopPropagation();
+          }}
+          onPointerDown={(e) => {
             e.stopPropagation();
           }}
         >
@@ -362,13 +366,13 @@ function MissingMediaCard({
     <Tooltip>
       <TooltipTrigger asChild>
         <button
+          {...immediateClickHandlers<HTMLButtonElement>({ onClick })}
           className={cn(
             "relative flex w-full flex-col items-center justify-center gap-1.5 overflow-hidden rounded-2xl bg-card p-3 text-center shadow-sm dark:bg-muted",
             aspectRatio === "square" ? "aspect-square" : "aspect-video",
             isSelected &&
               "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
           )}
-          onClick={onClick}
           type="button"
         >
           <ImageBrokenIcon className="size-6 text-muted-foreground/60" />

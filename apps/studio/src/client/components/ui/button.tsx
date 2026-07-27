@@ -1,3 +1,7 @@
+import {
+  type ClickActivation,
+  immediateClickHandlers,
+} from "@/client/lib/immediate-click";
 import { cn } from "@/client/lib/utils";
 import { Slot } from "@radix-ui/react-slot";
 import * as React from "react";
@@ -53,13 +57,18 @@ export const buttonVariants = tv({
 export type ButtonVariant = VariantProps<typeof buttonVariants>["variant"];
 
 export function Button({
+  activation,
   asChild = false,
   className,
+  onClick,
+  onPointerDown,
   size = "default",
+  type,
   variant = "default",
   ...props
 }: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
+    activation?: ClickActivation;
     asChild?: boolean;
   }) {
   const Comp = asChild ? Slot : "button";
@@ -70,7 +79,46 @@ export function Button({
       data-size={size}
       data-slot="button"
       data-variant={variant}
+      type={type}
+      {...immediateClickHandlers<HTMLButtonElement>({
+        activation: activation ?? defaultActivation({ asChild, type, variant }),
+        onClick,
+        onPointerDown,
+      })}
       {...props}
     />
   );
+}
+
+/**
+ * Buttons activate on press, so the app answers a click the way a native
+ * desktop control does. Three cases opt back out of that, because pressing
+ * them commits something a user cannot take back by releasing somewhere else:
+ *
+ * - Destructive variants, which is where losing pointer cancellation costs the
+ *   most and where the WCAG guidance on down-event activation actually bites.
+ * - Explicit `submit`/`reset`, which hand the press to the surrounding form.
+ * - `asChild`, where the rendered element is somebody else's and owns its own
+ *   activation. `InternalLink` already navigates on press; wrapping it would
+ *   navigate twice.
+ *
+ * Confirmation dialogs need no rule here: `AlertDialogAction` and
+ * `AlertDialogCancel` borrow `buttonVariants` for styling and never render
+ * this component, so they stay on release.
+ */
+function defaultActivation({
+  asChild,
+  type,
+  variant,
+}: {
+  asChild: boolean;
+  type: React.ComponentProps<"button">["type"];
+  variant: ButtonVariant;
+}): ClickActivation {
+  if (asChild || type === "submit" || type === "reset") {
+    return "release";
+  }
+  return variant === "destructive" || variant === "ghost-destructive"
+    ? "release"
+    : "pointer-down";
 }

@@ -5,6 +5,7 @@ import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { Progress } from "@/client/components/ui/progress";
+import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
 import { useMutation } from "@tanstack/react-query";
@@ -119,9 +120,11 @@ export function SubscriptionCard() {
               {" or "}
               <button
                 className="underline"
-                onClick={() => {
+                {...immediateClickHandlers<HTMLButtonElement>({
+        onClick: () => {
                   openSettings({ tab: "Providers" });
-                }}
+                },
+      })}
                 type="button"
               >
                 add API keys

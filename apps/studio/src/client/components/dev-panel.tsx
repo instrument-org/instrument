@@ -33,6 +33,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { cn, isMacOS } from "@/client/lib/utils";
 import {
   componentPages,
@@ -725,9 +726,11 @@ function ThemeToggle() {
                     ? "bg-dev-500/15 text-dev-700/90 dark:bg-dev-400/15 dark:text-dev-300/90"
                     : "text-dev-700/40 hover:bg-dev-500/10 hover:text-dev-700/70 dark:text-dev-300/40 dark:hover:bg-dev-400/10 dark:hover:text-dev-300/70",
                 )}
-                onClick={() => {
-                  setTheme(value);
-                }}
+                {...immediateClickHandlers<HTMLButtonElement>({
+                  onClick: () => {
+                    setTheme(value);
+                  },
+                })}
                 type="button"
               >
                 <OptionIcon className="size-2.5" />

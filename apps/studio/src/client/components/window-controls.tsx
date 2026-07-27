@@ -1,4 +1,5 @@
 import { forceWindowControlsAtom } from "@/client/atoms/window-controls";
+import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { cn, isLinux, isMacOS, isWindows } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { CopyIcon, MinusIcon, SquareIcon, XIcon } from "@phosphor-icons/react";
@@ -89,7 +90,12 @@ function WindowControlButton({
           ? "hover:bg-destructive hover:text-white"
           : "hover:bg-foreground/10 hover:text-foreground",
       )}
-      onClick={onClick}
+      {...immediateClickHandlers<HTMLButtonElement>({
+        // Window chrome follows the OS, which lets a press be canceled by
+        // releasing away from the control.
+        activation: "release",
+        onClick,
+      })}
       title={label}
       type="button"
     >

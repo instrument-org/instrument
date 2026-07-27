@@ -35,6 +35,7 @@ import { useTabId } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { useTimedFlag } from "@/client/hooks/use-timed-flag";
+import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import {
   isProvidedSource,
   readOnlySkillReason,
@@ -406,9 +407,11 @@ function SkillPage() {
                           "bg-accent text-accent-foreground",
                       )}
                       key={file}
-                      onClick={() => {
-                        setSelection({ file, skill: name });
-                      }}
+                      {...immediateClickHandlers<HTMLButtonElement>({
+                        onClick: () => {
+                          setSelection({ file, skill: name });
+                        },
+                      })}
                       type="button"
                     >
                       <FileIcon
@@ -476,10 +479,12 @@ function SkillTitle({
           onBlur={() => {
             setTooltipOpen(false);
           }}
-          onClick={() => {
-            void navigator.clipboard.writeText(stableLabel);
-            trigger();
-          }}
+          {...immediateClickHandlers<HTMLButtonElement>({
+            onClick: () => {
+              void navigator.clipboard.writeText(stableLabel);
+              trigger();
+            },
+          })}
           onFocus={() => {
             setTooltipOpen(true);
           }}

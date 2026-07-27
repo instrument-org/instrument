@@ -24,7 +24,7 @@ function render(
   return result.value;
 }
 
-/** Pin the boundary nonce so the rest of the rendering stays snapshottable. */
+/** Pin the boundary nonce so the rest of the rendering stays stable across runs. */
 function stableNonce(value: string) {
   return value.replaceAll(/nonce=[0-9a-f]{32}/g, "nonce=<nonce>");
 }

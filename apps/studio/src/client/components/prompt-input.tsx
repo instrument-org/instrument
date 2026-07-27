@@ -291,37 +291,51 @@ export const PromptInput = ({
     enabled: isActiveTab,
     onFilesDropped: processFiles,
     onFoldersDropped: (folders: DroppedFolder[]) => {
+      // Split the drop against the rendered list so the toast happens here,
+      // once, rather than inside the updater -- React may call an updater more
+      // than once and would repeat the notification.
+      const existingPaths = new Set(
+        attachedItems.filter((i) => i.type === "folder").map((i) => i.path),
+      );
+      const duplicates: string[] = [];
+      const newFolders: Extract<AttachedItem, { type: "folder" }>[] = [];
+
+      for (const folder of folders) {
+        if (existingPaths.has(folder.path)) {
+          duplicates.push(folderNameFromPath(folder.path));
+        } else {
+          newFolders.push({ id: ulid(), path: folder.path, type: "folder" });
+        }
+      }
+
+      if (duplicates.length > 0) {
+        const names = duplicates.join(", ");
+        toast.info(
+          duplicates.length === 1
+            ? `"${names}" is already added`
+            : `Some folders are already added`,
+          {
+            description:
+              duplicates.length === 1
+                ? "That folder has already been attached. Each folder can only be added once."
+                : `${names} have already been attached. Each folder can only be added once.`,
+          },
+        );
+      }
+
+      if (newFolders.length === 0) {
+        return;
+      }
+
+      // `attachedItems` is a render-old snapshot, so re-check inside the
+      // updater: back-to-back drops of the same folder both read the same
+      // snapshot and would otherwise each append it.
       setAttachedItems((prev) => {
-        const existingPaths = new Set(
+        const paths = new Set(
           prev.filter((i) => i.type === "folder").map((i) => i.path),
         );
-        const duplicates: string[] = [];
-        const newFolders: AttachedItem[] = [];
-
-        for (const folder of folders) {
-          if (existingPaths.has(folder.path)) {
-            duplicates.push(folderNameFromPath(folder.path));
-          } else {
-            newFolders.push({ id: ulid(), path: folder.path, type: "folder" });
-          }
-        }
-
-        if (duplicates.length > 0) {
-          const names = duplicates.join(", ");
-          toast.info(
-            duplicates.length === 1
-              ? `"${names}" is already added`
-              : `Some folders are already added`,
-            {
-              description:
-                duplicates.length === 1
-                  ? "That folder has already been attached. Each folder can only be added once."
-                  : `${names} have already been attached. Each folder can only be added once.`,
-            },
-          );
-        }
-
-        return newFolders.length > 0 ? [...prev, ...newFolders] : prev;
+        const unseen = newFolders.filter((f) => !paths.has(f.path));
+        return unseen.length > 0 ? [...prev, ...unseen] : prev;
       });
     },
   });
@@ -355,16 +369,24 @@ export const PromptInput = ({
       return;
     }
     const folderPath = result.path;
-    setAttachedItems((prev) => {
-      if (prev.some((i) => i.type === "folder" && i.path === folderPath)) {
-        toast.info(`"${folderNameFromPath(folderPath)}" is already added`, {
-          description:
-            "That folder has already been attached. Each folder can only be added once.",
-        });
-        return prev;
-      }
-      return [...prev, { id: ulid(), path: folderPath, type: "folder" }];
-    });
+
+    // Notify outside the updater: React may run an updater more than once, and
+    // a duplicate pick would then toast twice.
+    if (
+      attachedItems.some((i) => i.type === "folder" && i.path === folderPath)
+    ) {
+      toast.info(`"${folderNameFromPath(folderPath)}" is already added`, {
+        description:
+          "That folder has already been attached. Each folder can only be added once.",
+      });
+      return;
+    }
+
+    setAttachedItems((prev) =>
+      prev.some((i) => i.type === "folder" && i.path === folderPath)
+        ? prev
+        : [...prev, { id: ulid(), path: folderPath, type: "folder" }],
+    );
   };
 
   const attachedFiles = attachedItems.filter((i) => i.type === "file");

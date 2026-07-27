@@ -118,9 +118,15 @@ export function MediaCardShell({
           {overlayActions && (
             <div
               className={cn(
-                "absolute top-3 right-3 left-3 z-10 flex flex-col items-start gap-1",
-                "opacity-0 transition-opacity duration-200 group-hover/media:opacity-100 group-hover/media:delay-400 group-has-[button[data-state=open]]/media:pointer-events-auto group-has-[button[data-state=open]]/media:opacity-100 group-has-[button[data-state=open]]/media:delay-0",
-                !interactive && "pointer-events-none",
+                // The box spans the card's full width so a long "Open in…"
+                // label truncates instead of running under the expand control,
+                // but only the controls inside it may take the pointer. Left
+                // clickable, the empty space beside them swallows presses meant
+                // for the card, and the box covers the expand control too.
+                "pointer-events-none absolute top-3 right-3 left-3 z-10 flex flex-col items-start gap-1",
+                "opacity-0 transition-opacity duration-200 group-hover/media:opacity-100 group-hover/media:delay-400 group-has-[button[data-state=open]]/media:opacity-100 group-has-[button[data-state=open]]/media:delay-0",
+                interactive && "[&>*]:pointer-events-auto",
+                "group-has-[button[data-state=open]]/media:[&>*]:pointer-events-auto",
               )}
               onClickCapture={(e) => {
                 // block mouseup-race clicks that started before the protection window

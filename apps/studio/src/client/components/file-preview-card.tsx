@@ -434,7 +434,7 @@ function VideoPreviewCard({
       aspectRatio="video"
       bottomBar={
         displayTime === null ? undefined : (
-          <div className="absolute right-4 bottom-4 left-4 z-10 flex flex-col gap-1 opacity-0 transition-opacity duration-200 group-hover/media:opacity-100">
+          <div className="pointer-events-none absolute right-4 bottom-4 left-4 z-10 flex flex-col gap-1 opacity-0 transition-opacity duration-200 group-hover/media:opacity-100">
             <span className="self-end text-xs font-medium text-white tabular-nums drop-shadow-sm">
               {formatTime(displayTime)}
             </span>

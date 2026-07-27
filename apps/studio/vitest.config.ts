@@ -55,6 +55,11 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "src"),
     },
+    // A Radix package reached only from the component under test gets
+    // pre-bundled on its own and pulls a second React with it, which fails on
+    // the first hook it runs. Pinning one copy keeps such a component
+    // renderable in the browser project.
+    dedupe: ["react", "react-dom"],
   },
   test: {
     clearMocks: true,

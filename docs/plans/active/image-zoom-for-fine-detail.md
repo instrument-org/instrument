@@ -1,6 +1,6 @@
 # Zooming into images to read fine detail
 
-Status: **active (phases 1-3 landed, unmeasured)**. Owner: TBD. The plumbing, the region read, and the prompt guidance are in. Phase 4 -- the eval that says whether any of it helps -- is not, and until it runs the accuracy claim here is the cookbook's, not ours.
+Status: **active (all four phases landed)**. Owner: TBD. The plumbing, the region read, the prompt guidance, and the eval that measures them are in. What remains is a decision, not code: whether the context cost of a zoom-happy model needs a cap. See phase 4 for what the numbers say.
 
 ## Source
 
@@ -153,16 +153,18 @@ Where a skill does earn its place is everything past one rectangle: contact shee
 15. One bullet in the main agent prompt next to the existing verification guidance ([main.ts](../../../packages/workspace/src/agents/main.ts)): seeing an image is not reading it, and a confident first impression of a small detail is often wrong.
 16. **Not done:** the `agent-browser` skill cross-reference, where screenshots are the dominant dense image. Registry is read-only, so that edit belongs in the skills repo.
 
-### Phase 4: measure -- not started
+### Phase 4: measure -- landed
 
-17. New eval case in [evals/cases/](../../../packages/workspace/evals/cases/) following the [pdf-skill.ts](../../../packages/workspace/evals/cases/pdf-skill.ts) pattern: generate a dense multi-series chart with a tiny annotation as a fixture (ground truth known because we drew it), ask for the annotated value, assert on the answer and on the presence of a region read.
-18. Add a near-tie ordering question (the cookbook's second demo) as a separate case. It is the harder half and the one that separates "read the small text" from "resolve the geometry".
-19. Run across models with `pnpm eval`. OpenRouter credits are exhausted, so pass a full model URI to hit Anthropic/OpenAI/Google keys directly.
-20. The open questions below are all phase 4 questions. Until it runs we do not know whether the agent reaches for `region` on its own, whether filling the budget beats a magnification cap, or what a zoom-happy model costs over a long task.
+17. Three cases in [image-region.ts](../../../packages/workspace/evals/cases/image-region.ts). Two draw the answer at a size the fixed preview renders around three pixels tall, so a correct answer is very hard to produce without going back to the file; the third is legible whole and asserts **no** zoom, which is what stops this measuring enthusiasm instead of judgement. Every prompt names what to find and never how.
+18. **The affordance works, and it is found unprompted.** Across `openai/gpt-5.6-luna`, `anthropic/claude-sonnet-5`, and `x-ai/grok-4.5`, every model reached for `region` on both zoom cases and read the exact value. The only failure in eighteen assertions is the negative case, and only for gpt-5.6.
+19. **Restraint is where models differ, not capability.** Sonnet and Grok answered the legible image from the first look. The gpt-5.6 family zooms before it has seen anything: on every image read it opened with an all-zero rectangle, and on the legible case it went on to request a whole-image region it did not need. The all-zero call is handled in `read_file` now; the speculative whole-image read is model behavior, and adding "omit this on a first read" to the parameter description was tried and measured to produce *more* of it.
+20. **The bounds error is load-bearing.** A model that guessed the wrong coordinate space recovered from the sentence naming the right one. That error text is a feature, which is also why an all-zero rectangle is answered rather than refused: it names no space to correct.
+
+Corrupt attachments are measured separately, in [unreadable-media.ts](../../../packages/workspace/evals/cases/unreadable-media.ts). The prevention work only pays off if the agent acts on the tool error rather than inventing an answer or re-reading the file forever, and neither is visible to a unit test.
 
 ## Risks and open questions
 
-- **Context cost.** Each crop is a full-budget image that lives in the transcript forever. The cookbook measured 10-30x per-question cost. In a long general-purpose session, three zooms across a task is fine; a model that zooms reflexively is not. The digest cache in phase 1 removes the repeated-encode cost but not the context growth. Remaining options: cap crops per turn, cap magnification below the full budget, or evict older crop images on replay. Neither reference harness solves this -- both hold every image in history. **Undecided -- measure in phase 4 before picking.**
+- **Context cost.** Each crop is a full-budget image that lives in the transcript forever. The cookbook measured 10-30x per-question cost. In a long general-purpose session, three zooms across a task is fine; a model that zooms reflexively is not. The digest cache in phase 1 removes the repeated-encode cost but not the context growth. Remaining options: cap crops per turn, cap magnification below the full budget, or evict older crop images on replay. Neither reference harness solves this -- both hold every image in history. **Still undecided, but phase 4 narrowed it**: on a single-question task the spread was two to three region reads per case, and the model that zoomed most was the one that zoomed before looking rather than one that kept subdividing. That argues the cost is bounded by how a model opens an image read, not by runaway refinement, so a cap on crops per turn would bite the wrong behavior. Revisit with a multi-turn case, which is what a real session looks like and what none of these cases are.
 - **Fill the budget or not.** The cookbook fills it deliberately (more patches per element reads better even when interpolated) and its numbers back that. But upscaling a 40x30 region to 1568px wide spends the full budget on 1200 real pixels. Worth testing a magnification cap as a variant; do not assume it is free.
 - **Provider drift.** The view-size math is per-provider and will go stale. The conservative default limits the blast radius: a bound smaller than the provider's real one costs some resolution but never breaks coordinates.
 - **Non-vision models.** [filter-unsupported-media.ts](../../../packages/workspace/src/lib/filter-unsupported-media.ts) already substitutes text for media a model cannot take, so a region read degrades the same way an image read does. It still spends an ffmpeg render on a crop nobody sees; cheap enough to leave.
@@ -170,9 +172,9 @@ Where a skill does earn its place is everything past one rectangle: contact shee
 - **Pre-resize changes what the agent is shown, not the file on disk.** It is the same downscale the provider would have done, so it is a wash, and the crop still reads from the original. Stated in the code so nobody "fixes" it later.
 - **Nothing here is measured.** Every accuracy number in this document is the cookbook's, on its benchmark, with its tool. Ours could plausibly do nothing if the agent never reaches for `region`.
 
-## Known defects in what landed
+## Defects found in review
 
-[image-read-coordinate-contract.md](image-read-coordinate-contract.md) records five confirmed defects found in review, three of them breaking the promise this feature rests on: that the pixel space named in text is the pixel space the model sees. **Treat the region read as untrustworthy until those land**, and do not run the phase 4 eval before them, since measuring against a broken coordinate space measures nothing.
+[image-read-coordinate-contract.md](image-read-coordinate-contract.md) records five confirmed defects, three of them breaking the promise this feature rests on: that the pixel space named in text is the pixel space the model sees. All five landed before the phase 4 eval ran, which was the order that mattered -- measuring against a broken coordinate space would have measured nothing.
 
 ## Follow-on plans
 

@@ -297,7 +297,7 @@ const fileViewerHeaderMenuTriggerClassName = toolbarClassName({
 
 const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
   className:
-    "h-7 w-5 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+    "h-7 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
   pressed: false,
 });
 

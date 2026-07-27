@@ -315,8 +315,7 @@ function ImagePreviewCard({
             <OpenTaskFileButton
               className="max-w-44"
               control={openControl}
-              dropdownClassName="px-1.5"
-              dropdownSize="xs"
+              dropdownClassName="h-6 rounded-lg"
               file={file}
               iconClassName="size-3.5 shrink-0"
               labelClassName="truncate"
@@ -473,8 +472,7 @@ function VideoPreviewCard({
             <OpenTaskFileButton
               className="max-w-44"
               control={openControl}
-              dropdownClassName="px-1.5"
-              dropdownSize="xs"
+              dropdownClassName="h-6 rounded-lg"
               file={file}
               iconClassName="size-3.5 shrink-0"
               labelClassName="truncate"

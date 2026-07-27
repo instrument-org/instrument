@@ -103,6 +103,8 @@ describe("drawNonce", () => {
   it("gives up rather than looping when every draw collides", () => {
     expect(() =>
       drawNonce("aaaa", () => "aaaa"),
-    ).toThrowErrorMatchingInlineSnapshot(`[Error: Could not draw a content boundary nonce]`);
+    ).toThrowErrorMatchingInlineSnapshot(
+      `[Error: Could not draw a content boundary nonce]`,
+    );
   });
 });

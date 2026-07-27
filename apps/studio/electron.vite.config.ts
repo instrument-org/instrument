@@ -131,6 +131,15 @@ export default defineConfig(({ command }) => {
   return {
     main: {
       build: {
+        // Vite empties outDir on every rebuild, not just the first, and
+        // electron-vite's watch hook only restarts the Electron child it
+        // spawned itself. A second dev server (or a second Studio instance)
+        // in this checkout therefore deletes out/main out from under a live
+        // main process, and its next lazily-imported chunk -- most of
+        // just-bash's ~170 builtins, plus our own dynamic imports -- dies
+        // with ERR_MODULE_NOT_FOUND. Chunk names are content-hashed, so
+        // leaving stale files behind is safe; only a build needs a clean dir.
+        emptyOutDir: isProduction,
         externalizeDeps: {
           exclude: mainExternalizeExclude,
           include:
@@ -182,6 +191,9 @@ export default defineConfig(({ command }) => {
     },
     preload: {
       build: {
+        // Same rebuild-wipe hazard as main: a window or webview created while
+        // out/preload is empty gets no preload script at all.
+        emptyOutDir: isProduction,
         lib: {
           entry: path.join(process.cwd(), "src/electron-preload/index.ts"),
         },

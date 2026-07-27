@@ -1,4 +1,8 @@
-import type { AsyncSubscription, SubscribeCallback } from "@parcel/watcher";
+import type {
+  AsyncSubscription,
+  Options,
+  SubscribeCallback,
+} from "@parcel/watcher";
 
 import fs from "node:fs/promises";
 import { noop } from "radashi";
@@ -14,6 +18,7 @@ interface ParcelWatcherApi {
   subscribe: (
     dir: string,
     callback: SubscribeCallback,
+    options?: Options,
   ) => Promise<AsyncSubscription>;
 }
 

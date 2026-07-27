@@ -90,12 +90,20 @@ export function TaskActionsMenuItems({
   );
   const isPinned = pinnedTaskIds?.includes(id) ?? false;
 
-  const { mutateAsync: removePin } = useMutation(
-    rpcClient.workspace.pin.remove.mutationOptions(),
+  const { mutate: removePin } = useMutation(
+    rpcClient.workspace.pin.remove.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to unpin task", { description: error.message });
+      },
+    }),
   );
 
-  const { mutateAsync: addPin } = useMutation(
-    rpcClient.workspace.pin.add.mutationOptions(),
+  const { mutate: addPin } = useMutation(
+    rpcClient.workspace.pin.add.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to pin task", { description: error.message });
+      },
+    }),
   );
 
   const copyFolderPathMutation = useMutation(
@@ -123,9 +131,9 @@ export function TaskActionsMenuItems({
       <Item
         onSelect={() => {
           if (isPinned) {
-            void removePin({ id });
+            removePin({ id });
           } else {
-            void addPin({ id });
+            addPin({ id });
           }
         }}
       >

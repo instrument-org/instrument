@@ -18,6 +18,19 @@ export interface RenderedImage {
   width: number;
 }
 
+/**
+ * What came back, and when nothing did, whose fault it was.
+ *
+ * `failed` is the image: ffmpeg read it and could not produce anything inside
+ * the budget. `unavailable` is us: ffmpeg never ran, so nothing is known about
+ * the image at all. Callers owe those two different answers -- there is no
+ * point telling someone to convert a file that is fine.
+ */
+export type RenderImageResult =
+  | { image: RenderedImage; state: "rendered" }
+  | { state: "failed" }
+  | { state: "unavailable" };
+
 // Descending quality, tried in order once PNG proves too large. The first two
 // keep full chroma resolution: 4:2:0 subsampling halves color detail, which
 // smears the hairline chart rules and 1px UI borders this pipeline exists to
@@ -103,11 +116,10 @@ export function measureImage(
  * wants read. JPEG is the fallback for when PNG will not fit, and shrinking is
  * the fallback for when no quality setting will.
  *
- * Returns undefined when every step failed, and without trying when the source
- * declares more pixels than `MAX_DECODED_PIXELS`. That check lives here because
- * this is the only place that starts a decode: callers test it too, so they can
- * name the cause in a message, but the enforcement cannot depend on them
- * remembering to.
+ * Refuses without trying when the source declares more pixels than
+ * `MAX_DECODED_PIXELS`. That check lives here because this is the only place
+ * that starts a decode: callers test it too, so they can name the cause in a
+ * message, but the enforcement cannot depend on them remembering to.
  */
 export async function renderImage({
   bytes,
@@ -121,14 +133,14 @@ export async function renderImage({
   region?: ImageRegion;
   signal?: AbortSignal;
   target: ImageSize;
-}): Promise<RenderedImage | undefined> {
+}): Promise<RenderImageResult> {
   // Measured here rather than taken as an argument: a size a caller passes is a
   // size a caller can get wrong, and this has to hold for every caller there
   // will ever be. An unmeasurable source is left to ffmpeg, which is the only
   // thing that can read some of the formats image-size cannot.
   const source = measureImage(bytes);
   if (source && exceedsDecodeBudget(source)) {
-    return undefined;
+    return { state: "failed" };
   }
 
   let attempt = target;
@@ -147,12 +159,20 @@ export async function renderImage({
         signal,
         target: attempt,
       });
+      if (rendered === "unavailable") {
+        // Every remaining step is the same spawn with different arguments, so
+        // one that never started settles all thirty of them.
+        return { state: "unavailable" };
+      }
       if (rendered && rendered.byteLength <= maxBytes) {
         return {
-          bytes: rendered,
-          height: attempt.height,
-          mediaType: candidate.toJpeg ? "image/jpeg" : "image/png",
-          width: attempt.width,
+          image: {
+            bytes: rendered,
+            height: attempt.height,
+            mediaType: candidate.toJpeg ? "image/jpeg" : "image/png",
+            width: attempt.width,
+          },
+          state: "rendered",
         };
       }
     }
@@ -166,7 +186,7 @@ export async function renderImage({
     }
   }
 
-  return undefined;
+  return { state: "failed" };
 }
 
 async function runFfmpeg({
@@ -243,6 +263,13 @@ async function runFfmpeg({
     reject: false,
   });
 
+  // No exit code means the process never reached one: it failed to spawn, or a
+  // signal took it down. The binary is bundled, so the first is rare -- but it
+  // is a machine where nothing here will ever work, and it must not be read as
+  // a verdict on the image.
+  if (result.exitCode === undefined) {
+    return "unavailable";
+  }
   if (result.exitCode !== 0 || result.stdout.length === 0) {
     return;
   }

@@ -8,7 +8,12 @@ import {
   imageViewSize,
   PREVIEW_LIMITS,
 } from "./image-view-size";
-import { exceedsDecodeBudget, measureImage, renderImage } from "./render-image";
+import {
+  exceedsDecodeBudget,
+  measureImage,
+  type RenderedImage,
+  renderImage,
+} from "./render-image";
 
 type ContentOutput = Extract<
   LanguageModelV2ToolResultOutput,
@@ -40,7 +45,13 @@ const TOO_MANY_PIXELS_NOTE =
 // history is re-encoded on every request. Keyed on the source bytes and the
 // budget, so a cache hit is byte-identical to what a miss would produce --
 // which also keeps the prompt cache from breaking on a re-render.
-const RENDER_CACHE = new Map<string, Awaited<ReturnType<typeof renderImage>>>();
+//
+// Only a verdict about the image itself is stored, never one about the machine:
+// caching `unavailable` would make a stopped turn or a temporarily unrunnable
+// binary hide an image for the rest of the session, long after the cause went
+// away. `undefined` means ffmpeg read these bytes and could do nothing with
+// them, which is a property of the bytes and will not change.
+const RENDER_CACHE = new Map<string, RenderedImage | undefined>();
 const RENDER_CACHE_LIMIT = 32;
 
 /**
@@ -288,12 +299,37 @@ async function normalizeImage({
   const key = cacheKey(bytes, PREVIEW_LIMITS);
   let rendered = RENDER_CACHE.get(key);
   if (!RENDER_CACHE.has(key)) {
-    rendered = await renderImage({
+    const result = await renderImage({
       bytes,
       maxBytes: MAX_RAW_BYTES,
       signal,
       target,
     });
+
+    if (result.state === "unavailable") {
+      // Send it as it is and let the provider apply its own budget. That is
+      // what happened before this pass existed, and it is a far better answer
+      // than dropping a picture that is fine over a binary that would not run.
+      // The declared media type is corrected on the way out, since that much is
+      // known from the bytes and a contradiction is refused as surely as a
+      // corrupt image is.
+      if (bytes.byteLength > MAX_RAW_BYTES) {
+        return { note: OVERSIZED_NOTE, state: "dropped" };
+      }
+      if (
+        size.mediaType === undefined ||
+        !SENDABLE_MEDIA_TYPES.has(size.mediaType)
+      ) {
+        return { note: UNREADABLE_NOTE, state: "dropped" };
+      }
+      return {
+        data: encodeLikeSource(data, bytes, size.mediaType),
+        mediaType: size.mediaType,
+        state: "replaced",
+      };
+    }
+
+    rendered = result.state === "rendered" ? result.image : undefined;
     if (RENDER_CACHE.size >= RENDER_CACHE_LIMIT) {
       const oldest = RENDER_CACHE.keys().next();
       if (!oldest.done) {

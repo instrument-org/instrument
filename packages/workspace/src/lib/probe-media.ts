@@ -46,9 +46,11 @@ export async function canDecodeMedia({
     { cancelSignal: signal, reject: false },
   );
 
-  // ffprobe failing to start says nothing about the file. Refusing every audio
-  // and video read because a binary is missing trades a rare bad file for a
-  // tool that never works.
+  // No exit code means the probe never reached one, so it holds no opinion:
+  // ffprobe failed to spawn, or the caller's signal cut it short. Refusing
+  // every audio and video read on that basis would trade a rare bad file for a
+  // tool that never works, so the file gets the benefit of the doubt and the
+  // provider decides.
   if (result.exitCode === undefined) {
     return true;
   }

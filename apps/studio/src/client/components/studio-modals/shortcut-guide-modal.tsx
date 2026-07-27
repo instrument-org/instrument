@@ -82,8 +82,8 @@ function ShortcutGuideContent({
       className="max-w-[min(38rem,calc((100vw-2rem)/var(--content-zoom)))] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0"
       onExitComplete={onExitComplete}
     >
-      <div className="flex flex-col gap-3 border-b px-6 pt-6 pb-4">
-        <DialogTitle>Keyboard Shortcuts</DialogTitle>
+      <div className="flex flex-col gap-3 px-6 pt-6 pb-4">
+        <DialogTitle>Keyboard shortcuts</DialogTitle>
         <DialogDescription className="sr-only">
           Every keyboard shortcut the app offers, grouped and searchable.
         </DialogDescription>

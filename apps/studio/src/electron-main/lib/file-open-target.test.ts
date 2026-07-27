@@ -396,18 +396,30 @@ describe("getFileOpenCandidates", () => {
       });
 
     const extensions = ["md", "json", "csv", "txt", "png", "pdf"];
-    const pending = Promise.all(
-      extensions.map((ext) => getFileOpenCandidates(`/tasks/a/file.${ext}`)),
+    const lookups = extensions.map((ext) =>
+      getFileOpenCandidates(`/tasks/a/file.${ext}`),
     );
+    let settled = false;
+    // The barrier is `allSettled`, not the `all` below: `all` reports as soon as
+    // one lookup rejects, which would end the drain while its siblings are still
+    // queued behind the concurrency cap and leave them waiting on a release that
+    // never comes. Failing here should surface the rejection, not a timeout.
+    void Promise.allSettled(lookups).then(() => {
+      settled = true;
+    });
     // Drain in waves: each release lets a queued lookup take the freed slot,
     // and finishing a candidate list queues that type's icon lookup in turn.
-    for (let i = 0; i < 100; i++) {
+    // Draining until the work settles rather than for a fixed number of waves
+    // matters because the first lookup sits behind the disk cache read, which
+    // is real I/O: a fixed count can run out before a single exec is queued,
+    // leaving nobody to release it.
+    while (!settled) {
       await new Promise((resolve) => setImmediate(resolve));
       for (const resolve of release.splice(0)) {
         resolve();
       }
     }
-    await pending;
+    await Promise.all(lookups);
 
     expect(peakConcurrentExecs).toBe(2);
   });

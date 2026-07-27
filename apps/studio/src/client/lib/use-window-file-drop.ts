@@ -24,6 +24,19 @@ export const useWindowFileDrop = ({
   const [isDragging, setIsDragging] = useState(false);
   const dragCounterRef = useRef(0);
 
+  // Both call sites pass handlers built fresh each render (one closes over the
+  // attachment list), so depending on them directly would tear down and rebind
+  // all four window listeners on every render -- including mid-drag, which
+  // resets the enter/leave bookkeeping. Read them through refs instead so the
+  // listeners bind once per `enabled` change and still call the latest handler.
+  const onFilesDroppedRef = useRef(onFilesDropped);
+  const onFoldersDroppedRef = useRef(onFoldersDropped);
+
+  useEffect(() => {
+    onFilesDroppedRef.current = onFilesDropped;
+    onFoldersDroppedRef.current = onFoldersDropped;
+  });
+
   useEffect(() => {
     if (!enabled) {
       return;
@@ -89,7 +102,7 @@ export const useWindowFileDrop = ({
         }
 
         if (folders.length > 0) {
-          onFoldersDropped?.(folders);
+          onFoldersDroppedRef.current?.(folders);
         } else {
           captureException(
             new Error("Could not get folder paths from dropped items"),
@@ -98,7 +111,7 @@ export const useWindowFileDrop = ({
       }
 
       if (fileItems.length > 0 && files.length > 0) {
-        onFilesDropped(files);
+        onFilesDroppedRef.current(files);
       }
     };
 
@@ -113,7 +126,7 @@ export const useWindowFileDrop = ({
       window.removeEventListener("dragover", handleDragOver);
       window.removeEventListener("drop", handleDrop);
     };
-  }, [enabled, onFilesDropped, onFoldersDropped]);
+  }, [enabled]);
 
   return { isDragging: enabled && isDragging };
 };

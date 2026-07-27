@@ -1,3 +1,4 @@
+import { MESSAGE_FOOTER_ICON_SIZE, SHARED } from "@/client/lib/styles";
 import { cn } from "@/client/lib/utils";
 import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
@@ -121,8 +122,8 @@ export const UserMessage = memo(function UserMessage({
         <Tooltip>
           <TooltipTrigger asChild>
             <CopyButton
-              className="rounded-sm p-1 transition-colors hover:bg-muted/50 hover:text-foreground disabled:opacity-50"
-              iconSize={12}
+              className={SHARED.messageFooterButton}
+              iconSize={MESSAGE_FOOTER_ICON_SIZE}
               onCopy={handleCopy}
             />
           </TooltipTrigger>

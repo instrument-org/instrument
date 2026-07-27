@@ -17,6 +17,7 @@ import {
 import { fromPromise } from "xstate";
 
 import { type AnyAgent } from "../agents/types";
+import { classifyProviderError } from "../lib/classify-provider-error";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
@@ -646,7 +647,13 @@ export const llmRequestLogic = fromPromise<
           statusCode: error.statusCode,
           url: error.url,
         };
+        // Recorded rather than acted on. Which rejections actually reach us,
+        // and which layer of evidence names them, is what decides where
+        // recovery is worth building and when the message patterns have rotted.
+        const classification = classifyProviderError(error);
         captureEvent("llm.error", {
+          error_classification: classification.kind,
+          error_classification_evidence: classification.evidence,
           error_type: "api-call",
           modelId,
           providerId,

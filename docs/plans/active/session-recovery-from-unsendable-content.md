@@ -1,6 +1,6 @@
 # Recovering a session whose history the provider will not accept
 
-Status: **proposed**. Owner: TBD. Prevention has partly landed (see "What already exists"); classification and recovery have not.
+Status: **in progress**. Owner: TBD. Prevention and classification have landed (phases 1 and 4, see "What already exists"). Recovery has not: phases 2 and 3 wait on [context compaction](context-compaction.md), for the reasons in "Relationship to context compaction".
 
 ## Problem
 
@@ -24,10 +24,14 @@ Known ways to produce unsendable content:
 Landed with the image work (see [image-zoom-for-fine-detail.md](image-zoom-for-fine-detail.md)):
 
 - [normalize-model-images.ts](../../../packages/workspace/src/lib/normalize-model-images.ts) runs over every outgoing message on every turn. It resizes over-budget images, corrects a media type the bytes contradict, and drops undecodable bytes with a text note rather than sending them. Because it runs over the whole history and not just new messages, **it is already a repair pass**: a session poisoned before a fix ships gets repaired the next turn the fix is deployed. That property is worth protecting deliberately rather than keeping by accident.
-- [sanitize-model-text.ts](../../../packages/workspace/src/lib/sanitize-model-text.ts) strips unpaired surrogates from outgoing text, and `truncateWithoutSplitting` stops `read_file` from creating them.
+- [sanitize-model-text.ts](../../../packages/workspace/src/lib/sanitize-model-text.ts) strips unpaired surrogates from outgoing text, including the text a tool returned, and `truncateWithoutSplitting` stops `read_file` from creating them. Tool results were skipped until [the coordinate contract review](image-read-coordinate-contract.md) caught it, which is worth remembering: the pass had a doc comment claiming it covered everything, and the gap was in the role carrying the most text we did not write.
 - `read_file` refuses an undecodable image up front, so the failure lands in one tool result the agent can act on.
+- [probe-media.ts](../../../packages/workspace/src/lib/probe-media.ts) extends that refusal to the other media kinds: `isReadablePdf` checks that a PDF has both its header and its end marker, and `canDecodeMedia` runs ffprobe over an audio or video file. `read_file` returns `undecodable-pdf` or `undecodable-media` rather than handing the bytes on. ffprobe failing to _start_ counts as no evidence and lets the read through, since refusing every video because a binary is missing is the worse failure.
+- [classify-provider-error.ts](../../../packages/workspace/src/lib/classify-provider-error.ts) names a rejection: `auth`, `context-overflow`, `rate-limit`, `transient`, `unsendable-content`, or `unknown`. Nothing acts on it yet. It is attached to the `llm.error` event alongside the evidence layer that produced it, so which rejections actually arrive is a number rather than a guess.
 
-That covers causes 1 through 4 for images and text. It does not cover PDF, audio, or video, and by construction it cannot cover cause 6.
+That covers causes 1 through 4 wherever the bytes can be decoded locally, and by construction it cannot cover cause 6.
+
+One gap left deliberately. The media-type-contradicts-the-bytes check is images only: ffprobe reports a container as a comma-separated list of names (`mov,mp4,m4a,3gp,3g2,mj2`), which does not map onto a media type cleanly enough to call a mismatch a lie.
 
 ## Prior art
 
@@ -84,42 +88,44 @@ A session survives content the provider will not accept, without a human editing
 
 ## Plan
 
-### Phase 1: a typed classifier
+### Phase 1: a typed classifier -- landed
 
-1. New `packages/workspace/src/lib/classify-provider-error.ts`. Input is the caught error, output is a discriminated union: `context-overflow`, `unsendable-content`, `auth`, `rate-limit`, `transient`, `unknown`.
-2. Order the evidence by durability. First the SDK's own typed verdict: `APICallError.isInstance(error)` gives `statusCode` and `isRetryable`, where `isRetryable` is the SDK's computed `408 | 409 | 429 | >= 500`. Then structured fields parsed out of `responseBody` (`error.code`, `error.type`) -- opencode matches `context_length_exceeded` this way before falling back to prose, and structured codes do not rot the way messages do. Only then prose patterns, each annotated with the provider and example message it came from, behind an exclusions list.
-3. Keep the prose list small and honest. Do not port all 31 of opencode's patterns speculatively; add one when a real failure is seen, with its example string in a comment. The point of the module is that there is one place to add it.
-4. Unit tests are the natural fit for `it.each` over recorded error bodies.
+1. `classifyProviderError` takes the caught error and answers with a kind plus the evidence layer that decided it. The kinds live in `packages/shared` because telemetry records them too.
+2. Evidence is weighed by durability, with one change from the sketch below. The status code goes first only where it is decisive on its own -- 401/403, 429, 413 -- because a 429 that happens to say "too many tokens" is throttling, and settling that structurally beats excluding it by pattern. Then `error.code` / `error.type` out of the response body. Then prose, behind the exclusions list. `isRetryable` is consulted last, as the SDK's own verdict on what is worth retrying.
+3. The body is read field by field rather than validated as a whole: `error` is a bare string for some providers and `code` is a number for others, and a schema strict enough to reject those shapes would throw away the siblings that did parse.
+4. The prose lists are sourced, not ported. Five patterns for unsendable content and eighteen for overflow, each carrying the provider and the example message it came from, and each for a provider in `AIProviderTypeSchema`. Patterns for providers we do not ship against were left out; the module exists so there is one place to add one when a real failure turns up.
+5. `it.each` over recorded error bodies, one case per provider and one for each way the evidence ordering could go wrong.
 
 ### Phase 2: degrade and retry
 
-5. On a classified `unsendable-content` or `context-overflow` error, if the outgoing payload contained media, retry the request once with all media replaced by placeholders naming the file and media type.
-6. Two outcomes, and they are both informative. The stripped retry succeeds, which proves media was the cause. Or it fails the same way, which proves it was not, and the original error is reported as today.
-7. This is a bisect with a single probe. It costs one extra request, only on a permanent failure, only when media is present. Do not build a full bisect over individual parts until there is evidence one probe is insufficient.
-8. Hook point: the error path in [llm-request.ts](../../../packages/workspace/src/logic/llm-request.ts) or the `onError` transition in [agent.ts](../../../packages/workspace/src/machines/agent.ts). `streamText` is already called with `maxRetries: 0` because retries are handled outside it, so the machine is the natural owner.
+6. On a classified `unsendable-content` or `context-overflow` error, if the outgoing payload contained media, retry the request once with all media replaced by placeholders naming the file and media type.
+7. Two outcomes, and they are both informative. The stripped retry succeeds, which proves media was the cause. Or it fails the same way, which proves it was not, and the original error is reported as today.
+8. This is a bisect with a single probe. It costs one extra request, only on a permanent failure, only when media is present. Do not build a full bisect over individual parts until there is evidence one probe is insufficient.
+9. Hook point: the error path in [llm-request.ts](../../../packages/workspace/src/logic/llm-request.ts) or the `onError` transition in [agent.ts](../../../packages/workspace/src/machines/agent.ts). `streamText` is already called with `maxRetries: 0` because retries are handled outside it, so the machine is the natural owner. Note that the machine sees the persisted `metadata.error` record rather than the live error, so it needs an entry point onto the same classifier that takes those fields.
 
 ### Phase 3: make the repair stick
 
-9. When the stripped retry succeeds, record it. A flag on the offending parts is better than deletion: the transcript still shows something was there, and `Store.removeMessage` ([store.ts:367](../../../packages/workspace/src/lib/store.ts#L367)) is a blunter tool than this needs.
-10. `normalizeModelImages` (and its future siblings) skip flagged parts, so later turns neither send nor re-probe them.
-11. Surface it in the transcript. The user should see that an attachment could not be sent, and the model should be told too, so it can say so rather than behaving as though the image were still there.
+10. When the stripped retry succeeds, record it. A flag on the offending parts is better than deletion: the transcript still shows something was there, and `Store.removeMessage` ([store.ts:367](../../../packages/workspace/src/lib/store.ts#L367)) is a blunter tool than this needs.
+11. `normalizeModelImages` (and its future siblings) skip flagged parts, so later turns neither send nor re-probe them.
+12. Surface it in the transcript. The user should see that an attachment could not be sent, and the model should be told too, so it can say so rather than behaving as though the image were still there.
 
-### Phase 4: close the remaining prevention gaps
+### Phase 4: close the remaining prevention gaps -- landed
 
-12. Extend byte-level validation to PDF, audio, and video in [read-file.ts](../../../packages/workspace/src/tools/read-file.ts). They are sent as media with only a size cap and no format check, so a corrupt PDF bricks a session exactly the way a corrupt image used to.
-13. Audit other paths that slice strings at fixed indices, the way `read_file`'s long-line cap did before `truncateWithoutSplitting`. Tool output truncation in [truncate-buffer.ts](../../../packages/workspace/src/lib/truncate-buffer.ts) is safe today because it works line by line, but the property is worth a test rather than an inspection.
+13. PDF, audio, and video are checked before they leave `read_file`, in [probe-media.ts](../../../packages/workspace/src/lib/probe-media.ts). See "What already exists" for what each check does and for the media-type gap it does not close.
+14. A small image file declaring enormous dimensions is refused from its header, before anything decodes it. That is [the coordinate contract review](image-read-coordinate-contract.md)'s item 3, and it serves this plan's cause 1 as much as that one.
+15. The fixed-index audit came back clean. `truncateHead`, `truncateTail`, and `truncateMiddle` cut between lines, and the one path that cuts inside a line walks to a UTF-8 lead byte first. That path fails differently from the surrogate case -- a `Buffer` decode substitutes U+FFFD rather than leaving a half character -- so the test asserts both: nothing a sanitizer would strip, and no replacement character.
 
 ## Relationship to context compaction
 
 These two plans share a foundation and an escalation path, and should be sequenced deliberately.
 
-- Both need phase 1's classifier. Build it once, here, and have [context compaction](context-compaction.md) depend on it.
+- Both need phase 1's classifier. It exists; [context compaction](context-compaction.md) should consume it rather than growing its own overflow check.
 - opencode's recovery for oversized payloads **is** compaction with media stripped. If compaction lands first, phase 2 here becomes a mode of it rather than a separate degrade path, which is less code and one fewer concept.
-- Recommended order: phase 1 here, then compaction, then phases 2 and 3 here built on top of compaction's stripping and history-rewriting machinery. Phase 4 is independent and can land any time.
+- Remaining order: compaction next, then phases 2 and 3 here built on top of compaction's stripping and history-rewriting machinery.
 
 ## Risks and open questions
 
 - **A probe that masks a real bug.** If stripping media makes a request succeed, the media was wrong, and the interesting question is why we produced it. Every successful probe should be an event we can count, not just a silent recovery.
-- **The classifier drifting.** Mitigated by ordering structured evidence first and by keeping prose patterns evidence-driven. It will still drift.
+- **The classifier drifting.** Mitigated by ordering structured evidence first and by keeping prose patterns evidence-driven. It will still drift, which is why the evidence layer is recorded next to the verdict: a mix shifting from `structured` toward `prose`, or toward `none`, is what drift looks like from the outside.
 - **Model switching mid-session.** A user can switch to a model with different limits or no vision at all. Per-turn normalization already recomputes against the current model, and `filterUnsupportedMedia` handles the capability case, so this should be covered; it needs a test rather than new code.
 - **Deciding what "media was present" means** for the probe. Simplest useful definition is any file or media part in the outgoing messages.

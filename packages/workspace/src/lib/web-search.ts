@@ -8,9 +8,11 @@ import {
 import { type WorkspaceServerURL } from "@instrument-org/shared";
 import { APICallError, type LanguageModelUsage, streamText } from "ai";
 import { err, ok, type Result } from "neverthrow";
+import { dedent } from "radashi";
 
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
+import { getCurrentDate } from "./get-current-date";
 
 type WebSearchError = AIGatewayTypedError.NotFound | TypedError.APICall;
 
@@ -62,7 +64,10 @@ export async function* webSearch({
 
   const { config, model, providerOptions, tools } = resolved;
   const sources: LanguageModelV3Source[] = [];
-  let text = "";
+  // Retrieved snippets and the model's own prose accumulate separately so a
+  // second search cannot discard what an earlier one returned.
+  const snippets: string[] = [];
+  let generatedText = "";
   let usage = emptyUsage;
 
   const currentResult = () =>
@@ -70,7 +75,9 @@ export async function* webSearch({
       modelId: model.modelId,
       provider: config,
       sources,
-      text,
+      text: [...snippets, generatedText]
+        .filter((part) => part !== "")
+        .join("\n\n"),
       usage,
     });
 
@@ -80,6 +87,7 @@ export async function* webSearch({
       model,
       prompt,
       providerOptions,
+      system: searchSystemPrompt(),
       tools,
     });
 
@@ -102,7 +110,7 @@ export async function* webSearch({
           break;
         }
         case "text-delta": {
-          text += part.text;
+          generatedText += part.text;
           yield currentResult();
           break;
         }
@@ -116,10 +124,10 @@ export async function* webSearch({
             break;
           }
 
-          text = perplexityResults.map((r) => r.snippet).join("\n\n");
+          snippets.push(...perplexityResults.map((r) => r.snippet));
           sources.push(
             ...perplexityResults.map((r, i) => ({
-              id: `perplexity-${i}`,
+              id: `perplexity-${sources.length + i}`,
               sourceType: "url" as const,
               title: r.title,
               type: "source" as const,
@@ -182,6 +190,23 @@ function hasStringProperty(
   property: "snippet" | "title" | "url",
 ) {
   return typeof getUnknownProperty(value, property) === "string";
+}
+
+function searchSystemPrompt() {
+  const today = getCurrentDate().toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  return dedent`
+    You research a query using the search results you retrieve now. Today is ${today}. Never answer from memory.
+
+    - Keep the wording of each source rather than paraphrasing it, and give the date a page was published or last updated whenever it shows one.
+    - Every specific claim -- a name, version, price, tier, model, or date -- must come from a result you actually retrieved, attributed to the page it came from. Leave out anything you did not find.
+    - When results disagree, or the query turns on something you could not confirm, say so plainly instead of settling on the most plausible answer.
+    - A proper noun that matches nothing may be misspelled or misheard. Search the closest real name, and say which name you searched.
+  `;
 }
 
 function usageFrom(usage: LanguageModelUsage) {

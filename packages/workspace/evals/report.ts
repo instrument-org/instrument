@@ -173,12 +173,24 @@ export async function generateReport({
       return;
     });
 
+    // `task.title` is the case name the harness passed at creation, so it is the
+    // one link that survives without a run manifest. `report <dir>` on a past
+    // workspace has no runs, and without this fallback it evaluated nothing and
+    // printed a summary indistinguishable from a clean pass -- the same silent
+    // hole the taskId mapping above exists to close.
     const evalCase =
       evalCasesByTaskId.get(task.id) ??
+      evalCasesByName.get(task.title) ??
       evalCasesByName.get(task.id) ??
       [...evalCasesByName.entries()].find(([name]) =>
         task.id.endsWith(`-${name}`),
       )?.[1];
+
+    if (!evalCase) {
+      process.stderr.write(
+        `Warning: no eval case matched task "${task.title}" (${task.id}); its assertions, if any, were not run.\n`,
+      );
+    }
     await fs.writeFile(
       path.join(taskOutputDir, "eval-case.json"),
       JSON.stringify({ modelURI: taskModelURI, name: task.id }, null, 2),

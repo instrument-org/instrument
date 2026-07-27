@@ -21,7 +21,6 @@ Core AI agents, workflow logic, RPC, tools, and runtime.
 
 - Prefer neverthrow `Result` for fallible operations; use `toORPCError` when throwing from RPC handlers.
 - Tools use Zod input/output schemas and the shared `create-tool` / `setupTool` pattern.
-- Turn identity reaches deep write boundaries through `turn-context.ts`; `getTurnContext()` returning `undefined` means "do not attribute" (see `docs/decisions/2026-07-27-turn-context-through-async-local-storage.md`).
 
 ## Evals
 

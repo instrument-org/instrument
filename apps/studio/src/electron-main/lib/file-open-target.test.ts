@@ -19,7 +19,10 @@ interface ExecCall {
 }
 
 interface SavedCache {
-  candidates: Record<string, { resolvedAt: number }>;
+  candidates: Record<
+    string,
+    { resolvedAt: number; value: { bundleId: string }[] }
+  >;
   icons: Record<string, { resolvedAt: number }>;
   targets: Record<string, { resolvedAt: number }>;
   version: number;
@@ -141,9 +144,21 @@ function execsOfKind(kind: ReturnType<typeof classify>) {
   return execCalls.filter((call) => classify(call) === kind);
 }
 
+// Fires the debounced save, then waits for its `fs.writeFile` to actually land.
+// That write is real I/O the fake clock cannot flush, and a fixed number of
+// turns is a guess, so this polls for a parseable file instead.
 async function flushSave() {
   await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
-  await settle();
+  for (let i = 0; i < 100; i++) {
+    await new Promise((resolve) => setImmediate(resolve));
+    try {
+      JSON.parse(await fs.readFile(cachePath(), "utf8"));
+      return;
+    } catch {
+      // Not written yet, or caught mid-write.
+    }
+  }
+  throw new Error("the debounced cache save never landed");
 }
 
 function iconsFor(call: ExecCall) {
@@ -603,6 +618,94 @@ describe("persisted cache", () => {
     expect(saved.targets[".md"]).toBeDefined();
     expect(saved.targets[".ext299"]).toBeDefined();
     expect(saved.targets[".ext0"]).toBeUndefined();
+  });
+
+  it("persists the raw association list and curates it on every read", async () => {
+    const first = await importModule();
+    await first.getFileOpenCandidates("/tasks/a/notes.md");
+    await flushSave();
+
+    // Instruments and Numbers are curated out of a Markdown menu, but they have
+    // to survive on disk: curation is policy, and a policy edit has to be able
+    // to surface them again without re-running any lookup.
+    const saved = await readCache();
+    expect(saved.candidates[".md"]?.value.map(({ bundleId }) => bundleId))
+      .toMatchInlineSnapshot(`
+        [
+          "com.example.editor.md",
+          "com.example.shared",
+          "com.apple.dt.Instruments",
+          "com.apple.iWork.Numbers",
+        ]
+      `);
+
+    execCalls.length = 0;
+    const second = await importModule();
+    const candidates = await second.getFileOpenCandidates("/tasks/a/notes.md");
+
+    expect(candidates.map(({ appName }) => appName)).toEqual([
+      "Editor md",
+      "Shared Viewer",
+    ]);
+    expect(execCalls).toHaveLength(0);
+  });
+
+  it("serves a stale candidate list while refreshing it in the background", async () => {
+    const first = await importModule();
+    await first.getFileOpenCandidates("/tasks/a/notes.md");
+    await flushSave();
+
+    // Candidate lists expire a day out, well before targets and icons do.
+    vi.setSystemTime(NOW + 2 * DAY_MS);
+    execCalls.length = 0;
+    const second = await importModule();
+    execImpl = (call) =>
+      Promise.resolve(
+        classify(call) === "icons"
+          ? iconsFor(call)
+          : JSON.stringify({
+              apps: [
+                {
+                  appName: "Replacement",
+                  appPath: "/Applications/Replacement.app",
+                  bundleId: "com.example.replacement",
+                  isDefault: true,
+                },
+              ],
+            }),
+      );
+
+    const stale = await second.getFileOpenCandidates("/tasks/a/notes.md");
+    expect(stale.map(({ appName }) => appName)).toEqual([
+      "Editor md",
+      "Shared Viewer",
+    ]);
+
+    await settle();
+    const refreshed = await second.getFileOpenCandidates("/tasks/a/notes.md");
+
+    expect(refreshed.map(({ appName }) => appName)).toEqual(["Replacement"]);
+  });
+
+  it("keeps the stale candidate list when a background refresh fails", async () => {
+    const first = await importModule();
+    await first.getFileOpenCandidates("/tasks/a/notes.md");
+    await flushSave();
+
+    vi.setSystemTime(NOW + 2 * DAY_MS);
+    const second = await importModule();
+    execImpl = () => Promise.reject(new Error("osascript timed out"));
+
+    const stale = await second.getFileOpenCandidates("/tasks/a/notes.md");
+    await settle();
+
+    expect(stale.map(({ appName }) => appName)).toEqual([
+      "Editor md",
+      "Shared Viewer",
+    ]);
+    await expect(
+      second.getFileOpenCandidates("/tasks/a/notes.md"),
+    ).resolves.toHaveLength(2);
   });
 
   it("persists icons keyed by app path, not by file type", async () => {

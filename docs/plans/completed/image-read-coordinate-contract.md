@@ -1,8 +1,8 @@
 # Making the image coordinate contract sound
 
-Status: **complete**. Owner: TBD. Corrections to the work described in [image-zoom-for-fine-detail.md](image-zoom-for-fine-detail.md), from a review of that branch. Everything here was agreed as a real defect, and all five have landed.
+Status: **complete**. Owner: TBD. Corrections to the work described in [image-zoom-for-fine-detail.md](../active/image-zoom-for-fine-detail.md), from a review of that branch. Everything here was agreed as a real defect, and all five have landed.
 
-One follow-up outlives this plan and is deliberately not closed with it: item 4's shared `ModelMessage` traversal. Move this file to `completed/` when the branch merges.
+One follow-up outlives this plan and is deliberately not closed with it: item 4's shared `ModelMessage` traversal.
 
 ## The through-line
 
@@ -104,4 +104,4 @@ Item 4's shared traversal is what remains, and item 1 has now stopped moving tho
 
 ## What this does not settle
 
-The region read is still unmeasured. These fixes make the contract sound; whether the feature earns its cost is phase 4 of [image-zoom-for-fine-detail.md](image-zoom-for-fine-detail.md), and that eval can now run, since a broken coordinate space would have measured nothing.
+The region read is still unmeasured. These fixes make the contract sound; whether the feature earns its cost is phase 4 of [image-zoom-for-fine-detail.md](../active/image-zoom-for-fine-detail.md), and that eval can now run, since a broken coordinate space would have measured nothing.

@@ -176,7 +176,7 @@ Three defects in the region read came out of the same runs, all of them the mode
 
 ## Defects found in review
 
-[image-read-coordinate-contract.md](image-read-coordinate-contract.md) records five confirmed defects, three of them breaking the promise this feature rests on: that the pixel space named in text is the pixel space the model sees. All five landed before the phase 4 eval ran, which was the order that mattered -- measuring against a broken coordinate space would have measured nothing.
+[image-read-coordinate-contract.md](../completed/image-read-coordinate-contract.md) records five confirmed defects, three of them breaking the promise this feature rests on: that the pixel space named in text is the pixel space the model sees. All five landed before the phase 4 eval ran, which was the order that mattered -- measuring against a broken coordinate space would have measured nothing.
 
 ## Follow-on plans
 

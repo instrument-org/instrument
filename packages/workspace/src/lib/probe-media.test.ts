@@ -4,8 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { pngHeaderBytes } from "../test/helpers/png-header";
 import { FFMPEG_PATH } from "./ffmpeg";
-import { canDecodeMedia, isReadablePdf } from "./probe-media";
+import { canDecodeMedia, isCompleteImage, isReadablePdf } from "./probe-media";
 
 const MINIMAL_PDF = Buffer.from(
   [
@@ -111,5 +112,68 @@ describe("isReadablePdf", () => {
   it("refuses a header buried too deep to be one", () => {
     const buried = Buffer.concat([Buffer.alloc(2048, 0x20), MINIMAL_PDF]);
     expect(isReadablePdf(buried)).toBe(false);
+  });
+});
+
+describe("isCompleteImage", () => {
+  const png = (trailing: Buffer) =>
+    Buffer.concat([pngHeaderBytes({ height: 10, width: 10 }), trailing]);
+
+  it.each([
+    {
+      bytes: () => png(Buffer.alloc(0)),
+      expected: true,
+      name: "a PNG carrying its IEND",
+    },
+    {
+      // What an interrupted download leaves: the header parsed, so the file
+      // still measures 10x10, and the marker that ends it never arrived.
+      bytes: () =>
+        pngHeaderBytes({ height: 10, width: 10 }).subarray(0, 20),
+      expected: false,
+      name: "a PNG cut off before its IEND",
+    },
+    {
+      bytes: () => Buffer.from([0xff, 0xd8, 0x00, 0x01, 0xff, 0xd9]),
+      expected: true,
+      name: "a JPEG ending in its end-of-image marker",
+    },
+    {
+      // Editors and scanners leave padding past the marker, so the check scans
+      // the tail rather than insisting the very last two bytes are it.
+      bytes: () =>
+        Buffer.concat([
+          Buffer.from([0xff, 0xd8, 0x00, 0x01, 0xff, 0xd9]),
+          Buffer.alloc(16),
+        ]),
+      expected: true,
+      name: "a JPEG with padding after its marker",
+    },
+    {
+      bytes: () => Buffer.from([0xff, 0xd8, 0x00, 0x01, 0x02, 0x03]),
+      expected: false,
+      name: "a JPEG that stops mid-scan",
+    },
+  ])("$name", ({ bytes, expected, name }) => {
+    const mediaType = name.includes("JPEG") ? "image/jpeg" : "image/png";
+    expect(isCompleteImage(bytes(), mediaType)).toBe(expected);
+  });
+
+  it("catches a WebP whose payload is shorter than its RIFF header claims", () => {
+    const webp = Buffer.alloc(64);
+    webp.write("RIFF", 0, "latin1");
+    webp.writeUInt32LE(4096, 4);
+    webp.write("WEBP", 8, "latin1");
+
+    expect(isCompleteImage(webp, "image/webp")).toBe(false);
+    webp.writeUInt32LE(56, 4);
+    expect(isCompleteImage(webp, "image/webp")).toBe(true);
+  });
+
+  it("has no opinion about a format it does not know", () => {
+    // Saying "incomplete" for a format with no marker to look for would refuse
+    // perfectly good files, so silence here means unknown, not broken.
+    expect(isCompleteImage(Buffer.from("anything"), "image/avif")).toBe(true);
+    expect(isCompleteImage(Buffer.from("anything"), undefined)).toBe(true);
   });
 });

@@ -26,7 +26,11 @@ import {
 import { imageViewSize, PREVIEW_LIMITS } from "../lib/image-view-size";
 import { listFiles } from "../lib/list-files";
 import { pathExists } from "../lib/path-exists";
-import { canDecodeMedia, isReadablePdf } from "../lib/probe-media";
+import {
+  canDecodeMedia,
+  isCompleteImage,
+  isReadablePdf,
+} from "../lib/probe-media";
 import {
   exceedsDecodeBudget,
   MAX_DECODED_PIXELS,
@@ -205,6 +209,10 @@ async function handleMediaFile({
   }
 
   if (exceedsDecodeBudget(size)) {
+    // Ahead of the completeness check below, which a file this size would also
+    // fail: what makes it dangerous is the dimensions it declares, and that is
+    // what the message needs to name.
+    //
     // Refused before it enters the transcript, not just before it is rendered:
     // once the part is saved, every later turn hands the same declared
     // dimensions to the resize pass and pays for the attempt again.
@@ -213,6 +221,19 @@ async function handleMediaFile({
       mimeType: sniffedMimeType,
       modifiedAt: stats.mtimeMs,
       reason: "image-too-large" as const,
+      state: "unsupported-format" as const,
+    });
+  }
+
+  if (!isCompleteImage(fileData, size.mediaType)) {
+    // The header parsed over data that stops early. This matters most for an
+    // image inside the preview budget, which is passed through byte for byte
+    // and so is never decoded anywhere else on the way out.
+    return ok({
+      filePath: fixedPath,
+      mimeType: sniffedMimeType,
+      modifiedAt: stats.mtimeMs,
+      reason: "undecodable-image" as const,
       state: "unsupported-format" as const,
     });
   }

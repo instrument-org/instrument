@@ -120,8 +120,8 @@ A session survives content the provider will not accept, without a human editing
 These two plans share a foundation and an escalation path, and should be sequenced deliberately.
 
 - Both need phase 1's classifier. It exists; [context compaction](context-compaction.md) should consume it rather than growing its own overflow check.
-- opencode's recovery for oversized payloads **is** compaction with media stripped. If compaction lands first, phase 2 here becomes a mode of it rather than a separate degrade path, which is less code and one fewer concept.
-- Remaining order: compaction next, then phases 2 and 3 here built on top of compaction's stripping and history-rewriting machinery.
+- opencode's recovery for oversized payloads is compaction with media stripped, so an earlier draft expected phase 2 here to become a mode of compaction rather than a separate degrade path. That no longer holds. [Context compaction](context-compaction.md) now follows codex, whose compacted history discards tool and assistant content wholesale and retains user messages verbatim, media included. It never produces a media-stripped view of the same history, so phase 2 keeps its own degrade path.
+- Remaining order: phases 2 and 3 here no longer wait on compaction, and the two plans can proceed independently.
 
 ## Risks and open questions
 

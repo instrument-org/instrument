@@ -231,6 +231,7 @@ const PROVIDER_METADATA = {
     },
     description: "Access an extensive catalog of models across providers",
     name: "OpenRouter",
+    quirks: { supportsMultipartToolResults: true },
     tags: ["recommended", "imageGeneration", "webSearch"],
     type: "openrouter",
     url: "https://openrouter.ai",
@@ -242,6 +243,8 @@ const PROVIDER_METADATA = {
     canAddManually: false,
     description: `AI access for ${APP_NAME} accounts.`,
     name: APP_NAME,
+    // Served by OpenRouter, so it inherits OpenRouter's capabilities.
+    quirks: { supportsMultipartToolResults: true },
     tags: ["imageGeneration", "webSearch"],
     type: OUR_MODELS.providerType,
     url: addRef(APP_URL),

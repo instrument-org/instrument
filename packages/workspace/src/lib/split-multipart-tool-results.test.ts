@@ -19,7 +19,7 @@ describe("splitMultipartToolResults", () => {
 
     const result = splitMultipartToolResults({
       messages,
-      provider: "openrouter",
+      provider: "groq",
     });
     expect(result).toEqual(messages);
   });
@@ -44,7 +44,7 @@ describe("splitMultipartToolResults", () => {
 
     const result = splitMultipartToolResults({
       messages,
-      provider: "openrouter",
+      provider: "groq",
     });
     expect(result).toEqual(messages);
   });
@@ -79,7 +79,7 @@ describe("splitMultipartToolResults", () => {
 
     const result = splitMultipartToolResults({
       messages,
-      provider: "openrouter",
+      provider: "groq",
     });
 
     expect(result).toHaveLength(2);
@@ -150,7 +150,7 @@ describe("splitMultipartToolResults", () => {
 
     const result = splitMultipartToolResults({
       messages,
-      provider: "openrouter",
+      provider: "groq",
     });
 
     expect(result).toHaveLength(2);
@@ -186,7 +186,7 @@ describe("splitMultipartToolResults", () => {
 
     const result = splitMultipartToolResults({
       messages,
-      provider: "openrouter",
+      provider: "groq",
     });
 
     expect(result).toHaveLength(2);
@@ -252,7 +252,7 @@ describe("splitMultipartToolResults", () => {
 
     const result = splitMultipartToolResults({
       messages,
-      provider: "openrouter",
+      provider: "groq",
     });
 
     expect(result).toHaveLength(2);
@@ -310,7 +310,7 @@ describe("splitMultipartToolResults", () => {
 
     const result = splitMultipartToolResults({
       messages,
-      provider: "openrouter",
+      provider: "groq",
     });
 
     expect(result).toHaveLength(4);
@@ -355,7 +355,7 @@ describe("splitMultipartToolResults", () => {
 
     const result = splitMultipartToolResults({
       messages,
-      provider: "openrouter",
+      provider: "groq",
     });
 
     expect(result[1]).toMatchInlineSnapshot(`
@@ -377,7 +377,13 @@ describe("splitMultipartToolResults", () => {
     `);
   });
 
-  it("should not split multipart tool results for supported providers", () => {
+  it.each([
+    ["anthropic"],
+    ["google"],
+    ["openai"],
+    ["openrouter"],
+    ["instrument"],
+  ] as const)("should not split multipart tool results for %s", (provider) => {
     const messages: ModelMessage[] = [
       {
         content: [
@@ -405,10 +411,7 @@ describe("splitMultipartToolResults", () => {
       },
     ];
 
-    const result = splitMultipartToolResults({
-      messages,
-      provider: "anthropic",
-    });
+    const result = splitMultipartToolResults({ messages, provider });
 
     expect(result).toEqual(messages);
   });

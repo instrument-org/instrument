@@ -20,9 +20,8 @@ let pendingTeardown: null | Promise<void> = null;
  * Record the quit and clear the marker that says the last session died. The
  * app's own shutdown path ends in `app.exit`, which by design never emits
  * `will-quit`, so it has to call this itself; the `will-quit` fallback below
- * covers a quit that happens before that path exists (a failed boot, or losing
- * the single-instance lock). Idempotent, and never rejects -- telemetry must not
- * be able to hold up a quit.
+ * covers a failed boot before that path exists. Idempotent, and never rejects
+ * -- telemetry must not be able to hold up a quit.
  */
 export function finalizeTelemetry(): Promise<void> {
   pendingTeardown ??= quitTeardown?.().catch(noop) ?? Promise.resolve();

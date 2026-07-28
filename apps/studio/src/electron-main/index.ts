@@ -73,16 +73,16 @@ if (gotTheLock) {
       handleDeepLink(url);
     }
   });
+
+  // eslint-disable-next-line unicorn/prefer-top-level-await
+  void app.whenReady().then(bootstrapPrimaryInstance);
 } else {
   // A lock loser has no application state to tear down. Exit synchronously so
   // quit handlers cannot keep it alive long enough to enter primary startup.
   app.exit(0);
 }
 
-const primaryReady = gotTheLock ? app.whenReady() : undefined;
-
-// eslint-disable-next-line unicorn/prefer-top-level-await
-void primaryReady?.then(async () => {
+async function bootstrapPrimaryInstance() {
   const canContinueLaunch = await warnIfRunningX64BuildUnderARM64Translation();
   if (!canContinueLaunch) {
     app.quit();
@@ -215,7 +215,7 @@ void primaryReady?.then(async () => {
     event.preventDefault();
     handleDeepLink(url);
   });
-});
+}
 
 /**
  * Bring the active foreground window forward. The main window is the target

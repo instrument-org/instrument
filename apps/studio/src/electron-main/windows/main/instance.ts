@@ -33,9 +33,14 @@ export function getOrCreateMainWindow(
     return Promise.resolve(existing);
   }
 
-  pendingMainWindowCreation ??= create().finally(() => {
-    pendingMainWindowCreation = null;
-  });
+  pendingMainWindowCreation ??= create()
+    .then((window) => {
+      setMainWindow(window);
+      return window;
+    })
+    .finally(() => {
+      pendingMainWindowCreation = null;
+    });
   return pendingMainWindowCreation;
 }
 

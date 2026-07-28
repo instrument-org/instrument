@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 describe("getOrCreateMainWindow", () => {
-  it("shares an in-flight window creation", async () => {
+  it("shares an in-flight window creation and stores its result", async () => {
     const mainWindow = new BrowserWindow({});
     currentWindow = mainWindow;
     let resolveCreation: ((window: BrowserWindow) => void) | undefined;
@@ -45,6 +45,8 @@ describe("getOrCreateMainWindow", () => {
       mainWindow,
     ]);
     expect(create).toHaveBeenCalledOnce();
+    await expect(getOrCreateMainWindow(create)).resolves.toBe(mainWindow);
+    expect(create).toHaveBeenCalledOnce();
   });
 
   it("returns the existing window without creating another", async () => {
@@ -55,5 +57,34 @@ describe("getOrCreateMainWindow", () => {
 
     await expect(getOrCreateMainWindow(create)).resolves.toBe(mainWindow);
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it("releases a settled creation after its window is cleared", async () => {
+    const firstWindow = new BrowserWindow({});
+    const secondWindow = new BrowserWindow({});
+    currentWindow = secondWindow;
+    const create = vi
+      .fn<() => Promise<BrowserWindow>>()
+      .mockResolvedValueOnce(firstWindow)
+      .mockResolvedValueOnce(secondWindow);
+
+    await expect(getOrCreateMainWindow(create)).resolves.toBe(firstWindow);
+    clearMainWindow(firstWindow);
+    await expect(getOrCreateMainWindow(create)).resolves.toBe(secondWindow);
+    expect(create).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries after a rejected creation", async () => {
+    const mainWindow = new BrowserWindow({});
+    currentWindow = mainWindow;
+    const failure = new Error("window creation failed");
+    const create = vi
+      .fn<() => Promise<BrowserWindow>>()
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValueOnce(mainWindow);
+
+    await expect(getOrCreateMainWindow(create)).rejects.toBe(failure);
+    await expect(getOrCreateMainWindow(create)).resolves.toBe(mainWindow);
+    expect(create).toHaveBeenCalledTimes(2);
   });
 });

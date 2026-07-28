@@ -9,7 +9,8 @@ const complete = base.handler(async () => {
   const existingMainWindow = getMainWindow();
 
   if (!existingMainWindow || existingMainWindow.isDestroyed()) {
-    await createMainWindow();
+    const mainWindow = await createMainWindow();
+    mainWindow.focus();
   } else if (existingMainWindow.isVisible()) {
     // Already-visible window means a real re-completion; open a fresh tab.
     sendAppCommand({

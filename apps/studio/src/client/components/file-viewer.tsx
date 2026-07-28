@@ -486,7 +486,7 @@ export function FileViewer({
                 {fileActions.showDownload && (
                   <DropdownMenuItem onClick={() => void handleDownload()}>
                     <ArrowLineDownIcon className="size-4" />
-                    <span>Download</span>
+                    <span>Save as…</span>
                   </DropdownMenuItem>
                 )}
                 {fileActions.showReveal && (

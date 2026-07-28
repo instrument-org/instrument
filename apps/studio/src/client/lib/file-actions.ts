@@ -52,8 +52,8 @@ export async function downloadFile(file: TaskFileViewerFile) {
     const errorMessage =
       error instanceof Error
         ? error.message
-        : "An unknown error occurred while downloading the file";
-    toast.error("Failed to download file", {
+        : "An unknown error occurred while saving the file";
+    toast.error("Failed to save file", {
       closeButton: true,
       description: `${errorMessage}\n\nFile: ${file.filePath}`,
       duration: 10_000,

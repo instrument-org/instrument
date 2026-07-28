@@ -46,7 +46,7 @@ interface MarkdownProps {
   assetBaseUrl?: string;
   markdown: string;
   // Present only when rendered inside a task chat. Enables the task-file
-  // right-click menu (Open in {App} / Download / Reveal / …); left-click
+  // right-click menu (Open in {App} / Save as… / Reveal / …); left-click
   // open-in-panel works without it.
   taskId?: TaskId;
 }

@@ -175,7 +175,7 @@ export function FileActionsMenuItems({
       {fileActions.showDownload && (
         <Item onClick={() => void handleDownload()}>
           <ArrowLineDownIcon className="size-4" />
-          <span>Download</span>
+          <span>Save as…</span>
         </Item>
       )}
       {(showCopy || fileActions.showDownload) && fileActions.showReveal && (

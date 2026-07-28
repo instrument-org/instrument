@@ -160,7 +160,7 @@ export function TaskDebugDialog({
             )}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            View and download chat debug data
+            View and save chat debug data
           </DialogDescription>
         </DialogHeader>
         <div className="relative min-w-0">
@@ -172,7 +172,7 @@ export function TaskDebugDialog({
             <Button
               onClick={handleDownload}
               size="sm"
-              title={`Download ${tab}`}
+              title={`Save ${tab} as…`}
               variant="ghost"
             >
               <ArrowLineDownIcon className="size-4" />

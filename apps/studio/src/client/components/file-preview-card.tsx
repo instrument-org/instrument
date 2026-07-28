@@ -305,7 +305,7 @@ function ImagePreviewCard({
             {fileActions.showDownload && (
               <MediaOverlayButton
                 icon={<ArrowLineDownIcon className="size-3.5 shrink-0" />}
-                label="Download"
+                label="Save as…"
                 onClick={(e) => {
                   e.stopPropagation();
                   void downloadFile(file);
@@ -462,7 +462,7 @@ function VideoPreviewCard({
             {fileActions.showDownload && (
               <MediaOverlayButton
                 icon={<ArrowLineDownIcon className="size-3.5 shrink-0" />}
-                label="Download"
+                label="Save as…"
                 onClick={(e) => {
                   e.stopPropagation();
                   void downloadFile(file);

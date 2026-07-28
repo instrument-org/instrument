@@ -675,7 +675,7 @@ describe("ReadFile", () => {
           },
         });
 
-        // Answering this returns a flat expanse of interpolated colour, which
+        // Answering this returns a flat expanse of interpolated color, which
         // reads as "the picture is blank" rather than as "you asked for one
         // pixel". The refusal has to name the size to be actionable.
         expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(
@@ -1012,12 +1012,13 @@ describe("toModelOutput", () => {
   // so each message stays visible as an inline snapshot.
   function unsupportedFormatMessage(
     reason: "truncated-image" | "undecodable-image",
+    mimeType = "image/png",
   ) {
     const result = ReadFile.toModelOutput({
       input: { explanation: "read", filePath: "./photo.png" },
       output: {
         filePath: "./photo.png",
-        mimeType: "image/png",
+        mimeType,
         modifiedAt: 0,
         reason,
         state: "unsupported-format" as const,
@@ -1029,11 +1030,27 @@ describe("toModelOutput", () => {
   }
 
   it("tells a damaged image to stop rather than convert", () => {
-    expect(unsupportedFormatMessage("truncated-image")).toMatchInlineSnapshot(`"./photo.png is a truncated or corrupt image: it declares its format and size, then ends before its data does. The missing bytes are not recoverable by any tool: not by converting it, not with ffmpeg or Python, and not by reading it again. Stop working on this file and tell the user it needs to be saved or sent again."`);
+    expect(unsupportedFormatMessage("truncated-image")).toMatchInlineSnapshot(
+      `"./photo.png is a truncated image: it declares its format and size, then ends before its data does. The missing bytes cannot be reconstructed by any tool. This format stores its pixels as a single compressed stream, so a partial copy decodes to nothing -- converting it, or opening it with ffmpeg or Python, cannot change that. Do not make more than that one attempt. Tell the user the file needs to be saved or sent again."`,
+    );
   });
 
-  it("tells an unrecognised image to identify itself once", () => {
-    expect(unsupportedFormatMessage("undecodable-image")).toMatchInlineSnapshot(`"Cannot read ./photo.png as an image: nothing identifies these bytes as one. It may be a different format under an image's name, or not an image at all. Identify it once with \`ffprobe -v error -show_format -show_streams -of json ./photo.png\` or \`file\`. If it is a format that converts, convert it and read the result; if it is not, say so rather than reading this file again."`);
+  it("tells a truncated JPEG the part that arrived is still worth one look", () => {
+    // Verified against ffmpeg: a JPEG cut to 40% still renders its top portion,
+    // while a PNG cut the same way decodes to nothing. Telling a capable model
+    // the data is gone in both cases would cost a real recovery to bound a
+    // careless one.
+    expect(
+      unsupportedFormatMessage("truncated-image", "image/jpeg"),
+    ).toMatchInlineSnapshot(
+      `"./photo.png is a truncated image: it declares its format and size, then ends before its data does. The missing bytes cannot be reconstructed by any tool. A JPEG decodes top to bottom, so the part that did arrive is still renderable: if what you need is near the top, one attempt at decoding it is worth making. Do not make more than that one attempt. Tell the user the file needs to be saved or sent again."`,
+    );
+  });
+
+  it("tells an unrecognized image to identify itself once", () => {
+    expect(unsupportedFormatMessage("undecodable-image")).toMatchInlineSnapshot(
+      `"Cannot read ./photo.png as an image: nothing identifies these bytes as one. It may be a different format under an image's name, or not an image at all. Identify it once with \`ffprobe -v error -show_format -show_streams -of json ./photo.png\` or \`file\`. If it is a format that converts, convert it and read the result; if it is not, say so rather than reading this file again."`,
+    );
   });
 
   it("says which rectangle a region read was taken to mean", () => {

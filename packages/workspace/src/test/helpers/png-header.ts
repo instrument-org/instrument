@@ -8,7 +8,7 @@
  * spend exactly the resources the guard exists to refuse.
  *
  * The `IEND` is what keeps this a fair test rather than an easy one. A real
- * decode bomb is a complete file -- a flat-colour PNG is a few hundred bytes at
+ * decode bomb is a complete file -- a flat-color PNG is a few hundred bytes at
  * any dimensions it likes -- so a fixture without one would be refused as
  * truncated and never reach the check it exists to exercise.
  *

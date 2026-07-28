@@ -623,22 +623,32 @@ export const ReadFile = setupTool({
 
     if (output.state === "unsupported-format") {
       // Two failures that look alike and call for opposite responses. These
-      // bytes announced themselves as an image and then stopped early, so the
-      // data is gone and no amount of converting brings it back. Measured: the
-      // message below used to invite a conversion here too, and a model took
-      // that invitation for 49 bash calls and 44 reads before it was stopped.
+      // bytes announced themselves as an image and then stopped early. Measured:
+      // this message used to invite a conversion, and a model took that
+      // invitation for 49 bash calls and 44 reads before it was stopped.
+      //
+      // How final that is depends on the format, and saying otherwise would cap
+      // a capable model for the convenience of bounding a careless one. JPEG is
+      // decoded in scanlines, so the part that arrived still renders -- a
+      // truncated JPEG really does give back the top of the picture. PNG and
+      // WebP put their pixels in one compressed stream, and a partial copy
+      // decodes to nothing at all.
       if (output.reason === "truncated-image") {
+        const salvageable = output.mimeType === "image/jpeg";
         return {
           type: "error-text",
           value: [
-            `${output.filePath} is a truncated or corrupt image: it declares its format and size, then ends before its data does.`,
-            "The missing bytes are not recoverable by any tool: not by converting it, not with ffmpeg or Python, and not by reading it again.",
-            "Stop working on this file and tell the user it needs to be saved or sent again.",
+            `${output.filePath} is a truncated image: it declares its format and size, then ends before its data does.`,
+            "The missing bytes cannot be reconstructed by any tool.",
+            salvageable
+              ? "A JPEG decodes top to bottom, so the part that did arrive is still renderable: if what you need is near the top, one attempt at decoding it is worth making."
+              : "This format stores its pixels as a single compressed stream, so a partial copy decodes to nothing -- converting it, or opening it with ffmpeg or Python, cannot change that.",
+            "Do not make more than that one attempt. Tell the user the file needs to be saved or sent again.",
           ].join(" "),
         };
       }
 
-      // Whereas these bytes are not recognisable as an image at all, which is
+      // Whereas these bytes are not recognizable as an image at all, which is
       // as likely to be a name that lies about its contents as a damaged file.
       // Here identifying the real format is worth a look.
       if (output.reason === "undecodable-image") {

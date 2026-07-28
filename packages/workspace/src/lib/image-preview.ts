@@ -109,7 +109,7 @@ export async function cropRegion({
 
   // Magnifying a handful of pixels to fill the budget produces interpolation and
   // nothing else, and the result does not look like nothing -- it looks like a
-  // flat expanse of colour, which a model reads as evidence that the picture is
+  // flat expanse of color, which a model reads as evidence that the picture is
   // blank. Measured: a model opened a read with a 1x1 rectangle and reported
   // back that the screenshot was a solid dark-green screen. Refusing costs a
   // round trip; answering costs the model's belief about what it was shown.

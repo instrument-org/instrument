@@ -128,8 +128,7 @@ describe("isCompleteImage", () => {
     {
       // What an interrupted download leaves: the header parsed, so the file
       // still measures 10x10, and the marker that ends it never arrived.
-      bytes: () =>
-        pngHeaderBytes({ height: 10, width: 10 }).subarray(0, 20),
+      bytes: () => pngHeaderBytes({ height: 10, width: 10 }).subarray(0, 20),
       expected: false,
       name: "a PNG cut off before its IEND",
     },

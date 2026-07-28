@@ -128,7 +128,10 @@ export const IMAGE_REGION_EVALS = [
   defineEval({
     assertions: [assertReadsARegion, assertAnswerContains(Q3_NORTHEAST)],
     files: [
-      { content: fixture("revenue-table.png"), filename: "quarterly-revenue.png" },
+      {
+        content: fixture("revenue-table.png"),
+        filename: "quarterly-revenue.png",
+      },
     ],
     name: "region-reads-a-table-cell",
     prompt: "What is the Q3 figure for the Northeast region in this table?",

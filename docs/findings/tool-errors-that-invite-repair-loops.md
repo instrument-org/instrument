@@ -17,7 +17,7 @@ On a truncated file there is nothing to convert. The pixel data is absent, every
 One string served two failures that call for opposite responses:
 
 - **The bytes are damaged.** The header declares a format and a size, and the data ends early. Unrecoverable. The only useful action is to tell the user.
-- **The bytes are unrecognised.** Nothing identifies them as an image, which is as likely to be a name that lies about its contents as a damaged file. Identifying the real format is worth exactly one look.
+- **The bytes are unrecognized.** Nothing identifies them as an image, which is as likely to be a name that lies about its contents as a damaged file. Identifying the real format is worth exactly one look.
 
 Merging them meant the advice for the second case was given for the first, where it cannot work.
 
@@ -33,7 +33,7 @@ Re-measured across the same four models: every one made exactly **one** read of 
 ## What to take from it
 
 - **An error that names a remedy is an instruction to attempt it.** Only name one when it can work. When it cannot, say so explicitly -- "do not retry this file" costs one sentence and bounds the failure.
-- **Distinguish unrecoverable from unrecognised** wherever a tool refuses input. They look alike at the call site and diverge completely in what the agent should do next.
+- **Distinguish unrecoverable from unrecognized** wherever a tool refuses input. They look alike at the call site and diverge completely in what the agent should do next.
 - **Loops are invisible to unit tests.** Nothing in the test suite could have caught this: the tool returned the correct result with a correct message every single time. It only appears when a real model reads that message and acts on it, which is an argument for running agent-level evals against failure paths and not just happy paths.
 - **The cost is asymmetric.** A bounded failure costs one tool call. An unbounded one costs the context window, the credits, and eventually the session -- the exact outcome the refusal existed to prevent, arriving by a different road.
 

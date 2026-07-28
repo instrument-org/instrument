@@ -66,6 +66,16 @@ ${dir}\output\rainbow.pdf`;
     `);
   });
 
+  it("still redacts host paths when the separator rewrite is off, but leaves other backslashes alone", () => {
+    const output = String.raw`${dir}\output\r.pdf matched /a\d+/ and "x\n"`;
+
+    const result = filterShellOutput(output, dir, { rewriteSeparators: false });
+
+    expect(result).toMatchInlineSnapshot(
+      `".\\output\\r.pdf matched /a\\d+/ and "x\\n""`,
+    );
+  });
+
   it("redacts app dir variants case-insensitively", () => {
     const output = `${dir.toUpperCase()}/output/file.png`;
 

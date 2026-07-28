@@ -3,7 +3,7 @@ import { defineCommand } from "just-bash";
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { type TaskId } from "../../schemas/task-id";
-import { filterShellOutput } from "../filter-shell-output";
+import { filterShellOutput, pathVariants } from "../filter-shell-output";
 import { RG_DISK_PATH } from "../ripgrep";
 import { taskDir } from "../task-dir-utils";
 import {
@@ -93,9 +93,45 @@ export function createRgCommand({
       stdout: filterShellOutput(
         virtualizeOutput(result.all, layout),
         taskDir(taskId),
+        // `--path-separator=/` already makes ripgrep print POSIX paths, so the
+        // separator rewrite has nothing to fix here and would only corrupt
+        // backslashes inside matched lines and `--json` escapes.
+        { rewriteSeparators: false },
       ),
     };
   });
+}
+
+/**
+ * Map every mount's real location back to its virtual path so match paths stay
+ * sandbox-shaped.
+ *
+ * A host root is matched in every spelling it can be printed in, not just the
+ * one the layout stores. `--path-separator=/` makes ripgrep print a Windows
+ * host root as `C:/Users/...` while the layout holds `C:\Users\...`, so
+ * comparing the stored spelling alone silently matches nothing and the match
+ * paths leak out as host paths.
+ *
+ * Longest spelling first, so a mount nested inside another wins over its parent.
+ */
+export function virtualizeOutput(
+  output: string,
+  layout: WorkspaceFsLayout,
+): string {
+  const rewrites = nonTaskMounts(layout)
+    .flatMap((mount) =>
+      pathVariants(mount.hostRoot).map((hostRoot) => ({
+        hostRoot,
+        mountPoint: mount.mountPoint,
+      })),
+    )
+    .sort((a, b) => b.hostRoot.length - a.hostRoot.length);
+
+  let result = output;
+  for (const { hostRoot, mountPoint } of rewrites) {
+    result = result.replaceAll(hostRoot, mountPoint);
+  }
+  return result;
 }
 
 /**
@@ -146,20 +182,4 @@ function deniedFlag(arg: string): null | string {
     return `-${DENIED_SHORT_FLAG}`;
   }
   return null;
-}
-
-/**
- * Map every mount's real location back to its virtual path so match paths stay
- * sandbox-shaped. Longest host root first, so a mount nested inside another
- * wins over its parent.
- */
-function virtualizeOutput(output: string, layout: WorkspaceFsLayout): string {
-  const mounts = [...nonTaskMounts(layout)].sort(
-    (a, b) => b.hostRoot.length - a.hostRoot.length,
-  );
-  let result = output;
-  for (const mount of mounts) {
-    result = result.replaceAll(mount.hostRoot, mount.mountPoint);
-  }
-  return result;
 }

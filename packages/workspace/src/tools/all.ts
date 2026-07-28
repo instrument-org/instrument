@@ -7,7 +7,6 @@ import { BashTool } from "./bash";
 import { Choose } from "./choose";
 import { EditFile } from "./edit-file";
 import { GenerateImage } from "./generate-image";
-import { Glob } from "./glob";
 import { Grep } from "./grep";
 import { LoadSkill } from "./load-skill";
 import { ReadFile } from "./read-file";
@@ -20,7 +19,6 @@ export const TOOLS = {
   Choose,
   EditFile,
   GenerateImage,
-  Glob,
   Grep,
   LoadSkill,
   ReadFile,
@@ -36,7 +34,6 @@ export const TOOLS_BY_NAME = {
   [TOOLS.Choose.name]: TOOLS.Choose,
   [TOOLS.EditFile.name]: TOOLS.EditFile,
   [TOOLS.GenerateImage.name]: TOOLS.GenerateImage,
-  [TOOLS.Glob.name]: TOOLS.Glob,
   [TOOLS.Grep.name]: TOOLS.Grep,
   [TOOLS.LoadSkill.name]: TOOLS.LoadSkill,
   [TOOLS.ReadFile.name]: TOOLS.ReadFile,

@@ -56,17 +56,6 @@ registerSession({
         }),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
-            pattern: "src/**/*.ts",
-          },
-          output: {
-            files: ["src/app.ts"],
-            totalFiles: 1,
-            truncated: false,
-          },
-          type: "tool-glob",
-        }),
-        builder.toolPart(assistantMessageId, "output-available", {
-          input: {
             pattern: "formatDate",
           },
           output: {

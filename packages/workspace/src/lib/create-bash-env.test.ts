@@ -23,6 +23,8 @@ describe("createBashDescription", () => {
       IMPORTANT: Prefer specialized tools over shell equivalents:
         - Use the \`read_file\` tool instead of \`cat\`/\`head\`/\`tail\`.
         - Use the \`edit_file\`/\`write_file\` tools instead of \`sed\`/\`awk\`/redirects for editing.
+        - Use the \`grep\` tool to search file CONTENTS. Use this shell to find files by NAME or pattern (\`rg --files -g '*.ts'\`, \`ls\`, \`find\`, \`tree\`) -- there is no separate tool for that.
+        - Prefer \`rg\` over \`grep\`/\`egrep\`/\`fgrep\` in this shell: it is faster and its flags are what you already know.
         - For audio, video, or image inspection, prefer \`ffprobe -v error -show_format -show_streams -of json <path>\` over \`file\`.
 
       TIP: Before using an unfamiliar command, run \`<command> --help\` to check its argument syntax.

@@ -36,13 +36,6 @@ registerSession({
         }),
         builder.toolPart(assistantMessageId, "input-available", {
           input: {
-            explanation: "Find all TypeScript files in the src directory",
-            pattern: "src/**/*.ts",
-          },
-          type: "tool-glob",
-        }),
-        builder.toolPart(assistantMessageId, "input-available", {
-          input: {
             explanation: "Search for all usages of the formatDate function",
             pattern: "formatDate",
           },

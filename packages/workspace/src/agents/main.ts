@@ -104,7 +104,6 @@ export const mainAgent = setupAgent({
   agentTools: pick(TOOLS, [
     "EditFile",
     "GenerateImage",
-    "Glob",
     "Grep",
     "LoadSkill",
     "ReadFile",
@@ -189,7 +188,7 @@ export const mainAgent = setupAgent({
     - \`${F.downloads}/\` -- files you download (e.g. via the browser) land here; visible to the user. Move one to \`${F.output}/\` when it's a finished deliverable.
 
     Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`, everything else in \`${F.work}/\`. Your working directory is the task root (\`/task\`); use relative paths for task files (\`${F.work}/...\`, \`${F.output}/...\`). The only absolute paths you use are virtual mount paths: \`/mnt/...\` for attached folders and \`${SKILLS_MOUNT_POINT}/...\` for the workspace's own skills. Never use host paths like \`/Users/...\`.
-    - Folders the user attaches are mounted read-only under \`/mnt/\` (one directory per folder; the attached-folders context lists the exact paths). Browse, read, and search them by their \`/mnt/...\` path with your normal file tools (\`${agentTools.ReadFile.name}\`, \`${agentTools.Glob.name}\`, \`${agentTools.Grep.name}\`) or the \`${agentTools.BashTool.name}\` tool (\`ls\`, \`cat\`, \`grep\`/\`rg\`, \`find\`). They are NOT under the task root, so reach them by their \`/mnt/...\` path, not a relative one. When referencing an attached file from agent-authored HTML or CSS, use its absolute \`/mnt/...\` path so the static asset origin resolves it.
+    - Folders the user attaches are mounted read-only under \`/mnt/\` (one directory per folder; the attached-folders context lists the exact paths). Browse, read, and search them by their \`/mnt/...\` path with your normal file tools (\`${agentTools.ReadFile.name}\`, \`${agentTools.Grep.name}\`) or the \`${agentTools.BashTool.name}\` tool (\`ls\`, \`cat\`, \`rg\`, \`find\`). They are NOT under the task root, so reach them by their \`/mnt/...\` path, not a relative one. When referencing an attached file from agent-authored HTML or CSS, use its absolute \`/mnt/...\` path so the static asset origin resolves it.
     - These mounts are read-only and reflect the user's real files: do not try to edit, write into, or build outputs inside \`/mnt/\` (it will fail). Native tools (ffmpeg, python, scripts) also cannot read from \`/mnt/\` directly. To edit, run, or process an attached file, copy it into the task first (e.g. \`cp '/mnt/<folder>/file' ${F.attachments}/\`) and operate on the copy.
     - If needed files aren't available, tell the user they can upload them or attach the containing folder.
     - \`${SKILLS_MOUNT_POINT}/\` is the workspace's own skills folder, mounted writable.
@@ -218,6 +217,7 @@ export const mainAgent = setupAgent({
     Use this decision tree before reaching for a file tool:
     - Creating new content from scratch: \`${agentTools.WriteFile.name}\`.
     - Modifying part of an existing text file: \`${agentTools.EditFile.name}\`.
+    - Finding files by name or pattern, or listing a folder: \`${agentTools.BashTool.name}\` (\`rg --files -g '<pattern>'\`, \`ls\`, \`find\`, \`tree\`). Searching file *contents*: the \`${agentTools.Grep.name}\` tool.
     - Copying, moving, renaming, deleting, or making directories: \`${agentTools.BashTool.name}\` (\`cp\`, \`mv\`, \`rm\`, \`mkdir\`).
     - Downloading a file from a URL: \`${agentTools.BashTool.name}\` with \`curl -L -o <path> <url>\`. Only write a script when you need to transform or paginate the response.
     - Surfacing a file from \`${F.work}/\` to the user: copy or move it into \`${F.output}/\` with \`${agentTools.BashTool.name}\` (e.g. \`cp ${F.work}/foo.html ${F.output}/foo.html\`).

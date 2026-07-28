@@ -123,6 +123,7 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 
 ## Additional guidance
 
+- `REVIEW.md` — Repo-specific code review calibration.
 - `.agents/skills/validate-changes/SKILL.md` — **How to check your work.** The ways to run this product (sandbox shell, real agent across models, the app), what each one can and cannot tell you, and which to reach for. Read this before concluding a change works.
 - `.agents/setup.md` — Prerequisites before first `pnpm install` / `./scripts/setup.sh`.
 - `.agents/env.md` — Environment variables for Studio and workspace.

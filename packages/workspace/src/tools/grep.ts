@@ -98,6 +98,9 @@ export const Grep = setupTool({
     const result = await grep({
       contextLines: input.context,
       cwd: taskDir(taskId),
+      // The private dir only sits at the task root, so the exclusion is only
+      // needed (and only anchors correctly) when that is the search root.
+      excludePrivateDir: mount === null && displayPath === "./",
       include: input.include,
       limit: GREP_LIMIT,
       pattern: input.pattern,

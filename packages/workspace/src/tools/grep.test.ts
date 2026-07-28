@@ -323,6 +323,42 @@ describe("Grep", () => {
       expect(output.totalMatches).toBe(1);
     });
 
+    it("does not search the private dir when scanning the task root", async () => {
+      const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "grep-private-"));
+      const dir = path.join(tmpDir, "test");
+      try {
+        await fs.mkdir(path.join(dir, ".instrument"), { recursive: true });
+        await fs.writeFile(
+          path.join(dir, ".instrument", "state.json"),
+          '{"attachedFolders":"UNIQUE_PRIVATE_MARKER"}',
+        );
+        await fs.writeFile(
+          path.join(dir, "visible.txt"),
+          "UNIQUE_PRIVATE_MARKER",
+        );
+
+        const result = await runTool(TOOLS.Grep, {
+          agentName: "main",
+          input: {
+            explanation: "Searching the task root",
+            pattern: "UNIQUE_PRIVATE_MARKER",
+          },
+          model,
+          signal: AbortSignal.timeout(10_000),
+          spawnAgent: vi.fn(),
+          taskId: createMockTaskConfigForDir(TaskDirSchema.parse(dir), {
+            model,
+          }),
+          taskState: {},
+        });
+
+        const paths = result._unsafeUnwrap().matches.map((m) => m.path);
+        expect(paths).toEqual(["./visible.txt"]);
+      } finally {
+        await fs.rm(tmpDir, { force: true, recursive: true });
+      }
+    });
+
     it("should return no matches when pattern is not found", async () => {
       const result = await runTool(TOOLS.Grep, {
         agentName: "main",

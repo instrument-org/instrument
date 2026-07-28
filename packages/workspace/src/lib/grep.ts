@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { TASK_FOLDER_NAMES } from "../constants";
 import { type AbsolutePath } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import { pathExists } from "./path-exists";
@@ -35,14 +36,24 @@ interface GrepResult {
 export async function grep(options: {
   contextLines?: number;
   cwd: AbsolutePath;
+  /** True when `searchPath` is the task root, whose private dir must be masked. */
+  excludePrivateDir?: boolean;
   include?: string;
   limit: number;
   pattern: string;
   searchPath: string;
   signal: AbortSignal;
 }): Promise<GrepResult> {
-  const { contextLines, cwd, include, limit, pattern, searchPath, signal } =
-    options;
+  const {
+    contextLines,
+    cwd,
+    excludePrivateDir,
+    include,
+    limit,
+    pattern,
+    searchPath,
+    signal,
+  } = options;
 
   const exists = await pathExists(cwd);
   if (!exists) {
@@ -65,6 +76,16 @@ export async function grep(options: {
 
   // Don't use ripgrep's --sort option as it makes it single-threaded
   // We'll sort manually after getting results
+
+  // Ripgrep walks the real directory as a subprocess, so the virtual FS mask
+  // that hides the private dir from the shell and the file tools does not
+  // apply. Without this, `--hidden` above walks straight into it and returns
+  // the attached-folder host paths state.json carries. The leading slash
+  // anchors the glob to the search root, so only the task's own private dir is
+  // excluded and a same-named directory deeper in the tree stays searchable.
+  if (excludePrivateDir) {
+    args.push("--glob", `!/${TASK_FOLDER_NAMES.private}/**`);
+  }
 
   // Add include pattern (glob)
   if (include) {

@@ -24,8 +24,9 @@ export function usePrefetchTaskFileOpenTarget() {
   };
 }
 
-// Every app that can open the file (default first). File viewers start this
-// lookup immediately; contextual menus wait until opened.
+// Every app that can open the file, with the system's own choice carrying
+// `isDefault` rather than a position. File viewers start this lookup
+// immediately; contextual menus wait until opened.
 export function useTaskFileOpenCandidates(
   file: FileRef | undefined,
   { enabled }: { enabled: boolean },

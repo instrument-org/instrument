@@ -250,9 +250,9 @@ export async function runEvals(
               // A model handed an unrecoverable input can keep trying to
               // recover from it, and nothing in the loop is wrong enough to
               // stop it: each attempt is a legitimate tool call. Measured, one
-              // run reached 4.1M tokens on a single question before a human
-              // noticed. The eval harness is the one place that can see the
-              // total and act on it, so it does.
+              // run has reached millions of tokens on a single question before
+              // a human noticed. The eval harness is the one place that can see
+              // the running total and act on it, so it does.
               if (
                 maxRunTokens > 0 &&
                 usage.totalTokens > maxRunTokens &&

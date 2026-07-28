@@ -116,18 +116,14 @@ Use a scope-first subject: `scope: description of what changed`. No conventional
 
 Durable, versioned docs are the system of record; prefer them over chat/history. Keep them evergreen and safe to share: leave out secrets and anything tied to one machine, person, or moment.
 
-- Do not hard-wrap Markdown prose. Keep each paragraph and list item on one source line unless the file already wraps prose.
 - `docs/architecture/` — evergreen maps of a subsystem or domain and how it layers together, edited in place as the code changes. One file per subsystem.
 - `docs/findings/` — non-obvious issues, what we tried, what might resolve them later. One file per finding.
 - `docs/plans/` — execution plans for non-trivial work (`active/` vs `completed/`). One file per plan.
 - `docs/decisions/` — why we chose one approach over another, dated. One file per decision.
 
-## Code review
-
-`REVIEW.md` at the repo root holds review-only calibration: severity, skip rules, repo-specific checks, and reporting. Claude Code Review injects it verbatim at highest priority; keep project context in this file and only behavior-changing review instructions in `REVIEW.md`.
-
 ## Additional guidance
 
+- `REVIEW.md` — Repo-specific code review calibration.
 - `.agents/skills/validate-changes/SKILL.md` — **How to check your work.** The ways to run this product (sandbox shell, real agent across models, the app), what each one can and cannot tell you, and which to reach for. Read this before concluding a change works.
 - `.agents/setup.md` — Prerequisites before first `pnpm install` / `./scripts/setup.sh`.
 - `.agents/env.md` — Environment variables for Studio and workspace.

@@ -1,6 +1,6 @@
 # Review instructions
 
-Focus on correctness and user impact. Use `CLAUDE.md` for project context; the rules below only calibrate what the review flags and how it reports findings.
+Focus on correctness and user impact. The rules below only calibrate what the review flags and how it reports findings.
 
 ## What Important means here
 

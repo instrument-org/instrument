@@ -5,6 +5,9 @@ import { type AbsolutePath } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import { pathExists } from "./path-exists";
 import { parseRipgrepLines, spawnRipgrep } from "./ripgrep";
+
+const MAX_LINE_LENGTH = 2000;
+
 interface GrepMatch {
   lineNum: number;
   lineText: string;
@@ -81,8 +84,7 @@ export async function grep(options: {
   }
 
   const lines = parseRipgrepLines(stdout);
-  const matches: GrepMatch[] = [];
-  let totalMatches = 0;
+  const parsed: Omit<GrepMatch, "modifiedAt">[] = [];
 
   for (const line of lines) {
     const [filePath, lineNumStr, ...lineTextParts] = line.split("|");
@@ -95,40 +97,50 @@ export async function grep(options: {
       continue;
     }
 
-    totalMatches++;
-
-    if (matches.length >= limit) {
-      continue;
-    }
-
     const lineText = lineTextParts.join("|");
-    const MAX_LINE_LENGTH = 2000;
-    const truncatedLineText =
-      lineText.length > MAX_LINE_LENGTH
-        ? lineText.slice(0, Math.max(0, MAX_LINE_LENGTH)) + "..."
-        : lineText;
-    // If filePath is already absolute, use it directly; otherwise join with cwd
-    const absolutePath = path.isAbsolute(filePath)
-      ? filePath
-      : absolutePathJoin(cwd, filePath);
-    try {
-      const stats = await fs.stat(absolutePath);
-      matches.push({
-        lineNum,
-        lineText: truncatedLineText,
-        modifiedAt: stats.mtime.getTime(),
-        path: filePath,
-      });
-    } catch {
-      // Skip files that can't be stat'd
-      continue;
-    }
+    parsed.push({
+      lineNum,
+      lineText:
+        lineText.length > MAX_LINE_LENGTH
+          ? lineText.slice(0, Math.max(0, MAX_LINE_LENGTH)) + "..."
+          : lineText,
+      path: filePath,
+    });
   }
+
+  // Resolve mtimes once per file rather than once per match, since a single hot
+  // file can hold thousands of matches.
+  const modifiedAtByPath = new Map<string, number>();
+  await Promise.all(
+    [...new Set(parsed.map((match) => match.path))].map(async (filePath) => {
+      // If filePath is already absolute, use it directly; otherwise join with cwd
+      const absolutePath = path.isAbsolute(filePath)
+        ? filePath
+        : absolutePathJoin(cwd, filePath);
+      try {
+        const stats = await fs.stat(absolutePath);
+        modifiedAtByPath.set(filePath, stats.mtime.getTime());
+      } catch {
+        // Skip files that can't be stat'd
+      }
+    }),
+  );
+
+  const matches = parsed.flatMap((match) => {
+    const modifiedAt = modifiedAtByPath.get(match.path);
+    return modifiedAt === undefined ? [] : [{ ...match, modifiedAt }];
+  });
+
+  // Sort before applying the limit: capping in ripgrep's traversal order first
+  // would pick an arbitrary set and then merely display that set by mtime,
+  // hiding the recently touched files the ordering exists to surface. The sort
+  // is stable, so matches within one file keep ripgrep's line order.
+  matches.sort((a, b) => b.modifiedAt - a.modifiedAt);
 
   return {
     hasErrors,
-    matches,
-    totalMatches,
-    truncated: totalMatches > limit,
+    matches: matches.slice(0, limit),
+    totalMatches: matches.length,
+    truncated: matches.length > limit,
   };
 }

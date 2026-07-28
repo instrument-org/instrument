@@ -17,16 +17,16 @@ describe("listFiles", () => {
 
     expect(result.files).toMatchInlineSnapshot(`
       [
-        "a-folder",
-        "dot-files-only",
+        "a-folder/",
+        "dot-files-only/",
         "empty-file.txt",
-        "folder",
+        "folder/",
         "grep-test-2.txt",
         "grep-test.txt",
         "ignored-2.ignored",
-        "ignored-folder",
+        "ignored-folder/",
         "json-file.json",
-        "nested",
+        "nested/",
         "other.txt",
         "test1.txt",
         "test2.txt",
@@ -47,7 +47,7 @@ describe("listFiles", () => {
     const result = await listFiles(fixturesDir, { hidden: true });
 
     expect(result.files).toContain(".gitignore");
-    expect(result.files).toContain("dot-files-only");
+    expect(result.files).toContain("dot-files-only/");
   });
 
   it("lists files in a subdirectory", async () => {
@@ -56,8 +56,8 @@ describe("listFiles", () => {
 
     expect(result.files).toMatchInlineSnapshot(`
       [
-        "another",
-        "level1",
+        "another/",
+        "level1/",
       ]
     `);
   });

@@ -5,6 +5,7 @@ import { isBinaryFile } from "isbinaryfile";
 import ms from "ms";
 import { err, ok } from "neverthrow";
 import fs from "node:fs/promises";
+import path from "node:path";
 import { dedent } from "radashi";
 import { z } from "zod";
 
@@ -258,7 +259,16 @@ export const ReadFile = setupTool({
     if (stats.isDirectory()) {
       const { files: entries, truncated: dirTruncated } = await listFiles(
         absolutePath,
-        { limit: DIRECTORY_LISTING_LIMIT },
+        {
+          // The private dir is masked from the shell too, so listing it here
+          // would advertise a path every read of it rejects.
+          exclude:
+            path.resolve(absolutePath) === path.resolve(taskDir(taskId))
+              ? [TASK_FOLDER_NAMES.private]
+              : undefined,
+          hidden: true,
+          limit: DIRECTORY_LISTING_LIMIT,
+        },
       );
 
       return ok({

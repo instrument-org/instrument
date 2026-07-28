@@ -12,6 +12,7 @@ interface ListFilesResult {
 export async function listFiles(
   rootDir: AbsolutePath,
   options: {
+    exclude?: string[];
     hidden?: boolean;
     limit?: number;
     searchPath?: string;
@@ -31,7 +32,10 @@ export async function listFiles(
 
   const filtered = entries
     .filter((entry) => options.hidden || !entry.name.startsWith("."))
-    .map((entry) => entry.name)
+    .filter((entry) => !options.exclude?.includes(entry.name))
+    // A trailing slash is the only signal a caller has that an entry is a
+    // directory, since the listing is otherwise bare names.
+    .map((entry) => (entry.isDirectory() ? `${entry.name}/` : entry.name))
     .sort((a, b) => a.localeCompare(b));
 
   const limit = options.limit;

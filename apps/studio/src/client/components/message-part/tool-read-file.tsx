@@ -19,6 +19,29 @@ type ReadFilePart = Extract<
   { type: "tool-read_file" }
 >;
 
+type UnsupportedFormatReason = Extract<
+  ReadFilePart["output"],
+  { state: "unsupported-format" }
+>["reason"];
+
+/**
+ * One line per reason the tool can refuse a file.
+ *
+ * Typed off the tool's own union rather than defaulted, so adding a reason in
+ * the workspace fails the build here instead of quietly rendering as "Cannot
+ * read binary file" -- which is how a truncated PDF and a valid-but-oversized
+ * photo both came to be described to the user as binary files.
+ */
+const UNSUPPORTED_FORMAT_MESSAGES: Record<UnsupportedFormatReason, string> = {
+  "binary-file": "Cannot read binary file",
+  "image-too-large": "Image is too large to open",
+  "truncated-image": "Image is incomplete",
+  "undecodable-image": "File is not a readable image",
+  "undecodable-media": "Cannot read this audio or video file",
+  "undecodable-pdf": "PDF is incomplete",
+  "unsupported-image-format": "Unsupported image format",
+};
+
 export function ToolReadFile({ id, part }: { id: TaskId; part: ReadFilePart }) {
   if (part.state !== "output-available") {
     return null;
@@ -110,10 +133,7 @@ export function ToolReadFile({ id, part }: { id: TaskId; part: ReadFilePart }) {
       );
     }
     case "unsupported-format": {
-      const message =
-        output.reason === "unsupported-image-format"
-          ? "Unsupported image format"
-          : "Cannot read binary file";
+      const message = UNSUPPORTED_FORMAT_MESSAGES[output.reason];
       return (
         <ReadFileCard
           filePath={output.filePath}

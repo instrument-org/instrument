@@ -1008,10 +1008,10 @@ describe("toModelOutput", () => {
 
   // These two look alike and call for opposite responses, and getting that wrong
   // is expensive: a message inviting a conversion on data that is not there sent
-  // one model through dozens of bash calls. Separate tests rather than a table,
+  // a model on an unbounded errand. Separate tests rather than a table,
   // so each message stays visible as an inline snapshot.
   function unsupportedFormatMessage(
-    reason: "truncated-image" | "undecodable-image",
+    reason: "truncated-image" | "undecodable-image" | "undecodable-media",
     mimeType = "image/png",
   ) {
     const result = ReadFile.toModelOutput({
@@ -1031,7 +1031,7 @@ describe("toModelOutput", () => {
 
   it("tells a damaged image to stop rather than convert", () => {
     expect(unsupportedFormatMessage("truncated-image")).toMatchInlineSnapshot(
-      `"./photo.png is a truncated image: it declares its format and size, then ends before its data does. The missing bytes cannot be reconstructed by any tool. This format stores its pixels as a single compressed stream, so a partial copy decodes to nothing -- converting it, or opening it with ffmpeg or Python, cannot change that. Do not make more than that one attempt. Tell the user the file needs to be saved or sent again."`,
+      `"./photo.png is a truncated image: it declares its format and size, then ends before its data does. The missing bytes cannot be reconstructed by any tool. This format stores its pixels as a single compressed stream, so a partial copy decodes to nothing -- converting it, or opening it with ffmpeg or Python, cannot change that. Do not make more than that one attempt, and do not read this file again. Report that it is unusable and say where it came from, so whoever can replace it knows which step to repeat."`,
     );
   });
 
@@ -1043,7 +1043,19 @@ describe("toModelOutput", () => {
     expect(
       unsupportedFormatMessage("truncated-image", "image/jpeg"),
     ).toMatchInlineSnapshot(
-      `"./photo.png is a truncated image: it declares its format and size, then ends before its data does. The missing bytes cannot be reconstructed by any tool. A JPEG decodes top to bottom, so the part that did arrive is still renderable: if what you need is near the top, one attempt at decoding it is worth making. Do not make more than that one attempt. Tell the user the file needs to be saved or sent again."`,
+      `"./photo.png is a truncated image: it declares its format and size, then ends before its data does. The missing bytes cannot be reconstructed by any tool. A JPEG decodes top to bottom, so the part that did arrive is still renderable: if what you need is near the top, one attempt at decoding it is worth making. Do not make more than that one attempt, and do not read this file again. Report that it is unusable and say where it came from, so whoever can replace it knows which step to repeat."`,
+    );
+  });
+
+  it("bounds the audio and video message it cannot split", () => {
+    // A container cannot say which failure it hit -- ffprobe refusing to parse
+    // one means either a short download or the wrong format, and nothing cheap
+    // separates them. So the message keeps the one useful step and bounds it,
+    // rather than leaving the repair loop open the way the image text used to.
+    expect(
+      unsupportedFormatMessage("undecodable-media", "video/mp4"),
+    ).toMatchInlineSnapshot(
+      `"Cannot decode ./photo.png (video/mp4): it is either incomplete or not the format its name claims. Identify it once with \`ffprobe -v error -show_format -show_streams -of json ./photo.png\`. If that names a format, converting it is worth one attempt; if it reports a truncated or unknown stream, the data is missing and no conversion will recover it. Either way, do not read this file again. Report that it is unusable and say where it came from, so whoever can replace it knows which step to repeat."`,
     );
   });
 

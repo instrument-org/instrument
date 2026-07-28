@@ -16,7 +16,7 @@ On a truncated file there is nothing to convert. The pixel data is absent, every
 
 One string served two failures that call for opposite responses:
 
-- **The bytes are damaged.** The header declares a format and a size, and the data ends early. Unrecoverable. The only useful action is to tell the user.
+- **The bytes are damaged.** The header declares a format and a size, and the data ends early. Unrecoverable. The only useful action is to report it and stop.
 - **The bytes are unrecognized.** Nothing identifies them as an image, which is as likely to be a name that lies about its contents as a damaged file. Identifying the real format is worth exactly one look.
 
 Merging them meant the advice for the second case was given for the first, where it cannot work.
@@ -27,6 +27,8 @@ Splitting the two, and making each message say what to stop doing as well as wha
 
 - `truncated-image` says the data is gone, not to convert, and not to read the file again.
 - `undecodable-image` says to identify the format **once**, and to report back rather than re-read if it will not convert.
+
+Both stop short of naming a remedy. An earlier draft ended with "tell the user it needs to be sent again", which assumes the file arrived because a person supplied it. This runs locally: the file may have been downloaded by the agent, written by a script, extracted from an archive, or sitting in an attached folder. Naming the wrong remedy is the same mistake as naming an impossible one, so the message reports the state and says where the file came from, and leaves the remedy to whoever knows the provenance.
 
 Re-measured across the same four models: every one made exactly **one** read of the bad file, down from 44. None invented an answer it could not have seen.
 

@@ -27,8 +27,26 @@ const fixture = (name: string) =>
 const SERIAL = "7F3K-9142-QX58";
 const Q3_NORTHEAST = "5,318";
 
+/**
+ * A zoom the model meant, matching how the tool reads the same input.
+ *
+ * `read_file` treats an all-zero rectangle as no rectangle, because it names
+ * no place and one model family sends it on the first read of every image.
+ * Counting it here anyway made the negative case fail a model whose read the
+ * tool had already handled as a plain one -- the eval and the tool disagreeing
+ * about what a region read even is.
+ */
 function isRegionRead(part: SessionMessagePart.Type) {
-  return part.type === "tool-read_file" && part.input?.region !== undefined;
+  if (part.type !== "tool-read_file") {
+    return false;
+  }
+  const region = part.input?.region;
+  if (!region) {
+    return false;
+  }
+  return (
+    region.x1 !== 0 || region.x2 !== 0 || region.y1 !== 0 || region.y2 !== 0
+  );
 }
 
 const assertReadsARegion: Assertion = {

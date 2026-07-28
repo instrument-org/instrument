@@ -623,9 +623,10 @@ export const ReadFile = setupTool({
 
     if (output.state === "unsupported-format") {
       // Two failures that look alike and call for opposite responses. These
-      // bytes announced themselves as an image and then stopped early. Measured:
-      // this message used to invite a conversion, and a model took that
-      // invitation for 49 bash calls and 44 reads before it was stopped.
+      // bytes announced themselves as an image and then stopped early. A
+      // message that names a remedy is read as an instruction to attempt it, so
+      // naming one that cannot work here leaves the agent an unbounded errand.
+      // See docs/findings/tool-errors-that-invite-repair-loops.md.
       //
       // How final that is depends on the format, and saying otherwise would cap
       // a capable model for the convenience of bounding a careless one. JPEG is
@@ -643,7 +644,7 @@ export const ReadFile = setupTool({
             salvageable
               ? "A JPEG decodes top to bottom, so the part that did arrive is still renderable: if what you need is near the top, one attempt at decoding it is worth making."
               : "This format stores its pixels as a single compressed stream, so a partial copy decodes to nothing -- converting it, or opening it with ffmpeg or Python, cannot change that.",
-            "Do not make more than that one attempt. Tell the user the file needs to be saved or sent again.",
+            "Do not make more than that one attempt, and do not read this file again. Report that it is unusable and say where it came from, so whoever can replace it knows which step to repeat.",
           ].join(" "),
         };
       }
@@ -673,15 +674,21 @@ export const ReadFile = setupTool({
         };
       }
 
+      // An image can say which of the two failures it hit, because a trailer
+      // marker settles it. A container cannot: ffprobe refusing to parse one
+      // means either the download stopped early or the bytes were never that
+      // format, and nothing cheap tells them apart. So this keeps the one
+      // useful step and bounds it, rather than the open-ended "convert it
+      // before reading" the image path had to drop.
       if (output.reason === "undecodable-media") {
         const mimeInfo = output.mimeType ? ` (${output.mimeType})` : "";
         return {
           type: "error-text",
           value: [
-            `Cannot decode ${output.filePath}${mimeInfo}.`,
-            "The file may be truncated or incomplete, or it may not be the format its name says it is.",
-            `Check what it really is with \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json ${output.filePath}\`,`,
-            "and convert it before reading.",
+            `Cannot decode ${output.filePath}${mimeInfo}: it is either incomplete or not the format its name claims.`,
+            `Identify it once with \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json ${output.filePath}\`.`,
+            "If that names a format, converting it is worth one attempt; if it reports a truncated or unknown stream, the data is missing and no conversion will recover it.",
+            "Either way, do not read this file again. Report that it is unusable and say where it came from, so whoever can replace it knows which step to repeat.",
           ].join(" "),
         };
       }

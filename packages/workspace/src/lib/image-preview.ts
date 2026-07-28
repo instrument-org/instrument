@@ -296,10 +296,22 @@ export async function previewImage({
   }
 
   if (rendered.state === "failed") {
+    // The header parsed, which is how the size above was known, and the pixels
+    // still would not decode. Truncation is caught before this, so what reaches
+    // here is damage somewhere inside an otherwise complete file.
+    //
+    // Deliberately reports rather than forbids. What is known for certain is
+    // narrow -- one decoder failed at one target size -- and that is not enough
+    // to rule out a partial decode, a different tool, or a format quirk. The
+    // ceiling on how long the agent may pursue that belongs to the agent, and
+    // where the harness does know an attempt is futile it says so instead
+    // (`truncated-image` in read-file.ts).
     return executeError(
       [
-        "Could not produce a viewable copy of this image.",
-        "Convert it to PNG or JPEG, or downscale it, and read the result.",
+        "Could not decode the pixel data in this image: its header reads correctly",
+        "and ffmpeg could not render it. The file is likely damaged somewhere after",
+        "the header. Salvaging part of it may be possible depending on the format;",
+        "if it is not, say so rather than reading this file again.",
       ].join(" "),
     );
   }

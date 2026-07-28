@@ -353,7 +353,7 @@ describe("ReadFile", () => {
 
         expect(value.state).toBe("unsupported-format");
         if (value.state === "unsupported-format") {
-          expect(value.reason).toBe("undecodable-image");
+          expect(value.reason).toBe("truncated-image");
         }
       } finally {
         await fs.rm(whole, { force: true });
@@ -1004,6 +1004,36 @@ describe("toModelOutput", () => {
         "type": "text",
       }
     `);
+  });
+
+  // These two look alike and call for opposite responses, and getting that wrong
+  // is expensive: a message inviting a conversion on data that is not there sent
+  // one model through dozens of bash calls. Separate tests rather than a table,
+  // so each message stays visible as an inline snapshot.
+  function unsupportedFormatMessage(
+    reason: "truncated-image" | "undecodable-image",
+  ) {
+    const result = ReadFile.toModelOutput({
+      input: { explanation: "read", filePath: "./photo.png" },
+      output: {
+        filePath: "./photo.png",
+        mimeType: "image/png",
+        modifiedAt: 0,
+        reason,
+        state: "unsupported-format" as const,
+      },
+      toolCallId: "call-1",
+    });
+    expect(result.type).toBe("error-text");
+    return result.type === "error-text" ? result.value : "";
+  }
+
+  it("tells a damaged image to stop rather than convert", () => {
+    expect(unsupportedFormatMessage("truncated-image")).toMatchInlineSnapshot(`"./photo.png is a truncated or corrupt image: it declares its format and size, then ends before its data does. The missing bytes are not recoverable by any tool: not by converting it, not with ffmpeg or Python, and not by reading it again. Stop working on this file and tell the user it needs to be saved or sent again."`);
+  });
+
+  it("tells an unrecognised image to identify itself once", () => {
+    expect(unsupportedFormatMessage("undecodable-image")).toMatchInlineSnapshot(`"Cannot read ./photo.png as an image: nothing identifies these bytes as one. It may be a different format under an image's name, or not an image at all. Identify it once with \`ffprobe -v error -show_format -show_streams -of json ./photo.png\` or \`file\`. If it is a format that converts, convert it and read the result; if it is not, say so rather than reading this file again."`);
   });
 
   it("says which rectangle a region read was taken to mean", () => {

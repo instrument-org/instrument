@@ -226,14 +226,16 @@ async function handleMediaFile({
   }
 
   if (!isCompleteImage(fileData, size.mediaType)) {
-    // The header parsed over data that stops early. This matters most for an
-    // image inside the preview budget, which is passed through byte for byte
-    // and so is never decoded anywhere else on the way out.
+    // The header parsed over data that stops early. Reported apart from
+    // `undecodable-image` because the two call for opposite responses: this one
+    // is unrecoverable and the other may just be a mislabelled format. Matters
+    // most for an image inside the preview budget, which is passed through byte
+    // for byte and so is never decoded anywhere else on the way out.
     return ok({
       filePath: fixedPath,
       mimeType: sniffedMimeType,
       modifiedAt: stats.mtimeMs,
-      reason: "undecodable-image" as const,
+      reason: "truncated-image" as const,
       state: "unsupported-format" as const,
     });
   }
@@ -383,6 +385,7 @@ export const ReadFile = setupTool({
       reason: z.enum([
         "binary-file",
         "image-too-large",
+        "truncated-image",
         "undecodable-image",
         "undecodable-media",
         "undecodable-pdf",
@@ -619,14 +622,33 @@ export const ReadFile = setupTool({
     }
 
     if (output.state === "unsupported-format") {
+      // Two failures that look alike and call for opposite responses. These
+      // bytes announced themselves as an image and then stopped early, so the
+      // data is gone and no amount of converting brings it back. Measured: the
+      // message below used to invite a conversion here too, and a model took
+      // that invitation for 49 bash calls and 44 reads before it was stopped.
+      if (output.reason === "truncated-image") {
+        return {
+          type: "error-text",
+          value: [
+            `${output.filePath} is a truncated or corrupt image: it declares its format and size, then ends before its data does.`,
+            "The missing bytes are not recoverable by any tool: not by converting it, not with ffmpeg or Python, and not by reading it again.",
+            "Stop working on this file and tell the user it needs to be saved or sent again.",
+          ].join(" "),
+        };
+      }
+
+      // Whereas these bytes are not recognisable as an image at all, which is
+      // as likely to be a name that lies about its contents as a damaged file.
+      // Here identifying the real format is worth a look.
       if (output.reason === "undecodable-image") {
         return {
           type: "error-text",
           value: [
-            `Cannot decode ${output.filePath} as an image.`,
-            "The file may be truncated or incomplete, or it may not be the format its name says it is.",
-            `Check what it really is with \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json ${output.filePath}\`,`,
-            "and convert it before reading.",
+            `Cannot read ${output.filePath} as an image: nothing identifies these bytes as one.`,
+            "It may be a different format under an image's name, or not an image at all.",
+            `Identify it once with \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json ${output.filePath}\` or \`file\`.`,
+            "If it is a format that converts, convert it and read the result; if it is not, say so rather than reading this file again.",
           ].join(" "),
         };
       }

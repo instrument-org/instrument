@@ -626,6 +626,29 @@ describe("ReadFile", () => {
       }
     }, 60_000);
 
+    it("refuses a region too small to magnify into anything", async () => {
+      const imagePath = path.join(fixturesPath, "region-tiny-probe.png");
+      await drawPngFixture(imagePath, "320x240");
+
+      try {
+        const result = await runTool(TOOLS.ReadFile, {
+          ...baseInput,
+          input: {
+            explanation: "zoom",
+            filePath: "./region-tiny-probe.png",
+            region: { x1: 0, x2: 1, y1: 0, y2: 1 },
+          },
+        });
+
+        // Answering this returns a flat expanse of interpolated colour, which
+        // reads as "the picture is blank" rather than as "you asked for one
+        // pixel". The refusal has to name the size to be actionable.
+        expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(`"Region (0,0)-(1,1) covers 1x1 pixels of the source image, too few to magnify into anything readable. Give a rectangle covering at least 8x8 pixels, in the 320x240 space the image was shown to you in."`);
+      } finally {
+        await fs.rm(imagePath, { force: true });
+      }
+    }, 60_000);
+
     it("reads the whole image when the region is all zeros", async () => {
       const imagePath = path.join(fixturesPath, "region-zero-probe.png");
       await drawPngFixture(imagePath, "320x240");

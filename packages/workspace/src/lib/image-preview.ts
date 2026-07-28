@@ -13,6 +13,12 @@ import { measureImage, renderImage } from "./render-image";
 // back down to the largest in-budget size instead of leaving it as-is.
 const MAGNIFY_PROBE = 10_000;
 
+// The smallest source rectangle worth magnifying, on either edge. Set low on
+// purpose: the job is to catch a rectangle that carries no picture at all, not
+// to judge how tight a legitimate crop may be. A model narrowing onto one glyph
+// of an 8000px scan is asking for hundreds of source pixels and never trips it.
+const MIN_SOURCE_EDGE = 8;
+
 // Providers cap a single image near 5 MB encoded; base64 adds a third.
 const MAX_RENDERED_BYTES = Math.floor((5 * 1024 * 1024 * 3) / 4);
 
@@ -100,6 +106,24 @@ export async function cropRegion({
       clamp(Math.round(right * scaleX), sourceLeft + 1, size.width) -
       sourceLeft,
   };
+
+  // Magnifying a handful of pixels to fill the budget produces interpolation and
+  // nothing else, and the result does not look like nothing -- it looks like a
+  // flat expanse of colour, which a model reads as evidence that the picture is
+  // blank. Measured: a model opened a read with a 1x1 rectangle and reported
+  // back that the screenshot was a solid dark-green screen. Refusing costs a
+  // round trip; answering costs the model's belief about what it was shown.
+  if (source.width < MIN_SOURCE_EDGE || source.height < MIN_SOURCE_EDGE) {
+    return executeError(
+      [
+        `Region (${region.x1},${region.y1})-(${region.x2},${region.y2}) covers`,
+        `${source.width}x${source.height} pixels of the source image, too few to`,
+        `magnify into anything readable. Give a rectangle covering at least`,
+        `${MIN_SOURCE_EDGE}x${MIN_SOURCE_EDGE} pixels, in the`,
+        `${view.width}x${view.height} space the image was shown to you in.`,
+      ].join(" "),
+    );
+  }
 
   // Ask for a size far past the budget so the search comes back down to the
   // largest one that fits, which is the most magnification this shape allows.

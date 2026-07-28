@@ -73,6 +73,7 @@ describe("Grep", () => {
           matches: [
             // Older file first in input (should be moved to end after sorting)
             {
+              isContext: false,
               lineNum: 5,
               lineText: "export const baz = 'qux';",
               modifiedAt: 1_234_567_880_000, // older
@@ -80,12 +81,14 @@ describe("Grep", () => {
             },
             // Newer file matches (should be moved to beginning after sorting)
             {
+              isContext: false,
               lineNum: 10,
               lineText: "const foo = 'bar';",
               modifiedAt: 1_234_567_890_000, // newer
               path: "src/file1.ts",
             },
             {
+              isContext: false,
               lineNum: 20,
               lineText: "console.log(foo);",
               modifiedAt: 1_234_567_890_000, // newer
@@ -111,6 +114,53 @@ describe("Grep", () => {
       `);
     });
 
+    it("marks context lines with a dash and leaves them out of the count", () => {
+      const result = Grep.toModelOutput({
+        input: {
+          pattern: "",
+        },
+        output: {
+          hasErrors: false,
+          matches: [
+            {
+              isContext: true,
+              lineNum: 9,
+              lineText: "// setup",
+              modifiedAt: 1_234_567_890_000,
+              path: "src/file1.ts",
+            },
+            {
+              isContext: false,
+              lineNum: 10,
+              lineText: "const foo = 'bar';",
+              modifiedAt: 1_234_567_890_000,
+              path: "src/file1.ts",
+            },
+            {
+              isContext: true,
+              lineNum: 11,
+              lineText: "return foo;",
+              modifiedAt: 1_234_567_890_000,
+              path: "src/file1.ts",
+            },
+          ],
+          totalMatches: 1,
+          truncated: false,
+        },
+        toolCallId: "123",
+      });
+      expect(result).toMatchInlineSnapshot(`
+        {
+          "type": "text",
+          "value": "Found 1 matches
+        src/file1.ts:
+          Line 9- // setup
+          Line 10: const foo = 'bar';
+          Line 11- return foo;",
+        }
+      `);
+    });
+
     it("should show truncation warning when results are truncated", () => {
       const result = Grep.toModelOutput({
         input: {
@@ -120,6 +170,7 @@ describe("Grep", () => {
           hasErrors: false,
           matches: [
             {
+              isContext: false,
               lineNum: 10,
               lineText: "const foo = 'bar';",
               modifiedAt: 1_234_567_890_000,
@@ -152,6 +203,7 @@ describe("Grep", () => {
           hasErrors: false,
           matches: [
             {
+              isContext: false,
               lineNum: 42,
               lineText: "const answer = 42;",
               modifiedAt: 1_234_567_890_000,
@@ -200,27 +252,75 @@ describe("Grep", () => {
       ).toMatchInlineSnapshot(`
         [
           {
+            "isContext": false,
             "lineNum": 4,
             "lineText": "- async functions",
             "path": "./grep-test-2.txt",
           },
           {
+            "isContext": false,
             "lineNum": 21,
             "lineText": "async function testGrep() {",
             "path": "./grep-test-2.txt",
           },
           {
+            "isContext": false,
             "lineNum": 4,
             "lineText": "- async functions",
             "path": "./grep-test.txt",
           },
           {
+            "isContext": false,
             "lineNum": 21,
             "lineText": "async function testGrep() {",
             "path": "./grep-test.txt",
           },
         ]
       `);
+    });
+
+    it("returns surrounding lines marked as context when context is set", async () => {
+      const result = await runTool(TOOLS.Grep, {
+        agentName: "main",
+        input: {
+          context: 1,
+          explanation: "Looking for async functions with surrounding lines",
+          include: "grep-test.txt",
+          pattern: "async function testGrep",
+        },
+        model,
+        signal: AbortSignal.timeout(10_000),
+        spawnAgent: vi.fn(),
+        taskId: createFixturesTaskConfig(),
+        taskState: {},
+      });
+
+      const output = result._unsafeUnwrap();
+      expect(output.matches.map(({ modifiedAt: _modifiedAt, ...rest }) => rest))
+        .toMatchInlineSnapshot(`
+        [
+          {
+            "isContext": true,
+            "lineNum": 20,
+            "lineText": "Some example patterns to search for:",
+            "path": "./grep-test.txt",
+          },
+          {
+            "isContext": false,
+            "lineNum": 21,
+            "lineText": "async function testGrep() {",
+            "path": "./grep-test.txt",
+          },
+          {
+            "isContext": true,
+            "lineNum": 22,
+            "lineText": "  console.log("Testing grep functionality");",
+            "path": "./grep-test.txt",
+          },
+        ]
+      `);
+      // Context lines must not consume the match budget.
+      expect(output.totalMatches).toBe(1);
     });
 
     it("should return no matches when pattern is not found", async () => {
@@ -267,26 +367,31 @@ describe("Grep", () => {
       ).toMatchInlineSnapshot(`
         [
           {
+            "isContext": false,
             "lineNum": 16,
             "lineText": "- Handles multiple matches correctly",
             "path": "./grep-test-2.txt",
           },
           {
+            "isContext": false,
             "lineNum": 18,
             "lineText": "- Properly handles special characters",
             "path": "./grep-test-2.txt",
           },
           {
+            "isContext": false,
             "lineNum": 16,
             "lineText": "- Handles multiple matches correctly",
             "path": "./grep-test.txt",
           },
           {
+            "isContext": false,
             "lineNum": 18,
             "lineText": "- Properly handles special characters",
             "path": "./grep-test.txt",
           },
           {
+            "isContext": false,
             "lineNum": 7,
             "lineText": "This ensures grep handles multiple nested directories correctly.",
             "path": "./nested/another/file.txt",
@@ -319,11 +424,13 @@ describe("Grep", () => {
       ).toMatchInlineSnapshot(`
         [
           {
+            "isContext": false,
             "lineNum": 16,
             "lineText": "- Handles multiple matches correctly",
             "path": "./grep-test-2.txt",
           },
           {
+            "isContext": false,
             "lineNum": 16,
             "lineText": "- Handles multiple matches correctly",
             "path": "./grep-test.txt",
@@ -356,6 +463,7 @@ describe("Grep", () => {
       ).toMatchInlineSnapshot(`
         [
           {
+            "isContext": false,
             "lineNum": 4,
             "lineText": "      "exclude": ["zzz-test-2.txt"]",
             "path": "./json-file.json",
@@ -388,11 +496,13 @@ describe("Grep", () => {
       ).toMatchInlineSnapshot(`
         [
           {
+            "isContext": false,
             "lineNum": 4,
             "lineText": "- vertical|bars|everywhere",
             "path": "./nested/another/file.txt",
           },
           {
+            "isContext": false,
             "lineNum": 6,
             "lineText": "- vertical|bar|separator",
             "path": "./nested/level1/test-deep.txt",
@@ -426,11 +536,13 @@ describe("Grep", () => {
       ).toMatchInlineSnapshot(`
         [
           {
+            "isContext": false,
             "lineNum": 4,
             "lineText": "- vertical|bars|everywhere",
             "path": "./nested/another/file.txt",
           },
           {
+            "isContext": false,
             "lineNum": 6,
             "lineText": "- vertical|bar|separator",
             "path": "./nested/level1/test-deep.txt",
@@ -517,11 +629,13 @@ describe("Grep", () => {
       ).toMatchInlineSnapshot(`
         [
           {
+            "isContext": false,
             "lineNum": 4,
             "lineText": "- vertical|bars|everywhere",
             "path": "/mnt/Test Folder/another/file.txt",
           },
           {
+            "isContext": false,
             "lineNum": 6,
             "lineText": "- vertical|bar|separator",
             "path": "/mnt/Test Folder/level1/test-deep.txt",

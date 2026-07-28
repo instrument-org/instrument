@@ -8,7 +8,17 @@ import { parseRipgrepLines, spawnRipgrep } from "./ripgrep";
 
 const MAX_LINE_LENGTH = 2000;
 
+/**
+ * Separates the fields of a context line. Ripgrep uses `-` by default, which is
+ * indistinguishable from a path that contains one, so we ask for a control
+ * character instead: a line carrying it is a context line, and any other line
+ * is a match.
+ */
+const CONTEXT_FIELD_SEPARATOR = "";
+
 interface GrepMatch {
+  /** A surrounding line pulled in by `contextLines`, not a match itself. */
+  isContext: boolean;
   lineNum: number;
   lineText: string;
   modifiedAt: number;
@@ -23,6 +33,7 @@ interface GrepResult {
 }
 
 export async function grep(options: {
+  contextLines?: number;
   cwd: AbsolutePath;
   include?: string;
   limit: number;
@@ -30,7 +41,8 @@ export async function grep(options: {
   searchPath: string;
   signal: AbortSignal;
 }): Promise<GrepResult> {
-  const { cwd, include, limit, pattern, searchPath, signal } = options;
+  const { contextLines, cwd, include, limit, pattern, searchPath, signal } =
+    options;
 
   const exists = await pathExists(cwd);
   if (!exists) {
@@ -57,6 +69,14 @@ export async function grep(options: {
   // Add include pattern (glob)
   if (include) {
     args.push("--glob", include);
+  }
+
+  if (contextLines && contextLines > 0) {
+    args.push(
+      "--context",
+      String(contextLines),
+      `--field-context-separator=${CONTEXT_FIELD_SEPARATOR}`,
+    );
   }
 
   args.push("--regexp", pattern, "--", searchPath);
@@ -87,25 +107,10 @@ export async function grep(options: {
   const parsed: Omit<GrepMatch, "modifiedAt">[] = [];
 
   for (const line of lines) {
-    const [filePath, lineNumStr, ...lineTextParts] = line.split("|");
-    if (!filePath || !lineNumStr || lineTextParts.length === 0) {
-      continue;
+    const parsedLine = parseGrepLine(line);
+    if (parsedLine) {
+      parsed.push(parsedLine);
     }
-
-    const lineNum = Number.parseInt(lineNumStr, 10);
-    if (Number.isNaN(lineNum)) {
-      continue;
-    }
-
-    const lineText = lineTextParts.join("|");
-    parsed.push({
-      lineNum,
-      lineText:
-        lineText.length > MAX_LINE_LENGTH
-          ? lineText.slice(0, Math.max(0, MAX_LINE_LENGTH)) + "..."
-          : lineText,
-      path: filePath,
-    });
   }
 
   // Resolve mtimes once per file rather than once per match, since a single hot
@@ -137,10 +142,61 @@ export async function grep(options: {
   // is stable, so matches within one file keep ripgrep's line order.
   matches.sort((a, b) => b.modifiedAt - a.modifiedAt);
 
+  // The limit counts matches; the context lines around a kept match ride along
+  // rather than competing with it for the budget.
+  const limited: GrepMatch[] = [];
+  let keptMatches = 0;
+  let truncated = false;
+  for (const match of matches) {
+    if (!match.isContext) {
+      if (keptMatches >= limit) {
+        truncated = true;
+        break;
+      }
+      keptMatches++;
+    }
+    limited.push(match);
+  }
+  if (truncated) {
+    // Drop context that was leading up to the match we stopped before.
+    while (limited.at(-1)?.isContext) {
+      limited.pop();
+    }
+  }
+
   return {
     hasErrors,
-    matches: matches.slice(0, limit),
-    totalMatches: matches.length,
-    truncated: matches.length > limit,
+    matches: limited,
+    totalMatches: matches.filter((match) => !match.isContext).length,
+    truncated,
   };
+}
+
+function parseGrepLine(line: string): null | Omit<GrepMatch, "modifiedAt"> {
+  // Try the context separator first: a match line cannot be split by it into
+  // the three fields this requires, so it falls through to the match branch.
+  for (const [separator, isContext] of [
+    [CONTEXT_FIELD_SEPARATOR, true],
+    ["|", false],
+  ] as const) {
+    const [filePath, lineNumStr, ...lineTextParts] = line.split(separator);
+    if (!filePath || !lineNumStr || lineTextParts.length === 0) {
+      continue;
+    }
+    const lineNum = Number.parseInt(lineNumStr, 10);
+    if (Number.isNaN(lineNum)) {
+      continue;
+    }
+    const lineText = lineTextParts.join(separator);
+    return {
+      isContext,
+      lineNum,
+      lineText:
+        lineText.length > MAX_LINE_LENGTH
+          ? lineText.slice(0, Math.max(0, MAX_LINE_LENGTH)) + "..."
+          : lineText,
+      path: filePath,
+    };
+  }
+  return null;
 }

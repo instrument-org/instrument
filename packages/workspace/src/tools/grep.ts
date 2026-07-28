@@ -15,15 +15,26 @@ import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
 const INPUT_PARAMS = {
+  context: "context",
   include: "include",
   path: "path",
   pattern: "pattern",
 } as const;
 
 const GREP_LIMIT = 100;
+const MAX_CONTEXT_LINES = 20;
 
 export const Grep = setupTool({
   inputSchema: BaseInputSchema.extend({
+    [INPUT_PARAMS.context]: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_CONTEXT_LINES)
+      .optional()
+      .meta({
+        description: `Number of lines to show before and after each match (defaults to 0, max ${MAX_CONTEXT_LINES})`,
+      }),
     [INPUT_PARAMS.include]: z.string().optional().meta({
       description:
         'File pattern to include in the search (e.g. "*.js", "*.{ts,tsx}")',
@@ -41,6 +52,9 @@ export const Grep = setupTool({
     hasErrors: z.boolean().optional().default(false),
     matches: z.array(
       z.object({
+        // Defaulted so tool results persisted before context was supported
+        // still parse.
+        isContext: z.boolean().default(false),
         lineNum: z.number(),
         lineText: z.string(),
         modifiedAt: z.number(),
@@ -60,6 +74,7 @@ export const Grep = setupTool({
     - Search in specific directories by providing a ${INPUT_PARAMS.path} parameter.
     - The ${INPUT_PARAMS.path} parameter can be a task-relative path (e.g. ./path/to/search) or a read-only attached-folder mount path (/mnt/<name>).
     - Returns file paths with line numbers and content, sorted by modification time.
+    - Use the ${INPUT_PARAMS.context} parameter to see surrounding lines with each match, rather than following up with a read of the whole file. Context lines are marked with \`-\` after the line number instead of \`:\`.
     - Use this tool when you need to find files containing specific patterns.
   `,
   execute: async ({ input, signal, taskId, taskState }) => {
@@ -81,6 +96,7 @@ export const Grep = setupTool({
     // disk; otherwise search the task-relative displayPath (the task root when
     // no path was given).
     const result = await grep({
+      contextLines: input.context,
       cwd: taskDir(taskId),
       include: input.include,
       limit: GREP_LIMIT,
@@ -119,7 +135,10 @@ export const Grep = setupTool({
       (a, b) => b.modifiedAt - a.modifiedAt,
     );
 
-    const outputLines = [`Found ${output.matches.length} matches`];
+    const matchCount = output.matches.filter(
+      (match) => !match.isContext,
+    ).length;
+    const outputLines = [`Found ${matchCount} matches`];
 
     let currentFile = "";
     for (const match of sortedMatches) {
@@ -130,7 +149,9 @@ export const Grep = setupTool({
         currentFile = match.path;
         outputLines.push(`${match.path}:`);
       }
-      outputLines.push(`  Line ${match.lineNum}: ${match.lineText}`);
+      // Mirrors ripgrep: `:` marks a match, `-` a context line.
+      const separator = match.isContext ? "-" : ":";
+      outputLines.push(`  Line ${match.lineNum}${separator} ${match.lineText}`);
     }
 
     if (output.truncated) {

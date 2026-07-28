@@ -1,10 +1,10 @@
 import { z } from "zod";
 
-export const WebSearchRequestSchema = z.object({
+const WebSearchRequestSchema = z.object({
   query: z.string().min(1),
 });
 
-export const WebSearchResultSchema = z.object({
+const WebSearchResultSchema = z.object({
   author: z.string().optional(),
   highlights: z.array(z.string()),
   publishedDate: z.string().optional(),
@@ -35,7 +35,7 @@ export type WebSearchClientResult =
 
 export type WebSearchRequest = z.output<typeof WebSearchRequestSchema>;
 
-export type WebSearchResponse = z.output<typeof WebSearchResponseSchema>;
+type WebSearchResponse = z.output<typeof WebSearchResponseSchema>;
 
 export const unavailableWebSearchClient: WebSearchClient = () =>
   Promise.resolve({

@@ -89,16 +89,6 @@ export async function aiSDKForProviderConfig(
   }
 }
 
-export async function createAnthropicSDK(
-  config: AIGatewayProviderConfig.Type,
-  workspaceServerURL: WorkspaceServerURL,
-) {
-  const baseURL = internalURL({ config, workspaceServerURL });
-  const apiKey = internalAPIKey();
-  const { createAnthropic } = await import("@ai-sdk/anthropic");
-  return createAnthropic({ apiKey, baseURL });
-}
-
 export async function createDeepInfraSDK(
   config: AIGatewayProviderConfig.Type,
   workspaceServerURL: WorkspaceServerURL,
@@ -196,4 +186,14 @@ export async function createXAISDK(
   const apiKey = internalAPIKey();
   const { createXai } = await import("@ai-sdk/xai");
   return createXai({ apiKey, baseURL });
+}
+
+async function createAnthropicSDK(
+  config: AIGatewayProviderConfig.Type,
+  workspaceServerURL: WorkspaceServerURL,
+) {
+  const baseURL = internalURL({ config, workspaceServerURL });
+  const apiKey = internalAPIKey();
+  const { createAnthropic } = await import("@ai-sdk/anthropic");
+  return createAnthropic({ apiKey, baseURL });
 }

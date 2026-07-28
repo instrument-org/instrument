@@ -23,7 +23,7 @@ function SafeStorage() {
       <div className="space-y-2 rounded-lg bg-muted/50 p-4">
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">
-            Encryption Available
+            Encryption available
           </span>
           <span
             className={`text-sm font-medium ${safeStorageInfo.isAvailable ? "text-success-700 dark:text-success-300" : "text-error-700 dark:text-error-300"}`}
@@ -34,7 +34,7 @@ function SafeStorage() {
         {safeStorageInfo.backend && (
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">
-              Storage Backend
+              Storage backend
             </span>
             <span className="font-mono text-sm font-medium">
               {safeStorageInfo.backend}

@@ -93,7 +93,7 @@ export function SubscriptionCard() {
           </div>
           {hasSubscription && (
             <Button onClick={handleManageSubscription}>
-              Manage Subscription
+              Manage subscription
             </Button>
           )}
         </div>
@@ -151,7 +151,7 @@ export function SubscriptionCard() {
         {hasSubscription && (
           <div className="flex flex-wrap justify-end gap-2">
             <Button onClick={handleManageSubscription} variant="outline">
-              Manage Subscription
+              Manage subscription
             </Button>
           </div>
         )}

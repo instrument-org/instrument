@@ -53,7 +53,7 @@ function RouteComponent() {
             }}
           />
           <Label className="cursor-pointer text-sm" htmlFor="agent-running">
-            Agent Running
+            Agent running
           </Label>
         </div>
         <div className="flex items-center gap-2">
@@ -65,7 +65,7 @@ function RouteComponent() {
             }}
           />
           <Label className="cursor-pointer text-sm" htmlFor="developer-mode">
-            Developer Mode
+            Developer mode
           </Label>
         </div>
       </div>

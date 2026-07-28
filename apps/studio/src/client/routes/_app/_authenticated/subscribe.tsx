@@ -268,7 +268,7 @@ function SubscribePage() {
                     if (isFreeUser) {
                       buttonText = `Get ${plan.name}`;
                     } else if (isBasicUser) {
-                      buttonText = "Current Plan";
+                      buttonText = "Current plan";
                       showCheckmark = true;
                       variant = "secondary";
                     } else if (isProUser) {
@@ -280,7 +280,7 @@ function SubscribePage() {
                   }
                   case "Free": {
                     if (isFreeUser) {
-                      buttonText = "Current Plan";
+                      buttonText = "Current plan";
                       isButtonDisabled = true;
                       variant = "secondary";
                     } else {
@@ -291,7 +291,7 @@ function SubscribePage() {
                   }
                   case "Pro": {
                     if (isProUser) {
-                      buttonText = "Current Plan";
+                      buttonText = "Current plan";
                       showCheckmark = true;
                       variant = "secondary";
                     } else {
@@ -343,7 +343,7 @@ function SubscribePage() {
                         className="w-full gap-2 disabled:opacity-100"
                         disabled={isButtonDisabled}
                         onClick={async () => {
-                          if (buttonText === "Current Plan") {
+                          if (buttonText === "Current plan") {
                             openSettings({ tab: "General" });
                           } else {
                             await handleSubscribe(plan);
@@ -409,7 +409,7 @@ function SubscribePage() {
 
             <div className="mb-6 space-y-2">
               <div className="flex justify-between">
-                <span>Amount Due Today:</span>
+                <span>Amount due today:</span>
                 <span className="font-bold">
                   $
                   {Math.max(

@@ -125,7 +125,7 @@ function RouteComponent() {
                         {currentVersion &&
                           (release.tag_name === currentVersion ||
                             release.tag_name === `v${currentVersion}`) && (
-                            <Badge variant="outline">Your Version</Badge>
+                            <Badge variant="outline">Your version</Badge>
                           )}
                       </CardTitle>
                       <ExternalLink

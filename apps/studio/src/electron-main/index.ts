@@ -44,27 +44,27 @@ import { applyStandardUserAgent } from "./lib/user-agent";
 import { initializeRPC } from "./rpc/initialize";
 let appUpdater: StudioAppUpdater | undefined;
 
-protocol.registerSchemesAsPrivileged([
-  {
-    privileges: {
-      secure: true,
-      standard: true,
-      supportFetchAPI: true,
-    },
-    scheme: APP_PROTOCOL,
-  },
-]);
-
-app.setAsDefaultProtocolClient(APP_PROTOCOL);
-
-registerTelemetry(app);
-
 // Dev skips the single-instance lock so multiple worktrees can boot side by
 // side. Packaged builds keep it so second launches (deep links) forward to
 // the running instance.
 const gotTheLock = is.dev || app.requestSingleInstanceLock();
 
 if (gotTheLock) {
+  protocol.registerSchemesAsPrivileged([
+    {
+      privileges: {
+        secure: true,
+        standard: true,
+        supportFetchAPI: true,
+      },
+      scheme: APP_PROTOCOL,
+    },
+  ]);
+
+  app.setAsDefaultProtocolClient(APP_PROTOCOL);
+
+  registerTelemetry(app);
+
   app.on("second-instance", (_event, commandLine) => {
     focusForegroundWindow();
 
@@ -74,11 +74,15 @@ if (gotTheLock) {
     }
   });
 } else {
-  app.quit();
+  // A lock loser has no application state to tear down. Exit synchronously so
+  // quit handlers cannot keep it alive long enough to enter primary startup.
+  app.exit(0);
 }
 
+const primaryReady = gotTheLock ? app.whenReady() : undefined;
+
 // eslint-disable-next-line unicorn/prefer-top-level-await
-void app.whenReady().then(async () => {
+void primaryReady?.then(async () => {
   const canContinueLaunch = await warnIfRunningX64BuildUnderARM64Translation();
   if (!canContinueLaunch) {
     app.quit();

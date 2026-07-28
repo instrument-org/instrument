@@ -26,6 +26,7 @@ import {
 import {
   clearMainWindow,
   getMainWindow,
+  getOrCreateMainWindow,
   setMainWindow,
 } from "@/electron-main/windows/main/instance";
 import { is } from "@electron-toolkit/utils";
@@ -40,6 +41,43 @@ export async function createMainWindow({
 }: {
   reveal?: boolean;
 } = {}) {
+  const mainWindow = await getOrCreateMainWindow(createMainWindowInstance);
+  if (reveal) {
+    showWindow(mainWindow);
+  }
+  return mainWindow;
+}
+
+/**
+ * Put a usable main window on screen, recreating it if none is left. Outside
+ * macOS a running app with no window is unreachable -- no dock icon, no menu
+ * bar, and the single-instance lock turns a fresh launch into a no-op -- so any
+ * path that can strand the process has to be able to summon one back.
+ */
+export async function ensureMainWindowVisible() {
+  const existing = getMainWindow();
+  if (!existing) {
+    return createMainWindow();
+  }
+
+  if (existing.isMinimized()) {
+    existing.restore();
+  }
+  if (!existing.isVisible()) {
+    existing.show();
+  }
+  existing.focus();
+  return existing;
+}
+
+export function updateMainWindowBackgroundColor() {
+  const window = getMainWindow();
+  if (window && !window.isDestroyed()) {
+    window.setBackgroundColor(getMainWindowBackgroundColor());
+  }
+}
+
+async function createMainWindowInstance() {
   let icon: string | undefined;
   try {
     const iconModule = await import("../../../../resources/icon.png?asset");
@@ -164,25 +202,11 @@ export async function createMainWindow({
       wasWindowBlurred = false;
     }
   });
-  mainWindow.on("ready-to-show", () => {
-    if (!reveal) {
-      return;
-    }
-    const window = getMainWindow();
-    if (!window) {
-      return;
-    }
-
-    showWindow(window);
-  });
 
   // The path is cosmetic: the main window renders MainWindow based on its
   // `--windowType=main` argument, not on the route. It only needs a valid entry
   // URL, and the root path distinguishes it from the onboarding window.
   void mainWindow.loadURL(studioURL("/"));
-  if (reveal) {
-    showWindow(mainWindow);
-  }
 
   if (getWindowState().isMaximized) {
     mainWindow.maximize();
@@ -214,35 +238,6 @@ export async function createMainWindow({
   });
 
   return mainWindow;
-}
-
-/**
- * Put a usable main window on screen, recreating it if none is left. Outside
- * macOS a running app with no window is unreachable -- no dock icon, no menu
- * bar, and the single-instance lock turns a fresh launch into a no-op -- so any
- * path that can strand the process has to be able to summon one back.
- */
-export async function ensureMainWindowVisible() {
-  const existing = getMainWindow();
-  if (!existing) {
-    return createMainWindow();
-  }
-
-  if (existing.isMinimized()) {
-    existing.restore();
-  }
-  if (!existing.isVisible()) {
-    existing.show();
-  }
-  existing.focus();
-  return existing;
-}
-
-export function updateMainWindowBackgroundColor() {
-  const window = getMainWindow();
-  if (window && !window.isDestroyed()) {
-    window.setBackgroundColor(getMainWindowBackgroundColor());
-  }
 }
 
 // Whether closing this window ends the app. A window is still listed while its

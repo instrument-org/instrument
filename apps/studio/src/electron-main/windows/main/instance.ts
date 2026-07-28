@@ -1,6 +1,7 @@
 import { type BrowserWindow } from "electron";
 
 let mainWindow: BrowserWindow | null = null;
+let pendingMainWindowCreation: null | Promise<BrowserWindow> = null;
 
 /**
  * Drop the stored window once it has been destroyed. Guarded by identity so a
@@ -22,6 +23,20 @@ export function getMainWindow() {
     return null;
   }
   return mainWindow;
+}
+
+export function getOrCreateMainWindow(
+  create: () => Promise<BrowserWindow>,
+): Promise<BrowserWindow> {
+  const existing = getMainWindow();
+  if (existing) {
+    return Promise.resolve(existing);
+  }
+
+  pendingMainWindowCreation ??= create().finally(() => {
+    pendingMainWindowCreation = null;
+  });
+  return pendingMainWindowCreation;
 }
 
 export function setMainWindow(window: BrowserWindow) {

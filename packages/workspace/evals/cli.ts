@@ -32,7 +32,16 @@ const subcommand = positionals[0];
 const includeContextMessages = values["include-context"];
 const dryRun = values["dry-run"];
 const concurrency = Number.parseInt(values.concurrency, 10);
-const nameFilter = positionals[1];
+// Every positional past the subcommand is a pattern, matched as alternatives.
+// Reading only the first silently ran a subset: `run region unreadable` looked
+// like it covered both suites and covered one.
+const namePatterns = positionals.slice(1);
+const matchesPattern = (name: string) =>
+  namePatterns.length === 0 ||
+  namePatterns.some((pattern) =>
+    name.toLowerCase().includes(pattern.toLowerCase()),
+  );
+const patternLabel = namePatterns.join(", ");
 
 /**
  * A bare model name is the common case, so it is read as an OpenRouter slug;
@@ -57,7 +66,7 @@ const adHocEval = values.prompt
 if (subcommand !== "run" && subcommand !== "report" && subcommand !== "list") {
   process.stderr.write("Usage: tsx evals/run.ts <run|report|list> [options]\n");
   process.stderr.write(
-    "  run [pattern]    Run evals matching name pattern, then generate report\n",
+    "  run [pattern...] Run evals matching any name pattern, then generate report\n",
   );
   process.stderr.write(
     "  report <dir>     Generate report from an existing workspace dir\n",
@@ -143,14 +152,10 @@ function printTranscripts({
 }
 
 if (subcommand === "list") {
-  const filtered = nameFilter
-    ? EVALS.filter((e) =>
-        e.name.toLowerCase().includes(nameFilter.toLowerCase()),
-      )
-    : EVALS;
+  const filtered = EVALS.filter((e) => matchesPattern(e.name));
 
   if (filtered.length === 0) {
-    process.stderr.write(`No evals matched pattern: "${nameFilter ?? ""}"\n`);
+    process.stderr.write(`No evals matched pattern: "${patternLabel}"\n`);
     // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
     process.exit(1);
   }
@@ -189,15 +194,11 @@ if (subcommand === "list") {
 } else {
   const filteredEvals = adHocEval
     ? [adHocEval]
-    : nameFilter
-      ? EVALS.filter((e) =>
-          e.name.toLowerCase().includes(nameFilter.toLowerCase()),
-        )
-      : EVALS;
+    : EVALS.filter((e) => matchesPattern(e.name));
 
   if (filteredEvals.length === 0) {
-    process.stderr.write(`No evals matched pattern: "${nameFilter ?? ""}"\n`);
-    throw new Error(`No evals matched pattern: "${nameFilter ?? ""}"`);
+    process.stderr.write(`No evals matched pattern: "${patternLabel}"\n`);
+    throw new Error(`No evals matched pattern: "${patternLabel}"`);
   }
 
   const totalRuns = filteredEvals.length * models.length;

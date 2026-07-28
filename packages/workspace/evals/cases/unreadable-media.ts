@@ -80,8 +80,11 @@ const assertSaysItCannotBeRead: Assertion = {
 
 const assertInventsNothing: Assertion = {
   check: ({ sessions }) => {
-    const text = conversationText(sessions);
-    const invented = text.includes(SERIAL);
+    // Case-insensitive: a model that lowercases the value has still invented
+    // it, and this assertion is the one carrying the real weight here.
+    const invented = conversationText(sessions)
+      .toLowerCase()
+      .includes(SERIAL.toLowerCase());
     return {
       evidence: invented
         ? `Answered with ${SERIAL}, which is not readable from these bytes`

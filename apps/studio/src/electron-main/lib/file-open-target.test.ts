@@ -145,17 +145,23 @@ function execsOfKind(kind: ReturnType<typeof classify>) {
 }
 
 // Fires the debounced save, then waits for its `fs.writeFile` to actually land.
-// That write is real I/O the fake clock cannot flush, and a fixed number of
-// turns is a guess, so this polls for a parseable file instead.
+// That write is real I/O the fake clock cannot flush. Waiting for the contents
+// to *change* rather than merely to parse matters for the tests that seed a
+// fixture file first: those already have something parseable on disk, so a
+// parse check would return before the save under test had happened.
 async function flushSave() {
+  const before = await readRawCache();
   await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
-  for (let i = 0; i < 100; i++) {
+  for (let turn = 0; turn < 200; turn++) {
     await new Promise((resolve) => setImmediate(resolve));
-    try {
-      JSON.parse(await fs.readFile(cachePath(), "utf8"));
-      return;
-    } catch {
-      // Not written yet, or caught mid-write.
+    const after = await readRawCache();
+    if (after !== null && after !== before) {
+      try {
+        JSON.parse(after);
+        return;
+      } catch {
+        // Caught mid-write; keep waiting.
+      }
     }
   }
   throw new Error("the debounced cache save never landed");
@@ -181,24 +187,34 @@ async function readCache() {
   return JSON.parse(await fs.readFile(cachePath(), "utf8")) as SavedCache;
 }
 
+async function readRawCache() {
+  try {
+    return await fs.readFile(cachePath(), "utf8");
+  } catch {
+    return null;
+  }
+}
+
 function setPlatform(value: string) {
   Object.defineProperty(process, "platform", { value });
 }
 
-async function settle() {
-  for (let i = 0; i < 10; i++) {
+// Waits until no new helper process has been spawned for several turns.
+// Background refreshes are fire-and-forget with no completion signal, so a
+// fixed number of turns is a guess that holds on an idle machine and fails
+// under load. This waits for the work itself to stop instead.
+async function waitForBackgroundWork() {
+  let seen = -1;
+  let quietTurns = 0;
+  for (let turn = 0; turn < 500 && quietTurns < 10; turn++) {
     await new Promise((resolve) => setImmediate(resolve));
+    if (execCalls.length === seen) {
+      quietTurns++;
+    } else {
+      seen = execCalls.length;
+      quietTurns = 0;
+    }
   }
-}
-
-// Only the clock the module reads is faked. `setImmediate` stays real so tests
-// can still yield a genuine event-loop turn, which is what the debounced save's
-// `fs.writeFile` and the background refreshes need to actually land.
-function useModuleClock() {
-  vi.useFakeTimers({
-    now: NOW,
-    toFake: ["Date", "clearTimeout", "setTimeout"],
-  });
 }
 
 async function writeCache(payload: unknown) {
@@ -213,9 +229,23 @@ beforeEach(async () => {
   userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "file-open-target-"));
   execImpl = defaultExecImpl;
   fileIconImpl = () => Promise.reject(new Error("no file icon"));
+  // Only the clock the module reads is faked. `setImmediate` stays real so
+  // tests can still yield a genuine event-loop turn, which is what the
+  // debounced save's `fs.writeFile` and the background refreshes need.
+  //
+  // Every test needs this, not just the ones that assert on timing: the module
+  // resolves its cache path lazily at write time from a userData directory that
+  // changes per test, so a real one-second save timer outliving its test would
+  // write one test's cache into the next test's directory. Discarding pending
+  // fake timers at teardown makes that impossible.
+  vi.useFakeTimers({
+    now: NOW,
+    toFake: ["Date", "clearTimeout", "setTimeout"],
+  });
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   setPlatform(originalPlatform);
   await fs.rm(userDataDir, { force: true, recursive: true });
 });
@@ -524,14 +554,6 @@ describe("getFileOpenTarget", () => {
 });
 
 describe("persisted cache", () => {
-  beforeEach(() => {
-    useModuleClock();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   it("reuses persisted targets and candidates on the next launch", async () => {
     const first = await importModule();
     await first.getFileOpenTarget("/tasks/a/notes.md");
@@ -591,7 +613,7 @@ describe("persisted cache", () => {
     const stale = await second.getFileOpenTarget("/tasks/a/notes.md");
     expect(stale.appName).toBe("Editor");
 
-    await settle();
+    await waitForBackgroundWork();
     const refreshed = await second.getFileOpenTarget("/tasks/a/notes.md");
 
     expect(execsOfKind("target")).toHaveLength(1);
@@ -681,7 +703,7 @@ describe("persisted cache", () => {
       "Shared Viewer",
     ]);
 
-    await settle();
+    await waitForBackgroundWork();
     const refreshed = await second.getFileOpenCandidates("/tasks/a/notes.md");
 
     expect(refreshed.map(({ appName }) => appName)).toEqual(["Replacement"]);
@@ -697,7 +719,7 @@ describe("persisted cache", () => {
     execImpl = () => Promise.reject(new Error("osascript timed out"));
 
     const stale = await second.getFileOpenCandidates("/tasks/a/notes.md");
-    await settle();
+    await waitForBackgroundWork();
 
     expect(stale.map(({ appName }) => appName)).toEqual([
       "Editor md",
@@ -724,14 +746,6 @@ describe("persisted cache", () => {
 });
 
 describe("icon resolution", () => {
-  beforeEach(() => {
-    useModuleClock();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   it("refreshes stale icons in the background without blocking the list", async () => {
     const first = await importModule();
     await first.getFileOpenCandidates("/tasks/a/notes.md");
@@ -745,7 +759,7 @@ describe("icon resolution", () => {
 
     // Served from the persisted entry, so no icon exec gated the response.
     expect(candidates[0]?.iconUrl).toBe("icon://png-for-Editor-md.app");
-    await settle();
+    await waitForBackgroundWork();
     expect(execsOfKind("icons")).toHaveLength(1);
   });
 
@@ -765,7 +779,7 @@ describe("icon resolution", () => {
       second.getFileOpenCandidates("/tasks/a/notes.md"),
       second.getFileOpenCandidates("/tasks/a/data.json"),
     ]);
-    await settle();
+    await waitForBackgroundWork();
 
     const refreshed = execsOfKind("icons").flatMap((call) =>
       call.args.slice(5),
@@ -787,22 +801,16 @@ describe("warmCommonFileOpenTargets", () => {
   });
 
   it("warms only the file types missing from the cache", async () => {
-    useModuleClock();
-    try {
-      const first = await importModule();
-      await first.warmCommonFileOpenTargets();
-      await flushSave();
-      const warmed = execsOfKind("candidates").length;
-      expect(warmed).toBeGreaterThan(0);
+    const first = await importModule();
+    await first.warmCommonFileOpenTargets();
+    await flushSave();
+    expect(execsOfKind("candidates").length).toBeGreaterThan(0);
 
-      execCalls.length = 0;
-      const second = await importModule();
-      await second.warmCommonFileOpenTargets();
+    execCalls.length = 0;
+    const second = await importModule();
+    await second.warmCommonFileOpenTargets();
 
-      expect(execCalls).toHaveLength(0);
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(execCalls).toHaveLength(0);
   });
 
   it("never throws when a lookup fails", async () => {

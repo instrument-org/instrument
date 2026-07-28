@@ -21,6 +21,7 @@ import {
   getSimilarPathSuggestions,
   resolveExistingFilePath,
 } from "../lib/resolve-agent-path";
+import { systemNote } from "../lib/system-note";
 import { taskDir } from "../lib/task-dir-utils";
 import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { BaseInputSchema } from "./base";
@@ -216,7 +217,7 @@ export const ReadFile = setupTool({
 
     Usage:
     - The ${INPUT_PARAMS.filePath} parameter must be a relative path to a file in the task, or an attached folder's read-only mount path (/mnt/<name>/...). E.g. ./${TASK_FOLDER_NAMES.attachments}/upload.txt
-    - By default, it reads up to ${DEFAULT_READ_LIMIT} lines starting from the beginning of the file.
+    - By default, it reads up to ${DEFAULT_READ_LIMIT} lines starting from the beginning of the file, and at most ${formatBytes(MAX_BYTES)} of content -- whichever limit is reached first. A long file therefore often stops well before ${DEFAULT_READ_LIMIT} lines; the output says where it stopped and which limit applied.
     - You can optionally specify a line ${INPUT_PARAMS.offset} and ${INPUT_PARAMS.limit} (especially handy for long files), but it's recommended to read the whole file by not providing these parameters.
     - When using ${INPUT_PARAMS.limit}, avoid using too small of a limit (< 100), which can lead to tons of tokens being used.
     - Any lines longer than ${MAX_LINE_LENGTH} characters will be truncated.
@@ -471,6 +472,15 @@ export const ReadFile = setupTool({
           ],
         };
       }
+    }
+
+    if (output.content === "") {
+      // Without this an empty file renders as a single blank numbered line,
+      // which is indistinguishable from a file holding one empty line.
+      return {
+        type: "text",
+        value: systemNote`File ${output.filePath} exists but is empty.`.trim(),
+      };
     }
 
     const offset = output.offset;

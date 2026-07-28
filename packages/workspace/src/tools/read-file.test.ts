@@ -239,6 +239,32 @@ describe("ReadFile Unicode path fallbacks", () => {
 });
 
 describe("toModelOutput", () => {
+  it("reports an empty file as a note instead of a blank numbered line", () => {
+    const result = ReadFile.toModelOutput({
+      input: { explanation: "read", filePath: "./empty.ts" },
+      output: {
+        content: "",
+        displayedLines: 1,
+        filePath: "./empty.ts",
+        hasMoreLines: false,
+        modifiedAt: 1_234_567_890_000,
+        offset: 1,
+        state: "exists",
+        totalLines: 1,
+        truncatedByBytes: false,
+      },
+      toolCallId: "123",
+    });
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "type": "text",
+        "value": "<instrument-system-note>
+      File ./empty.ts exists but is empty.
+      </instrument-system-note>",
+      }
+    `);
+  });
+
   it("should return error text when file does not exist with suggestions", () => {
     const result = ReadFile.toModelOutput({
       input: { explanation: "read", filePath: "./missing.ts" },

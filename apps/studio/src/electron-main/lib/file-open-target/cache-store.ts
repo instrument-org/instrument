@@ -19,7 +19,8 @@ const CACHE_VERSION = 8;
 // more often, so they refresh sooner.
 //
 // These durations and bounds predate the icon-rendering fix in `072ef5c81` and
-// have not been re-derived against its cost. See the plan's Slice 5.
+// have not been re-derived against its cost. See
+// docs/findings/file-open-cache-is-sized-for-a-vanished-cost.md.
 const TARGET_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const CANDIDATE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const ICON_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;

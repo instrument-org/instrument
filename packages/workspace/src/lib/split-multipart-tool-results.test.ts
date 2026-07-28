@@ -323,6 +323,60 @@ describe("splitMultipartToolResults", () => {
     expect(result[3]?.content).toBe("User message 2");
   });
 
+  it("should split the non-deprecated media shapes too", () => {
+    const messages: ModelMessage[] = [
+      {
+        content: [
+          {
+            output: {
+              type: "content",
+              value: [
+                { text: "Image file: test.png", type: "text" },
+                {
+                  data: "image-base64",
+                  mediaType: "image/png",
+                  type: "image-data",
+                },
+                {
+                  data: "pdf-base64",
+                  mediaType: "application/pdf",
+                  type: "file-data",
+                },
+              ],
+            },
+            toolCallId: "call_123",
+            toolName: "read_file",
+            type: "tool-result",
+          },
+        ],
+        role: "tool",
+      },
+    ];
+
+    const result = splitMultipartToolResults({
+      messages,
+      provider: "openrouter",
+    });
+
+    expect(result[1]).toMatchInlineSnapshot(`
+      {
+        "content": [
+          {
+            "data": "image-base64",
+            "mediaType": "image/png",
+            "type": "file",
+          },
+          {
+            "data": "pdf-base64",
+            "mediaType": "application/pdf",
+            "type": "file",
+          },
+        ],
+        "role": "user",
+      }
+    `);
+  });
+
   it("should not split multipart tool results for supported providers", () => {
     const messages: ModelMessage[] = [
       {

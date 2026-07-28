@@ -161,7 +161,7 @@ export async function prepareModelMessages({
     provider: model.params.provider,
   });
 
-  const filteredMessages = filterUnsupportedMedia({
+  const filteredMessages = await filterUnsupportedMedia({
     messages: splitMessages,
     model,
   });
@@ -175,7 +175,7 @@ export async function prepareModelMessages({
   });
 
   const cachedModelMessages = addCacheControlToMessages({
-    messages: sanitizeModelText(normalizedMessages),
+    messages: await sanitizeModelText(normalizedMessages),
     model,
   });
 

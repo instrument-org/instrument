@@ -67,7 +67,7 @@ describe("truncateWithoutSplitting", () => {
 });
 
 describe("sanitizeModelText", () => {
-  it("cleans text parts across every role", () => {
+  it("cleans text parts across every role", async () => {
     const messages: ModelMessage[] = [
       { content: `system ${HIGH} prompt`, role: "system" },
       {
@@ -83,7 +83,7 @@ describe("sanitizeModelText", () => {
       },
     ];
 
-    const result = sanitizeModelText(messages);
+    const result = await sanitizeModelText(messages);
 
     expect(JSON.stringify(result)).not.toMatch(/[\uD800-\uDFFF]/);
     expect(result[0]).toEqual({ content: "system  prompt", role: "system" });
@@ -93,7 +93,7 @@ describe("sanitizeModelText", () => {
     ]);
   });
 
-  it("cleans the text a tool returned, in both output shapes", () => {
+  it("cleans the text a tool returned, in both output shapes", async () => {
     // Where file contents and command output reach the model, so the largest
     // source of text nobody on our side wrote.
     const messages: ModelMessage[] = [
@@ -128,7 +128,7 @@ describe("sanitizeModelText", () => {
       },
     ];
 
-    const result = sanitizeModelText(messages);
+    const result = await sanitizeModelText(messages);
 
     expect(JSON.stringify(result)).not.toMatch(/[\uD800-\uDFFF]/);
     expect(result[0]?.content).toEqual([
@@ -159,7 +159,7 @@ describe("sanitizeModelText", () => {
     ]);
   });
 
-  it("cleans a provider-executed tool result on an assistant message", () => {
+  it("cleans a provider-executed tool result on an assistant message", async () => {
     const messages: ModelMessage[] = [
       {
         content: [
@@ -174,13 +174,13 @@ describe("sanitizeModelText", () => {
       },
     ];
 
-    expect(encodable(JSON.stringify(sanitizeModelText(messages)))).toBe(true);
-    expect(JSON.stringify(sanitizeModelText(messages))).not.toMatch(
-      /[\uD800-\uDFFF]/,
-    );
+    const sanitized = JSON.stringify(await sanitizeModelText(messages));
+
+    expect(encodable(sanitized)).toBe(true);
+    expect(sanitized).not.toMatch(/[\uD800-\uDFFF]/);
   });
 
-  it("leaves clean messages alone", () => {
+  it("leaves clean messages alone", async () => {
     const messages: ModelMessage[] = [
       { content: "nothing wrong here 🙈", role: "system" },
       { content: [{ text: "also fine", type: "text" }], role: "user" },
@@ -197,6 +197,6 @@ describe("sanitizeModelText", () => {
       },
     ];
 
-    expect(sanitizeModelText(messages)).toEqual(messages);
+    await expect(sanitizeModelText(messages)).resolves.toEqual(messages);
   });
 });

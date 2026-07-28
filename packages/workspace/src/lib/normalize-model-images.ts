@@ -1,5 +1,4 @@
-import type { LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
-import type { FilePart, ModelMessage } from "ai";
+import type { ModelMessage } from "ai";
 
 import crypto from "node:crypto";
 
@@ -8,6 +7,10 @@ import {
   imageViewSize,
   PREVIEW_LIMITS,
 } from "./image-view-size";
+import {
+  mapModelMessageParts,
+  type ModelMediaEdit,
+} from "./model-message-parts";
 import { isCompleteImage } from "./probe-media";
 import {
   exceedsDecodeBudget,
@@ -15,16 +18,6 @@ import {
   type RenderedImage,
   renderImage,
 } from "./render-image";
-
-type ContentOutput = Extract<
-  LanguageModelV2ToolResultOutput,
-  { type: "content" }
->;
-type MediaPart = Extract<ContentOutput["value"][number], { type: "media" }>;
-type ToolResultPart = Extract<
-  ModelMessage["content"][number],
-  { type: "tool-result" }
->;
 
 // Anthropic's per-image ceiling is 5 MB base64-encoded, the tightest of the
 // providers we send to. Base64 costs a third on top of the raw bytes.
@@ -67,179 +60,33 @@ const RENDER_CACHE_LIMIT = 32;
  * source of an image: a file the agent read, an image it generated, and a photo
  * the user attached.
  */
-export async function normalizeModelImages({
+export function normalizeModelImages({
   messages,
   signal,
 }: {
   messages: ModelMessage[];
   signal?: AbortSignal;
-}): Promise<ModelMessage[]> {
-  async function normalizeFilePart(part: FilePart) {
-    const normalized = await normalizeImage({
-      data: part.data,
-      declaredMediaType: part.mediaType,
-      signal,
-    });
-    if (normalized.state === "dropped") {
-      return { text: normalized.note, type: "text" as const };
-    }
-    if (normalized.state === "replaced") {
-      return {
-        ...part,
-        data: normalized.data,
-        mediaType: normalized.mediaType,
-      };
-    }
-    return part;
-  }
-
-  async function normalizeToolResultPart(part: ToolResultPart) {
-    if (!isContentOutput(part.output)) {
-      return part;
-    }
-    const value: ContentOutput["value"] = [];
-    for (const item of part.output.value) {
-      if (!isImageMedia(item)) {
-        value.push(item);
-        continue;
+}) {
+  return mapModelMessageParts(messages, {
+    media: ({ bytes, mediaType }) => {
+      if (
+        !bytes ||
+        (mediaType !== undefined && !mediaType.startsWith("image/"))
+      ) {
+        // A non-image file, or media the provider fetches for itself. Either
+        // way there is nothing here to measure or resize. Media that declares
+        // no type at all is still ours to handle: only an image part may omit
+        // one, and the bytes say what it is.
+        return { state: "unchanged" };
       }
-      const normalized = await normalizeImage({
-        data: item.data,
-        declaredMediaType: item.mediaType,
-        signal,
-      });
-      if (normalized.state === "dropped") {
-        value.push({ text: normalized.note, type: "text" });
-      } else if (normalized.state === "replaced") {
-        value.push({
-          ...item,
-          // A tool result carries media as bare base64, never a data URL.
-          data:
-            typeof normalized.data === "string"
-              ? normalized.data
-              : Buffer.from(normalized.data).toString("base64"),
-          mediaType: normalized.mediaType,
-        });
-      } else {
-        value.push(item);
-      }
-    }
-    return { ...part, output: { ...part.output, value } };
-  }
-
-  const result: ModelMessage[] = [];
-
-  for (const message of messages) {
-    if (message.role === "system" || !Array.isArray(message.content)) {
-      result.push(message);
-      continue;
-    }
-
-    if (message.role === "tool") {
-      const content = [];
-      for (const part of message.content) {
-        content.push(
-          part.type === "tool-result"
-            ? await normalizeToolResultPart(part)
-            : part,
-        );
-      }
-      result.push({ ...message, content });
-      continue;
-    }
-
-    if (message.role === "user") {
-      const content = [];
-      for (const part of message.content) {
-        content.push(isImagePart(part) ? await normalizeFilePart(part) : part);
-      }
-      result.push({ ...message, content });
-      continue;
-    }
-
-    const content = [];
-    for (const part of message.content) {
-      if (isImagePart(part)) {
-        content.push(await normalizeFilePart(part));
-      } else if (part.type === "tool-result") {
-        content.push(await normalizeToolResultPart(part));
-      } else {
-        content.push(part);
-      }
-    }
-    result.push({ ...message, content });
-  }
-
-  return result;
+      return normalizeImage({ bytes, declaredMediaType: mediaType, signal });
+    },
+  });
 }
 
 function cacheKey(bytes: Buffer, limits: ImageViewLimits) {
   const digest = crypto.createHash("sha1").update(bytes).digest("hex");
   return `${digest}:${limits.maxEdge}:${limits.maxPatches}:${limits.patchSize}`;
-}
-
-function decodeImageData(data: unknown) {
-  if (data instanceof Uint8Array) {
-    return Buffer.from(data);
-  }
-  if (typeof data !== "string") {
-    // A URL the provider fetches itself. We hold no bytes, so there is nothing
-    // to measure or resize.
-    return;
-  }
-  const base64 = data.startsWith("data:")
-    ? data.slice(data.indexOf(";base64,") + ";base64,".length)
-    : data;
-  if (data.startsWith("data:") && !data.includes(";base64,")) {
-    return;
-  }
-  try {
-    return Buffer.from(base64, "base64");
-  } catch {
-    return;
-  }
-}
-
-function encodeLikeSource(data: unknown, bytes: Buffer, mediaType: string) {
-  if (data instanceof Uint8Array) {
-    return new Uint8Array(bytes);
-  }
-  if (typeof data === "string" && data.startsWith("data:")) {
-    return `data:${mediaType};base64,${bytes.toString("base64")}`;
-  }
-  return bytes.toString("base64");
-}
-
-function isContentOutput(output: unknown): output is ContentOutput {
-  return (
-    typeof output === "object" &&
-    output !== null &&
-    "type" in output &&
-    output.type === "content" &&
-    "value" in output &&
-    Array.isArray(output.value)
-  );
-}
-
-function isImageMedia(item: unknown): item is MediaPart {
-  return (
-    typeof item === "object" &&
-    item !== null &&
-    "type" in item &&
-    item.type === "media" &&
-    "mediaType" in item &&
-    typeof item.mediaType === "string" &&
-    item.mediaType.startsWith("image/")
-  );
-}
-
-function isImagePart(part: { type: string }): part is FilePart {
-  return (
-    part.type === "file" &&
-    "mediaType" in part &&
-    typeof part.mediaType === "string" &&
-    part.mediaType.startsWith("image/")
-  );
 }
 
 /**
@@ -250,23 +97,14 @@ function isImagePart(part: { type: string }): part is FilePart {
  * ones on disk and no re-encode can soften them.
  */
 async function normalizeImage({
-  data,
+  bytes,
   declaredMediaType,
   signal,
 }: {
-  data: unknown;
-  declaredMediaType: string;
+  bytes: Buffer;
+  declaredMediaType: string | undefined;
   signal?: AbortSignal;
-}): Promise<
-  | { data: string | Uint8Array; mediaType: string; state: "replaced" }
-  | { note: string; state: "dropped" }
-  | { state: "unchanged" }
-> {
-  const bytes = decodeImageData(data);
-  if (!bytes) {
-    return { state: "unchanged" };
-  }
-
+}): Promise<ModelMediaEdit> {
   const size = measureImage(bytes);
   if (!size) {
     // Nothing can read these bytes as an image, so neither can the provider.
@@ -296,12 +134,18 @@ async function normalizeImage({
   const target = imageViewSize({ ...size, limits: PREVIEW_LIMITS });
   const withinBudget =
     target.width === size.width && target.height === size.height;
-  // A media type that contradicts the bytes is rejected as surely as bad bytes
+  // The type both the bytes and the declaration agree on, if there is one. A
+  // media type that contradicts the bytes is rejected as surely as bad bytes
   // are, and it is the likelier mistake: media types come from file extensions,
-  // which a download or a rename is free to get wrong.
-  const honest =
-    size.mediaType !== undefined && size.mediaType === declaredMediaType;
-  const sendable = honest && SENDABLE_MEDIA_TYPES.has(declaredMediaType);
+  // which a download or a rename is free to get wrong. A part that declares no
+  // type has nothing to contradict, so the sniffed type stands on its own.
+  const honestType =
+    size.mediaType !== undefined &&
+    (declaredMediaType === undefined || size.mediaType === declaredMediaType)
+      ? size.mediaType
+      : undefined;
+  const sendable =
+    honestType !== undefined && SENDABLE_MEDIA_TYPES.has(honestType);
 
   if (sendable && withinBudget && bytes.byteLength <= MAX_RAW_BYTES) {
     return { state: "unchanged" };
@@ -333,11 +177,7 @@ async function normalizeImage({
       ) {
         return { note: UNREADABLE_NOTE, state: "dropped" };
       }
-      return {
-        data: encodeLikeSource(data, bytes, size.mediaType),
-        mediaType: size.mediaType,
-        state: "replaced",
-      };
+      return { bytes, mediaType: size.mediaType, state: "replaced" };
     }
 
     rendered = result.state === "rendered" ? result.image : undefined;
@@ -358,7 +198,7 @@ async function normalizeImage({
   }
 
   return {
-    data: encodeLikeSource(data, rendered.bytes, rendered.mediaType),
+    bytes: rendered.bytes,
     mediaType: rendered.mediaType,
     state: "replaced",
   };

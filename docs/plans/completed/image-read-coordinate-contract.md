@@ -2,8 +2,6 @@
 
 Status: **complete**. Owner: TBD. Corrections to the work described in [image-zoom-for-fine-detail.md](../active/image-zoom-for-fine-detail.md), from a review of that branch. Everything here was agreed as a real defect, and all five have landed.
 
-One follow-up outlives this plan and is deliberately not closed with it: item 4's shared `ModelMessage` traversal.
-
 ## The through-line
 
 The region read rests on one promise: **the pixel space we name in text is the pixel space the model is looking at.** Break that and a crop silently returns the wrong part of the picture, which is worse than not having the feature, because a confidently wrong magnified view reads as evidence.
@@ -64,7 +62,7 @@ The two callers check as well, not for enforcement but to name the cause. `read_
 
 The tests build a bomb as a 33-byte PNG header (`pngHeaderBytes`) rather than asking ffmpeg to paint 16000x16000, which would spend exactly the resources the guard refuses. The `renderImage` test asserts ffmpeg was never invoked, since returning undefined proves nothing on its own -- header-only bytes would fail a decode anyway.
 
-## 4. Text sanitation skips tool output -- fix landed, refactor open
+## 4. Text sanitation skips tool output -- landed
 
 **P1.** [sanitize-model-text.ts](../../../packages/workspace/src/lib/sanitize-model-text.ts) returned every `tool` message unchanged, while its own doc comment claimed it strips unpaired surrogates from every outgoing text part. Tool results are where file contents and command output reach the model, so the pass missed the largest source of the problem it exists to solve. The `read_file` truncation fix protects one producer; every other tool was unprotected.
 
@@ -74,9 +72,23 @@ Tool result output is sanitized in all three text-bearing shapes -- `text`, `err
 
 `json` and `error-json` are deliberately skipped, and the comment says why: `JSON.stringify` escapes a lone surrogate as `\uXXXX` rather than emitting it raw, so it cannot break the request's encoding the way a bare string can. No tool returns that shape today.
 
-The refactor half is **still open**. Four passes walk the `ModelMessage` union independently: `splitMultipartToolResults`, `filterUnsupportedMedia`, `normalizeModelImages`, and `sanitizeModelText`. Each re-derives which roles carry which part shapes, and each can silently omit one, which is exactly what happened here. Extract a single canonical traversal that visits every text part and every media part regardless of role, and express the passes as transforms over it. That makes an omission a compile error rather than a quiet hole, and it is a precondition for adding more passes cleanly.
+Four passes used to walk the `ModelMessage` union independently -- `splitMultipartToolResults`, `filterUnsupportedMedia`, `normalizeModelImages`, and `sanitizeModelText` -- each re-deriving which roles carry which part shapes, and each able to omit one silently. [model-message-parts.ts](../../../packages/workspace/src/lib/model-message-parts.ts) is the single traversal they are now written against: `mapModelMessageParts` visits every text and media slot with an exhaustiveness check per shape, and `viewToolOutputItem` is the one place that decides which tool-output item shapes hold what. A pass is a visitor over that and nothing more -- `sanitizeModelText` is one line -- so a part shape the SDK adds fails to compile instead of slipping past all four at once.
 
-Worth noting how thin the type-level protection is: a `tool` message's content is `(ToolApprovalResponse | ToolResultPart)[]`, and only `@instrument-org/shim-client`'s type check caught a pass that assumed otherwise. That is the argument for the shared traversal, from the fix itself.
+Media decoding and re-encoding belong to the traversal, not to a pass. A visitor sees bytes and the type they claim, and returns bytes; base64 stays base64, a data URL stays a data URL, and a `Uint8Array` stays one, without any pass knowing which slot it was looking at.
+
+Three omissions were already there, and all three closed with the extraction:
+
+- `filterUnsupportedMedia` matched `image-data` and `file-data` inside tool results, which nothing produces -- `read_file` emits `media` -- so that branch was dead and a model without image input was handed image bytes anyway on every provider that accepts multipart tool results. It was caught only for providers that do not, where `splitMultipartToolResults` had already moved the image into a user message.
+- `normalizeModelImages` and `splitMultipartToolResults` matched only `media`, and so would have missed `image-data` and `file-data`, the shapes the SDK is moving to.
+- `normalizeModelImages` matched only `file` on a user message, so an image attached as an `image` part -- a separate shape in the same content array -- was never resized, never completeness-checked, and never measured against the decode budget.
+
+None showed up in a test: the capability-filter suite only ever built `user` messages holding `file` parts. That pass also mutated the messages it was given, and one of its tests compared the result to the input it had just mutated, so it passed while asserting the opposite of what happened. The traversal is pure, which turned that assertion into a failure.
+
+A media type is the one thing a part may leave out, and only an `image` part may leave it out. The traversal reports it as `undefined` rather than skipping the part, so the decision stays with each pass: capability is declared per media type and the filter has nothing to match on, while the image pass has bytes and measures them. Skipping it in the traversal would have made this the one shape that opts out of every pass at once, which is the failure mode the traversal exists to remove.
+
+Three text slots are deliberately left alone, each with the reason at the switch arm: a reasoning block, which a provider replays against a signature computed over its exact text; a tool call's input and a `json` output, both of which `JSON.stringify` escapes rather than emitting raw.
+
+Worth noting how thin the type-level protection was: a `tool` message's content is `(ToolApprovalResponse | ToolResultPart)[]`, and only `@instrument-org/shim-client`'s type check caught a pass that assumed otherwise. That was the argument for the shared traversal, from the fix itself.
 
 ## 5. Crop mapping is inexact at the edges -- landed
 
@@ -90,9 +102,7 @@ The out-of-bounds half is the one that actually bites, and it needed an elongate
 
 ## Sequencing
 
-Items 3, 2, 5, and the tool-output half of 4 have landed, in that order. Item 2 turned out not to depend on item 1 after all: "coordinates are in the whole image, not in a crop you got back" is true whichever way the view is computed, so the wording could be corrected without waiting.
-
-Item 4's shared traversal is what remains, and item 1 has now stopped moving those passes around.
+Items 3, 2, 5, and the tool-output half of 4 landed in that order, then item 1, then item 4's shared traversal. Item 2 turned out not to depend on item 1 after all: "coordinates are in the whole image, not in a crop you got back" is true whichever way the view is computed, so the wording could be corrected without waiting. The traversal went last so that item 1 had stopped moving those passes around.
 
 ## Success criteria
 
@@ -101,6 +111,7 @@ Item 4's shared traversal is what remains, and item 1 has now stopped moving tho
 - ~~Crops of tall, wide, and edge-touching regions land where they were asked for, within a pixel.~~
 - ~~The dimensions named in a `read_file` image result are the dimensions of the bytes in that same result, verified by measuring the returned bytes rather than by comparing two computed values.~~
 - ~~Switching models mid-session does not change the coordinate space a previously read image was described in.~~
+- ~~A media or text shape the SDK adds is a compile error in one traversal rather than a silent omission in four passes.~~
 
 ## What this does not settle
 

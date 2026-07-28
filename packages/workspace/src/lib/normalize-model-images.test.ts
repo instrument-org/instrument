@@ -117,54 +117,58 @@ describe("normalizeModelImages", () => {
     );
   }, 60_000);
 
-  it("resizes an image inside a tool result", async () => {
-    const messages: ModelMessage[] = [
-      {
-        content: [
-          {
-            output: {
-              type: "content",
-              value: [
-                { text: "Image file: work/shot.png.", type: "text" },
-                { data: oversized, mediaType: "image/png", type: "media" },
-              ],
+  it.each([["media"], ["image-data"]] as const)(
+    "resizes an image inside a %s tool result",
+    async (type) => {
+      const messages: ModelMessage[] = [
+        {
+          content: [
+            {
+              output: {
+                type: "content",
+                value: [
+                  { text: "Image file: work/shot.png.", type: "text" },
+                  { data: oversized, mediaType: "image/png", type },
+                ],
+              },
+              toolCallId: "call-1",
+              toolName: "read_file",
+              type: "tool-result",
             },
-            toolCallId: "call-1",
-            toolName: "read_file",
-            type: "tool-result",
-          },
-        ],
-        role: "tool",
-      },
-    ];
+          ],
+          role: "tool",
+        },
+      ];
 
-    const [result] = await normalizeModelImages({ messages });
-    const part =
-      result && Array.isArray(result.content) ? result.content[0] : undefined;
-    const value =
-      part && "output" in part && part.output.type === "content"
-        ? part.output.value
-        : [];
-    const media = value.find((item) => item.type === "media");
+      const [result] = await normalizeModelImages({ messages });
+      const part =
+        result && Array.isArray(result.content) ? result.content[0] : undefined;
+      const value =
+        part && "output" in part && part.output.type === "content"
+          ? part.output.value
+          : [];
+      const media = value.find((item) => item.type === type);
 
-    expect(value[0]).toEqual({
-      text: "Image file: work/shot.png.",
-      type: "text",
-    });
-    expect(media && "data" in media ? media.data : undefined).not.toBe(
-      oversized,
-    );
-    expect(
-      measureImage(
-        Buffer.from(
-          media && "data" in media && typeof media.data === "string"
-            ? media.data
-            : "",
-          "base64",
+      expect(value[0]).toEqual({
+        text: "Image file: work/shot.png.",
+        type: "text",
+      });
+      expect(media && "data" in media ? media.data : undefined).not.toBe(
+        oversized,
+      );
+      expect(
+        measureImage(
+          Buffer.from(
+            media && "data" in media && typeof media.data === "string"
+              ? media.data
+              : "",
+            "base64",
+          ),
         ),
-      ),
-    ).toEqual({ height: 819, mediaType: "image/png", width: 1456 });
-  }, 60_000);
+      ).toEqual({ height: 819, mediaType: "image/png", width: 1456 });
+    },
+    60_000,
+  );
 
   it.each([
     {
@@ -230,6 +234,48 @@ describe("normalizeModelImages", () => {
       "too large to decode",
     );
   });
+
+  it("resizes an image part that declares no media type", async () => {
+    // An image part may omit its type, and the bytes are enough to work from,
+    // so this is the one media shape that would otherwise reach the provider
+    // unmeasured and unresized.
+    const messages: ModelMessage[] = [
+      { content: [{ image: oversized, type: "image" }], role: "user" },
+    ];
+
+    const [result] = await normalizeModelImages({ messages });
+    const part = Array.isArray(result?.content) ? result.content[0] : undefined;
+    const data = part && "image" in part ? part.image : undefined;
+
+    expect(part && "mediaType" in part ? part.mediaType : undefined).toBe(
+      "image/png",
+    );
+    expect(
+      measureImage(Buffer.from(typeof data === "string" ? data : "", "base64")),
+    ).toEqual({ height: 819, mediaType: "image/png", width: 1456 });
+  }, 60_000);
+
+  it("drops an image part whose bytes are not an image", async () => {
+    const messages: ModelMessage[] = [
+      {
+        content: [
+          {
+            image: Buffer.from("<html>404 not found</html>").toString("base64"),
+            type: "image",
+          },
+        ],
+        role: "user",
+      },
+    ];
+
+    const [result] = await normalizeModelImages({ messages });
+    const part = Array.isArray(result?.content) ? result.content[0] : undefined;
+
+    expect(part?.type).toBe("text");
+    expect(part && "text" in part ? part.text : "").toContain(
+      "[Image omitted:",
+    );
+  }, 60_000);
 
   it("corrects a media type the bytes contradict", async () => {
     // A download served as PNG under a `.jpg` name is the ordinary way this

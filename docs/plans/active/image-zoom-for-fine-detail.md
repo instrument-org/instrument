@@ -1,6 +1,6 @@
 # Zooming into images to read fine detail
 
-Status: **active (all four phases landed)**. Owner: TBD. The plumbing, the region read, the prompt guidance, and the eval that measures them are in. What remains is a decision, not code: whether the context cost of a zoom-happy model needs a cap. See phase 4 for what the numbers say.
+Status: **active (all four phases landed in this repo)**. Owner: TBD. The plumbing, the region read, the prompt guidance, and the eval that measures them are in. Two things are deliberately outstanding: phase 3's `agent-browser` cross-reference, which belongs in the skills repo because the registry is read-only here, and the decision in phase 4 about whether a zoom-happy model's context cost needs a cap.
 
 ## Source
 
@@ -93,7 +93,7 @@ The agent reliably notices when an image is too small to read, and can get a mag
 ### Success criteria
 
 - Every image `read_file` returns states its file dimensions and, when the model is seeing a downscaled copy, the dimensions of that copy.
-- A region read of a known rectangle returns exactly that rectangle, magnified, verified against a generated fixture with known ground truth.
+- A region read of a known rectangle returns that rectangle after ordering and clamping -- the one echoed back in the result -- magnified, verified against a generated fixture with known ground truth.
 - An eval case built like the cookbook's demo (dense chart, tiny annotation, ground truth known because we drew it) passes with the feature and fails without it.
 - A 12000px image reads successfully instead of erroring.
 - No behavior change and no added tokens for tasks that read no images.
@@ -172,7 +172,7 @@ Three defects in the region read came out of the same runs, all of them the mode
 - **Non-vision models.** [filter-unsupported-media.ts](../../../packages/workspace/src/lib/filter-unsupported-media.ts) already substitutes text for media a model cannot take, so a region read degrades the same way an image read does. It still spends an ffmpeg render on a crop nobody sees; cheap enough to leave.
 - **The floor costs high-tier models resolution.** See phase 1 step 3. This is the one place the implementation trades something real away, and it is reversible the moment per-model image budgets exist.
 - **Pre-resize changes what the agent is shown, not the file on disk.** It is the same downscale the provider would have done, so it is a wash, and the crop still reads from the original. Stated in the code so nobody "fixes" it later.
-- **Nothing here is measured.** Every accuracy number in this document is the cookbook's, on its benchmark, with its tool. Ours could plausibly do nothing if the agent never reaches for `region`.
+- **The accuracy numbers here are still the cookbook's**, on its benchmark, with its tool. Phase 4 settles that the affordance is found and used correctly across models, which was the risk that mattered; it does not produce a with-and-without accuracy delta of our own. What stays unmeasured is context growth over a long session and the cost of a zoom-happy model across many turns.
 
 ## Defects found in review
 

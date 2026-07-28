@@ -306,8 +306,8 @@ export function resolveNativeHostPath(
  * The safety of the wider reach rests entirely on the caller, which MUST:
  * - reject every flag that lets the binary write or execute (for ripgrep:
  *   `--pre`, `--pre-glob`, `--hostname-bin`, `-z`/`--search-zip`), and
- * - map host paths back out of the binary's output (`resolveVirtualPath`), so
- *   the machine layout does not leak through match paths.
+ * - map every mount's host root back to its mount point in the binary's output,
+ *   so the machine layout does not leak through match paths.
  *
  * Returns null for a path outside every mount, for the private dir, and for a
  * symlink that resolves out of its own mount, so the caller reports a clean
@@ -341,48 +341,6 @@ export function resolveReadOnlyHostPath(
     return null;
   }
   return hostPath;
-}
-
-/**
- * Reverse of resolveHostPath: map a real on-disk path back to its virtual path,
- * or null if it falls outside every mount. Used to keep native-binary output
- * sandbox-shaped. The longest matching host root wins.
- */
-export function resolveVirtualPath(
-  layout: WorkspaceFsLayout,
-  hostPath: string,
-): null | string {
-  const normalizedHost = normalizePath(hostPath);
-
-  let best: null | {
-    mount: WorkspaceFsMount;
-    relative: string;
-    rootLen: number;
-  } = null;
-  for (const mount of allMounts(layout)) {
-    const root = normalizePath(mount.hostRoot);
-    const relative =
-      normalizedHost === root
-        ? "/"
-        : normalizedHost.startsWith(`${root}/`)
-          ? normalizedHost.slice(root.length)
-          : null;
-    if (relative === null) {
-      continue;
-    }
-    if (best === null || root.length > best.rootLen) {
-      best = { mount, relative, rootLen: root.length };
-    }
-  }
-
-  if (best === null) {
-    return null;
-  }
-
-  if (best.relative === "/") {
-    return best.mount.mountPoint;
-  }
-  return `${best.mount.mountPoint}${best.relative}`;
 }
 
 /** All mounts, task first. */

@@ -62,8 +62,20 @@ export interface CompletedRun {
   modelURI: string;
   /** The eval case this run came from, so a report can find it by task id. */
   name: string;
+  /** Tokens at the moment the cap stopped this run; absent if it finished. */
+  overBudget?: number;
   taskId: TaskId;
 }
+
+/**
+ * Ceiling on one run's total tokens before the harness stops it.
+ *
+ * Set from measurement rather than taste: the most expensive legitimate run
+ * observed was around 700K, and the cheapest runaway was 1.3M. Anything past
+ * this is a model that has stopped making progress, and the cost of letting it
+ * continue is unbounded.
+ */
+export const DEFAULT_MAX_RUN_TOKENS = 1_000_000;
 
 export interface EvalCase {
   assertions?: Assertion[];
@@ -91,8 +103,14 @@ export async function runEvals(
   {
     concurrency = 3,
     dryRun = false,
+    maxRunTokens = DEFAULT_MAX_RUN_TOKENS,
     models = MODELS,
-  }: { concurrency?: number; dryRun?: boolean; models?: string[] } = {},
+  }: {
+    concurrency?: number;
+    dryRun?: boolean;
+    maxRunTokens?: number;
+    models?: string[];
+  } = {},
 ): Promise<{ runs: CompletedRun[]; workspaceRootDir: string }> {
   const workspaceRootDir = path.join(
     os.tmpdir(),
@@ -198,6 +216,8 @@ export async function runEvals(
       );
 
       const abortController = new AbortController();
+      let stoppedForBudget = false;
+      let overBudget: number | undefined;
       const partUpdates = publisher.subscribe("part.updated", {
         signal: abortController.signal,
       });
@@ -226,6 +246,25 @@ export async function runEvals(
                 : `${c.cyan}${toolName}${c.reset}`;
               const statsSuffix = `  ${c.dim}tokens=${c.reset}${formatNumber(usage.totalTokens)}${c.dim} (in=${formatNumber(usage.inputTokens)} out=${formatNumber(usage.outputTokens)}) msgs=${c.reset}${c.yellow}${usage.messageCount}${c.reset}`;
               stream.write(`${evalPrefix(label)}${toolLabel}${statsSuffix}\n`);
+
+              // A model handed an unrecoverable input can keep trying to
+              // recover from it, and nothing in the loop is wrong enough to
+              // stop it: each attempt is a legitimate tool call. Measured, one
+              // run reached 4.1M tokens on a single question before a human
+              // noticed. The eval harness is the one place that can see the
+              // total and act on it, so it does.
+              if (
+                maxRunTokens > 0 &&
+                usage.totalTokens > maxRunTokens &&
+                !stoppedForBudget
+              ) {
+                stoppedForBudget = true;
+                overBudget = usage.totalTokens;
+                process.stderr.write(
+                  `${evalPrefix(label)}${c.red}Over budget${c.reset}${c.dim}: ${formatNumber(usage.totalTokens)} tokens > ${formatNumber(maxRunTokens)}, stopping. Raise with --max-run-tokens, or 0 to disable.${c.reset}\n`,
+                );
+                void call(sessionRoute.stop, { id }, { context });
+              }
             }
 
             if (await evalCase.shouldStop?.(part, id)) {
@@ -247,7 +286,13 @@ export async function runEvals(
 
       process.stdout.write(`${evalPrefix(label)}${c.green}Done.${c.reset}\n`);
 
-      return { label, modelURI: uri, name: evalCase.name, taskId: id };
+      return {
+        label,
+        modelURI: uri,
+        name: evalCase.name,
+        overBudget,
+        taskId: id,
+      };
     },
   );
 

@@ -101,9 +101,19 @@ function groupSkills(skills: Skill[]) {
     );
 }
 
+// Skill paths come from the OS, so the separator is a backslash on Windows.
+// Missing it leaves every skill's own folder looking like a separate place the
+// source keeps its skills in.
 function parentDir(path: string) {
-  const index = path.lastIndexOf("/");
+  const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
   return index > 0 ? path.slice(0, index) : path;
+}
+
+// Where another agent keeps its skills is worth naming: it is how someone works
+// out what those skills are and where they came from. The workspace's own
+// folder is not, since nobody chose to put anything there.
+function showsSourcePaths(source: Skill["source"]) {
+  return !isProvidedSource(source) && source !== "workspace";
 }
 
 function SkillsPage() {
@@ -187,9 +197,9 @@ function SkillsPage() {
             ) : (
               <div className="grid gap-10">
                 {groups.map((group) => {
-                  const sourcePaths = isProvidedSource(group.source)
-                    ? []
-                    : group.dirs;
+                  const sourcePaths = showsSourcePaths(group.source)
+                    ? group.dirs
+                    : [];
 
                   return (
                     <section className="min-w-0" key={group.key}>

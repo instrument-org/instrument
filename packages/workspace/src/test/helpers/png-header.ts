@@ -1,13 +1,18 @@
 /**
- * A PNG that is nothing but a header, declaring whatever dimensions you ask for.
+ * A PNG that is nothing but a header and an end marker, declaring whatever
+ * dimensions you ask for.
  *
  * The point of a decode bomb is that its declared size and its file size have
  * nothing to do with each other, so producing one does not require producing the
  * pixels. Asking ffmpeg to actually paint 16000x16000 to test the guard would
  * spend exactly the resources the guard exists to refuse.
  *
- * Enough for anything that reads dimensions from the header. Not a decodable
- * image: there is no IDAT and no IEND.
+ * The `IEND` is what keeps this a fair test rather than an easy one. A real
+ * decode bomb is a complete file -- a flat-colour PNG is a few hundred bytes at
+ * any dimensions it likes -- so a fixture without one would be refused as
+ * truncated and never reach the check it exists to exercise.
+ *
+ * Still not decodable: there is no IDAT.
  */
 export function pngHeaderBytes({
   height,
@@ -30,5 +35,9 @@ export function pngHeaderBytes({
   // Compression, filter, and interlace all take their only sane value, which is
   // zero, and the CRC is left zero because nothing that reads a header checks it.
 
-  return Buffer.concat([signature, ihdr]);
+  const iend = Buffer.alloc(12);
+  iend.writeUInt32BE(0, 0);
+  iend.write("IEND", 4, "latin1");
+
+  return Buffer.concat([signature, ihdr, iend]);
 }

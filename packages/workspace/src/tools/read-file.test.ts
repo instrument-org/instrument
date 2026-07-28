@@ -326,6 +326,41 @@ describe("ReadFile", () => {
       }
     }, 60_000);
 
+    it("refuses a truncated image that is small enough to pass through", async () => {
+      // The gap this closes. Dimensions come from the header, so a file cut in
+      // half measures fine; an image inside the preview budget is then passed
+      // through byte for byte and never decoded by anything on the way out. So
+      // these bytes reached the provider through the one path that skips every
+      // other check, and the rejection they earned is permanent.
+      const whole = path.join(fixturesPath, "damaged-source.png");
+      const imagePath = path.join(fixturesPath, "damaged.png");
+      await drawPngFixture(whole, "640x480");
+
+      try {
+        const bytes = await fs.readFile(whole);
+        expect(measureImage(bytes)).toMatchObject({ height: 480, width: 640 });
+        await fs.writeFile(
+          imagePath,
+          bytes.subarray(0, Math.floor(bytes.byteLength * 0.3)),
+        );
+
+        const value = (
+          await runTool(TOOLS.ReadFile, {
+            ...baseInput,
+            input: { explanation: "read", filePath: "./damaged.png" },
+          })
+        )._unsafeUnwrap();
+
+        expect(value.state).toBe("unsupported-format");
+        if (value.state === "unsupported-format") {
+          expect(value.reason).toBe("undecodable-image");
+        }
+      } finally {
+        await fs.rm(whole, { force: true });
+        await fs.rm(imagePath, { force: true });
+      }
+    }, 60_000);
+
     it("refuses an image whose declared dimensions are too large to decode", async () => {
       // Bytes on disk say nothing about pixels in memory, so the size cap never
       // sees this coming. Refused from the header, before a decode -- and built
@@ -643,7 +678,9 @@ describe("ReadFile", () => {
         // Answering this returns a flat expanse of interpolated colour, which
         // reads as "the picture is blank" rather than as "you asked for one
         // pixel". The refusal has to name the size to be actionable.
-        expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(`"Region (0,0)-(1,1) covers 1x1 pixels of the source image, too few to magnify into anything readable. Give a rectangle covering at least 8x8 pixels, in the 320x240 space the image was shown to you in."`);
+        expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(
+          `"Region (0,0)-(1,1) covers 1x1 pixels of the source image, too few to magnify into anything readable. Give a rectangle covering at least 8x8 pixels, in the 320x240 space the image was shown to you in."`,
+        );
       } finally {
         await fs.rm(imagePath, { force: true });
       }

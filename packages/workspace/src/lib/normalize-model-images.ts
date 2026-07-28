@@ -8,6 +8,7 @@ import {
   imageViewSize,
   PREVIEW_LIMITS,
 } from "./image-view-size";
+import { isCompleteImage } from "./probe-media";
 import {
   exceedsDecodeBudget,
   measureImage,
@@ -276,10 +277,20 @@ async function normalizeImage({
   }
 
   if (exceedsDecodeBudget(size)) {
+    // Ahead of the completeness check, which these bytes would also fail: the
+    // dimensions are what make them dangerous and what the note has to name.
+    //
     // `read_file` refuses these up front, so what reaches here came from
     // somewhere else: a user upload, a generated image, or a session recorded
     // before that check existed.
     return { note: TOO_MANY_PIXELS_NOTE, state: "dropped" };
+  }
+
+  if (!isCompleteImage(bytes, size.mediaType)) {
+    // Measures fine and stops early. `read_file` catches this for a file the
+    // agent read; this catches it for everything that never went through a
+    // tool, which is where a half-finished upload arrives.
+    return { note: UNREADABLE_NOTE, state: "dropped" };
   }
 
   const target = imageViewSize({ ...size, limits: PREVIEW_LIMITS });

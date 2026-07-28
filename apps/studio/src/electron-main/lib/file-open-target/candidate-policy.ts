@@ -82,9 +82,23 @@ const RESTRICTED_BUNDLE_IDS = new Map([
 // editing either list above takes effect on the next read instead of requiring
 // a cache version bump.
 export function curateCandidates(apps: CandidateApp[], ext: string) {
-  return apps
-    .filter((candidate) => isUsefulCandidate(candidate, ext))
-    .slice(0, MAX_CANDIDATES);
+  const useful = apps.filter((candidate) => isUsefulCandidate(candidate, ext));
+  if (useful.length <= MAX_CANDIDATES) {
+    return useful;
+  }
+  const capped = useful.slice(0, MAX_CANDIDATES);
+  if (capped.some((candidate) => candidate.isDefault)) {
+    return capped;
+  }
+  const fallback = useful.find((candidate) => candidate.isDefault);
+  if (!fallback) {
+    return capped;
+  }
+  // Exempting the default from curation is pointless if the cap can still drop
+  // it, and Launch Services does not promise to rank it early enough to be
+  // safe. It takes the last slot rather than extending the cap; where it lands
+  // is not meaningful, since a list this long has no trustworthy order anyway.
+  return [...capped.slice(0, MAX_CANDIDATES - 1), fallback];
 }
 
 function isUsefulCandidate(candidate: CandidateApp, ext: string) {

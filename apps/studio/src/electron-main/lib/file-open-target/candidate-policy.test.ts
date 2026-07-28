@@ -77,6 +77,44 @@ describe("curateCandidates", () => {
     expect(curateCandidates(apps, ".md")).toHaveLength(16);
   });
 
+  it("keeps the default when the cap would otherwise drop it", () => {
+    const apps = [
+      ...Array.from({ length: 20 }, (_unused, index) =>
+        app(`com.example.app${index}`),
+      ),
+      app("com.example.system", { isDefault: true }),
+    ];
+
+    const curated = curateCandidates(apps, ".md");
+
+    expect(curated).toHaveLength(16);
+    expect(names(curated).at(-1)).toBe("com.example.system");
+    // The list stays capped: the default displaces an entry rather than
+    // extending the menu past MAX_CANDIDATES.
+    expect(names(curated).at(-2)).toBe("com.example.app14");
+  });
+
+  it("leaves the list alone when the default already survives the cap", () => {
+    const apps = Array.from({ length: 20 }, (_unused, index) =>
+      app(`com.example.app${index}`, { isDefault: index === 3 }),
+    );
+
+    expect(names(curateCandidates(apps, ".md"))).toEqual(
+      Array.from({ length: 16 }, (_unused, index) => `com.example.app${index}`),
+    );
+  });
+
+  it("caps normally when the enumeration reported no default at all", () => {
+    const apps = Array.from({ length: 20 }, (_unused, index) =>
+      app(`com.example.app${index}`),
+    );
+
+    expect(curateCandidates(apps, ".md")).toHaveLength(16);
+    expect(names(curateCandidates(apps, ".md")).at(-1)).toBe(
+      "com.example.app15",
+    );
+  });
+
   it("counts only surviving apps against the cap", () => {
     // Excluded apps are removed before the slice, so a raw list padded with
     // them still yields a full menu.

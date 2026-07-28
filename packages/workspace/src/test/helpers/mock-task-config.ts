@@ -3,11 +3,9 @@ import {
   type AIGatewayModel,
   AIGatewayProviderConfig,
   type AISDKImageModelResult,
-  type AISDKWebSearchModelResult,
   noopModelCache,
   TEST_IMAGE_MODEL_OVERRIDE_KEY,
   TEST_MODEL_OVERRIDE_KEY,
-  TEST_WEB_SEARCH_MODEL_OVERRIDE_KEY,
 } from "@instrument-org/ai-gateway";
 import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
 import path from "node:path";
@@ -20,6 +18,10 @@ import {
 } from "../../lib/workspace-config";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import {
+  unavailableWebSearchClient,
+  type WebSearchClient,
+} from "../../schemas/web-search";
 import {
   type BrowserConfig,
   encodeBrowserTargetId,
@@ -52,7 +54,7 @@ export function createMockTaskConfig(
     aiSDKModel?: LanguageModelV3;
     imageModel?: ImageModelV3;
     model?: AIGatewayModel.Type;
-    webSearchModel?: AISDKWebSearchModelResult;
+    webSearch?: WebSearchClient;
   } = {},
 ) {
   const model = options.model ?? createMockAIGatewayModel();
@@ -81,14 +83,6 @@ export function createMockTaskConfig(
     };
   }
 
-  if (options.webSearchModel) {
-    (
-      config as {
-        [TEST_WEB_SEARCH_MODEL_OVERRIDE_KEY]?: AISDKWebSearchModelResult;
-      }
-    )[TEST_WEB_SEARCH_MODEL_OVERRIDE_KEY] = options.webSearchModel;
-  }
-
   const workspaceConfig: WorkspaceConfig = {
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
@@ -114,6 +108,7 @@ export function createMockTaskConfig(
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/tmp/uv"),
     uvDataDir: AbsolutePathSchema.parse(`${MOCK_WORKSPACE_DIR}/uv-data`),
+    webSearch: options.webSearch ?? unavailableWebSearchClient,
   };
 
   // Register this model's provider config and mirror production, where the

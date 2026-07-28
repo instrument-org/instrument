@@ -21,6 +21,7 @@ import { workspaceMachine } from "../src/electron";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { task as taskRoute } from "../src/rpc/routes/task";
 import { type StoreId } from "../src/schemas/store-id";
+import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
 import { env } from "./lib/env";
 
@@ -137,6 +138,7 @@ const actor = createActor(workspaceMachine, {
       (result) => result.stdout.trim() || "uv",
     ),
     uvDataDir: path.resolve("../../../workspace.local/uv-data"),
+    webSearch: unavailableWebSearchClient,
   },
   inspect(event) {
     switch (event.type) {

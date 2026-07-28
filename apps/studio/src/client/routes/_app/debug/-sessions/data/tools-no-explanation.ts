@@ -116,25 +116,16 @@ registerSession({
             query: "Vitest best practices 2025",
           },
           output: {
-            modelId: "gpt-4o-search-preview",
-            provider: {
-              displayName: "OpenAI",
-              id: "openai-default",
-              type: "openai",
-            },
+            costDollars: 0.007,
             sources: [
               {
+                highlights: ["Use `vitest.config.ts` and enable globals."],
                 title: "Vitest - Getting Started",
                 url: "https://vitest.dev/guide/",
               },
             ],
             state: "success",
             text: "Use `vitest.config.ts` and enable globals.",
-            usage: {
-              inputTokens: 50,
-              outputTokens: 80,
-              totalTokens: 130,
-            },
           },
           type: "tool-web_search",
         }),

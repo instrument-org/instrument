@@ -24,7 +24,6 @@ const PROVIDER_METADATA = {
     description: "Claude models from Anthropic",
     name: "Anthropic",
     quirks: { supportsMultipartToolResults: true },
-    tags: ["webSearch"],
     type: "anthropic",
     url: addRef("https://anthropic.com"),
   },
@@ -86,7 +85,7 @@ const PROVIDER_METADATA = {
     description: "Google AI Studio with Gemini and other models",
     name: "Google",
     quirks: { supportsMultipartToolResults: true },
-    tags: ["imageGeneration", "webSearch"],
+    tags: ["imageGeneration"],
     type: "google",
     url: addRef("https://ai.google.dev/gemini-api/docs"),
   },
@@ -210,7 +209,7 @@ const PROVIDER_METADATA = {
     description: "GPT and reasoning models from OpenAI",
     name: "OpenAI",
     quirks: { supportsMultipartToolResults: true },
-    tags: ["imageGeneration", "webSearch"],
+    tags: ["imageGeneration"],
     type: "openai",
     url: addRef("https://openai.com"),
   },
@@ -231,7 +230,7 @@ const PROVIDER_METADATA = {
     },
     description: "Access an extensive catalog of models across providers",
     name: "OpenRouter",
-    tags: ["recommended", "imageGeneration", "webSearch"],
+    tags: ["recommended", "imageGeneration"],
     type: "openrouter",
     url: "https://openrouter.ai",
   },
@@ -242,7 +241,7 @@ const PROVIDER_METADATA = {
     canAddManually: false,
     description: `AI access for ${APP_NAME} accounts.`,
     name: APP_NAME,
-    tags: ["imageGeneration", "webSearch"],
+    tags: ["imageGeneration"],
     type: OUR_MODELS.providerType,
     url: addRef(APP_URL),
   },
@@ -277,7 +276,7 @@ const PROVIDER_METADATA = {
     },
     description: "Access hundreds of models across many providers",
     name: "Vercel AI Gateway",
-    tags: ["imageGeneration", "webSearch"],
+    tags: ["imageGeneration"],
     type: "vercel",
     url: addRef("https://vercel.com/ai-gateway"),
   },
@@ -288,7 +287,7 @@ const PROVIDER_METADATA = {
     },
     description: "Grok models from xAI",
     name: "xAI Grok",
-    tags: ["imageGeneration", "webSearch"],
+    tags: ["imageGeneration"],
     type: "x-ai",
     url: addRef("https://x.ai"),
   },
@@ -314,16 +313,6 @@ export type ImageGenerationProviderType = {
     : never;
 }[keyof typeof PROVIDER_METADATA];
 
-export type WebSearchProviderType = {
-  [K in keyof typeof PROVIDER_METADATA]: (typeof PROVIDER_METADATA)[K] extends {
-    tags: infer Tags extends readonly string[];
-  }
-    ? "webSearch" extends Tags[number]
-      ? K
-      : never
-    : never;
-}[keyof typeof PROVIDER_METADATA];
-
 export function filterImageGenerationConfigs(
   configs: AIGatewayProviderConfig.Type[],
 ): (AIGatewayProviderConfig.Type & { type: ImageGenerationProviderType })[] {
@@ -333,15 +322,6 @@ export function filterImageGenerationConfigs(
     ): c is AIGatewayProviderConfig.Type & {
       type: ImageGenerationProviderType;
     } => getProviderMetadata(c.type).tags.includes("imageGeneration"),
-  );
-}
-
-export function filterWebSearchConfigs(
-  configs: AIGatewayProviderConfig.Type[],
-): (AIGatewayProviderConfig.Type & { type: WebSearchProviderType })[] {
-  return configs.filter(
-    (c): c is AIGatewayProviderConfig.Type & { type: WebSearchProviderType } =>
-      getProviderMetadata(c.type).tags.includes("webSearch"),
   );
 }
 

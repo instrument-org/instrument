@@ -25,6 +25,7 @@ import { type FileUpload } from "../src/schemas/file-upload";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { type StoreId } from "../src/schemas/store-id";
 import { type TaskId } from "../src/schemas/task-id";
+import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
 import {
   buildProviderConfigs,
@@ -157,6 +158,7 @@ export async function runEvals(
         (result) => result.stdout.trim() || "uv",
       ),
       uvDataDir: path.join(workspaceRootDir, "uv-data"),
+      webSearch: unavailableWebSearchClient,
     },
   });
 

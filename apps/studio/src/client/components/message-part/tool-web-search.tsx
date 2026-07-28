@@ -68,12 +68,13 @@ export function ToolWebSearch({
           errorMessage={failureOutput.errorMessage}
           onRetry={onRetry}
           providerGuardDescription={
+            failureOutput.errorType === "not-authenticated" ||
             failureOutput.errorType === "no-web-search-model"
-              ? `Sign up for ${APP_NAME} or add an AI provider that supports web search.`
+              ? `Sign in to ${APP_NAME} to use web search.`
               : undefined
           }
           responseBody={failureOutput.responseBody}
-          retryMessage={`I added a web search provider. Retry searching for "${query}"`}
+          retryMessage={`I signed in. Retry searching for "${query}"`}
         />
       )}
 

@@ -26,7 +26,6 @@ import { AIProviderIcon } from "./ai-provider-icon";
 const TAG_TO_LABEL: Record<ProviderMetadata["tags"][number], string> = {
   imageGeneration: "Image gen",
   recommended: "Recommended",
-  webSearch: "Web search",
 };
 
 export function ProviderPicker({

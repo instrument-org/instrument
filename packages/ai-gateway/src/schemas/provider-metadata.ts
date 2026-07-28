@@ -1,11 +1,7 @@
 import { AIProviderTypeSchema } from "@instrument-org/shared";
 import { z } from "zod";
 
-const ProviderTagsSchema = z.enum([
-  "imageGeneration",
-  "recommended",
-  "webSearch",
-]);
+const ProviderTagsSchema = z.enum(["imageGeneration", "recommended"]);
 
 const ProviderQuirksSchema = z
   .object({

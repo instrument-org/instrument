@@ -12,6 +12,7 @@ import path from "node:path";
 import { env } from "../scripts/lib/env";
 import { PROJECTS_DIR_NAME, TASKS_DIR_NAME } from "../src/constants";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
+import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
 import { type WorkspaceConfig } from "../src/types";
 
@@ -59,6 +60,7 @@ export function buildReportWorkspaceConfig(
     uvDataDir: AbsolutePathSchema.parse(
       path.join(absoluteWorkspaceDir, "uv-data"),
     ),
+    webSearch: unavailableWebSearchClient,
   };
 }
 

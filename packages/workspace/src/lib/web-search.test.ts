@@ -1,130 +1,107 @@
-import { type LanguageModelV3StreamPart } from "@ai-sdk/provider";
-import { simulateReadableStream } from "ai";
-import { MockLanguageModelV3 } from "ai/test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { getWorkspaceServerURL } from "../logic/server/url";
 import { TaskIdSchema } from "../schemas/task-id";
-import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
+import { type WebSearchClient } from "../schemas/web-search";
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
 import { webSearch } from "./web-search";
 import { getWorkspaceConfig } from "./workspace-config";
 
-function perplexityResult({
-  results,
-  toolCallId,
-}: {
-  results: { snippet: string; title: string; url: string }[];
-  toolCallId: string;
-}): LanguageModelV3StreamPart {
-  return {
-    result: { results },
-    toolCallId,
-    toolName: "perplexity_search",
-    type: "tool-result",
-  };
-}
-
-function textDelta(delta: string): LanguageModelV3StreamPart[] {
-  return [
-    { id: "1", type: "text-start" },
-    { delta, id: "1", type: "text-delta" },
-    { id: "1", type: "text-end" },
-  ];
-}
-
-const finishPart: LanguageModelV3StreamPart = {
-  finishReason: { raw: "stop", unified: "stop" },
-  type: "finish",
-  usage: {
-    inputTokens: {
-      cacheRead: undefined,
-      cacheWrite: undefined,
-      noCache: undefined,
-      total: 10,
-    },
-    outputTokens: { reasoning: undefined, text: undefined, total: 20 },
-  },
-};
-
-async function runWebSearch(chunks: LanguageModelV3StreamPart[]) {
-  const model = createMockAIGatewayModel();
-  const searchModel = new MockLanguageModelV3({
-    doStream: () =>
-      Promise.resolve({
-        stream: simulateReadableStream({ chunks: [...chunks, finishPart] }),
-      }),
-  });
-
-  createMockTaskConfig(TaskIdSchema.parse("2026-07-27-web-search"), {
-    model,
-    webSearchModel: { model: searchModel },
-  });
-
-  const workspaceConfig = getWorkspaceConfig();
-  const results = [];
-  for await (const result of webSearch({
-    callingModel: model,
-    configs: getWorkspaceConfig().getAIProviderConfigs(),
-    prompt: "what changed recently",
-    signal: new AbortController().signal,
-    workspaceConfig,
-    workspaceServerURL: getWorkspaceServerURL(),
-  })) {
-    results.push(result);
-  }
-
-  const last = results.at(-1);
-  if (!last || last.isErr()) {
-    throw new Error(
-      `Expected a successful search, got ${JSON.stringify(last)}`,
-    );
-  }
-
-  return { searchModel, value: last.value };
-}
-
 describe("webSearch", () => {
-  it("keeps snippets from every search alongside the model's prose", async () => {
-    const { value } = await runWebSearch([
-      perplexityResult({
-        results: [
-          { snippet: "First snippet.", title: "One", url: "https://one.test" },
-        ],
-        toolCallId: "call-1",
+  it("returns ranked excerpts and source metadata from the platform API", async () => {
+    const client = vi.fn<WebSearchClient>(() =>
+      Promise.resolve({
+        data: {
+          costDollars: 0.007,
+          results: [
+            {
+              author: "TypeScript Team",
+              highlights: ["First excerpt.", "Second excerpt."],
+              publishedDate: "2026-07-28T00:00:00.000Z",
+              title: "TypeScript release notes",
+              url: "https://example.com/typescript",
+            },
+            {
+              highlights: [],
+              url: "https://example.com/untitled",
+            },
+          ],
+        },
+        ok: true,
       }),
-      ...textDelta("Summarizing both searches."),
-      perplexityResult({
-        results: [
-          { snippet: "Second snippet.", title: "Two", url: "https://two.test" },
-        ],
-        toolCallId: "call-2",
-      }),
-    ]);
+    );
+    createMockTaskConfig(TaskIdSchema.parse("2026-07-28-web-search"), {
+      webSearch: client,
+    });
+    const signal = new AbortController().signal;
 
-    expect(value.text).toMatchInlineSnapshot(`
-      "First snippet.
+    const result = await webSearch({
+      prompt: "latest TypeScript release",
+      signal,
+      workspaceConfig: getWorkspaceConfig(),
+    });
 
-      Second snippet.
+    expect(client).toHaveBeenCalledWith({
+      input: { query: "latest TypeScript release" },
+      signal,
+    });
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "data": {
+          "costDollars": 0.007,
+          "sources": [
+            {
+              "author": "TypeScript Team",
+              "highlights": [
+                "First excerpt.",
+                "Second excerpt.",
+              ],
+              "publishedDate": "2026-07-28T00:00:00.000Z",
+              "title": "TypeScript release notes",
+              "url": "https://example.com/typescript",
+            },
+            {
+              "highlights": [],
+              "url": "https://example.com/untitled",
+            },
+          ],
+          "text": "### 1. TypeScript release notes
 
-      Summarizing both searches."
-    `);
-    expect(value.sources.map((source) => source.id)).toMatchInlineSnapshot(`
-      [
-        "perplexity-0",
-        "perplexity-1",
-      ]
+      Published or updated: 2026-07-28T00:00:00.000Z
+      Author: TypeScript Team
+
+      First excerpt.
+
+      Second excerpt.
+
+      ### 2. Untitled result",
+        },
+        "ok": true,
+      }
     `);
   });
 
-  it("grounds the search model with the current date", async () => {
-    const { searchModel } = await runWebSearch(textDelta("An answer."));
+  it("preserves platform API failures", async () => {
+    createMockTaskConfig(TaskIdSchema.parse("2026-07-28-web-search-failure"), {
+      webSearch: () =>
+        Promise.resolve({
+          errorMessage: "Sign in to Instrument to search the web.",
+          errorType: "not-authenticated",
+          ok: false,
+        }),
+    });
 
-    const system = searchModel.doStreamCalls[0]?.prompt.find(
-      (message) => message.role === "system",
-    );
+    const result = await webSearch({
+      prompt: "current news",
+      signal: new AbortController().signal,
+      workspaceConfig: getWorkspaceConfig(),
+    });
 
-    expect(system).toBeDefined();
-    expect(JSON.stringify(system)).toContain("Today is");
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "errorMessage": "Sign in to Instrument to search the web.",
+        "errorType": "not-authenticated",
+        "ok": false,
+      }
+    `);
   });
 });

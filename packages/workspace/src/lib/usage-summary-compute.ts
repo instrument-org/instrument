@@ -56,7 +56,7 @@ export function getUsageSummaryFromMessages(
       if (
         !isToolPart(part) ||
         part.state !== "output-available" ||
-        (part.type !== "tool-generate_image" && part.type !== "tool-web_search")
+        part.type !== "tool-generate_image"
       ) {
         return [];
       }

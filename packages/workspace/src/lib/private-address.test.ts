@@ -16,6 +16,8 @@ describe("isPrivateAddress", () => {
     "fc00::abcd",
     "::ffff:127.0.0.1", // IPv4-mapped loopback
     "::ffff:169.254.169.254", // IPv4-mapped metadata
+    "::ffff:7f00:1", // Hex-form IPv4-mapped loopback
+    "::ffff:a9fe:a9fe", // Hex-form IPv4-mapped link-local
   ])("blocks private/loopback/link-local %s", (address) => {
     expect(isPrivateAddress(address)).toBe(true);
   });

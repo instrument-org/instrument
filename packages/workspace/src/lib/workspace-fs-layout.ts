@@ -296,6 +296,54 @@ export function resolveNativeHostPath(
 }
 
 /**
+ * Map a virtual path to a host path for a native binary that can only READ.
+ *
+ * Unlike `resolveNativeHostPath` this resolves the whole layout, including the
+ * read-only `/mnt` mounts and `/skills`. That is the point: a search command
+ * the user cannot point at their attached folders is not worth having, and the
+ * dedicated grep tool already hands real ripgrep those same host paths.
+ *
+ * The safety of the wider reach rests entirely on the caller, which MUST:
+ * - reject every flag that lets the binary write or execute (for ripgrep:
+ *   `--pre`, `--pre-glob`, `--hostname-bin`, `-z`/`--search-zip`), and
+ * - map host paths back out of the binary's output (`resolveVirtualPath`), so
+ *   the machine layout does not leak through match paths.
+ *
+ * Returns null for a path outside every mount, for the private dir, and for a
+ * symlink that resolves out of its own mount, so the caller reports a clean
+ * error rather than reaching the host.
+ */
+export function resolveReadOnlyHostPath(
+  layout: WorkspaceFsLayout,
+  virtualAbsPath: string,
+): AbsolutePath | null {
+  const resolved = resolveHostPath(layout, virtualAbsPath);
+  if (resolved === null) {
+    return null;
+  }
+  const { hostPath, mount } = resolved;
+
+  if (mount === layout.task) {
+    const relative = relativeWithin(
+      TASK_MOUNT_POINT,
+      normalizePath(virtualAbsPath),
+    );
+    if (relative === null || isPrivateRelative(relative)) {
+      return null;
+    }
+    return hostPath;
+  }
+
+  // The bash sandbox refuses to traverse a symlink out of a mount; a real
+  // binary would happily follow it, so the containment has to be re-checked
+  // here rather than inherited.
+  if (hostPathEscapesMount(hostPath, mount.hostRoot)) {
+    return null;
+  }
+  return hostPath;
+}
+
+/**
  * Reverse of resolveHostPath: map a real on-disk path back to its virtual path,
  * or null if it falls outside every mount. Used to keep native-binary output
  * sandbox-shaped. The longest matching host root wins.

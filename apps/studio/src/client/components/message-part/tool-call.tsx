@@ -11,7 +11,6 @@ import { hasTerminalToolState, isToolCallVisible } from "./tool-call-utils";
 import { ToolChoose } from "./tool-choose";
 import { ToolEditFile } from "./tool-edit-file";
 import { ToolGenerateImage } from "./tool-generate-image";
-import { ToolGrep } from "./tool-grep";
 import { ToolLoadSkill } from "./tool-load-skill";
 import { ToolReadFile } from "./tool-read-file";
 import { ToolUnavailable } from "./tool-unavailable";
@@ -121,9 +120,6 @@ function ToolCallBody({
           part={part}
         />
       );
-    }
-    case "tool-grep": {
-      return <ToolGrep part={part} />;
     }
     case "tool-load_skill": {
       return <ToolLoadSkill part={part} />;

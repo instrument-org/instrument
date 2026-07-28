@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 
 import { unpackAsarPath } from "./asar";
 
-const RG_DISK_PATH = unpackAsarPath(rgPath);
+export const RG_DISK_PATH = unpackAsarPath(rgPath);
 
 interface RipgrepResult {
   code: null | number;

@@ -56,24 +56,6 @@ registerSession({
         }),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
-            pattern: "formatDate",
-          },
-          output: {
-            matches: [
-              {
-                lineNum: 1,
-                lineText: "export function formatDate(date: Date): string {",
-                modifiedAt: 1_704_067_200_000,
-                path: "src/utils/helpers.ts",
-              },
-            ],
-            totalMatches: 1,
-            truncated: false,
-          },
-          type: "tool-grep",
-        }),
-        builder.toolPart(assistantMessageId, "output-available", {
-          input: {
             filePath: "./src/app.ts",
           },
           output: {

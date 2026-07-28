@@ -7,7 +7,6 @@ import { BashTool } from "./bash";
 import { Choose } from "./choose";
 import { EditFile } from "./edit-file";
 import { GenerateImage } from "./generate-image";
-import { Grep } from "./grep";
 import { LoadSkill } from "./load-skill";
 import { ReadFile } from "./read-file";
 import { Unavailable } from "./unavailable";
@@ -19,7 +18,6 @@ export const TOOLS = {
   Choose,
   EditFile,
   GenerateImage,
-  Grep,
   LoadSkill,
   ReadFile,
   Unavailable,
@@ -34,7 +32,6 @@ export const TOOLS_BY_NAME = {
   [TOOLS.Choose.name]: TOOLS.Choose,
   [TOOLS.EditFile.name]: TOOLS.EditFile,
   [TOOLS.GenerateImage.name]: TOOLS.GenerateImage,
-  [TOOLS.Grep.name]: TOOLS.Grep,
   [TOOLS.LoadSkill.name]: TOOLS.LoadSkill,
   [TOOLS.ReadFile.name]: TOOLS.ReadFile,
   [TOOLS.Unavailable.name]: TOOLS.Unavailable,

@@ -175,7 +175,8 @@ async function bootstrapPrimaryInstance() {
     confirmQuitWithRunningAgents,
     workspaceConfig,
   } = createWorkspaceActor({
-    isQuitAlreadyConfirmed: () => appUpdater?.getStatus()?.type === "installing",
+    isQuitAlreadyConfirmed: () =>
+      appUpdater?.getStatus()?.type === "installing",
   });
 
   startAgentCompletionNotifications({ workspaceConfig, workspaceRef });

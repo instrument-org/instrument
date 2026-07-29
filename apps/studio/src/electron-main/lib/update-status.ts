@@ -221,11 +221,11 @@ export function resolveStatus({
   }
 }
 
-export function stagedStatus(staged: UpdateInfo): AppUpdaterStatus {
+function stagedStatus(staged: UpdateInfo): AppUpdaterStatus {
   return { notifyUser: true, type: "downloaded", updateInfo: staged };
 }
 
-export function statusVersion(status: AppUpdaterStatus): string | undefined {
+function statusVersion(status: AppUpdaterStatus): string | undefined {
   return "updateInfo" in status
     ? (status.updateInfo?.version ?? undefined)
     : undefined;

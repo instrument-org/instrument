@@ -197,11 +197,9 @@ export function createPnpmCommand(taskId: TaskId) {
       ? args.filter((arg) => !GLOBAL_FLAGS.has(arg))
       : args;
 
-    const env = Object.fromEntries(ctx.env);
-
     // Map the virtual cwd to its real host dir via the shared bridge so pnpm
     // runs in the right place regardless of where the task is mounted.
-    const { taskCwd: cwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd: cwd } = resolveCommandContext(taskId, ctx);
 
     // The runnable workspace lives in `work/`; there is no manifest at the task
     // root. Fail fast with guidance instead of pnpm's opaque

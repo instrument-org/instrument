@@ -360,6 +360,7 @@ function renderWebContent({
 
 // Documents the workspace can already read once they are on disk, via the
 // `pdf` / `document-to-markdown` skills. Worth routing to rather than refusing.
+// cspell:ignore msword officedocument openxmlformats presentationml spreadsheetml wordprocessingml
 const DOCUMENT_MIMES = new Set([
   "application/msword",
   "application/pdf",

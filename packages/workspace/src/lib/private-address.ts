@@ -1,6 +1,7 @@
 import { lookup } from "node:dns/promises";
 import { BlockList, isIP } from "node:net";
 
+// cspell:ignore CGNAT
 // Loopback, "this host", RFC1918 private, CGNAT, and link-local (which includes
 // the cloud metadata endpoint 169.254.169.254), plus the IPv6 equivalents.
 // Mirrors the just-bash sandbox's `denyPrivateRanges` posture so `web_fetch`,

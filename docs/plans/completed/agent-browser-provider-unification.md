@@ -166,7 +166,7 @@ governs the first invocation, often before any `load_skill` call.
   (the user's running Chrome). Prompt and skill guidance are the only
   guardrail in v1; see permission follow-up above. The evals cover selection
   and the consent wording on a read-only request, but nothing yet tests
-  whether a model actually stops before a *mutating* action in the user's
+  whether a model actually stops before a _mutating_ action in the user's
   browser, because an honest test of that has real side effects.
 - Upstream's `download` sets the browser's download directory and never
   restores it, so running it against the user's own Chrome redirects their

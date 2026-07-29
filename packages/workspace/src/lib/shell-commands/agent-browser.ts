@@ -220,7 +220,10 @@ const WORKSPACE_HELP = dedent`
     --profile <name|dir>        Launch Chrome with an existing profile (logins)
     --auto-connect              Connect to a Chromium already running with
                                 remote debugging enabled
-    --cdp <port|ws-url>         Connect to an explicit CDP endpoint
+    --cdp <port|http://host:port>
+                                Connect to an explicit CDP endpoint. A bare
+                                port or an http origin; a ws:// value must be
+                                a complete devtools URL, not just an origin
     --provider <name>           Cloud or iOS browser provider
     --state | --restore <key>   Load or persist storage state
 

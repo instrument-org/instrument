@@ -22,13 +22,15 @@ The other way out is to stop touching the user's installed Chrome at all: launch
 
 `external_browser` in `apps/studio/src/shared/features.ts`, stored per user in the features store, toggled from Settings > Features (a pane only developer mode shows). `isFeatureEnabled` in `apps/studio/src/electron-main/stores/features.ts` reads it.
 
-It reaches the workspace as `WorkspaceConfig.isExternalBrowserEnabled`, a function rather than a boolean: the config is built once at boot, and the flag is a live store the user can toggle without restarting. Enforcement follows immediately. The system prompt does not, because the session-context message is cached for up to 60 minutes; a session open across a toggle keeps the old browser guidance until it rebuilds.
+It reaches the workspace as `WorkspaceConfig.isExternalBrowserEnabled`, a function rather than a boolean: the config is built once at boot, and the flag is a live store the user can toggle without restarting.
+
+A toggle therefore takes effect on the next command, which required deciding where availability may be claimed. The session-context message is rebuilt on a timer (`STALE_MESSAGE_THRESHOLD_MINUTES`, 60 minutes), so anything the system prompt asserts can outlive a toggle by an hour, while tool descriptions are rebuilt every request. Only the always-fresh surfaces state what exists: the bash tool description and the wrapper's refusal. The prompt carries policy for choosing between browsers, and the skill defers to `agent-browser --help`. The rule generalizes: a cached artifact should not assert what a live flag decides.
 
 ## What the flag gates
 
 - `packages/workspace/src/lib/shell-commands/agent-browser.ts` refuses any invocation carrying `--cdp`, `--auto-connect`, `--provider`, `--profile`, `--state`, `--restore*`, or `--executable-path`, and the `profiles` subcommand. Refused, not ignored: dropping the flag and running anyway would answer the command on the managed browser while the agent believed it was acting as the user's signed-in identity.
 - The same file's `agentBrowserCommandDescription()` and `--help` output drop their external sections.
-- `browserTargetingGuidance()` in `packages/workspace/src/agents/main.ts` swaps the two targeting paragraphs for one line saying the task browser is the only browser and sign-in happens there.
+- `browserTargetingGuidance()` in `packages/workspace/src/agents/main.ts` drops the two targeting paragraphs, keeping the line that says a page needing an account is signed into in the task browser. It does not claim external browsers are absent, for the caching reason above.
 - `packages/workspace/src/tools/bash.ts` builds its description per call so the command list reflects the current flag state.
 
 Off is the default everywhere except the dev harnesses (`evals/`, `scripts/`), which enable it so the `browser-selection` eval cases and `run-bash` still exercise the real path.
@@ -37,5 +39,5 @@ Off is the default everywhere except the dev harnesses (`evals/`, `scripts/`), w
 
 1. Confirm the TCC service, then decide between consent UI and avoiding the prompt (Chrome for Testing).
 2. Flip `external_browser` on by default, or remove the flag and its gate sites listed above.
-3. Restore the skill content. It was removed from the `instrument-org/skills` repo rather than gated, because skill bodies are read verbatim and the frontmatter description feeds the always-present catalog, so a stale mention there advertises a capability the build refuses. Recover it from the commits that added it: `090dfb2`, `05b17d4`, `94a994f`, `d6cf026`. The removal touched `SKILL.md` (frontmatter description, intro, the "Choose an approach" table, the External browsers section, two invariants) and `references/{authentication,commands,proxy-support,session-management}.md`.
+3. Decide whether the skill needs the content back. It was removed from the `instrument-org/skills` repo rather than gated, because skill bodies are read verbatim and the frontmatter description feeds the always-present catalog, so a mention there would advertise a capability a flag can refuse. What replaced it points at `agent-browser --help`, which is flag-aware, and the operational facts the skill used to carry (Chrome 136+ and `--auto-connect`, `--device` with `--provider ios`, the `download` caveat) now live in that help behind the flag. So the skill may not need changing at all. If it does, the removal is `a0b99c3` and `e4a5139` in that repo, and the original content is in `090dfb2`, `05b17d4`, `94a994f`, and `d6cf026`.
 4. Re-check the two known rough edges before shipping: an explicit `AGENT_BROWSER_IDLE_TIMEOUT_MS` overrides upstream's "never close a headed browser" exemption, so a visible external window is closed five minutes after the agent's last command even while a human is typing in it; and `download` against an external browser redirects that browser's download destination without resetting it.

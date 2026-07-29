@@ -57,15 +57,20 @@ interface MountedFolderAttachment {
 }
 
 /**
- * Which browsers the agent may drive. Behind a feature flag, so this is chosen
- * per session rather than written into the prompt once: the disabled form has
- * to stand on its own, because nothing else tells the model that the user's
- * own Chrome is out of reach, and a model that assumes otherwise spends the
- * turn retrying flags that will never work.
+ * How to choose between browsers, for the builds that have a choice.
+ *
+ * This text is written into the session context, which is rebuilt on a timer
+ * rather than per turn, so it can outlive a change to the feature flag by up to
+ * an hour. That rules out stating here which browsers exist: the flag can be
+ * turned on mid-session, and a stale "there is no other browser" would stop the
+ * model from trying something the build now allows, with no failed command to
+ * correct it. Availability is claimed only where it is recomputed every request
+ * -- the bash tool description -- and enforced by the wrapper, which explains
+ * itself when it refuses. What is left here is policy, which is durable.
  */
 function browserTargetingGuidance() {
   if (!getWorkspaceConfig().isExternalBrowserEnabled()) {
-    return `- The task browser is the only browser you can drive. You cannot reach the user's own Chrome, their profiles, or their existing logins, and no flag reaches one. When a page needs an account, open it in the task browser and ask the user to sign in there; the session persists for the rest of the task.`;
+    return `- When a page needs an account, open it in the task browser and ask the user to sign in there rather than looking for credentials; the session persists for the rest of the task.`;
   }
   return [
     `- Bare commands drive the managed task browser the user watches in the app, and that is where research, local app testing, docs lookup, and any file you produced belong. Targeting flags drive a browser outside the app instead: \`--profile\` for the user's existing Chrome logins, \`--cdp\` or \`--auto-connect\` for a Chromium already running with remote debugging, \`--provider\` and \`--device\` for a cloud or iOS browser. Reach for one when the task needs the user's logins, when a site blocks the task browser (bot detection, CAPTCHA, login friction), or when the user names a specific browser, profile, device, or provider.`,

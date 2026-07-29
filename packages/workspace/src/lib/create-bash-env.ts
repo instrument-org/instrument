@@ -62,6 +62,7 @@ import { taskDir } from "./task-dir-utils";
 import {
   buildBashFs,
   buildWorkspaceFsLayout,
+  CONNECTORS_MOUNT_POINT,
   SKILLS_MOUNT_POINT,
   TASK_MOUNT_POINT,
 } from "./workspace-fs-layout";
@@ -325,11 +326,13 @@ export function createBashDescription() {
 
     IMPORTANT: Folders the user attaches appear as read-only mounts under \`/mnt/\` (one directory per folder). You can read, list, and search them (\`ls\`, \`cat\`, \`grep\`, \`find\`) but cannot write into them -- any write, or a script/command that outputs into \`/mnt/\`, fails with EROFS. They live outside the task root, so address them by their \`/mnt/...\` path. To modify or process an attached file, copy it into the task first (e.g. \`cp '/mnt/<folder>/file' attachments/\`) and work on the copy.
 
+    The workspace's data connectors live at \`${CONNECTORS_MOUNT_POINT}/\` (writable; one folder per connector holding connector.json and guide.md).
+
     IMPORTANT: Python is available via the specialized \`${PYTHON_COMMAND.name}\`/\`${PYTHON3_COMMAND.name}\`/\`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` commands below (backed by a per-task virtualenv in work/.venv), and TypeScript/JavaScript via the specialized \`${TS_COMMAND.name}\` command. If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside script code run by these commands, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`${TASK_MOUNT_POINT}/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`/mnt/...\` never is (copy attached files into the task first) and paths inside script FILES on disk are never translated.
 
     IMPORTANT: \`npm\` is NOT available. Use \`${PNPM_COMMAND.name}\` for all package management.
 
-    IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`${TASK_MOUNT_POINT}\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`${TASK_MOUNT_POINT}\`, the \`/mnt\` mounts, and \`${SKILLS_MOUNT_POINT}\` exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
+    IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`${TASK_MOUNT_POINT}\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`${TASK_MOUNT_POINT}\`, the \`/mnt\` mounts, \`${SKILLS_MOUNT_POINT}\`, and \`${CONNECTORS_MOUNT_POINT}\` exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
     IMPORTANT: Backgrounding is NOT supported. Each call must complete within \`timeoutMs\`.
 
@@ -365,10 +368,11 @@ export async function createBashEnv({
   taskId: TaskId;
 }) {
   // The layout is the single source of truth for what the agent can see: the
-  // writable task directory mounted at /task (the working directory) plus any
-  // read-only user-attached folders under /mnt. The bash interpreter, the
-  // native-binary path bridge, and the dedicated file tools all route through
-  // it so they agree on virtual<->real mapping.
+  // writable task directory mounted at /task (the working directory), the
+  // workspace's own writable mounts (/skills, /connectors), and any read-only
+  // user-attached folders under /mnt. The bash interpreter, the native-binary
+  // path bridge, and the dedicated file tools all route through it so they
+  // agree on virtual<->real mapping.
   const layout = buildWorkspaceFsLayout({
     attachedFolders,
     taskHostRoot: taskDir(taskId),

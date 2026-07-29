@@ -13,7 +13,11 @@ import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
 import path from "node:path";
 import { noop } from "radashi";
 
-import { PROJECTS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
+import {
+  CONNECTORS_DIR_NAME,
+  PROJECTS_DIR_NAME,
+  TASKS_DIR_NAME,
+} from "../../constants";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -34,6 +38,7 @@ import { createMockAIGatewayModel } from "./mock-ai-gateway-model";
 const MOCK_WORKSPACE_DIR = "/tmp/workspace";
 
 export const MOCK_WORKSPACE_DIRS = {
+  connectors: `${MOCK_WORKSPACE_DIR}/${CONNECTORS_DIR_NAME}`,
   defaultTaskTemplate: `${MOCK_WORKSPACE_DIR}/default-task-template`,
   projects: `${MOCK_WORKSPACE_DIR}/${PROJECTS_DIR_NAME}`,
   registry: `${MOCK_WORKSPACE_DIR}/registry`,
@@ -105,6 +110,8 @@ export function createMockTaskConfig(
       // eslint-disable-next-line no-console
       console.error("captureException", args);
     },
+    connectors: { getCredential: () => Promise.resolve(null) },
+    connectorsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.connectors),
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       MOCK_WORKSPACE_DIRS.defaultTaskTemplate,
     ),

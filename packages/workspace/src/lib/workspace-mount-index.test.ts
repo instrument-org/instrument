@@ -29,8 +29,10 @@ createMockTaskConfigForDir(
 // sees, and this suite writes into it, so it needs a root of its own.
 const rootDir = mkdtempSync(path.join(os.tmpdir(), "workspace-mount-index-"));
 const skillsDir = path.join(rootDir, "skills");
+const connectorsDir = path.join(rootDir, "connectors");
 setWorkspaceConfig({
   ...getWorkspaceConfig(),
+  connectorsDir: AbsolutePathSchema.parse(connectorsDir),
   rootDir: WorkspaceDirSchema.parse(rootDir),
 });
 
@@ -41,6 +43,7 @@ const turn = {
 
 afterEach(async () => {
   await fs.rm(skillsDir, { force: true, recursive: true });
+  await fs.rm(connectorsDir, { force: true, recursive: true });
 });
 
 describe("readWorkspaceMountIndex", () => {
@@ -55,6 +58,16 @@ describe("readWorkspaceMountIndex", () => {
 
     const index = await readWorkspaceMountIndex("skills");
     expect([...index.keys()]).toEqual(["tidy"]);
+  });
+
+  it("indexes a connector by its manifest rather than SKILL.md", async () => {
+    await writeConnector("notion");
+    await fs.mkdir(path.join(connectorsDir, "half-written"), {
+      recursive: true,
+    });
+
+    const index = await readWorkspaceMountIndex("connectors");
+    expect([...index.keys()]).toEqual(["notion"]);
   });
 });
 
@@ -86,6 +99,33 @@ describe("consumeMountChanges", () => {
         ],
       }
     `);
+  });
+
+  it("tracks each writable mount separately within one turn", async () => {
+    await beginMountChangeTracking(turn);
+
+    await writeSkill("brief", "Write a brief.");
+    await writeConnector("notion");
+    withTurnContext(turn, () => {
+      recordWorkspaceMountMutation("skills", "/brief/SKILL.md");
+      recordWorkspaceMountMutation("connectors", "/notion/connector.json");
+    });
+
+    const changes = await consumeMountChanges(turn);
+    expect(changes.skills.created).toEqual(["brief"]);
+    expect(changes.connectors.created).toEqual(["notion"]);
+  });
+
+  it("does not attribute a write to the other mount", async () => {
+    await beginMountChangeTracking(turn);
+
+    await writeConnector("notion");
+    withTurnContext(turn, () => {
+      recordWorkspaceMountMutation("connectors", "/notion/connector.json");
+    });
+
+    const changes = await consumeMountChanges(turn);
+    expect(changes.skills).toEqual({ created: [], removed: [], updated: [] });
   });
 
   it("reports nothing when the turn left the mounts alone", async () => {
@@ -253,6 +293,23 @@ describe("consumeMountChanges", () => {
       updated: [],
     });
   });
+
+  it("routes a dedicated file write to the mount that owns the path", async () => {
+    await beginMountChangeTracking(turn);
+
+    await withTurnContext(turn, () =>
+      writeFileWithDir(
+        AbsolutePathSchema.parse(
+          path.join(connectorsDir, "notion", "connector.json"),
+        ),
+        "{}",
+      ),
+    );
+
+    const changes = await consumeMountChanges(turn);
+    expect(changes.connectors.created).toEqual(["notion"]);
+    expect(changes.skills).toEqual(noChanges());
+  });
 });
 
 async function consumeSkills(key: TurnKey) {
@@ -262,6 +319,14 @@ async function consumeSkills(key: TurnKey) {
 
 function noChanges() {
   return { created: [], removed: [], updated: [] };
+}
+
+async function writeConnector(slug: string) {
+  await fs.mkdir(path.join(connectorsDir, slug), { recursive: true });
+  await fs.writeFile(
+    path.join(connectorsDir, slug, "connector.json"),
+    JSON.stringify({ displayName: slug, slug, type: "api" }),
+  );
 }
 
 async function writeSkill(name: string, description: string) {

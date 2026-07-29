@@ -37,6 +37,10 @@ export function buildReportWorkspaceConfig(
     captureException: () => {
       return;
     },
+    connectors: { getCredential: () => Promise.resolve(null) },
+    connectorsDir: AbsolutePathSchema.parse(
+      path.join(absoluteWorkspaceDir, "connectors"),
+    ),
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       path.join(absoluteWorkspaceDir, "default-task-template"),
     ),

@@ -341,6 +341,13 @@ export const sessionMachine = setup({
         ],
       }),
     },
+    // The alive substates (UsingReadOnlyTools/UsingNonReadOnlyTools) handle
+    // pause/resume for their tags; these root-level no-ops catch the stragglers
+    // the agent machine fires on teardown (WaitingForPendingToolCalls exits
+    // after the session has already left those substates) so they don't trip
+    // the unhandled-event logger. Descendant handlers still take precedence.
+    "agent.paused": {},
+    "agent.resumed": {},
     stop: {
       actions: log("Agent not running"),
     },

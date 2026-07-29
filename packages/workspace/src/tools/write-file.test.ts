@@ -103,34 +103,47 @@ describe("WriteFile - path policy", () => {
     expect(result._unsafeUnwrap().filePath).toBe("./output/report.md");
   });
 
-  it("attributes a workspace skills write to the executing session", async () => {
-    mockFs({
-      "/tmp/workspace": {
-        skills: {},
-        tasks: { [taskId]: {} },
-      },
-    });
-    const sessionId = StoreId.newSessionId();
-    const turn = { id: taskId, sessionId };
-    await beginMountChangeTracking(turn);
+  it.each([
+    {
+      content: "---\ndescription: Brief\n---\n\nBody.\n",
+      created: "brief",
+      filePath: "/skills/brief/SKILL.md",
+      kind: "skills" as const,
+    },
+    {
+      content: '{ "slug": "notion" }',
+      created: "notion",
+      filePath: "/connectors/notion/connector.json",
+      kind: "connectors" as const,
+    },
+  ])(
+    "attributes a workspace $kind write to the executing session",
+    async ({ content, created, filePath, kind }) => {
+      mockFs({
+        "/tmp/workspace": {
+          connectors: {},
+          skills: {},
+          tasks: { [taskId]: {} },
+        },
+      });
+      const sessionId = StoreId.newSessionId();
+      const turn = { id: taskId, sessionId };
+      await beginMountChangeTracking(turn);
 
-    const result = await runTool(WriteFile, {
-      ...makeExecuteArgs({
-        content: "---\ndescription: Brief\n---\n\nBody.\n",
-        explanation: "test",
-        filePath: "/skills/brief/SKILL.md",
-      }),
-      sessionId,
-    });
+      const result = await runTool(WriteFile, {
+        ...makeExecuteArgs({ content, explanation: "test", filePath }),
+        sessionId,
+      });
 
-    expect(result.isOk()).toBe(true);
-    const changes = await consumeMountChanges(turn);
-    expect(changes.skills).toEqual({
-      created: ["brief"],
-      removed: [],
-      updated: [],
-    });
-  });
+      expect(result.isOk()).toBe(true);
+      const changes = await consumeMountChanges(turn);
+      expect(changes[kind]).toEqual({
+        created: [created],
+        removed: [],
+        updated: [],
+      });
+    },
+  );
 
   it("rejects writes into a read-only attached mount", async () => {
     mockFs({ [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} } });

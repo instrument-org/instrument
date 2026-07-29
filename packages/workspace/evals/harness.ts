@@ -139,6 +139,7 @@ export async function runEvals(
         // eslint-disable-next-line no-console
         console.error("captureException", ...args);
       },
+      connectors: { getCredential: () => Promise.resolve(null) },
       defaultTaskTemplateDir: path.resolve(
         import.meta.dirname,
         "../templates/default",

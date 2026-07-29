@@ -20,6 +20,7 @@ interface PublisherEvents {
   // Fired whenever the set of browser targets (entries) changes, so the
   // renderer pool can reconcile its `<webview>` guests to the desired set.
   "browser.targets-changed": null;
+  "connectors.updated": null;
   "debug.browser-view-manager.updated": null;
   "features.updated": null;
   "preferences.updated": null;

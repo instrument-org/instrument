@@ -3,6 +3,7 @@ import { openLogin } from "@/client/atoms/login-modal";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
 import { AttachedFolderPreview } from "@/client/components/attached-folder-preview";
 import { ModelPicker } from "@/client/components/model-picker";
+import { PromptConnectorMenu } from "@/client/components/prompt-connector-menu";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -679,6 +680,11 @@ export const PromptInput = ({
           )}
 
           {browserToggle}
+
+          <PromptConnectorMenu
+            disabled={disabled || isLoading}
+            draftKey={draftKey}
+          />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

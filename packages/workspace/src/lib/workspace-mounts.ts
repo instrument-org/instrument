@@ -1,7 +1,17 @@
 import { REGISTRY_FOLDER_NAMES } from "../constants";
 import { type AbsolutePath } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
+import { CONNECTOR_MANIFEST_FILE_NAME } from "./connectors/manifest";
 import { getWorkspaceConfig } from "./workspace-config";
+
+/**
+ * Virtual mount point of the workspace's own `connectors/` directory.
+ *
+ * Writable, on the same terms as the skills mount. Secrets never live here:
+ * credentials stay in the app's encrypted store and are injected at request
+ * time, so a connector folder holds only its manifest and its guide.
+ */
+export const CONNECTORS_MOUNT_POINT = "/connectors";
 
 /**
  * Virtual mount point of the workspace's own `skills/` directory.
@@ -15,7 +25,7 @@ import { getWorkspaceConfig } from "./workspace-config";
 export const SKILLS_MOUNT_POINT = "/skills";
 
 /** The workspace's own writable mounts, in the order they are advertised. */
-export const WORKSPACE_MOUNT_KINDS = ["skills"] as const;
+export const WORKSPACE_MOUNT_KINDS = ["skills", "connectors"] as const;
 
 /** Which of the workspace's own writable mounts a directory or write belongs to. */
 export type WorkspaceMountKind = (typeof WORKSPACE_MOUNT_KINDS)[number];
@@ -23,23 +33,30 @@ export type WorkspaceMountKind = (typeof WORKSPACE_MOUNT_KINDS)[number];
 /**
  * What each writable workspace mount is made of.
  *
- * A mount holds one directory per package, identified by an entry file at its
- * root. Everything that treats a mount generically -- creating the directory,
- * mounting it writable, attributing a turn's writes to a package -- reads this
- * table, so a second writable mount is an entry here rather than a parallel set
- * of modules.
+ * Skills and connectors hold the same shape of thing: one directory per package,
+ * identified by an entry file at its root, authored by the agent with the
+ * ordinary file tools. Everything that treats them alike -- creating the
+ * directory, mounting it writable, attributing a turn's writes to a package --
+ * reads this table instead of naming the two separately, so a third mount is an
+ * entry here rather than a parallel set of modules.
  */
-export const WORKSPACE_MOUNTS: Record<WorkspaceMountKind, WorkspaceMountSpec> = {
-  skills: {
-    entryFile: "SKILL.md",
-    mountPoint: SKILLS_MOUNT_POINT,
-    resolveHostRoot: () =>
-      absolutePathJoin(
-        getWorkspaceConfig().rootDir,
-        REGISTRY_FOLDER_NAMES.skills,
-      ),
-  },
-};
+export const WORKSPACE_MOUNTS: Record<WorkspaceMountKind, WorkspaceMountSpec> =
+  {
+    connectors: {
+      entryFile: CONNECTOR_MANIFEST_FILE_NAME,
+      mountPoint: CONNECTORS_MOUNT_POINT,
+      resolveHostRoot: () => getWorkspaceConfig().connectorsDir,
+    },
+    skills: {
+      entryFile: "SKILL.md",
+      mountPoint: SKILLS_MOUNT_POINT,
+      resolveHostRoot: () =>
+        absolutePathJoin(
+          getWorkspaceConfig().rootDir,
+          REGISTRY_FOLDER_NAMES.skills,
+        ),
+    },
+  };
 
 interface WorkspaceMountSpec {
   /**
@@ -55,6 +72,11 @@ interface WorkspaceMountSpec {
    * changes between tests.
    */
   resolveHostRoot: () => AbsolutePath;
+}
+
+/** The workspace's own writable connectors directory. */
+export function getWorkspaceConnectorsDir(): AbsolutePath {
+  return WORKSPACE_MOUNTS.connectors.resolveHostRoot();
 }
 
 /** The workspace's own writable skills directory. */

@@ -28,8 +28,8 @@ export interface WorkspaceMountChanges {
  * workspace mount.
  *
  * That mount is the whole of what an agent can install or revise for its kind,
- * so a change here is the complete answer to "did this turn touch a skill" --
- * every other source is read-only to the agent.
+ * so a change here is the complete answer to "did this turn touch a skill / a
+ * connector" -- every other source is read-only to the agent.
  */
 export type WorkspaceMountIndex = Map<string, PackageStamp>;
 
@@ -233,11 +233,14 @@ function emptyChangesByKind(): Record<
   WorkspaceMountKind,
   WorkspaceMountChanges
 > {
-  return { skills: emptyChanges() };
+  return { connectors: emptyChanges(), skills: emptyChanges() };
 }
 
 function mountTrackers(): Record<WorkspaceMountKind, MountTracker> {
-  return { skills: newMountTracker("skills") };
+  return {
+    connectors: newMountTracker("connectors"),
+    skills: newMountTracker("skills"),
+  };
 }
 
 function newMountTracker(kind: WorkspaceMountKind): MountTracker {

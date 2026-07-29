@@ -28,6 +28,10 @@ export function createStubWorkspaceConfig({
     captureException: () => {
       return;
     },
+    connectors: { getCredential: () => Promise.resolve(null) },
+    connectorsDir: AbsolutePathSchema.parse(
+      path.join(absoluteRootDir, "connectors"),
+    ),
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       path.join(absoluteRootDir, "default-task-template"),
     ),

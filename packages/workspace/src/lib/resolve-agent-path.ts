@@ -115,13 +115,15 @@ export async function getSimilarPathSuggestions({
 /**
  * Resolve a read-path input against the workspace layout. Accepts task-relative
  * paths, the task's own virtual paths (/task/...), attached-folder mount paths
- * (/mnt/<name>/...), and the workspace skills mount (/skills/...). Any other
- * absolute path is an error that steers the agent back into the layout.
+ * (/mnt/<name>/...), the workspace skills mount (/skills/...), and the
+ * connectors mount (/connectors/...). Any other absolute path is an error that
+ * steers the agent back into the layout.
  *
  * Returns `{ absolutePath, displayPath, mount }`:
  * - `absolutePath` — real host path; use for all file I/O.
  * - `displayPath` — what to echo back to the agent: task-relative for the task
- *   (./work/...), the virtual mount path everywhere else (/mnt/..., /skills/...).
+ *   (./work/...), the virtual mount path everywhere else (/mnt/..., /skills/...,
+ *   /connectors/...).
  * - `mount` — the non-task mount that owns the path, or null when the path is in
  *   the task. A caller that emits host paths must map them back to the mount
  *   path when this is set, so the machine layout stays hidden.
@@ -199,6 +201,11 @@ export function resolveToolPath(layout: WorkspaceFsLayout, inputPath: string) {
   if (!absolutePath) {
     return executeError(`Path escapes the task directory: ${inputPath}`);
   }
+  if (hostPathEscapesMount(absolutePath, layout.task.hostRoot)) {
+    return executeError(
+      `The path "${inputPath}" resolves outside its mount (via a symlink) and cannot be accessed.`,
+    );
+  }
 
   if (isTaskPrivatePath(layout.task.hostRoot, absolutePath)) {
     return privateDirError(displayPath);
@@ -209,11 +216,11 @@ export function resolveToolPath(layout: WorkspaceFsLayout, inputPath: string) {
 
 /**
  * Resolve a write-path input against the workspace layout. Task-relative paths,
- * the task's own virtual paths (/task/...), and the writable skills mount
- * (/skills/...) resolve normally; read-only mounts are rejected with
- * copy-into-task guidance instead of silently landing somewhere else. Whether a
- * non-task mount is writable is decided by its readOnly flag, never by a
- * per-mount special case here.
+ * the task's own virtual paths (/task/...), and the writable workspace mounts
+ * (/skills/..., /connectors/...) resolve normally; read-only mounts are rejected
+ * with copy-into-task guidance instead of silently landing somewhere else.
+ * Whether a non-task mount is writable is decided by its readOnly flag, never by
+ * a per-mount special case here.
  */
 export function resolveWritableToolPath(options: {
   inputPath: string;
@@ -269,8 +276,9 @@ function privateDirError(displayPath: string) {
 }
 
 /**
- * Resolve an absolute virtual path (/task/..., /mnt/<name>/..., /skills/...)
- * through the layout. Absolute paths outside every mount error with steering:
+ * Resolve an absolute virtual path (/task/..., /mnt/<name>/..., /skills/...,
+ * /connectors/...) through the layout. Absolute paths outside every mount error
+ * with steering:
  * real host paths into a mounted directory point at that mount's virtual path,
  * and anything else lists what the layout actually exposes.
  */
@@ -305,6 +313,14 @@ function resolveVirtualAbsolutePath(
 
   const { hostPath, mount } = resolved;
 
+  // Dedicated file tools use node fs directly, so enforce the same symlink
+  // boundary as the bash sandbox for every mount, including writable ones.
+  if (hostPathEscapesMount(hostPath, mount.hostRoot)) {
+    return executeError(
+      `The path "${virtualPath}" resolves outside its mount (via a symlink) and cannot be accessed.`,
+    );
+  }
+
   if (mount === layout.task) {
     if (isTaskPrivatePath(layout.task.hostRoot, hostPath)) {
       return privateDirError(normalizePath(virtualPath));
@@ -321,15 +337,6 @@ function resolveVirtualAbsolutePath(
       displayPath: RelativePathSchema.parse(relative),
       mount: null,
     });
-  }
-
-  // The bash sandbox refuses to traverse symlinks out of a mount; the file
-  // tools go through node fs directly, so enforce the same containment here or
-  // a symlink inside the folder could read host files.
-  if (hostPathEscapesMount(hostPath, mount.hostRoot)) {
-    return executeError(
-      `The path "${virtualPath}" resolves outside its mount (via a symlink) and cannot be accessed.`,
-    );
   }
 
   return ok({

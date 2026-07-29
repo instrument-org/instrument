@@ -21,7 +21,11 @@ import {
 
 import { AGENTS } from "../../agents/all";
 import { type AgentName } from "../../agents/types";
-import { PROJECTS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
+import {
+  CONNECTORS_DIR_NAME,
+  PROJECTS_DIR_NAME,
+  TASKS_DIR_NAME,
+} from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
@@ -42,6 +46,7 @@ import {
   type BrowserConfig,
   type BrowserTargetId,
   type WorkspaceConfig,
+  type WorkspaceConnectorsConfig,
 } from "../../types";
 import { type ToolCallUpdate } from "../agent";
 import { runtimeMachine } from "../runtime";
@@ -390,6 +395,7 @@ export const workspaceMachine = setup({
       browser: BrowserConfig;
       captureEvent: CaptureEventFunction;
       captureException: CaptureExceptionFunction;
+      connectors: WorkspaceConnectorsConfig;
       defaultTaskTemplateDir: string;
       getAIProviderConfigs: GetProviderConfigs;
       isExternalBrowserEnabled: () => boolean;
@@ -415,6 +421,8 @@ export const workspaceMachine = setup({
       browser: input.browser,
       captureEvent: input.captureEvent,
       captureException: input.captureException,
+      connectors: input.connectors,
+      connectorsDir: absolutePathJoin(rootDir, CONNECTORS_DIR_NAME),
       defaultTaskTemplateDir: AbsolutePathSchema.parse(
         input.defaultTaskTemplateDir,
       ),

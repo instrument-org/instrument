@@ -7,6 +7,7 @@ import { EyeIcon, GlobeIcon, type Icon } from "@phosphor-icons/react";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
+import { getBrowserDomains } from "../../lib/get-browser-domains";
 import { getToolExplanation } from "../../lib/get-tool-explanation";
 import {
   getToolLabelForPart,
@@ -22,6 +23,7 @@ import {
 import { Spinner } from "../ui/spinner";
 import { BashCommandChip, BrowserChip, type BrowserInfo } from "./tool-bash";
 import { useToolCallSession } from "./tool-call-session";
+import { isPendingInteractiveToolCall } from "./tool-call-utils";
 import { FileChip } from "./tool-card";
 import { SourceImagesChip } from "./tool-generate-image";
 import { WebSearchChip } from "./tool-web-search";
@@ -74,8 +76,12 @@ export function ToolCallSummary({
     };
   }, [isCurrentTool]);
 
-  const isCollapsibleOpen = isManuallyOpen || isAutoOpen;
-  const isEmphasized = isCollapsibleOpen && !isStreaming && !isAgentRunning;
+  // A parked interactive tool call (credential prompt, choose) is an inline
+  // question: keep it expanded so its input is visible until the user answers.
+  const isAwaitingInput = isPendingInteractiveToolCall(part);
+  const isCollapsibleOpen = isManuallyOpen || isAutoOpen || isAwaitingInput;
+  const isEmphasized =
+    isCollapsibleOpen && !isStreaming && !isAgentRunning && !isAwaitingInput;
 
   const toolName = getToolNameByType(part.type);
   const browserInfo = getBrowserInfo(part);
@@ -215,26 +221,10 @@ function getBrowserInfo(part: SessionMessagePart.ToolPart): BrowserInfo | null {
     return null;
   }
 
-  const domainCounts = new Map<string, number>();
-  for (const token of command.split(/\s+/)) {
-    if (!token.startsWith("http")) {
-      continue;
-    }
-    try {
-      const hostname = new URL(token).hostname.replace(/^www\./, "");
-      domainCounts.set(hostname, (domainCounts.get(hostname) ?? 0) + 1);
-    } catch {
-      // not a valid URL
-    }
-  }
-
-  if (domainCounts.size === 0) {
+  const domains = getBrowserDomains(command);
+  if (domains.length === 0) {
     return null;
   }
-
-  const domains = [...domainCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([domain]) => domain);
 
   return { domains };
 }

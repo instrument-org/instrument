@@ -14,14 +14,14 @@ import {
   LINE_NUMBER_PAD_WIDTH,
   LINE_NUMBER_SEPARATOR,
 } from "../lib/add-line-numbers";
+import { guardConnectorManifestOverwrite } from "../lib/connectors/guard-write";
 import { executeError } from "../lib/execute-error";
 import { pathExists } from "../lib/path-exists";
 import {
   applyUnicodeFallbacks,
   resolveWritableToolPath,
 } from "../lib/resolve-agent-path";
-import { taskDir } from "../lib/task-dir-utils";
-import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
+import { buildTaskFsLayout } from "../lib/task-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
@@ -781,10 +781,7 @@ export const EditFile = setupTool({
       return executeError("oldString and newString must be different");
     }
 
-    const layout = buildWorkspaceFsLayout({
-      attachedFolders: taskState.attachedFolders,
-      taskHostRoot: taskDir(taskId),
-    });
+    const layout = buildTaskFsLayout(taskId, taskState);
     const pathResult = resolveWritableToolPath({
       inputPath: input.filePath,
       layout,
@@ -799,6 +796,13 @@ export const EditFile = setupTool({
       input.oldString === ""
         ? resolvedPath
         : applyUnicodeFallbacks(resolvedPath);
+    if (input.oldString === "") {
+      const connectorGuard =
+        await guardConnectorManifestOverwrite(absolutePath);
+      if (connectorGuard !== null) {
+        return executeError(connectorGuard);
+      }
+    }
     const exists = await pathExists(absolutePath);
 
     let contentOld = "";

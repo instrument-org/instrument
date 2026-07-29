@@ -156,6 +156,37 @@ describe("EditFile", () => {
     });
   });
 
+  it("refuses a full rewrite of an enabled connector manifest", async () => {
+    mockFs({
+      "/tmp/workspace/connectors": {
+        linear: {
+          "connector.json": JSON.stringify({
+            auth: { kind: "bearer" },
+            baseUrl: "https://api.example.com",
+            displayName: "Linear",
+            enabled: true,
+            test: { path: "/me" },
+            type: "api",
+          }),
+        },
+      },
+      [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} },
+    });
+
+    const result = await runTool(
+      TOOLS.EditFile,
+      makeExecuteArgs({
+        filePath: "/connectors/linear/connector.json",
+        newString: "{}",
+        oldString: "",
+      }),
+    );
+
+    expect(result._unsafeUnwrapErr().message).toContain(
+      "already exists and is enabled",
+    );
+  });
+
   describe("toModelOutput", () => {
     it("returns a bare success line", async () => {
       setupMockFs({ "index.ts": "const x = 1;" });

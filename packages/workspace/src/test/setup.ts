@@ -41,6 +41,8 @@ setWorkspaceConfig({
   },
   captureEvent: noop,
   captureException: noop,
+  connectors: { getCredential: () => Promise.resolve(null) },
+  connectorsDir: AbsolutePathSchema.parse(path.join(rootDir, "connectors")),
   defaultTaskTemplateDir: AbsolutePathSchema.parse(
     path.join(rootDir, "default-task-template"),
   ),

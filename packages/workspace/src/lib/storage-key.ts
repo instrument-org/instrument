@@ -19,6 +19,13 @@ export namespace StorageKey {
     return ["browser-state", sessionId].join(SEPARATOR);
   }
 
+  // Per-session baseline of the workspace's connectors (slug + enabled),
+  // diffed when composing a user message so
+  // the agent learns about connectors added/enabled/removed between turns.
+  export function connectorsBaseline(sessionId: StoreId.Session) {
+    return ["connectors-baseline", sessionId].join(SEPARATOR);
+  }
+
   export function extractMessageId(messageKey: string): StoreId.Message {
     return StoreId.MessageSchema.parse(messageKey.split(SEPARATOR).at(-1));
   }

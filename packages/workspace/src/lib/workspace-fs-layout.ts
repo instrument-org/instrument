@@ -27,6 +27,8 @@ import {
 } from "./workspace-mounts";
 
 export {
+  CONNECTORS_MOUNT_POINT,
+  getWorkspaceConnectorsDir,
   getWorkspaceSkillsDir,
   SKILLS_MOUNT_POINT,
 } from "./workspace-mounts";
@@ -52,7 +54,7 @@ const DEV_MOUNT_POINT = "/dev";
 
 /**
  * The complete virtual filesystem layout for a task: the writable task mount,
- * the workspace's own writable mounts, and any read-only
+ * the workspace's own writable mounts (skills, connectors), and any read-only
  * user-attached folders. This is the single source of truth shared by the bash
  * sandbox (just-bash filesystem), the native-binary path bridge, and the
  * dedicated file tools, so all three agree on what the agent can see and where.
@@ -186,7 +188,10 @@ export function buildWorkspaceFsLayout({
       mountPoint: TASK_MOUNT_POINT,
       readOnly: false,
     },
-    workspace: { skills: workspaceMount("skills") },
+    workspace: {
+      connectors: workspaceMount("connectors"),
+      skills: workspaceMount("skills"),
+    },
   };
 }
 
@@ -385,10 +390,10 @@ function workspaceMount(kind: WorkspaceMountKind): WorkspaceFsMount {
 
 /**
  * The workspace's own directories, mounted writable outside the task: authoring
- * a skill is editing a plain package of files, so the agent does it with the
- * ordinary file tools rather than a dedicated tool. They share one lifecycle --
- * always part of the layout, created on demand, never detachable -- so anything
- * that treats one of them specially should treat all of them the same way.
+ * a skill or a connector is editing a plain package of files, so the agent does
+ * it with the ordinary file tools rather than a dedicated tool. They share one
+ * lifecycle -- always part of the layout, created on demand, never detachable --
+ * so anything that treats one of them specially should treat both the same way.
  */
 function workspaceMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
   return WORKSPACE_MOUNT_KINDS.map((kind) => layout.workspace[kind]);

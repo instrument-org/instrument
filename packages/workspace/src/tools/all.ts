@@ -5,6 +5,11 @@ import type { AnyAgentTool, ToolName } from "./types";
 
 import { BashTool } from "./bash";
 import { Choose } from "./choose";
+import { ConnectorCredentialPrompt } from "./connector-credential-prompt";
+import { ConnectorMcp } from "./connector-mcp";
+import { ConnectorOAuthPrompt } from "./connector-oauth-prompt";
+import { ConnectorRequest } from "./connector-request";
+import { ConnectorTest } from "./connector-test";
 import { EditFile } from "./edit-file";
 import { GenerateImage } from "./generate-image";
 import { LoadSkill } from "./load-skill";
@@ -17,6 +22,11 @@ import { WriteFile } from "./write-file";
 export const TOOLS = {
   BashTool,
   Choose,
+  ConnectorCredentialPrompt,
+  ConnectorMcp,
+  ConnectorOAuthPrompt,
+  ConnectorRequest,
+  ConnectorTest,
   EditFile,
   GenerateImage,
   LoadSkill,
@@ -32,6 +42,11 @@ export type InternalToolName = keyof typeof TOOLS;
 export const TOOLS_BY_NAME = {
   [TOOLS.BashTool.name]: TOOLS.BashTool,
   [TOOLS.Choose.name]: TOOLS.Choose,
+  [TOOLS.ConnectorCredentialPrompt.name]: TOOLS.ConnectorCredentialPrompt,
+  [TOOLS.ConnectorMcp.name]: TOOLS.ConnectorMcp,
+  [TOOLS.ConnectorOAuthPrompt.name]: TOOLS.ConnectorOAuthPrompt,
+  [TOOLS.ConnectorRequest.name]: TOOLS.ConnectorRequest,
+  [TOOLS.ConnectorTest.name]: TOOLS.ConnectorTest,
   [TOOLS.EditFile.name]: TOOLS.EditFile,
   [TOOLS.GenerateImage.name]: TOOLS.GenerateImage,
   [TOOLS.LoadSkill.name]: TOOLS.LoadSkill,

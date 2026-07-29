@@ -184,6 +184,7 @@ describe("buildBashFs", () => {
     const bash = await makeBash();
     const result = await bash.exec("ls /");
     expect(result.stdout.split("\n").filter(Boolean).sort()).toEqual([
+      "connectors",
       "dev",
       "mnt",
       "skills",
@@ -221,8 +222,8 @@ describe("buildBashFs", () => {
   });
 });
 
-// The workspace's own writable mounts share one lifecycle, so every case runs
-// against each of them, driven off the real mount table.
+// /skills and /connectors are the workspace's own writable mounts and share one
+// lifecycle, so every case runs against both, driven off the real mount table.
 describe("buildBashFs workspace mounts", () => {
   let tmpDir: string;
 
@@ -239,6 +240,7 @@ describe("buildBashFs workspace mounts", () => {
     createMockTaskConfig(TaskIdSchema.parse("workspace-mount-test"));
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
+      connectorsDir: AbsolutePathSchema.parse(path.join(tmpDir, "connectors")),
       rootDir: WorkspaceDirSchema.parse(tmpDir),
     });
     for (const { resolveHostRoot } of MOUNT_CASES) {
@@ -295,10 +297,11 @@ describe("buildBashFs workspace mounts", () => {
     },
   );
 
-  it("lists every workspace mount at the virtual root", async () => {
+  it("lists both workspace mounts at the virtual root", async () => {
     const bash = await makeBash();
     const result = await bash.exec("ls /");
     expect(result.stdout.split("\n").filter(Boolean).sort()).toEqual([
+      "connectors",
       "dev",
       "skills",
       "task",

@@ -12,6 +12,7 @@ import {
   buildProjectContextText,
   projectFoldersIntro,
 } from "../lib/build-project-context-text";
+import { buildConnectorsContextText } from "../lib/connectors/context";
 import { getEffectiveProjectContext } from "../lib/effective-project-context";
 import { TypedError } from "../lib/errors";
 import { setFileIndexBaseline } from "../lib/file-index-baseline";
@@ -31,7 +32,11 @@ import {
 } from "../lib/task-file-watcher";
 import { getTaskState } from "../lib/task-state-store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
-import { SKILLS_MOUNT_POINT } from "../lib/workspace-fs-layout";
+import {
+  CONNECTORS_MOUNT_POINT,
+  getWorkspaceConnectorsDir,
+  SKILLS_MOUNT_POINT,
+} from "../lib/workspace-fs-layout";
 import {
   beginMountChangeTracking,
   consumeMountChanges,
@@ -124,6 +129,11 @@ async function getProjectContextSnapshot({
 
 export const mainAgent = setupAgent({
   agentTools: pick(TOOLS, [
+    "ConnectorCredentialPrompt",
+    "ConnectorMcp",
+    "ConnectorOAuthPrompt",
+    "ConnectorRequest",
+    "ConnectorTest",
     "EditFile",
     "GenerateImage",
     "LoadSkill",
@@ -206,7 +216,7 @@ export const mainAgent = setupAgent({
     - \`${F.output}/\` -- finished deliverables, shown to the user inline with previews. Write final results here.
     - \`${F.downloads}/\` -- files you download (e.g. via the browser) land here; visible to the user. Move one to \`${F.output}/\` when it's a finished deliverable.
 
-    Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`, everything else in \`${F.work}/\`. Your working directory is the task root (\`/task\`); use relative paths for task files (\`${F.work}/...\`, \`${F.output}/...\`). The only absolute paths you use are virtual mount paths: \`/mnt/...\` for attached folders and \`${SKILLS_MOUNT_POINT}/...\` for the workspace's own skills. Never use host paths like \`/Users/...\`.
+    Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`, everything else in \`${F.work}/\`. Your working directory is the task root (\`/task\`); use relative paths for task files (\`${F.work}/...\`, \`${F.output}/...\`). The only absolute paths you use are virtual mount paths: \`/mnt/...\` for attached folders, \`${SKILLS_MOUNT_POINT}/...\` for the workspace's own skills, and \`${CONNECTORS_MOUNT_POINT}/...\` for its connectors. Never use host paths like \`/Users/...\`.
     - Folders the user attaches are mounted read-only under \`/mnt/\` (one directory per folder; the attached-folders context lists the exact paths) and reflect the user's real files. They are NOT under the task root, so reach them by their \`/mnt/...\` path and never a relative one -- including from agent-authored HTML or CSS, where that absolute path is what lets the static asset origin resolve them.
     - If needed files aren't available, tell the user they can upload them or attach the containing folder.
     - \`${SKILLS_MOUNT_POINT}/\` is the workspace's own skills folder, mounted writable.
@@ -218,6 +228,10 @@ export const mainAgent = setupAgent({
       Like \`/mnt/\`, this is outside the task root, so native tools (python, ffmpeg,
       scripts) cannot reach it; to run a skill's script, load the skill and run the
       copy under \`${F.work}/${F.skills}/\`.
+    - \`${CONNECTORS_MOUNT_POINT}/\` is the workspace's own connectors folder, mounted
+      writable on the same terms as \`${SKILLS_MOUNT_POINT}/\`. Each connector is a
+      directory holding \`connector.json\` plus a \`guide.md\`, and you author one with
+      your normal file tools. See the Data Connectors section below for what they do.
 
     # Tools Usage Guidance
     - Choose the fastest deterministic method that fully satisfies the requested outcome. Words such as "create," "generate," or "image" describe the deliverable, not permission to use AI image generation. Use the ${agentTools.GenerateImage.name} tool only when the user explicitly asks for AI generation or when the desired result requires learned visual synthesis or semantic image editing. For exact graphics, flat colors, shapes, text, charts, diagrams, resizing, cropping, compositing, or format conversion, use direct file writing (such as SVG or HTML) or deterministic scripts and commands.
@@ -231,6 +245,15 @@ export const mainAgent = setupAgent({
     - You do not automatically see files written to disk, and a command exiting cleanly does not mean the result is right. Before reporting a deliverable done, open it the way the user will see it -- view the image, read the document, load the page -- and confirm it satisfies the request; when the user gave a reference or spec, open that too and compare directly. If you could not verify something, say so plainly and never imply a check you did not run.
     - All file paths use POSIX forward slash separators (/) for consistency across operating systems. Both tool outputs and your path inputs should use forward slashes.
     - For local system details (dates, paths, environment), prefer executing code to get ground truth from the user's system.
+
+    ## Data Connectors
+    A connector gives you authenticated access to an external service (e.g. Notion). Each one is a folder at \`${CONNECTORS_MOUNT_POINT}/<slug>/\` holding a \`connector.json\` manifest and a \`guide.md\`, and the connectors context lists the ones this workspace already has.
+    - Credentials are stored by the app and injected at request time. NEVER ask the user to paste an API key into the chat, NEVER write a credential into any file, and never add your own auth headers. When a credential is missing, use \`${agentTools.ConnectorCredentialPrompt.name}\` -- it shows a secure entry field; you only learn granted or denied.
+    - The first \`${agentTools.ConnectorRequest.name}\` call for a connector returns its guide; read it, then repeat the request.
+    - Author or repair a connector by editing its files under \`${CONNECTORS_MOUNT_POINT}/<slug>/\` with your normal file tools, then validate with \`${agentTools.ConnectorTest.name}\` until it passes. A pass is what enables the connector; nothing else does.
+    - Research the service's API before writing the manifest: \`curl https://integrations.sh/api/<domain>/detect\` (or \`/discover\`) returns known API surfaces with credential-acquisition steps, and \`${agentTools.WebSearch.name}\` covers the rest. Write what you learn into the connector's \`guide.md\`.
+    - Connectors come in two types. \`type: "api"\` connectors make authenticated HTTP requests via \`${agentTools.ConnectorRequest.name}\`. \`type: "mcp"\` connectors point at a hosted MCP server (e.g. \`https://mcp.linear.app/mcp\`); use \`${agentTools.ConnectorMcp.name}\` to list and call their tools.
+    - For an MCP connector whose \`auth.kind\` is \`"oauth"\` (one-click sign-in, no key -- e.g. Linear, Notion, Sentry), do NOT collect a credential. After creating its folder and guide, use \`${agentTools.ConnectorOAuthPrompt.name}\` to show the user a Connect button; once they sign in the connector is enabled automatically.
 
     ## Web Search
     You have the \`${agentTools.WebSearch.name}\` tool. For any question or task that turns on a present-day fact about the world, search before answering -- do not answer from training data, and do not merely offer to check.
@@ -325,6 +348,11 @@ export const mainAgent = setupAgent({
           intro:
             "The user has attached these folders to this task. They are mounted read-only for direct access:",
         }),
+        await buildConnectorsContextText({
+          connectorsDir: getWorkspaceConnectorsDir(),
+          getCredential: (slug) =>
+            getWorkspaceConfig().connectors.getCredential(slug),
+        }),
         taskLayout,
       ],
     });
@@ -360,6 +388,19 @@ export const mainAgent = setupAgent({
       skillChanges.created.length > 0 || skillChanges.updated.length > 0
         ? { created: skillChanges.created, updated: skillChanges.updated }
         : undefined;
+
+    // Connectors are outside the task tree for the same reason, but the
+    // transcript already shows the work through the connector tools, so there is
+    // nothing to save here. What the host app cannot see is the manifest the
+    // agent just wrote, so tell it to re-read the set.
+    const { connectors } = mountChanges;
+    if (
+      connectors.created.length > 0 ||
+      connectors.removed.length > 0 ||
+      connectors.updated.length > 0
+    ) {
+      getWorkspaceConfig().connectors.notifyChanged?.();
+    }
 
     const result = await safeTry(async function* () {
       if (fileChanges.length === 0 && !skillChangesPart) {

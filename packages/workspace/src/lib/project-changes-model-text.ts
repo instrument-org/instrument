@@ -1,3 +1,4 @@
+import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../schemas/paths";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { systemNote } from "./system-note";
 
@@ -19,7 +20,7 @@ export function projectChangesModelNote(
       .map((folder) => `- ${folder.name}`)
       .join("\n");
     lines.push(
-      `These folders were added to the "${data.projectName}" project and are now mounted read-only under /mnt/ (the attached-folders context lists the exact paths):\n${added}`,
+      `These folders were added to the "${data.projectName}" project and are now mounted read-only under ${ATTACHED_FOLDERS_MOUNT_ROOT}/ (the attached-folders context lists the exact paths):\n${added}`,
     );
   }
 

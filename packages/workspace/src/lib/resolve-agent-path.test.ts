@@ -318,3 +318,46 @@ describe("resolveWritableToolPath", () => {
     expect(result.isErr()).toBe(true);
   });
 });
+
+describe("resolveAgentPath symlink containment", () => {
+  let root: string;
+  let taskRoot: string;
+
+  beforeEach(async () => {
+    root = await fs.mkdtemp(path.join(os.tmpdir(), "agent-path-symlink-"));
+    taskRoot = path.join(root, "task");
+    const outside = path.join(root, "outside");
+    await fs.mkdir(taskRoot);
+    await fs.mkdir(outside);
+    await fs.writeFile(path.join(outside, "secret.txt"), "secret");
+    await fs.symlink(outside, path.join(taskRoot, "link"));
+  });
+
+  afterEach(async () => {
+    await fs.rm(root, { force: true, recursive: true });
+  });
+
+  it("rejects reading through a task symlink", () => {
+    const layout = buildWorkspaceFsLayout({
+      taskHostRoot: TaskDirSchema.parse(taskRoot),
+    });
+    const result = resolveAgentPath({
+      inputPath: "/task/link/secret.txt",
+      layout,
+    });
+
+    expect(result._unsafeUnwrapErr().message).toContain("outside its mount");
+  });
+
+  it.each(["/task/link/new.txt", "link/new.txt"])(
+    "rejects creating %s through a task symlink",
+    (inputPath) => {
+      const layout = buildWorkspaceFsLayout({
+        taskHostRoot: TaskDirSchema.parse(taskRoot),
+      });
+      const result = resolveWritableToolPath({ inputPath, layout });
+
+      expect(result._unsafeUnwrapErr().message).toContain("outside its mount");
+    },
+  );
+});

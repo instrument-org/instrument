@@ -112,6 +112,12 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
           : "";
       return `<data-browserStatus status="${part.data.status}"${target}${previousUrl} />`;
     }
+    case "data-connectorChanges": {
+      const list = part.data.connectors
+        .map((c) => `<connector slug="${c.slug}" change="${c.change}" />`)
+        .join("\n");
+      return `<data-connectorChanges>\n${indent(list)}\n</data-connectorChanges>`;
+    }
     case "data-externalFileChanges": {
       const filesList = part.data.files
         .map((file) => {

@@ -56,6 +56,11 @@ minimumReleaseAgeExclude:
 
 overrides:
   "@electron/rebuild>node-abi": 4.31.0
+  # Collapse hono to the version the workspace server is written against. The
+  # MCP SDK depends on @hono/node-server@1, whose hono peer otherwise resolves to
+  # a second copy, and deduping that one drags the server's own copy up with it.
+  # Only the SDK's client transports are used here, never its server helpers.
+  hono: 4.8.5
   # Collapse jiti to a single version so vite (which has jiti as an optional
   # peer) resolves to one peer-variant. Two jiti versions otherwise spawn two
   # vite@7 variants, making Plugin types "unrelated" and breaking tsgo on

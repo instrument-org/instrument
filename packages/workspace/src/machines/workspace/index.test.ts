@@ -44,6 +44,7 @@ function createWorkspaceActor(rootDir = "/tmp/workspace") {
       browser: createStubBrowserConfig(),
       captureEvent: noop,
       captureException: noop,
+      connectors: { getCredential: () => Promise.resolve(null) },
       defaultTaskTemplateDir: MOCK_WORKSPACE_DIRS.defaultTaskTemplate,
       getAIProviderConfigs: () => [],
       isExternalBrowserEnabled: () => false,

@@ -1,3 +1,7 @@
+import {
+  pendingComposePromptAtom,
+  promptDraftAtom,
+} from "@/client/atoms/prompt-value";
 import { openWelcome } from "@/client/atoms/welcome-modal";
 import { AnimatedOutlineBrandIconGlyph } from "@/client/components/brand-icon";
 import { PromptInput } from "@/client/components/prompt-input";
@@ -15,6 +19,7 @@ import {
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
+import { useStore } from "jotai";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -64,6 +69,17 @@ function RouteComponent() {
     // Preload the task route chunk for faster navigation
     void router.loadRouteChunk(TaskRoute);
   }, [router]);
+
+  // Consume a one-shot prompt handed in by "Set up" on a connector, etc.
+  const store = useStore();
+  useEffect(() => {
+    const pending = store.get(pendingComposePromptAtom);
+    if (pending === null) {
+      return;
+    }
+    store.set(pendingComposePromptAtom, null);
+    store.set(promptDraftAtom({ scope: "compose", tabId }), pending);
+  }, [store, tabId]);
 
   return (
     <div className="grid h-full w-full flex-1 place-items-center px-8">

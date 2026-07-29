@@ -26,6 +26,24 @@ function agentBrowserCommands(
   );
 }
 
+/**
+ * Whether the agent answered in prose. Cases that accept "asked the user
+ * instead of browsing" as correct need this to tell a deliberate deferral from
+ * a session that produced nothing at all (a provider outage, a credit limit),
+ * which would otherwise read as a pass.
+ */
+function answeredInProse(
+  sessions: { messages: { parts: SessionMessagePart.Type[] }[] }[],
+): boolean {
+  return sessions.some((s) =>
+    s.messages.some((m) =>
+      m.parts.some(
+        (part) => part.type === "text" && part.text.trim().length > 0,
+      ),
+    ),
+  );
+}
+
 function bashCommand(part: SessionMessagePart.Type): string | undefined {
   if (part.type !== "tool-bash" || !("input" in part)) {
     return undefined;
@@ -80,14 +98,17 @@ const usedProfileForLogins: Assertion = {
         /\bopen\b/.test(command) && !EXTERNAL_FLAG_PATTERN.test(command),
     );
     // Asking the user before touching their logged-in browser is also a
-    // correct outcome per the skill, so no browsing at all passes.
+    // correct outcome per the skill, so answering in prose without browsing
+    // passes; a session that produced nothing at all does not.
+    const deferred = commands.length === 0 && answeredInProse(sessions);
     const passed =
-      commands.length === 0 ||
-      (profileCommands.length > 0 && bareOpens.length === 0);
+      deferred || (profileCommands.length > 0 && bareOpens.length === 0);
     return {
       evidence:
         commands.length === 0
-          ? "No agent-browser invocations (agent deferred to the user)"
+          ? deferred
+            ? "No agent-browser invocations (agent deferred to the user)"
+            : "Session produced no invocations and no prose"
           : `Profile-flow: ${profileCommands.join(" | ") || "(none)"}; bare opens: ${bareOpens.join(" | ") || "(none)"}`,
       passed,
       text: "Reached the user's logins via --profile, not the task browser",
@@ -99,19 +120,23 @@ const usedProfileForLogins: Assertion = {
 const usedCdpTarget: Assertion = {
   check: ({ sessions }) => {
     const commands = agentBrowserCommands(sessions);
+    // --auto-connect reaches the same already-debugging Chromium, so the skill
+    // sanctions either spelling; only the task browser is wrong here.
     const cdp = commands.filter(
-      (command) => command.includes("--cdp") && command.includes("9222"),
+      (command) =>
+        (command.includes("--cdp") && command.includes("9222")) ||
+        command.includes("--auto-connect"),
     );
     return {
       evidence:
         cdp.length > 0
           ? `CDP invocations: ${cdp.join(" | ")}`
-          : `No --cdp 9222 invocation. Saw: ${commands.join(" | ") || "(none)"}`,
+          : `No --cdp 9222 or --auto-connect invocation. Saw: ${commands.join(" | ") || "(none)"}`,
       passed: cdp.length > 0,
-      text: "Targeted the debug Chromium with --cdp 9222",
+      text: "Targeted the debug Chromium with --cdp 9222 or --auto-connect",
     };
   },
-  text: "Targeted the debug Chromium with --cdp 9222",
+  text: "Targeted the debug Chromium with --cdp 9222 or --auto-connect",
 };
 
 const listedProfiles: Assertion = {
@@ -130,6 +155,77 @@ const listedProfiles: Assertion = {
     };
   },
   text: "Listed Chrome profiles with the profiles subcommand",
+};
+
+// Subcommands that drive a page, so they must carry the flag that names the
+// browser they belong to. `profiles` inspects the host's Chrome install rather
+// than any page, and the harness routes it externally on its own.
+const PAGE_DRIVING_SUBCOMMANDS = new Set([
+  "click",
+  "eval",
+  "fill",
+  "find",
+  "get",
+  "is",
+  "open",
+  "press",
+  "read",
+  "screenshot",
+  "snapshot",
+  "type",
+  "wait",
+]);
+
+/** Whether a shell command contains an agent-browser call that drives a page. */
+function drivesAPage(command: string): boolean {
+  return command
+    .split(/\s+/u)
+    .some((token) => PAGE_DRIVING_SUBCOMMANDS.has(token));
+}
+
+const externalFlowStayedExternal: Assertion = {
+  check: ({ sessions }) => {
+    const commands = agentBrowserCommands(sessions);
+    const pageDriving = commands.filter((command) => drivesAPage(command));
+    // A bare page command mid-flow silently lands on the task browser, which
+    // has none of the external target's state -- the failure mode the
+    // per-invocation targeting design is most exposed to.
+    const bare = pageDriving.filter(
+      (command) => !EXTERNAL_FLAG_PATTERN.test(command),
+    );
+    return {
+      evidence:
+        pageDriving.length === 0
+          ? `No page-driving invocation. Saw: ${commands.join(" | ") || "(none)"}`
+          : `Bare mid-flow: ${bare.join(" | ") || "(none)"}; all: ${pageDriving.join(" | ")}`,
+      passed: pageDriving.length > 0 && bare.length === 0,
+      text: "Repeated the targeting flag on every command in the external flow",
+    };
+  },
+  text: "Repeated the targeting flag on every command in the external flow",
+};
+
+const recoveredFromBlockedSubcommand: Assertion = {
+  check: ({ sessions }) => {
+    const commands = agentBrowserCommands(sessions);
+    const blocked = commands.filter((command) =>
+      command.split(/\s+/u).includes("connect"),
+    );
+    const targeted = commands.filter((command) =>
+      /--cdp|--auto-connect/.test(command),
+    );
+    // Retrying a blocked subcommand means the refusal did not teach the agent
+    // the supported spelling. Reporting back to the user without browsing is
+    // also acceptable, so only repeated banging fails.
+    const passed =
+      blocked.length <= 1 && (commands.length > 0 || answeredInProse(sessions));
+    return {
+      evidence: `connect attempts: ${blocked.length} (${blocked.join(" | ") || "none"}); targeting flags used: ${targeted.join(" | ") || "(none)"}${commands.length === 0 && !answeredInProse(sessions) ? "; session produced nothing" : ""}`,
+      passed,
+      text: "Did not retry the blocked connect subcommand",
+    };
+  },
+  text: "Did not retry the blocked connect subcommand",
 };
 
 export const BROWSER_SELECTION_EVALS = [
@@ -153,8 +249,10 @@ export const BROWSER_SELECTION_EVALS = [
   defineEval({
     assertions: [usedCdpTarget],
     name: "browser-external-cdp",
+    // Asks for rendered page copy: the CDP HTTP endpoint lists tab URLs, so a
+    // question answerable from that list never exercises a browser connection.
     prompt:
-      "A Chromium instance is running with remote debugging on port 9222. Connect to it and report the URL of its current tab.",
+      "A Chromium instance is running with remote debugging on port 9222. Connect to it and tell me what the main heading on its current tab says.",
     shouldStop: stopOnAgentBrowser((command) => command.includes("--cdp")),
   }),
   // The user's logged-in state must go through --profile, never a bare open.
@@ -171,5 +269,29 @@ export const BROWSER_SELECTION_EVALS = [
     name: "browser-profiles-listing",
     prompt: "List the Chrome profiles available on this machine.",
     shouldStop: stopOnAgentBrowser((command) => /\bprofiles\b/.test(command)),
+  }),
+  // Multi-step external work: targeting is per invocation, so a bare follow-up
+  // silently lands on the task browser. Runs to completion against the debug
+  // Chromium so every command in the flow is observable.
+  defineEval({
+    assertions: [externalFlowStayedExternal],
+    name: "browser-external-stickiness",
+    prompt:
+      "A Chrome is running with remote debugging on port 9222. Using that browser, open https://example.com, then report its page title and the text of its first paragraph.",
+  }),
+  // A file the agent produced belongs in the task browser, which serves it.
+  defineEval({
+    assertions: [usedTaskBrowserOnly],
+    name: "browser-task-local-file",
+    prompt:
+      "Create an HTML file with a heading that says Hello, then open it in a browser and confirm the heading renders.",
+    shouldStop: stopOnAgentBrowser((command) => /\bopen\b/.test(command)),
+  }),
+  // A blocked subcommand must teach the supported spelling, not invite retries.
+  defineEval({
+    assertions: [recoveredFromBlockedSubcommand],
+    name: "browser-blocked-connect",
+    prompt:
+      "Run `agent-browser connect 9222` to attach to the browser on port 9222, then report the current tab's title.",
   }),
 ];

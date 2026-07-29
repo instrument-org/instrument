@@ -70,124 +70,126 @@ function RouteComponent() {
     : null;
 
   return (
-    <div className="container mx-auto space-y-6 p-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Release notes</h1>
-          <p className="mt-2 text-muted-foreground">
-            Latest updates and changes to {APP_NAME}
-          </p>
-        </div>
-        <div className="flex flex-col items-end gap-1">
-          <Button
-            disabled={checkForUpdatesMutation.isPending}
-            onClick={handleCheckForUpdates}
-            variant="secondary"
-          >
-            {checkForUpdatesMutation.isPending
-              ? "Checking..."
-              : "Check for Updates"}
-          </Button>
-          {lastChecked && (
-            <p className="text-xs text-muted-foreground/50">
-              Checked {formatDistanceToNow(lastChecked, { addSuffix: true })}
+    <div className="h-full overflow-y-auto scroll-fade-y">
+      <div className="container mx-auto space-y-6 p-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Release notes</h1>
+            <p className="mt-2 text-muted-foreground">
+              Latest updates and changes to {APP_NAME}
             </p>
-          )}
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <Button
+              disabled={checkForUpdatesMutation.isPending}
+              onClick={handleCheckForUpdates}
+              variant="secondary"
+            >
+              {checkForUpdatesMutation.isPending
+                ? "Checking..."
+                : "Check for Updates"}
+            </Button>
+            {lastChecked && (
+              <p className="text-xs text-muted-foreground/50">
+                Checked {formatDistanceToNow(lastChecked, { addSuffix: true })}
+              </p>
+            )}
+          </div>
         </div>
-      </div>
 
-      <div className="space-y-4">
-        {releasesQuery.isLoading ? (
-          Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <Skeleton className="h-6 w-32" />
-                <Skeleton className="h-4 w-24" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-24 w-full" />
-              </CardContent>
-            </Card>
-          ))
-        ) : releasesQuery.isError ? (
-          <ErrorFallback />
-        ) : releases.length === 0 ? (
-          <ZeroState />
-        ) : (
-          releases.map((release) => (
-            <Card className="overflow-hidden" key={release.id}>
-              <CardHeader className="border-b">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="flex items-center gap-2">
-                        {release.name || release.tag_name}
-                        {currentVersion &&
-                          (release.tag_name === currentVersion ||
-                            release.tag_name === `v${currentVersion}`) && (
-                            <Badge variant="outline">Your version</Badge>
-                          )}
-                      </CardTitle>
-                      <ExternalLink
-                        className="inline-flex shrink-0 items-center gap-1 text-sm text-primary hover:text-primary/80"
-                        href={release.html_url}
-                      >
-                        View on GitHub
-                        <ArrowSquareOutIcon className="size-3" />
-                      </ExternalLink>
-                    </div>
-                    {release.name && release.name !== release.tag_name ? (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <span>Version {release.tag_name}</span>
-                        <span>•</span>
-                        <span>
+        <div className="space-y-4">
+          {releasesQuery.isLoading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <Card key={i}>
+                <CardHeader>
+                  <Skeleton className="h-6 w-32" />
+                  <Skeleton className="h-4 w-24" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-24 w-full" />
+                </CardContent>
+              </Card>
+            ))
+          ) : releasesQuery.isError ? (
+            <ErrorFallback />
+          ) : releases.length === 0 ? (
+            <ZeroState />
+          ) : (
+            releases.map((release) => (
+              <Card className="overflow-hidden" key={release.id}>
+                <CardHeader className="border-b">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2">
+                          {release.name || release.tag_name}
+                          {currentVersion &&
+                            (release.tag_name === currentVersion ||
+                              release.tag_name === `v${currentVersion}`) && (
+                              <Badge variant="outline">Your version</Badge>
+                            )}
+                        </CardTitle>
+                        <ExternalLink
+                          className="inline-flex shrink-0 items-center gap-1 text-sm text-primary hover:text-primary/80"
+                          href={release.html_url}
+                        >
+                          View on GitHub
+                          <ArrowSquareOutIcon className="size-3" />
+                        </ExternalLink>
+                      </div>
+                      {release.name && release.name !== release.tag_name ? (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <span>Version {release.tag_name}</span>
+                          <span>•</span>
+                          <span>
+                            {new Date(
+                              release.published_at || release.created_at,
+                            ).toLocaleDateString()}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">
                           {new Date(
                             release.published_at || release.created_at,
                           ).toLocaleDateString()}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="text-sm text-muted-foreground">
-                        {new Date(
-                          release.published_at || release.created_at,
-                        ).toLocaleDateString()}
-                      </div>
-                    )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-6">
-                {release.body ? (
-                  <div className="prose prose-sm prose-custom dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm">
-                    <Markdown
-                      allowRawHtml // To support GitHub's HTML-based image attachments
-                      markdown={release.body}
-                    />
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground italic">
-                    No release notes provided.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          ))
-        )}
-
-        {!releasesQuery.isLoading &&
-          !releasesQuery.isError &&
-          releases.length > 0 &&
-          hasMoreReleases && (
-            <div className="pt-8 pb-4 text-center">
-              <ExternalLink
-                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-                href={RELEASE_NOTES_URL}
-              >
-                View older releases on GitHub
-                <ArrowSquareOutIcon className="size-3" />
-              </ExternalLink>
-            </div>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  {release.body ? (
+                    <div className="prose prose-sm prose-custom dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm">
+                      <Markdown
+                        allowRawHtml // To support GitHub's HTML-based image attachments
+                        markdown={release.body}
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground italic">
+                      No release notes provided.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            ))
           )}
+
+          {!releasesQuery.isLoading &&
+            !releasesQuery.isError &&
+            releases.length > 0 &&
+            hasMoreReleases && (
+              <div className="pt-8 pb-4 text-center">
+                <ExternalLink
+                  className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+                  href={RELEASE_NOTES_URL}
+                >
+                  View older releases on GitHub
+                  <ArrowSquareOutIcon className="size-3" />
+                </ExternalLink>
+              </div>
+            )}
+        </div>
       </div>
     </div>
   );

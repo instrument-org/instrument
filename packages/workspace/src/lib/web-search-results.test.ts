@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseWebSearchResults } from "./web-search-results";
+import { readWebSearchResults } from "./web-search-results";
 
 describe("parseWebSearchResults", () => {
   it.each([
@@ -39,7 +39,7 @@ describe("parseWebSearchResults", () => {
       },
     },
   ])("reads $name as excerpts", ({ output }) => {
-    expect(parseWebSearchResults(output)).toMatchInlineSnapshot(`
+    expect(readWebSearchResults(output)).toMatchInlineSnapshot(`
       {
         "kind": "excerpts",
         "sources": [
@@ -81,7 +81,7 @@ describe("parseWebSearchResults", () => {
       },
     },
   ])("reads $name as a summary", ({ output }) => {
-    expect(parseWebSearchResults(output)).toMatchInlineSnapshot(`
+    expect(readWebSearchResults(output)).toMatchInlineSnapshot(`
       {
         "kind": "summary",
         "sources": [
@@ -99,6 +99,6 @@ describe("parseWebSearchResults", () => {
     { name: "a bare string", output: "results" },
     { name: "an output with no results at all", output: { state: "success" } },
   ])("returns null for $name rather than throwing", ({ output }) => {
-    expect(parseWebSearchResults(output)).toBeNull();
+    expect(readWebSearchResults(output)).toBeNull();
   });
 });

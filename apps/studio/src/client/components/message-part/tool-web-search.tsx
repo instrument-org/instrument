@@ -1,8 +1,10 @@
 import { APP_NAME } from "@instrument-org/shared";
-import { type SessionMessagePart } from "@instrument-org/workspace/client";
+import {
+  readWebSearchResults,
+  type SessionMessagePart,
+} from "@instrument-org/workspace/client";
 
 import { getToolLabel } from "../../lib/tool-display";
-import { parseWebSearchResults } from "../../lib/web-search-results";
 import { Favicon } from "../favicon";
 import { SessionMarkdown } from "../session-markdown";
 import { SourceLink } from "../source-link";
@@ -48,7 +50,7 @@ export function ToolWebSearch({
 
   const results =
     part.state === "output-available" && part.output.state === "success"
-      ? parseWebSearchResults(part.output)
+      ? readWebSearchResults(part.output)
       : null;
   const failureOutput =
     part.state === "output-available" && part.output.state === "failure"
@@ -140,7 +142,7 @@ export function WebSearchChip({
     return null;
   }
 
-  const results = parseWebSearchResults(part.output);
+  const results = readWebSearchResults(part.output);
   if (!results || results.sources.length === 0) {
     return null;
   }

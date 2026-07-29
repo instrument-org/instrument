@@ -1,11 +1,16 @@
 import { z } from "zod";
 
 /**
- * Tool output is cast to the current build's type when a part is read back from
- * the store, never validated (see `SessionMessagePart.coerce`), so a transcript
- * written by a build whose `web_search` schema differed still arrives typed as
- * today's shape and throws only once something reads a field it lacks. Reading
- * results back through a schema is what keeps an older task openable.
+ * Reads the results out of a persisted `web_search` output.
+ *
+ * `SessionMessagePart.coerce` casts a stored part to the current build's types
+ * rather than validating it, so a transcript written when this tool returned a
+ * different shape still arrives typed as today's, and only throws once a caller
+ * reads a field it does not have. No type can fix that after the fact: the
+ * bytes on disk predate the discriminator that would tell the shapes apart, so
+ * something has to look at the value. That happens here, once, next to the
+ * schemas that define those shapes, rather than in each component that renders
+ * them.
  */
 
 const SummarySourceSchema = z.object({
@@ -74,7 +79,8 @@ const WebSearchResultsSchema = z.union([
   FlatSummarySchema,
 ]);
 
-export function parseWebSearchResults(output: unknown) {
+/** Returns null for output too damaged to render, rather than throwing. */
+export function readWebSearchResults(output: unknown) {
   const parsed = WebSearchResultsSchema.safeParse(output);
   return parsed.success ? parsed.data : null;
 }

@@ -1,5 +1,6 @@
 import {
   type ImageModelV3,
+  type LanguageModelV3,
   type LanguageModelV3StreamPart,
 } from "@ai-sdk/provider";
 import { type AISDKWebSearchModelResult } from "@instrument-org/ai-gateway";
@@ -8,7 +9,7 @@ import { MockLanguageModelV3 } from "ai/test";
 import mockFs from "mock-fs";
 import { ok } from "neverthrow";
 import path from "node:path";
-import { pick } from "radashi";
+import { noop, pick } from "radashi";
 import {
   afterEach,
   beforeEach,
@@ -19,9 +20,11 @@ import {
   vi,
 } from "vitest";
 import {
+  type ActorOptions,
   type ActorRefFrom,
   type AnyActorRef,
   createActor,
+  SimulatedClock,
   waitFor,
 } from "xstate";
 
@@ -59,6 +62,21 @@ type Part =
   >["stream"] extends ReadableStream<infer T>
     ? T
     : never;
+
+/**
+ * A model stream the test feeds by hand. Nothing arrives until the test pushes
+ * it, so a test can hold a request open for as long as it likes without
+ * relying on wall-clock delays to outrun the machine.
+ */
+function createManualModelStream() {
+  const { readable, writable } = new TransformStream<Part, Part>();
+  const writer = writable.getWriter();
+  return {
+    close: () => void writer.close().catch(noop),
+    push: (chunk: Part) => void writer.write(chunk).catch(noop),
+    stream: readable,
+  };
+}
 
 describe("sessionMachine", () => {
   const taskFolder = "pj-test";
@@ -143,6 +161,25 @@ describe("sessionMachine", () => {
     },
   ] as const satisfies LanguageModelV3StreamPart[];
 
+  // Appended to every mocked chunk set so each model turn ends the same way.
+  const streamFinishChunk = {
+    finishReason: { raw: "stop", unified: "stop" },
+    type: "finish",
+    usage: {
+      inputTokens: {
+        cacheRead: undefined,
+        cacheWrite: undefined,
+        noCache: undefined,
+        total: 3,
+      },
+      outputTokens: {
+        reasoning: undefined,
+        text: undefined,
+        total: 10,
+      },
+    },
+  } as const satisfies LanguageModelV3StreamPart;
+
   const chooseToolCallId = "test-call-choose";
   const chooseChunks = [
     {
@@ -179,9 +216,10 @@ describe("sessionMachine", () => {
   });
 
   async function createActorAndTask({
+    actorOptions,
     agent = mainAgent,
+    aiSDKModel,
     baseLLMRetryDelayMs = 1000,
-    chunkDelayInMs = [],
     chunkSets = [],
     imageModel,
     initialChunkDelaysMs = [],
@@ -193,9 +231,13 @@ describe("sessionMachine", () => {
     webSearch,
     webSearchModel,
   }: {
+    actorOptions?: Pick<
+      ActorOptions<typeof sessionMachine>,
+      "clock" | "inspect"
+    >;
     agent?: AnyAgent;
+    aiSDKModel?: LanguageModelV3;
     baseLLMRetryDelayMs?: number;
-    chunkDelayInMs?: number[];
     chunkSets?: Part[][];
     imageModel?: ImageModelV3;
     initialChunkDelaysMs?: number[];
@@ -222,27 +264,7 @@ describe("sessionMachine", () => {
         return {
           rawCall: { rawPrompt: null, rawSettings: {} },
           stream: simulateReadableStream({
-            chunkDelayInMs: chunkDelayInMs[chunkIndex],
-            chunks: [
-              ...currentChunks,
-              {
-                finishReason: { raw: "stop", unified: "stop" },
-                type: "finish",
-                usage: {
-                  inputTokens: {
-                    cacheRead: undefined,
-                    cacheWrite: undefined,
-                    noCache: undefined,
-                    total: 3,
-                  },
-                  outputTokens: {
-                    reasoning: undefined,
-                    text: undefined,
-                    total: 10,
-                  },
-                },
-              },
-            ],
+            chunks: [...currentChunks, streamFinishChunk],
             initialDelayInMs: initialChunkDelaysMs[chunkIndex],
           }),
         };
@@ -257,7 +279,7 @@ describe("sessionMachine", () => {
     const testTaskConfig = createMockTaskConfig(
       TaskIdSchema.parse(taskFolder),
       {
-        aiSDKModel: mockLanguageModel,
+        aiSDKModel: aiSDKModel ?? mockLanguageModel,
         imageModel,
         model,
         webSearch,
@@ -275,6 +297,7 @@ describe("sessionMachine", () => {
     );
 
     const actor = createActor(sessionMachine, {
+      ...actorOptions,
       input: {
         agent,
         baseLLMRetryDelayMs,
@@ -1248,20 +1271,122 @@ describe("sessionMachine", () => {
     `);
   });
 
+  // Every step waits on something the machine did rather than on elapsed time,
+  // so the long test timeout only bounds a genuine hang.
   it("should extend timeout when chunks are received", async () => {
     const chunkTimeoutMs = 100;
+    const retryDelayMs = 10;
+    // Both the chunk deadline and the retry backoff run on a clock only this
+    // test advances, and chunks are fed in by hand, so how long the machine
+    // really takes to stream and store one cannot decide whether a request
+    // times out.
+    const clock = new SimulatedClock();
 
-    const session = await createAndRunTestMachine({
-      baseLLMRetryDelayMs: 0,
-      chunkDelayInMs: [
-        chunkTimeoutMs * 2, // First attempt: should timeout (200ms > 100ms)
-        chunkTimeoutMs * 0.1, // Second attempt: should succeed (10ms < 100ms)
-        chunkTimeoutMs * 0.1, // Third attempt: should succeed (10ms < 100ms)
-      ],
-      chunkSets: [readFileChunks, readFileChunks, finishChunks],
+    const attempts: ReturnType<typeof createManualModelStream>[] = [];
+    let chunksReceived = 0;
+    let onProgress: (() => void) | undefined;
+
+    const aiSDKModel = new MockLanguageModelV3({
+      doStream: () => {
+        const attempt = createManualModelStream();
+        attempts.push(attempt);
+        onProgress?.();
+        return Promise.resolve({
+          rawCall: { rawPrompt: null, rawSettings: {} },
+          stream: attempt.stream,
+        });
+      },
+    });
+
+    const result = await createActorAndTask({
+      actorOptions: {
+        clock,
+        inspect: (event) => {
+          if (
+            event.type === "@xstate.event" &&
+            event.event.type === "llmRequest.chunkReceived"
+          ) {
+            chunksReceived++;
+            onProgress?.();
+          }
+        },
+      },
+      aiSDKModel,
+      baseLLMRetryDelayMs: retryDelayMs,
       llmRequestChunkTimeoutMs: chunkTimeoutMs,
     });
 
+    // The two signals the test waits on: the model was asked for another
+    // stream, and the agent took in another chunk, which is what resets its
+    // deadline.
+    async function waitForProgress(until: () => boolean) {
+      while (!until()) {
+        await new Promise<void>((resolve) => {
+          onProgress = resolve;
+        });
+      }
+    }
+
+    async function waitForAttempt(index: number) {
+      await waitForProgress(() => attempts.length > index);
+      const attempt = attempts[index];
+      if (!attempt) {
+        throw new Error(`Expected attempt ${index}`);
+      }
+      return attempt;
+    }
+
+    result.actor.start();
+
+    // First attempt: one chunk and then silence, so the deadline expires and
+    // the agent retries. The clock waits for the streamed tool call to be
+    // stored, since the aborted message is expected to carry it.
+    const stalled = await waitForAttempt(0);
+    const agentRef = result.actor.getSnapshot().context.agentRef;
+    if (!agentRef) {
+      throw new Error("Expected agent ref");
+    }
+
+    stalled.push(readFileChunks[0]);
+    await vi.waitFor(
+      async () => {
+        const session = await Store.getSessionWithMessagesAndParts(
+          result.sessionId,
+          result.taskId,
+        );
+        expect(sessionToShorthand(session)).toContain(
+          'state="input-streaming"',
+        );
+      },
+      { interval: 5, timeout: 10_000 },
+    );
+    clock.increment(chunkTimeoutMs);
+    clock.increment(retryDelayMs);
+
+    // Second attempt: each chunk lands a tick before the deadline and pushes it
+    // back out, so the request outlives three timeout windows.
+    const retried = await waitForAttempt(1);
+    for (const chunk of [...readFileChunks, streamFinishChunk]) {
+      clock.increment(chunkTimeoutMs - 1);
+      // The deadline is younger than the clock jump, either because the
+      // request just started or because the previous pass's chunk reset it, so
+      // the agent is still streaming rather than waiting to retry.
+      expect(agentRef.getSnapshot().matches("LLMStreaming")).toBe(true);
+      const chunksBefore = chunksReceived;
+      retried.push(chunk);
+      await waitForProgress(() => chunksReceived > chunksBefore);
+    }
+    retried.close();
+
+    // Third attempt ends the turn. The clock stands still from here, so nothing
+    // downstream of the retry can time out.
+    const finished = await waitForAttempt(2);
+    for (const chunk of [...finishChunks, streamFinishChunk]) {
+      finished.push(chunk);
+    }
+    finished.close();
+
+    const session = await runTestMachine(result);
     expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
       "<session title="Test session" count="6">
         <user>
@@ -1301,7 +1426,7 @@ describe("sessionMachine", () => {
         <session-context main realRole="user" />
       </session>"
     `);
-  });
+  }, 30_000);
 
   describe("with write file delay", () => {
     beforeEach(() => {

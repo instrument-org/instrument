@@ -1,5 +1,4 @@
 import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
-import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { cn } from "@/client/lib/utils";
 import { steppedZoom } from "@/shared/zoom";
 import {
@@ -73,18 +72,14 @@ export function ZoomStepperControl({
       <button
         aria-label="Zoom out"
         className="flex w-9 items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground dark:hover:bg-gray-600"
-        {...immediateClickHandlers<HTMLButtonElement>({
-          onClick: onZoomOut,
-        })}
+        onClick={onZoomOut}
         type="button"
       >
         <MinusIcon className="size-4" />
       </button>
       <button
         className="min-w-12 px-2 text-sm font-medium tabular-nums hover:bg-secondary dark:hover:bg-gray-600"
-        {...immediateClickHandlers<HTMLButtonElement>({
-          onClick: onReset,
-        })}
+        onClick={onReset}
         title="Reset to 100%"
         type="button"
       >
@@ -93,9 +88,7 @@ export function ZoomStepperControl({
       <button
         aria-label="Zoom in"
         className="flex w-9 items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground dark:hover:bg-gray-600"
-        {...immediateClickHandlers<HTMLButtonElement>({
-          onClick: onZoomIn,
-        })}
+        onClick={onZoomIn}
         type="button"
       >
         <PlusIcon className="size-4" />
@@ -157,11 +150,9 @@ export function ZoomToast() {
       <button
         aria-label="Reset zoom to 100%"
         className="flex size-5 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
-        {...immediateClickHandlers<HTMLButtonElement>({
-          onClick: () => {
-            setZoom(1);
-          },
-        })}
+        onClick={() => {
+          setZoom(1);
+        }}
         title="Reset to 100%"
         type="button"
       >

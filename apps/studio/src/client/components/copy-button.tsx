@@ -1,5 +1,4 @@
 import { useTimedFlag } from "@/client/hooks/use-timed-flag";
-import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { CheckIcon, CopyIcon } from "@phosphor-icons/react";
 
 export function CopyButton({
@@ -7,7 +6,6 @@ export function CopyButton({
   disabled,
   iconSize = 16,
   onCopy,
-  onPointerDown,
   ...props
 }: Omit<React.ComponentPropsWithoutRef<"button">, "onClick"> & {
   className?: string;
@@ -31,10 +29,7 @@ export function CopyButton({
       aria-label="Copy"
       className={className}
       disabled={disabled}
-      {...immediateClickHandlers<HTMLButtonElement>({
-        onClick: () => void handleClick(),
-        onPointerDown,
-      })}
+      onClick={() => void handleClick()}
     >
       {showCheck ? <CheckIcon size={iconSize} /> : <CopyIcon size={iconSize} />}
     </button>

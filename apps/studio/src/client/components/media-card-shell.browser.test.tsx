@@ -86,13 +86,7 @@ describe("MediaCardShell overlay hit testing", () => {
     expect(hit).not.toBe(overlay);
     expect(hit?.tagName).toBe("BUTTON");
 
-    hit?.dispatchEvent(
-      new PointerEvent("pointerdown", {
-        bubbles: true,
-        button: 0,
-        pointerType: "mouse",
-      }),
-    );
+    hit?.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0 }));
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 

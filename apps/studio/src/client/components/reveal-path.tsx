@@ -1,4 +1,3 @@
-import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
@@ -29,15 +28,6 @@ export function RevealPath({
   hideIcon?: boolean;
   path: string;
 }) {
-  const handleReveal = async () => {
-    const [error] = await safe(
-      rpcClient.utils.showFileInFolder.call({ filepath: path }),
-    );
-    if (error) {
-      toast.error("That folder is no longer on disk.");
-    }
-  };
-
   return (
     <button
       className={cn(
@@ -45,11 +35,14 @@ export function RevealPath({
         allowWrap ? "items-start" : "items-center",
         className,
       )}
-      {...immediateClickHandlers<HTMLButtonElement>({
-        onClick: () => {
-          void handleReveal();
-        },
-      })}
+      onClick={async () => {
+        const [error] = await safe(
+          rpcClient.utils.showFileInFolder.call({ filepath: path }),
+        );
+        if (error) {
+          toast.error("That folder is no longer on disk.");
+        }
+      }}
       type="button"
     >
       {hideIcon ? null : <FolderOpenIcon className="size-4 shrink-0" />}

@@ -7,7 +7,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectId } from "@instrument-org/workspace/client";
@@ -109,12 +108,7 @@ function SelectedChip({
           <button
             aria-label="Remove from project"
             className="-mr-0.5 flex translate-x-1 items-center rounded-sm p-0.5 opacity-0 transition-[opacity,transform,background-color] duration-150 ease-out group-hover/chip:translate-x-0 group-hover/chip:opacity-60 hover:bg-foreground/10 hover:!opacity-100"
-            {...immediateClickHandlers<HTMLButtonElement>({
-              // Hover-revealed remove target: it appears under the pointer, so
-              // a press must stay cancelable.
-              activation: "release",
-              onClick: onRemove,
-            })}
+            onClick={onRemove}
             type="button"
           >
             <XIcon className="size-3.5" />

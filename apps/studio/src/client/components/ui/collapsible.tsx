@@ -1,7 +1,3 @@
-import {
-  type ClickActivation,
-  immediateClickHandlers,
-} from "@/client/lib/immediate-click";
 import { cn } from "@/client/lib/utils";
 import * as CollapsiblePrimitive from "@radix-ui/react-collapsible";
 
@@ -35,23 +31,13 @@ function CollapsibleContent({
 }
 
 function CollapsibleTrigger({
-  activation,
   className,
-  onClick,
-  onPointerDown,
   ...rest
-}: React.ComponentProps<typeof CollapsiblePrimitive.CollapsibleTrigger> & {
-  activation?: ClickActivation;
-}) {
+}: React.ComponentProps<typeof CollapsiblePrimitive.CollapsibleTrigger>) {
   return (
     <CollapsiblePrimitive.CollapsibleTrigger
       className={cn("cursor-default select-none", className)}
       data-slot="collapsible-trigger"
-      {...immediateClickHandlers<HTMLButtonElement>({
-        activation,
-        onClick,
-        onPointerDown,
-      })}
       {...rest}
     />
   );

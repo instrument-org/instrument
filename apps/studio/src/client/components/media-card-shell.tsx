@@ -1,5 +1,4 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { cn } from "@/client/lib/utils";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
@@ -65,10 +64,6 @@ export function MediaCardShell({
     onMouseLeave?.();
   };
 
-  const isWithinProtectionWindow = () =>
-    hoverStartRef.current !== null &&
-    Date.now() - hoverStartRef.current < VISIBLE_DELAY_MS;
-
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -93,22 +88,18 @@ export function MediaCardShell({
           </div>
 
           <button
-            {...immediateClickHandlers<HTMLButtonElement>({
-              onClick,
-            })}
             className="absolute inset-0 z-0 size-full"
+            onClick={onClick}
             type="button"
           />
 
           {!hideActionsMenu && (
             <button
-              {...immediateClickHandlers<HTMLButtonElement>({
-                onClick,
-              })}
               className={cn(
                 "absolute top-3 right-3 z-10 flex size-7 items-center justify-center",
                 "text-white opacity-0 drop-shadow-sm transition-opacity duration-200 group-hover/media:opacity-100 group-has-[button[data-state=open]]/media:opacity-100",
               )}
+              onClick={onClick}
               type="button"
             >
               <ArrowsOutSimpleIcon className="size-3.5" />
@@ -130,15 +121,11 @@ export function MediaCardShell({
               )}
               onClickCapture={(e) => {
                 // block mouseup-race clicks that started before the protection window
-                if (isWithinProtectionWindow()) {
+                if (
+                  hoverStartRef.current !== null &&
+                  Date.now() - hoverStartRef.current < VISIBLE_DELAY_MS
+                ) {
                   e.stopPropagation();
-                }
-              }}
-              onPointerDownCapture={(e) => {
-                // Same window, for any action in here that activates on press.
-                if (isWithinProtectionWindow()) {
-                  e.stopPropagation();
-                  e.preventDefault();
                 }
               }}
             >

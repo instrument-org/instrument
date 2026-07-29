@@ -11,7 +11,6 @@ import {
 } from "@/client/components/ui/menu-components";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { type useInlineRename } from "@/client/hooks/use-inline-rename";
-import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task } from "@instrument-org/workspace/client";
 import { BagIcon, ChatsCircleIcon } from "@phosphor-icons/react";
@@ -95,11 +94,8 @@ export function TaskBreadcrumb({
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <button
-            {...immediateClickHandlers<HTMLButtonElement>({
-              activation: sidebar === "files" ? "pointer-down" : "release",
-              onClick: sidebar === "files" ? onChatClick : undefined,
-            })}
             className="flex min-w-0 items-center gap-x-2 truncate text-left"
+            onClick={sidebar === "files" ? onChatClick : undefined}
             onDoubleClick={() => {
               rename.start();
             }}

@@ -1,6 +1,5 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { getFileType } from "@/client/lib/get-file-type";
-import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { cn } from "@/client/lib/utils";
 import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
 import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
@@ -261,11 +260,9 @@ export function FilesGrid({
             "flex h-7 w-full items-center justify-center gap-1 rounded-lg text-xs text-muted-foreground",
             "hover:bg-muted hover:text-foreground",
           )}
-          {...immediateClickHandlers<HTMLButtonElement>({
-            onClick: () => {
-              setIsExpanded((expanded) => !expanded);
-            },
-          })}
+          onClick={() => {
+            setIsExpanded((expanded) => !expanded);
+          }}
           type="button"
         >
           {isExpanded ? "Show less" : `Show ${hiddenFileCount} more`}

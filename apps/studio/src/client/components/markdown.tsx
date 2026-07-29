@@ -27,7 +27,6 @@ import remend from "remend";
 import { useHashLinkScroll } from "../hooks/use-hash-link-scroll";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
 import { getAssetUrl } from "../lib/get-asset-url";
-import { immediateClickHandlers } from "../lib/immediate-click";
 import { cn } from "../lib/utils";
 import { CopyButton } from "./copy-button";
 import { ExternalLink } from "./external-link";
@@ -234,13 +233,11 @@ const TaskFileLink = ({
 
   const chip = (
     <button
-      {...immediateClickHandlers<HTMLButtonElement>({
-        onClick: openInPanel,
-      })}
       className={cn(
         "inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted/50 px-1.5 py-0.5 align-text-bottom text-sm font-medium text-foreground no-underline hover:bg-muted",
         className,
       )}
+      onClick={openInPanel}
       title={file.filePath}
       type="button"
     >
@@ -463,12 +460,7 @@ export const Markdown = memo(
                     "max-w-full cursor-pointer! rounded-md",
                     className,
                   )}
-                  // Images drag natively, which would start a drag out of the
-                  // same press that opens the preview.
-                  draggable={false}
-                  {...immediateClickHandlers<HTMLImageElement>({
-                    onClick: handleImageClick,
-                  })}
+                  onClick={handleImageClick}
                   src={resolvedSrc}
                 />
               );

@@ -1,5 +1,7 @@
 # Controls activate on press, not release
 
+> Superseded by [2026-07-29-controls-activate-on-release.md](2026-07-29-controls-activate-on-release.md).
+
 ## Context
 
 The web activates a control on `click`, which fires on pointer _release_. A desktop app is expected to answer on press. That difference is small in isolation and unmistakable in aggregate: every button, card and list row in Studio felt a beat slower than the OS around it, and the app read as a web page in a window.

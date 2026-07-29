@@ -1,30 +1,16 @@
 "use client";
 
-import {
-  type ClickActivation,
-  immediateClickHandlers,
-} from "@/client/lib/immediate-click";
 import { cn } from "@/client/lib/utils";
 import { CheckIcon } from "@phosphor-icons/react";
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 import * as React from "react";
 
 function Checkbox({
-  activation,
   className,
-  onClick,
-  onPointerDown,
   ...props
-}: React.ComponentProps<typeof CheckboxPrimitive.Root> & {
-  activation?: ClickActivation;
-}) {
+}: React.ComponentProps<typeof CheckboxPrimitive.Root>) {
   return (
     <CheckboxPrimitive.Root
-      {...immediateClickHandlers<HTMLButtonElement>({
-        activation,
-        onClick,
-        onPointerDown,
-      })}
       className={cn(
         "peer size-4 shrink-0 rounded-[4px] border border-input shadow-xs transition-[box-shadow,outline] outline-none focus-visible:border-ring focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid] disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:bg-input/30 dark:aria-invalid:ring-destructive/40 dark:data-[state=checked]:bg-primary",
         className,

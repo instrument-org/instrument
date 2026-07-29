@@ -7,7 +7,6 @@ import {
 import { SidebarMenu, SidebarMenuItem } from "@/client/components/ui/sidebar";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { getInitials } from "@/client/lib/get-initials";
-import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { rpcClient } from "@/client/rpc/client";
 import { FadersHorizontalIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
@@ -45,11 +44,9 @@ export function NavUser() {
         <SidebarMenuItem>
           <button
             className={`${rowClassName} text-gray-400 dark:text-gray-600`}
-            {...immediateClickHandlers<HTMLButtonElement>({
-              onClick: () => {
-                openSettings({ tab: "General" });
-              },
-            })}
+            onClick={() => {
+              openSettings({ tab: "General" });
+            }}
             type="button"
           >
             <FadersHorizontalIcon className="size-4 shrink-0" />
@@ -65,11 +62,9 @@ export function NavUser() {
       <SidebarMenuItem>
         <button
           className={rowClassName}
-          {...immediateClickHandlers<HTMLButtonElement>({
-            onClick: () => {
-              openSettings({ tab: "General" });
-            },
-          })}
+          onClick={() => {
+            openSettings({ tab: "General" });
+          }}
           title={userError?.message ?? subscriptionError?.message}
           type="button"
         >

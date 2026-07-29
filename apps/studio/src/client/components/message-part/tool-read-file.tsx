@@ -7,7 +7,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 
 import { appendToPromptAtom } from "../../atoms/prompt-value";
-import { immediateClickHandlers } from "../../lib/immediate-click";
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { FileIcon } from "../file-icon";
 import { IconButton } from "../icon-button";
@@ -237,11 +236,9 @@ function ReadFileCard({
       </div>
       {openOnContentClick && modifiedAt !== undefined ? (
         <button
-          {...immediateClickHandlers<HTMLButtonElement>({
-            onClick: handleExpand,
-          })}
           aria-label={`Open ${filename} in panel`}
           className="block w-full cursor-zoom-in px-4 py-3 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset"
+          onClick={handleExpand}
           type="button"
         >
           {children}

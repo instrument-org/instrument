@@ -1,4 +1,3 @@
-import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
 import { CaretDownIcon, CopyIcon } from "@phosphor-icons/react";
 import { useState } from "react";
@@ -48,11 +47,9 @@ export function ToolCallError({ part }: { part: ErrorPart }) {
               "group/toggle flex w-full items-center gap-2 px-4 py-2.5",
               "text-xs text-muted-foreground hover:text-foreground",
             )}
-            {...immediateClickHandlers<HTMLButtonElement>({
-              onClick: () => {
-                setIsRawOpen((v) => !v);
-              },
-            })}
+            onClick={() => {
+              setIsRawOpen((v) => !v);
+            }}
             type="button"
           >
             <CaretDownIcon

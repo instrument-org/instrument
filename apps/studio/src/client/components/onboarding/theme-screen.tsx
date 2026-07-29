@@ -1,7 +1,6 @@
 import { OnboardingScreen } from "@/client/components/onboarding/screen";
 import { useTheme } from "@/client/components/theme-provider";
 import { Button } from "@/client/components/ui/button";
-import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { cn } from "@/client/lib/utils";
 
 type ThemeOption = "dark" | "light" | "system";
@@ -183,9 +182,7 @@ function ThemeCard({
   return (
     <button
       className="flex flex-col items-center gap-2.5 focus-visible:outline-none"
-      {...immediateClickHandlers<HTMLButtonElement>({
-        onClick,
-      })}
+      onClick={onClick}
       type="button"
     >
       <div

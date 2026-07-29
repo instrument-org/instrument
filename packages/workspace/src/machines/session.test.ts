@@ -35,6 +35,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TaskIdSchema } from "../schemas/task-id";
+import { type WebSearchClient } from "../schemas/web-search";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import {
   createMockTaskConfig,
@@ -189,6 +190,7 @@ describe("sessionMachine", () => {
     providerConfigId = "mock-provider-config-id",
     queuedMessages = [defaultQueuedMessage],
     sessionId = defaultSessionId,
+    webSearch,
     webSearchModel,
   }: {
     agent?: AnyAgent;
@@ -202,6 +204,7 @@ describe("sessionMachine", () => {
     providerConfigId?: string;
     queuedMessages?: SessionMessage.UserWithParts[];
     sessionId?: StoreId.Session;
+    webSearch?: WebSearchClient;
     webSearchModel?: AISDKWebSearchModelResult;
   }) {
     let currentChunkIndex = 0;
@@ -257,6 +260,7 @@ describe("sessionMachine", () => {
         aiSDKModel: mockLanguageModel,
         imageModel,
         model,
+        webSearch,
         webSearchModel,
       },
     );
@@ -667,54 +671,26 @@ describe("sessionMachine", () => {
       },
     ] as const satisfies LanguageModelV3StreamPart[];
 
-    const mockWebSearchModel = new MockLanguageModelV3({
-      // oxlint-disable-next-line typescript/require-await
-      doStream: async () => ({
-        rawCall: { rawPrompt: null, rawSettings: {} },
-        stream: simulateReadableStream({
-          chunks: [
-            { id: "1", type: "text-start" },
+    // The session's model is one of ours, so the search runs against our own
+    // endpoint rather than a provider's search model.
+    const searchWeb: WebSearchClient = () =>
+      Promise.resolve({
+        data: {
+          costDollars: 0.007,
+          results: [
             {
-              delta: "TypeScript 5.7 introduces new features.",
-              id: "1",
-              type: "text-delta",
-            },
-            {
-              id: "source-1",
-              sourceType: "url",
+              text: "TypeScript 5.7 introduces new features.",
               title: "TypeScript Blog",
-              type: "source",
               url: "https://devblogs.microsoft.com/typescript",
             },
-            { id: "1", type: "text-end" },
-            {
-              finishReason: { raw: "stop", unified: "stop" },
-              type: "finish",
-              usage: {
-                inputTokens: {
-                  cacheRead: undefined,
-                  cacheWrite: undefined,
-                  noCache: undefined,
-                  total: 5,
-                },
-                outputTokens: {
-                  reasoning: undefined,
-                  text: undefined,
-                  total: 15,
-                },
-              },
-            },
-          ] satisfies LanguageModelV3StreamPart[],
-          initialDelayInMs: 0,
-        }),
-      }),
-    });
+          ],
+        },
+        ok: true,
+      });
 
     const session = await createAndRunTestMachine({
       chunkSets: [webSearchChunks, finishChunks],
-      webSearchModel: {
-        model: mockWebSearchModel,
-      },
+      webSearch: searchWeb,
     });
 
     expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
@@ -733,24 +709,18 @@ describe("sessionMachine", () => {
             </input>
             <output>
               {
-                "modelId": "mock-model-id",
-                "provider": {
-                  "id": "mock-provider-config-id",
-                  "type": "instrument"
+                "results": {
+                  "costDollars": 0.007,
+                  "kind": "excerpts",
+                  "sources": [
+                    {
+                      "text": "TypeScript 5.7 introduces new features.",
+                      "title": "TypeScript Blog",
+                      "url": "https://devblogs.microsoft.com/typescript"
+                    }
+                  ]
                 },
-                "sources": [
-                  {
-                    "title": "TypeScript Blog",
-                    "url": "https://devblogs.microsoft.com/typescript"
-                  }
-                ],
-                "state": "success",
-                "text": "TypeScript 5.7 introduces new features.",
-                "usage": {
-                  "inputTokens": 5,
-                  "outputTokens": 15,
-                  "totalTokens": 20
-                }
+                "state": "success"
               }
             </output>
           </tool>

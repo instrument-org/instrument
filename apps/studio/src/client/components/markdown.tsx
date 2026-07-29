@@ -43,6 +43,11 @@ import { contextMenuComponents } from "./ui/menu-components";
 interface MarkdownProps {
   allowRawHtml?: boolean;
   assetBaseUrl?: string;
+  // Drops the images the allow-list rejects instead of standing a placeholder
+  // in for them. For markdown scraped from a page rather than authored for us:
+  // the placeholder is a block element, so inside a paragraph the browser
+  // hoists it out and splits the text around it.
+  hideImages?: boolean;
   markdown: string;
   // Present only when rendered inside a task chat. Enables the task-file
   // right-click menu (Open in {App} / Save as… / Reveal / …); left-click
@@ -375,7 +380,13 @@ const resolveImageSrc = (
 };
 
 export const Markdown = memo(
-  ({ allowRawHtml, assetBaseUrl, markdown, taskId }: MarkdownProps) => {
+  ({
+    allowRawHtml,
+    assetBaseUrl,
+    hideImages,
+    markdown,
+    taskId,
+  }: MarkdownProps) => {
     const openFilePreview = useSetAtom(openFilePreviewAtom);
     const [rehypePlugins, setRehypePlugins] =
       useState<PluginList>(emptyPluginList);
@@ -450,7 +461,9 @@ export const Markdown = memo(
             }) => {
               const resolvedSrc = resolveImageSrc(src, assetBaseUrl);
               if (!isImageAllowed(resolvedSrc)) {
-                return <ImagePlaceholder alt={alt} src={resolvedSrc} />;
+                return hideImages ? null : (
+                  <ImagePlaceholder alt={alt} src={resolvedSrc} />
+                );
               }
               return (
                 <img

@@ -235,6 +235,12 @@ export function FilesGrid({
     </>
   );
 
+  // Every path was filtered out above, so the grid has nothing to draw. Render
+  // nothing rather than an empty box, which a flex parent still gives a gap.
+  if (mainFiles.length === 0 && folders.length === 0) {
+    return null;
+  }
+
   return (
     <div className="flex flex-col gap-2">
       {hasMoreFiles && !isExpanded ? (

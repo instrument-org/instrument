@@ -1,12 +1,31 @@
 import { type IFileSystem } from "just-bash";
 
-import { recordWorkspaceSkillMutation } from "./workspace-skill-index";
+import { recordWorkspaceMountMutation } from "./workspace-mount-index";
+import { type WorkspaceMountKind } from "./workspace-mounts";
 
 /**
- * Records successful mutations to a mounted skills filesystem without changing
- * its read or write behavior.
+ * Records successful mutations to one of the mounted writable workspace
+ * directories without changing its read or write behavior.
  */
-export function skillWriteTrackingFs(delegate: IFileSystem): IFileSystem {
+export function mountWriteTrackingFs(
+  kind: WorkspaceMountKind,
+  delegate: IFileSystem,
+): IFileSystem {
+  function record(mountPath: string) {
+    recordWorkspaceMountMutation(kind, mountPath);
+  }
+
+  async function recordAfter<T>(
+    operation: Promise<T>,
+    paths: string[],
+  ): Promise<T> {
+    const result = await operation;
+    for (const mountPath of paths) {
+      record(mountPath);
+    }
+    return result;
+  }
+
   const readFileBytes = delegate.readFileBytes?.bind(delegate);
   const readdirWithFileTypes = delegate.readdirWithFileTypes?.bind(delegate);
   const tracked: IFileSystem = {
@@ -22,7 +41,7 @@ export function skillWriteTrackingFs(delegate: IFileSystem): IFileSystem {
       const existed = await delegate.exists(args[0]);
       await delegate.mkdir(...args);
       if (!existed) {
-        recordWorkspaceSkillMutation(args[0]);
+        record(args[0]);
       }
     },
     mv: (...args) => recordAfter(delegate.mv(...args), [args[0], args[1]]),
@@ -46,15 +65,4 @@ export function skillWriteTrackingFs(delegate: IFileSystem): IFileSystem {
     tracked.readdirWithFileTypes = readdirWithFileTypes;
   }
   return tracked;
-}
-
-async function recordAfter<T>(
-  operation: Promise<T>,
-  paths: string[],
-): Promise<T> {
-  const result = await operation;
-  for (const path of paths) {
-    recordWorkspaceSkillMutation(path);
-  }
-  return result;
 }

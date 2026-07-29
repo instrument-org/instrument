@@ -7,6 +7,7 @@ import {
 } from "just-bash";
 import { realpathSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
+import path from "node:path";
 
 import { TASK_FOLDER_NAMES } from "../constants";
 import { type FolderAttachment } from "../schemas/folder-attachment";
@@ -14,14 +15,21 @@ import { type AbsolutePath, type TaskDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import { assignAttachedMounts } from "./attached-folder-mounts";
 import { isPrivateRelative, maskPrivateDirFs } from "./mask-private-dir-fs";
+import { mountWriteTrackingFs } from "./mount-write-tracking-fs";
 import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { ReadOnlyBaseFs } from "./read-only-base-fs";
-import { skillWriteTrackingFs } from "./skill-write-tracking-fs";
-import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
+import {
+  WORKSPACE_MOUNT_KINDS,
+  WORKSPACE_MOUNTS,
+  type WorkspaceMountKind,
+} from "./workspace-mounts";
 
-export { getWorkspaceSkillsDir } from "./workspace-skills-dir";
+export {
+  getWorkspaceSkillsDir,
+  SKILLS_MOUNT_POINT,
+} from "./workspace-mounts";
 
 /**
  * Virtual mount point of the writable task directory.
@@ -43,27 +51,16 @@ export const TASK_MOUNT_POINT = "/task";
 const DEV_MOUNT_POINT = "/dev";
 
 /**
- * Virtual mount point of the workspace's own `skills/` directory.
- *
- * Writable, unlike the read-only attached folders: authoring a skill is editing
- * a plain package of files, so the agent does it with the ordinary file tools
- * rather than a dedicated tool. Only the workspace's skills live here -- skills
- * discovered in a co-installed agent's home directory stay readable through
- * `load_skill` and are never exposed for writing.
- */
-export const SKILLS_MOUNT_POINT = "/skills";
-
-/**
  * The complete virtual filesystem layout for a task: the writable task mount,
- * the writable workspace skills mount, and any read-only user-attached folders.
- * This is the single source of truth shared by the bash sandbox (just-bash
- * filesystem), the native-binary path bridge, and the dedicated file tools, so
- * all three agree on what the agent can see and where.
+ * the workspace's own writable mounts, and any read-only
+ * user-attached folders. This is the single source of truth shared by the bash
+ * sandbox (just-bash filesystem), the native-binary path bridge, and the
+ * dedicated file tools, so all three agree on what the agent can see and where.
  */
 export interface WorkspaceFsLayout {
   attached: WorkspaceFsMount[];
-  skills: WorkspaceFsMount;
   task: WorkspaceFsMount & { hostRoot: TaskDir; readOnly: false };
+  workspace: Record<WorkspaceMountKind, WorkspaceFsMount>;
 }
 
 /** A single virtual->real mount in the workspace filesystem. */
@@ -141,17 +138,23 @@ export async function buildBashFs(
     );
   }
 
-  // The workspace's own directory, always meant to be there, so create it if a
-  // fresh workspace has not yet. Skipping the mount instead would leave the
-  // agent writing to a `/skills` the prompt advertises but that does not exist.
-  // Unlike an attached folder, it cannot be detached out from under us, so it
-  // always mounts.
-  await mkdir(layout.skills.hostRoot, { recursive: true });
-  const skillsFs = new ReadWriteFs({
-    maxFileReadSize,
-    root: layout.skills.hostRoot,
-  });
-  fs.mount(layout.skills.mountPoint, skillWriteTrackingFs(skillsFs));
+  // The workspace's own directories, always meant to be there, so create any a
+  // fresh workspace has not yet. Skipping a mount instead would leave the agent
+  // writing to a path the prompt advertises but that does not exist. Unlike an
+  // attached folder, these cannot be detached out from under us, so they always
+  // mount. Each is wrapped so a turn's writes are attributed to the package they
+  // landed in.
+  for (const kind of WORKSPACE_MOUNT_KINDS) {
+    const mount = layout.workspace[kind];
+    await mkdir(mount.hostRoot, { recursive: true });
+    fs.mount(
+      mount.mountPoint,
+      mountWriteTrackingFs(
+        kind,
+        new ReadWriteFs({ maxFileReadSize, root: mount.hostRoot }),
+      ),
+    );
+  }
 
   return fs;
 }
@@ -178,24 +181,20 @@ export function buildWorkspaceFsLayout({
 
   return {
     attached,
-    skills: {
-      hostRoot: getWorkspaceSkillsDir(),
-      mountPoint: SKILLS_MOUNT_POINT,
-      readOnly: false,
-    },
     task: {
       hostRoot: taskHostRoot,
       mountPoint: TASK_MOUNT_POINT,
       readOnly: false,
     },
+    workspace: { skills: workspaceMount("skills") },
   };
 }
 
 /**
- * True when an existing host path escapes its owning mount through a symlink.
- * A missing path or root is not an escape (nothing to read; normal not-found
- * handling applies). Any other resolution failure (permission error, symlink
- * loop, ...) means containment cannot be verified, so it fails closed.
+ * True when a host path escapes its owning mount through a symlink. For a path
+ * that does not exist yet, resolves the nearest existing ancestor so writes
+ * through symlinked directories are still contained. A missing root is not an
+ * escape; any other resolution failure fails closed.
  */
 export function hostPathEscapesMount(
   hostPath: string,
@@ -208,19 +207,30 @@ export function hostPathEscapesMount(
     return !isEnoent(error);
   }
 
-  let canonicalPath: string;
-  try {
-    canonicalPath = realpathSync(hostPath);
-  } catch (error) {
-    return !isEnoent(error);
+  let existingPath = hostPath;
+  while (true) {
+    try {
+      return !pathIsWithin(realpathSync(existingPath), canonicalRoot);
+    } catch (error) {
+      if (!isEnoent(error)) {
+        return true;
+      }
+      const parent = path.dirname(existingPath);
+      if (parent === existingPath) {
+        return true;
+      }
+      existingPath = parent;
+    }
   }
-
-  return !pathIsWithin(canonicalPath, canonicalRoot);
 }
 
-/** Every mount other than the task, in the order they are advertised. */
+/**
+ * Every mount except the task, in the order they are advertised: read-only
+ * attached folders under /mnt plus the writable workspace mounts. Steering
+ * errors and mount-path hints iterate these.
+ */
 export function nonTaskMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
-  return [...layout.attached, layout.skills];
+  return [...layout.attached, ...workspaceMounts(layout)];
 }
 
 /** Virtual mount point of the masked-off private dir under the task mount. */
@@ -365,4 +375,21 @@ function relativeWithin(mountPoint: string, virtualAbs: string): null | string {
     return virtualAbs.slice(mountPoint.length);
   }
   return null;
+}
+
+/** One writable workspace mount, resolved from the shared mount table. */
+function workspaceMount(kind: WorkspaceMountKind): WorkspaceFsMount {
+  const { mountPoint, resolveHostRoot } = WORKSPACE_MOUNTS[kind];
+  return { hostRoot: resolveHostRoot(), mountPoint, readOnly: false };
+}
+
+/**
+ * The workspace's own directories, mounted writable outside the task: authoring
+ * a skill is editing a plain package of files, so the agent does it with the
+ * ordinary file tools rather than a dedicated tool. They share one lifecycle --
+ * always part of the layout, created on demand, never detachable -- so anything
+ * that treats one of them specially should treat all of them the same way.
+ */
+function workspaceMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
+  return WORKSPACE_MOUNT_KINDS.map((kind) => layout.workspace[kind]);
 }

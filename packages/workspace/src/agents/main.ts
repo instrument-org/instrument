@@ -33,9 +33,9 @@ import { getTaskState } from "../lib/task-state-store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { SKILLS_MOUNT_POINT } from "../lib/workspace-fs-layout";
 import {
-  beginSkillChangeTracking,
-  consumeSkillChanges,
-} from "../lib/workspace-skill-index";
+  beginMountChangeTracking,
+  consumeMountChanges,
+} from "../lib/workspace-mount-index";
 import { publisher } from "../rpc/publisher";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
@@ -332,12 +332,13 @@ export const mainAgent = setupAgent({
     return [systemMessage, userMessage];
   },
   onFinish: async ({ parentMessageId, sessionId, signal, taskId }) => {
-    const [{ after, changes: fileChanges }, skillChanges] = await Promise.all([
+    const [{ after, changes: fileChanges }, mountChanges] = await Promise.all([
       // Always consume so the watcher ref acquired in onStart is released, even
       // when we skip saving the change summary below.
       consumeTurnChanges({ id: taskId, sessionId }),
-      consumeSkillChanges({ id: taskId, sessionId }),
+      consumeMountChanges({ id: taskId, sessionId }),
     ]);
+    const skillChanges = mountChanges.skills;
 
     // Advance the cross-turn baseline to the post-turn tree so the agent's own
     // changes aren't re-reported as external on the next user message.
@@ -458,7 +459,7 @@ export const mainAgent = setupAgent({
         sessionId,
         workspaceConfig: getWorkspaceConfig(),
       }),
-      beginSkillChangeTracking({ id: taskId, sessionId }),
+      beginMountChangeTracking({ id: taskId, sessionId }),
     ]);
   },
   shouldContinue: shouldContinueWithToolCalls,

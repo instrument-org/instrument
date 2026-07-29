@@ -10,7 +10,7 @@ import {
 } from "./native-watcher-backend";
 import { SKILL_ARTIFACT_WATCHER_IGNORE } from "./skill-artifact-ignore";
 import { getWorkspaceConfig } from "./workspace-config";
-import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
+import { getWorkspaceSkillsDir } from "./workspace-mounts";
 
 const DEBOUNCE_MS = 150;
 

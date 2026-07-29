@@ -2,9 +2,9 @@ import mockFs from "mock-fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  beginSkillChangeTracking,
-  consumeSkillChanges,
-} from "../lib/workspace-skill-index";
+  beginMountChangeTracking,
+  consumeMountChanges,
+} from "../lib/workspace-mount-index";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
@@ -103,7 +103,7 @@ describe("WriteFile - path policy", () => {
     expect(result._unsafeUnwrap().filePath).toBe("./output/report.md");
   });
 
-  it("attributes a workspace skill write to the executing session", async () => {
+  it("attributes a workspace skills write to the executing session", async () => {
     mockFs({
       "/tmp/workspace": {
         skills: {},
@@ -112,7 +112,7 @@ describe("WriteFile - path policy", () => {
     });
     const sessionId = StoreId.newSessionId();
     const turn = { id: taskId, sessionId };
-    await beginSkillChangeTracking(turn);
+    await beginMountChangeTracking(turn);
 
     const result = await runTool(WriteFile, {
       ...makeExecuteArgs({
@@ -124,7 +124,8 @@ describe("WriteFile - path policy", () => {
     });
 
     expect(result.isOk()).toBe(true);
-    await expect(consumeSkillChanges(turn)).resolves.toEqual({
+    const changes = await consumeMountChanges(turn);
+    expect(changes.skills).toEqual({
       created: ["brief"],
       removed: [],
       updated: [],

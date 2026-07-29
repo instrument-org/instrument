@@ -11,31 +11,31 @@ import {
   createMockTaskConfigForDir,
   MOCK_WORKSPACE_DIRS,
 } from "../test/helpers/mock-task-config";
-import { withTurnContext } from "./turn-context";
+import { type TurnKey, withTurnContext } from "./turn-context";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import {
-  beginSkillChangeTracking,
-  consumeSkillChanges,
-  readWorkspaceSkillIndex,
-  recordWorkspaceSkillMutation,
-} from "./workspace-skill-index";
+  beginMountChangeTracking,
+  consumeMountChanges,
+  readWorkspaceMountIndex,
+  recordWorkspaceMountMutation,
+} from "./workspace-mount-index";
 import { writeFileWithDir } from "./write-file-with-dir";
 
 createMockTaskConfigForDir(
-  `${MOCK_WORKSPACE_DIRS.tasks}/workspace-skill-index`,
+  `${MOCK_WORKSPACE_DIRS.tasks}/workspace-mount-index`,
 );
 
 // The shared mock workspace root is a real directory every test file's process
-// sees, and this suite writes skills into it, so it needs a root of its own.
-const rootDir = mkdtempSync(path.join(os.tmpdir(), "workspace-skill-index-"));
+// sees, and this suite writes into it, so it needs a root of its own.
+const rootDir = mkdtempSync(path.join(os.tmpdir(), "workspace-mount-index-"));
+const skillsDir = path.join(rootDir, "skills");
 setWorkspaceConfig({
   ...getWorkspaceConfig(),
   rootDir: WorkspaceDirSchema.parse(rootDir),
 });
 
-const skillsDir = path.join(rootDir, "skills");
 const turn = {
-  id: TaskIdSchema.parse("workspace-skill-index"),
+  id: TaskIdSchema.parse("workspace-mount-index"),
   sessionId: StoreId.newSessionId(),
 };
 
@@ -43,37 +43,37 @@ afterEach(async () => {
   await fs.rm(skillsDir, { force: true, recursive: true });
 });
 
-describe("readWorkspaceSkillIndex", () => {
+describe("readWorkspaceMountIndex", () => {
   it("is empty when the workspace has no skills directory", async () => {
-    await expect(readWorkspaceSkillIndex()).resolves.toEqual(new Map());
+    await expect(readWorkspaceMountIndex("skills")).resolves.toEqual(new Map());
   });
 
-  it("indexes only directories holding a SKILL.md", async () => {
+  it("indexes only directories holding the mount's entry file", async () => {
     await writeSkill("tidy", "Tidy things.");
     await fs.mkdir(path.join(skillsDir, "not-a-skill"), { recursive: true });
     await fs.writeFile(path.join(skillsDir, "loose.md"), "not a skill");
 
-    const index = await readWorkspaceSkillIndex();
+    const index = await readWorkspaceMountIndex("skills");
     expect([...index.keys()]).toEqual(["tidy"]);
   });
 });
 
-describe("consumeSkillChanges", () => {
-  it("reports skills created, updated, and removed during the turn", async () => {
+describe("consumeMountChanges", () => {
+  it("reports packages created, updated, and removed during the turn", async () => {
     await writeSkill("tidy", "Tidy things.");
     await writeSkill("stale", "Going away.");
-    await beginSkillChangeTracking(turn);
+    await beginMountChangeTracking(turn);
 
     await writeSkill("brief", "Write a brief.");
     await writeSkill("tidy", "Tidy things, thoroughly and well.");
     await fs.rm(path.join(skillsDir, "stale"), { recursive: true });
     withTurnContext(turn, () => {
       for (const name of ["brief", "tidy", "stale"]) {
-        recordWorkspaceSkillMutation(`/${name}`);
+        recordWorkspaceMountMutation("skills", `/${name}`);
       }
     });
 
-    await expect(consumeSkillChanges(turn)).resolves.toMatchInlineSnapshot(`
+    await expect(consumeSkills(turn)).resolves.toMatchInlineSnapshot(`
       {
         "created": [
           "brief",
@@ -88,35 +88,29 @@ describe("consumeSkillChanges", () => {
     `);
   });
 
-  it("reports nothing when the turn left the skills alone", async () => {
+  it("reports nothing when the turn left the mounts alone", async () => {
     await writeSkill("tidy", "Tidy things.");
-    await beginSkillChangeTracking(turn);
+    await beginMountChangeTracking(turn);
 
-    const changes = await consumeSkillChanges(turn);
-    expect(changes).toEqual({ created: [], removed: [], updated: [] });
+    await expect(consumeSkills(turn)).resolves.toEqual(noChanges());
   });
 
   it("reports nothing for a turn that was never tracked", async () => {
     await writeSkill("tidy", "Tidy things.");
 
-    const changes = await consumeSkillChanges(turn);
-    expect(changes).toEqual({ created: [], removed: [], updated: [] });
+    await expect(consumeSkills(turn)).resolves.toEqual(noChanges());
   });
 
   it("forgets the turn once consumed", async () => {
-    await beginSkillChangeTracking(turn);
+    await beginMountChangeTracking(turn);
     await writeSkill("brief", "Write a brief.");
     withTurnContext(turn, () => {
-      recordWorkspaceSkillMutation("/brief/SKILL.md");
+      recordWorkspaceMountMutation("skills", "/brief/SKILL.md");
     });
 
-    const changes = await consumeSkillChanges(turn);
+    const changes = await consumeSkills(turn);
     expect(changes.created).toEqual(["brief"]);
-    await expect(consumeSkillChanges(turn)).resolves.toEqual({
-      created: [],
-      removed: [],
-      updated: [],
-    });
+    await expect(consumeSkills(turn)).resolves.toEqual(noChanges());
   });
 
   it("forgets a turn consumed while its initial snapshot is pending", async () => {
@@ -129,43 +123,35 @@ describe("consumeSkillChanges", () => {
       return [];
     });
 
-    const begin = beginSkillChangeTracking(turn);
+    const begin = beginMountChangeTracking(turn);
     await vi.waitFor(() => {
-      expect(readdir).toHaveBeenCalledOnce();
+      expect(readdir).toHaveBeenCalled();
     });
-    const consume = consumeSkillChanges(turn);
+    const consume = consumeMountChanges(turn);
     unblockRead?.();
     await Promise.all([begin, consume]);
 
     await writeSkill("brief", "Write a brief.");
     withTurnContext(turn, () => {
-      recordWorkspaceSkillMutation("/brief/SKILL.md");
+      recordWorkspaceMountMutation("skills", "/brief/SKILL.md");
     });
-    await expect(consumeSkillChanges(turn)).resolves.toEqual({
-      created: [],
-      removed: [],
-      updated: [],
-    });
+    await expect(consumeSkills(turn)).resolves.toEqual(noChanges());
   });
 
   it("does not attribute another session's write", async () => {
     const otherTurn = { ...turn, sessionId: StoreId.newSessionId() };
     await Promise.all([
-      beginSkillChangeTracking(turn),
-      beginSkillChangeTracking(otherTurn),
+      beginMountChangeTracking(turn),
+      beginMountChangeTracking(otherTurn),
     ]);
 
     await writeSkill("brief", "Write a brief.");
     withTurnContext(turn, () => {
-      recordWorkspaceSkillMutation("/brief/SKILL.md");
+      recordWorkspaceMountMutation("skills", "/brief/SKILL.md");
     });
 
-    await expect(consumeSkillChanges(otherTurn)).resolves.toEqual({
-      created: [],
-      removed: [],
-      updated: [],
-    });
-    await expect(consumeSkillChanges(turn)).resolves.toEqual({
+    await expect(consumeSkills(otherTurn)).resolves.toEqual(noChanges());
+    await expect(consumeSkills(turn)).resolves.toEqual({
       created: ["brief"],
       removed: [],
       updated: [],
@@ -173,7 +159,7 @@ describe("consumeSkillChanges", () => {
   });
 
   it("drops a write that arrives after its turn ended", async () => {
-    await beginSkillChangeTracking(turn);
+    await beginMountChangeTracking(turn);
     let releaseWrite: (() => void) | undefined;
     const blocked = new Promise<void>((resolve) => {
       releaseWrite = resolve;
@@ -183,35 +169,31 @@ describe("consumeSkillChanges", () => {
     // keeps this write off that turn's report.
     const lateWrite = withTurnContext(turn, async () => {
       await blocked;
-      recordWorkspaceSkillMutation("/brief/SKILL.md");
+      recordWorkspaceMountMutation("skills", "/brief/SKILL.md");
     });
-    await consumeSkillChanges(turn);
+    await consumeMountChanges(turn);
 
-    await beginSkillChangeTracking(turn);
+    await beginMountChangeTracking(turn);
     await writeSkill("brief", "Write a brief.");
     releaseWrite?.();
     await lateWrite;
 
-    await expect(consumeSkillChanges(turn)).resolves.toEqual({
-      created: [],
-      removed: [],
-      updated: [],
-    });
+    await expect(consumeSkills(turn)).resolves.toEqual(noChanges());
   });
 
-  it("reports only the changed skills when a mutation names no package", async () => {
+  it("reports only the changed packages when a mutation names none", async () => {
     await writeSkill("tidy", "Tidy things.");
     await writeSkill("brief", "Write a brief.");
-    await beginSkillChangeTracking(turn);
+    await beginMountChangeTracking(turn);
 
     await writeSkill("tidy", "Tidy things, thoroughly and well.");
     // A mutation aimed at the mount root: the boundary cannot say which package
     // it landed in, so the turn falls back to diffing the whole directory.
     withTurnContext(turn, () => {
-      recordWorkspaceSkillMutation("/");
+      recordWorkspaceMountMutation("skills", "/");
     });
 
-    await expect(consumeSkillChanges(turn)).resolves.toEqual({
+    await expect(consumeSkills(turn)).resolves.toEqual({
       created: [],
       removed: [],
       updated: ["tidy"],
@@ -220,35 +202,35 @@ describe("consumeSkillChanges", () => {
 
   it("keeps a named package's change when the turn also mutates the root", async () => {
     await writeSkill("tidy", "Tidy things.");
-    await beginSkillChangeTracking(turn);
+    await beginMountChangeTracking(turn);
 
     await fs.mkdir(path.join(skillsDir, "tidy", "scripts"));
     await fs.writeFile(path.join(skillsDir, "tidy", "scripts", "run.ts"), "");
     withTurnContext(turn, () => {
-      recordWorkspaceSkillMutation("/tidy/scripts/run.ts");
+      recordWorkspaceMountMutation("skills", "/tidy/scripts/run.ts");
       // Installing a package copies into the mount root, which names nothing.
       // The turn still named `tidy`, so that evidence has to survive.
-      recordWorkspaceSkillMutation("/");
+      recordWorkspaceMountMutation("skills", "/");
     });
 
-    await expect(consumeSkillChanges(turn)).resolves.toEqual({
+    await expect(consumeSkills(turn)).resolves.toEqual({
       created: [],
       removed: [],
       updated: ["tidy"],
     });
   });
 
-  it("attributes a change outside SKILL.md to the writing session", async () => {
+  it("attributes a change outside the entry file to the writing session", async () => {
     await writeSkill("tidy", "Tidy things.");
-    await beginSkillChangeTracking(turn);
+    await beginMountChangeTracking(turn);
 
     await fs.mkdir(path.join(skillsDir, "tidy", "scripts"));
     await fs.writeFile(path.join(skillsDir, "tidy", "scripts", "run.ts"), "");
     withTurnContext(turn, () => {
-      recordWorkspaceSkillMutation("/tidy/scripts/run.ts");
+      recordWorkspaceMountMutation("skills", "/tidy/scripts/run.ts");
     });
 
-    await expect(consumeSkillChanges(turn)).resolves.toEqual({
+    await expect(consumeSkills(turn)).resolves.toEqual({
       created: [],
       removed: [],
       updated: ["tidy"],
@@ -256,7 +238,7 @@ describe("consumeSkillChanges", () => {
   });
 
   it("attributes dedicated file writes through the shared write boundary", async () => {
-    await beginSkillChangeTracking(turn);
+    await beginMountChangeTracking(turn);
 
     await withTurnContext(turn, () =>
       writeFileWithDir(
@@ -265,13 +247,22 @@ describe("consumeSkillChanges", () => {
       ),
     );
 
-    await expect(consumeSkillChanges(turn)).resolves.toEqual({
+    await expect(consumeSkills(turn)).resolves.toEqual({
       created: ["brief"],
       removed: [],
       updated: [],
     });
   });
 });
+
+async function consumeSkills(key: TurnKey) {
+  const changes = await consumeMountChanges(key);
+  return changes.skills;
+}
+
+function noChanges() {
+  return { created: [], removed: [], updated: [] };
+}
 
 async function writeSkill(name: string, description: string) {
   await fs.mkdir(path.join(skillsDir, name), { recursive: true });

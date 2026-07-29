@@ -1,5 +1,17 @@
 # One agent-browser Command via an Instrument Browser Provider Plugin
 
+Status: **complete**. The provider plugin, the wrapper's connection-identity
+routing, the sibling `-ext` daemon session, and the skill/prompt split have
+landed. Selection behavior is guarded by the `browser-selection` evals, which
+pass across models for all eight cases. Two things are deliberately
+outstanding: the packaged-build and Windows smoke tests under Risks, which no
+automated check can stand in for, and the permission UX for consequential
+actions inside the user's own browser, which is a follow-up rather than part
+of this work.
+
+Tracking: [FP-1193](https://linear.app/finalpoint/issue/FP-1193/allow-agents-to-use-external-browsers),
+whose comments carry copy-paste prompts for the manual smoke tests.
+
 Supersedes the earlier "task-browser / external-browser command split" plan.
 Screenshot capture work is explicitly out of scope.
 
@@ -33,7 +45,8 @@ namespace) plus meta subcommands.
 - The daemon already handles switching: a connection-identity change within
   a session triggers a clean relaunch (disconnect + reconnect). Our
   WebContentsView survives disconnects; Studio's XState machine owns its
-  lifecycle, and the daemon idle timeout (30s) already disconnects today.
+  lifecycle, and the daemon idle timeout
+  (`AGENT_BROWSER_IDLE_TIMEOUT_MS`, five minutes) already disconnects today.
 
 ## Mechanism facts (verified against agent-browser 0.28+; we pin ^0.31.1)
 
@@ -90,29 +103,45 @@ inherited by the plugin spawn). Registry injected as
   `AGENT_BROWSER_CONFIG` env passthroughs from the agent's shell, so the
   agent cannot re-point the plugin registry or session identity.
 - Still-blocked subcommands: `plugin`, `install`, `upgrade`, `mcp`,
-  `dashboard`, `doctor`, `chat`, `skills`. Revisit `auth`, `connect`,
-  `close`, `session`, `state` once external flows exist; keep blocked in
-  v1 (external identity must be carried as flags on each invocation, which
-  keeps routing stateless).
+  `dashboard`, `doctor`, `chat`, `skills`, `inspect`, `launch`, `stream`,
+  and `batch`, whose lines are parsed as whole commands and would bypass
+  this argv-level policy. `auth`, `connect`, `close`, `session`, and `state`
+  stay blocked in v1: external identity must be carried as flags on each
+  invocation, which keeps routing stateless. Revisit once external flows
+  exist.
+- `profiles` is allowed and always routes external, since it inspects the
+  host's Chrome install rather than any browser. It is the only way the
+  agent can see profile names: the installs and profile directories are not
+  in the sandbox filesystem, and `scrubHostPaths` strips the host home out
+  of its output.
 - Session derivation: when an invocation carries an external identity flag
   (`--cdp`, `--auto-connect`, or `--provider` other than `instrument`),
   inject `--session <sessionId>-ext` instead of `--session <sessionId>`.
   Task and external browsers then coexist without relaunch thrash, and a
   bare follow-up command always means the task browser.
 
-### 3. Skill updates (sibling checkout of instrument-org/skills, then bump registry/)
+### 3. Skill and prompt (sibling checkout of instrument-org/skills, then bump registry/)
 
-One `agent-browser` skill, edited in place:
+The mechanics live in the skill; the choice policy lives in the workspace
+prompt. SKILL.md is capped at 5000 tokens by the skills repo's own
+`check-skill.ts`, and the selection guidance did not fit beside the command
+surface. The split is also the better home on its own terms: the prompt is
+always in context while a skill is loaded on demand, and browser choice
+governs the first invocation, often before any `load_skill` call.
 
-- SKILL.md: default is the Instrument task browser; add an "External
-  browsers" section with the selection policy from the original plan
-  (existing logged-in state, bot-blocked sites, explicit user request,
-  iOS/provider/CDP targets; fall back task<->external on login walls or
-  connect failure). State that external flags are per-invocation.
-- `references/session-management.md`, `references/proxy-support.md`, and
-  the commands reference currently say connection/profile/state flags are
-  blocked; rewrite to describe the provider default and the allowed
-  external flags.
+- SKILL.md: commands drive the managed browser unless a targeting flag says
+  otherwise, a flag applies only to the invocation it appears on, and a
+  table of what each flag targets. Value rules models get wrong stay inline
+  rather than in a reference (`--cdp` takes a bare port or an http origin;
+  `--device` only means something alongside `--provider ios`). Instrument
+  framing stays out, so the skill reads the same for any host of the CLI.
+- `packages/workspace/src/agents/main.ts`: when an external browser is the
+  right reach, that targeting is per invocation, and the consent and
+  re-verification rules that apply when acting as the user's signed-in
+  identity.
+- `references/session-management.md`, `references/proxy-support.md`, and the
+  commands reference describe the provider default, the allowed external
+  flags, and the full `--cdp` value rules.
 - Examples keep the `agent-browser` name everywhere (no rename pass
   needed).
 
@@ -134,5 +163,13 @@ One `agent-browser` skill, edited in place:
 - Windows uses TCP daemon sockets; verify `-ext` session naming and
   provider env behave identically there.
 - Allowing `--profile` / `--auto-connect` widens what the agent can touch
-  (the user's running Chrome). The skill guidance is the only guardrail in
-  v1; see permission follow-up above.
+  (the user's running Chrome). Prompt and skill guidance are the only
+  guardrail in v1; see permission follow-up above. The evals cover selection
+  and the consent wording on a read-only request, but nothing yet tests
+  whether a model actually stops before a *mutating* action in the user's
+  browser, because an honest test of that has real side effects.
+- Upstream's `download` sets the browser's download directory and never
+  restores it, so running it against the user's own Chrome redirects their
+  later downloads until that browser restarts. Recorded in
+  [agent-browser-download-behavior-not-reset.md](../../findings/agent-browser-download-behavior-not-reset.md);
+  the skill steers away from `download` on an external target.

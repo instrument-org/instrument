@@ -31,6 +31,7 @@ const PROVIDER_GUARDS: Record<string, string> = {
   "no-search-backend": `Sign up for ${APP_NAME} or add an AI provider that supports web search.`,
   "no-web-search-model": `Sign up for ${APP_NAME} or add an AI provider that supports web search.`,
   "not-authenticated": `Sign in to ${APP_NAME} to use web search.`,
+  "payment-required": `Add credits to your ${APP_NAME} account to keep searching the web.`,
 };
 
 export function ToolWebSearch({

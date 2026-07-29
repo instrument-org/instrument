@@ -81,7 +81,12 @@ export const WebSearch = setupTool({
     }),
     z.object({
       errorMessage: z.string(),
-      errorType: z.enum(["api-call", "no-search-backend", "not-authenticated"]),
+      errorType: z.enum([
+        "api-call",
+        "no-search-backend",
+        "not-authenticated",
+        "payment-required",
+      ]),
       responseBody: z.string().optional(),
       state: z.literal("failure"),
     }),

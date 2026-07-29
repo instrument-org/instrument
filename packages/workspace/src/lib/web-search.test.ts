@@ -69,6 +69,22 @@ const rejectingWebSearchClient: WebSearchClient = () => {
   throw new Error("The platform search endpoint must not be called");
 };
 
+/** What our endpoint looks like when it is rate limited, off, or down. */
+const unavailable = {
+  errorMessage: "Web search failed with status 429.",
+  errorType: "request-failed" as const,
+  ok: false as const,
+};
+
+/** Stands in where the provider path must not be reached. */
+function neverCalledSearchModel() {
+  return new MockLanguageModelV3({
+    doStream: () => {
+      throw new Error("The provider search model must not be called");
+    },
+  });
+}
+
 /** A model on a key the user brought, which searches through that provider. */
 async function runProviderSearch(chunks: LanguageModelV3StreamPart[]) {
   const model = createMockAIGatewayModel({ provider: "openrouter" });
@@ -234,6 +250,87 @@ describe("webSearch", () => {
           },
         ]
       `);
+    });
+
+    it("retries a burst against the shared rate limit before downgrading", async () => {
+      const model = createMockAIGatewayModel();
+      const searchWeb = vi
+        .fn<WebSearchClient>()
+        .mockResolvedValueOnce(unavailable)
+        .mockResolvedValue({
+          data: { costDollars: 0.007, results: [] },
+          ok: true,
+        });
+
+      createMockTaskConfig(TaskIdSchema.parse("2026-07-27-web-search-retry"), {
+        model,
+        webSearch: searchWeb,
+        webSearchModel: { model: neverCalledSearchModel() },
+      });
+
+      const results = await collect(model);
+
+      expect(searchWeb).toHaveBeenCalledTimes(2);
+      expect(results.at(-1)?._unsafeUnwrap().kind).toBe("excerpts");
+    });
+
+    it("falls back to the provider when our endpoint stays unavailable", async () => {
+      const model = createMockAIGatewayModel();
+      const searchWeb = vi.fn<WebSearchClient>(() =>
+        Promise.resolve(unavailable),
+      );
+
+      createMockTaskConfig(TaskIdSchema.parse("2026-07-27-web-search-down"), {
+        model,
+        webSearch: searchWeb,
+        webSearchModel: {
+          model: new MockLanguageModelV3({
+            doStream: () =>
+              Promise.resolve({
+                stream: simulateReadableStream({
+                  chunks: [
+                    ...textDelta("What the provider found."),
+                    finishPart,
+                  ],
+                }),
+              }),
+          }),
+        },
+      });
+
+      const results = await collect(model);
+      const last = results.at(-1)?._unsafeUnwrap();
+
+      // Retried once, then ran the provider's own search rather than erroring.
+      expect(searchWeb).toHaveBeenCalledTimes(2);
+      expect(last?.kind).toBe("summary");
+      expect(last?.kind === "summary" && last.text).toBe(
+        "What the provider found.",
+      );
+    });
+
+    it("surfaces being out of credits without retrying or falling back", async () => {
+      const model = createMockAIGatewayModel();
+      const searchWeb = vi.fn<WebSearchClient>(() =>
+        Promise.resolve({
+          errorMessage: "Out of credits.",
+          errorType: "payment-required" as const,
+          ok: false as const,
+        }),
+      );
+
+      createMockTaskConfig(TaskIdSchema.parse("2026-07-27-web-search-broke"), {
+        model,
+        webSearch: searchWeb,
+        webSearchModel: { model: neverCalledSearchModel() },
+      });
+
+      const results = await collect(model);
+
+      expect(searchWeb).toHaveBeenCalledTimes(1);
+      expect(results.at(-1)?._unsafeUnwrapErr().errorType).toBe(
+        "payment-required",
+      );
     });
   });
 });

@@ -16,9 +16,27 @@ import { getCurrentDate } from "./get-current-date";
 
 export interface WebSearchFailure {
   errorMessage: string;
-  errorType: "api-call" | "no-search-backend" | "not-authenticated";
+  errorType:
+    | "api-call"
+    | "no-search-backend"
+    | "not-authenticated"
+    | "payment-required";
   responseBody?: string;
 }
+
+// Failures the user has to resolve. Falling back on these would spend the same
+// credits down the other path, fail the same way, and bury the reason under
+// twice the wait, so they surface instead.
+const USER_ACTIONABLE = new Set<WebSearchFailure["errorType"]>([
+  "not-authenticated",
+  "payment-required",
+]);
+
+// Our search endpoint shares one modest per-second limit across every user, so
+// a burst is over almost as soon as it starts. One short retry usually gets the
+// better backend back rather than spending the rest of the task on the weaker
+// one; the provider's own search is the floor, not the target.
+const RETRY_DELAY_MS = 250;
 
 /**
  * The two backends return genuinely different things, so they stay separate all
@@ -76,10 +94,24 @@ export async function* webSearch({
   // brought searches through that provider instead: that is the option costing
   // them nothing extra, and it needs no second API key from them.
   if (callingModel.params.provider === OUR_MODELS.providerType) {
-    yield await searchWithPlatform({ prompt, signal, workspaceConfig });
-    return;
+    const platformResult = await searchWithPlatform({
+      prompt,
+      signal,
+      workspaceConfig,
+    });
+    if (
+      platformResult.isOk() ||
+      USER_ACTIONABLE.has(platformResult.error.errorType)
+    ) {
+      yield platformResult;
+      return;
+    }
   }
 
+  // Reached either because the model runs on the user's own key, or because our
+  // endpoint is rate limited, switched off, or down. The user asked for a
+  // search, so run one on the provider rather than hand back an error; the
+  // result names its own kind, so nothing downstream is told it got excerpts.
   yield* searchWithProviderModel({
     callingModel,
     configs,
@@ -87,6 +119,20 @@ export async function* webSearch({
     signal,
     workspaceConfig,
     workspaceServerURL,
+  });
+}
+
+function delay(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true },
+    );
   });
 }
 
@@ -129,6 +175,40 @@ function hasStringProperty(
   return typeof getUnknownProperty(value, property) === "string";
 }
 
+async function requestPlatformSearch({
+  prompt,
+  signal,
+  workspaceConfig,
+}: {
+  prompt: string;
+  signal: AbortSignal;
+  workspaceConfig: WorkspaceConfig;
+}): Promise<Result<WebSearchResults, WebSearchFailure>> {
+  const response = await workspaceConfig.webSearch({
+    input: { query: prompt },
+    signal,
+  });
+
+  if (!response.ok) {
+    return err({
+      errorMessage: response.errorMessage,
+      // Keep the reasons the user can act on distinct from a generic failure:
+      // it is what decides whether this falls back or surfaces.
+      errorType:
+        response.errorType === "request-failed"
+          ? "api-call"
+          : response.errorType,
+      responseBody: response.responseBody,
+    });
+  }
+
+  return ok({
+    costDollars: response.data.costDollars,
+    kind: "excerpts",
+    sources: response.data.results,
+  });
+}
+
 function searchSystemPrompt() {
   const today = getCurrentDate().toLocaleDateString("en-US", {
     day: "numeric",
@@ -146,36 +226,19 @@ function searchSystemPrompt() {
   `;
 }
 
-async function searchWithPlatform({
-  prompt,
-  signal,
-  workspaceConfig,
-}: {
+async function searchWithPlatform(args: {
   prompt: string;
   signal: AbortSignal;
   workspaceConfig: WorkspaceConfig;
 }): Promise<Result<WebSearchResults, WebSearchFailure>> {
-  const response = await workspaceConfig.webSearch({
-    input: { query: prompt },
-    signal,
-  });
+  const first = await requestPlatformSearch(args);
 
-  if (!response.ok) {
-    return err({
-      errorMessage: response.errorMessage,
-      errorType:
-        response.errorType === "not-authenticated"
-          ? "not-authenticated"
-          : "api-call",
-      responseBody: response.responseBody,
-    });
+  if (first.isOk() || USER_ACTIONABLE.has(first.error.errorType)) {
+    return first;
   }
 
-  return ok({
-    costDollars: response.data.costDollars,
-    kind: "excerpts",
-    sources: response.data.results,
-  });
+  await delay(RETRY_DELAY_MS, args.signal);
+  return args.signal.aborted ? first : requestPlatformSearch(args);
 }
 
 async function* searchWithProviderModel({

@@ -32,7 +32,9 @@ export type WebSearchClientResult =
   | { data: WebSearchResponse; ok: true }
   | {
       errorMessage: string;
-      errorType: "not-authenticated" | "request-failed";
+      // `payment-required` and `not-authenticated` are the user's to resolve;
+      // everything else is ours to absorb (see the fallback in lib/web-search).
+      errorType: "not-authenticated" | "payment-required" | "request-failed";
       ok: false;
       responseBody?: string;
     };

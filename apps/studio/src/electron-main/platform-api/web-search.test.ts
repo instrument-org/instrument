@@ -111,11 +111,32 @@ describe("searchWeb", () => {
     expect(result).toMatchInlineSnapshot(`
       {
         "errorMessage": "Out of credits",
-        "errorType": "request-failed",
+        "errorType": "payment-required",
         "ok": false,
         "responseBody": "{"error":"Out of credits"}",
       }
     `);
+  });
+
+  // The workspace only falls back to a provider's own search for failures the
+  // user cannot act on, so these statuses have to stay distinguishable.
+  it.each([
+    { errorType: "not-authenticated", status: 401 },
+    { errorType: "payment-required", status: 402 },
+    { errorType: "request-failed", status: 429 },
+    { errorType: "request-failed", status: 503 },
+  ])("reports HTTP $status as $errorType", async ({ errorType, status }) => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "nope" }), { status }),
+    );
+
+    const result = await searchWeb({
+      input: { query: "current news" },
+      signal: new AbortController().signal,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.errorType).toBe(errorType);
   });
 
   it("rejects an unexpected success payload", async () => {

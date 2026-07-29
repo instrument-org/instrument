@@ -58,7 +58,12 @@ export const searchWeb: WebSearchClient = async ({ input, signal }) => {
     }
     return {
       errorMessage,
-      errorType: "request-failed",
+      errorType:
+        response.status === 401
+          ? "not-authenticated"
+          : response.status === 402
+            ? "payment-required"
+            : "request-failed",
       ok: false,
       responseBody,
     };

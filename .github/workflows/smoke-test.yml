@@ -46,6 +46,17 @@ jobs:
         run: |
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
           echo "DISPLAY=:99" >> "$GITHUB_ENV"
+      # A runner has the Command Line Tools installed, so it can never show the
+      # installer dialog. The audit asserts the reachable invariant instead: no
+      # skill install reaches a stub we have not already accounted for, and the
+      # guard engages when the tools are absent. See
+      # docs/findings/macos-command-line-tools-dialog.md.
+      - name: Audit macOS Command Line Tools stubs
+        if: runner.os == 'macOS'
+        working-directory: packages/workspace
+        run: |
+          pnpm --silent script:clt-shim-audit -- --mode shadow
+          pnpm --silent script:clt-shim-audit -- --mode guarded
       - name: Build and run smoke test
         run: pnpm turbo run smoke-test
       - name: Upload smoke test screenshots

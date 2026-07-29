@@ -61,15 +61,17 @@ spreadsheet
 
 `guarded` has to run alone: the probe caches for the life of the process, so the first pass decides what later passes see.
 
+The `shadow` and `guarded` passes run on the macOS leg of `smoke-test.yml`. Both exit non-zero on a failed install, an interpreter that cannot run, or a stub outside `EXPECTED_SHIMS` — a name no previous run reached is a new way for the dialog to appear, so it fails rather than scrolling past in a log. `guarded` additionally fails if the guard does not engage.
+
 `CLT_SHIM_NAMES` in `scripts/lib/clt-shims.ts` is the committed stub list, and `findUnlistedHostShims()` re-derives it from the running OS so a macOS release that adds one surfaces as a warning rather than a silent gap.
 
 ## What is still open
 
-Nobody has watched this on a Mac that has never installed the Command Line Tools. What is established is that resolution terminates at `DEVELOPER_DIR` before reaching the install request, and that the guard engages and costs nothing. A VM without the tools is what would settle it.
+Nobody has watched this on a Mac that has never installed the Command Line Tools. What is established is that resolution terminates at `DEVELOPER_DIR` before reaching the install request, that the guard engages, and that it costs nothing. A VM without the tools is what would settle it.
 
-The `shadow` pass is not wired into CI. Turning it into an assertion — fail when any non-benign stub is reached — is the natural next step, and it needs no special machine.
+The reporter's screenshot names `install_name_tool` in the dialog title, which confirms the caller the audit identified rather than leaving it inferred.
 
-We also have no measure of how many users have no developer tools at all, so the population this protects is unknown.
+We have no measure of how many users have no developer tools at all, so the size of the population this protects is unknown.
 
 ## Why not bundle Python instead
 

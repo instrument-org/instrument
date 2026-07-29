@@ -5,22 +5,29 @@
  * answered, so the list this prints is the list of ways a skill load can hang.
  *
  * The audit runs on a normal developer/CI Mac, where the tools are present and
- * no dialog can appear. Two passes:
+ * no dialog can appear. Three passes:
  *
  * - `shadow` (default) prepends a directory of logging stubs to PATH, so any
  *   `git`/`make`/`python3`/... resolved by name is recorded and then passed
  *   through to the real binary. The install completes as usual; the log is the
- *   evidence.
+ *   evidence. Exits non-zero on a stub outside EXPECTED_SHIMS.
  * - `developer-dir` points DEVELOPER_DIR at a path that does not exist. Every
  *   stub short-circuits to a hard error instead of resolving a toolchain, which
  *   catches the invocations by absolute path that PATH shadowing cannot see. A
  *   pass that still installs cleanly is a skill that needs nothing from Xcode.
+ * - `guarded` makes `xcode-select -p` fail the way it does on a machine that
+ *   has never installed the tools, so the product's own guard decides. This is
+ *   the end-to-end regression test for that guard, and has to run alone.
+ *
+ * Exits non-zero on any failed install, unrunnable interpreter, unaccounted
+ * stub, or (in `guarded`) a guard that did not engage.
  *
  * Usage:
- *   pnpm script:clt-shim-audit                          # spreadsheet, both passes
+ *   pnpm script:clt-shim-audit                          # spreadsheet, first two passes
  *   pnpm script:clt-shim-audit -- --skill document-to-markdown
  *   pnpm script:clt-shim-audit -- --skill spreadsheet --skill pdf
  *   pnpm script:clt-shim-audit -- --mode shadow         # one pass only
+ *   pnpm script:clt-shim-audit -- --mode guarded        # does the guard engage?
  *   pnpm script:clt-shim-audit -- --keep                # leave the scratch dirs behind
  */
 
@@ -59,13 +66,22 @@ import {
 } from "./lib/clt-shims";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
 
-// cspell:ignore dylib numpy
+// cspell:ignore dylib libpython numpy
 
 const MODES = ["shadow", "developer-dir", "guarded"] as const;
 type Mode = (typeof MODES)[number];
 
 /** `guarded` is opt-in: see the note on the probe cache in `parseArgs`. */
 const DEFAULT_MODES: Mode[] = ["shadow", "developer-dir"];
+
+/**
+ * Stubs a clean run is known to reach, so anything else is new exposure to
+ * reason about rather than noise to skim past. `install_name_tool` is uv
+ * relocating the managed interpreter's libpython, which it treats as
+ * best-effort; `xcode-select -p` is our own probe, the one stub that reports a
+ * missing developer directory instead of offering to install one.
+ */
+const EXPECTED_SHIMS = new Set(["install_name_tool", "xcode-select"]);
 
 /** Long enough for a cold uv cache to fetch numpy/pandas on a slow connection. */
 const INSTALL_TIMEOUT_MS = 15 * 60 * 1000;
@@ -431,13 +447,18 @@ for (const mode of args.modes) {
   if (mode === "guarded") {
     // What the product decided on its own, with xcode-select reporting nothing.
     const guard = commandLineToolsEnv();
-    process.stdout.write(
-      Object.keys(guard).length > 0
-        ? `guard engaged: ${Object.entries(guard)
-            .map(([key, value]) => `${key}=${value}`)
-            .join(" ")}\n`
-        : `guard DID NOT ENGAGE -- the probe still sees a developer directory\n`,
-    );
+    if (Object.keys(guard).length > 0) {
+      process.stdout.write(
+        `guard engaged: ${Object.entries(guard)
+          .map(([key, value]) => `${key}=${value}`)
+          .join(" ")}\n`,
+      );
+    } else {
+      failures++;
+      process.stdout.write(
+        "guard DID NOT ENGAGE -- the probe still sees a developer directory\n",
+      );
+    }
   }
   process.stdout.write(`scratch: ${root}\n`);
 
@@ -449,11 +470,16 @@ for (const mode of args.modes) {
       if (installReport) {
         process.stdout.write(`${installReport}\n`);
       }
-      if (
-        result.node?.exitCode !== undefined &&
-        result.node.exitCode !== 0 &&
-        result.python?.state.startsWith("failure")
-      ) {
+      // Independent conditions: a skill that installs its Node half and fails
+      // its Python half is still a failure, as is one that installs both and
+      // leaves an interpreter that cannot run.
+      if (result.node !== undefined && result.node.exitCode !== 0) {
+        failures++;
+      }
+      if (result.python?.state.startsWith("failure")) {
+        failures++;
+      }
+      if (result.interpreter?.startsWith("BROKEN")) {
         failures++;
       }
     } catch (error) {
@@ -468,6 +494,23 @@ for (const mode of args.modes) {
     const invocations = await readShimLog(logPath);
     process.stdout.write(`\nCommand Line Tools stubs reached:\n`);
     process.stdout.write(`${reportShims(invocations)}\n`);
+
+    const unexpected = [
+      ...new Set(
+        invocations
+          .map(({ name }) => name)
+          .filter((name) => !EXPECTED_SHIMS.has(name)),
+      ),
+    ];
+    if (unexpected.length > 0) {
+      failures++;
+      process.stdout.write(
+        `\nUNEXPECTED: ${unexpected.join(", ")} -- a stub no previous run reached. ` +
+          `On a Mac without the Command Line Tools this is a new way for the ` +
+          `installer dialog to appear. Work out who calls it before adding it ` +
+          `to EXPECTED_SHIMS.\n`,
+      );
+    }
   }
 
   if (!args.keep) {

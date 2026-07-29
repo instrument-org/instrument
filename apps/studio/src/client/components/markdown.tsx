@@ -45,8 +45,9 @@ interface MarkdownProps {
   assetBaseUrl?: string;
   // Drops the images the allow-list rejects instead of standing a placeholder
   // in for them. For markdown scraped from a page rather than authored for us:
-  // the placeholder is a block element, so inside a paragraph the browser
-  // hoists it out and splits the text around it.
+  // the allow-list passes nothing such a page carries, so every placeholder is
+  // permanent, and being block-level each one interrupts the prose it sits in
+  // to name a picture the reader will never see.
   hideImages?: boolean;
   markdown: string;
   // Present only when rendered inside a task chat. Enables the task-file

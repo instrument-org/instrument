@@ -6,6 +6,7 @@ import { z } from "zod";
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { boundaryContainmentNote, boundContent } from "../lib/content-boundary";
 import { webSearch } from "../lib/web-search";
+import { readWebSearchResults } from "../lib/web-search-results";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
 import {
@@ -149,7 +150,18 @@ export const WebSearch = setupTool({
       };
     }
 
-    const { results } = output;
+    // Every stored part is replayed through here when a turn is rebuilt, and
+    // parts are cast rather than parsed on the way out of the store, so a search
+    // recorded by a build that shaped its results differently arrives typed as
+    // today's without being it. Reading it back is what keeps that turn alive.
+    const results = readWebSearchResults(output);
+    if (!results) {
+      return {
+        type: "error-text",
+        value: "This search's results could not be read.",
+      };
+    }
+
     const isExcerpts = results.kind === "excerpts";
     const sourcesText =
       results.sources.length > 0
@@ -159,7 +171,7 @@ export const WebSearch = setupTool({
     // Titles and URLs are the results describing themselves, so the source list
     // stays inside the boundary with the text it came from.
     const { block, nonce } = boundContent({
-      content: `${isExcerpts ? formatExcerpts(results.sources) : results.text}${sourcesText}`,
+      content: `${results.kind === "excerpts" ? formatExcerpts(results.sources) : results.text}${sourcesText}`,
       label: BOUNDARY_LABEL,
     });
 

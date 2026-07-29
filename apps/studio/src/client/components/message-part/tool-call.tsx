@@ -14,6 +14,7 @@ import { ToolGenerateImage } from "./tool-generate-image";
 import { ToolLoadSkill } from "./tool-load-skill";
 import { ToolReadFile } from "./tool-read-file";
 import { ToolUnavailable } from "./tool-unavailable";
+import { ToolWebFetch } from "./tool-web-fetch";
 import { ToolWebSearch } from "./tool-web-search";
 import { ToolWriteFile } from "./tool-write-file";
 
@@ -129,6 +130,9 @@ function ToolCallBody({
     }
     case "tool-unavailable": {
       return <ToolUnavailable part={part} />;
+    }
+    case "tool-web_fetch": {
+      return <ToolWebFetch part={part} />;
     }
     case "tool-web_search": {
       return <ToolWebSearch onRetry={onRetry} part={part} />;

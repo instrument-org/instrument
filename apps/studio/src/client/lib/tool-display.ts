@@ -3,6 +3,7 @@ import {
   BookOpenIcon,
   CodeIcon,
   EyeIcon,
+  GlobeIcon,
   type Icon,
   ImageIcon,
   MagnifyingGlassIcon,
@@ -20,6 +21,7 @@ const TOOL_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   load_skill: "Loaded skill",
   read_file: "Read",
   unavailable: "Used unknown tool",
+  web_fetch: "Read web page",
   web_search: "Searched web",
   write_file: "Created",
 };
@@ -32,6 +34,7 @@ const TOOL_STREAMING_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   load_skill: "Loading skill",
   read_file: "Reading file",
   unavailable: "Using unknown tool",
+  web_fetch: "Reading web page",
   web_search: "Searching the web",
   write_file: "Creating a file",
 };
@@ -47,6 +50,7 @@ const TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE: Record<
   load_skill: "Loading skill",
   read_file: "Reading",
   unavailable: TOOL_STREAMING_DISPLAY_NAMES.unavailable,
+  web_fetch: "Reading",
   web_search: "Searching for",
   write_file: "Creating",
 };
@@ -59,6 +63,7 @@ const TOOL_TRIED_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   load_skill: "Tried to load skill",
   read_file: "Tried to read file",
   unavailable: "Tried unknown tool",
+  web_fetch: "Tried to read web page",
   web_search: "Tried to search the web",
   write_file: "Tried to create file",
 };
@@ -71,6 +76,7 @@ export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
   load_skill: BookOpenIcon,
   read_file: EyeIcon,
   unavailable: WrenchIcon,
+  web_fetch: GlobeIcon,
   web_search: MagnifyingGlassIcon,
   write_file: CodeIcon,
 };

@@ -25,41 +25,7 @@ studio: revert dark-mode secondary variant on new task button
 
 Use comma-separated package/app scopes only when changes genuinely span both areas (`studio,workspace`). Omit scope only for truly repo-wide changes.
 
-## How to write the message
-
-**Determine what's being committed:**
+## What the message describes
 
 - If conversation context describes recent work, use that as the primary signal -- don't let unrelated staged or unstaged changes dilute the subject.
 - Otherwise, prefer staged changes (`git diff --cached`). If nothing is staged, assume the user wants to commit everything (`git diff HEAD`).
-
-**Then write the message:**
-
-1. Pick the `scope` -- the main area touched.
-2. Write the subject as a short description: _what does this commit do?_
-3. Add a body when it adds useful context -- keep bullets tight.
-
-## Display & clipboard
-
-Display the message inline at the end of your response -- no code block. Example without body (no trailing newline):
-
-studio: animate collapsible tool call cards
-
-With body:
-
-workspace: write initial task name in single manifest write
-
-- avoid a race where two writes could stomp each other during initializeProject
-
-Copy to clipboard immediately after displaying (pipe through `tr -s '\n'` to suppress blank lines):
-
-```bash
-printf %s "studio: animate collapsible tool call cards" | tr -s '\n' | pbcopy
-```
-
-With body:
-
-```bash
-printf %s "workspace: write initial task name in single manifest write
-
-- avoid a race where two writes could stomp each other during initializeProject" | tr -s '\n' | pbcopy
-```

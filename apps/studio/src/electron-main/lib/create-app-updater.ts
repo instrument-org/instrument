@@ -82,6 +82,18 @@ export function createAppUpdater({
   let installRequest: null | Promise<InstallOutcome> = null;
   let pollTimer: NodeJS.Timeout | undefined;
   let polling = false;
+  // Set by the `failed` handler when an install attempt reports an error.
+  // electron-updater catches a missing installer or a failed launch, emits
+  // `error`, and returns normally instead of throwing, so this is the only
+  // signal that `updater.install()` did not take.
+  let installFailure: null | string = null;
+
+  // Read-and-clear, so one attempt is never judged by an earlier one's failure.
+  const takeInstallFailure = () => {
+    const failure = installFailure;
+    installFailure = null;
+    return failure;
+  };
 
   const setStatus = (next: AppUpdaterStatus) => {
     const resolved = resolveStatus({ next, phase });
@@ -147,6 +159,9 @@ export function createAppUpdater({
     failed: (error) => {
       log.error("Updater error:", error);
       phase.pendingNewer = null;
+      if (phase.installing) {
+        installFailure = error.message;
+      }
       // Published before the latch clears, so a failed install surfaces as an
       // error instead of collapsing back into the staged-update status.
       setStatus({
@@ -276,6 +291,15 @@ export function createAppUpdater({
     }
   };
 
+  const reportInstallFailure = (message: string): InstallOutcome => {
+    log.error("Error quitting and installing:", message);
+    // Published before the latch clears, then cleared so the retry and the
+    // before-quit warning are both live again.
+    setStatus({ message, notifyUser: true, type: "error" });
+    phase.installing = false;
+    return { message, type: "failed" };
+  };
+
   const runInstall = async (): Promise<InstallOutcome> => {
     // Verified before the quit prompt, so discovering a superseded build never
     // costs the user a "quit with agents running?" dialog for an install that
@@ -303,6 +327,7 @@ export function createAppUpdater({
       return confirmed;
     }
 
+    installFailure = null;
     phase.installing = true;
     try {
       setStatus({
@@ -312,34 +337,18 @@ export function createAppUpdater({
       });
       updater.install();
     } catch (error) {
+      // Only a genuine throw lands here; the `failed` event is the usual path.
       return reportInstallFailure(
         error instanceof Error ? error.message : String(error),
       );
     }
 
-    // electron-updater catches a missing installer or a failed launch, emits
-    // `error`, and returns normally rather than throwing, so the `failed` handler
-    // clearing the latch is the only signal that the install did not take.
-    if (!phase.installing) {
-      return {
-        message:
-          status?.type === "error"
-            ? status.message
-            : "The update could not be installed.",
-        type: "failed",
-      };
-    }
-
-    return { type: "installing" };
-  };
-
-  const reportInstallFailure = (message: string): InstallOutcome => {
-    log.error("Error quitting and installing:", message);
-    // Published before the latch clears, then cleared so the retry and the
-    // before-quit warning are both live again.
-    setStatus({ message, notifyUser: true, type: "error" });
-    phase.installing = false;
-    return { message, type: "failed" };
+    const failure = takeInstallFailure();
+    // The `failed` handler has already published the error and released the
+    // latch, so this only has to stop reporting an install that did not start.
+    return failure
+      ? { message: failure, type: "failed" }
+      : { type: "installing" };
   };
 
   const runPoll = async () => {

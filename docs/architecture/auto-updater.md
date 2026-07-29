@@ -40,7 +40,12 @@ It runs a bounded pre-install check against the feed (`VERIFY_TIMEOUT_MS`), then
 
 The check runs **before** the running-agents quit prompt, so discovering a superseded build never costs the user a dialog for an install that then does not happen. An unreachable feed returns no opinion rather than blocking: a user offline with a downloaded update can still install it, while `pendingNewer` still defers if a newer download was already known.
 
-Ordering that matters: an install failure is published while `installing` is still latched, then the latch clears. Otherwise `resolveStatus` would fold the error back into "update ready" and the user would never see it.
+Two ordering details that are easy to undo by accident:
+
+- An install failure is published while `installing` is still latched, then the latch clears. Otherwise `resolveStatus` would fold the error back into "update ready" and the user would never see it.
+- `BaseUpdater.install()` catches a missing installer or a failed launch, emits `error`, and returns normally rather than throwing, so a `try`/`catch` around it sees nothing. The `failed` handler clearing `phase.installing` is the only signal that the install did not take, and the request checks it before reporting success — otherwise the single-flight latch would be held forever and no retry would ever run.
+
+The decision is also re-run from local state after the quit confirmation. That dialog is something the user can sit on, and the pre-install check is raced against a timeout rather than cancelled, so the release it was fetching can still land while the dialog is open and take the chosen artifact with it.
 
 ### When the newer download fails
 
@@ -72,6 +77,6 @@ Linux does not call `autoUpdater.quitAndInstall()`, which hangs there, and canno
 
 ## Upstream
 
-Pinned to electron-updater 6.8.9. 6.8.8 hardened the install path against relative `PATH` entries, path traversal, and environment-variable interception, so staying current on the 6.x line matters more here than in most dependencies.
+The manifest asks for `^6.8.9` and the lockfile currently resolves 6.8.9. 6.8.8 hardened the install path against relative `PATH` entries, path traversal, and environment-variable interception, so staying current on the 6.x line matters more here than in most dependencies.
 
 7.x is in alpha and adds the primitives for the gaps documented above: an `autoInstallEvent: "manual" | "onQuit" | "onNextLaunch"` enum in place of the `autoInstallOnAppQuit` boolean, a guard against the OS killing an installer mid-write during shutdown, and re-validation of the cached installer at launch. Worth revisiting when it ships; it is a breaking API change (`quitAndInstall` takes an options object).

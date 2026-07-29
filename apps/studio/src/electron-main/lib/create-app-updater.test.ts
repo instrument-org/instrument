@@ -312,6 +312,26 @@ describe("quitAndInstall", () => {
     expect(h.checks).toHaveBeenCalledTimes(2);
   });
 
+  // electron-updater's BaseUpdater.install() catches a missing installer or a
+  // failed launch, emits `error`, and returns false instead of throwing.
+  it("re-arms the retry when the install reports an error without throwing", async () => {
+    const h = createHarness();
+    h.stage(STAGED);
+    h.respondWith(STAGED);
+    h.installs.mockImplementationOnce(() => {
+      h.events().failed(new Error("No update filepath provided"));
+    });
+
+    await expect(h.updater.quitAndInstall()).resolves.toEqual({
+      message: "No update filepath provided",
+      type: "failed",
+    });
+    expect(h.published.at(-1)).toMatchObject({ type: "error" });
+
+    await h.updater.quitAndInstall();
+    expect(h.installs).toHaveBeenCalledTimes(2);
+  });
+
   it("surfaces an install failure and re-arms the retry", async () => {
     const h = createHarness();
     h.stage(STAGED);
@@ -353,6 +373,33 @@ describe("pre-install check", () => {
 
     await expect(install).resolves.toEqual({ type: "installing" });
     expect(h.installs).toHaveBeenCalledOnce();
+  });
+
+  // Timing the check out does not cancel it, so the release it was fetching can
+  // still land, and with it the pending-cache wipe that deletes the artifact this
+  // install was about to run.
+  it("abandons the install when a newer release lands while the quit prompt is open", async () => {
+    let releaseConfirm: ((quit: boolean) => void) | undefined;
+    const confirmQuit = () =>
+      new Promise<boolean>((resolve) => {
+        releaseConfirm = resolve;
+      });
+    const h = createHarness({ confirmQuit });
+    h.stage(STAGED);
+    h.respondWithStall();
+
+    const install = h.updater.quitAndInstall();
+    await vi.advanceTimersByTimeAsync(VERIFY_TIMEOUT_MS + 1);
+    expect(releaseConfirm).toBeDefined();
+
+    h.events().available(updateInfo(NEWER));
+    releaseConfirm?.(true);
+
+    await expect(install).resolves.toEqual({
+      type: "deferred",
+      version: NEWER,
+    });
+    expect(h.installs).not.toHaveBeenCalled();
   });
 });
 

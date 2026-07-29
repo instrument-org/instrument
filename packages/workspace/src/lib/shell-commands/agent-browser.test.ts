@@ -4,7 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import {
+  createMockTaskConfig,
+  MOCK_WORKSPACE_DIRS,
+} from "../../test/helpers/mock-task-config";
 import {
   browserFreeReadEnv,
   createAgentBrowserCommand,
@@ -231,6 +234,33 @@ describe("agent-browser routing", () => {
     expect(env.ELECTRON_RUN_AS_NODE).toBeUndefined();
     // --profile and --auto-connect resolve against the real user-data dirs.
     expect(env.HOME).toBe(os.homedir());
+  });
+
+  const taskDirPath = `${MOCK_WORKSPACE_DIRS.tasks}/routing`;
+
+  it("keeps a cloned Chrome profile out of the task tree", async () => {
+    const { env } = await spawnedWith([
+      "--profile",
+      "Default",
+      "open",
+      "https://example.com",
+    ]);
+
+    // The CLI clones the user's real profile into TMPDIR. Inside the task that
+    // clone is indexed, reported back to the model as changed files, packed
+    // into an export zip, and readable by the agent.
+    for (const key of ["TEMP", "TMP", "TMPDIR"]) {
+      expect(env[key]).toBeTruthy();
+      expect(env[key]).not.toContain(taskDirPath);
+    }
+  });
+
+  it("keeps the task browser's temp files inside the task", async () => {
+    const { env } = await spawnedWith(["open", "https://example.com"]);
+
+    for (const key of ["TEMP", "TMP", "TMPDIR"]) {
+      expect(env[key]).toContain(taskDirPath);
+    }
   });
 
   it("routes profiles to the host even without a targeting flag", async () => {

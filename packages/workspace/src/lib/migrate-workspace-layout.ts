@@ -45,6 +45,15 @@ const DB_FILE_SUFFIXES = ["", "-wal", "-shm", "-journal"];
 // Presence = legacy projects/ already drained. Empty-by-design; only existence matters.
 const LEGACY_PROJECTS_MIGRATED_MARKER_NAME = ".legacy-projects-migrated";
 
+// Cloned Chrome profiles left in a task's temp dir from when agent-browser
+// inherited it as TMPDIR. Each is a copy of the user's real profile -- cookies,
+// login data, browsing history -- and inside the task it is indexed, packed
+// into an export zip, and readable by the agent, so these are deleted rather
+// than moved. Current builds clone outside the task entirely
+// (getExternalBrowserTmpDir); a task restored from an old export can still
+// carry one, so this keeps running.
+const BROWSER_PROFILE_CLONE_PREFIX = "agent-browser-profile-";
+
 export interface WorkspaceLayoutMigration {
   // Task folder ids left in place because a task with the same id already
   // existed under tasks/ (never clobbered).
@@ -57,7 +66,8 @@ export interface WorkspaceLayoutMigration {
 //    runs the pass at most once; isProjectFolder skips any real project folder
 //    (load-bearing — survives a lost marker).
 // 2. Normalize tasks under tasks/ to current layout. Idempotent; runs every boot.
-// Synchronous and rename-only; no db handle open.
+// Synchronous, and renames rather than copies except for the browser-profile
+// clones it deletes outright; no db handle open.
 export function migrateWorkspaceLayout({
   rootDir,
 }: {
@@ -230,6 +240,9 @@ function normalizeTasks(tasksDir: string) {
     normalizeTaskSettingsFile(taskFolder);
     normalizeTaskWorkLayout(taskFolder);
     normalizeTaskAttachments(taskFolder);
+    // After the work/ move, so a pre-work-layout task's clones are found at
+    // their current path rather than the root one they were written to.
+    removeBrowserProfileClones(taskFolder);
   }
 }
 
@@ -249,5 +262,29 @@ function normalizeTaskWorkLayout(taskFolder: string) {
   const workDir = path.join(taskFolder, TASK_FOLDER_NAMES.work);
   for (const name of WORK_ENTRY_NAMES) {
     moveIfMissingTarget(path.join(taskFolder, name), path.join(workDir, name));
+  }
+}
+
+// Deletes any cloned Chrome profile sitting in the task's temp dir. See
+// BROWSER_PROFILE_CLONE_PREFIX.
+function removeBrowserProfileClones(taskFolder: string) {
+  const tmpDir = path.join(
+    taskFolder,
+    TASK_FOLDER_NAMES.work,
+    TASK_FOLDER_NAMES.tmp,
+  );
+  if (!fs.existsSync(tmpDir)) {
+    return;
+  }
+  for (const entry of fs.readdirSync(tmpDir, { withFileTypes: true })) {
+    if (
+      entry.isDirectory() &&
+      entry.name.startsWith(BROWSER_PROFILE_CLONE_PREFIX)
+    ) {
+      fs.rmSync(path.join(tmpDir, entry.name), {
+        force: true,
+        recursive: true,
+      });
+    }
   }
 }

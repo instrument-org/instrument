@@ -32,6 +32,7 @@ import { isTaskId } from "../is-task-id";
 import {
   getBrowserSessionDir,
   getDownloadsDir,
+  getExternalBrowserTmpDir,
   getScreenshotsDir,
   taskDir,
 } from "../task-dir-utils";
@@ -472,6 +473,18 @@ export function createAgentBrowserCommand({
       commandArgs.push("--session", sessionId, ...resolvedArgs);
     }
 
+    // Resolving `--profile` clones the user's real Chrome profile into TMPDIR,
+    // and driving the host's browser stack spills other host state there too.
+    // Task-local temp (resolveCommandContext) is the wrong sink for that: it is
+    // inside the task tree, so the clone's cookies, login data, and browsing
+    // history would be indexed, listed back to the model as changed files,
+    // written into the next system prompt's task layout, packed into an
+    // exported task zip, and readable by the agent. Redirect it out of the task.
+    const externalTmpDir = isExternal ? getExternalBrowserTmpDir() : undefined;
+    if (externalTmpDir) {
+      await fs.mkdir(externalTmpDir, { recursive: true });
+    }
+
     const screenshotDir = getScreenshotsDir(taskDir(taskId));
     const downloadPath = getDownloadsDir(taskDir(taskId));
     const agentBrowserStateDir = screenshotDir;
@@ -487,6 +500,10 @@ export function createAgentBrowserCommand({
       // sandbox PATH, so prepend its dir (the in-bash `ffmpeg` command is a
       // just-bash intercept that a separate subprocess can't see).
       ...ffmpegSubprocessEnv(env.PATH),
+      // Wins over the task-local TEMP/TMP/TMPDIR the spread above carries.
+      ...(externalTmpDir
+        ? { TEMP: externalTmpDir, TMP: externalTmpDir, TMPDIR: externalTmpDir }
+        : {}),
       // Null out env-var equivalents of harness-owned and connection flags so
       // the user shell can't bypass flag policy. Connection targeting must
       // arrive as CLI flags: session routing (task vs external daemon session)

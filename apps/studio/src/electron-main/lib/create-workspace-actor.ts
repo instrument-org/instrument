@@ -14,6 +14,7 @@ import {
   clearOrphanedProjectRefs,
   closeAllAgentBrowserSessions,
   migrateWorkspaceLayout,
+  pruneExternalBrowserTmp,
   stopAllTaskFileWatchers,
   stopWorkspaceSkillWatcher,
   workspaceMachine,
@@ -88,6 +89,16 @@ export function createWorkspaceActor({
       { scopes: ["studio"] },
     );
   }
+
+  // Reclaims cloned Chrome profiles a crash left behind. Off the boot path:
+  // nothing waits on it, and the dir it clears is only read by an external
+  // browser launch, which cannot happen before the workspace is up.
+  void pruneExternalBrowserTmp({ rootDir }).catch((error: unknown) => {
+    captureServerException(
+      error instanceof Error ? error : new Error(String(error)),
+      { scopes: ["studio"] },
+    );
+  });
 
   const browserViewManager = createBrowserViewManager();
 

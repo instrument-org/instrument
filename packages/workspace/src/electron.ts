@@ -1,4 +1,7 @@
-export { closeAllAgentBrowserSessions } from "./lib/agent-browser-cleanup";
+export {
+  closeAllAgentBrowserSessions,
+  pruneExternalBrowserTmp,
+} from "./lib/agent-browser-cleanup";
 export { applyCommandLineToolsEnv } from "./lib/command-line-tools-env";
 export {
   migrateWorkspaceLayout,

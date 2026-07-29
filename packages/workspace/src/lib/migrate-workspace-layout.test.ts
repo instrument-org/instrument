@@ -248,6 +248,22 @@ describe("migrateWorkspaceLayout", () => {
     );
   });
 
+  it("deletes a cloned Chrome profile left in the task's temp dir", () => {
+    const tmpDir = path.join(rootDir, "tasks", "abc", "work", "tmp");
+    const clone = path.join(tmpDir, "agent-browser-profile-abc-123", "Default");
+    fs.mkdirSync(clone, { recursive: true });
+    fs.writeFileSync(path.join(clone, "Cookies"), "sqlite");
+    fs.writeFileSync(path.join(tmpDir, "scratch.csv"), "a,b");
+
+    migrateWorkspaceLayout({ rootDir });
+
+    expect(
+      exists("tasks", "abc", "work", "tmp", "agent-browser-profile-abc-123"),
+    ).toBe(false);
+    // The agent's own temp files are the point of work/tmp; only the clone goes.
+    expect(read("tasks", "abc", "work", "tmp", "scratch.csv")).toBe("a,b");
+  });
+
   it("folds user-provided and agent-retrieved into attachments/", () => {
     const taskRoot = path.join(rootDir, "tasks", "abc");
     fs.mkdirSync(path.join(taskRoot, "user-provided"), { recursive: true });

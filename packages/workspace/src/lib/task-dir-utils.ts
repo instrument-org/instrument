@@ -26,6 +26,23 @@ export function getDownloadsDir(dir: TaskDir): AbsolutePath {
   return absolutePathJoin(dir, TASK_FOLDER_NAMES.downloads);
 }
 
+// TMPDIR for invocations that drive a browser outside the app. Workspace-level,
+// beside the managed browser's session dir, because `--profile` makes the CLI
+// clone the user's real Chrome profile -- cookies, login data, the full
+// browsing history -- into the temp dir. A task is the one place that clone
+// must not land: everything task-scoped picks it up, from the file index and
+// the task layout in the system prompt through the per-turn change list, the
+// export zip, and the agent's own reads.
+export function getExternalBrowserTmpDir(
+  rootDir: AbsolutePath = getWorkspaceConfig().rootDir,
+): AbsolutePath {
+  return absolutePathJoin(
+    rootDir,
+    TASK_FOLDER_NAMES.private,
+    TASK_FOLDER_NAMES.externalBrowserTmp,
+  );
+}
+
 // Browser screenshots the agent captures. Under work/ so the agent can read
 // them back (it is handed their paths) and the user can browse them; the
 // private dir is now off-limits to the agent, so agent-facing outputs cannot

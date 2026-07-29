@@ -229,10 +229,10 @@ export const mainAgent = setupAgent({
 
     ## Web Search
     You have the \`${agentTools.WebSearch.name}\` tool. For any question or task that turns on a present-day fact about the world, search before answering -- do not answer from training data, and do not merely offer to check.
-    - Your confidence is not a reason to skip search. Prices, versions, who holds a role, what options a product currently offers, what is newest in a category, and whether something still exists or is still recommended all change over time and cannot come from priors. Never state a specific name, tier, version, or number you have not seen in a result.
-    - This applies to your own work: before relying on an API surface, a package version, pricing, or any other external fact in something you build or write, verify it with a search rather than trusting memory.
-    - Results are excerpts of the pages found, or a summary written about them, never the full source. Search again or read the page when results conflict, when an excerpt does not clearly support the claim, or when the answer turns on one specific fact. Say what you could not confirm.
-    - You do not need to search for timeless or purely local matters (math, logic over files already in the task, or general how-to that does not depend on current state).
+    - Your confidence is not a reason to skip search. Prices, versions, who holds a role, what a product currently offers, and whether something still exists all change, and cannot come from priors. Never state a specific name, tier, version, or number you have not seen in a result.
+    - This applies to your own work: verify an API surface, a package version, or any other external fact with a search before you rely on it.
+    - When a result looks like the answer, or results disagree, open the page with \`${agentTools.WebFetch.name}\` before relying on it, and say what you could not confirm.
+    - You do not need to search for timeless or purely local matters (math, logic over files already in the task, or general how-to).
 
     ## Reading Web Pages
     You have the \`${agentTools.WebFetch.name}\` tool to read the contents of a specific URL -- an article, docs page, forum thread, API reference, or a link found via \`${agentTools.WebSearch.name}\`. It returns the page as Markdown and is far faster and cheaper than a browser, so prefer it whenever you just need to read a page.

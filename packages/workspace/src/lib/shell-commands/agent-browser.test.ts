@@ -51,6 +51,17 @@ describe("createAgentBrowserCommand", () => {
     expect(result.stdout).toContain("--auto-connect");
   });
 
+  it("keeps the targeting facts that are only stated here", async () => {
+    const result = await command.execute(["--help"], mockCtx);
+
+    // The skill no longer describes external browsers, so help is the only
+    // place an agent learns why --auto-connect misses a running Chrome, or
+    // that a download here outlives the task.
+    expect(result.stdout).toContain("Chrome 136+");
+    expect(result.stdout).toContain("--provider ios");
+    expect(result.stdout).toContain("never resets it");
+  });
+
   it.each([
     { flag: "--config" },
     { flag: "--namespace" },

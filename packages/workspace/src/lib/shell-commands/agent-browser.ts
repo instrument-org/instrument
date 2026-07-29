@@ -77,7 +77,7 @@ export const AGENT_BROWSER_COMMAND = {
 export function agentBrowserCommandDescription() {
   const external = getWorkspaceConfig().isExternalBrowserEnabled()
     ? [
-        `Defaults to the Instrument-managed task browser. External browsers are selected per invocation: --profile (a local Chrome profile, including the user's logins; list with \`profiles\`), --auto-connect (a Chromium already running with remote debugging), --cdp (an explicit CDP endpoint), --provider (cloud/iOS). The skill covers when each is appropriate.`,
+        `Defaults to the Instrument-managed task browser. External browsers are selected per invocation: --profile (a local Chrome profile, including the user's logins; list with \`profiles\`), --auto-connect (a Chromium already running with remote debugging), --cdp (an explicit CDP endpoint), --provider (cloud/iOS). Run \`agent-browser --help\` for each flag's value rules and caveats; the skill does not cover them.`,
         `The host's browser installs and Chrome profiles are NOT visible in the filesystem; inspect them only via \`agent-browser profiles\`.`,
       ]
     : [
@@ -248,9 +248,15 @@ const WORKSPACE_HELP_EXTERNAL = dedent`
                                 port or an http origin; a ws:// value must be
                                 a complete devtools URL, not just an origin
     --provider <name>           Cloud or iOS browser provider
+    --device <name>             Names an iOS device; only applies alongside
+                                --provider ios, and is ignored on its own
     --state | --restore <key>   Load or persist storage state
 
+  A normally running Chrome is NOT connectable: Chrome 136+ disables remote debugging on the default profile, so --auto-connect only reaches an instance someone launched with it enabled. To act as the user in their own logged-in Chrome, use --profile, which launches a debuggable copy of that profile with its logins.
+
   An external browser launched locally (--profile, --executable-path) opens a window the user can see and use; ask them to complete any sign-in or approval there rather than reporting that you are blocked. A browser reached with --cdp, --auto-connect, or --provider was launched elsewhere and is visible only if it already was.
+
+  Screenshots and downloads land in the same task locations as managed-browser output, and \`screenshot --full\` works here (it is unavailable in the managed browser). Avoid \`download\`: against an external browser it redirects that browser's download destination and never resets it, which outlives the task. Prefer a page-level fetch.
 `.trim();
 
 /**

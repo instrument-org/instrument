@@ -14,6 +14,7 @@ import {
   isBrowserFreeRead,
   isDaemonConfigRace,
   isExternalBrowserInvocation,
+  resolveAgentBrowserPathArgs,
   scrubHostPaths,
 } from "./agent-browser";
 
@@ -155,6 +156,89 @@ describe("browserFreeReadEnv", () => {
   });
 });
 
+describe("resolveAgentBrowserPathArgs", () => {
+  const taskId = createMockTaskConfig(TaskIdSchema.parse("upload-paths"));
+  const taskDirPath = `${MOCK_WORKSPACE_DIRS.tasks}/upload-paths`;
+  const fs = new InMemoryFs();
+
+  it.each([
+    {
+      expected: `${taskDirPath}/attachments/image.png`,
+      name: "task-relative path",
+      path: "attachments/image.png",
+    },
+    {
+      expected: `${taskDirPath}/work/image.png`,
+      name: "/task path",
+      path: "/task/work/image.png",
+    },
+    {
+      expected: `${taskDirPath}/mnt/Photos/image.png`,
+      name: "attached-folder path",
+      path: "/mnt/Photos/image.png",
+    },
+    {
+      expected: `${taskDirPath}/task/.instrument/state.json`,
+      name: "private task path",
+      path: "/task/.instrument/state.json",
+    },
+  ])(
+    "resolves an upload $name for the native browser",
+    ({ expected, path }) => {
+      const result = resolveAgentBrowserPathArgs(
+        ["upload", "@e1", path],
+        taskId,
+        {
+          cwd: "/task",
+          fs,
+        },
+      );
+
+      expect(result).toEqual(["upload", "@e1", expected]);
+    },
+  );
+
+  it("resolves multiple upload files from the live shell cwd", () => {
+    const result = resolveAgentBrowserPathArgs(
+      [
+        "--json",
+        "upload",
+        "@e1",
+        "front.png",
+        "--quiet",
+        "../attachments/back.png",
+      ],
+      taskId,
+      {
+        cwd: "/task/work",
+        fs,
+      },
+    );
+
+    expect(result).toEqual([
+      "--json",
+      "upload",
+      "@e1",
+      `${taskDirPath}/work/front.png`,
+      "--quiet",
+      `${taskDirPath}/attachments/back.png`,
+    ]);
+  });
+
+  it("leaves non-upload relative arguments unchanged", () => {
+    const result = resolveAgentBrowserPathArgs(
+      ["fill", "@e1", "attachments/image.png"],
+      taskId,
+      {
+        cwd: "/task",
+        fs,
+      },
+    );
+
+    expect(result).toEqual(["fill", "@e1", "attachments/image.png"]);
+  });
+});
+
 describe("agent-browser routing", () => {
   const taskId = createMockTaskConfig(TaskIdSchema.parse("routing"));
   const sessionId = StoreId.newSessionId();
@@ -218,6 +302,16 @@ describe("agent-browser routing", () => {
     // Lets the daemon run the plugin under Electron's node on packaged builds.
     expect(env.ELECTRON_RUN_AS_NODE).toBe("1");
     expect(env.HOME).not.toBe(os.homedir());
+  });
+
+  it("passes upload files to the browser as host-absolute paths", async () => {
+    const { args } = await spawnedWith([
+      "upload",
+      "@e1",
+      "attachments/image.png",
+    ]);
+
+    expect(args).toContain(`${taskDirPath}/attachments/image.png`);
   });
 
   it("routes an external targeting flag to the sibling session with no provider", async () => {

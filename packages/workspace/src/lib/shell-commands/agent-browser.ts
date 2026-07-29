@@ -37,6 +37,7 @@ import {
   taskDir,
 } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
+import { resolveNativeHostPath } from "../workspace-fs-layout";
 import {
   agentBrowserFlagName,
   parseAgentBrowserArgs,
@@ -329,6 +330,32 @@ export function isDaemonConfigRace(output: string): boolean {
   );
 }
 
+/**
+ * Resolve virtual absolute paths for native agent-browser, plus every file
+ * operand of `upload`. CDP file inputs require host-absolute paths interpreted
+ * by the browser process, which does not share the sandbox shell's cwd.
+ */
+export function resolveAgentBrowserPathArgs(
+  args: string[],
+  taskId: TaskId,
+  ctx: {
+    cwd: string;
+    fs: { resolvePath(cwd: string, path: string): string };
+  },
+): string[] {
+  const resolved = resolvePathArgs(args, taskId, ctx);
+  const { subArgs, subcommand } = parseAgentBrowserArgs(args);
+  if (subcommand !== "upload") {
+    return resolved;
+  }
+
+  for (const { index, value } of subArgs.slice(2)) {
+    const virtualPath = ctx.fs.resolvePath(ctx.cwd, value);
+    resolved[index] = resolveNativeHostPath(taskDir(taskId), virtualPath);
+  }
+  return resolved;
+}
+
 const DAEMON_RACE_RETRY_DELAY_MS = 250;
 
 interface SpawnAgentBrowserOptions {
@@ -406,7 +433,11 @@ export function createAgentBrowserCommand({
       taskId,
       ctx,
     );
-    const resolvedArgs = resolvePathArgs(navigationArgs, taskId, ctx);
+    const resolvedArgs = resolveAgentBrowserPathArgs(
+      navigationArgs,
+      taskId,
+      ctx,
+    );
 
     // just-bash sets HOME=/ which is read-only. Most agent-browser writes are
     // already redirected via dedicated env vars (socket dir, screenshot dir,

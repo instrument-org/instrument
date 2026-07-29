@@ -174,9 +174,22 @@ describe("browserFreeReadEnv", () => {
 });
 
 describe("resolveAgentBrowserPathArgs", () => {
-  const taskId = createMockTaskConfig(TaskIdSchema.parse("upload-paths"));
+  const taskId = TaskIdSchema.parse("upload-paths");
   const taskDirPath = `${MOCK_WORKSPACE_DIRS.tasks}/upload-paths`;
-  const fs = new InMemoryFs();
+  let fs = new InMemoryFs();
+
+  beforeEach(async () => {
+    createMockTaskConfig(taskId);
+    fs = new InMemoryFs();
+    await fs.mkdir("/task/attachments", { recursive: true });
+    await fs.mkdir("/task/output", { recursive: true });
+    await fs.mkdir("/task/work", { recursive: true });
+    await fs.writeFile("/task/attachments/back.png", "back");
+    await fs.writeFile("/task/attachments/image.png", "image");
+    await fs.writeFile("/task/output/x.png", "image");
+    await fs.writeFile("/task/work/front.png", "front");
+    await fs.writeFile("/task/work/image.png", "image");
+  });
 
   it.each([
     {
@@ -189,20 +202,10 @@ describe("resolveAgentBrowserPathArgs", () => {
       name: "/task path",
       path: "/task/work/image.png",
     },
-    {
-      expected: `${taskDirPath}/mnt/Photos/image.png`,
-      name: "attached-folder path",
-      path: "/mnt/Photos/image.png",
-    },
-    {
-      expected: `${taskDirPath}/task/.instrument/state.json`,
-      name: "private task path",
-      path: "/task/.instrument/state.json",
-    },
   ])(
     "resolves an upload $name for the native browser",
-    ({ expected, path }) => {
-      const result = resolveAgentBrowserPathArgs(
+    async ({ expected, path }) => {
+      const result = await resolveAgentBrowserPathArgs(
         ["upload", "@e1", path],
         taskId,
         {
@@ -211,12 +214,12 @@ describe("resolveAgentBrowserPathArgs", () => {
         },
       );
 
-      expect(result).toEqual(["upload", "@e1", expected]);
+      expect(result).toEqual({ args: ["upload", "@e1", expected] });
     },
   );
 
-  it("resolves multiple upload files from the live shell cwd", () => {
-    const result = resolveAgentBrowserPathArgs(
+  it("resolves multiple upload files from the live shell cwd", async () => {
+    const result = await resolveAgentBrowserPathArgs(
       [
         "--json",
         "upload",
@@ -232,18 +235,71 @@ describe("resolveAgentBrowserPathArgs", () => {
       },
     );
 
-    expect(result).toEqual([
-      "--json",
-      "upload",
-      "@e1",
-      `${taskDirPath}/work/front.png`,
-      "--quiet",
-      `${taskDirPath}/attachments/back.png`,
-    ]);
+    expect(result).toEqual({
+      args: [
+        "--json",
+        "upload",
+        "@e1",
+        `${taskDirPath}/work/front.png`,
+        "--quiet",
+        `${taskDirPath}/attachments/back.png`,
+      ],
+    });
   });
 
-  it("leaves non-upload relative arguments unchanged", () => {
-    const result = resolveAgentBrowserPathArgs(
+  it.each([
+    {
+      cwd: "/task",
+      error: "Copy the file into the task first",
+      name: "attached-folder path",
+      path: "/mnt/Photos/image.png",
+    },
+    {
+      cwd: "/task",
+      error: "outside /task",
+      name: "skills path",
+      path: "/skills/example/SKILL.md",
+    },
+    {
+      cwd: "/task",
+      error: "private .instrument directory",
+      name: "private task path",
+      path: "/task/.instrument/state.json",
+    },
+    {
+      cwd: "/task",
+      error: 'not found: "attachments/missing.png"',
+      name: "missing task file",
+      path: "attachments/missing.png",
+    },
+    {
+      cwd: "/task",
+      error: 'not found: "file:///task/output/x.png"',
+      name: "file URL",
+      path: "file:///task/output/x.png",
+    },
+    {
+      cwd: "/task/work",
+      error: "outside /task",
+      name: "relative escape",
+      path: "../../outside.png",
+    },
+  ])("refuses an upload $name", async ({ cwd, error, path }) => {
+    const result = await resolveAgentBrowserPathArgs(
+      ["upload", "@e1", path],
+      taskId,
+      { cwd, fs },
+    );
+
+    expect(result).toHaveProperty("error");
+    if ("error" in result) {
+      expect(result.error).toContain(error);
+      expect(result.error).not.toContain(taskDirPath);
+    }
+  });
+
+  it("leaves non-upload relative arguments unchanged", async () => {
+    const result = await resolveAgentBrowserPathArgs(
       ["fill", "@e1", "attachments/image.png"],
       taskId,
       {
@@ -252,7 +308,9 @@ describe("resolveAgentBrowserPathArgs", () => {
       },
     );
 
-    expect(result).toEqual(["fill", "@e1", "attachments/image.png"]);
+    expect(result).toEqual({
+      args: ["fill", "@e1", "attachments/image.png"],
+    });
   });
 });
 
@@ -261,11 +319,16 @@ describe("agent-browser routing", () => {
   const sessionId = StoreId.newSessionId();
   const command = createAgentBrowserCommand({ sessionId, taskId });
   const taskDirPath = `${MOCK_WORKSPACE_DIRS.tasks}/routing`;
+  let commandCtx = mockCtx;
 
   // Per test, not once at collection: the config is a process singleton, so a
   // describe that sets it in its body loses to whichever describe runs last.
-  beforeEach(() => {
+  beforeEach(async () => {
     createMockTaskConfig(taskId, { externalBrowser: true });
+    const fs = new InMemoryFs();
+    await fs.mkdir("/task/attachments", { recursive: true });
+    await fs.writeFile("/task/attachments/image.png", "image");
+    commandCtx = { ...mockCtx, cwd: "/task", fs };
   });
 
   afterEach(() => {
@@ -284,7 +347,7 @@ describe("agent-browser routing", () => {
     } as never);
 
     await command.execute(args, {
-      ...mockCtx,
+      ...commandCtx,
       env: new Map(agentEnv),
     });
 
@@ -336,6 +399,22 @@ describe("agent-browser routing", () => {
     ]);
 
     expect(args).toContain(`${taskDirPath}/attachments/image.png`);
+  });
+
+  it("fails before spawning when an upload file is missing", async () => {
+    const result = await command.execute(
+      ["upload", "@e1", "attachments/missing.png"],
+      commandCtx,
+    );
+
+    expect(result).toMatchObject({
+      exitCode: 1,
+      stderr:
+        'agent-browser: Upload file not found: "attachments/missing.png".\n',
+      stdout: "",
+    });
+    const { execa } = await import("execa");
+    expect(execa).not.toHaveBeenCalled();
   });
 
   it("routes an external targeting flag to the sibling session with no provider", async () => {

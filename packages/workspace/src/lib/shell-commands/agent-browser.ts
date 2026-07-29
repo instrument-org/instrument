@@ -10,6 +10,7 @@ import { dedent, sleep } from "radashi";
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { CDP_PAGE_PATH_PREFIX } from "../../logic/server/constants";
 import { getWorkspaceServerPort } from "../../logic/server/url";
+import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../../schemas/paths";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { WebSearch } from "../../tools/web-search";
@@ -37,13 +38,19 @@ import {
   taskDir,
 } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
-import { resolveNativeHostPath } from "../workspace-fs-layout";
+import {
+  privateMountPoint,
+  resolveNativeHostPath,
+  TASK_MOUNT_POINT,
+} from "../workspace-fs-layout";
 import {
   agentBrowserFlagName,
   parseAgentBrowserArgs,
 } from "./agent-browser-args";
 import { rewriteNavigationArgToAssetUrl } from "./agent-browser-asset-url";
 import {
+  attachedMountLiteralError,
+  privateDirLiteralError,
   resolveCommandContext,
   resolvePathArgs,
   subprocessStdin,
@@ -356,29 +363,63 @@ export function isDaemonConfigRace(output: string): boolean {
 }
 
 /**
- * Resolve virtual absolute paths for native agent-browser, plus every file
- * operand of `upload`. CDP file inputs require host-absolute paths interpreted
- * by the browser process, which does not share the sandbox shell's cwd.
+ * Resolve virtual absolute paths for native agent-browser, then validate and
+ * bridge every file operand of `upload`. CDP reports success for missing files,
+ * so the wrapper must fail before handing them to the browser process.
  */
-export function resolveAgentBrowserPathArgs(
+export async function resolveAgentBrowserPathArgs(
   args: string[],
   taskId: TaskId,
   ctx: {
     cwd: string;
-    fs: { resolvePath(cwd: string, path: string): string };
+    fs: {
+      exists(path: string): Promise<boolean>;
+      resolvePath(cwd: string, path: string): string;
+    };
   },
-): string[] {
+): Promise<{ args: string[] } | { error: string }> {
   const resolved = resolvePathArgs(args, taskId, ctx);
   const { subArgs, subcommand } = parseAgentBrowserArgs(args);
   if (subcommand !== "upload") {
-    return resolved;
+    return { args: resolved };
   }
 
   for (const { index, value } of subArgs.slice(2)) {
     const virtualPath = ctx.fs.resolvePath(ctx.cwd, value);
+
+    if (
+      virtualPath === ATTACHED_FOLDERS_MOUNT_ROOT ||
+      virtualPath.startsWith(`${ATTACHED_FOLDERS_MOUNT_ROOT}/`)
+    ) {
+      return { error: attachedMountLiteralError("Upload") };
+    }
+
+    const privateDir = privateMountPoint(TASK_MOUNT_POINT);
+    if (
+      virtualPath === privateDir ||
+      virtualPath.startsWith(`${privateDir}/`)
+    ) {
+      return { error: privateDirLiteralError("Upload") };
+    }
+
+    if (
+      virtualPath !== TASK_MOUNT_POINT &&
+      !virtualPath.startsWith(`${TASK_MOUNT_POINT}/`)
+    ) {
+      return {
+        error:
+          `Upload file "${virtualPath}" is outside ${TASK_MOUNT_POINT}. ` +
+          `Copy the file into the task first and use a task-relative path.`,
+      };
+    }
+
+    if (!(await ctx.fs.exists(virtualPath))) {
+      return { error: `Upload file not found: "${value}".` };
+    }
+
     resolved[index] = resolveNativeHostPath(taskDir(taskId), virtualPath);
   }
-  return resolved;
+  return { args: resolved };
 }
 
 /**
@@ -496,11 +537,19 @@ export function createAgentBrowserCommand({
       taskId,
       ctx,
     );
-    const resolvedArgs = resolveAgentBrowserPathArgs(
+    const bridgedArgs = await resolveAgentBrowserPathArgs(
       navigationArgs,
       taskId,
       ctx,
     );
+    if ("error" in bridgedArgs) {
+      return {
+        exitCode: 1,
+        stderr: `agent-browser: ${bridgedArgs.error}\n`,
+        stdout: "",
+      };
+    }
+    const resolvedArgs = bridgedArgs.args;
 
     // just-bash sets HOME=/ which is read-only. Most agent-browser writes are
     // already redirected via dedicated env vars (socket dir, screenshot dir,

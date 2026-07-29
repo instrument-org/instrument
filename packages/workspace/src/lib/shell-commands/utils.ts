@@ -18,6 +18,17 @@ import {
   TASK_MOUNT_POINT,
 } from "../workspace-fs-layout";
 
+/** Copy-first guidance for a `/mnt/...` reference; subject names the source. */
+export function attachedMountLiteralError(subject: string): string {
+  return (
+    `${subject} references a ${ATTACHED_FOLDERS_MOUNT_ROOT}/... path. ` +
+    `Attached-folder mounts are only visible to the sandbox shell and file tools, ` +
+    `never to real interpreter processes. Copy the file into the task first ` +
+    `(cp '${ATTACHED_FOLDERS_MOUNT_ROOT}/<folder>/<file>' attachments/) and ` +
+    `reference the copy with a task-relative path (attachments/<file>).`
+  );
+}
+
 /**
  * Rewrite the value of a `--flag=<path>` token that points at a
  * sandbox-virtual absolute path (`--env-file=/task/work/.env`) so the real
@@ -170,6 +181,15 @@ export function parseScriptRunnerArgs<
   return { ...result, unknownFlags };
 }
 
+/** Guidance for a private-dir reference; subject names the source. */
+export function privateDirLiteralError(subject: string): string {
+  return (
+    `${subject} references the private ${TASK_FOLDER_NAMES.private} directory. ` +
+    `It holds task internals (task.db, state.json, settings) and is not readable ` +
+    `by real interpreter processes.`
+  );
+}
+
 /** Resolve the effective cwd and env for a shell command. */
 export function resolveCommandContext(
   taskId: TaskId,
@@ -304,17 +324,6 @@ export function subprocessStdin(stdin: ByteString): Buffer | undefined {
   return packed ? Buffer.from(packed, "latin1") : undefined;
 }
 
-/** Copy-first guidance for a quoted `/mnt/...` literal; subject names the source. */
-function attachedMountLiteralError(subject: string): string {
-  return (
-    `${subject} references a ${ATTACHED_FOLDERS_MOUNT_ROOT}/... path. ` +
-    `Attached-folder mounts are only visible to the sandbox shell and file tools, ` +
-    `never to real interpreter processes. Copy the file into the task first ` +
-    `(cp '${ATTACHED_FOLDERS_MOUNT_ROOT}/<folder>/<file>' attachments/) and ` +
-    `reference the copy with a task-relative path (attachments/<file>).`
-  );
-}
-
 function isOptionToken(token: { kind: string }): token is {
   kind: "option";
   name: string;
@@ -336,15 +345,6 @@ function looksLikePath(arg: string): boolean {
     /^[a-z]:[\\/]/i.test(arg) ||
     arg.includes("/") ||
     arg.includes("\\")
-  );
-}
-
-/** Guidance for a quoted private-dir literal; subject names the source. */
-function privateDirLiteralError(subject: string): string {
-  return (
-    `${subject} references the private ${TASK_FOLDER_NAMES.private} directory. ` +
-    `It holds task internals (task.db, state.json, settings) and is not readable ` +
-    `by real interpreter processes.`
   );
 }
 

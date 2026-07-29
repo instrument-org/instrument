@@ -1,5 +1,6 @@
 import { type CommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
-import { describe, expect, it } from "vitest";
+import os from "node:os";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
@@ -9,7 +10,11 @@ import {
   createAgentBrowserCommand,
   isBrowserFreeRead,
   isDaemonConfigRace,
+  isExternalBrowserInvocation,
+  scrubHostPaths,
 } from "./agent-browser";
+
+vi.mock("execa");
 
 const mockCtx: CommandContext = {
   cwd: "/",
@@ -33,33 +38,24 @@ describe("createAgentBrowserCommand", () => {
     expect(result.stdout).toContain(
       "Read the active page as agent-friendly text",
     );
-    expect(result.stdout).toContain("restore");
+    expect(result.stdout).toContain("--auto-connect");
   });
 
   it.each([
     { flag: "--config" },
     { flag: "--namespace" },
-    { flag: "--restore" },
-    { flag: "--restore-save" },
+    { flag: "--session" },
     { flag: "--session-name" },
-  ])("blocks workspace-managed flag $flag", async ({ flag }) => {
+  ])("blocks harness-owned flag $flag", async ({ flag }) => {
     const result = await command.execute([flag, "value", "open"], mockCtx);
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(`flag ${flag} is not allowed`);
   });
 
-  it("blocks the short alias of a managed flag", async () => {
-    const result = await command.execute(
-      ["-p", "browserbase", "open", "https://example.com"],
-      mockCtx,
-    );
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("flag -p is not allowed");
-  });
-
   it.each([
+    { subcommand: "auth" },
+    { subcommand: "batch" },
     { subcommand: "connect" },
     { subcommand: "install" },
     { subcommand: "mcp" },
@@ -156,6 +152,122 @@ describe("browserFreeReadEnv", () => {
   });
 });
 
+describe("agent-browser routing", () => {
+  const taskId = createMockTaskConfig(TaskIdSchema.parse("routing"));
+  const sessionId = StoreId.newSessionId();
+  const command = createAgentBrowserCommand({ sessionId, taskId });
+
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  async function spawnedWith(
+    args: string[],
+    agentEnv: [string, string][] = [],
+  ) {
+    const { execa } = await import("execa");
+    vi.mocked(execa).mockResolvedValue({
+      exitCode: 0,
+      stderr: "",
+      stdout: "",
+    } as never);
+
+    await command.execute(args, {
+      ...mockCtx,
+      env: new Map(agentEnv),
+    });
+
+    const call = vi.mocked(execa).mock.calls[0];
+    if (!call) {
+      throw new Error("agent-browser was never spawned");
+    }
+    // execa's overloads type the call tuple as its 2-argument form, so read
+    // the (binary, args, options) triple positionally and narrow each part.
+    const positional: unknown[] = [...call];
+    const spawnedArgs = positional[1];
+    const options = positional[2];
+    const optionsEnv =
+      typeof options === "object" && options !== null && "env" in options
+        ? options.env
+        : undefined;
+    const env: Record<string, string | undefined> =
+      typeof optionsEnv === "object" && optionsEnv !== null
+        ? Object.fromEntries(
+            Object.entries(optionsEnv).map(([key, value]) => [
+              key,
+              typeof value === "string" ? value : undefined,
+            ]),
+          )
+        : {};
+    return {
+      args: Array.isArray(spawnedArgs) ? spawnedArgs.map(String) : [],
+      env,
+    };
+  }
+
+  it("routes a bare command to the task browser via the instrument provider", async () => {
+    const { args, env } = await spawnedWith(["open", "https://example.com"]);
+
+    expect(args).toContain("--session");
+    expect(args[args.indexOf("--session") + 1]).toBe(sessionId);
+    expect(env.AGENT_BROWSER_PROVIDER).toBe("instrument");
+    expect(env.AGENT_BROWSER_PLUGINS).toContain('"name":"instrument"');
+    // Lets the daemon run the plugin under Electron's node on packaged builds.
+    expect(env.ELECTRON_RUN_AS_NODE).toBe("1");
+    expect(env.HOME).not.toBe(os.homedir());
+  });
+
+  it("routes an external targeting flag to the sibling session with no provider", async () => {
+    const { args, env } = await spawnedWith([
+      "--profile",
+      "Default",
+      "open",
+      "https://example.com",
+    ]);
+
+    expect(args[args.indexOf("--session") + 1]).toBe(`${sessionId}-ext`);
+    expect(env.AGENT_BROWSER_PROVIDER).toBeUndefined();
+    expect(env.AGENT_BROWSER_PLUGINS).toBeUndefined();
+    expect(env.ELECTRON_RUN_AS_NODE).toBeUndefined();
+    // --profile and --auto-connect resolve against the real user-data dirs.
+    expect(env.HOME).toBe(os.homedir());
+  });
+
+  it("routes profiles to the host even without a targeting flag", async () => {
+    const { args, env } = await spawnedWith(["profiles"]);
+
+    expect(args[args.indexOf("--session") + 1]).toBe(`${sessionId}-ext`);
+    expect(env.HOME).toBe(os.homedir());
+    expect(env.AGENT_BROWSER_PROVIDER).toBeUndefined();
+  });
+
+  it("ignores connection env the agent exported into its shell", async () => {
+    const { args, env } = await spawnedWith(
+      ["open", "https://example.com"],
+      [
+        ["AGENT_BROWSER_CDP", "9222"],
+        ["AGENT_BROWSER_AUTO_CONNECT", "1"],
+        ["AGENT_BROWSER_PROFILE", "Default"],
+        ["AGENT_BROWSER_PLUGINS", '[{"name":"evil","command":"/bin/sh"}]'],
+        ["AGENT_BROWSER_PROVIDER", "evil"],
+        ["AGENT_BROWSER_SESSION", "hijacked"],
+        ["AGENT_BROWSER_CONFIG", "/task/agent-browser.json"],
+      ],
+    );
+
+    // Routing stays argv-derived: the shell env cannot move the invocation off
+    // the task browser or re-point the plugin registry.
+    expect(args[args.indexOf("--session") + 1]).toBe(sessionId);
+    expect(env.AGENT_BROWSER_CDP).toBeUndefined();
+    expect(env.AGENT_BROWSER_AUTO_CONNECT).toBeUndefined();
+    expect(env.AGENT_BROWSER_PROFILE).toBeUndefined();
+    expect(env.AGENT_BROWSER_SESSION).toBeUndefined();
+    expect(env.AGENT_BROWSER_CONFIG).toBeUndefined();
+    expect(env.AGENT_BROWSER_PROVIDER).toBe("instrument");
+    expect(env.AGENT_BROWSER_PLUGINS).not.toContain("evil");
+  });
+});
+
 describe("isDaemonConfigRace", () => {
   it("matches the CLI's daemon-configuration refusal", () => {
     expect(
@@ -174,5 +286,81 @@ describe("isDaemonConfigRace", () => {
     [""],
   ])("does not match unrelated failure %j", (output) => {
     expect(isDaemonConfigRace(output)).toBe(false);
+  });
+});
+
+describe("scrubHostPaths", () => {
+  const opts = {
+    homeDir: "/Users/jane",
+    taskDirPath: "/Users/jane/tasks/t1",
+  };
+
+  it.each([
+    {
+      expected:
+        "Chrome profiles (~/Library/Application Support/Google/Chrome):",
+      name: "home-dir paths become ~",
+      output:
+        "Chrome profiles (/Users/jane/Library/Application Support/Google/Chrome):",
+    },
+    {
+      expected: "Saved to work/screenshots/shot.png",
+      name: "task-dir paths become task-relative",
+      output: "Saved to /Users/jane/tasks/t1/work/screenshots/shot.png",
+    },
+    {
+      expected: "in .",
+      name: "a bare task-dir path becomes .",
+      output: "in /Users/jane/tasks/t1",
+    },
+    {
+      expected: "no paths here",
+      name: "unrelated output is untouched",
+      output: "no paths here",
+    },
+  ])("$name", ({ expected, output }) => {
+    expect(scrubHostPaths(output, opts)).toBe(expected);
+  });
+});
+
+describe("isExternalBrowserInvocation", () => {
+  it.each([
+    { args: ["open", "https://example.com"], external: false },
+    { args: ["snapshot", "-i"], external: false },
+    { args: ["--user-agent", "bot/1.0", "open", "x"], external: false },
+    { args: ["--auto-connect", "open", "x"], external: true },
+    { args: ["--auto-connect=false", "open", "x"], external: false },
+    { args: ["--auto-connect", "false", "open", "x"], external: false },
+    { args: ["--cdp", "9222", "snapshot"], external: true },
+    { args: ["--provider", "browserbase", "open", "x"], external: true },
+    { args: ["-p", "ios", "open", "x"], external: true },
+    // Explicitly naming the instrument provider is the task browser.
+    { args: ["--provider", "instrument", "open", "x"], external: false },
+    // The CLI does not honour an inline value on these flags -- it reads the
+    // whole token as the subcommand and fails -- so the invocation reaches no
+    // browser at all, and routing it externally would name a target the
+    // command never connects to.
+    { args: ["--cdp=ws://127.0.0.1:9222/x", "snapshot"], external: false },
+    { args: ["--provider=ios", "open", "x"], external: false },
+    { args: ["--provider=instrument", "open", "x"], external: false },
+    { args: ["--profile", "Default", "open", "x"], external: true },
+    { args: ["--state", "state.json", "open", "x"], external: true },
+    { args: ["--restore", "shop", "open", "x"], external: true },
+    { args: ["--executable-path", "/opt/chrome", "open", "x"], external: true },
+    // A non-targeting value flag's value is never read as a flag itself.
+    { args: ["--args", "--cdp", "open", "x"], external: false },
+    { args: ["--user-agent", "--auto-connect", "open", "x"], external: false },
+    // Upstream identity precedence: provider beats launch-state flags, cdp
+    // beats provider.
+    {
+      args: ["--profile", "Default", "--provider", "instrument", "open"],
+      external: false,
+    },
+    {
+      args: ["--provider", "instrument", "--cdp", "9222", "get", "url"],
+      external: true,
+    },
+  ])("$args -> external: $external", ({ args, external }) => {
+    expect(isExternalBrowserInvocation(args)).toBe(external);
   });
 });

@@ -74,8 +74,6 @@ const WebSearchResultsSchema = z.union([
   FlatSummarySchema,
 ]);
 
-export type WebSearchResults = z.output<typeof WebSearchResultsSchema>;
-
 export function parseWebSearchResults(output: unknown) {
   const parsed = WebSearchResultsSchema.safeParse(output);
   return parsed.success ? parsed.data : null;

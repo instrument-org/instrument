@@ -24,62 +24,40 @@ Never commit machine-local paths (`/Users/...`, `~/code/...`, `C:\...`) or names
 
 ## TypeScript
 
-- No non-null assertions (`!`); use type guards or optional chaining.
-- Avoid casts. If needed, explain why. Prefer `satisfies`; use `as` only for different-type assertions, e.g. unknown payloads.
-- Avoid `any`; never use `as any`.
-- Reuse existing types/interfaces; avoid per-file redefinitions.
-- Avoid optional props/properties unless needed.
-- Kebab-case filenames.
-- Prefer named exports.
-- No JSX section comments like `{/* Header */}<Header />`.
-- Prefer object params for many or identical params: `({ a, b }: { a: number, b: number }) => number`.
-- Do not run `tsc`; use built-in diagnostics or `tsgo`.
-- Perfectionist/import-x sort objects, interfaces, types, imports, etc. Ignore order-only lint errors; auto-fix handles them.
-- `lib`: `es2023`, `DOM`, `DOM.Iterable`; modern features OK.
+- Avoid casts. Prefer `satisfies`; use `as` only for genuinely different types (e.g. unknown payloads), and say why.
+- Reuse existing types/interfaces rather than redefining per file. Prefer short inline non-exported types.
 - Use `radashi` for common lodash-style functions.
-- Prefer short inline non-exported type declarations.
-- Avoid `Array#reduce()`; prefer `.map`, `.filter`, or `for...of`.
-- Omit return types unless needed.
+- Do not run `tsc`; use built-in diagnostics or `tsgo`.
 
 ## Tailwind
 
-- Use `size-` over `w-` and `h-` when width and height are the same.
-- Use `gap-x-` or `gap-y-` over `space-x` or `space-y` for gap.
-- Tailwind v4 scale utilities (`pt-17`, `gap-11`, `w-17`, etc.) are valid (4px x n). Prefer over arbitrary `[...]`.
+Tailwind v4 scale utilities (`pt-17`, `gap-11`, `w-17`, etc.) are valid (4px x n). Prefer them over arbitrary `[...]` values.
 
 ## Zod
 
-- Prefer `z.output` over `z.infer` for type inference.
+Prefer `z.output` over `z.infer` for type inference.
 
 ## React
 
+- React Compiler is set up for Studio, so basic `memo`, `useMemo`, and `useCallback` are unnecessary.
 - Avoid interfaces for component props; use inline types.
-- Avoid `useEffect` when logic can be declarative.
-- React Compiler is set up for Studio; basic `memo`, `useMemo`, and `useCallback` are unnecessary.
-- `tailwindcss/enforce-sort-order` (oxlint-tailwindcss) is an error: class order is lint-enforced. Auto-fix on editor save or with `pnpm fix:lint` rather than sorting by hand. The reporter surfaces only a bounded batch of violations per run, so a large cleanup may need several `fix:lint` passes to fully converge.
 
 ## Monorepo checks (Turbo)
 
-Run lint/types from **repo root** through Turbo for caching. Avoid package-loop `cd` for `check:lint` / `check:types`.
+Run lint/types from **repo root** through Turbo for caching. Avoid package-loop `cd` for `check:lint` / `check:types`. `turbo` is not always on PATH; use `pnpm exec turbo run …` (or root scripts that invoke turbo).
 
-`turbo` is not always on PATH; use `pnpm exec turbo run …` (or root scripts that invoke turbo).
-
-- `pnpm exec turbo run check:types check:lint` — all packages
-- `pnpm exec turbo run check:types check:lint --filter=@instrument-org/workspace`
-- `pnpm exec turbo run check:types check:lint --filter=@instrument-org/studio`
+- `pnpm exec turbo run check:types check:lint` — all packages, or `--filter=@instrument-org/{workspace,studio}` for one
 - `pnpm check-and-test` — full local check (includes spelling, format, etc.)
 - `pnpm check-and-test:ci` — what CI runs (omits pedantic checks that don't affect correctness)
 - `pnpm turbo:fix:lint` — fix lint
 
-`check:lint` / `fix:lint` run **both** ESLint and `oxlint --type-aware`. ESLint handles syntactic rules (perfectionist, react-compiler, regexp, yml/jsonc, turbo); oxlint handles all TypeScript type-aware rules (via tsgolint, see `.oxlintrc.json`) and Tailwind class rules (oxlint-tailwindcss, per-package `.oxlintrc.json`). ESLint no longer builds a TypeScript program, so it is fast. There is no typed linting in the ESLint config.
+`check:lint` / `fix:lint` run both ESLint (syntactic rules: perfectionist, react-compiler, regexp, yml/jsonc, turbo) and `oxlint --type-aware` (all TypeScript type-aware rules via tsgolint, plus Tailwind class rules). There is no typed linting in the ESLint config, so it is fast.
 
-Format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`): each Edit/Write runs oxfmt on that file; Stop runs oxfmt + `eslint --fix` (formatting-only config from `packages/eslint-config/format.ts` — sorting and auto-fixable rules, no typed rules) + `oxlint --fix` (no `--type-aware`; this is what fixes Tailwind class order) + oxfmt over every changed file, then reports remaining ESLint findings against each package's real config. Don't hand-format or fix order-only/auto-fixable lint; expect files to change after you write them. Type errors and non-auto-fixable lint are not covered — run the checks above.
-
-Single test file: `cd packages/<name> && pnpm test run <file>` or `cd apps/studio && pnpm test run <file>`.
+A format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`) runs oxfmt on every file you Edit/Write, then oxfmt + `eslint --fix` + `oxlint --fix` over all changed files on Stop, and reports what is left. So: expect files to change after you write them, and never hand-format or hand-fix order-only and auto-fixable lint (including Tailwind class order). Type errors and non-auto-fixable lint are **not** covered — run the checks above.
 
 ## Key catalog versions
 
-`package.json` files show `"catalog:"` instead of version numbers. Real versions are in `pnpm-workspace.yaml` under `catalog:`. Critical ones:
+`package.json` files show `"catalog:"` instead of version numbers. Real versions are in `pnpm-workspace.yaml` under `catalog:`. The ones where a stale assumption changes the code you write:
 
 - **React** 19.2 / **react-dom** 19.2
 - **TypeScript** 5.9 (also available as `@typescript/native-preview` 7.x via `tsgo`)
@@ -102,15 +80,9 @@ Multiple worktrees can run Studio at once (`pnpm dev:studio` from the root, or `
 
 ## Tests
 
-- Use `it.each` for testing repetitive cases.
-- Generate empty `toMatchInlineSnapshot` and allow the test run to fill it in.
-- Prefer `toMatchInlineSnapshot`; keep expected output visible in the test file.
-- Run a specific test file: `cd packages/<name> && pnpm test run <path/to/file.test.ts>`.
-- Run all tests in a package: `cd packages/<name> && pnpm test run`.
-
-## Commits
-
-Use a scope-first subject: `scope: description of what changed`. No conventional types (`feat:`/`fix:`/etc.) -- let the description imply the change. Add a body when it helps. See `.agents/skills/instrument-commit-message/SKILL.md`.
+- Run one file or a whole package with `cd packages/<name> && pnpm test run [path/to/file.test.ts]` (same shape in `apps/studio`).
+- Prefer `toMatchInlineSnapshot` so expected output stays visible in the test file. Generate it empty and let the run fill it in.
+- Use `it.each` for repetitive cases.
 
 ## Repository knowledge base
 
@@ -125,6 +97,7 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 
 - `REVIEW.md` — Repo-specific code review calibration.
 - `.agents/skills/validate-changes/SKILL.md` — **How to check your work.** The ways to run this product (sandbox shell, real agent across models, the app), what each one can and cannot tell you, and which to reach for. Read this before concluding a change works.
+- `.agents/skills/instrument-commit-message/SKILL.md` — This repo's commit scopes and real examples from the history.
 - `.agents/setup.md` — Prerequisites before first `pnpm install` / `./scripts/setup.sh`.
 - `.agents/env.md` — Environment variables for Studio and workspace.
 - `docs/architecture/system-overview.md` — Top-level map: packages/layering, main-vs-renderer runtime topology, on-disk layout, and how an agent turn flows. Start here.
@@ -135,5 +108,4 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `docs/architecture/responsive-layout.md` — Why viewport breakpoints are the wrong proxy for layout width in Studio (UI zoom + resizable sidebar), the `@container/app-content` shell container, and the unit rules for sizing portalled content under zoom.
 - `.agents/cloud-dev.md` — Headless/CI dev: `NO_SANDBOX`, shim + Studio startup, CDP port 48160, Xvfb, pnpm checks.
 - `apps/studio/AGENTS.md` — Electron deps vs devDeps, React 19 + TanStack Router + oRPC patterns, where client/main/RPC code lives.
-- `.agents/skills/` — Repo-local skills, invocable by name (symlinked to `.claude/skills`): `changelog`, `find-ui-changes`, `instrument-commit-message`, `release-notes`, `run-bash`, `session-transcript`, `studio-chrome-devtools`, `studio-dev-logs`, `task-database-query`, `typescript-result`, `validate-changes`. Read a `SKILL.md` before hand-rolling work one of them covers.
 - `packages/workspace/AGENTS.md` — RPC routes, tools/agents layout, workspace server, XState machines, neverthrow + Zod tool conventions.

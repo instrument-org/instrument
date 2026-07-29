@@ -17,11 +17,6 @@ Core AI agents, workflow logic, RPC, tools, and runtime.
 - `session-context` message (system prompt + `agent.getMessages`) persisted once per session, reused across turns. `prepare-model-messages.ts` rebuilds only when stale (`STALE_MESSAGE_THRESHOLD_MINUTES`, 60 min).
 - So `getMessages`-derived values (project instructions, folder list, task layout) lag up to 60 min. Need-it-now changes: attach a per-turn `data-*` part to the user message (`detect-project-changes.ts`, `external-file-changes.ts`). Derive standing values from current state (`getEffectiveProjectContext`) so rebuild doesn't revert to a stale snapshot.
 
-## Conventions
-
-- Prefer neverthrow `Result` for fallible operations; use `toORPCError` when throwing from RPC handlers.
-- Tools use Zod input/output schemas and the shared `create-tool` / `setupTool` pattern.
-
 ## Evals
 
 `evals/` boots the real workspace machine and runs the actual agent loop against

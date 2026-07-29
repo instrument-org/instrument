@@ -22,7 +22,6 @@ Renderer: React 19, TanStack Router file routes, shadcn UI, oRPC to main process
 - `rpcClient` `.call()` throws unless wrapped with `safe` from `@orpc/client`; use only for imperative calls outside React.
 - Queries: `useQuery` + `rpcClient.method.name.queryOptions({ input })`. Skip conditionally with `skipToken`.
 - External links: `<ExternalLink href="..." />` or `rpcClient.utils.openExternalLink`.
-- `cn` helper from `@/client/lib/utils` for conditional/composed classes.
 - Route matching: `useMatchRoute`, never pathname strings.
 - After adding/removing/renaming files under `src/client/routes`, run `pnpm --filter @instrument-org/studio run routes:generate`. Don't hand-edit `routeTree.gen.ts`.
 - RPC types: `RPCInput`/`RPCOutput` from `@/client/rpc/client`. Never redeclare inferable types.
@@ -48,13 +47,11 @@ Closing the last window quits the app on **every** platform, macOS included, and
 
 ## UI zoom
 
-The whole main window scales with CSS `zoom` on `ZoomRoot` (`zoomAtom`, user-adjustable 0.5x–2x). `zoom` compounds down the tree and floating-ui doesn't yet correct for an ancestor's zoom, so anything positioned or sized against the viewport needs care when zoom ≠ 1 (it's silently fine at the 1x default — check other levels).
+The whole main window scales with CSS `zoom` on `ZoomRoot` (`zoomAtom`, user-adjustable 0.5x–2x). `zoom` compounds down the tree and floating-ui doesn't yet correct for an ancestor's zoom, so anything positioned, sized, or measured against the viewport needs care when zoom ≠ 1 — and it's silently fine at the 1x default, so check other levels. `docs/architecture/responsive-layout.md` and `use-app-zoom.ts` carry the full rationale and the per-unit rules; what you need before reading them:
 
-- Radix overlays portal to `document.body` (outside the zoomed root) and self-apply zoom on their own Content via `useAppZoomStyle` + the `--content-zoom` max-size divisors. Reuse those helpers on any new floating/portalled UI instead of hand-rolling zoom math.
-- If you portal into the zoomed tree instead of `body`, counter-scale the target back to effective 1x (see `use-portal-container.tsx`) so self-applied zoom doesn't double up.
-- See `use-app-zoom.ts` for the full rationale and the upstream floating-ui issue to drop this once fixed.
-- Zoom also makes viewport media queries a bad proxy for layout width, and splits `getBoundingClientRect()` (on-screen px) from `offsetWidth`/`ResizeObserver` (layout px). Routes lay out against the `@container/app-content` container `TabView` puts around them instead; see `docs/architecture/responsive-layout.md`.
+- Reuse `useAppZoomStyle` + the `--content-zoom` max-size divisors on any new floating/portalled UI, or `use-portal-container.tsx` when portalling into the zoomed tree, instead of hand-rolling zoom math.
 - Never add a `container-type` above a portal target. floating-ui counts it as a containing block for fixed content and Chrome doesn't, so every menu/popover silently shifts by that element's offset. `@container/app-content` sits below the portal target for exactly this reason.
+- Routes lay out against that `@container/app-content` container (`TabView` puts it around them), never viewport media queries.
 - Both windows (see Windows) use the same `ZoomRoot` + `zoomAtom`: the onboarding window wires it via `OnboardingZoomRoot`. `ZoomToast` (a transient corner readout on any zoom change) is mounted once per window, outside `ZoomRoot`, so keep it in sync in both roots.
 
 ## Tests

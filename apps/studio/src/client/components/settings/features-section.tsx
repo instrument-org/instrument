@@ -2,8 +2,10 @@ import { featuresAtom } from "@/client/atoms/features";
 import { Card } from "@/client/components/ui/card";
 import { Label } from "@/client/components/ui/label";
 import { Switch } from "@/client/components/ui/switch";
+import { isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { FEATURE_METADATA, type FeatureName } from "@/shared/features";
+import { useMutation } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
 
@@ -55,6 +57,9 @@ export function FeaturesSection() {
                 {title}
               </Label>
               <p className="text-sm text-muted-foreground">{description}</p>
+              {feature === "external_browser" &&
+                optimisticFeatures.external_browser &&
+                isMacOS() && <AppManagementHint />}
             </div>
             <Switch
               checked={optimisticFeatures[feature]}
@@ -67,5 +72,35 @@ export function FeaturesSection() {
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * macOS asks to let this app manage other apps the first time the agent
+ * launches the user's Chrome, and denying it is sticky. There is no API to
+ * request that consent or to read it back, so the most we can do is point at
+ * the pane where it lives.
+ */
+function AppManagementHint() {
+  const openSettings = useMutation(
+    rpcClient.features.openAppManagementSettings.mutationOptions(),
+  );
+
+  return (
+    <p className="text-sm text-muted-foreground">
+      macOS asks for permission to manage apps the first time the agent opens
+      your browser. If it never worked, or you dismissed the prompt, grant it
+      under{" "}
+      <button
+        className="underline underline-offset-2"
+        onClick={() => {
+          openSettings.mutate(undefined);
+        }}
+        type="button"
+      >
+        Privacy &amp; Security &rsaquo; App Management
+      </button>
+      .
+    </p>
   );
 }

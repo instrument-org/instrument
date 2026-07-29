@@ -45,6 +45,7 @@ setWorkspaceConfig({
     path.join(rootDir, "default-task-template"),
   ),
   getAIProviderConfigs: () => [],
+  isExternalBrowserEnabled: () => false,
   modelCache: noopModelCache,
   nodeExecEnv: {},
   pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),

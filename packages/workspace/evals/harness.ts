@@ -144,6 +144,7 @@ export async function runEvals(
         "../templates/default",
       ),
       getAIProviderConfigs: () => providerConfigs,
+      isExternalBrowserEnabled: () => true,
       modelCache: noopModelCache,
       nodeExecEnv: {},
       pnpmBinPath: await execa({ reject: false })`which pnpm`.then(

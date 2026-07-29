@@ -1,6 +1,6 @@
 import { type CommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import os from "node:os";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
@@ -9,11 +9,13 @@ import {
   MOCK_WORKSPACE_DIRS,
 } from "../../test/helpers/mock-task-config";
 import {
+  agentBrowserCommandDescription,
   browserFreeReadEnv,
   createAgentBrowserCommand,
   isBrowserFreeRead,
   isDaemonConfigRace,
   isExternalBrowserInvocation,
+  isExternalLocalLaunch,
   resolveAgentBrowserPathArgs,
   scrubHostPaths,
 } from "./agent-browser";
@@ -28,10 +30,14 @@ const mockCtx: CommandContext = {
 };
 
 describe("createAgentBrowserCommand", () => {
-  const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
+  const taskId = TaskIdSchema.parse("test");
   const command = createAgentBrowserCommand({
     sessionId: StoreId.newSessionId(),
     taskId,
+  });
+
+  beforeEach(() => {
+    createMockTaskConfig(taskId, { externalBrowser: true });
   });
 
   it("returns managed help with read guidance", async () => {
@@ -240,9 +246,16 @@ describe("resolveAgentBrowserPathArgs", () => {
 });
 
 describe("agent-browser routing", () => {
-  const taskId = createMockTaskConfig(TaskIdSchema.parse("routing"));
+  const taskId = TaskIdSchema.parse("routing");
   const sessionId = StoreId.newSessionId();
   const command = createAgentBrowserCommand({ sessionId, taskId });
+  const taskDirPath = `${MOCK_WORKSPACE_DIRS.tasks}/routing`;
+
+  // Per test, not once at collection: the config is a process singleton, so a
+  // describe that sets it in its body loses to whichever describe runs last.
+  beforeEach(() => {
+    createMockTaskConfig(taskId, { externalBrowser: true });
+  });
 
   afterEach(() => {
     vi.resetAllMocks();
@@ -330,7 +343,28 @@ describe("agent-browser routing", () => {
     expect(env.HOME).toBe(os.homedir());
   });
 
-  const taskDirPath = `${MOCK_WORKSPACE_DIRS.tasks}/routing`;
+  it("launches an external browser with a window the user can see", async () => {
+    const { args } = await spawnedWith([
+      "--profile",
+      "Default",
+      "open",
+      "https://example.com",
+    ]);
+
+    expect(args).toContain("--headed");
+  });
+
+  it.each([
+    { args: ["--cdp", "9222", "snapshot"], name: "--cdp" },
+    { args: ["--auto-connect", "snapshot"], name: "--auto-connect" },
+    { args: ["--provider", "browserbase", "open", "x"], name: "--provider" },
+    { args: ["profiles"], name: "profiles" },
+    { args: ["open", "https://example.com"], name: "the task browser" },
+  ])("does not ask $name for a window it cannot open", async ({ args }) => {
+    const { args: spawned } = await spawnedWith(args);
+
+    expect(spawned).not.toContain("--headed");
+  });
 
   it("keeps a cloned Chrome profile out of the task tree", async () => {
     const { env } = await spawnedWith([
@@ -389,6 +423,83 @@ describe("agent-browser routing", () => {
     expect(env.AGENT_BROWSER_CONFIG).toBeUndefined();
     expect(env.AGENT_BROWSER_PROVIDER).toBe("instrument");
     expect(env.AGENT_BROWSER_PLUGINS).not.toContain("evil");
+  });
+});
+
+describe("agent-browser with external browsers disabled", () => {
+  const taskId = TaskIdSchema.parse("gated");
+  const sessionId = StoreId.newSessionId();
+  const command = createAgentBrowserCommand({ sessionId, taskId });
+
+  beforeEach(() => {
+    createMockTaskConfig(taskId, { externalBrowser: false });
+  });
+
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  async function execute(args: string[]) {
+    const { execa } = await import("execa");
+    vi.mocked(execa).mockResolvedValue({
+      exitCode: 0,
+      stderr: "",
+      stdout: "",
+    } as never);
+
+    const result = await command.execute(args, mockCtx);
+    return { result, spawned: vi.mocked(execa).mock.calls.length > 0 };
+  }
+
+  it.each([
+    { args: ["--profile", "Default", "open", "https://example.com"] },
+    { args: ["--auto-connect", "snapshot"] },
+    { args: ["--cdp", "9222", "snapshot"] },
+    { args: ["--provider", "browserbase", "open", "x"] },
+    { args: ["--executable-path", "/opt/chrome", "open", "x"] },
+    { args: ["--state", "state.json", "open", "x"] },
+    { args: ["profiles"] },
+  ])(
+    "refuses $args instead of answering it on the task browser",
+    async ({ args }) => {
+      const { result, spawned } = await execute(args);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("external browsers are not available");
+      // The point of refusing: silently dropping the flag would run the command
+      // against a browser that is not the one the agent believes it is on.
+      expect(spawned).toBe(false);
+    },
+  );
+
+  it("still drives the task browser", async () => {
+    const { result, spawned } = await execute(["open", "https://example.com"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(spawned).toBe(true);
+  });
+
+  it("still answers --version without a browser", async () => {
+    const { spawned } = await execute(["--version"]);
+
+    expect(spawned).toBe(true);
+  });
+
+  it("leaves external browsers out of the help", async () => {
+    const { result } = await execute(["--help"]);
+
+    expect(result.stdout).toContain("agent-browser read");
+    expect(result.stdout).not.toContain("--auto-connect");
+    expect(result.stdout).not.toContain("--profile");
+    expect(result.stdout).not.toContain("External browsers");
+  });
+
+  it("leaves external browsers out of the command description", () => {
+    const description = agentBrowserCommandDescription();
+
+    expect(description).not.toContain("--profile");
+    expect(description).not.toContain("--auto-connect");
+    expect(description).toContain("only browser available");
   });
 });
 
@@ -486,5 +597,32 @@ describe("isExternalBrowserInvocation", () => {
     },
   ])("$args -> external: $external", ({ args, external }) => {
     expect(isExternalBrowserInvocation(args)).toBe(external);
+  });
+});
+
+describe("isExternalLocalLaunch", () => {
+  it.each([
+    { args: ["--profile", "Default", "open", "x"], launch: true },
+    { args: ["--executable-path", "/opt/chrome", "open", "x"], launch: true },
+    { args: ["--state", "state.json", "open", "x"], launch: true },
+    { args: ["--restore", "shop", "open", "x"], launch: true },
+    // Attached targets: the browser exists already and launch options are moot.
+    { args: ["--cdp", "9222", "snapshot"], launch: false },
+    { args: ["--auto-connect", "snapshot"], launch: false },
+    { args: ["--provider", "browserbase", "open", "x"], launch: false },
+    {
+      args: ["--profile", "Default", "--cdp", "9222", "snapshot"],
+      launch: false,
+    },
+    // Opting out of auto-connect leaves a launch behind, not an attach.
+    {
+      args: ["--auto-connect", "false", "--profile", "Default", "open", "x"],
+      launch: true,
+    },
+    // Not external at all.
+    { args: ["open", "https://example.com"], launch: false },
+    { args: ["--provider", "instrument", "open", "x"], launch: false },
+  ])("$args -> local launch: $launch", ({ args, launch }) => {
+    expect(isExternalLocalLaunch(args)).toBe(launch);
   });
 });

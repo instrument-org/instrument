@@ -392,6 +392,7 @@ export const workspaceMachine = setup({
       captureException: CaptureExceptionFunction;
       defaultTaskTemplateDir: string;
       getAIProviderConfigs: GetProviderConfigs;
+      isExternalBrowserEnabled: () => boolean;
       modelCache: ModelCache;
       nodeExecEnv: Record<string, string>;
       pnpmBinPath: string;
@@ -418,6 +419,7 @@ export const workspaceMachine = setup({
         input.defaultTaskTemplateDir,
       ),
       getAIProviderConfigs: input.getAIProviderConfigs,
+      isExternalBrowserEnabled: input.isExternalBrowserEnabled,
       modelCache: input.modelCache,
       nodeExecEnv: input.nodeExecEnv,
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),

@@ -112,6 +112,9 @@ export interface WorkspaceConfig {
   captureException: CaptureExceptionFunction;
   defaultTaskTemplateDir: AbsolutePath;
   getAIProviderConfigs: GetProviderConfigs;
+  // Read per invocation rather than captured at boot: the flag is a live store
+  // the user can toggle from Settings, and this config is built once.
+  isExternalBrowserEnabled: () => boolean;
   modelCache: ModelCache;
   nodeExecEnv: Record<string, string>;
   pnpmBinPath: AbsolutePath;

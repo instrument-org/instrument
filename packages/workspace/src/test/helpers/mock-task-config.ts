@@ -54,6 +54,7 @@ export function createMockTaskConfig(
   id: TaskId,
   options: {
     aiSDKModel?: LanguageModelV3;
+    externalBrowser?: boolean;
     imageModel?: ImageModelV3;
     model?: AIGatewayModel.Type;
     webSearch?: WebSearchClient;
@@ -108,6 +109,9 @@ export function createMockTaskConfig(
       MOCK_WORKSPACE_DIRS.defaultTaskTemplate,
     ),
     getAIProviderConfigs: () => [...mockProviderConfigs.values()],
+    // Off by default, as it ships: a test that wants the external-browser path
+    // opts into it the same way a user does.
+    isExternalBrowserEnabled: () => options.externalBrowser ?? false,
     modelCache: noopModelCache,
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/tmp/pnpm"),

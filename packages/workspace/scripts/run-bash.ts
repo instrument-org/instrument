@@ -110,6 +110,7 @@ setWorkspaceConfig({
     path.join(rootDir, "default-task-template"),
   ),
   getAIProviderConfigs: () => [],
+  isExternalBrowserEnabled: () => true,
   modelCache: noopModelCache,
   nodeExecEnv: {},
   pnpmBinPath: AbsolutePathSchema.parse(

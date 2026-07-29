@@ -46,6 +46,7 @@ function createWorkspaceActor(rootDir = "/tmp/workspace") {
       captureException: noop,
       defaultTaskTemplateDir: MOCK_WORKSPACE_DIRS.defaultTaskTemplate,
       getAIProviderConfigs: () => [],
+      isExternalBrowserEnabled: () => false,
       modelCache: noopModelCache,
       nodeExecEnv: {},
       pnpmBinPath: "/tmp/pnpm",

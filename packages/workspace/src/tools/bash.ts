@@ -56,7 +56,9 @@ export const BashTool = setupTool({
     spillFilePath: RelativePathSchema.optional(),
   }),
 }).create({
-  description: createBashDescription(),
+  // Built per call: the command list it renders describes capabilities that a
+  // feature flag can turn on and off while the app is running.
+  description: () => createBashDescription(),
   async execute({ input, partId, sessionId, signal, taskId }) {
     const taskState = await getTaskState(taskDir(taskId));
     const bash = await createBashEnv({

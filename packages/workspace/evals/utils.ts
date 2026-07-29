@@ -41,6 +41,7 @@ export function buildReportWorkspaceConfig(
       path.join(absoluteWorkspaceDir, "default-task-template"),
     ),
     getAIProviderConfigs: () => [],
+    isExternalBrowserEnabled: () => true,
     modelCache: noopModelCache,
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),

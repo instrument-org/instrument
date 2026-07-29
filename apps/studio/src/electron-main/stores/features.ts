@@ -1,6 +1,6 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { FeatureNameSchema } from "@/shared/features";
+import { type FeatureName, FeatureNameSchema } from "@/shared/features";
 import Store from "electron-store";
 import { z } from "zod";
 
@@ -38,9 +38,17 @@ const parseFeatures = (data: unknown): FeaturesStore => {
 
 let FEATURES_STORE: null | Store<FeaturesStore> = null;
 
+// Every feature, off. Parsing `{}` would satisfy the record type while leaving
+// each key absent, so a read would return undefined where the type promises a
+// boolean, and a switch bound to one would render uncontrolled.
+const allFeaturesOff = (): FeaturesStore =>
+  parseFeatures(
+    Object.fromEntries(FeatureNameSchema.options.map((name) => [name, false])),
+  );
+
 export const getFeaturesStore = (): Store<FeaturesStore> => {
   if (FEATURES_STORE === null) {
-    const defaultFeatures = parseFeatures({});
+    const defaultFeatures = allFeaturesOff();
     FEATURES_STORE = new Store<FeaturesStore>({
       defaults: defaultFeatures,
       deserialize: (value) => {
@@ -62,7 +70,5 @@ export const getFeaturesStore = (): Store<FeaturesStore> => {
   return FEATURES_STORE;
 };
 
-// export const isFeatureEnabled = (feature: FeatureName): boolean => {
-//   const store = getFeaturesStore();
-//   return store.get(feature);
-// };
+export const isFeatureEnabled = (feature: FeatureName): boolean =>
+  getFeaturesStore().get(feature);

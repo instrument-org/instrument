@@ -4,6 +4,7 @@ import {
   setQuitApproval,
 } from "@/electron-main/lib/quit-guard";
 import { finalizeTelemetry } from "@/electron-main/lib/register-telemetry";
+import { isFeatureEnabled } from "@/electron-main/stores/features";
 import { diskModelCache } from "@/electron-main/stores/model-cache";
 import { ensureMainWindowVisible } from "@/electron-main/windows/main";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
@@ -113,6 +114,7 @@ export function createWorkspaceActor({
         ? path.join(process.resourcesPath, DEFAULT_TASK_TEMPLATE_DIR_NAME)
         : UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR,
       getAIProviderConfigs,
+      isExternalBrowserEnabled: () => isFeatureEnabled("external_browser"),
       modelCache: diskModelCache,
       nodeExecEnv: {
         // Required to allow Electron to operate as a node process

@@ -17,6 +17,7 @@ import { type TaskId } from "../schemas/task-id";
 import { TOOL_NAMES } from "../tools/name";
 import {
   AGENT_BROWSER_COMMAND,
+  agentBrowserCommandDescription,
   createAgentBrowserCommand,
 } from "./shell-commands/agent-browser";
 import { createFfmpegCommand, FFMPEG_COMMAND } from "./shell-commands/ffmpeg";
@@ -309,7 +310,7 @@ export function createBashDescription() {
     .map(([name, description]) => `  ${name} - ${description}`);
 
   const customLines = [
-    `  ${AGENT_BROWSER_COMMAND.name} - ${AGENT_BROWSER_COMMAND.description}`,
+    `  ${AGENT_BROWSER_COMMAND.name} - ${agentBrowserCommandDescription()}`,
     ...CUSTOM_COMMAND_DEFS.filter((cmd) => cmd.listInDescription).map(
       (cmd) => `  ${cmd.name} - ${cmd.description}`,
     ),

@@ -146,6 +146,10 @@ export function DevPanel() {
     rpcClient.debug.getAppEnvironment.queryOptions(),
   );
 
+  const { data: appVersion } = useQuery(
+    rpcClient.preferences.getAppVersion.queryOptions(),
+  );
+
   const { mutate: openUserDataFolder } = useMutation(
     rpcClient.debug.openUserDataFolder.mutationOptions(),
   );
@@ -191,6 +195,13 @@ export function DevPanel() {
               <span className="font-mono text-[9px] leading-none">
                 {envLabel}
               </span>
+              {/* Only in a packaged build: the version of a dev run is whatever
+                  is checked out, and "dev" already says so. */}
+              {isPackaged && appVersion !== undefined && (
+                <span className="font-mono text-[9px] leading-none text-dev-500/70 tabular-nums dark:text-dev-400/60">
+                  {appVersion.version}
+                </span>
+              )}
               {enabledFlagCount > 0 && (
                 <span className="rounded-sm bg-dev-500/20 px-1 py-px font-mono text-[9px] leading-none text-dev-600 tabular-nums dark:bg-dev-400/20 dark:text-dev-400">
                   {enabledFlagCount}

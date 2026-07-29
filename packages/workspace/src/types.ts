@@ -14,6 +14,7 @@ import { type TASK_STATUSES } from "./constants";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
 import { StoreId } from "./schemas/store-id";
 import { type TaskId, TaskIdSchema } from "./schemas/task-id";
+import { type WebSearchClient } from "./schemas/web-search";
 
 export interface BrowserConfig {
   closeTarget: (targetId: BrowserTargetId) => Promise<void>;
@@ -125,6 +126,7 @@ export interface WorkspaceConfig {
   // Base dir for uv's isolated cache/python-install/tool dirs. Lives under the
   // app's userData so a sandboxed `HOME=/` never sends uv writing to the host.
   uvDataDir: AbsolutePath;
+  webSearch: WebSearchClient;
 }
 type CdpMethod = keyof ProtocolMapping.Commands;
 type CdpParams<M extends CdpMethod> = ProtocolMapping.Commands[M]["paramsType"];

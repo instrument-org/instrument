@@ -5,6 +5,7 @@ import {
   AbsolutePathSchema,
   WorkspaceDirSchema,
 } from "../../src/schemas/paths";
+import { unavailableWebSearchClient } from "../../src/schemas/web-search";
 import { createStubBrowserConfig } from "../../src/test/helpers/mock-task-config";
 import { type WorkspaceConfig } from "../../src/types";
 
@@ -48,5 +49,6 @@ export function createStubWorkspaceConfig({
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
     uvDataDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "uv-data")),
+    webSearch: unavailableWebSearchClient,
   };
 }

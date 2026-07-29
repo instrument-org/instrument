@@ -34,6 +34,7 @@ import { FolderAttachment } from "../src/schemas/folder-attachment";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
 import { StoreId } from "../src/schemas/store-id";
 import { TaskIdSchema } from "../src/schemas/task-id";
+import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
 
 function parseArgs(argv: string[]) {
@@ -126,6 +127,7 @@ setWorkspaceConfig({
   trashItem: () => Promise.resolve(),
   uvBinPath,
   uvDataDir: AbsolutePathSchema.parse(path.join(rootDir, "uv-data")),
+  webSearch: unavailableWebSearchClient,
 });
 
 const taskId = TaskIdSchema.parse(args.taskId ?? ulid().toLowerCase());

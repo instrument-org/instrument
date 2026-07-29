@@ -37,6 +37,7 @@ import {
 import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
+import { type WebSearchClient } from "../../schemas/web-search";
 import {
   type BrowserConfig,
   type BrowserTargetId,
@@ -401,6 +402,7 @@ export const workspaceMachine = setup({
       trashItem: (path: AbsolutePath) => Promise<void>;
       uvBinPath: string;
       uvDataDir: string;
+      webSearch: WebSearchClient;
     },
     output: {},
   },
@@ -427,6 +429,7 @@ export const workspaceMachine = setup({
       trashItem: input.trashItem,
       uvBinPath: AbsolutePathSchema.parse(input.uvBinPath),
       uvDataDir: AbsolutePathSchema.parse(input.uvDataDir),
+      webSearch: input.webSearch,
     };
     // Publish the single per-process config so code can read it via
     // getWorkspaceConfig() instead of threading it through every TaskId.

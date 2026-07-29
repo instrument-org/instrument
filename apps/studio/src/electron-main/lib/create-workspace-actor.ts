@@ -26,6 +26,7 @@ import { noop } from "radashi";
 import { createActor } from "xstate";
 
 import { createBrowserViewManager } from "../browser-view/manager";
+import { searchWeb } from "../platform-api/web-search";
 import { captureServerEvent } from "./capture-server-event";
 import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";
@@ -126,6 +127,7 @@ export function createWorkspaceActor({
       trashItem: (pathToTrash) => shell.trashItem(pathToTrash),
       uvBinPath: getUvBinPath(),
       uvDataDir: path.join(app.getPath("userData"), "uv"),
+      webSearch: searchWeb,
     },
     inspect(event) {
       if (!is.dev) {

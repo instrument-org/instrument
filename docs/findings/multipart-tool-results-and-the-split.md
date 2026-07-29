@@ -54,6 +54,35 @@ The quirk is per provider type, and a model family says nothing about the provid
 
 Clearing another one means the same two checks: read that provider package's tool-result converter to confirm it preserves content parts, then send the shape to real models on that provider and confirm the API accepts it, parallel tool calls included.
 
+## What the other likely providers do
+
+The first check has been run on the types most likely to be used. It settles four of them on its own, because a converter that discards content parts cannot be rescued by anything downstream.
+
+| Provider type | Package                                  | Tool result carrying media becomes          |
+| ------------- | ---------------------------------------- | ------------------------------------------- |
+| `cerebras`    | `@ai-sdk/openai-compatible`, via wrapper | `JSON.stringify` of the whole content array |
+| `together`    | `@ai-sdk/openai-compatible`, via wrapper | same                                        |
+| `z-ai`        | `@ai-sdk/openai-compatible`, by fallback | same                                        |
+| `x-ai`        | `@ai-sdk/xai`, chat path                 | same                                        |
+| `vercel`      | `@ai-sdk/gateway`                        | converted server-side, not locally          |
+
+`JSON.stringify` is worse than the split, not merely different: it puts the base64 payload into the transcript as prose, so the image's bytes are spent as text tokens, the model learns nothing from them, and the result is saved and replayed on every later turn.
+
+`@ai-sdk/openai-compatible` is also the fallback for any provider type with no explicit mapping, so its behaviour covers more than the three rows above.
+
+`vercel` is the one the code cannot answer: `@ai-sdk/gateway` forwards the prompt and lets the service convert per upstream. A live check got a correct answer unsplit from one model on one upstream, which is a hint and not a clearance; the free tier rate-limited the rest of the run. It needs a paid key and a spread of upstreams before it moves.
+
+Providers not examined here still split, which is the safe default. `openai-compatible` points at whatever a user configures and cannot be cleared at all.
+
+### Whether a newer package would change any of that
+
+Mostly no, and the exception is not reachable by upgrading alone. `@ai-sdk/provider` 3.x is the AI SDK v6 line this repo is on; 4.x is v7.
+
+- **`@ai-sdk/openai-compatible` is not a version problem.** The `JSON.stringify` branch is identical in the version pinned here, in the highest v6-compatible release, and in the current v7 release. The package exposes only a chat surface, with no responses path to carry structured output, so `cerebras`, `together`, `z-ai`, and every user-configured endpoint stay incapable no matter what is installed.
+- **`@ai-sdk/xai` is a version problem with a catch.** Its responses path gained real handling within the v6 line, mapping `image-data` and `image-url` to `input_image`. Its chat path still stringifies, in every release including the current v7 one. Models are created with a bare `sdk(modelId)` call in [fetch-ai-sdk-model.ts](../../packages/ai-gateway/src/lib/fetch-ai-sdk-model.ts), which resolves to chat on the v6 line, so bumping the package changes nothing on its own. On the v7 line that bare call defaults to responses instead, so the AI SDK v7 upgrade would land xAI on the working path as a side effect. Re-test it then rather than reaching for `sdk.responses` early, which swaps the whole API surface for one fix.
+- **`@ai-sdk/gateway` is unaffected either way**, since it forwards the prompt and converts nothing locally.
+- **The OpenRouter provider is already at its v6 ceiling**, so there is no headroom left to take there.
+
 ## The capability filter has to come first
 
 This change depends on a fix that landed just before it, and the order is load-bearing.

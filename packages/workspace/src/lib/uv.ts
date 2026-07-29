@@ -4,7 +4,7 @@ import { TASK_FOLDER_NAMES } from "../constants";
 import { type AbsolutePath } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { absolutePathJoin } from "./absolute-path-join";
-import { hostCompilerEnv } from "./host-compiler-env";
+import { commandLineToolsEnv } from "./command-line-tools-env";
 import { taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -71,9 +71,11 @@ export function uvSubprocessEnv({
   ];
 
   return {
-    // Keep an unexpected native compile from launching the macOS Command Line
-    // Tools installer dialog and hanging the tool call.
-    ...hostCompilerEnv(),
+    // uv reaches for install_name_tool when it relocates a managed interpreter,
+    // and for a compiler if an install ever falls back to source. Both are
+    // macOS Command Line Tools stubs, which hang the tool call behind an
+    // installer dialog when the tools are absent.
+    ...commandLineToolsEnv(),
     // Redirect heavy model/data caches to an app-managed, writable dir shared
     // across tasks so big downloads land once and persist. just-bash sets
     // HOME=/ (read-only), so libraries that cache under `~` would otherwise

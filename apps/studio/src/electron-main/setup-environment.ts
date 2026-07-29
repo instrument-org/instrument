@@ -1,5 +1,6 @@
 import { is, platform } from "@electron-toolkit/utils";
 import { APP_NAME } from "@instrument-org/shared";
+import { applyCommandLineToolsEnv } from "@instrument-org/workspace/electron";
 import { app } from "electron";
 import fixPath from "fix-path";
 import path from "node:path";
@@ -96,3 +97,8 @@ if (!platform.isWindows) {
   // Fix the $PATH on macOS and Linux when run from a GUI app
   fixPath();
 }
+
+// After fixPath, so the probe runs against the PATH everything else will see.
+// Set on this process rather than per-spawn so every descendant inherits it,
+// including the ones that build their own environment from scratch.
+applyCommandLineToolsEnv();

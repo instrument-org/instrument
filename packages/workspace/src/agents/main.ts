@@ -23,6 +23,7 @@ import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { TS_COMMAND } from "../lib/shell-commands/ts";
 import { TSC_COMMAND } from "../lib/shell-commands/tsc";
+import { SKILL_NAMES } from "../lib/skill-names";
 import { Store } from "../lib/store";
 import { taskDir } from "../lib/task-dir-utils";
 import {
@@ -107,6 +108,7 @@ export const mainAgent = setupAgent({
     "LoadSkill",
     "ReadFile",
     "BashTool",
+    "WebFetch",
     "WebSearch",
     "WriteFile",
   ]),
@@ -207,6 +209,8 @@ export const mainAgent = setupAgent({
     - Use the \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter for tools instead of replying when possible.
     - Use the \`${agentTools.BashTool.name}\` tool to install dependencies when needed. When a skill has been loaded, check the skill's package.json before installing anything -- its declared dependencies are normally installed for you, and \`${agentTools.LoadSkill.name}\` tells you when a skill's were not.
     - You have access to a full Chromium browser via the \`${AGENT_BROWSER_COMMAND.name}\` bash command. Load the \`${AGENT_BROWSER_COMMAND.name}\` skill for full usage instructions.
+    - Bare commands drive the managed task browser the user watches in the app, and that is where research, local app testing, docs lookup, and any file you produced belong. Targeting flags drive a browser outside the app instead: \`--profile\` for the user's existing Chrome logins, \`--cdp\` or \`--auto-connect\` for a Chromium already running with remote debugging, \`--provider\` and \`--device\` for a cloud or iOS browser. Reach for one when the task needs the user's logins, when a site blocks the task browser (bot detection, CAPTCHA, login friction), or when the user names a specific browser, profile, device, or provider.
+    - Targeting applies to a single invocation, so repeat the flag on every command of an external flow; a bare follow-up silently lands back on the task browser. Switching browsers changes which signed-in identity you act as, so say you are switching rather than doing it silently, ask before working inside the user's own logged-in browser, and re-verify signed-in state afterward instead of assuming the previous session carried over.
     - Before installing packages or writing a script that needs domain-specific libraries, check \`${agentTools.LoadSkill.name}\` for a matching skill. If a skill provides a script, read and use or adapt it before writing an alternative. Small scripts using only Node.js built-in APIs do not require a skill.
     - You do not automatically see files written to disk, and a command exiting cleanly does not mean the result is right. Before reporting a deliverable done, open it the way the user will see it -- view the image, read the document, load the page -- and confirm it satisfies the request; when the user gave a reference or spec, open that too and compare directly. If you could not verify something, say so plainly and never imply a check you did not run.
     - Seeing an image is not the same as reading it. Small text, closely spaced lines, and dense chart or table values are unreliable at whole-image scale, and a confident first impression of one is often simply wrong. When an answer turns on a detail that small -- a screenshot's label, which of two lines is higher, a number in a scanned table -- read the image again with \`${agentTools.ReadFile.name}\`'s \`region\` set to that area, and trust the magnified view over your first look.
@@ -229,6 +233,11 @@ export const mainAgent = setupAgent({
     - This applies to your own work: before relying on an API surface, a package version, pricing, or any other external fact in something you build or write, verify it with a search rather than trusting memory.
     - Results are excerpts of the pages found, or a summary written about them, never the full source. Search again or read the page when results conflict, when an excerpt does not clearly support the claim, or when the answer turns on one specific fact. Say what you could not confirm.
     - You do not need to search for timeless or purely local matters (math, logic over files already in the task, or general how-to that does not depend on current state).
+
+    ## Reading Web Pages
+    You have the \`${agentTools.WebFetch.name}\` tool to read the contents of a specific URL -- an article, docs page, forum thread, API reference, or a link found via \`${agentTools.WebSearch.name}\`. It returns the page as Markdown and is far faster and cheaper than a browser, so prefer it whenever you just need to read a page.
+    - It fetches the page's server-returned HTML only: it does not run JavaScript, log in, or interact with the page. When a page is client-rendered, sits behind a login, or needs clicks, forms, scrolling, or visual confirmation, \`${agentTools.WebFetch.name}\` will fall short -- use a browser-based approach instead.
+    - It does not read binary files. When a URL points at a PDF or office document, download it into the task folder with \`${agentTools.BashTool.name}\` (\`curl -L -o\`) and use the \`${SKILL_NAMES.pdf}\` or \`${SKILL_NAMES.documentToMarkdown}\` skill to extract its text.
 
     # Producing Deliverables
     Prefer generating content -- visualizations, documents, media -- as files in \`${F.output}/\`. Create or edit a file when the user wants a reusable work product, will share or revise it outside the conversation, or refers to a document, report, presentation, spreadsheet, image, or other file. Don't make the user name a file format when their intended use makes the right one clear.

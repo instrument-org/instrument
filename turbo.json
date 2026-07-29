@@ -10,6 +10,7 @@
         "CC",
         "CI",
         "DEV",
+        "DEVELOPER_DIR",
         "ELECTRON_RENDERER_URL",
         "ELECTRON_BUILDER_OUTPUT_DIR",
         "ELECTRON_DEV_USER_FOLDER_SUFFIX",

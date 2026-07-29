@@ -10,6 +10,7 @@ import { GenerateImage } from "./generate-image";
 import { LoadSkill } from "./load-skill";
 import { ReadFile } from "./read-file";
 import { Unavailable } from "./unavailable";
+import { WebFetch } from "./web-fetch";
 import { WebSearch } from "./web-search";
 import { WriteFile } from "./write-file";
 
@@ -21,6 +22,7 @@ export const TOOLS = {
   LoadSkill,
   ReadFile,
   Unavailable,
+  WebFetch,
   WebSearch,
   WriteFile,
 };
@@ -35,6 +37,7 @@ export const TOOLS_BY_NAME = {
   [TOOLS.LoadSkill.name]: TOOLS.LoadSkill,
   [TOOLS.ReadFile.name]: TOOLS.ReadFile,
   [TOOLS.Unavailable.name]: TOOLS.Unavailable,
+  [TOOLS.WebFetch.name]: TOOLS.WebFetch,
   [TOOLS.WebSearch.name]: TOOLS.WebSearch,
   [TOOLS.WriteFile.name]: TOOLS.WriteFile,
   // `satisfies` ensures all tool names are present

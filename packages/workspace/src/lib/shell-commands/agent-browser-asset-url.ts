@@ -18,7 +18,9 @@ const NAVIGATION_SUBCOMMANDS = new Set(["goto", "navigate", "open", "read"]);
 const SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:/i;
 
 /**
- * Point the managed browser at files the agent itself produced.
+ * Point the browser at files the agent itself produced. Applies to external
+ * targets too: the asset origin is a `*.localhost` name any local browser
+ * resolves, and the sandbox path would be just as meaningless to them.
  *
  * The browser's `file://` root is the host filesystem, where the sandbox's
  * `/task` does not exist, and the target runs with web security on and no file

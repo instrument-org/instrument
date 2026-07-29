@@ -11,6 +11,7 @@ import { getTaskSettings } from "../../lib/task-settings";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { unavailableWebSearchClient } from "../../schemas/web-search";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import {
   createStubBrowserConfig,
@@ -55,6 +56,7 @@ function createWorkspaceActor(rootDir = "/tmp/workspace") {
       trashItem: () => Promise.resolve(),
       uvBinPath: "/tmp/uv",
       uvDataDir: "/tmp/workspace/uv-data",
+      webSearch: unavailableWebSearchClient,
     },
   });
 }

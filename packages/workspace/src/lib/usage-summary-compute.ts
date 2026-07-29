@@ -27,6 +27,39 @@ export const UsageSummarySchema = z.object({
 
 export type UsageSummary = z.output<typeof UsageSummarySchema>;
 
+// Parts are cast to their strict types when they come back from the store, not
+// validated (see SessionMessagePart.coerce), so a tool output persisted by a
+// build whose schema differed can be missing fields this one marks required.
+// Totals are a reporting detail, so read them back through a schema and count
+// whatever doesn't fit as zero instead of throwing out of the UI rendering it.
+// eslint-disable-next-line unicorn/prefer-top-level-await
+const TokenCountSchema = z.number().catch(0);
+
+const TokenTotalsSchema = z.object({
+  inputTokens: TokenCountSchema,
+  outputTokens: TokenCountSchema,
+  totalTokens: TokenCountSchema,
+});
+
+const NO_TOKENS = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+
+const ToolPartUsageSchema = z
+  .union([
+    z
+      .object({ results: z.object({ usage: TokenTotalsSchema }) })
+      .transform((output) => ({ usage: output.results.usage })),
+    z.object({ usage: TokenTotalsSchema }),
+  ])
+  // eslint-disable-next-line unicorn/prefer-top-level-await
+  .catch({ usage: NO_TOKENS });
+
+const EPOCH = new Date(0);
+
+const ToolPartTimingSchema = z
+  .object({ createdAt: z.date(), endedAt: z.date() })
+  // eslint-disable-next-line unicorn/prefer-top-level-await
+  .catch({ createdAt: EPOCH, endedAt: EPOCH });
+
 export function emptyUsageSummary(): UsageSummary {
   return {
     inputTokenDetails: {
@@ -64,7 +97,12 @@ export function getUsageSummaryFromMessages(
       if (output.state !== "success") {
         return [];
       }
-      return [{ metadata: part.metadata, usage: output.usage }];
+      return [
+        {
+          metadata: ToolPartTimingSchema.parse(part.metadata),
+          usage: ToolPartUsageSchema.parse(output).usage,
+        },
+      ];
     }),
   );
 
@@ -82,7 +120,7 @@ export function getUsageSummaryFromMessages(
     },
     inputTokens:
       sum(assistantMessages, (m) => finite(m.metadata.usage?.inputTokens)) +
-      sum(toolParts, (p) => finite(p.usage.inputTokens)),
+      sum(toolParts, (p) => p.usage.inputTokens),
     messageCount: allMessages.length,
     msToFinish:
       sum(assistantMessages, (m) => finite(m.metadata.msToFinish)) +
@@ -100,10 +138,10 @@ export function getUsageSummaryFromMessages(
     },
     outputTokens:
       sum(assistantMessages, (m) => finite(m.metadata.usage?.outputTokens)) +
-      sum(toolParts, (p) => finite(p.usage.outputTokens)),
+      sum(toolParts, (p) => p.usage.outputTokens),
     totalTokens:
       sum(assistantMessages, (m) => finite(m.metadata.usage?.totalTokens)) +
-      sum(toolParts, (p) => finite(p.usage.totalTokens)),
+      sum(toolParts, (p) => p.usage.totalTokens),
   };
 }
 

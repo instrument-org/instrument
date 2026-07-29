@@ -1,5 +1,8 @@
 import { APP_NAME } from "@instrument-org/shared";
-import { type SessionMessagePart } from "@instrument-org/workspace/client";
+import {
+  readWebSearchResults,
+  type SessionMessagePart,
+} from "@instrument-org/workspace/client";
 
 import { getToolLabel } from "../../lib/tool-display";
 import { Favicon } from "../favicon";
@@ -19,6 +22,20 @@ type WebSearchPart = Extract<
   { type: "tool-web_search" }
 >;
 
+// An excerpt is a passage of somebody else's page, so its headings are sized
+// down to sit inside the card rather than compete with the conversation.
+const EXCERPT_PROSE =
+  "w-full prose-headings:my-1 prose-headings:text-sm prose-headings:font-medium prose-p:my-1";
+
+// Keyed by the failure the tool reported, including `no-web-search-model` from
+// transcripts recorded before the search backends were named apart.
+const PROVIDER_GUARDS: Record<string, string> = {
+  "no-search-backend": `Sign up for ${APP_NAME} or add an AI provider that supports web search.`,
+  "no-web-search-model": `Sign up for ${APP_NAME} or add an AI provider that supports web search.`,
+  "not-authenticated": `Sign in to ${APP_NAME} to use web search.`,
+  "payment-required": `Add credits to your ${APP_NAME} account to keep searching the web.`,
+};
+
 export function ToolWebSearch({
   onRetry,
   part,
@@ -31,17 +48,18 @@ export function ToolWebSearch({
     return null;
   }
 
-  const successOutput =
+  const results =
     part.state === "output-available" && part.output.state === "success"
-      ? part.output
+      ? readWebSearchResults(part.output)
       : null;
   const failureOutput =
     part.state === "output-available" && part.output.state === "failure"
       ? part.output
       : null;
   const hasSearchContent =
-    successOutput !== null &&
-    (successOutput.text.trim().length > 0 || successOutput.sources.length > 0);
+    results !== null &&
+    (results.sources.length > 0 ||
+      (results.kind === "summary" && results.text.trim().length > 0));
 
   if (!failureOutput && !hasSearchContent) {
     return null;
@@ -53,8 +71,6 @@ export function ToolWebSearch({
       ? "Searching the web"
       : getToolLabel("web_search");
   const query = typeof part.input.query === "string" ? part.input.query : "";
-  const showSources =
-    successOutput !== null && !isStreaming && successOutput.sources.length > 0;
 
   return (
     <ToolCard>
@@ -67,24 +83,41 @@ export function ToolWebSearch({
           capabilityLabel="web search"
           errorMessage={failureOutput.errorMessage}
           onRetry={onRetry}
-          providerGuardDescription={
-            failureOutput.errorType === "no-web-search-model"
-              ? `Sign up for ${APP_NAME} or add an AI provider that supports web search.`
-              : undefined
-          }
+          providerGuardDescription={PROVIDER_GUARDS[failureOutput.errorType]}
           responseBody={failureOutput.responseBody}
           retryMessage={`I added a web search provider. Retry searching for "${query}"`}
         />
       )}
 
-      {successOutput && hasSearchContent && (
+      {results && hasSearchContent && (
         <ToolCardSection maxHeight="max-h-[28rem]">
-          <SessionMarkdown className="w-full" markdown={successOutput.text} />
+          {results.kind === "summary" ? (
+            <>
+              <SessionMarkdown className="w-full" markdown={results.text} />
 
-          {showSources && (
-            <div className="mt-4 space-y-2 border-t border-border pt-3">
-              {successOutput.sources.map((source, index) => (
-                <SourceLink key={index} title={source.title} url={source.url} />
+              {!isStreaming && results.sources.length > 0 && (
+                <div className="mt-4 space-y-2 border-t border-border pt-3">
+                  {results.sources.map((source, index) => (
+                    <SourceLink
+                      key={index}
+                      title={source.title}
+                      url={source.url}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="flex flex-col gap-y-4">
+              {results.sources.map((source, index) => (
+                <div className="flex min-w-0 flex-col gap-y-1.5" key={index}>
+                  <SourceLink title={source.title} url={source.url} />
+                  <SessionMarkdown
+                    className={EXCERPT_PROSE}
+                    hideImages
+                    markdown={source.text}
+                  />
+                </div>
               ))}
             </div>
           )}
@@ -104,15 +137,19 @@ export function WebSearchChip({
   if (
     part.type !== "tool-web_search" ||
     part.state !== "output-available" ||
-    part.output.state !== "success" ||
-    part.output.sources.length === 0
+    part.output.state !== "success"
   ) {
+    return null;
+  }
+
+  const results = readWebSearchResults(part.output);
+  if (!results || results.sources.length === 0) {
     return null;
   }
 
   const uniqueUrls = [
     ...new Map(
-      part.output.sources.map((s) => {
+      results.sources.map((s) => {
         const hostname = URL.canParse(s.url)
           ? new URL(s.url).hostname.replace(/^www\./, "")
           : s.url;

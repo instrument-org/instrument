@@ -317,34 +317,31 @@ describe("slugify", () => {
             query: "Vitest configuration best practices 2025",
           },
           output: {
-            modelId: "gpt-4o-search-preview",
-            provider: {
-              displayName: "OpenAI",
-              id: "openai-default",
-              type: "openai",
+            results: {
+              costDollars: 0.007,
+              kind: "excerpts",
+              sources: [
+                {
+                  text: "## Getting Started\n\nVitest is a blazing-fast unit testing framework powered by Vite. Keep your test config in `vitest.config.ts` so it stays separate from your Vite config.",
+                  title: "Vitest - Getting Started | Guide",
+                  url: "https://vitest.dev/guide/",
+                },
+                {
+                  publishedDate: "2025-11-02",
+                  text: "Set `globals: true` to avoid importing `describe`, `it` and `expect` in every file. For monorepos, define a workspace file to run tests across packages, and always set a `testTimeout` so a hanging test fails instead of stalling the run.",
+                  title:
+                    "Vitest Configuration Reference | Best Practices for 2025",
+                  url: "https://vitest.dev/config/",
+                },
+                {
+                  author: "Testing Weekly",
+                  text: "Coverage comes from `@vitest/coverage-v8`, which is fast enough to leave on in CI.",
+                  title: "Testing with Vitest - Dev.to",
+                  url: "https://dev.to/testing-vitest-best-practices",
+                },
+              ],
             },
-            sources: [
-              {
-                title: "Vitest - Getting Started | Guide",
-                url: "https://vitest.dev/guide/",
-              },
-              {
-                title:
-                  "Vitest Configuration Reference | Best Practices for 2025",
-                url: "https://vitest.dev/config/",
-              },
-              {
-                title: "Testing with Vitest - Dev.to",
-                url: "https://dev.to/testing-vitest-best-practices",
-              },
-            ],
             state: "success",
-            text: "## Vitest Configuration Best Practices\n\nVitest is a blazing-fast unit testing framework powered by Vite. Here are the recommended best practices for configuration:\n\n1. **Use `vitest.config.ts`** - Keep your test config separate from your Vite config for clarity.\n2. **Enable globals** - Set `globals: true` to avoid importing `describe`, `it`, `expect` in every file.\n3. **Configure coverage** - Use `@vitest/coverage-v8` for fast, reliable coverage reports.\n4. **Use workspace mode** - For monorepos, define a `vitest.workspace.ts` to run tests across packages.\n5. **Set `testTimeout`** - Always set a reasonable timeout to catch hanging tests early.",
-            usage: {
-              inputTokens: 150,
-              outputTokens: 420,
-              totalTokens: 570,
-            },
           },
           type: "tool-web_search",
         }),

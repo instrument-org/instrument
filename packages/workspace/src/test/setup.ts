@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { setWorkspaceConfig } from "../lib/workspace-config";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
+import { unavailableWebSearchClient } from "../schemas/web-search";
 
 const rootDir = fs.mkdtempSync(
   path.join(os.tmpdir(), "instrument-workspace-test-"),
@@ -57,4 +58,5 @@ setWorkspaceConfig({
   trashItem: () => Promise.resolve(),
   uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
   uvDataDir: AbsolutePathSchema.parse(path.join(rootDir, "uv-data")),
+  webSearch: unavailableWebSearchClient,
 });

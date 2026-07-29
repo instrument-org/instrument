@@ -21,6 +21,10 @@ import {
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import {
+  unavailableWebSearchClient,
+  type WebSearchClient,
+} from "../../schemas/web-search";
+import {
   type BrowserConfig,
   encodeBrowserTargetId,
   type WorkspaceConfig,
@@ -52,6 +56,7 @@ export function createMockTaskConfig(
     aiSDKModel?: LanguageModelV3;
     imageModel?: ImageModelV3;
     model?: AIGatewayModel.Type;
+    webSearch?: WebSearchClient;
     webSearchModel?: AISDKWebSearchModelResult;
   } = {},
 ) {
@@ -114,6 +119,7 @@ export function createMockTaskConfig(
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/tmp/uv"),
     uvDataDir: AbsolutePathSchema.parse(`${MOCK_WORKSPACE_DIR}/uv-data`),
+    webSearch: options.webSearch ?? unavailableWebSearchClient,
   };
 
   // Register this model's provider config and mirror production, where the

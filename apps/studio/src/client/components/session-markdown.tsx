@@ -7,12 +7,14 @@ import { Markdown } from "./markdown";
 export const SessionMarkdown = ({
   assetBaseUrl,
   className,
+  hideImages,
   markdown,
   ref,
   taskId,
 }: {
   assetBaseUrl?: string;
   className?: string;
+  hideImages?: boolean;
   markdown: string;
   ref?: Ref<HTMLDivElement>;
   taskId?: TaskId;
@@ -27,6 +29,7 @@ export const SessionMarkdown = ({
     >
       <Markdown
         assetBaseUrl={assetBaseUrl}
+        hideImages={hideImages}
         markdown={markdown}
         taskId={taskId}
       />

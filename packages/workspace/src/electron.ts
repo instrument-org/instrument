@@ -31,6 +31,12 @@ export { type SubdomainPart } from "./schemas/subdomain-part";
 export { SubdomainPartSchema } from "./schemas/subdomain-part";
 export { type TaskId, TaskIdSchema } from "./schemas/task-id";
 export {
+  type WebSearchClient,
+  type WebSearchClientResult,
+  type WebSearchRequest,
+  WebSearchResponseSchema,
+} from "./schemas/web-search";
+export {
   type BrowserConfig,
   type BrowserTarget,
   type BrowserTargetId,

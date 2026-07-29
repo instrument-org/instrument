@@ -103,7 +103,7 @@ export function isVisibleAssistantPart({
   }
 
   if (isDataPart(part)) {
-    return dataPartVisibility(part.type) === "always";
+    return dataPartVisibility(part) === "always";
   }
 
   // Remaining parts (step-start, file, source-*) never count as visible content.
@@ -126,7 +126,7 @@ function isRenderableInlinePart({
   }
 
   if (isDataPart(part)) {
-    const visibility = dataPartVisibility(part.type);
+    const visibility = dataPartVisibility(part);
     if (visibility === "hidden") {
       return false;
     }

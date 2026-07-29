@@ -1,8 +1,10 @@
+import { isSurfacedTaskFile } from "@/client/lib/task-file-visibility";
 import {
   attachedFolderChangesModelNote,
   browserStatusModelNote,
   externalFileChangesModelNote,
   maxStepsModelNote,
+  type SessionMessageDataPart,
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
 import { type ReactNode } from "react";
@@ -37,8 +39,21 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-skillMentions": "dev",
 };
 
-export function dataPartVisibility(type: DataPartType): DataPartVisibility {
-  return DATA_PART_DISPLAY[type];
+export function dataPartVisibility(
+  part: SessionMessagePart.DataPart,
+): DataPartVisibility {
+  // File changes confined to paths the grid never surfaces (skill files copied
+  // into `work/`, say) have no card to draw. Reporting them as hidden keeps them
+  // from counting as visible content and from leaving an empty gap in the
+  // message column.
+  if (
+    part.type === "data-fileChanges" &&
+    !part.data.files.some(isSurfacedFileChange)
+  ) {
+    return "hidden";
+  }
+
+  return DATA_PART_DISPLAY[part.type];
 }
 
 export function isDataPart(
@@ -56,7 +71,11 @@ export function renderDataPart({
   ctx: RenderPartContext;
   part: SessionMessagePart.DataPart;
 }): ReactNode {
-  if (DATA_PART_DISPLAY[part.type] === "dev" && !ctx.isDeveloperMode) {
+  const visibility = dataPartVisibility(part);
+  if (
+    visibility === "hidden" ||
+    (visibility === "dev" && !ctx.isDeveloperMode)
+  ) {
     return null;
   }
 
@@ -157,4 +176,11 @@ export function renderDataPart({
       return _exhaustiveCheck;
     }
   }
+}
+
+function isSurfacedFileChange(
+  file: SessionMessageDataPart.FileChangeDataPartItem,
+) {
+  // Deleted files have nothing to preview, matching `FileChangesCard`.
+  return file.status !== "deleted" && isSurfacedTaskFile(file.filePath);
 }

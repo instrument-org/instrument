@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import { appendToPromptAtom } from "../../atoms/prompt-value";
 import { copyFileToClipboard } from "../../lib/file-actions";
 import { getAssetUrl } from "../../lib/get-asset-url";
+import { immediateClickHandlers } from "../../lib/immediate-click";
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { cn } from "../../lib/utils";
 import { AIProviderIcon } from "../ai-provider-icon";
@@ -355,11 +356,13 @@ function GeneratedImage({
 
   return (
     <button
+      {...immediateClickHandlers<HTMLButtonElement>({
+        onClick: handleClick,
+      })}
       className={cn(
         "relative cursor-zoom-in focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
         thumbnail ? "block rounded-md" : "block w-full",
       )}
-      onClick={handleClick}
       type="button"
     >
       <ImageWithFallback

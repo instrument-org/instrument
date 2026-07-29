@@ -26,12 +26,5 @@ export function formatDurationFromDates(
   if (!startTime || !endTime) {
     return "";
   }
-  const durationMs = endTime.getTime() - startTime.getTime();
-  const seconds = Math.round(durationMs / 1000);
-
-  if (seconds < 1) {
-    return "1s";
-  }
-
-  return `${seconds}s`;
+  return formatDuration(endTime.getTime() - startTime.getTime());
 }

@@ -27,6 +27,7 @@ import remend from "remend";
 import { useHashLinkScroll } from "../hooks/use-hash-link-scroll";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
 import { getAssetUrl } from "../lib/get-asset-url";
+import { immediateClickHandlers } from "../lib/immediate-click";
 import { cn } from "../lib/utils";
 import { CopyButton } from "./copy-button";
 import { ExternalLink } from "./external-link";
@@ -45,7 +46,7 @@ interface MarkdownProps {
   assetBaseUrl?: string;
   markdown: string;
   // Present only when rendered inside a task chat. Enables the task-file
-  // right-click menu (Open in {App} / Download / Reveal / …); left-click
+  // right-click menu (Open in {App} / Save as… / Reveal / …); left-click
   // open-in-panel works without it.
   taskId?: TaskId;
 }
@@ -76,10 +77,10 @@ const CodeWithCopy = ({
   children: React.ReactNode;
   content: string;
 }) => (
-  <div className="group relative">
-    <div className="absolute top-1 right-1 z-10 opacity-0 transition-opacity group-hover:opacity-100">
+  <div className="group relative isolate">
+    <div className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100">
       <CopyButton
-        className="rounded-md border border-border/50 bg-background/80 p-1 text-muted-foreground backdrop-blur-sm transition-colors hover:bg-muted hover:text-foreground"
+        className="rounded-md border border-border/50 bg-background/80 p-1 text-muted-foreground backdrop-blur-sm hover:bg-muted hover:text-foreground"
         iconSize={12}
         onCopy={async () => {
           await navigator.clipboard.writeText(content);
@@ -233,11 +234,13 @@ const TaskFileLink = ({
 
   const chip = (
     <button
+      {...immediateClickHandlers<HTMLButtonElement>({
+        onClick: openInPanel,
+      })}
       className={cn(
-        "inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted/50 px-1.5 py-0.5 align-text-bottom text-sm font-medium text-foreground no-underline transition-colors hover:bg-muted",
+        "inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted/50 px-1.5 py-0.5 align-text-bottom text-sm font-medium text-foreground no-underline hover:bg-muted",
         className,
       )}
-      onClick={openInPanel}
       title={file.filePath}
       type="button"
     >
@@ -460,7 +463,12 @@ export const Markdown = memo(
                     "max-w-full cursor-pointer! rounded-md",
                     className,
                   )}
-                  onClick={handleImageClick}
+                  // Images drag natively, which would start a drag out of the
+                  // same press that opens the preview.
+                  draggable={false}
+                  {...immediateClickHandlers<HTMLImageElement>({
+                    onClick: handleImageClick,
+                  })}
                   src={resolvedSrc}
                 />
               );

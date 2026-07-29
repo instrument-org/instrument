@@ -19,7 +19,7 @@ describe("splitMultipartToolResults", () => {
 
     const result = splitMultipartToolResults({
       messages,
-      provider: "openrouter",
+      provider: "groq",
     });
     expect(result).toEqual(messages);
   });
@@ -44,7 +44,7 @@ describe("splitMultipartToolResults", () => {
 
     const result = splitMultipartToolResults({
       messages,
-      provider: "openrouter",
+      provider: "groq",
     });
     expect(result).toEqual(messages);
   });
@@ -79,7 +79,7 @@ describe("splitMultipartToolResults", () => {
 
     const result = splitMultipartToolResults({
       messages,
-      provider: "openrouter",
+      provider: "groq",
     });
 
     expect(result).toHaveLength(2);
@@ -150,7 +150,7 @@ describe("splitMultipartToolResults", () => {
 
     const result = splitMultipartToolResults({
       messages,
-      provider: "openrouter",
+      provider: "groq",
     });
 
     expect(result).toHaveLength(2);
@@ -186,7 +186,7 @@ describe("splitMultipartToolResults", () => {
 
     const result = splitMultipartToolResults({
       messages,
-      provider: "openrouter",
+      provider: "groq",
     });
 
     expect(result).toHaveLength(2);
@@ -252,7 +252,7 @@ describe("splitMultipartToolResults", () => {
 
     const result = splitMultipartToolResults({
       messages,
-      provider: "openrouter",
+      provider: "groq",
     });
 
     expect(result).toHaveLength(2);
@@ -310,7 +310,7 @@ describe("splitMultipartToolResults", () => {
 
     const result = splitMultipartToolResults({
       messages,
-      provider: "openrouter",
+      provider: "groq",
     });
 
     expect(result).toHaveLength(4);
@@ -323,7 +323,67 @@ describe("splitMultipartToolResults", () => {
     expect(result[3]?.content).toBe("User message 2");
   });
 
-  it("should not split multipart tool results for supported providers", () => {
+  it("should split the non-deprecated media shapes too", () => {
+    const messages: ModelMessage[] = [
+      {
+        content: [
+          {
+            output: {
+              type: "content",
+              value: [
+                { text: "Image file: test.png", type: "text" },
+                {
+                  data: "image-base64",
+                  mediaType: "image/png",
+                  type: "image-data",
+                },
+                {
+                  data: "pdf-base64",
+                  mediaType: "application/pdf",
+                  type: "file-data",
+                },
+              ],
+            },
+            toolCallId: "call_123",
+            toolName: "read_file",
+            type: "tool-result",
+          },
+        ],
+        role: "tool",
+      },
+    ];
+
+    const result = splitMultipartToolResults({
+      messages,
+      provider: "groq",
+    });
+
+    expect(result[1]).toMatchInlineSnapshot(`
+      {
+        "content": [
+          {
+            "data": "image-base64",
+            "mediaType": "image/png",
+            "type": "file",
+          },
+          {
+            "data": "pdf-base64",
+            "mediaType": "application/pdf",
+            "type": "file",
+          },
+        ],
+        "role": "user",
+      }
+    `);
+  });
+
+  it.each([
+    ["anthropic"],
+    ["google"],
+    ["openai"],
+    ["openrouter"],
+    ["instrument"],
+  ] as const)("should not split multipart tool results for %s", (provider) => {
     const messages: ModelMessage[] = [
       {
         content: [
@@ -351,10 +411,7 @@ describe("splitMultipartToolResults", () => {
       },
     ];
 
-    const result = splitMultipartToolResults({
-      messages,
-      provider: "anthropic",
-    });
+    const result = splitMultipartToolResults({ messages, provider });
 
     expect(result).toEqual(messages);
   });

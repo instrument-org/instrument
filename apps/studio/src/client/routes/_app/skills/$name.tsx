@@ -1,4 +1,4 @@
-import { promptDraftAtom } from "@/client/atoms/prompt-value";
+import { setPromptDraftAtom } from "@/client/atoms/prompt-value";
 import { openEditSkill } from "@/client/atoms/skill-modal";
 import { CopyButton } from "@/client/components/copy-button";
 import { FileIcon } from "@/client/components/file-icon";
@@ -35,7 +35,12 @@ import { useTabId } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { useTimedFlag } from "@/client/hooks/use-timed-flag";
-import { isProvidedSource, skillSourceLabel } from "@/client/lib/skill-source";
+import { immediateClickHandlers } from "@/client/lib/immediate-click";
+import {
+  isProvidedSource,
+  readOnlySkillReason,
+  skillSourceLabel,
+} from "@/client/lib/skill-source";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { skillMentionToken } from "@instrument-org/shared/skill-mention";
@@ -47,16 +52,45 @@ import {
   TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 const SKILL_FILE = "SKILL.md";
-const READ_ONLY_SKILL_TOOLTIP =
-  "This skill can’t be edited here because it was discovered elsewhere on your computer, not created in this workspace.";
 
 export const Route = createFileRoute("/_app/skills/$name")({
+  /**
+   * A transcript card or a kept tab outlives the skill it points at, so this
+   * route is reachable for one that has been deleted or renamed. There is
+   * nothing to show and nothing to do on such a page, so hand the list back
+   * with a note instead. Replaces the history entry, since going back would
+   * otherwise land here again.
+   *
+   * Reads through the query cache the component reads, so the page it does
+   * render costs no second fetch. `byName` keeps the default staleTime of 0,
+   * so this is always a fresh answer rather than a cached one.
+   */
+  beforeLoad: async ({ context, params, preload }) => {
+    const skill = await context.queryClient
+      .ensureQueryData(
+        rpcClient.workspace.skill.byName.queryOptions({
+          input: { name: params.name },
+        }),
+      )
+      .catch(() => null);
+    // Preload runs this too, where a toast and a navigation would fire from a
+    // hover. No skill link opts into preload today; the guard keeps that from
+    // becoming a trap for whoever adds the first one.
+    if (skill || preload) {
+      return;
+    }
+    toast.info(`No skill named "${params.name}" in this workspace`, {
+      id: `skill-missing:${params.name}`,
+    });
+    // oxlint-disable-next-line typescript/only-throw-error
+    throw redirect({ replace: true, to: "/skills" });
+  },
   component: SkillPage,
   head: async ({ params }) => {
     const skillResult = await safe(
@@ -90,11 +124,12 @@ function SkillPage() {
   const [selection, setSelection] = useState({ file: SKILL_FILE, skill: name });
   const selectedFile = selection.skill === name ? selection.file : SKILL_FILE;
 
-  const draftKey = {
-    id: `skill:${tabId}:${name}`,
-    scope: "transient",
-  } as const;
-  const setDraft = useSetAtom(promptDraftAtom(draftKey));
+  // The id is held on its own because the prefill effect below needs a
+  // dependency that only changes when the draft does, which the key object
+  // rebuilt on every render is not.
+  const draftId = `skill:${tabId}:${name}`;
+  const draftKey = { id: draftId, scope: "transient" } as const;
+  const setDraft = useSetAtom(setPromptDraftAtom);
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
   // Seed the compose box once per skill, showing what invoking it looks like and
   // leaving the user somewhere to keep typing. The route owns this so the shared
@@ -105,26 +140,30 @@ function SkillPage() {
     if (!skill?.userInvocable) {
       return;
     }
-    if (seededSkillRef.current === name) {
+    if (seededSkillRef.current === skill.id) {
       return;
     }
-    seededSkillRef.current = name;
-    setDraft((current) =>
-      current.trim() ? current : `Use ${skillMentionToken(name)} to…`,
-    );
-  }, [name, setDraft, skill?.userInvocable]);
+    seededSkillRef.current = skill.id;
+    setDraft({
+      key: { id: draftId, scope: "transient" },
+      update: (current) =>
+        current.trim() ? current : `Use ${skillMentionToken(skill.id)} to…`,
+    });
+  }, [draftId, setDraft, skill?.id, skill?.userInvocable]);
 
+  // `beforeLoad` has already redirected away from a skill that is not here, so
+  // this covers the load itself rather than a missing skill.
   if (isLoading || !skill) {
     return (
       <div className="grid h-full place-items-center text-sm text-muted-foreground">
-        {isLoading ? "Loading skill…" : "Skill not found"}
+        Loading skill…
       </div>
     );
   }
 
   const confirmDelete = async () => {
     try {
-      await deleteSkillMutation.mutateAsync({ name: skill.name });
+      await deleteSkillMutation.mutateAsync({ name: skill.id });
       await queryClient.invalidateQueries({
         queryKey: rpcClient.workspace.skill.list.key(),
       });
@@ -170,7 +209,10 @@ function SkillPage() {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
                   onSelect={() => {
-                    openEditSkill({ name: skill.name, title: skill.title });
+                    openEditSkill({
+                      name: skill.id,
+                      title: skill.title,
+                    });
                   }}
                 >
                   <PencilSimpleIcon className="size-4 text-muted-foreground" />
@@ -189,7 +231,7 @@ function SkillPage() {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Tooltip>
+            <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
                 <span className="inline-flex shrink-0">
                   <Button disabled size="icon-sm" variant="ghost">
@@ -202,7 +244,7 @@ function SkillPage() {
                 </span>
               </TooltipTrigger>
               <TooltipContent className="max-w-60">
-                {READ_ONLY_SKILL_TOOLTIP}
+                {readOnlySkillReason(skill.source)}
               </TooltipContent>
             </Tooltip>
           )}
@@ -229,7 +271,7 @@ function SkillPage() {
                   files,
                   folders,
                   intent: skillPageIntent({
-                    name: skill.name,
+                    name: skill.id,
                     title: skill.title,
                     userInvocable: skill.userInvocable,
                   }),
@@ -328,7 +370,7 @@ function SkillPage() {
                       {SKILL_FILE}
                     </h2>
                     <CopyButton
-                      className="rounded-sm p-1 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+                      className="rounded-sm p-1 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
                       iconSize={14}
                       onCopy={() =>
                         navigator.clipboard.writeText(skill.rawSkillFile)
@@ -346,7 +388,7 @@ function SkillPage() {
                 </div>
               </div>
             ) : (
-              <SkillFileView file={selectedFile} skillName={skill.name} />
+              <SkillFileView file={selectedFile} skillName={skill.id} />
             )}
           </article>
 
@@ -354,7 +396,7 @@ function SkillPage() {
             <aside className="min-w-0 lg:sticky lg:top-10 lg:self-start">
               <div className="overflow-hidden rounded-lg bg-card shadow-xs">
                 <div className="border-b px-3 py-2">
-                  <h2 className="text-xs font-medium">Skill Files</h2>
+                  <h2 className="text-xs font-medium">Skill files</h2>
                 </div>
                 <div className="grid max-h-96 gap-0.5 overflow-y-auto scroll-fade-y p-1.5 text-xs">
                   {skill.files.map((file) => (
@@ -365,9 +407,11 @@ function SkillPage() {
                           "bg-accent text-accent-foreground",
                       )}
                       key={file}
-                      onClick={() => {
-                        setSelection({ file, skill: name });
-                      }}
+                      {...immediateClickHandlers<HTMLButtonElement>({
+                        onClick: () => {
+                          setSelection({ file, skill: name });
+                        },
+                      })}
                       type="button"
                     >
                       <FileIcon
@@ -413,23 +457,42 @@ function skillPageIntent({
 function SkillTitle({
   skill,
 }: {
-  skill: { name: string; userInvocable: boolean };
+  skill: { id: string; name: string; userInvocable: boolean };
 }) {
   const { active: showCopied, trigger } = useTimedFlag();
+  const [isTooltipOpen, setTooltipOpen] = useState(false);
   const label = skill.userInvocable ? `/${skill.name}` : skill.name;
+  const stableLabel = `/${skill.id}`;
 
   if (!skill.userInvocable) {
     return <h1 className="font-serif text-3xl tracking-tight">{label}</h1>;
   }
 
   return (
-    <Tooltip>
+    // Pointer and focus drive the tooltip directly: Radix closes a tooltip when
+    // its trigger is clicked, which is the moment the "Copied" confirmation has
+    // to appear, and its open delay would hide what clicking the title does.
+    <Tooltip open={isTooltipOpen}>
       <TooltipTrigger asChild>
         <button
-          className="rounded-sm font-serif text-3xl tracking-tight transition-colors hover:bg-accent/40 focus-visible:bg-accent/40"
-          onClick={() => {
-            void navigator.clipboard.writeText(label);
-            trigger();
+          className="rounded-sm font-serif text-3xl tracking-tight hover:bg-accent/40 focus-visible:bg-accent/40"
+          onBlur={() => {
+            setTooltipOpen(false);
+          }}
+          {...immediateClickHandlers<HTMLButtonElement>({
+            onClick: () => {
+              void navigator.clipboard.writeText(stableLabel);
+              trigger();
+            },
+          })}
+          onFocus={() => {
+            setTooltipOpen(true);
+          }}
+          onPointerEnter={() => {
+            setTooltipOpen(true);
+          }}
+          onPointerLeave={() => {
+            setTooltipOpen(false);
           }}
           type="button"
         >
@@ -437,7 +500,7 @@ function SkillTitle({
         </button>
       </TooltipTrigger>
       <TooltipContent>
-        {showCopied ? "Copied" : "Copy slash command"}
+        {showCopied ? "Copied" : `Copy ${stableLabel}`}
       </TooltipContent>
     </Tooltip>
   );

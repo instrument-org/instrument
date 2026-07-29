@@ -120,7 +120,7 @@ export function ToolCallSummary({
   const trigger = (
     <div
       className={cn(
-        "inline-flex max-w-full min-w-0 items-center gap-3 rounded-full border py-2 pr-4 pl-3 transition-colors",
+        "inline-flex max-w-full min-w-0 items-center gap-3 rounded-full border py-2 pr-4 pl-3",
         isEmphasized
           ? "border-foreground/5 bg-accent"
           : "border-border bg-card",

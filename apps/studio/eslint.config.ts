@@ -50,6 +50,17 @@ export default [
           selector:
             "ImportDeclaration[source.value='@tanstack/react-router'] > ImportSpecifier[imported.name='Link']",
         },
+        {
+          message:
+            "Controls activate on press. Use the Button component, or spread immediateClickHandlers({ onClick }) so this element states its activation. Pass activation: 'release' for remove/close targets that must stay cancelable.",
+          selector:
+            "JSXOpeningElement[name.name='button'] > JSXAttribute[name.name='onClick']",
+        },
+        {
+          message:
+            "Color and background never ease: a ramp in front of hover or pressed feedback reads as lag. Drop the class so the change lands on the next paint, or name the properties that really move (transition-[transform], transition-[outline]).",
+          selector: "Literal[value=/(?:^|\\s)transition-colors(?:\\s|$)/]",
+        },
       ],
     },
   },

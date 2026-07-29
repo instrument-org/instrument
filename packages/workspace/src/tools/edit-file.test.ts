@@ -1,4 +1,6 @@
 import mockFs from "mock-fs";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TaskIdSchema } from "../schemas/task-id";
@@ -222,6 +224,125 @@ describe("EditFile", () => {
         expect(result.isOk()).toBe(true);
       },
     );
+  });
+
+  describe("execute - empty oldString", () => {
+    it("refuses to replace an existing file and leaves it untouched", async () => {
+      const original = "const x = 1;\nconst y = 2;\n";
+      setupMockFs({ "index.ts": original });
+
+      const result = await runTool(
+        TOOLS.EditFile,
+        makeExecuteArgs({
+          filePath: "./index.ts",
+          newString: "const z = 3;\n",
+          oldString: "",
+        }),
+      );
+
+      expect(result._unsafeUnwrapErr()).toMatchInlineSnapshot(`
+        {
+          "message": "oldString cannot be empty when editing an existing file. Provide the exact text to replace, or use write_file for an intentional full-file replacement.",
+          "type": "execute-error",
+        }
+      `);
+      await expect(
+        fs.readFile(
+          path.join(MOCK_WORKSPACE_DIRS.tasks, taskId, "index.ts"),
+          "utf8",
+        ),
+      ).resolves.toBe(original);
+    });
+
+    it("creates the file when it does not exist", async () => {
+      setupMockFs({});
+
+      const result = await runTool(
+        TOOLS.EditFile,
+        makeExecuteArgs({
+          filePath: "./created.ts",
+          newString: "const z = 3;\n",
+          oldString: "",
+        }),
+      );
+
+      const { modifiedAt, ...output } = result._unsafeUnwrap();
+      expect(modifiedAt).toEqual(expect.any(Number));
+      expect(output).toMatchInlineSnapshot(`
+        {
+          "diff": "Index: ./created.ts
+        ===================================================================
+        --- ./created.ts
+        +++ ./created.ts
+        @@ -0,0 +1,1 @@
+        +const z = 3;
+        ",
+          "filePath": "./created.ts",
+        }
+      `);
+    });
+  });
+
+  describe("execute - block anchor guard rails", () => {
+    it("refuses a block anchored on matching first and last lines with an unrelated middle", async () => {
+      setupMockFs({
+        "anchors.ts": [
+          "function run() {",
+          "  const a = 1;",
+          "  const b = 2;",
+          "  const c = 3;",
+          "}",
+        ].join("\n"),
+      });
+
+      const result = await runTool(
+        TOOLS.EditFile,
+        makeExecuteArgs({
+          filePath: "./anchors.ts",
+          newString: "replaced",
+          oldString: [
+            "function run() {",
+            "  totally different content here;",
+            "  nothing like the real body;",
+            "  not even close;",
+            "}",
+          ].join("\n"),
+        }),
+      );
+
+      expect(result._unsafeUnwrapErr()).toMatchInlineSnapshot(`
+        {
+          "message": "Failed to edit file ./anchors.ts: oldString not found in content",
+          "type": "execute-error",
+        }
+      `);
+    });
+
+    it("refuses to stretch a small search block across a much larger span", async () => {
+      setupMockFs({
+        "wide.ts": [
+          "start",
+          ...Array.from({ length: 40 }, (_, i) => `  line ${i};`),
+          "end",
+        ].join("\n"),
+      });
+
+      const result = await runTool(
+        TOOLS.EditFile,
+        makeExecuteArgs({
+          filePath: "./wide.ts",
+          newString: "collapsed",
+          oldString: ["start", "  line 0;", "end"].join("\n"),
+        }),
+      );
+
+      expect(result._unsafeUnwrapErr()).toMatchInlineSnapshot(`
+        {
+          "message": "Failed to edit file ./wide.ts: oldString not found in content",
+          "type": "execute-error",
+        }
+      `);
+    });
   });
 
   describe("execute - replaceAll", () => {

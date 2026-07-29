@@ -18,6 +18,16 @@ describe("resolvePathWithinTaskDir", () => {
       filePath: RelativePathSchema.parse("./src/index.ts"),
       label: "dot-slash relative",
     },
+    {
+      expected: path.join(dir, "..foo"),
+      filePath: RelativePathSchema.parse("./..foo"),
+      label: "filename starting with two dots",
+    },
+    {
+      expected: path.join(dir, "src", "..bar.txt"),
+      filePath: RelativePathSchema.parse("./src/..bar.txt"),
+      label: "nested filename starting with two dots",
+    },
   ])("resolves $label paths inside dir", ({ expected, filePath }) => {
     expect(resolvePathWithinTaskDir({ dir, filePath })).toBe(expected);
   });
@@ -34,6 +44,10 @@ describe("resolvePathWithinTaskDir", () => {
     {
       filePath: RelativePathSchema.parse("src\\..\\..\\outside.txt"),
       label: "backslash traversal",
+    },
+    {
+      filePath: RelativePathSchema.parse("./.."),
+      label: "the dir's own parent",
     },
   ])("rejects $label", ({ filePath }) => {
     expect(resolvePathWithinTaskDir({ dir, filePath })).toBeNull();

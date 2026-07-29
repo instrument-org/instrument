@@ -36,6 +36,8 @@ Two top-level windows, each its own `BrowserWindow` / web contents, both loaded 
 
 They share renderer state that's `localStorage`-backed at the same origin (e.g. `zoomAtom`, theme), so anything scoped to a single window (tab commands, main-only chrome) must not assume the onboarding window is present.
 
+Closing the last window quits the app on **every** platform, macOS included, and runs the same running-agent confirmation as Cmd+Q (`lib/quit-guard.ts`). Nothing outlives the last window; see `docs/decisions/2026-07-25-quit-when-the-last-window-closes.md`.
+
 ## App-wide modals
 
 `AppShell`/`AppChrome` is a single web contents (the **main** window; see Windows), so modals are plain `<Dialog>`s at the chrome root, not separate overlay views.
@@ -54,6 +56,24 @@ The whole main window scales with CSS `zoom` on `ZoomRoot` (`zoomAtom`, user-adj
 - Zoom also makes viewport media queries a bad proxy for layout width, and splits `getBoundingClientRect()` (on-screen px) from `offsetWidth`/`ResizeObserver` (layout px). Routes lay out against the `@container/app-content` container `TabView` puts around them instead; see `docs/architecture/responsive-layout.md`.
 - Never add a `container-type` above a portal target. floating-ui counts it as a containing block for fixed content and Chrome doesn't, so every menu/popover silently shifts by that element's offset. `@container/app-content` sits below the portal target for exactly this reason.
 - Both windows (see Windows) use the same `ZoomRoot` + `zoomAtom`: the onboarding window wires it via `OnboardingZoomRoot`. `ZoomToast` (a transient corner readout on any zoom change) is mounted once per window, outside `ZoomRoot`, so keep it in sync in both roots.
+
+## Tests
+
+Three Vitest projects, chosen by extension so a file declares which it wants by what it is. Reach for the cheapest one that can actually observe the behavior:
+
+- `*.test.ts` → **node**, no DOM. Plain logic, parsers, schemas. Fast, and most tests belong here.
+- `*.test.tsx` → **dom** (jsdom). Rendering, props, refs, what ends up in the DOM. Adds `@testing-library/react` and `afterEach(cleanup)`.
+- `*.browser.test.tsx` → **browser** (real Chromium via Playwright). Typing, selection, caret, measured layout. Uses `vitest-browser-react`'s `render` and `page` locators, not Testing Library.
+
+Render jsdom tests through `renderWithProviders` (`src/tests/render.tsx`), which supplies a **fresh** Jotai store and query cache per call, so module-level atom families don't carry a value between tests. It returns the store for seeding or reading atoms. Its sibling `renderWithDefaultStore` mounts no Jotai `Provider`, the way the app itself runs — read the docblock before testing anything that writes through `getDefaultStore()`. Neither supplies a router: anything with an `InternalLink` needs one per test.
+
+jsdom has no layout engine and never delivers `selectionchange`, so anything measured, scrolled, or driven by the browser's own selection is invisible to it — a test written that way passes whether the code works or not. That is what the browser project is for. It is slower and needs `pnpm exec playwright install chromium`, so send a test there only when jsdom genuinely cannot see the behavior.
+
+Whatever you assert, confirm it fails against the unfixed code before keeping it. This matters more here than in node tests: a DOM test can easily pass for reasons that have nothing to do with what it claims to cover.
+
+CI runs node and dom in the main check job (`test:ci`) and the browser project in a separate one (`test:browser`), so a Chromium download never sits in front of the rest of the checks and a browser flake reads as its own failure. That job caches Chromium by lockfile hash and reinstalls its system libraries every run, since those land in the runner rather than the cached directory. Browser tests retry twice under `CI`; locally they don't, because there a flake is worth seeing.
+
+Locally, run them with `pnpm test:browser` after `pnpm exec playwright install chromium` once.
 
 ## Where things are
 

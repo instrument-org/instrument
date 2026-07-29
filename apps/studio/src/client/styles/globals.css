@@ -187,8 +187,9 @@ body {
   --shadow-xl: var(--elevation-xl);
   --shadow-2xl: var(--elevation-2xl);
   --shadow-3xl: var(--elevation-3xl);
-  /* xs elevation minus the hairline ring. */
+  /* xs and lg elevation minus the hairline ring. */
   --shadow-soft: var(--elevation-soft);
+  --shadow-lg-soft: var(--elevation-lg-soft);
 }
 
 /* =========================
@@ -247,6 +248,8 @@ body {
     0 16px 24px -12px rgb(10 13 18 / 0.08), 0 0 0 1px rgb(10 13 18 / 0.06);
   --elevation-soft:
     0 1px 2px 0 rgb(10 13 18 / 0.04), 0 1px 1px 0 rgb(10 13 18 / 0.05);
+  --elevation-lg-soft:
+    0 8px 16px -3px rgb(10 13 18 / 0.06), 0 4px 6px -4px rgb(10 13 18 / 0.06);
 
   /* Status ramps — 6 stops (50/100/300/500/700/900) per Figma. */
   --error-50: #fbeef0;
@@ -379,6 +382,7 @@ body {
     0 0 0 1px rgb(255 255 255 / 0.16), 0 32px 64px -12px rgb(0 0 0 / 0.3);
   --elevation-soft:
     0 1px 2px 0 rgb(0 0 0 / 0.24), 0 1px 1px 0 rgb(0 0 0 / 0.28);
+  --elevation-lg-soft: 0 14px 28px -5px rgb(0 0 0 / 0.17);
 }
 
 @utility prose-custom {
@@ -473,9 +477,17 @@ body {
 /* Scroll-driven edge fade for a vertical scroll area. The mask's top/bottom
    stops are registered as animatable lengths and driven by the element's own
    scroll timeline, so the top fade appears only once scrolled down and the
-   bottom fade clears at the end. When the area isn't scrollable the timeline is
-   inactive and both stops fall back to their 0 initial value, leaving no fade.
-   No JS. Registering the stops via @property is what makes them interpolate. */
+   bottom fade clears at the end. No JS. Registering the stops via @property is
+   what makes them interpolate.
+
+   An area that has never been scrollable has an inactive timeline and shows no
+   fade, since both stops sit at their 0 initial value. One that stops being
+   scrollable is a different case: Chromium holds the animation at its last
+   committed value rather than retiring it, so a scroller that shrinks back
+   under its own height keeps whatever fade it had when it last scrolled. A
+   scroller whose content can shrink that far has to carry this utility
+   conditionally -- `scroll-state()` queries reach only descendants, and the
+   mask has to live on the scroll container itself, so CSS alone cannot tell. */
 @property --scroll-fade-top {
   syntax: "<length>";
   inherits: false;

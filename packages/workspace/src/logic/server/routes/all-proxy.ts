@@ -3,6 +3,7 @@ import { html } from "hono/html";
 import { proxy } from "hono/proxy";
 
 import { FALLBACK_PAGE_META_NAME, SHIM_SCRIPT_PATH } from "../constants";
+import { injectShimScript } from "../inject-shim-script";
 import { type WorkspaceServerEnv } from "../types";
 import { uriDetailsForHost } from "../uri-details-for-host";
 
@@ -95,18 +96,6 @@ app.all("/*", async (c, next) => {
     responseContentType,
   );
   const isTextPlainContentType = responseContentType.includes("text/plain");
-  const isServerSentEvents = responseContentType.includes("text/event-stream");
-  const isStreaming =
-    res.headers.get("Transfer-Encoding") === "chunked" || isServerSentEvents;
-
-  // For streaming responses (SSE, chunked), pass through without consuming body
-  if (isStreaming) {
-    return new Response(res.body, {
-      headers: res.headers,
-      status: res.status,
-      statusText: res.statusText,
-    });
-  }
 
   if (res.status >= 400 && isTextPlainContentType) {
     const body = await res.text();
@@ -126,13 +115,25 @@ app.all("/*", async (c, next) => {
     return c.html(fallbackPage);
   }
 
+  // Only a response that might be HTML needs its body in memory -- it is read
+  // solely to inject the shim, plus to sniff the first KB when the app sends no
+  // content type at all. Everything else (assets, SSE, other streams) is passed
+  // through so it is neither buffered nor stalled.
+  if (!isHtmlContentType && responseContentType.trim()) {
+    return new Response(res.body, {
+      headers: res.headers,
+      status: res.status,
+      statusText: res.statusText,
+    });
+  }
+
   const clonedRes = res.clone();
   const body = await clonedRes.text();
   const hasHtmlTag = /<!doctype\s+html|<html[\s>]/i.test(body.slice(0, 1024));
 
   if (isHtmlContentType || (!responseContentType.trim() && hasHtmlTag)) {
     // For HTML responses, inject the shim script
-    const newBody = body.replace("<head>", `<head>${shimScript}`);
+    const newBody = injectShimScript(body, shimScript);
 
     // Must modify headers to prevent caching issues due to injected shim
     const newHeaders = new Headers(res.headers);
@@ -149,7 +150,7 @@ app.all("/*", async (c, next) => {
     return new Response(newBody, { headers: newHeaders, status: res.status });
   }
 
-  // For all other non-streaming responses, pass through as-is
+  // No content type and no HTML tag: pass the untouched body through
   return new Response(res.body, {
     headers: res.headers,
     status: res.status,

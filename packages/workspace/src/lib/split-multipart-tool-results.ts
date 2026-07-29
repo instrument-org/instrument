@@ -1,21 +1,18 @@
-import type { LanguageModelV2ToolResultOutput } from "@ai-sdk/provider";
 import type { AIProviderType } from "@instrument-org/shared";
 import type { FilePart, ModelMessage } from "ai";
 
 import { getProviderMetadata } from "@instrument-org/ai-gateway";
 
-type ContentOutput = Extract<
-  LanguageModelV2ToolResultOutput,
-  { type: "content" }
->;
+import { viewToolOutputItem } from "./model-message-parts";
 
-type MediaPart = Extract<ContentOutput["value"][number], { type: "media" }>;
-
-type ToolResultPart = Extract<
-  ModelMessage["content"][number],
-  { type: "tool-result" }
->;
-
+/**
+ * Move media out of tool results for providers that only take text there.
+ *
+ * The text stays with the tool result and the media follows as its own user
+ * message, which is the shape every provider accepts. Only `tool` messages are
+ * rewritten: a provider-executed result rides on an assistant message, and a
+ * provider that ran the tool itself can read back what it produced.
+ */
 export function splitMultipartToolResults({
   messages,
   provider,
@@ -30,103 +27,47 @@ export function splitMultipartToolResults({
   const result: ModelMessage[] = [];
 
   for (const message of messages) {
-    if (message.role !== "tool" || !Array.isArray(message.content)) {
+    if (message.role !== "tool") {
       result.push(message);
       continue;
     }
 
-    const hasMultipartToolResult = message.content.some((part) => {
-      if (part.type !== "tool-result") {
-        return false;
+    const media: FilePart[] = [];
+
+    const content = message.content.map((part) => {
+      if (part.type !== "tool-result" || part.output.type !== "content") {
+        return part;
       }
-      const output = part.output;
-      return isContentOutput(output) && hasMediaParts(output);
-    });
-
-    if (!hasMultipartToolResult) {
-      result.push(message);
-      continue;
-    }
-
-    const modifiedContent = message.content.map((part) => {
-      if (part.type === "tool-result" && isContentOutput(part.output)) {
-        const textParts = extractTextParts(part.output);
-        return convertToTextOutput(part, textParts);
-      }
-      return part;
-    });
-
-    result.push({
-      ...message,
-      content: modifiedContent,
-    });
-
-    const userMessageParts = message.content
-      .filter((part) => part.type !== "tool-approval-response")
-      .filter((part) => isContentOutput(part.output))
-      .flatMap((part) => {
-        const output = part.output;
-        if (!isContentOutput(output)) {
-          return [];
+      const text: string[] = [];
+      for (const item of part.output.value) {
+        const view = viewToolOutputItem(item);
+        if (view.kind === "text") {
+          text.push(view.text);
+        } else if (view.kind === "media") {
+          media.push({
+            data: view.data,
+            mediaType: view.mediaType,
+            type: "file",
+          });
         }
-        return extractMediaParts(output);
-      });
+        // Anything else is a reference we cannot carry into a text output, and
+        // no tool produces one.
+      }
+      return {
+        ...part,
+        output: { type: "text" as const, value: text.join("\n") },
+      };
+    });
 
-    if (userMessageParts.length > 0) {
-      result.push({
-        content: userMessageParts,
-        role: "user",
-      });
+    if (media.length === 0) {
+      // Collapsing a text-only content output to a text output would be a
+      // rewrite with nothing to show for it.
+      result.push(message);
+      continue;
     }
+
+    result.push({ ...message, content }, { content: media, role: "user" });
   }
 
   return result;
-}
-
-function convertToTextOutput(
-  part: ToolResultPart,
-  textParts: { text: string; type: "text" }[],
-) {
-  if (textParts.length === 0) {
-    return { ...part, output: { type: "text" as const, value: "" } };
-  }
-
-  const textValue = textParts.map((p) => p.text).join("\n");
-
-  return {
-    ...part,
-    output: {
-      type: "text" as const,
-      value: textValue,
-    },
-  };
-}
-
-function extractMediaParts(output: ContentOutput): FilePart[] {
-  return output.value
-    .filter((item): item is MediaPart => item.type === "media")
-    .map((item) => ({
-      data: item.data,
-      mediaType: item.mediaType,
-      type: "file",
-    }));
-}
-
-function extractTextParts(output: ContentOutput) {
-  return output.value.filter((item) => item.type === "text");
-}
-
-function hasMediaParts(output: ContentOutput): boolean {
-  return output.value.some((item) => item.type === "media");
-}
-
-function isContentOutput(output: unknown): output is ContentOutput {
-  return (
-    typeof output === "object" &&
-    output !== null &&
-    "type" in output &&
-    output.type === "content" &&
-    "value" in output &&
-    Array.isArray(output.value)
-  );
 }

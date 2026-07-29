@@ -37,7 +37,7 @@ export function SourceLink({
       )}
       <Favicon url={url} />
       <ExternalLink
-        className="flex min-w-0 items-baseline gap-1.5 text-muted-foreground transition-colors hover:text-foreground"
+        className="flex min-w-0 items-baseline gap-1.5 text-muted-foreground hover:text-foreground"
         href={url}
       >
         <span className="truncate">{primary}</span>

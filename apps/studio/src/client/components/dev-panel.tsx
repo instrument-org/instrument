@@ -33,6 +33,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { cn, isMacOS } from "@/client/lib/utils";
 import {
   componentPages,
@@ -70,8 +71,19 @@ const PAGES = [
   { label: "/tasks", to: "/tasks" },
   { label: "/tutorial-task", to: "/tutorial-task" },
   { label: "/subscribe", to: "/subscribe" },
+  // No skill can answer to this, so it exercises the redirect a deleted skill
+  // takes: a toast, then the skills list.
+  {
+    label: "/skills/<missing>",
+    params: { name: "no-such-skill" },
+    to: "/skills/$name",
+  },
   { label: "/", to: "/" },
-] as const satisfies { label: string; to: NavigateTo }[];
+] as const satisfies {
+  label: string;
+  params?: Record<string, string>;
+  to: NavigateTo;
+}[];
 
 const pillTriggerClassName =
   "flex items-center gap-x-1 rounded-sm px-1.5 py-0.5" +
@@ -153,10 +165,14 @@ export function DevPanel() {
 
   const enabledFlagCount = Object.values(features).filter(Boolean).length;
 
-  function handleNavigate(to: NavigateTo, search?: { session: string }) {
+  function handleNavigate(
+    to: NavigateTo,
+    search?: { session: string },
+    params?: Record<string, string>,
+  ) {
     // `to` is widened to the full route union here, so TS can't correlate it
-    // with a per-route search schema the way a literal `to` would.
-    void navigate({ search, to } as Parameters<typeof navigate>[0]);
+    // with a per-route search or param schema the way a literal `to` would.
+    void navigate({ params, search, to } as Parameters<typeof navigate>[0]);
   }
 
   if (hidden) {
@@ -203,15 +219,19 @@ export function DevPanel() {
                   Pages
                 </MenubarSubTrigger>
                 <MenubarSubContent>
-                  {PAGES.map(({ label, to }) => (
+                  {PAGES.map((page) => (
                     <MenubarItem
                       className="font-mono text-xs"
-                      key={to}
+                      key={page.label}
                       onSelect={() => {
-                        handleNavigate(to);
+                        handleNavigate(
+                          page.to,
+                          undefined,
+                          "params" in page ? page.params : undefined,
+                        );
                       }}
                     >
-                      {label}
+                      {page.label}
                     </MenubarItem>
                   ))}
                 </MenubarSubContent>
@@ -701,14 +721,16 @@ function ThemeToggle() {
                 aria-label={label}
                 aria-pressed={active}
                 className={cn(
-                  "flex size-4 items-center justify-center rounded-sm transition-colors",
+                  "flex size-4 items-center justify-center rounded-sm",
                   active
                     ? "bg-dev-500/15 text-dev-700/90 dark:bg-dev-400/15 dark:text-dev-300/90"
                     : "text-dev-700/40 hover:bg-dev-500/10 hover:text-dev-700/70 dark:text-dev-300/40 dark:hover:bg-dev-400/10 dark:hover:text-dev-300/70",
                 )}
-                onClick={() => {
-                  setTheme(value);
-                }}
+                {...immediateClickHandlers<HTMLButtonElement>({
+                  onClick: () => {
+                    setTheme(value);
+                  },
+                })}
                 type="button"
               >
                 <OptionIcon className="size-2.5" />

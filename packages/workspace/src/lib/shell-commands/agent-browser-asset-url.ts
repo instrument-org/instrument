@@ -5,7 +5,7 @@ import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../../schemas/paths";
 import { type TaskId } from "../../schemas/task-id";
 import { normalizePath } from "../normalize-path";
 import { TASK_MOUNT_POINT } from "../workspace-fs-layout";
-import { findSubcommandIndex } from "./agent-browser-flags";
+import { parseAgentBrowserArgs } from "./agent-browser-args";
 
 /**
  * Subcommands whose first positional is a URL to load. Deliberately narrow:
@@ -42,8 +42,7 @@ export async function rewriteNavigationArgToAssetUrl(
     };
   },
 ): Promise<string[]> {
-  const subcommandIndex = findSubcommandIndex(args);
-  const subcommand = args[subcommandIndex];
+  const { subArgs, subcommand } = parseAgentBrowserArgs(args);
   if (subcommand === undefined || !NAVIGATION_SUBCOMMANDS.has(subcommand)) {
     return args;
   }
@@ -51,20 +50,17 @@ export async function rewriteNavigationArgToAssetUrl(
   // `--` rather than `-`, matching how the CLI itself picks the URL out of a
   // navigation command's remaining args, so the rewrite lands on exactly the
   // argument the browser will be told to load.
-  const targetIndex = args.findIndex(
-    (arg, index) => index > subcommandIndex && !arg.startsWith("--"),
-  );
-  const target = args[targetIndex];
+  const target = subArgs.slice(1).find(({ value }) => !value.startsWith("--"));
   if (target === undefined) {
     return args;
   }
 
-  const assetUrl = await assetUrlForSandboxPath(target, taskId, ctx);
+  const assetUrl = await assetUrlForSandboxPath(target.value, taskId, ctx);
   if (assetUrl === undefined) {
     return args;
   }
 
-  return args.map((arg, index) => (index === targetIndex ? assetUrl : arg));
+  return args.map((arg, index) => (index === target.index ? assetUrl : arg));
 }
 
 /**

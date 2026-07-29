@@ -1,3 +1,4 @@
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { sum } from "radashi";
 
 import { type SkillInfo, type SkillSourceKind } from "./skills";
@@ -35,6 +36,7 @@ const WRAPPER_COST =
 const SOURCE_PRIORITY: Record<SkillSourceKind, number> = {
   agents: 3,
   antigravity: 3,
+  [APP_NAME_SLUG]: 2,
   claude: 3,
   codex: 3,
   copilot: 3,
@@ -43,7 +45,6 @@ const SOURCE_PRIORITY: Record<SkillSourceKind, number> = {
   goose: 3,
   kiro: 3,
   opencode: 3,
-  registry: 2,
   system: 0,
   windsurf: 3,
   workspace: 1,
@@ -78,10 +79,12 @@ export function renderSkillCatalog(
     .map((skill) => ({
       description: skill.description,
       descriptionCost: escapedLength(skill.description),
-      name: skill.name,
+      // Stable identity, because catalog entries can be copied into persisted
+      // messages and must not retarget when a namesake is installed later.
+      name: skill.id,
       // Its own trailing newline, so the entry costs add up to `xml.length`
       // once the wrapper is accounted for.
-      nameOnlyCost: renderEntry(skill.name, "").length + 1,
+      nameOnlyCost: renderEntry(skill.id, "").length + 1,
     }));
 
   if (entries.length === 0) {

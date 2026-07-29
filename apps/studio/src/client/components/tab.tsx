@@ -1,6 +1,7 @@
 import { TaskStatusIcon } from "@/client/components/session-status-icon";
 import { TaskIcon } from "@/client/components/task-icon";
 import { UnreadDot } from "@/client/components/unread-dot";
+import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Tab as TabData } from "@/shared/tabs";
@@ -112,7 +113,7 @@ export const Tab = ({
         {item.title ? (
           <motion.span
             className={cn(
-              "min-w-0 flex-1 overflow-hidden text-sm font-medium text-clip whitespace-nowrap transition-colors",
+              "min-w-0 flex-1 overflow-hidden text-sm font-medium text-clip whitespace-nowrap",
               isSelected
                 ? "text-foreground"
                 : "text-muted-foreground group-hover:text-foreground",
@@ -133,24 +134,30 @@ export const Tab = ({
         ) : null}
         <button
           className={cn(
-            "rounded-md p-1 opacity-70 ring-offset-background transition-opacity hover:bg-muted/80 hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none",
+            "rounded-md p-1 opacity-70 ring-offset-background hover:bg-muted/80 hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none",
             isSelected ? "flex" : "hidden group-hover:flex",
           )}
-          onClick={(event) => {
-            event.stopPropagation();
-            onRemove();
-          }}
-          // The item selects on pointerdown; stop it here so clicking a
-          // background tab's close button doesn't first select that tab (which
-          // would then close and move selection to its neighbor, not stay put).
-          onPointerDown={(event) => {
-            event.stopPropagation();
-          }}
+          {...immediateClickHandlers<HTMLButtonElement>({
+            // Closing discards a view, so this keeps the drag-off-to-cancel
+            // affordance that window and tab chrome are expected to have.
+            activation: "release",
+            onClick: (event) => {
+              event.stopPropagation();
+              onRemove();
+            },
+            // The item selects on pointerdown; stop it here so clicking a
+            // background tab's close button doesn't first select that tab
+            // (which would then close and move selection to its neighbor,
+            // not stay put).
+            onPointerDown: (event) => {
+              event.stopPropagation();
+            },
+          })}
           type="button"
         >
           <XIcon
             className={cn(
-              "size-3 transition-colors",
+              "size-3",
               isSelected ? "text-foreground" : "text-muted-foreground",
             )}
           />

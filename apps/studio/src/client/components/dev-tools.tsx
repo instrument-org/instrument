@@ -195,7 +195,7 @@ export function DevTools() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Load PostHog Analytics Toolbar</DialogTitle>
+            <DialogTitle>Load PostHog analytics toolbar</DialogTitle>
             <DialogDescription>
               Enter the PostHog toolbar code, JavaScript snippet, or URL search
               params containing the __posthog parameter.
@@ -203,7 +203,7 @@ export function DevTools() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="toolbar-code">Toolbar Code</Label>
+              <Label htmlFor="toolbar-code">Toolbar code</Label>
               <Textarea
                 className="min-h-24"
                 id="toolbar-code"
@@ -238,7 +238,7 @@ export function DevTools() {
               disabled={!validationResult.isValid}
               onClick={handleLoadToolbar}
             >
-              Load Toolbar
+              Load toolbar
             </Button>
           </DialogFooter>
         </DialogContent>

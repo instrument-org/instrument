@@ -14,17 +14,20 @@ import { RelativePathSchema, type TaskDir } from "../schemas/paths";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
-import { getIgnore } from "./get-ignore";
 import { getMimeType } from "./get-mime-type";
 import {
   diffTaskFileIndexes,
+  getTaskFileIgnore,
   getTaskFileIndex,
-  INTERNAL_IGNORE_PATTERNS,
+  isIgnoredTaskPath,
   MAX_TASK_FILE_INDEX_FILES,
   type TaskFile,
   type TaskFileChange,
+  type TaskFileIgnore,
   type TaskFileIndex,
   taskFilesFromIndex,
+  WATCHER_IGNORE_PATTERNS,
+  type WatcherPatterns,
 } from "./get-task-files";
 import { normalizePath } from "./normalize-path";
 import { taskDir } from "./task-dir-utils";
@@ -46,15 +49,17 @@ const NATIVE_BACKEND: Options["backend"] =
       ? "fs-events"
       : "inotify";
 
-type Ignore = Awaited<ReturnType<typeof getIgnore>>;
-
 // Minimal surface of @parcel/watcher we depend on; loaded dynamically so the
 // native binding resolves from node_modules at runtime instead of being bundled.
+// `ignore` is narrowed from the upstream `string[]` to the branded watcher
+// dialect: the two pattern lists are interchangeable to the compiler otherwise,
+// and passing the gitignore-spelled one here fails silently -- the patterns just
+// stop matching and every excluded path flows through again.
 interface ParcelWatcherApi {
   subscribe: (
     dir: string,
     callback: SubscribeCallback,
-    opts?: Options,
+    opts?: Omit<Options, "ignore"> & { ignore?: WatcherPatterns },
   ) => Promise<AsyncSubscription>;
 }
 
@@ -76,7 +81,7 @@ interface WatcherEntry {
   fallbackTimer: null | ReturnType<typeof setInterval>;
   id: TaskId;
   // Null until the first seed completes; seeding always precedes event handling.
-  ignore: Ignore | null;
+  ignore: null | TaskFileIgnore;
   index: TaskFileIndex;
   // Settles once seeding + the native subscribe have run, so shutdown can await
   // in-flight setup before tearing the watcher down.
@@ -290,7 +295,7 @@ async function applyChangedPath(
   }
 
   const key = relative;
-  if (entry.ignore.ignores(relative) || entry.ignore.ignores(`${relative}/`)) {
+  if (isIgnoredTaskPath(entry.ignore, relative)) {
     return deleteSubtree(entry, key);
   }
 
@@ -419,7 +424,7 @@ async function initWatcher(entry: WatcherEntry) {
         }
         scheduleFlush(entry);
       },
-      { backend: NATIVE_BACKEND, ignore: INTERNAL_IGNORE_PATTERNS },
+      { backend: NATIVE_BACKEND, ignore: WATCHER_IGNORE_PATTERNS },
     );
     if (isDisposed(entry)) {
       await subscription.unsubscribe().catch(noop);
@@ -485,8 +490,7 @@ function releaseWatcher(id: TaskId) {
 
 /** Rebuilds the ignore matcher and walks disk to produce a fresh, authoritative index; marks the entry seeded. */
 async function reseed(entry: WatcherEntry) {
-  entry.ignore = await getIgnore(entry.dir);
-  entry.ignore.add(INTERNAL_IGNORE_PATTERNS);
+  entry.ignore = await getTaskFileIgnore(entry.dir);
   const result = await getTaskFileIndex(entry.dir);
   if (isDisposed(entry)) {
     return;

@@ -1,10 +1,18 @@
+import {
+  type ClickActivation,
+  immediateClickHandlers,
+} from "@/client/lib/immediate-click";
 import { cn } from "@/client/lib/utils";
 import * as TogglePrimitive from "@radix-ui/react-toggle";
 import * as React from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
+// Only the focus ring eases. These controls activate on press, so easing the
+// surface would put a 150ms ramp in front of feedback for an action that has
+// already run. Fill and text are dropped from the transition together: ramping
+// one without the other shows the new background under the old text.
 const toggleSharedChrome =
-  "inline-flex items-center justify-center gap-2 text-sm font-medium whitespace-nowrap transition-[color,outline,background-color] outline-none focus-visible:border-ring focus-visible:[outline-style:solid] focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:outline-offset-0 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4";
+  "inline-flex items-center justify-center gap-2 text-sm font-medium whitespace-nowrap transition-[outline] outline-none focus-visible:border-ring focus-visible:[outline-style:solid] focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:outline-offset-0 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4";
 
 const toolbarSurface = tv({
   // Inset the focus ring (negative outline-offset) so it is painted inside the
@@ -63,16 +71,26 @@ const toggleVariants = tv({
 });
 
 function Toggle({
+  activation,
   className,
+  onClick,
+  onPointerDown,
   size,
   variant,
   ...props
 }: React.ComponentProps<typeof TogglePrimitive.Root> &
-  VariantProps<typeof toggleVariants>) {
+  VariantProps<typeof toggleVariants> & {
+    activation?: ClickActivation;
+  }) {
   return (
     <TogglePrimitive.Root
       className={cn(toggleVariants({ className, size, variant }))}
       data-slot="toggle"
+      {...immediateClickHandlers<HTMLButtonElement>({
+        activation,
+        onClick,
+        onPointerDown,
+      })}
       {...props}
     />
   );

@@ -1,3 +1,4 @@
+import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import {
   getUsageSummaryFromMessages,
   type SessionMessage,
@@ -10,6 +11,7 @@ import { useMemo, useState } from "react";
 
 import { useDeveloperMode } from "../hooks/use-developer-mode";
 import { formatDuration } from "../lib/format-time";
+import { MESSAGE_FOOTER_ICON_SIZE, SHARED } from "../lib/styles";
 import { cn } from "../lib/utils";
 import { CopyButton } from "./copy-button";
 import { Favicon } from "./favicon";
@@ -143,38 +145,45 @@ export function AssistantMessagesFooter({
       >
         <div
           className={cn(
-            "flex min-w-0 items-center gap-2 transition-opacity",
+            "flex min-w-0 items-center gap-2",
             sources.length > 0
               ? "opacity-100"
               : "opacity-0 group-hover/assistant-message-footer:opacity-100",
           )}
         >
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <CopyButton
-                className="text-muted-foreground"
-                onCopy={handleCopy}
-              />
-            </TooltipTrigger>
-            <TooltipContent>Copy message</TooltipContent>
-          </Tooltip>
-          {branchFrom && (
+          {/* The negative margins cancel the buttons' own padding so their icons
+              still sit on the row's outer edges, not inset from them. */}
+          <div className="-mx-1 flex items-center">
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
-                  aria-label="Branch from here"
-                  className="text-muted-foreground"
-                  onClick={() => {
-                    setIsBranchOpen(true);
-                  }}
-                  type="button"
-                >
-                  <GitBranchIcon size={16} />
-                </button>
+                <CopyButton
+                  className={SHARED.messageFooterButton}
+                  iconSize={MESSAGE_FOOTER_ICON_SIZE}
+                  onCopy={handleCopy}
+                />
               </TooltipTrigger>
-              <TooltipContent>Branch from here</TooltipContent>
+              <TooltipContent>Copy message</TooltipContent>
             </Tooltip>
-          )}
+            {branchFrom && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    aria-label="Branch from here"
+                    className={SHARED.messageFooterButton}
+                    {...immediateClickHandlers<HTMLButtonElement>({
+                      onClick: () => {
+                        setIsBranchOpen(true);
+                      },
+                    })}
+                    type="button"
+                  >
+                    <GitBranchIcon size={MESSAGE_FOOTER_ICON_SIZE} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Branch from here</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
           {generationDuration > 0 && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -264,7 +273,7 @@ export function AssistantMessagesFooter({
               }}
             >
               <UsageSummaryText
-                className="min-w-0 text-[10px] text-dev-700/60 transition-colors hover:text-dev-700 dark:text-dev-300/60 dark:hover:text-dev-300"
+                className="min-w-0 text-[10px] text-dev-700/60 hover:text-dev-700 dark:text-dev-300/60 dark:hover:text-dev-300"
                 messageCount={usageSummary.messageCount}
                 totalTokens={usageSummary.totalTokens}
               />

@@ -6,12 +6,12 @@ import { RevealPath } from "@/client/components/reveal-path";
 import { SkillBadges } from "@/client/components/skill-badges";
 import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
+import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { matchSkills } from "@/client/lib/skill-search";
 import { isProvidedSource, skillSourceLabel } from "@/client/lib/skill-source";
-import { SKILL_TOKEN_CLASS_NAME } from "@/client/lib/skill-tokens";
-import { cn } from "@/client/lib/utils";
+import { SKILL_NAME_MATCH_CLASS_NAME } from "@/client/lib/skill-tokens";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { APP_NAME } from "@instrument-org/shared";
+import { APP_NAME, APP_NAME_SLUG } from "@instrument-org/shared";
 import {
   FilesIcon,
   MagnifyingGlassIcon,
@@ -36,16 +36,13 @@ export const Route = createFileRoute("/_app/skills/")({
 
 type Skill = RPCOutput["workspace"]["skill"]["list"][number];
 
-// The name is already bold, so a matched run reads as a color shift instead of
-// extra weight, reusing the same brown that marks a skill mention elsewhere.
-const NAME_MATCH_CLASS_NAME = cn("bg-transparent", SKILL_TOKEN_CLASS_NAME);
-
 // Where a group sits in the list. The user's own workspace first, since it is
 // the one they author; then Instrument's provided skills; then skills found in
 // the folders other agents keep theirs in.
 const SOURCE_RANK: Record<Skill["source"], number> = {
   agents: 3,
   antigravity: 3,
+  [APP_NAME_SLUG]: 1,
   claude: 3,
   codex: 3,
   copilot: 3,
@@ -54,7 +51,6 @@ const SOURCE_RANK: Record<Skill["source"], number> = {
   goose: 3,
   kiro: 3,
   opencode: 3,
-  registry: 1,
   system: 1,
   windsurf: 3,
   workspace: 0,
@@ -105,9 +101,19 @@ function groupSkills(skills: Skill[]) {
     );
 }
 
+// Skill paths come from the OS, so the separator is a backslash on Windows.
+// Missing it leaves every skill's own folder looking like a separate place the
+// source keeps its skills in.
 function parentDir(path: string) {
-  const index = path.lastIndexOf("/");
+  const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
   return index > 0 ? path.slice(0, index) : path;
+}
+
+// Where another agent keeps its skills is worth naming: it is how someone works
+// out what those skills are and where they came from. The workspace's own
+// folder is not, since nobody chose to put anything there.
+function showsSourcePaths(source: Skill["source"]) {
+  return !isProvidedSource(source) && source !== "workspace";
 }
 
 function SkillsPage() {
@@ -168,13 +174,15 @@ function SkillsPage() {
               {q ? (
                 <button
                   aria-label="Clear search"
-                  className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
-                  onClick={() => {
-                    void navigate({
-                      replace: true,
-                      search: (prev) => ({ ...prev, q: undefined }),
-                    });
-                  }}
+                  className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                  {...immediateClickHandlers<HTMLButtonElement>({
+                    onClick: () => {
+                      void navigate({
+                        replace: true,
+                        search: (prev) => ({ ...prev, q: undefined }),
+                      });
+                    },
+                  })}
                   type="button"
                 >
                   <XIcon className="size-4" />
@@ -189,9 +197,9 @@ function SkillsPage() {
             ) : (
               <div className="grid gap-10">
                 {groups.map((group) => {
-                  const sourcePaths = isProvidedSource(group.source)
-                    ? []
-                    : group.dirs;
+                  const sourcePaths = showsSourcePaths(group.source)
+                    ? group.dirs
+                    : [];
 
                   return (
                     <section className="min-w-0" key={group.key}>
@@ -215,30 +223,30 @@ function SkillsPage() {
                           const ranges = matchBySkill.get(skill);
                           return (
                             <div
-                              className="group relative flex items-center gap-4 px-4 py-2.5 transition-colors hover:bg-accent/40"
-                              key={skill.name}
+                              className="group relative isolate flex items-center gap-4 px-4 py-2.5 hover:bg-accent/40"
+                              key={skill.id}
                             >
                               <InternalLink
                                 className="absolute inset-0"
-                                params={{ name: skill.name }}
+                                params={{ name: skill.id }}
                                 to="/skills/$name"
                               />
                               <div className="flex w-52 shrink-0 items-center gap-2">
                                 <span className="min-w-0 truncate font-mono text-sm font-medium">
                                   {skill.userInvocable ? "/" : null}
                                   <FuzzyHighlight
-                                    matchClassName={NAME_MATCH_CLASS_NAME}
+                                    matchClassName={SKILL_NAME_MATCH_CLASS_NAME}
                                     ranges={ranges?.nameRanges ?? null}
                                     text={skill.name}
                                   />
                                 </span>
                                 {skill.userInvocable ? (
                                   <CopyButton
-                                    className="relative z-10 shrink-0 rounded-sm p-0.5 text-muted-foreground opacity-0 transition-[color,opacity] group-hover:opacity-100 hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100"
+                                    className="relative z-10 shrink-0 rounded-sm p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100"
                                     iconSize={13}
                                     onCopy={() =>
                                       navigator.clipboard.writeText(
-                                        `/${skill.name}`,
+                                        `/${skill.id}`,
                                       )
                                     }
                                   />

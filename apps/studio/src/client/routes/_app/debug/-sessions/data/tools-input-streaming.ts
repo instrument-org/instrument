@@ -119,21 +119,7 @@ export function authMiddleware(
           type: "tool-load_skill",
         }),
         builder.textPart("Calling glob...", assistantMessageId),
-        builder.toolPart(assistantMessageId, "input-streaming", {
-          input: {
-            explanation: "Find all TypeScript files",
-            pattern: "src/**/*.ts",
-          },
-          type: "tool-glob",
-        }),
         builder.textPart("Calling grep...", assistantMessageId),
-        builder.toolPart(assistantMessageId, "input-streaming", {
-          input: {
-            explanation: "Search for formatDate usages",
-            pattern: "formatDate",
-          },
-          type: "tool-grep",
-        }),
 
         // Partial filePath — tests FileChip appearing mid-stream
         builder.textPart(

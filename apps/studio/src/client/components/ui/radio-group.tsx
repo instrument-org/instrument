@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  type ClickActivation,
+  immediateClickHandlers,
+} from "@/client/lib/immediate-click";
 import { cn } from "@/client/lib/utils";
 import { CircleIcon } from "@phosphor-icons/react";
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
@@ -19,13 +23,23 @@ function RadioGroup({
 }
 
 function RadioGroupItem({
+  activation,
   className,
+  onClick,
+  onPointerDown,
   ...props
-}: React.ComponentProps<typeof RadioGroupPrimitive.Item>) {
+}: React.ComponentProps<typeof RadioGroupPrimitive.Item> & {
+  activation?: ClickActivation;
+}) {
   return (
     <RadioGroupPrimitive.Item
+      {...immediateClickHandlers<HTMLButtonElement>({
+        activation,
+        onClick,
+        onPointerDown,
+      })}
       className={cn(
-        "aspect-square size-4 shrink-0 rounded-full border border-input text-primary shadow-xs transition-[color,outline] outline-none focus-visible:border-ring focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid] disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30 dark:aria-invalid:ring-destructive/40",
+        "aspect-square size-4 shrink-0 rounded-full border border-input text-primary shadow-xs transition-[outline] outline-none focus-visible:border-ring focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid] disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30 dark:aria-invalid:ring-destructive/40",
         className,
       )}
       data-slot="radio-group-item"

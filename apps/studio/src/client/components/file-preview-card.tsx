@@ -9,6 +9,7 @@ import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibili
 import { useTaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getFileKindLabel, getFileType } from "@/client/lib/get-file-type";
+import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { cn } from "@/client/lib/utils";
 import {
   ArrowLineDownIcon,
@@ -162,13 +163,13 @@ function FileRowCard({
 
   const row = (
     <div
+      {...immediateClickHandlers<HTMLDivElement>({ onClick })}
       className={cn(
-        "group relative flex items-center gap-3 overflow-hidden rounded-2xl px-3 py-3 transition-colors select-none",
+        "group relative flex items-center gap-3 overflow-hidden rounded-2xl px-3 py-3 select-none",
         isSelected
           ? "border border-black/5 bg-brand-600/8 dark:bg-brand-300/8"
           : "bg-card shadow-xs hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40",
       )}
-      onClick={onClick}
       onMouseEnter={() => {
         prefetchOpenTarget(file);
       }}
@@ -195,8 +196,11 @@ function FileRowCard({
       </div>
       {!hideActionsMenu && hasFileActions && (
         <div
-          className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100"
+          className="flex shrink-0 items-center opacity-0 group-hover:opacity-100"
           onClick={(e) => {
+            e.stopPropagation();
+          }}
+          onPointerDown={(e) => {
             e.stopPropagation();
           }}
         >
@@ -301,7 +305,7 @@ function ImagePreviewCard({
             {fileActions.showDownload && (
               <MediaOverlayButton
                 icon={<ArrowLineDownIcon className="size-3.5 shrink-0" />}
-                label="Download"
+                label="Save as…"
                 onClick={(e) => {
                   e.stopPropagation();
                   void downloadFile(file);
@@ -311,8 +315,7 @@ function ImagePreviewCard({
             <OpenTaskFileButton
               className="max-w-44"
               control={openControl}
-              dropdownClassName="px-1.5"
-              dropdownSize="xs"
+              dropdownClassName="h-6 rounded-lg"
               file={file}
               iconClassName="size-3.5 shrink-0"
               labelClassName="truncate"
@@ -362,13 +365,13 @@ function MissingMediaCard({
     <Tooltip>
       <TooltipTrigger asChild>
         <button
+          {...immediateClickHandlers<HTMLButtonElement>({ onClick })}
           className={cn(
             "relative flex w-full flex-col items-center justify-center gap-1.5 overflow-hidden rounded-2xl bg-card p-3 text-center shadow-sm dark:bg-muted",
             aspectRatio === "square" ? "aspect-square" : "aspect-video",
             isSelected &&
               "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
           )}
-          onClick={onClick}
           type="button"
         >
           <ImageBrokenIcon className="size-6 text-muted-foreground/60" />
@@ -431,7 +434,7 @@ function VideoPreviewCard({
       aspectRatio="video"
       bottomBar={
         displayTime === null ? undefined : (
-          <div className="absolute right-4 bottom-4 left-4 z-10 flex flex-col gap-1 opacity-0 transition-opacity duration-200 group-hover/media:opacity-100">
+          <div className="pointer-events-none absolute right-4 bottom-4 left-4 z-10 flex flex-col gap-1 opacity-0 transition-opacity duration-200 group-hover/media:opacity-100">
             <span className="self-end text-xs font-medium text-white tabular-nums drop-shadow-sm">
               {formatTime(displayTime)}
             </span>
@@ -459,7 +462,7 @@ function VideoPreviewCard({
             {fileActions.showDownload && (
               <MediaOverlayButton
                 icon={<ArrowLineDownIcon className="size-3.5 shrink-0" />}
-                label="Download"
+                label="Save as…"
                 onClick={(e) => {
                   e.stopPropagation();
                   void downloadFile(file);
@@ -469,8 +472,7 @@ function VideoPreviewCard({
             <OpenTaskFileButton
               className="max-w-44"
               control={openControl}
-              dropdownClassName="px-1.5"
-              dropdownSize="xs"
+              dropdownClassName="h-6 rounded-lg"
               file={file}
               iconClassName="size-3.5 shrink-0"
               labelClassName="truncate"

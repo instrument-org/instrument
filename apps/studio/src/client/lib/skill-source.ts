@@ -1,5 +1,5 @@
 import { type RPCOutput } from "@/client/rpc/client";
-import { APP_NAME } from "@instrument-org/shared";
+import { APP_NAME, APP_NAME_SLUG } from "@instrument-org/shared";
 
 export type SkillSource =
   RPCOutput["workspace"]["skill"]["list"][number]["source"];
@@ -13,6 +13,7 @@ const PROVIDED_LABEL = APP_NAME;
 const SOURCE_LABELS: Record<SkillSource, string> = {
   agents: "Agent skills",
   antigravity: "Antigravity",
+  [APP_NAME_SLUG]: PROVIDED_LABEL,
   claude: "Claude Code",
   codex: "Codex",
   copilot: "GitHub Copilot",
@@ -21,7 +22,6 @@ const SOURCE_LABELS: Record<SkillSource, string> = {
   goose: "Goose",
   kiro: "Kiro",
   opencode: "OpenCode",
-  registry: PROVIDED_LABEL,
   system: PROVIDED_LABEL,
   windsurf: "Windsurf",
   workspace: "Your workspace",
@@ -29,7 +29,37 @@ const SOURCE_LABELS: Record<SkillSource, string> = {
 
 // Skills Instrument itself ships; where they sit on disk is an internal detail.
 export function isProvidedSource(source: SkillSource) {
-  return source === "registry" || source === "system";
+  return source === APP_NAME_SLUG || source === "system";
+}
+
+/**
+ * Why a skill offers no edit or delete action, in terms of where it came from.
+ * Only the workspace's writable skills folder is editable, and everything else
+ * is read-only for a different reason worth naming.
+ */
+export function readOnlySkillReason(source: SkillSource) {
+  if (isProvidedSource(source)) {
+    return `This skill is built into ${APP_NAME}, so it can’t be edited or deleted.`;
+  }
+  if (source === "agents" || source === "workspace") {
+    return `This skill lives outside the skills folder ${APP_NAME} manages, so it can’t be edited or deleted here.`;
+  }
+  return `This skill comes from ${skillSourceLabel(source)}, so it can’t be edited or deleted here.`;
+}
+
+/**
+ * Where a skill sits, for a surface with room for one line of it: the folder
+ * on disk, or the app itself for the ones we ship, whose location is an
+ * internal detail nobody can act on.
+ */
+export function skillLocationHint({
+  path,
+  source,
+}: {
+  path: string;
+  source: SkillSource;
+}) {
+  return isProvidedSource(source) ? `Built into ${APP_NAME}` : path;
 }
 
 /** The app or place a skill comes from, named for a person. */

@@ -15,6 +15,10 @@ node_modules/
 # Vitest
 *.vitest-temp.json
 
+# Chromium for the browser test project, kept in the workspace on CI so it can
+# be cached by path. Locally it lands in the Playwright cache instead.
+.playwright-browsers/
+
 # TypeScript
 *.tsbuildinfo
 

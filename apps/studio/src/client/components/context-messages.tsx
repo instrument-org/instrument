@@ -75,7 +75,7 @@ export const ContextMessages = memo(function ContextMessages({
           </CollapsibleTrigger>
           {isExpanded && (
             <CopyButton
-              className="rounded-sm p-1 text-muted-foreground transition-colors hover:bg-accent/30 hover:text-foreground disabled:opacity-50"
+              className="rounded-sm p-1 text-muted-foreground hover:bg-accent/30 hover:text-foreground disabled:opacity-50"
               iconSize={12}
               onCopy={handleCopy}
             />

@@ -181,12 +181,6 @@ function MarkdownPreview({ url }: { url: string }) {
   return <SessionMarkdown className="p-8" markdown={data ?? ""} />;
 }
 
-// Syntax highlighting round-trips the whole file through the highlighter and
-// injects a per-token DOM node for every line at once, so its cost scales with
-// file size; large files (e.g. a 50k-row generated CSV) freeze the viewer.
-// Above this size we skip highlighting and render plain text.
-const MAX_SYNTAX_HIGHLIGHT_CHARS = 512 * 1024;
-
 function TextView({
   children,
   filename,
@@ -209,10 +203,8 @@ function TextView({
   });
 
   const language = getLanguageFromFilePath(filename);
-  const canHighlight =
-    data != null && data.length <= MAX_SYNTAX_HIGHLIGHT_CHARS;
-  const { highlightedHtml } = useSyntaxHighlighting({
-    code: language && canHighlight ? data : undefined,
+  const { highlightedHtml, isHighlightable } = useSyntaxHighlighting({
+    code: data,
     language,
   });
 
@@ -248,7 +240,7 @@ function TextView({
     );
   }
 
-  if (language && canHighlight) {
+  if (isHighlightable) {
     // Delay showing plain text fallback to give syntax highlighting time to load
     return (
       <motion.div
@@ -256,7 +248,7 @@ function TextView({
         initial={{ opacity: 0 }}
         transition={{ delay: 0.3, duration: 0 }}
       >
-        {children(data)}
+        {children(data ?? "")}
       </motion.div>
     );
   }
@@ -305,7 +297,7 @@ const fileViewerHeaderMenuTriggerClassName = toolbarClassName({
 
 const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
   className:
-    "h-7 w-5 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+    "h-7 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
   pressed: false,
 });
 
@@ -494,7 +486,7 @@ export function FileViewer({
                 {fileActions.showDownload && (
                   <DropdownMenuItem onClick={() => void handleDownload()}>
                     <ArrowLineDownIcon className="size-4" />
-                    <span>Download</span>
+                    <span>Save as…</span>
                   </DropdownMenuItem>
                 )}
                 {fileActions.showReveal && (
@@ -619,16 +611,32 @@ export function FileViewer({
             title={filename}
           />
         ) : fileType === "video" ? (
-          <video
-            className="size-full object-contain"
-            controls
-            key={url}
-            onError={() => {
-              setMediaLoadError(true);
-              setMediaErrorType("mp4");
-            }}
-            src={url}
-          />
+          // Muted is what makes autoplay allowed at all: Chrome blocks an
+          // unmuted `autoPlay` outright, so the viewer would open on a frozen
+          // first frame. Controls stay available to unmute and scrub.
+          <ContextMenu>
+            <ContextMenuTrigger className="size-full">
+              <video
+                autoPlay
+                className="size-full object-contain"
+                controls
+                key={url}
+                muted
+                onError={() => {
+                  setMediaLoadError(true);
+                  setMediaErrorType("mp4");
+                }}
+                playsInline
+                src={url}
+              />
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <FileActionsMenuItems
+                file={file}
+                menuComponents={contextMenuComponents}
+              />
+            </ContextMenuContent>
+          </ContextMenu>
         ) : fileType === "audio" ? (
           <div className="flex size-full items-center justify-center p-8">
             <audio

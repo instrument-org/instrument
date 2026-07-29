@@ -178,7 +178,12 @@ window.addEventListener("message", (event) => {
   if (event.source === iframe.contentWindow) {
     const message = event.data as IframeMessage;
 
-    if (message.type === "app-status") {
+    // The recovery overlay owns the iframe's visibility while it is up. A
+    // healthy dev server that never painted keeps sending `ready`, which would
+    // otherwise hide the overlay one heartbeat after it appeared -- exactly the
+    // case it exists for.
+    // oxlint-disable-next-line no-use-before-define
+    if (message.type === "app-status" && !isShowingRecovery) {
       if (message.value === "ready") {
         iframe.classList.remove(IFRAME_CLASSES.visible);
       } else {

@@ -4,7 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 export const Route = createFileRoute("/_app/debug/components/error-card")({
   component: RouteComponent,
   head: () => ({
-    meta: [{ title: "Debug Error Card" }],
+    meta: [{ title: "Debug error card" }],
   }),
 });
 
@@ -64,7 +64,7 @@ function RouteComponent() {
           <p className="text-sm font-medium text-muted-foreground">
             Components
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight">Error Card</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Error card</h1>
           <p className="text-sm text-muted-foreground">
             Shown when an operation fails. Supports single errors, error codes,
             causes, stack traces, and arrays.

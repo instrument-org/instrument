@@ -1,4 +1,3 @@
-import { execa } from "execa";
 import { defineCommand } from "just-bash";
 
 import { type TaskId } from "../../schemas/task-id";
@@ -6,6 +5,7 @@ import { FFMPEG_PATH } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
+import { execShim } from "./exec-shim";
 import { resolveCommandContext, resolvePathArgs } from "./utils";
 
 export const FFMPEG_COMMAND = {
@@ -17,18 +17,16 @@ export function createFfmpegCommand(taskId: TaskId) {
   return defineCommand(FFMPEG_COMMAND.name, async (args, ctx) => {
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
 
-    const result = await execa(
+    const result = await execShim(
       FFMPEG_PATH,
       resolvePathArgs(args, taskId, ctx),
       {
-        all: true,
         cancelSignal: ctx.signal,
         cwd: taskCwd,
         env: {
           ...getWorkspaceConfig().nodeExecEnv,
           ...env,
         },
-        reject: false,
         stdin: "ignore",
       },
     );

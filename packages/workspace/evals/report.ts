@@ -7,8 +7,16 @@ import { Store } from "../src/lib/store";
 import { taskDir } from "../src/lib/task-dir-utils";
 import { getTaskState } from "../src/lib/task-state-store";
 import { getTaskUsageSummary } from "../src/lib/usage-summary";
+import {
+  hasWorkspaceConfig,
+  setWorkspaceConfig,
+} from "../src/lib/workspace-config";
 import { type Session } from "../src/schemas/session";
-import { type AssertionResult, type EvalCase } from "./harness";
+import {
+  type AssertionResult,
+  type CompletedRun,
+  type EvalCase,
+} from "./harness";
 import { buildReportWorkspaceConfig, c } from "./utils";
 
 interface RollupSummary {
@@ -18,6 +26,8 @@ interface RollupSummary {
     passed: number;
     total: number;
   };
+  /** Tasks where at least one model request failed (rate limit, credits, ...). */
+  erroredTasks: number;
   modelURIs: string[];
   tasks: number;
 }
@@ -26,16 +36,35 @@ export async function generateReport({
   evalCases = [],
   includeContextMessages = false,
   outputDir,
+  runs = [],
   workspaceRootDir,
 }: {
   evalCases?: EvalCase[];
   includeContextMessages?: boolean;
   outputDir: string;
+  runs?: CompletedRun[];
   workspaceRootDir: string;
 }): Promise<RollupSummary> {
   const evalCasesByName = new Map(evalCases.map((e) => [e.name, e]));
+  // A task's id is slugified from its prompt, not from the case name, so a name
+  // can only be recovered from the run that produced it. Without this the match
+  // below almost never succeeds and every committed assertion silently reports
+  // nothing, which reads exactly like having no assertions to begin with.
+  const evalCasesByTaskId = new Map(
+    runs.flatMap((run) => {
+      const found = evalCasesByName.get(run.name);
+      return found ? [[run.taskId, found] as const] : [];
+    }),
+  );
   const absoluteWorkspaceDir = path.resolve(workspaceRootDir);
   const workspaceConfig = buildReportWorkspaceConfig(absoluteWorkspaceDir);
+  // `taskDir()` and friends read the config from its module singleton, which the
+  // `run` flow populates when the workspace machine boots. Reporting on a past
+  // workspace dir never boots one, so seed it here -- but only when it is absent,
+  // so a report generated at the end of a run keeps the machine's own config.
+  if (!hasWorkspaceConfig()) {
+    setWorkspaceConfig(workspaceConfig);
+  }
 
   const { tasks } = await getTasks(workspaceConfig, {
     direction: "asc",
@@ -46,6 +75,7 @@ export async function generateReport({
     process.stdout.write("No tasks found in workspace.\n");
     return {
       assertions: { failed: 0, pass_rate: 0, passed: 0, total: 0 },
+      erroredTasks: 0,
       modelURIs: [],
       tasks: 0,
     };
@@ -57,6 +87,7 @@ export async function generateReport({
 
   let rollupPassed = 0;
   let rollupFailed = 0;
+  let rollupErroredTasks = 0;
   const rollupModelURIs = new Set<string>();
 
   for (const task of tasks) {
@@ -99,10 +130,34 @@ export async function generateReport({
       taskId,
     });
 
-    const stats = await getTaskUsageSummary(taskId);
-
     const taskOutputDir = path.join(outputDir, task.id);
     await fs.mkdir(taskOutputDir, { recursive: true });
+
+    const stats = await getTaskUsageSummary(taskId);
+
+    // A run whose every step failed on a 402/429 still reaches this point having
+    // produced a task and a transcript, so without this it reports exactly like a
+    // run that worked. Surfacing it here is what keeps the summary trustworthy.
+    const sessionWithParts = await Store.getSessionWithMessagesAndParts(
+      rootSession.id,
+      taskId,
+    );
+    const apiErrors = sessionWithParts.isOk()
+      ? sessionWithParts.value.messages.flatMap((message) =>
+          message.role === "assistant" && message.metadata.error
+            ? [message.metadata.error]
+            : [],
+        )
+      : [];
+    if (apiErrors.length > 0) {
+      rollupErroredTasks += 1;
+      await fs.writeFile(
+        path.join(taskOutputDir, "errors.json"),
+        JSON.stringify(apiErrors, null, 2),
+        "utf8",
+      );
+    }
+
     await fs.writeFile(
       path.join(taskOutputDir, "session.md"),
       markdown,
@@ -118,11 +173,24 @@ export async function generateReport({
       return;
     });
 
+    // `task.title` is the case name the harness passed at creation, so it is the
+    // one link that survives without a run manifest. `report <dir>` on a past
+    // workspace has no runs, and without this fallback it evaluated nothing and
+    // printed a summary indistinguishable from a clean pass -- the same silent
+    // hole the taskId mapping above exists to close.
     const evalCase =
+      evalCasesByTaskId.get(task.id) ??
+      evalCasesByName.get(task.title) ??
       evalCasesByName.get(task.id) ??
       [...evalCasesByName.entries()].find(([name]) =>
         task.id.endsWith(`-${name}`),
       )?.[1];
+
+    if (!evalCase) {
+      process.stderr.write(
+        `Warning: no eval case matched task "${task.title}" (${task.id}); its assertions, if any, were not run.\n`,
+      );
+    }
     await fs.writeFile(
       path.join(taskOutputDir, "eval-case.json"),
       JSON.stringify({ modelURI: taskModelURI, name: task.id }, null, 2),
@@ -183,6 +251,14 @@ export async function generateReport({
         `  ${c.dim}[${c.reset}${task.id}${c.dim}]${c.reset}\n`,
       );
     }
+
+    if (apiErrors.length > 0) {
+      const firstLine =
+        apiErrors[0]?.message.split("\n")[0] ?? "see errors.json";
+      process.stdout.write(
+        `    ${c.red}✗ ${apiErrors.length} model request(s) failed${c.reset} ${c.dim}${firstLine}${c.reset}\n`,
+      );
+    }
   }
 
   const rollupTotal = rollupPassed + rollupFailed;
@@ -193,6 +269,7 @@ export async function generateReport({
       passed: rollupPassed,
       total: rollupTotal,
     },
+    erroredTasks: rollupErroredTasks,
     modelURIs: [...rollupModelURIs],
     tasks: tasks.length,
   };

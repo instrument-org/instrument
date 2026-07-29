@@ -44,27 +44,27 @@ import { applyStandardUserAgent } from "./lib/user-agent";
 import { initializeRPC } from "./rpc/initialize";
 let appUpdater: StudioAppUpdater | undefined;
 
-protocol.registerSchemesAsPrivileged([
-  {
-    privileges: {
-      secure: true,
-      standard: true,
-      supportFetchAPI: true,
-    },
-    scheme: APP_PROTOCOL,
-  },
-]);
-
-app.setAsDefaultProtocolClient(APP_PROTOCOL);
-
-registerTelemetry(app);
-
 // Dev skips the single-instance lock so multiple worktrees can boot side by
 // side. Packaged builds keep it so second launches (deep links) forward to
 // the running instance.
 const gotTheLock = is.dev || app.requestSingleInstanceLock();
 
 if (gotTheLock) {
+  protocol.registerSchemesAsPrivileged([
+    {
+      privileges: {
+        secure: true,
+        standard: true,
+        supportFetchAPI: true,
+      },
+      scheme: APP_PROTOCOL,
+    },
+  ]);
+
+  app.setAsDefaultProtocolClient(APP_PROTOCOL);
+
+  registerTelemetry(app);
+
   app.on("second-instance", (_event, commandLine) => {
     focusForegroundWindow();
 
@@ -73,12 +73,16 @@ if (gotTheLock) {
       handleDeepLink(url);
     }
   });
+
+  // eslint-disable-next-line unicorn/prefer-top-level-await
+  void app.whenReady().then(bootstrapPrimaryInstance);
 } else {
-  app.quit();
+  // A lock loser has no application state to tear down. Exit synchronously so
+  // quit handlers cannot keep it alive long enough to enter primary startup.
+  app.exit(0);
 }
 
-// eslint-disable-next-line unicorn/prefer-top-level-await
-void app.whenReady().then(async () => {
+async function bootstrapPrimaryInstance() {
   const canContinueLaunch = await warnIfRunningX64BuildUnderARM64Translation();
   if (!canContinueLaunch) {
     app.quit();
@@ -211,7 +215,7 @@ void app.whenReady().then(async () => {
     event.preventDefault();
     handleDeepLink(url);
   });
-});
+}
 
 /**
  * Bring the active foreground window forward. The main window is the target
@@ -263,13 +267,13 @@ function shouldShowOnboarding(): boolean {
   return !appStateStore.get("hasCompletedProviderSetup");
 }
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
+// Closing the last window quits, on macOS too. Staying resident is the macOS
+// convention, but nothing here is meant to outlive its window: agents would
+// keep running with no window to watch or stop them from, which reads as work
+// the user already ended. The window's own close handler asks about running
+// agents first, so this only ever runs once that is settled.
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+  app.quit();
 });
 
 function applyThemeToWindows() {

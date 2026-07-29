@@ -10,7 +10,7 @@ Core AI agents, workflow logic, RPC, tools, and runtime.
 - **Workspace server**: Hono app in `src/logic/server/index.ts`. Serves shim script/iframe, assets, heartbeat, redirect, and proxies app traffic. AI gateway is mounted at `AI_GATEWAY_API_PATH` when provided.
 - **Schemas**: `src/schemas/` (paths, project, session, store-id, subdomain-part, task, task-settings, file-upload, folder-attachment, etc.). Use for RPC/tool I/O where applicable.
 - **Machines**: XState in `src/machines/` (workspace, session, agent, runtime, task-browser). `WorkspaceActorRef` is the main-process handle; RPC context gets `workspaceRef` and `workspaceConfig`.
-- **Skills**: `src/lib/skills.ts` discovers them across the bundled set, the registry, co-installed agent homes, and the workspace `skills/` dir, deduping by canonical directory then name. `skill-catalog.ts` renders the budgeted catalog into `LoadSkill`'s description; `validate-skill.ts` holds the rules the runtime enforces. The workspace `skills/` dir also mounts writable at `/skills` for the agent (see `docs/architecture/agent-sandbox.md`).
+- **Skills**: `src/lib/skills.ts` discovers them across the bundled set, the registry, co-installed agent homes, and the workspace `skills/` dir, deduping symlinks by canonical directory and copies by package fingerprint. `skill-catalog.ts` renders the budgeted catalog into `LoadSkill`'s description; `validate-skill.ts` holds the rules the runtime enforces. The workspace `skills/` dir also mounts writable at `/skills` for the agent (see `docs/architecture/agent-sandbox.md`).
 
 ## Context messages
 
@@ -21,3 +21,25 @@ Core AI agents, workflow logic, RPC, tools, and runtime.
 
 - Prefer neverthrow `Result` for fallible operations; use `toORPCError` when throwing from RPC handlers.
 - Tools use Zod input/output schemas and the shared `create-tool` / `setupTool` pattern.
+
+## Evals
+
+`evals/` boots the real workspace machine and runs the actual agent loop against
+real models. `evals/cases/` holds committed cases with assertions; `--prompt`
+runs a throwaway one.
+
+```bash
+pnpm eval list                      # committed cases
+pnpm eval run [pattern]             # run them
+pnpm eval run --yes --prompt "..."  # one ad-hoc case
+pnpm eval report <workspace-dir>    # re-report a past run
+```
+
+Flags: `--model` (repeatable; bare slug means OpenRouter, full model URI pins any
+configured provider), `--name`, `--concurrency`, `--dry-run`, `--include-context`.
+
+Results land in `eval-results.local/<timestamp>/<task>/` as `session.md` (the
+rendered transcript), `stats.json`, `errors.json`, and `assertions.json`.
+
+For choosing whether an eval is the right check at all, see the
+`validate-changes` skill.

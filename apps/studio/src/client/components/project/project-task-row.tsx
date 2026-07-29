@@ -29,6 +29,7 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
 import { useState } from "react";
+import { toast } from "sonner";
 
 export function ProjectTaskRow({
   isPinned,
@@ -51,14 +52,28 @@ export function ProjectTaskRow({
     value: task.title,
   });
 
-  const { mutateAsync: addPin } = useMutation(
-    rpcClient.workspace.pin.add.mutationOptions(),
+  const { mutate: addPin } = useMutation(
+    rpcClient.workspace.pin.add.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to pin task", { description: error.message });
+      },
+    }),
   );
-  const { mutateAsync: removePin } = useMutation(
-    rpcClient.workspace.pin.remove.mutationOptions(),
+  const { mutate: removePin } = useMutation(
+    rpcClient.workspace.pin.remove.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to unpin task", { description: error.message });
+      },
+    }),
   );
-  const { mutateAsync: removeFromProject } = useMutation(
-    rpcClient.workspace.project.removeTask.mutationOptions(),
+  const { mutate: removeFromProject } = useMutation(
+    rpcClient.workspace.project.removeTask.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to remove task from project", {
+          description: error.message,
+        });
+      },
+    }),
   );
 
   if (rename.isEditing) {
@@ -72,7 +87,7 @@ export function ProjectTaskRow({
         extras={
           <Item
             onSelect={() => {
-              void removeFromProject({ taskId: task.id });
+              removeFromProject({ taskId: task.id });
             }}
           >
             <XCircleIcon className="text-muted-foreground" />
@@ -86,9 +101,11 @@ export function ProjectTaskRow({
         }}
         onRename={rename.start}
         onTogglePin={() => {
-          void (isPinned
-            ? removePin({ id: task.id })
-            : addPin({ id: task.id }));
+          if (isPinned) {
+            removePin({ id: task.id });
+          } else {
+            addPin({ id: task.id });
+          }
         }}
       />
     );
@@ -118,7 +135,7 @@ export function ProjectTaskRow({
             <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
               <DropdownMenuTrigger
                 className={cn(
-                  "flex size-5 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-colors outline-none group-hover:opacity-100 hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]",
+                  "flex size-5 items-center justify-center rounded-md text-muted-foreground opacity-0 outline-none group-hover:opacity-100 hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]",
                   menuOpen && "bg-accent text-foreground opacity-100",
                 )}
               >

@@ -1,4 +1,3 @@
-import { execa } from "execa";
 import { defineCommand } from "just-bash";
 import path from "node:path";
 
@@ -6,6 +5,7 @@ import { type TaskId } from "../../schemas/task-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { gitBinaryPath } from "../git";
 import { taskDir } from "../task-dir-utils";
+import { execShim } from "./exec-shim";
 import {
   bridgeFlagValuePath,
   resolveCommandContext,
@@ -80,6 +80,14 @@ const BLOCKED_CONFIG_LEAVES = new Set([
  * hold against a key the agent wrote into a repo with `git config`.
  */
 const FORCED_CONFIG = [
+  // Windows-only in effect: git's mingw layer reads it to address files through
+  // the Unicode `\\?\` APIs instead of the 260-character MAX_PATH ones. The
+  // task prefix (`…\Instrument\workspace\tasks\<63-char id>\work\`) already
+  // spends up to half that budget, so a clone of a repository with any depth to
+  // it fails with "Filename too long" without this. It has to arrive as
+  // command-line config: a clone has no repository config to read yet, and
+  // GIT_CONFIG_GLOBAL is deliberately empty.
+  "core.longpaths=true",
   // core.quotepath=false keeps non-ASCII filenames raw instead of
   // octal-escaped and quoted, so they parse and stat correctly on every OS.
   "core.quotepath=false",
@@ -164,18 +172,16 @@ export function createGitCommand(taskId: TaskId) {
       };
     }
 
-    const result = await execa(
+    const result = await execShim(
       gitBinaryPath(),
       [...FORCED_CONFIG.flatMap((entry) => ["-c", entry]), ...resolvedArgs],
       {
-        all: true,
         cancelSignal: ctx.signal,
         cwd: taskCwd,
         // Isolation from the user's git config and credentials comes from
         // gitSubprocessEnv, which resolveCommandContext applies to every hatch.
         env,
         input: subprocessStdin(ctx.stdin),
-        reject: false,
       },
     );
 

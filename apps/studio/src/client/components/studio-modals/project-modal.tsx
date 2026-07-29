@@ -17,6 +17,7 @@ import { Textarea } from "@/client/components/ui/textarea";
 import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
+import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { folderNameFromPath } from "@/client/lib/path-utils";
 import { useWindowFileDrop } from "@/client/lib/use-window-file-drop";
 import { cn } from "@/client/lib/utils";
@@ -407,10 +408,15 @@ function ProjectModalForm({
                   </div>
                   <button
                     aria-label="Remove folder"
-                    className="shrink-0 text-muted-foreground hover:text-foreground"
-                    onClick={() => {
-                      setFolders((prev) => prev.filter((f) => f !== path));
-                    }}
+                    className="-mr-1 shrink-0 rounded-sm p-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                    {...immediateClickHandlers<HTMLButtonElement>({
+                      // A small remove target with no undo: keep the escape a
+                      // release gives, as destructive `Button`s do.
+                      activation: "release",
+                      onClick: () => {
+                        setFolders((prev) => prev.filter((f) => f !== path));
+                      },
+                    })}
                     type="button"
                   >
                     <XIcon className="size-4" />

@@ -123,8 +123,8 @@ export async function getSimilarPathSuggestions({
  * - `displayPath` — what to echo back to the agent: task-relative for the task
  *   (./work/...), the virtual mount path everywhere else (/mnt/..., /skills/...).
  * - `mount` — the non-task mount that owns the path, or null when the path is in
- *   the task. Callers that emit host paths (glob/grep results) must map them
- *   back through resolveVirtualPath when this is set.
+ *   the task. A caller that emits host paths must map them back to the mount
+ *   path when this is set, so the machine layout stays hidden.
  */
 export function resolveAgentPath(options: {
   inputPath?: string;

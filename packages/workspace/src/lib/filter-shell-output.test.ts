@@ -66,6 +66,16 @@ ${dir}\output\rainbow.pdf`;
     `);
   });
 
+  it("still redacts host paths when the separator rewrite is off, but leaves other backslashes alone", () => {
+    const output = String.raw`${dir}\output\r.pdf matched /a\d+/ and "x\n"`;
+
+    const result = filterShellOutput(output, dir, { rewriteSeparators: false });
+
+    expect(result).toMatchInlineSnapshot(
+      `".\\output\\r.pdf matched /a\\d+/ and "x\\n""`,
+    );
+  });
+
   it("redacts app dir variants case-insensitively", () => {
     const output = `${dir.toUpperCase()}/output/file.png`;
 
@@ -178,12 +188,14 @@ ${dir}\output\rainbow.pdf`;
 
     const result = filterShellOutput(output, dir);
     expect(result).toMatchInlineSnapshot(`
-      "Error: Tool call execution failed for 'tool-bash': Command failed with exit code 1: pnpm dlx jiti scripts/test-06-dependencies.ts
+      "
+          Error: Tool call execution failed for 'tool-bash': Command failed with exit code 1: pnpm dlx jiti scripts/test-06-dependencies.ts
 
           ✓ Test 6: Dependency Imports and Zod Validation
           ✓ Valid user parsed: { id: 1, email: 'user@example.com', age: 30, active: true }
           ✓ Caught validation errors:
-          TypeError: Cannot read properties of undefined (reading 'forEach')"
+          TypeError: Cannot read properties of undefined (reading 'forEach')
+      "
     `);
   });
 });

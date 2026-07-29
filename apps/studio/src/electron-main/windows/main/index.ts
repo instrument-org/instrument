@@ -8,6 +8,7 @@ import {
 } from "@/electron-main/lib/quit-guard";
 import { getMainWindowBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
+import { bindReservedShortcuts } from "@/electron-main/menus/shortcuts";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
   getMainWindowZoom,
@@ -25,6 +26,7 @@ import {
 import {
   clearMainWindow,
   getMainWindow,
+  getOrCreateMainWindow,
   setMainWindow,
 } from "@/electron-main/windows/main/instance";
 import { is } from "@electron-toolkit/utils";
@@ -39,6 +41,43 @@ export async function createMainWindow({
 }: {
   reveal?: boolean;
 } = {}) {
+  const mainWindow = await getOrCreateMainWindow(createMainWindowInstance);
+  if (reveal) {
+    showWindow(mainWindow);
+  }
+  return mainWindow;
+}
+
+/**
+ * Put a usable main window on screen, recreating it if none is left. Outside
+ * macOS a running app with no window is unreachable -- no dock icon, no menu
+ * bar, and the single-instance lock turns a fresh launch into a no-op -- so any
+ * path that can strand the process has to be able to summon one back.
+ */
+export async function ensureMainWindowVisible() {
+  const existing = getMainWindow();
+  if (!existing) {
+    return createMainWindow();
+  }
+
+  if (existing.isMinimized()) {
+    existing.restore();
+  }
+  if (!existing.isVisible()) {
+    existing.show();
+  }
+  existing.focus();
+  return existing;
+}
+
+export function updateMainWindowBackgroundColor() {
+  const window = getMainWindow();
+  if (window && !window.isDestroyed()) {
+    window.setBackgroundColor(getMainWindowBackgroundColor());
+  }
+}
+
+async function createMainWindowInstance() {
   let icon: string | undefined;
   try {
     const iconModule = await import("../../../../resources/icon.png?asset");
@@ -74,6 +113,8 @@ export async function createMainWindow({
   });
 
   setMainWindow(mainWindow);
+
+  bindReservedShortcuts(mainWindow.webContents);
 
   // Center the traffic lights for the zoom the renderer last reported, so they
   // sit in the boot shell's toolbar correctly instead of jumping once the
@@ -114,14 +155,12 @@ export async function createMainWindow({
     saveState();
   });
 
-  // Outside macOS, closing the window quits the app (see `window-all-closed`),
-  // so the running-agent warning has to happen here, while the window still
-  // exists. Asking after the fact would destroy the window first and leave a
-  // canceled quit with a running process the user can't get back to. On macOS
-  // the app outlives its window, so closing interrupts nothing and only Cmd+Q
-  // needs to ask.
+  // Closing the last window quits the app (see `window-all-closed`), so the
+  // running-agent warning has to happen here, while the window still exists.
+  // Asking after the fact would destroy the window first and leave a canceled
+  // quit with a running process the user can't get back to.
   mainWindow.on("close", (event) => {
-    if (process.platform === "darwin" || isQuitApproved()) {
+    if (isQuitApproved() || !isLastWindow()) {
       return;
     }
     event.preventDefault();
@@ -163,25 +202,11 @@ export async function createMainWindow({
       wasWindowBlurred = false;
     }
   });
-  mainWindow.on("ready-to-show", () => {
-    if (!reveal) {
-      return;
-    }
-    const window = getMainWindow();
-    if (!window) {
-      return;
-    }
-
-    showWindow(window);
-  });
 
   // The path is cosmetic: the main window renders MainWindow based on its
   // `--windowType=main` argument, not on the route. It only needs a valid entry
   // URL, and the root path distinguishes it from the onboarding window.
   void mainWindow.loadURL(studioURL("/"));
-  if (reveal) {
-    showWindow(mainWindow);
-  }
 
   if (getWindowState().isMaximized) {
     mainWindow.maximize();
@@ -215,33 +240,10 @@ export async function createMainWindow({
   return mainWindow;
 }
 
-/**
- * Put a usable main window on screen, recreating it if none is left. Outside
- * macOS a running app with no window is unreachable -- no dock icon, no menu
- * bar, and the single-instance lock turns a fresh launch into a no-op -- so any
- * path that can strand the process has to be able to summon one back.
- */
-export async function ensureMainWindowVisible() {
-  const existing = getMainWindow();
-  if (!existing) {
-    return createMainWindow();
-  }
-
-  if (existing.isMinimized()) {
-    existing.restore();
-  }
-  if (!existing.isVisible()) {
-    existing.show();
-  }
-  existing.focus();
-  return existing;
-}
-
-export function updateMainWindowBackgroundColor() {
-  const window = getMainWindow();
-  if (window && !window.isDestroyed()) {
-    window.setBackgroundColor(getMainWindowBackgroundColor());
-  }
+// Whether closing this window ends the app. A window is still listed while its
+// own `close` is being handled, so the last one sees a count of 1.
+function isLastWindow() {
+  return BrowserWindow.getAllWindows().length <= 1;
 }
 
 function isWindowNormal(mainWindow: BrowserWindow) {

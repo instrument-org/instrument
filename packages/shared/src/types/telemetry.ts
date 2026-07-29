@@ -1,4 +1,8 @@
 import { type AIProviderType } from "../schemas/ai-gateway";
+import {
+  type ProviderErrorEvidence,
+  type ProviderErrorKind,
+} from "./provider-error";
 
 export interface AnalyticsEvents {
   // Using snake_case for property names because they show with spaces in the UI
@@ -168,15 +172,17 @@ export type ExceptionScope =
 
 type LLMAnalyticsError =
   | {
+      error_classification: ProviderErrorKind;
+      error_classification_evidence: ProviderErrorEvidence;
+      error_type: "api-call";
+    }
+  | {
       error_message: string;
       error_type: "tool-error";
       tool_name: string;
     }
   | {
       error_type: "aborted";
-    }
-  | {
-      error_type: "api-call";
     }
   | {
       error_type: "api-key";

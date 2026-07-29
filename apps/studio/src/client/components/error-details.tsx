@@ -30,11 +30,11 @@ export function ErrorDetails({ error }: { error: unknown }) {
           )}
           key={index}
         >
-          <div className="absolute top-2 right-2 opacity-0 transition-opacity group-hover/error:opacity-100">
+          <div className="absolute top-2 right-2 opacity-0 group-hover/error:opacity-100">
             <Tooltip>
               <TooltipTrigger asChild>
                 <CopyButton
-                  className="size-6 rounded-sm p-0.5 text-muted-foreground/60 transition-colors hover:bg-foreground/5 hover:text-foreground"
+                  className="size-6 rounded-sm p-0.5 text-muted-foreground/60 hover:bg-foreground/5 hover:text-foreground"
                   iconSize={13}
                   onCopy={() => {
                     const info = errorInfos[index];
@@ -155,7 +155,7 @@ function StackTraceCollapsible({
 
   return (
     <Collapsible onOpenChange={setIsOpen} open={isOpen}>
-      <CollapsibleTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground">
+      <CollapsibleTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
         <CaretDownIcon
           className={cn(
             "size-3 shrink-0 transition-transform duration-150",

@@ -37,27 +37,13 @@ class TTLCache<T> {
     return entry.value;
   }
 
-  has(key: string): boolean {
-    const entry = this.cache.get(key);
-    if (!entry) {
-      return false;
-    }
-
-    if (Date.now() > entry.expiresAt) {
-      this.cache.delete(key);
-      return false;
-    }
-
-    return true;
-  }
-
   set(key: string, value: T, ttl: number): void {
     const expiresAt = Date.now() + ttl;
     this.cache.set(key, { expiresAt, value });
   }
 }
 
-const cache = new TTLCache();
+const cache = new TTLCache<unknown>();
 
 setInterval(() => {
   cache.cleanup();
@@ -66,11 +52,14 @@ setInterval(() => {
 export const cacheMiddleware = os
   .$context<{ cacheTTL?: number }>()
   .middleware(async ({ context, next, path }, input, output) => {
-    const cacheKey = path.join("/") + JSON.stringify(input);
+    const cacheKey = JSON.stringify([path, input]);
     const ttl = context.cacheTTL ?? ms("5 minutes");
 
-    if (cache.has(cacheKey)) {
-      return output(cache.get(cacheKey));
+    // One lookup, not has()/get(): both re-check the expiry independently, so a
+    // clock crossing `expiresAt` between them served `undefined` as a hit.
+    const cached = cache.get(cacheKey);
+    if (cached !== undefined) {
+      return output(cached);
     }
 
     const result = await next({});

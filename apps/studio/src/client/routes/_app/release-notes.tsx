@@ -19,7 +19,7 @@ import { formatDistanceToNow } from "date-fns";
 export const Route = createFileRoute("/_app/release-notes")({
   component: RouteComponent,
   head: () => ({
-    meta: [{ title: "Release Notes" }],
+    meta: [{ title: "Release notes" }],
   }),
   staticData: { tabIcon: "file-text" },
 });
@@ -73,7 +73,7 @@ function RouteComponent() {
     <div className="container mx-auto space-y-6 p-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Release Notes</h1>
+          <h1 className="text-3xl font-bold">Release notes</h1>
           <p className="mt-2 text-muted-foreground">
             Latest updates and changes to {APP_NAME}
           </p>
@@ -125,11 +125,11 @@ function RouteComponent() {
                         {currentVersion &&
                           (release.tag_name === currentVersion ||
                             release.tag_name === `v${currentVersion}`) && (
-                            <Badge variant="outline">Your Version</Badge>
+                            <Badge variant="outline">Your version</Badge>
                           )}
                       </CardTitle>
                       <ExternalLink
-                        className="inline-flex shrink-0 items-center gap-1 text-sm text-primary transition-colors hover:text-primary/80"
+                        className="inline-flex shrink-0 items-center gap-1 text-sm text-primary hover:text-primary/80"
                         href={release.html_url}
                       >
                         View on GitHub
@@ -180,7 +180,7 @@ function RouteComponent() {
           hasMoreReleases && (
             <div className="pt-8 pb-4 text-center">
               <ExternalLink
-                className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
                 href={RELEASE_NOTES_URL}
               >
                 View older releases on GitHub

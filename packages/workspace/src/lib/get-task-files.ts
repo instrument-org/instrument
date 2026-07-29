@@ -11,32 +11,85 @@ import { TypedError } from "./errors";
 import { getIgnore } from "./get-ignore";
 import { getMimeType } from "./get-mime-type";
 import { normalizePath } from "./normalize-path";
+import { SKILL_ARTIFACT_IGNORE } from "./skill-artifact-ignore";
 import { taskDir } from "./task-dir-utils";
 
-export const INTERNAL_IGNORE_PATTERNS = [
+/**
+ * What a task's file index never tracks, declared as bare directory and file
+ * names. Names rather than patterns because the consumers below do not share a
+ * pattern dialect, and a name is the one form each of them can spell correctly.
+ * Every name means "wherever this appears in the tree", never just at the task
+ * root: the trees that matter sit deeper (`work/.venv`,
+ * `work/skills/<source>/<name>/node_modules`).
+ *
+ * Add to this list, not to the derived ones.
+ */
+const EXCLUDED_NAMES = [
   ".git",
-  ".git/**",
-  "node_modules",
-  "node_modules/**",
+  // Dependency trees and tool caches: thousands of machine-generated entries
+  // (a Python venv alone runs to hundreds, and past the index's file cap once
+  // it holds the scientific stack) that would bury the task's own files in the
+  // index and drown the per-turn change list the user reads.
+  ...SKILL_ARTIFACT_IGNORE,
   // The private dir holds the db, settings, and the browser session/home -- all
   // hidden from the agent file index (and off-limits to agent reads entirely).
   TASK_FOLDER_NAMES.private,
-  `${TASK_FOLDER_NAMES.private}/**`,
   // Tool-output spill logs live under work/ so the agent can read the paths it
   // is handed, but they are noise for the user, so keep them out of the index.
-  // Bare name matches at any depth (work/.tool-output).
   TASK_FOLDER_NAMES.toolOutput,
-  `${TASK_FOLDER_NAMES.toolOutput}/**`,
   // Legacy `.state` runtime dir (screenshots/bash-output). Not migrated -- the
   // db references its paths -- so keep it hidden from the index for old tasks.
   ".state",
-  ".state/**",
   // Generated lockfile (rewritten by every pnpm install, incl. inside loaded
-  // skills). Never read or hand-edited; bare name matches at any depth. We do
-  // not ignore pnpm-workspace.yaml: it is real, occasionally agent-edited config
-  // that should stay enumerated and surface in chat when changed.
+  // skills). Never read or hand-edited. We do not ignore pnpm-workspace.yaml: it
+  // is real, occasionally agent-edited config that should stay enumerated and
+  // surface in chat when changed.
   "pnpm-lock.yaml",
 ];
+
+/**
+ * The two renderings are branded because they are both `string[]` holding
+ * similar-looking globs, and handing one to the other's library is silent: the
+ * patterns simply stop matching, and paths meant to be excluded quietly flow
+ * through. The brands make that a type error wherever a consumer names which
+ * dialect it speaks.
+ */
+const GitignorePatternsSchema = z.array(z.string()).brand("GitignorePatterns");
+const WatcherPatternsSchema = z.array(z.string()).brand("WatcherPatterns");
+
+/** Patterns in @parcel/watcher syntax, for its `ignore` option. */
+export type WatcherPatterns = z.output<typeof WatcherPatternsSchema>;
+
+/**
+ * {@link EXCLUDED_NAMES} in gitignore syntax, for the `ignore` package: a bare
+ * name there already matches at every depth, so the name and a recursive glob
+ * for its contents are all that is needed.
+ */
+export const INTERNAL_IGNORE_PATTERNS = GitignorePatternsSchema.parse(
+  EXCLUDED_NAMES.flatMap((name) => [name, `${name}/**`]),
+);
+
+/**
+ * {@link EXCLUDED_NAMES} in @parcel/watcher syntax, which is not gitignore
+ * syntax: it resolves a bare name against the watched root, so that form only
+ * matches at the top level, and it anchors a `name/**` glob to the start of the
+ * path. The depth-anchored spellings are what actually reach `work/.venv` and a
+ * skill's `node_modules`.
+ *
+ * `**\/name` earns its place alongside `**\/name/**`: the native backends test a
+ * directory before deciding whether to descend, and on Linux each directory they
+ * do descend into costs an inotify watch descriptor -- a finite per-user
+ * resource that a venv plus a few skills' dependencies can plausibly exhaust,
+ * after which the watcher silently stops seeing changes.
+ */
+export const WATCHER_IGNORE_PATTERNS = WatcherPatternsSchema.parse(
+  EXCLUDED_NAMES.flatMap((name) => [
+    name,
+    `${name}/**`,
+    `**/${name}`,
+    `**/${name}/**`,
+  ]),
+);
 
 const TaskFileSchema = z.object({
   filename: z.string(),
@@ -110,6 +163,8 @@ type TaskFileEntry = z.output<typeof TaskFileIndexEntrySchema>;
 // Serializable form of the index, used to persist a baseline across turns.
 export const TaskFileIndexSnapshotSchema = z.array(TaskFileIndexEntrySchema);
 
+export type TaskFileIgnore = Awaited<ReturnType<typeof getTaskFileIgnore>>;
+
 export function diffTaskFileIndexes({
   after,
   before,
@@ -141,6 +196,21 @@ export function diffTaskFileIndexes({
   return changes.sort((a, b) => a.filePath.localeCompare(b.filePath));
 }
 
+/**
+ * The matcher deciding what the task's file index tracks: the task's own
+ * .gitignore plus the internal exclusions. Shared so the index, the watcher, and
+ * a persisted baseline all agree on which paths exist -- a baseline judged by a
+ * narrower list than the index it is diffed against turns every path the index
+ * newly skips into a phantom deletion.
+ */
+export async function getTaskFileIgnore(
+  dir: TaskDir,
+  { signal }: { signal?: AbortSignal } = {},
+) {
+  const ignore = await getIgnore(dir, { signal });
+  return ignore.add(INTERNAL_IGNORE_PATTERNS);
+}
+
 export async function getTaskFileIndex(
   dir: TaskDir,
   {
@@ -149,8 +219,7 @@ export async function getTaskFileIndex(
   }: { maxFiles?: number; signal?: AbortSignal } = {},
 ) {
   try {
-    const ignore = await getIgnore(dir, { signal });
-    ignore.add(INTERNAL_IGNORE_PATTERNS);
+    const ignore = await getTaskFileIgnore(dir, { signal });
 
     const files: TaskFileEntry[] = [];
     let reachedFileLimit = false;
@@ -187,10 +256,7 @@ export async function getTaskFileIndex(
           continue;
         }
 
-        if (
-          ignore.ignores(relativePath) ||
-          ignore.ignores(`${relativePath}/`)
-        ) {
+        if (isIgnoredTaskPath(ignore, relativePath)) {
           continue;
         }
 
@@ -245,6 +311,18 @@ export async function getTaskFiles(taskId: TaskId) {
   }
 
   return ok(taskFilesFromIndex(indexResult.value));
+}
+
+/**
+ * True when the path is one the task's file index deliberately does not track.
+ * Tests the directory spelling too, so a pattern written for a directory matches
+ * the directory itself and not only its contents.
+ */
+export function isIgnoredTaskPath(
+  ignore: TaskFileIgnore,
+  relativePath: string,
+) {
+  return ignore.ignores(relativePath) || ignore.ignores(`${relativePath}/`);
 }
 
 export function outputArtifactsFromChanges(changes: TaskFileChange[]) {

@@ -33,6 +33,7 @@ import {
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { memo, useState } from "react";
+import { toast } from "sonner";
 
 import { InlineRenameInput } from "./inline-rename-input";
 import { TaskProjectMenuItem } from "./project/task-project-menu-item";
@@ -68,22 +69,46 @@ export const NavTaskItem = memo(function NavTaskItem({
     value: task.title,
   });
 
-  const { mutateAsync: addPin } = useMutation(
-    rpcClient.workspace.pin.add.mutationOptions(),
+  const { mutate: addPin } = useMutation(
+    rpcClient.workspace.pin.add.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to pin task", { description: error.message });
+      },
+    }),
   );
-  const { mutateAsync: removePin } = useMutation(
-    rpcClient.workspace.pin.remove.mutationOptions(),
+  const { mutate: removePin } = useMutation(
+    rpcClient.workspace.pin.remove.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to unpin task", { description: error.message });
+      },
+    }),
   );
 
-  const { mutateAsync: markUnread } = useMutation(
-    rpcClient.workspace.task.markUnread.mutationOptions(),
+  const { mutate: markUnread } = useMutation(
+    rpcClient.workspace.task.markUnread.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to mark task as unread", {
+          description: error.message,
+        });
+      },
+    }),
   );
-  const { mutateAsync: markRead } = useMutation(
-    rpcClient.workspace.task.clearIndicator.mutationOptions(),
+  const { mutate: markRead } = useMutation(
+    rpcClient.workspace.task.clearIndicator.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to mark task as read", {
+          description: error.message,
+        });
+      },
+    }),
   );
 
-  const handleTogglePin = async () => {
-    await (isPinned ? removePin({ id: task.id }) : addPin({ id: task.id }));
+  const handleTogglePin = () => {
+    if (isPinned) {
+      removePin({ id: task.id });
+    } else {
+      addPin({ id: task.id });
+    }
   };
 
   const renderMenuItems = (menuComponents: MenuComponents) => {
@@ -94,9 +119,11 @@ export const NavTaskItem = memo(function NavTaskItem({
           <>
             <Item
               onSelect={() => {
-                void (isUnread
-                  ? markRead({ id: task.id })
-                  : markUnread({ id: task.id }));
+                if (isUnread) {
+                  markRead({ id: task.id });
+                } else {
+                  markUnread({ id: task.id });
+                }
               }}
             >
               <NotificationIcon className="text-muted-foreground" />
@@ -128,9 +155,7 @@ export const NavTaskItem = memo(function NavTaskItem({
           openDeleteTask(task);
         }}
         onRename={rename.start}
-        onTogglePin={() => {
-          void handleTogglePin();
-        }}
+        onTogglePin={handleTogglePin}
       />
     );
   };

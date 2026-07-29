@@ -3,7 +3,6 @@ import { detect } from "detect-port";
 interface PortManagerOptions {
   basePort: number;
   maxAttempts: number;
-  retryDelayMs: number;
 }
 
 class Semaphore {
@@ -35,16 +34,12 @@ class Semaphore {
 export class PortManager {
   private readonly basePort: number;
   private readonly maxAttempts: number;
-  private nextPortToTry: number;
-  private readonly retryDelayMs: number;
   private readonly semaphore = new Semaphore(1);
   private readonly usedPorts = new Set<number>();
 
   constructor(options: PortManagerOptions) {
     this.basePort = options.basePort;
     this.maxAttempts = options.maxAttempts;
-    this.retryDelayMs = options.retryDelayMs;
-    this.nextPortToTry = this.basePort;
   }
 
   releasePort(port: number): void {
@@ -61,33 +56,22 @@ export class PortManager {
       let attempts = 0;
 
       while (attempts < this.maxAttempts) {
+        // Ports we already handed out cost nothing to skip, so they don't spend
+        // the probe budget the error message reports on.
         while (this.usedPorts.has(port)) {
           port++;
-          attempts++;
-          if (attempts >= this.maxAttempts) {
-            break;
-          }
-        }
-
-        if (attempts >= this.maxAttempts) {
-          break;
         }
 
         // Use detect to check if the port is actually available on the system
         const detectedPort = await detect(port);
+        attempts++;
 
         if (detectedPort === port) {
           this.usedPorts.add(port);
-          // Update nextPortToTry to be one past this port, but don't go backwards
-          this.nextPortToTry = Math.max(this.nextPortToTry, port + 1);
           return port;
-        } else {
-          await new Promise((resolve) =>
-            setTimeout(resolve, this.retryDelayMs),
-          );
-          port++;
-          attempts++;
         }
+
+        port++;
       }
 
       throw new Error(

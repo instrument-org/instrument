@@ -42,7 +42,7 @@ export function UnknownPart({ part }: UnknownPartProps) {
 
       <CollapsibleContent>
         <CollapsiblePartMainContent>
-          <div className="mb-1 font-semibold">Unknown Part Data:</div>
+          <div className="mb-1 font-semibold">Unknown part data:</div>
           <pre className="font-mono text-xs wrap-break-word whitespace-pre-wrap">
             {JSON.stringify(part, null, 2)}
           </pre>

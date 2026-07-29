@@ -5,12 +5,13 @@ import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import {
+  browserFreeReadEnv,
   createAgentBrowserCommand,
+  isBrowserFreeRead,
   isDaemonConfigRace,
   isExternalBrowserInvocation,
   scrubHostPaths,
 } from "./agent-browser";
-import { findSubcommand } from "./agent-browser-flags";
 
 const mockCtx: CommandContext = {
   cwd: "/",
@@ -68,6 +69,84 @@ describe("createAgentBrowserCommand", () => {
       );
     },
   );
+
+  it("blocks a subcommand hidden behind a global flag's value", async () => {
+    const result = await command.execute(["--headers", "{}", "close"], mockCtx);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("subcommand 'close' is not available");
+  });
+});
+
+describe("isBrowserFreeRead", () => {
+  it.each([
+    { args: ["read", "https://example.com"] },
+    { args: ["read", "example.com/docs"] },
+    { args: ["read", "https://example.com", "--raw"] },
+    { args: ["read", "--llms", "index", "https://example.com"] },
+    { args: ["read", "https://example.com", "--filter", "auth", "--outline"] },
+    { args: ["read", "https://example.com", "--timeout", "2500"] },
+    { args: ["read", "https://example.com", "--headers", '{"A":"b"}'] },
+    { args: ["--json", "read", "https://example.com"] },
+  ])("treats $args as a fetch that needs no browser", ({ args }) => {
+    expect(isBrowserFreeRead(args)).toBe(true);
+  });
+
+  it.each([
+    // Reads the active page, which only exists in the managed target.
+    { args: ["read"] },
+    { args: ["read", "--llms", "full"] },
+    { args: ["read", "--require-md"] },
+    // Launch configuration: the CLI would answer it with its own browser.
+    { args: ["read", "https://example.com", "--headed"] },
+    { args: ["read", "https://example.com", "--engine", "firefox"] },
+    {
+      args: ["read", "https://example.com", "--allowed-domains", "example.com"],
+    },
+    // Not the read command at all.
+    { args: ["open", "https://example.com"] },
+    { args: ["snapshot", "-i"] },
+    { args: [] },
+    // The CLI's read parser rejects inline flag values, so it never fetches.
+    { args: ["read", "--llms=index", "https://example.com"] },
+  ])("keeps $args on the target-backed path", ({ args }) => {
+    expect(isBrowserFreeRead(args)).toBe(false);
+  });
+});
+
+describe("browserFreeReadEnv", () => {
+  it("drops launch configuration the CLI would answer with its own browser", () => {
+    const result = browserFreeReadEnv({
+      AGENT_BROWSER_ARGS: "--single-process",
+      AGENT_BROWSER_DOWNLOAD_PATH: "/task/work/downloads",
+      AGENT_BROWSER_HEADED: "1",
+      HOME: "/task/.instrument/agent-browser-home",
+      HTTPS_PROXY: "http://127.0.0.1:8080",
+      PATH: "/usr/bin",
+    });
+
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "AGENT_BROWSER_CONTENT_BOUNDARIES": "true",
+        "AGENT_BROWSER_IDLE_TIMEOUT_MS": "300000",
+        "AGENT_BROWSER_SOCKET_DIR": "/tmp/.instrument-browser",
+        "HOME": "/task/.instrument/agent-browser-home",
+        "PATH": "/usr/bin",
+      }
+    `);
+  });
+
+  it("keeps content boundaries even though it drops AGENT_BROWSER_ vars", () => {
+    // A `read <url>` fetches from a host nobody here chose, so it is the last
+    // invocation that should lose its boundary markers -- and the only one
+    // whose env is rebuilt from scratch rather than inherited.
+    const result = browserFreeReadEnv({
+      AGENT_BROWSER_CONTENT_BOUNDARIES: "true",
+      PATH: "/usr/bin",
+    });
+
+    expect(result.AGENT_BROWSER_CONTENT_BOUNDARIES).toBe("true");
+  });
 });
 
 describe("isDaemonConfigRace", () => {
@@ -125,25 +204,6 @@ describe("scrubHostPaths", () => {
   });
 });
 
-describe("findSubcommand", () => {
-  it.each([
-    { args: ["open", "https://example.com"], expected: "open" },
-    { args: ["--json", "snapshot", "-i"], expected: "snapshot" },
-    // A value flag's value is never mistaken for the subcommand, even when it
-    // collides with a blocked subcommand name.
-    { args: ["--profile", "session", "open"], expected: "open" },
-    { args: ["--cdp", "9222", "connect"], expected: "connect" },
-    { args: ["--cdp=9222", "snapshot"], expected: "snapshot" },
-    // Boolean flags consume only a literal true/false.
-    { args: ["--auto-connect", "false", "snapshot"], expected: "snapshot" },
-    { args: ["--auto-connect", "open", "x"], expected: "open" },
-    { args: ["--headed", "true", "open"], expected: "open" },
-    { args: ["--json"], expected: undefined },
-  ])("finds $expected in $args", ({ args, expected }) => {
-    expect(findSubcommand(args)).toBe(expected);
-  });
-});
-
 describe("isExternalBrowserInvocation", () => {
   it.each([
     { args: ["open", "https://example.com"], external: false },
@@ -153,12 +213,16 @@ describe("isExternalBrowserInvocation", () => {
     { args: ["--auto-connect=false", "open", "x"], external: false },
     { args: ["--auto-connect", "false", "open", "x"], external: false },
     { args: ["--cdp", "9222", "snapshot"], external: true },
-    { args: ["--cdp=ws://127.0.0.1:9222/x", "snapshot"], external: true },
     { args: ["--provider", "browserbase", "open", "x"], external: true },
-    { args: ["--provider=ios", "open", "x"], external: true },
     { args: ["-p", "ios", "open", "x"], external: true },
     // Explicitly naming the instrument provider is the task browser.
     { args: ["--provider", "instrument", "open", "x"], external: false },
+    // The CLI does not honour an inline value on these flags -- it reads the
+    // whole token as the subcommand and fails -- so the invocation reaches no
+    // browser at all, and routing it externally would name a target the
+    // command never connects to.
+    { args: ["--cdp=ws://127.0.0.1:9222/x", "snapshot"], external: false },
+    { args: ["--provider=ios", "open", "x"], external: false },
     { args: ["--provider=instrument", "open", "x"], external: false },
     { args: ["--profile", "Default", "open", "x"], external: true },
     { args: ["--state", "state.json", "open", "x"], external: true },

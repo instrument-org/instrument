@@ -9,6 +9,7 @@ import {
   FILE_LIST_LIMIT,
   listSkillFiles,
   parseFrontmatter,
+  SKILL_CONTENT_LIMIT,
   type SkillInfo,
 } from "./skills";
 
@@ -248,6 +249,15 @@ export async function validateSkill({
     );
   }
 
+  if (frontmatter.body.length > SKILL_CONTENT_LIMIT) {
+    add(
+      "warning",
+      "skill-file-truncated-on-load",
+      `SKILL.md is ${frontmatter.body.length} characters, past the ${SKILL_CONTENT_LIMIT} \`load_skill\` inlines. The agent gets the beginning and a pointer to the file for the rest, so put what it must not miss first.`,
+      "SKILL.md",
+    );
+  }
+
   if (truncated) {
     add(
       "warning",
@@ -302,12 +312,15 @@ function addCatalogFindings({
     add(
       "warning",
       "duplicate-name",
-      `${duplicates.length} skills are named "${skillName}". Only one of them is reachable.`,
+      `${duplicates.length} skills are named "${skillName}", so they are addressed as ${duplicates.map((skill) => `"${skill.id}"`).join(", ")}. Rename this one to be reached by the name you gave it.`,
     );
   }
 
   const invocable = installed.filter((skill) => skill.modelInvocable);
-  if (!invocable.some((skill) => skill.name === skillName)) {
+  // Whichever copy of the name this directory turned out to be, matched the way
+  // the catalog will list it.
+  const id = invocable.find((skill) => skill.name === skillName)?.id;
+  if (id === undefined) {
     return;
   }
 
@@ -317,7 +330,7 @@ function addCatalogFindings({
   // flagged: its full text still loads on demand, and the spec favors a richer
   // description over a shorter one, so nudging it shorter would work against it.
   const catalog = renderSkillCatalog(invocable);
-  const entry = catalog.entries.find((item) => item.name === skillName);
+  const entry = catalog.entries.find((item) => item.name === id);
 
   if (!entry) {
     add(

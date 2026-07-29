@@ -1,0 +1,205 @@
+import type { ModelMessage } from "ai";
+
+import crypto from "node:crypto";
+
+import {
+  type ImageViewLimits,
+  imageViewSize,
+  PREVIEW_LIMITS,
+} from "./image-view-size";
+import {
+  mapModelMessageParts,
+  type ModelMediaEdit,
+} from "./model-message-parts";
+import { isCompleteImage } from "./probe-media";
+import {
+  exceedsDecodeBudget,
+  measureImage,
+  type RenderedImage,
+  renderImage,
+} from "./render-image";
+
+// Anthropic's per-image ceiling is 5 MB base64-encoded, the tightest of the
+// providers we send to. Base64 costs a third on top of the raw bytes.
+const MAX_ENCODED_BYTES = 5 * 1024 * 1024;
+const MAX_RAW_BYTES = Math.floor((MAX_ENCODED_BYTES * 3) / 4);
+
+// Media types a provider is known to accept. A sniffed format outside this set
+// is re-encoded rather than refused, since ffmpeg can usually read it.
+const SENDABLE_MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+const UNREADABLE_NOTE =
+  "[Image omitted: the file is not readable as an image. It may be truncated, or it may not be the format its name claims.]";
+const OVERSIZED_NOTE =
+  "[Image omitted: it could not be reduced to a size this model accepts.]";
+const TOO_MANY_PIXELS_NOTE =
+  "[Image omitted: its dimensions are too large to decode. Downscale it and attach the smaller copy.]";
+
+// One turn re-sends the whole transcript, so without this every image in the
+// history is re-encoded on every request. Keyed on the source bytes and the
+// budget, so a cache hit is byte-identical to what a miss would produce --
+// which also keeps the prompt cache from breaking on a re-render.
+//
+// Only a verdict about the image itself is stored, never one about the machine:
+// caching `unavailable` would make a stopped turn or a temporarily unrunnable
+// binary hide an image for the rest of the session, long after the cause went
+// away. `undefined` means ffmpeg read these bytes and could do nothing with
+// them, which is a property of the bytes and will not change.
+const RENDER_CACHE = new Map<string, RenderedImage | undefined>();
+const RENDER_CACHE_LIMIT = 32;
+
+/**
+ * Resize every outgoing image to the size the model will actually render it at.
+ *
+ * A provider downscales anything over its budget on the way in, silently and
+ * after we have already described the image. Doing it here instead means the
+ * dimensions a tool reports are the dimensions the model sees, and a region a
+ * tool crops lines up with the picture the model was looking at.
+ *
+ * This sits at the message level rather than in any one tool so it covers every
+ * source of an image: a file the agent read, an image it generated, and a photo
+ * the user attached.
+ */
+export function normalizeModelImages({
+  messages,
+  signal,
+}: {
+  messages: ModelMessage[];
+  signal?: AbortSignal;
+}) {
+  return mapModelMessageParts(messages, {
+    media: ({ bytes, mediaType }) => {
+      if (
+        !bytes ||
+        (mediaType !== undefined && !mediaType.startsWith("image/"))
+      ) {
+        // A non-image file, or media the provider fetches for itself. Either
+        // way there is nothing here to measure or resize. Media that declares
+        // no type at all is still ours to handle: only an image part may omit
+        // one, and the bytes say what it is.
+        return { state: "unchanged" };
+      }
+      return normalizeImage({ bytes, declaredMediaType: mediaType, signal });
+    },
+  });
+}
+
+function cacheKey(bytes: Buffer, limits: ImageViewLimits) {
+  const digest = crypto.createHash("sha1").update(bytes).digest("hex");
+  return `${digest}:${limits.maxEdge}:${limits.maxPatches}:${limits.patchSize}`;
+}
+
+/**
+ * Bring one image inside the budget, or report that it cannot be.
+ *
+ * `unchanged` is the common case and matters: an image already inside the
+ * budget is passed through byte-for-byte, so the pixels the model sees are the
+ * ones on disk and no re-encode can soften them.
+ */
+async function normalizeImage({
+  bytes,
+  declaredMediaType,
+  signal,
+}: {
+  bytes: Buffer;
+  declaredMediaType: string | undefined;
+  signal?: AbortSignal;
+}): Promise<ModelMediaEdit> {
+  const size = measureImage(bytes);
+  if (!size) {
+    // Nothing can read these bytes as an image, so neither can the provider.
+    // Sending them anyway costs the whole conversation: the request is rejected
+    // for the content, the content is already on disk, and every later turn
+    // replays it. Dropping one image is the cheap half of that trade.
+    return { note: UNREADABLE_NOTE, state: "dropped" };
+  }
+
+  if (exceedsDecodeBudget(size)) {
+    // Ahead of the completeness check, which these bytes would also fail: the
+    // dimensions are what make them dangerous and what the note has to name.
+    //
+    // `read_file` refuses these up front, so what reaches here came from
+    // somewhere else: a user upload, a generated image, or a session recorded
+    // before that check existed.
+    return { note: TOO_MANY_PIXELS_NOTE, state: "dropped" };
+  }
+
+  if (!isCompleteImage(bytes, size.mediaType)) {
+    // Measures fine and stops early. `read_file` catches this for a file the
+    // agent read; this catches it for everything that never went through a
+    // tool, which is where a half-finished upload arrives.
+    return { note: UNREADABLE_NOTE, state: "dropped" };
+  }
+
+  const target = imageViewSize({ ...size, limits: PREVIEW_LIMITS });
+  const withinBudget =
+    target.width === size.width && target.height === size.height;
+  // The type both the bytes and the declaration agree on, if there is one. A
+  // media type that contradicts the bytes is rejected as surely as bad bytes
+  // are, and it is the likelier mistake: media types come from file extensions,
+  // which a download or a rename is free to get wrong. A part that declares no
+  // type has nothing to contradict, so the sniffed type stands on its own.
+  const honestType =
+    size.mediaType !== undefined &&
+    (declaredMediaType === undefined || size.mediaType === declaredMediaType)
+      ? size.mediaType
+      : undefined;
+  const sendable =
+    honestType !== undefined && SENDABLE_MEDIA_TYPES.has(honestType);
+
+  if (sendable && withinBudget && bytes.byteLength <= MAX_RAW_BYTES) {
+    return { state: "unchanged" };
+  }
+
+  const key = cacheKey(bytes, PREVIEW_LIMITS);
+  let rendered = RENDER_CACHE.get(key);
+  if (!RENDER_CACHE.has(key)) {
+    const result = await renderImage({
+      bytes,
+      maxBytes: MAX_RAW_BYTES,
+      signal,
+      target,
+    });
+
+    if (result.state === "unavailable") {
+      // Send it as it is and let the provider apply its own budget. That is
+      // what happened before this pass existed, and it is a far better answer
+      // than dropping a picture that is fine over a binary that would not run.
+      // The declared media type is corrected on the way out, since that much is
+      // known from the bytes and a contradiction is refused as surely as a
+      // corrupt image is.
+      if (bytes.byteLength > MAX_RAW_BYTES) {
+        return { note: OVERSIZED_NOTE, state: "dropped" };
+      }
+      if (
+        size.mediaType === undefined ||
+        !SENDABLE_MEDIA_TYPES.has(size.mediaType)
+      ) {
+        return { note: UNREADABLE_NOTE, state: "dropped" };
+      }
+      return { bytes, mediaType: size.mediaType, state: "replaced" };
+    }
+
+    rendered = result.state === "rendered" ? result.image : undefined;
+    if (RENDER_CACHE.size >= RENDER_CACHE_LIMIT) {
+      const oldest = RENDER_CACHE.keys().next();
+      if (!oldest.done) {
+        RENDER_CACHE.delete(oldest.value);
+      }
+    }
+    RENDER_CACHE.set(key, rendered);
+  }
+
+  if (!rendered) {
+    return {
+      note: sendable ? OVERSIZED_NOTE : UNREADABLE_NOTE,
+      state: "dropped",
+    };
+  }
+
+  return {
+    bytes: rendered.bytes,
+    mediaType: rendered.mediaType,
+    state: "replaced",
+  };
+}

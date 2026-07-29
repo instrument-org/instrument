@@ -38,7 +38,7 @@ import { createFileRoute } from "@tanstack/react-router";
 export const Route = createFileRoute("/_app/debug/components/form-elements")({
   component: RouteComponent,
   head: () => ({
-    meta: [{ title: "Debug Form Elements" }],
+    meta: [{ title: "Debug form elements" }],
   }),
 });
 
@@ -75,7 +75,7 @@ function RouteComponent() {
             Components
           </p>
           <h1 className="text-2xl font-semibold tracking-tight">
-            Form Elements
+            Form elements
           </h1>
           <p className="text-sm text-muted-foreground">
             Every focusable control in one place. Tab through with the keyboard
@@ -110,7 +110,7 @@ function RouteComponent() {
 
         <Section
           description="Composed field with addons and an inline button."
-          title="Input Group"
+          title="Input group"
         >
           <InputGroup>
             <InputGroupAddon align="inline-start">
@@ -176,7 +176,7 @@ function RouteComponent() {
           </div>
         </Section>
 
-        <Section title="Radio Group">
+        <Section title="Radio group">
           <RadioGroup defaultValue="one">
             <Label className="flex items-center gap-2">
               <RadioGroupItem value="one" />

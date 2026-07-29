@@ -1,8 +1,8 @@
 import { featuresAtom } from "@/client/atoms/features";
 import {
-  focusPromptDraft,
   promptDraftRefAtom,
   promptFocusSignalAtom,
+  useHydrateTaskDraft,
 } from "@/client/atoms/prompt-value";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
@@ -45,6 +45,7 @@ import { TutorialPromptCard } from "./tutorial-prompt-card";
 export function TaskChat({
   isReplayActive = false,
   onCancelReplay,
+  promptDraft,
   selectedModelURI: initialSelectedModelURI,
   selectedSessionId,
   showTutorial,
@@ -52,6 +53,7 @@ export function TaskChat({
 }: {
   isReplayActive?: boolean;
   onCancelReplay?: () => void;
+  promptDraft: string;
   selectedModelURI?: AIGatewayModelURI.Type;
   selectedSessionId?: StoreId.Session;
   showTutorial?: boolean;
@@ -60,6 +62,11 @@ export function TaskChat({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const id = task.id;
+
+  // The route does not render until the task's state has loaded, so the stored
+  // draft is in hand on the composer's very first render rather than arriving
+  // after it.
+  useHydrateTaskDraft(id, promptDraft);
 
   const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
 
@@ -182,13 +189,14 @@ export function TaskChat({
   const isActiveTab = useIsActiveTab();
   const focusSignal = useAtomValue(promptFocusSignalAtom(useTabId()));
   const draftKey = { scope: "task", taskId: id } as const;
-  const promptTextarea = useAtomValue(promptDraftRefAtom(draftKey));
+  const promptEditor = useAtomValue(promptDraftRefAtom(draftKey));
   useLayoutEffect(() => {
     if (!isActiveTab) {
       return;
     }
-    focusPromptDraft(promptTextarea);
-  }, [isActiveTab, focusSignal, selectedSessionId, promptTextarea]);
+    promptEditor?.focus();
+    promptEditor?.moveCaretToEnd();
+  }, [isActiveTab, focusSignal, selectedSessionId, promptEditor]);
 
   const [isTutorialDismissed, setIsTutorialDismissed] = useState(false);
   const isTutorialVisible = showTutorial === true && !isTutorialDismissed;
@@ -360,7 +368,10 @@ export function TaskChat({
           <div className="pointer-events-none absolute right-3 bottom-0 left-0 h-6 bg-linear-to-t from-background to-transparent" />
 
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-4">
-            <MessageScrollerButton className="pointer-events-auto" />
+            <MessageScrollerButton
+              busy={isAgentRunning}
+              className="pointer-events-auto"
+            />
           </div>
         </MessageScroller>
 

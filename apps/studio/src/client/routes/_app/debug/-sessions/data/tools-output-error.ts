@@ -57,20 +57,6 @@ registerSession({
           type: "tool-generate_image",
         }),
         builder.toolPart(assistantMessageId, "output-error", {
-          errorText: "Invalid glob pattern: Pattern cannot be empty",
-          input: {
-            pattern: "",
-          },
-          type: "tool-glob",
-        }),
-        builder.toolPart(assistantMessageId, "output-error", {
-          errorText: "Search pattern is required and cannot be empty",
-          input: {
-            pattern: "",
-          },
-          type: "tool-grep",
-        }),
-        builder.toolPart(assistantMessageId, "output-error", {
           errorText: "File not found: src/nonexistent.ts",
           input: {
             filePath: "src/nonexistent.ts",

@@ -12,7 +12,7 @@ export function NotFoundRouteComponent() {
 
 function NotFoundComponent({
   message,
-  title = "Not Found",
+  title = "Not found",
 }: {
   message?: string;
   title?: string;

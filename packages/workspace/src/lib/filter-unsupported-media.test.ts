@@ -11,7 +11,7 @@ const createModel = (
 ): AIGatewayModel.Type => createMockAIGatewayModel({ features });
 
 describe("filterUnsupportedMedia", () => {
-  it("should pass through messages without file parts", () => {
+  it("should pass through messages without file parts", async () => {
     const messages: ModelMessage[] = [
       {
         content: "Hello",
@@ -24,12 +24,12 @@ describe("filterUnsupportedMedia", () => {
     ];
 
     const model = createModel(["inputText", "outputText"]);
-    const result = filterUnsupportedMedia({ messages, model });
+    const result = await filterUnsupportedMedia({ messages, model });
 
     expect(result).toEqual(messages);
   });
 
-  it("should keep audio files when model supports inputAudio", () => {
+  it("should keep audio files when model supports inputAudio", async () => {
     const messages: ModelMessage[] = [
       {
         content: [
@@ -45,12 +45,12 @@ describe("filterUnsupportedMedia", () => {
     ];
 
     const model = createModel(["inputText", "inputAudio", "outputText"]);
-    const result = filterUnsupportedMedia({ messages, model });
+    const result = await filterUnsupportedMedia({ messages, model });
 
     expect(result).toEqual(messages);
   });
 
-  it("should replace audio files when model does not support inputAudio", () => {
+  it("should replace audio files when model does not support inputAudio", async () => {
     const messages: ModelMessage[] = [
       {
         content: [
@@ -66,7 +66,7 @@ describe("filterUnsupportedMedia", () => {
     ];
 
     const model = createModel(["inputText", "outputText"]);
-    const result = filterUnsupportedMedia({ messages, model });
+    const result = await filterUnsupportedMedia({ messages, model });
 
     expect(result).toMatchInlineSnapshot(`
       [
@@ -90,7 +90,7 @@ describe("filterUnsupportedMedia", () => {
     `);
   });
 
-  it("should keep image files when model supports inputImage", () => {
+  it("should keep image files when model supports inputImage", async () => {
     const messages: ModelMessage[] = [
       {
         content: [
@@ -106,12 +106,12 @@ describe("filterUnsupportedMedia", () => {
     ];
 
     const model = createModel(["inputText", "inputImage", "outputText"]);
-    const result = filterUnsupportedMedia({ messages, model });
+    const result = await filterUnsupportedMedia({ messages, model });
 
     expect(result).toEqual(messages);
   });
 
-  it("should replace image files when model does not support inputImage", () => {
+  it("should replace image files when model does not support inputImage", async () => {
     const messages: ModelMessage[] = [
       {
         content: [
@@ -127,7 +127,7 @@ describe("filterUnsupportedMedia", () => {
     ];
 
     const model = createModel(["inputText", "outputText"]);
-    const result = filterUnsupportedMedia({ messages, model });
+    const result = await filterUnsupportedMedia({ messages, model });
 
     expect(result).toMatchInlineSnapshot(`
       [
@@ -151,7 +151,7 @@ describe("filterUnsupportedMedia", () => {
     `);
   });
 
-  it("should handle multiple media types in the same message", () => {
+  it("should handle multiple media types in the same message", async () => {
     const messages: ModelMessage[] = [
       {
         content: [
@@ -172,7 +172,7 @@ describe("filterUnsupportedMedia", () => {
     ];
 
     const model = createModel(["inputText", "outputText"]);
-    const result = filterUnsupportedMedia({ messages, model });
+    const result = await filterUnsupportedMedia({ messages, model });
 
     expect(result).toMatchInlineSnapshot(`
       [
@@ -203,7 +203,7 @@ describe("filterUnsupportedMedia", () => {
     `);
   });
 
-  it("should filter selectively based on model features", () => {
+  it("should filter selectively based on model features", async () => {
     const messages: ModelMessage[] = [
       {
         content: [
@@ -223,7 +223,7 @@ describe("filterUnsupportedMedia", () => {
     ];
 
     const model = createModel(["inputText", "inputImage", "outputText"]);
-    const result = filterUnsupportedMedia({ messages, model });
+    const result = await filterUnsupportedMedia({ messages, model });
 
     expect(result).toMatchInlineSnapshot(`
       [
@@ -248,7 +248,7 @@ describe("filterUnsupportedMedia", () => {
     `);
   });
 
-  it("should handle messages with string content", () => {
+  it("should handle messages with string content", async () => {
     const messages: ModelMessage[] = [
       {
         content: "System message",
@@ -257,12 +257,12 @@ describe("filterUnsupportedMedia", () => {
     ];
 
     const model = createModel(["inputText", "outputText"]);
-    const result = filterUnsupportedMedia({ messages, model });
+    const result = await filterUnsupportedMedia({ messages, model });
 
     expect(result).toEqual(messages);
   });
 
-  it("should handle various audio mime types", () => {
+  it("should handle various audio mime types", async () => {
     const audioTypes = ["audio/mp3", "audio/wav", "audio/ogg", "audio/mpeg"];
 
     for (const mediaType of audioTypes) {
@@ -280,7 +280,7 @@ describe("filterUnsupportedMedia", () => {
       ];
 
       const model = createModel(["inputText", "outputText"]);
-      const result = filterUnsupportedMedia({ messages, model });
+      const result = await filterUnsupportedMedia({ messages, model });
 
       expect(result).toMatchInlineSnapshot(`
         [
@@ -301,7 +301,7 @@ describe("filterUnsupportedMedia", () => {
     }
   });
 
-  it("should handle various image mime types", () => {
+  it("should handle various image mime types", async () => {
     const imageTypes = [
       "image/png",
       "image/jpeg",
@@ -325,7 +325,7 @@ describe("filterUnsupportedMedia", () => {
       ];
 
       const model = createModel(["inputText", "outputText"]);
-      const result = filterUnsupportedMedia({ messages, model });
+      const result = await filterUnsupportedMedia({ messages, model });
 
       expect(result).toMatchInlineSnapshot(`
         [
@@ -346,13 +346,13 @@ describe("filterUnsupportedMedia", () => {
     }
   });
 
-  it("should not filter non-audio/image file types", () => {
+  it("should not filter file types outside every media category", async () => {
     const messages: ModelMessage[] = [
       {
         content: [
           {
             data: "base64data",
-            mediaType: "application/pdf",
+            mediaType: "application/zip",
             type: "file",
           },
         ],
@@ -361,12 +361,12 @@ describe("filterUnsupportedMedia", () => {
     ];
 
     const model = createModel(["inputText", "outputText"]);
-    const result = filterUnsupportedMedia({ messages, model });
+    const result = await filterUnsupportedMedia({ messages, model });
 
     expect(result).toEqual(messages);
   });
 
-  it("should keep video files when model supports inputVideo", () => {
+  it("should keep video files when model supports inputVideo", async () => {
     const messages: ModelMessage[] = [
       {
         content: [
@@ -382,12 +382,12 @@ describe("filterUnsupportedMedia", () => {
     ];
 
     const model = createModel(["inputText", "inputVideo", "outputText"]);
-    const result = filterUnsupportedMedia({ messages, model });
+    const result = await filterUnsupportedMedia({ messages, model });
 
     expect(result).toEqual(messages);
   });
 
-  it("should replace video files when model does not support inputVideo", () => {
+  it("should replace video files when model does not support inputVideo", async () => {
     const messages: ModelMessage[] = [
       {
         content: [
@@ -403,7 +403,7 @@ describe("filterUnsupportedMedia", () => {
     ];
 
     const model = createModel(["inputText", "outputText"]);
-    const result = filterUnsupportedMedia({ messages, model });
+    const result = await filterUnsupportedMedia({ messages, model });
 
     expect(result).toMatchInlineSnapshot(`
       [
@@ -427,7 +427,7 @@ describe("filterUnsupportedMedia", () => {
     `);
   });
 
-  it("should keep PDF files when model supports inputFile", () => {
+  it("should keep PDF files when model supports inputFile", async () => {
     const messages: ModelMessage[] = [
       {
         content: [
@@ -443,12 +443,12 @@ describe("filterUnsupportedMedia", () => {
     ];
 
     const model = createModel(["inputText", "inputFile", "outputText"]);
-    const result = filterUnsupportedMedia({ messages, model });
+    const result = await filterUnsupportedMedia({ messages, model });
 
     expect(result).toEqual(messages);
   });
 
-  it("should replace PDF files when model does not support inputFile", () => {
+  it("should replace PDF files when model does not support inputFile", async () => {
     const messages: ModelMessage[] = [
       {
         content: [
@@ -464,7 +464,7 @@ describe("filterUnsupportedMedia", () => {
     ];
 
     const model = createModel(["inputText", "outputText"]);
-    const result = filterUnsupportedMedia({ messages, model });
+    const result = await filterUnsupportedMedia({ messages, model });
 
     expect(result).toMatchInlineSnapshot(`
       [
@@ -488,7 +488,7 @@ describe("filterUnsupportedMedia", () => {
     `);
   });
 
-  it("should handle various video mime types", () => {
+  it("should handle various video mime types", async () => {
     const videoTypes = ["video/mp4", "video/webm", "video/ogg", "video/avi"];
 
     for (const mediaType of videoTypes) {
@@ -506,7 +506,7 @@ describe("filterUnsupportedMedia", () => {
       ];
 
       const model = createModel(["inputText", "outputText"]);
-      const result = filterUnsupportedMedia({ messages, model });
+      const result = await filterUnsupportedMedia({ messages, model });
 
       expect(result).toMatchInlineSnapshot(`
         [
@@ -527,7 +527,7 @@ describe("filterUnsupportedMedia", () => {
     }
   });
 
-  it("should allow PDF files for OpenAI models via OpenRouter", () => {
+  it("should allow PDF files for OpenAI models via OpenRouter", async () => {
     const messages: ModelMessage[] = [
       {
         content: [
@@ -547,7 +547,7 @@ describe("filterUnsupportedMedia", () => {
       features: ["inputText", "inputFile", "outputText"],
       provider: "openrouter",
     });
-    const result = filterUnsupportedMedia({ messages, model });
+    const result = await filterUnsupportedMedia({ messages, model });
 
     expect(result).toMatchInlineSnapshot(`
       [
@@ -569,7 +569,7 @@ describe("filterUnsupportedMedia", () => {
     `);
   });
 
-  it("should keep image files for xAI models via OpenRouter", () => {
+  it("should keep image files for xAI models via OpenRouter", async () => {
     const messages: ModelMessage[] = [
       {
         content: [
@@ -589,8 +589,63 @@ describe("filterUnsupportedMedia", () => {
       features: ["inputText", "inputImage", "inputFile", "outputText"],
       provider: "openrouter",
     });
-    const result = filterUnsupportedMedia({ messages, model });
+    const result = await filterUnsupportedMedia({ messages, model });
 
     expect(result).toEqual(messages);
   });
+
+  it.each([["media"], ["image-data"]] as const)(
+    "should replace a %s image inside a tool result",
+    async (type) => {
+      // An image the agent read is media the user never attached, and a model
+      // without image input chokes on it the same way. Providers that take
+      // multipart tool results keep it right here, so this is the only pass
+      // standing between the model and bytes it cannot read.
+      const messages: ModelMessage[] = [
+        {
+          content: [
+            {
+              output: {
+                type: "content",
+                value: [
+                  { text: "Image file: shot.png.", type: "text" },
+                  { data: "base64data", mediaType: "image/png", type },
+                ],
+              },
+              toolCallId: "call_1",
+              toolName: "read_file",
+              type: "tool-result",
+            },
+          ],
+          role: "tool",
+        },
+      ];
+
+      const model = createModel(["inputText", "outputText"]);
+      const result = await filterUnsupportedMedia({ messages, model });
+      const part = Array.isArray(result[0]?.content)
+        ? result[0].content[0]
+        : undefined;
+      const value =
+        part && "output" in part && part.output.type === "content"
+          ? part.output.value
+          : [];
+
+      expect(value).toMatchInlineSnapshot(`
+        [
+          {
+            "text": "Image file: shot.png.",
+            "type": "text",
+          },
+          {
+            "text": "<system_note>
+        Image file removed - your model lacks image input capability.
+        Convert it to a different format or request the user to provide it in a different format if you need to access it.
+        </system_note>",
+            "type": "text",
+          },
+        ]
+      `);
+    },
+  );
 });

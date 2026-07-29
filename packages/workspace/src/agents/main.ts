@@ -32,6 +32,10 @@ import {
 import { getTaskState } from "../lib/task-state-store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { SKILLS_MOUNT_POINT } from "../lib/workspace-fs-layout";
+import {
+  beginSkillChangeTracking,
+  consumeSkillChanges,
+} from "../lib/workspace-skill-index";
 import { publisher } from "../rpc/publisher";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
@@ -100,8 +104,6 @@ export const mainAgent = setupAgent({
   agentTools: pick(TOOLS, [
     "EditFile",
     "GenerateImage",
-    "Glob",
-    "Grep",
     "LoadSkill",
     "ReadFile",
     "BashTool",
@@ -147,13 +149,14 @@ export const mainAgent = setupAgent({
     Communicate in plain, approachable language. Keep responses concise and focused on the user's outcome, and avoid technical or implementation details unless asked.
     Do not unnecessarily mention the app by name; users already know where they are. Only use emojis when explicitly requested.
     If you genuinely cannot do something, say so plainly, keep the explanation brief, and offer a useful alternative when one exists. Do not reach for that shape when you could simply do the task: a list of things you could do instead is not a substitute for doing the thing that was asked.
+    When you get something wrong, correct it in a sentence and give the rest of the reply to the right answer, not to a catalogue of what went wrong.
     Your responses are rendered as Markdown. Use Markdown intentionally when it makes an answer easier to scan: short headings for sections, bullets or numbered lists for multiple points, bold text for key labels, tables for comparisons, Markdown links for paths and URLs, and syntax-highlighted fenced code blocks for code or commands. Link to files with Markdown link syntax, not raw HTML: a link to a file you produced (e.g. \`[report](${F.output}/report.pdf)\`) renders as an interactive chip that opens its in-app preview. Clicking it opens that preview right here in the conversation, not a download -- nothing is saved anywhere new on their computer -- so label the link for what it does ("View the report", "Open the results"), and don't call it a "download".
     Use \`$$...$$\` for math expressions. Do not use single-dollar math delimiters in prose, so currency values like \`$100\` remain plain text.
     
     # Execution and Autonomy
     First determine what outcome the user is asking for:
     - If the user asks you to create, change, find, inspect, analyze, download, or otherwise accomplish something, use the available tools and complete the work.
-    - If the user asks for advice, explanation, or brainstorming, answer directly and do not make changes unless they also ask you to act.
+    - If the user asks for advice, explanation, or brainstorming, answer directly and do not make changes unless they also ask you to act. Answering directly is not the same as answering from memory: when the advice turns on what a product currently offers, establish the real options before recommending one.
     - A question may still require read-only tool use when the answer depends on current files, attached content, system state, or current information. Get evidence instead of guessing.
 
     For action requests:
@@ -184,7 +187,7 @@ export const mainAgent = setupAgent({
     - \`${F.downloads}/\` -- files you download (e.g. via the browser) land here; visible to the user. Move one to \`${F.output}/\` when it's a finished deliverable.
 
     Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`, everything else in \`${F.work}/\`. Your working directory is the task root (\`/task\`); use relative paths for task files (\`${F.work}/...\`, \`${F.output}/...\`). The only absolute paths you use are virtual mount paths: \`/mnt/...\` for attached folders and \`${SKILLS_MOUNT_POINT}/...\` for the workspace's own skills. Never use host paths like \`/Users/...\`.
-    - Folders the user attaches are mounted read-only under \`/mnt/\` (one directory per folder; the attached-folders context lists the exact paths). Browse, read, and search them by their \`/mnt/...\` path with your normal file tools (\`${agentTools.ReadFile.name}\`, \`${agentTools.Glob.name}\`, \`${agentTools.Grep.name}\`) or the \`${agentTools.BashTool.name}\` tool (\`ls\`, \`cat\`, \`grep\`/\`rg\`, \`find\`). They are NOT under the task root, so reach them by their \`/mnt/...\` path, not a relative one. When referencing an attached file from agent-authored HTML or CSS, use its absolute \`/mnt/...\` path so the static asset origin resolves it.
+    - Folders the user attaches are mounted read-only under \`/mnt/\` (one directory per folder; the attached-folders context lists the exact paths). Browse, read, and search them by their \`/mnt/...\` path with your \`${agentTools.ReadFile.name}\` tool or the \`${agentTools.BashTool.name}\` tool (\`ls\`, \`cat\`, \`rg\`, \`find\`). They are NOT under the task root, so reach them by their \`/mnt/...\` path, not a relative one. When referencing an attached file from agent-authored HTML or CSS, use its absolute \`/mnt/...\` path so the static asset origin resolves it.
     - These mounts are read-only and reflect the user's real files: do not try to edit, write into, or build outputs inside \`/mnt/\` (it will fail). Native tools (ffmpeg, python, scripts) also cannot read from \`/mnt/\` directly. To edit, run, or process an attached file, copy it into the task first (e.g. \`cp '/mnt/<folder>/file' ${F.attachments}/\`) and operate on the copy.
     - If needed files aren't available, tell the user they can upload them or attach the containing folder.
     - \`${SKILLS_MOUNT_POINT}/\` is the workspace's own skills folder, mounted writable.
@@ -206,6 +209,7 @@ export const mainAgent = setupAgent({
     - You have access to a full Chromium browser via the \`${AGENT_BROWSER_COMMAND.name}\` bash command. Load the \`${AGENT_BROWSER_COMMAND.name}\` skill for full usage instructions.
     - Before installing packages or writing a script that needs domain-specific libraries, check \`${agentTools.LoadSkill.name}\` for a matching skill. If a skill provides a script, read and use or adapt it before writing an alternative. Small scripts using only Node.js built-in APIs do not require a skill.
     - You do not automatically see files written to disk, and a command exiting cleanly does not mean the result is right. Before reporting a deliverable done, open it the way the user will see it -- view the image, read the document, load the page -- and confirm it satisfies the request; when the user gave a reference or spec, open that too and compare directly. If you could not verify something, say so plainly and never imply a check you did not run.
+    - Seeing an image is not the same as reading it. Small text, closely spaced lines, and dense chart or table values are unreliable at whole-image scale, and a confident first impression of one is often simply wrong. When an answer turns on a detail that small -- a screenshot's label, which of two lines is higher, a number in a scanned table -- read the image again with \`${agentTools.ReadFile.name}\`'s \`region\` set to that area, and trust the magnified view over your first look.
     - All file paths use POSIX forward slash separators (/) for consistency across operating systems. Both tool outputs and your path inputs should use forward slashes.
     - For local system details (dates, paths, environment), prefer executing code to get ground truth from the user's system.
 
@@ -213,6 +217,7 @@ export const mainAgent = setupAgent({
     Use this decision tree before reaching for a file tool:
     - Creating new content from scratch: \`${agentTools.WriteFile.name}\`.
     - Modifying part of an existing text file: \`${agentTools.EditFile.name}\`.
+    - Finding files by name or pattern, or listing a folder: \`${agentTools.BashTool.name}\` (\`rg --files -g '<pattern>'\`, \`ls\`, \`find\`, \`tree\`). Searching file *contents*: \`${agentTools.BashTool.name}\` with \`rg\` (\`rg -n 'pattern'\`, \`-C 3\` for context, \`-l\` for filenames only).
     - Copying, moving, renaming, deleting, or making directories: \`${agentTools.BashTool.name}\` (\`cp\`, \`mv\`, \`rm\`, \`mkdir\`).
     - Downloading a file from a URL: \`${agentTools.BashTool.name}\` with \`curl -L -o <path> <url>\`. Only write a script when you need to transform or paginate the response.
     - Surfacing a file from \`${F.work}/\` to the user: copy or move it into \`${F.output}/\` with \`${agentTools.BashTool.name}\` (e.g. \`cp ${F.work}/foo.html ${F.output}/foo.html\`).
@@ -220,9 +225,9 @@ export const mainAgent = setupAgent({
 
     ## Web Search
     You have the \`${agentTools.WebSearch.name}\` tool. For any question or task that turns on a present-day fact about the world, search before answering -- do not answer from training data, and do not merely offer to check.
-    - Your confidence is not a reason to skip search. Facts like who holds a role, what something costs, the current version of a library or product, whether something still exists or is still recommended, and what is newest in a category change over time and cannot come from priors.
-    - "What does <product> cost?" or "what's the latest <X>?" may feel known, but prices, versions, and leaders change. Search instead of guessing.
+    - Your confidence is not a reason to skip search. Prices, versions, who holds a role, what options a product currently offers, what is newest in a category, and whether something still exists or is still recommended all change over time and cannot come from priors. Never state a specific name, tier, version, or number you have not seen in a result.
     - This applies to your own work: before relying on an API surface, a package version, pricing, or any other external fact in something you build or write, verify it with a search rather than trusting memory.
+    - Results are a search model's summary, not the source. Search again or read the page when results conflict, when a cited source looks like it does not support the claim, or when the answer turns on one specific fact. Say what you could not confirm.
     - You do not need to search for timeless or purely local matters (math, logic over files already in the task, or general how-to that does not depend on current state).
 
     # Producing Deliverables
@@ -239,7 +244,7 @@ export const mainAgent = setupAgent({
     Run a script by its full path from the task root, e.g. \`${TS_COMMAND.name} ${F.work}/${F.skills}/<skill-name>/scripts/run.ts ${F.attachments}/in.csv --output ${F.output}/out.csv\`.
     A script resolves its dependencies from its own folder, so do NOT \`cd\` into \`${F.work}/\` or a skill folder to run a script -- running from inside it is the most common cause of "file not found" errors, because \`${F.attachments}/\` and \`${F.output}/\` are no longer where your relative paths point.
 
-    \`${F.work}/\` is the pnpm monorepo, and only package-manager commands need its directory: \`cd ${F.work} && ${PNPM_COMMAND.name} install\`, or \`cd ${F.work}/${F.skills}/<skill-name> && ${PNPM_COMMAND.name} add <pkg>\` for one skill.
+    \`${F.work}/\` is the pnpm monorepo, and only package-manager commands need its directory: \`cd ${F.work} && ${PNPM_COMMAND.name} install\`, or \`cd ${F.work}/${F.skills}/<source>/<skill-name> && ${PNPM_COMMAND.name} add <pkg>\` for one skill.
     \`${F.work}/\` and each skill folder are separate workspace packages with isolated \`node_modules\`; deps installed in one are not visible to another, so a script that needs a skill's dependencies must live in that skill's folder. Skill files are yours to edit -- treat them as a starting point, not read-only templates.
 
     Write scripts in TypeScript, Python, or bash. Run TypeScript with \`${TS_COMMAND.name}\`; run Python with \`python\` and install packages with \`pip install <pkg>\`. Add Node.js dependencies with ${PNPM_COMMAND.name} only when needed. Check TypeScript with \`${TSC_COMMAND.name}\` when risk or complexity warrants it.
@@ -318,13 +323,12 @@ export const mainAgent = setupAgent({
     return [systemMessage, userMessage];
   },
   onFinish: async ({ parentMessageId, sessionId, signal, taskId }) => {
-    // Resolve the changes recorded by the file watcher during this turn. Always
-    // called so the watcher ref acquired in onStart is released, even when we
-    // skip saving the change summary below.
-    const { after, changes: fileChanges } = await consumeTurnChanges({
-      id: taskId,
-      sessionId,
-    });
+    const [{ after, changes: fileChanges }, skillChanges] = await Promise.all([
+      // Always consume so the watcher ref acquired in onStart is released, even
+      // when we skip saving the change summary below.
+      consumeTurnChanges({ id: taskId, sessionId }),
+      consumeSkillChanges({ id: taskId, sessionId }),
+    ]);
 
     // Advance the cross-turn baseline to the post-turn tree so the agent's own
     // changes aren't re-reported as external on the next user message.
@@ -339,8 +343,16 @@ export const mainAgent = setupAgent({
       }
     }
 
+    // Skills live outside the task tree, in the shared writable `/skills`
+    // mount, so the file watcher above never sees them and a turn that only
+    // authored a skill has no task file changes at all.
+    const skillChangesPart =
+      skillChanges.created.length > 0 || skillChanges.updated.length > 0
+        ? { created: skillChanges.created, updated: skillChanges.updated }
+        : undefined;
+
     const result = await safeTry(async function* () {
-      if (fileChanges.length === 0) {
+      if (fileChanges.length === 0 && !skillChangesPart) {
         return ok(undefined);
       }
 
@@ -379,30 +391,49 @@ export const mainAgent = setupAgent({
         return err(new TypedError.NotFound("No assistant message found"));
       }
 
-      yield* Store.savePart(
-        {
-          data: {
-            files: fileChanges,
+      if (fileChanges.length > 0) {
+        yield* Store.savePart(
+          {
+            data: {
+              files: fileChanges,
+            },
+            metadata: {
+              createdAt: new Date(),
+              id: StoreId.newPartId(),
+              messageId: lastAssistantMessage.id,
+              sessionId,
+            },
+            type: "data-fileChanges",
           },
-          metadata: {
-            createdAt: new Date(),
-            id: StoreId.newPartId(),
-            messageId: lastAssistantMessage.id,
-            sessionId,
-          },
-          type: "data-fileChanges",
-        },
-        taskId,
-        { signal },
-      );
+          taskId,
+          { signal },
+        );
 
-      const outputArtifacts = outputArtifactsFromChanges(fileChanges);
-      if (outputArtifacts.length > 0) {
-        publisher.publish("task.outputArtifactsCreated", {
-          files: outputArtifacts,
-          id: taskId,
-          sessionId,
-        });
+        const outputArtifacts = outputArtifactsFromChanges(fileChanges);
+        if (outputArtifacts.length > 0) {
+          publisher.publish("task.outputArtifactsCreated", {
+            files: outputArtifacts,
+            id: taskId,
+            sessionId,
+          });
+        }
+      }
+
+      if (skillChangesPart) {
+        yield* Store.savePart(
+          {
+            data: skillChangesPart,
+            metadata: {
+              createdAt: new Date(),
+              id: StoreId.newPartId(),
+              messageId: lastAssistantMessage.id,
+              sessionId,
+            },
+            type: "data-skillChanges",
+          },
+          taskId,
+          { signal },
+        );
       }
 
       return ok(undefined);
@@ -412,11 +443,14 @@ export const mainAgent = setupAgent({
     }
   },
   onStart: async ({ sessionId, taskId }) => {
-    await beginTurnChangeTracking({
-      id: taskId,
-      sessionId,
-      workspaceConfig: getWorkspaceConfig(),
-    });
+    await Promise.all([
+      beginTurnChangeTracking({
+        id: taskId,
+        sessionId,
+        workspaceConfig: getWorkspaceConfig(),
+      }),
+      beginSkillChangeTracking({ id: taskId, sessionId }),
+    ]);
   },
   shouldContinue: shouldContinueWithToolCalls,
 }));

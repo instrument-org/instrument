@@ -1,4 +1,4 @@
-import { taskDraftFamily } from "@/client/atoms/prompt-value";
+import { releaseTaskDraft } from "@/client/atoms/prompt-value";
 import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
 import { TaskSidebarModeSchema } from "@/client/components/task/sidebar";
 import { TaskView } from "@/client/components/task/view";
@@ -71,7 +71,7 @@ async function seedLiveQuery<T>({
 }
 
 function title(task?: Task) {
-  return task?.title ?? "Not Found";
+  return task?.title ?? "Not found";
 }
 
 /* eslint-disable perfectionist/sort-objects */
@@ -88,10 +88,12 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
     selectedSessionId: search.selectedSessionId,
   }),
   onLeave: ({ params }) => {
-    // Garbage collect task atoms
-    taskDraftFamily.remove(params.id);
+    // Garbage collect task atoms. The draft is flushed on the way out, so
+    // walking away mid-sentence still lands the last edit before the in-memory
+    // copy that would have been written goes away.
+    releaseTaskDraft(params.id);
   },
-  beforeLoad: async ({ context, params, search }) => {
+  beforeLoad: async ({ context, params, preload, search }) => {
     const needsSessionDefault = !search.selectedSessionId;
 
     const [sessionError, sessions, isDefined] = await safe(
@@ -116,23 +118,30 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
       sessions,
     );
 
-    void rpcClient.preferences.ensureTaskDefaultModelURI
-      .call({ id: params.id })
-      .then((result) => {
-        if (!result.modelURI) {
-          return;
-        }
+    // Not on preload: this one writes. A task with no model yet gets the
+    // current default persisted into its state, so running it from a hover
+    // would pin whatever the default happened to be that moment onto a task
+    // the user never opened. Everything above is a read, which is what makes
+    // hovering worth anything.
+    if (!preload) {
+      void rpcClient.preferences.ensureTaskDefaultModelURI
+        .call({ id: params.id })
+        .then((result) => {
+          if (!result.modelURI) {
+            return;
+          }
 
-        void context.queryClient.invalidateQueries({
-          queryKey:
-            rpcClient.workspace.task.state.live.get.experimental_liveKey({
-              input: { id: params.id },
-            }),
+          void context.queryClient.invalidateQueries({
+            queryKey:
+              rpcClient.workspace.task.state.live.get.experimental_liveKey({
+                input: { id: params.id },
+              }),
+          });
+        })
+        .catch(() => {
+          // The task page can still load with no selected model.
         });
-      })
-      .catch(() => {
-        // The task page can still load with no selected model.
-      });
+    }
 
     const newestSession = sessions.at(-1);
 
@@ -304,6 +313,7 @@ function RouteComponent() {
         artifactPanel={artifactPanel}
         attachedFolders={taskState.attachedFolders}
         files={files}
+        promptDraft={taskState.promptDraft ?? ""}
         selectedModelURI={taskState.selectedModelURI}
         selectedSessionId={selectedSessionId}
         showTutorial={taskState.showTutorial}

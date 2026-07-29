@@ -1,5 +1,6 @@
 import {
   type IFileSystem,
+  InMemoryFs,
   MountableFs,
   OverlayFs,
   ReadWriteFs,
@@ -7,7 +8,7 @@ import {
 import { realpathSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 
-import { REGISTRY_FOLDER_NAMES, TASK_FOLDER_NAMES } from "../constants";
+import { TASK_FOLDER_NAMES } from "../constants";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
@@ -17,7 +18,10 @@ import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { ReadOnlyBaseFs } from "./read-only-base-fs";
-import { getWorkspaceConfig } from "./workspace-config";
+import { skillWriteTrackingFs } from "./skill-write-tracking-fs";
+import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
+
+export { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
 /**
  * Virtual mount point of the writable task directory.
@@ -29,6 +33,14 @@ import { getWorkspaceConfig } from "./workspace-config";
  * translator routes through the layout, so this is the single value to change.
  */
 export const TASK_MOUNT_POINT = "/task";
+
+/**
+ * Virtual mount point of the device files.
+ *
+ * Not part of the agent's working surface: it exists so the ordinary shell
+ * idiom of redirecting output into a sink resolves instead of failing.
+ */
+const DEV_MOUNT_POINT = "/dev";
 
 /**
  * Virtual mount point of the workspace's own `skills/` directory.
@@ -82,6 +94,23 @@ export async function buildBashFs(
 ): Promise<IFileSystem> {
   const fs = new MountableFs({ base: new ReadOnlyBaseFs() });
 
+  // just-bash seeds these into its default filesystem, but only for one it can
+  // initialize itself -- a mounted layout gets no /dev, so `cmd > /dev/null`
+  // dies with EROFS and takes the whole call's output with it. They are plain
+  // writable files rather than real devices, which is enough for the
+  // redirect-to-discard idiom; the mount is rebuilt per call, so anything
+  // written here is dropped when the call ends.
+  fs.mount(
+    DEV_MOUNT_POINT,
+    new InMemoryFs({
+      null: "",
+      stderr: "",
+      stdin: "",
+      stdout: "",
+      zero: "",
+    }),
+  );
+
   // The task mount is wrapped so the private dir is masked from the agent's
   // shell. It holds task internals the agent must never read: the task db,
   // state.json (attached-folder host paths), and settings. The app reads these
@@ -118,10 +147,11 @@ export async function buildBashFs(
   // Unlike an attached folder, it cannot be detached out from under us, so it
   // always mounts.
   await mkdir(layout.skills.hostRoot, { recursive: true });
-  fs.mount(
-    layout.skills.mountPoint,
-    new ReadWriteFs({ maxFileReadSize, root: layout.skills.hostRoot }),
-  );
+  const skillsFs = new ReadWriteFs({
+    maxFileReadSize,
+    root: layout.skills.hostRoot,
+  });
+  fs.mount(layout.skills.mountPoint, skillWriteTrackingFs(skillsFs));
 
   return fs;
 }
@@ -159,14 +189,6 @@ export function buildWorkspaceFsLayout({
       readOnly: false,
     },
   };
-}
-
-/** The workspace's own `skills/` directory, which always mounts writable. */
-export function getWorkspaceSkillsDir(): AbsolutePath {
-  return absolutePathJoin(
-    getWorkspaceConfig().rootDir,
-    REGISTRY_FOLDER_NAMES.skills,
-  );
 }
 
 /**
@@ -274,45 +296,51 @@ export function resolveNativeHostPath(
 }
 
 /**
- * Reverse of resolveHostPath: map a real on-disk path back to its virtual path,
- * or null if it falls outside every mount. Used to keep native-binary output
- * sandbox-shaped. The longest matching host root wins.
+ * Map a virtual path to a host path for a native binary that can only READ.
+ *
+ * Unlike `resolveNativeHostPath` this resolves the whole layout, including the
+ * read-only `/mnt` mounts and `/skills`. That is the point: a search command
+ * the user cannot point at their attached folders is not worth having, and the
+ * dedicated grep tool already hands real ripgrep those same host paths.
+ *
+ * The safety of the wider reach rests entirely on the caller, which MUST:
+ * - reject every flag that lets the binary write or execute (for ripgrep:
+ *   `--pre`, `--pre-glob`, `--hostname-bin`, `-z`/`--search-zip`), and
+ * - map every mount's host root back to its mount point in the binary's output,
+ *   so the machine layout does not leak through match paths.
+ *
+ * Returns null for a path outside every mount, for the private dir, and for a
+ * symlink that resolves out of its own mount, so the caller reports a clean
+ * error rather than reaching the host.
  */
-export function resolveVirtualPath(
+export function resolveReadOnlyHostPath(
   layout: WorkspaceFsLayout,
-  hostPath: string,
-): null | string {
-  const normalizedHost = normalizePath(hostPath);
-
-  let best: null | {
-    mount: WorkspaceFsMount;
-    relative: string;
-    rootLen: number;
-  } = null;
-  for (const mount of allMounts(layout)) {
-    const root = normalizePath(mount.hostRoot);
-    const relative =
-      normalizedHost === root
-        ? "/"
-        : normalizedHost.startsWith(`${root}/`)
-          ? normalizedHost.slice(root.length)
-          : null;
-    if (relative === null) {
-      continue;
-    }
-    if (best === null || root.length > best.rootLen) {
-      best = { mount, relative, rootLen: root.length };
-    }
-  }
-
-  if (best === null) {
+  virtualAbsPath: string,
+): AbsolutePath | null {
+  const resolved = resolveHostPath(layout, virtualAbsPath);
+  if (resolved === null) {
     return null;
   }
+  const { hostPath, mount } = resolved;
 
-  if (best.relative === "/") {
-    return best.mount.mountPoint;
+  if (mount === layout.task) {
+    const relative = relativeWithin(
+      TASK_MOUNT_POINT,
+      normalizePath(virtualAbsPath),
+    );
+    if (relative === null || isPrivateRelative(relative)) {
+      return null;
+    }
+    return hostPath;
   }
-  return `${best.mount.mountPoint}${best.relative}`;
+
+  // The bash sandbox refuses to traverse a symlink out of a mount; a real
+  // binary would happily follow it, so the containment has to be re-checked
+  // here rather than inherited.
+  if (hostPathEscapesMount(hostPath, mount.hostRoot)) {
+    return null;
+  }
+  return hostPath;
 }
 
 /** All mounts, task first. */

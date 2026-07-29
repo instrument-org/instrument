@@ -293,7 +293,7 @@ function About() {
         <Card className="bg-muted/30 p-4">
           <div className="space-y-3">
             <div className="space-y-1">
-              <div className="text-sm font-medium">Open Source</div>
+              <div className="text-sm font-medium">Open source</div>
               <p className="text-xs text-muted-foreground">
                 {APP_NAME} is open source and free to use. You can view the
                 source code on GitHub.

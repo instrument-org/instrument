@@ -1,10 +1,12 @@
+import { type PromptEditorRef } from "@/client/components/prompt-editor";
 import { type TabId } from "@/shared/tabs";
 import {
   MAX_PROMPT_STORAGE_LENGTH,
   type TaskId,
 } from "@instrument-org/workspace/client";
+import { safe } from "@orpc/client";
 import { atom, type SetStateAction } from "jotai";
-import { atomFamily, atomWithStorage } from "jotai/utils";
+import { atomFamily, useHydrateAtoms } from "jotai/utils";
 import { debounce } from "radashi";
 
 import { rpcClient } from "../rpc/client";
@@ -24,7 +26,8 @@ export type PromptDraftKey =
   | { scope: "compose"; tabId: TabId }
   | { scope: "task"; taskId: TaskId };
 
-function draftKeyString(key: PromptDraftKey): string {
+/** One string per draft, for keying anything that has to re-key with the scope. */
+export function draftKeyString(key: PromptDraftKey): string {
   switch (key.scope) {
     case "compose": {
       return `compose:${key.tabId}`;
@@ -38,60 +41,74 @@ function draftKeyString(key: PromptDraftKey): string {
   }
 }
 
-const createTaskPromptStorage = (id: TaskId) => {
-  let lastValue: string | undefined;
+// How long typing settles before the draft is written back.
+const DRAFT_SAVE_DELAY_MS = 1000;
 
-  const save = debounce({ delay: 1000 }, async (newValue: string) => {
-    await rpcClient.workspace.task.state.set.call({
-      id,
-      state: { promptDraft: newValue },
-    });
+/**
+ * The write-behind for one task's draft.
+ *
+ * It deliberately outlives the composer: leaving the route mid-sentence should
+ * still land the last edit, so the timer belongs to the task rather than to a
+ * mounted component. Nothing here ever reads, which is the point -- the stored
+ * draft is loaded once with the rest of the task's state and seeded in, so a
+ * keystroke has no load to race.
+ */
+function createDraftSaver(taskId: TaskId) {
+  let pending: string | undefined;
+
+  const write = debounce({ delay: DRAFT_SAVE_DELAY_MS }, (value: string) => {
+    pending = undefined;
+    void safe(
+      rpcClient.workspace.task.state.set.call({
+        id: taskId,
+        state: { promptDraft: value },
+      }),
+    );
   });
 
+  const flush = () => {
+    if (pending !== undefined && write.isPending()) {
+      write.flush(pending);
+    }
+  };
+
   return {
-    getItem: (_key: string, initialValue: string) => {
-      return lastValue ?? initialValue;
+    dispose: () => {
+      flush();
+      write.cancel();
     },
-    removeItem: (_key: string) => {
-      lastValue = undefined;
-      save("");
-    },
-    setItem: (_key: string, newValue: string) => {
-      lastValue = newValue;
-      if (newValue.length > MAX_PROMPT_STORAGE_LENGTH) {
+    flush,
+    schedule: (value: string) => {
+      // The server drops an oversized draft anyway, so skip the round trip and
+      // leave the last storable version in place.
+      if (value.length > MAX_PROMPT_STORAGE_LENGTH) {
         return;
       }
-      save(newValue);
-    },
-    // Using subscribe to avoid making this an async storage. Easier for consumer
-    // and the persistence of this is not critical.
-    subscribe: (
-      _key: string,
-      callback: (value: string) => void,
-      initialValue: string,
-    ) => {
-      let isCancelled = false;
-      rpcClient.workspace.task.state.get
-        .call({ id })
-        .then((state) => {
-          if (isCancelled) {
-            return;
-          }
-          const newValue = state.promptDraft ?? initialValue;
-          if (lastValue === undefined) {
-            lastValue = newValue;
-            callback(newValue);
-          }
-        })
-        .catch(() => {
-          // ignore
-        });
-      return () => {
-        isCancelled = true;
-      };
+      pending = value;
+      write(value);
     },
   };
-};
+}
+
+const draftSavers = new Map<TaskId, ReturnType<typeof createDraftSaver>>();
+
+function draftSaver(taskId: TaskId) {
+  const existing = draftSavers.get(taskId);
+  if (existing) {
+    return existing;
+  }
+  const saver = createDraftSaver(taskId);
+  draftSavers.set(taskId, saver);
+  return saver;
+}
+
+// A draft still inside the debounce window has no timer left once the window
+// goes away, which is exactly the case when someone reloads right after typing.
+window.addEventListener("pagehide", () => {
+  for (const saver of draftSavers.values()) {
+    saver.flush();
+  }
+});
 
 // Ephemeral, in-memory compose drafts, one per tab.
 const composeDraftFamily = atomFamily((_tabId: TabId) => atom(""));
@@ -99,12 +116,22 @@ const composeDraftFamily = atomFamily((_tabId: TabId) => atom(""));
 // Transient drafts, discarded by the composer when it unmounts or re-keys.
 const transientDraftFamily = atomFamily((_id: string) => atom(""));
 
-// Task follow-up drafts, persisted with the task via task-state storage.
-export const taskDraftFamily = atomFamily((taskId: TaskId) =>
-  atomWithStorage(
-    `prompt-draft-${taskId}`,
-    "",
-    createTaskPromptStorage(taskId),
+// What the composer is editing, before any of it is written back.
+const taskDraftValueFamily = atomFamily((_taskId: TaskId) => atom(""));
+
+// Task follow-up drafts: read straight from memory, written back behind the
+// edit. Seeded by `useHydrateTaskDraft` from the task state the route has
+// already loaded, so there is no second fetch and nothing to arrive late.
+const taskDraftFamily = atomFamily((taskId: TaskId) =>
+  atom(
+    (get) => get(taskDraftValueFamily(taskId)),
+    (get, set, update: SetStateAction<string>) => {
+      const valueAtom = taskDraftValueFamily(taskId);
+      const next =
+        typeof update === "function" ? update(get(valueAtom)) : update;
+      set(valueAtom, next);
+      draftSaver(taskId).schedule(next);
+    },
   ),
 );
 
@@ -123,30 +150,30 @@ export function promptDraftAtom(key: PromptDraftKey) {
   }
 }
 
-// The live textarea for a draft, so imperative focus targets the right input
-// even with several prompt surfaces mounted across tabs.
-const promptDraftRefFamily = atomFamily((_key: string) =>
-  atom<HTMLElement | null>(null),
-);
-
-/** Focus a prompt textarea and drop the caret at the end of its text. */
-export function focusPromptDraft(el: HTMLElement | null) {
-  if (!el) {
-    return;
-  }
-  el.focus();
-  if (el instanceof HTMLTextAreaElement) {
-    const end = el.value.length;
-    el.setSelectionRange(end, end);
-    return;
-  }
-  const selection = window.getSelection();
-  const range = document.createRange();
-  range.selectNodeContents(el);
-  range.collapse(false);
-  selection?.removeAllRanges();
-  selection?.addRange(range);
+/** Drop a task's draft from memory, once its last edit is on its way out. */
+export function releaseTaskDraft(taskId: TaskId) {
+  draftSavers.get(taskId)?.dispose();
+  draftSavers.delete(taskId);
+  taskDraftFamily.remove(taskId);
+  taskDraftValueFamily.remove(taskId);
 }
+
+/**
+ * Seed a task's composer from its stored draft, once.
+ *
+ * Hydration writes the value atom directly rather than going through the draft
+ * atom, so restoring what was saved does not count as an edit and does not
+ * schedule a write of the bytes it just read.
+ */
+export function useHydrateTaskDraft(taskId: TaskId, promptDraft: string) {
+  useHydrateAtoms([[taskDraftValueFamily(taskId), promptDraft]]);
+}
+
+// The live composer for a draft, so an imperative write targets the right
+// editor even with several prompt surfaces mounted across tabs.
+const promptDraftRefFamily = atomFamily((_key: string) =>
+  atom<null | PromptEditorRef>(null),
+);
 
 export function promptDraftRefAtom(key: PromptDraftKey) {
   return promptDraftRefFamily(draftKeyString(key));
@@ -173,25 +200,53 @@ export const bumpPromptFocusAtom = atom(null, (get, set, tabId: TabId) => {
   set(signal, get(signal) + 1);
 });
 
+/**
+ * Add something to a draft from outside the composer: a file path, a folder.
+ *
+ * It lands at the caret, so clicking "add to chat" mid-sentence puts the path
+ * where the user is looking instead of at the end. The editor owns the document
+ * and reports the result back through `onChange`, so there is nothing to write
+ * here and nothing to wait a frame for.
+ */
 export const appendToPromptAtom = atom(
+  null,
+  (get, set, { key, update }: { key: PromptDraftKey; update: string }) => {
+    const editor = get(promptDraftRefAtom(key));
+    const text = update.trim();
+    if (!editor) {
+      // No composer on screen: the task's file list is showing in its place,
+      // and that list is one of the places "add to chat" is offered from. There
+      // is no caret to aim at, so it goes on the end of the mirror, which is
+      // what the composer is built from when it comes back.
+      const valueAtom = promptDraftAtom(key);
+      const previous = get(valueAtom).trimEnd();
+      set(valueAtom, (previous ? previous + " " : "") + text + " ");
+      return;
+    }
+    editor.focus();
+    editor.insertText(text);
+  },
+);
+
+/**
+ * Replace a draft's whole text from outside the composer: a prefill, a reset.
+ *
+ * The value atom is written too, not only the editor: it is what a composer
+ * mounting later reads as its starting text, so a prefill that arrives before
+ * anything is on screen still lands.
+ */
+export const setPromptDraftAtom = atom(
   null,
   (
     get,
     set,
     { key, update }: { key: PromptDraftKey; update: SetStateAction<string> },
   ) => {
+    const editor = get(promptDraftRefAtom(key));
     const valueAtom = promptDraftAtom(key);
-    const prev = get(valueAtom);
-    const next =
-      typeof update === "function"
-        ? update(prev)
-        : (prev.trimEnd() ? prev.trimEnd() + " " : "") + update.trim() + " ";
+    const current = editor ? editor.getValue() : get(valueAtom);
+    const next = typeof update === "function" ? update(current) : update;
     set(valueAtom, next);
-    const el = get(promptDraftRefAtom(key));
-    el?.focus();
-    // The value lands on the next render; place the caret after it does.
-    requestAnimationFrame(() => {
-      focusPromptDraft(el);
-    });
+    editor?.setValue(next);
   },
 );

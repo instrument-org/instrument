@@ -203,6 +203,24 @@ describe("createGitCommand", () => {
     expect(author.stdout.trim()).toBe(GIT_AGENT_NAME);
   });
 
+  it("keeps core.longpaths on against a repo that turns it off", async () => {
+    await command.execute(["init", "-q", "work/longpaths"], mockCtx);
+    // Only read on Windows, but the precedence this proves is the whole point:
+    // a clone into a deep task path fails without it, and the repo being cloned
+    // is free to ship the key set to false.
+    await fs.appendFile(
+      path.join(dir, "work/longpaths/.git/config"),
+      "[core]\n\tlongpaths = false\n",
+    );
+
+    const result = await command.execute(
+      ["-C", "work/longpaths", "config", "--get", "core.longpaths"],
+      mockCtx,
+    );
+
+    expect(result.stdout.trim()).toBe("true");
+  });
+
   it("resets credential helpers that a repo's config asks for", async () => {
     await command.execute(["init", "-q", "work/cred"], mockCtx);
     // The argv guard refuses to write the key, so plant it the way the file

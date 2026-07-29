@@ -29,8 +29,10 @@ const NewTabSearchSchema = z.object({
 });
 
 export const Route = createFileRoute("/_app/new-tab")({
-  beforeLoad: ({ search }) => {
-    if (!search[PRIVATE_BETA_SEARCH_PARAM]) {
+  beforeLoad: ({ preload, search }) => {
+    // Opening a modal is not something a hover may do, and preload runs this
+    // too.
+    if (preload || !search[PRIVATE_BETA_SEARCH_PARAM]) {
       return;
     }
 

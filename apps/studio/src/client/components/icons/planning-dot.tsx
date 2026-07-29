@@ -7,7 +7,7 @@ export function PlanningDotIcon({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "relative inline-grid shrink-0 place-items-center overflow-visible",
+        "relative isolate inline-grid shrink-0 place-items-center overflow-visible",
         className,
       )}
     >

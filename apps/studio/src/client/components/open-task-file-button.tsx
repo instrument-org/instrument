@@ -15,7 +15,6 @@ export function OpenTaskFileButton({
   className,
   control,
   dropdownClassName,
-  dropdownSize = "icon-sm",
   file,
   iconClassName,
   labelClassName,
@@ -26,7 +25,6 @@ export function OpenTaskFileButton({
   className?: string;
   control: TaskFileOpenControl;
   dropdownClassName?: string;
-  dropdownSize?: ComponentProps<typeof Button>["size"];
   file: FileRef | undefined;
   iconClassName?: string;
   labelClassName?: string;
@@ -46,10 +44,11 @@ export function OpenTaskFileButton({
   };
 
   return (
-    <ButtonGroup aria-label={control.openLabel}>
+    <ButtonGroup aria-label={control.openLabel} className="max-w-full">
       <Button
         aria-label={control.openLabel}
         className={cn(
+          "min-w-0 shrink",
           className,
           control.showOpenWithDropdown && "rounded-r-none",
         )}
@@ -59,15 +58,27 @@ export function OpenTaskFileButton({
         variant={variant}
       >
         <OpenTargetIcon className={iconClassName} file={file} />
-        <span className={labelClassName}>{control.openLabel}</span>
+        <span className={cn("min-w-0 truncate", labelClassName)}>
+          {control.openLabel}
+        </span>
       </Button>
       {control.showOpenWithDropdown && (
         <OpenWithDropdown file={file}>
           <Button
             aria-label="Open with"
-            className={cn(dropdownClassName, "rounded-l-none")}
+            // Both segments share one fill and there is no divider, so the gap
+            // the eye reads before the caret is this button's leading padding
+            // plus the primary button's trailing padding. Trimming the leading
+            // padding offsets that, while the trailing padding stays equal to
+            // the group's leading inset. An icon size keeps a caller's height
+            // override from dragging in `has-[>svg]:px-*`, whose `:has()`
+            // specificity would beat these paddings.
+            className={cn(
+              dropdownClassName,
+              "w-auto rounded-l-none pr-2 pl-1.5",
+            )}
             onClick={onClick}
-            size={dropdownSize}
+            size="icon-sm"
             type="button"
             variant={variant}
           >

@@ -42,7 +42,7 @@ catalog:
   typescript: 5.9.2
   typescript-result: ^3.5.2
   vite: ^7.2.7
-  vitest: ^4.1.5
+  vitest: ^4.1.10
   zod: ^4.1.13
 
 ignoredOptionalDependencies:

@@ -1,4 +1,5 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { immediateClickHandlers } from "@/client/lib/immediate-click";
 import { cn } from "@/client/lib/utils";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
@@ -64,12 +65,20 @@ export function MediaCardShell({
     onMouseLeave?.();
   };
 
+  const isWithinProtectionWindow = () =>
+    hoverStartRef.current !== null &&
+    Date.now() - hoverStartRef.current < VISIBLE_DELAY_MS;
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
           className={cn(
-            "group/media relative w-full overflow-hidden rounded-2xl bg-card shadow-sm dark:bg-muted",
+            // isolate: the scrim, the overlay actions and the video's progress
+            // bar stack against each other and nothing else. Without it they
+            // join whatever stacking context the page happens to give them and
+            // outrank chrome that is nowhere near this card.
+            "group/media relative isolate w-full overflow-hidden rounded-2xl bg-card shadow-sm dark:bg-muted",
             aspectRatio === "square" ? "aspect-square" : "aspect-video",
             isSelected &&
               "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
@@ -84,18 +93,22 @@ export function MediaCardShell({
           </div>
 
           <button
+            {...immediateClickHandlers<HTMLButtonElement>({
+              onClick,
+            })}
             className="absolute inset-0 z-0 size-full"
-            onClick={onClick}
             type="button"
           />
 
           {!hideActionsMenu && (
             <button
+              {...immediateClickHandlers<HTMLButtonElement>({
+                onClick,
+              })}
               className={cn(
                 "absolute top-3 right-3 z-10 flex size-7 items-center justify-center",
                 "text-white opacity-0 drop-shadow-sm transition-opacity duration-200 group-hover/media:opacity-100 group-has-[button[data-state=open]]/media:opacity-100",
               )}
-              onClick={onClick}
               type="button"
             >
               <ArrowsOutSimpleIcon className="size-3.5" />
@@ -105,17 +118,27 @@ export function MediaCardShell({
           {overlayActions && (
             <div
               className={cn(
-                "absolute top-3 left-3 z-10 flex flex-col items-start gap-1",
-                "opacity-0 transition-opacity duration-200 group-hover/media:opacity-100 group-hover/media:delay-400 group-has-[button[data-state=open]]/media:pointer-events-auto group-has-[button[data-state=open]]/media:opacity-100 group-has-[button[data-state=open]]/media:delay-0",
-                !interactive && "pointer-events-none",
+                // The box spans the card's full width so a long "Open in…"
+                // label truncates instead of running under the expand control,
+                // but only the controls inside it may take the pointer. Left
+                // clickable, the empty space beside them swallows presses meant
+                // for the card, and the box covers the expand control too.
+                "pointer-events-none absolute top-3 right-3 left-3 z-10 flex flex-col items-start gap-1",
+                "opacity-0 transition-opacity duration-200 group-hover/media:opacity-100 group-hover/media:delay-400 group-has-[button[data-state=open]]/media:opacity-100 group-has-[button[data-state=open]]/media:delay-0",
+                interactive && "[&>*]:pointer-events-auto",
+                "group-has-[button[data-state=open]]/media:[&>*]:pointer-events-auto",
               )}
               onClickCapture={(e) => {
                 // block mouseup-race clicks that started before the protection window
-                if (
-                  hoverStartRef.current !== null &&
-                  Date.now() - hoverStartRef.current < VISIBLE_DELAY_MS
-                ) {
+                if (isWithinProtectionWindow()) {
                   e.stopPropagation();
+                }
+              }}
+              onPointerDownCapture={(e) => {
+                // Same window, for any action in here that activates on press.
+                if (isWithinProtectionWindow()) {
+                  e.stopPropagation();
+                  e.preventDefault();
                 }
               }}
             >

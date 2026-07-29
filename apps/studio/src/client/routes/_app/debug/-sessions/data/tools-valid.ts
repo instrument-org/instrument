@@ -63,54 +63,6 @@ registerSession({
         }),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
-            explanation: "Find all TypeScript files in the src directory",
-            pattern: "src/**/*.ts",
-          },
-          output: {
-            files: [
-              "src/utils/helpers.ts",
-              "src/utils/validation.ts",
-              "src/config.ts",
-              "src/app.ts",
-            ],
-            totalFiles: 4,
-            truncated: false,
-          },
-          type: "tool-glob",
-        }),
-        builder.toolPart(assistantMessageId, "output-available", {
-          input: {
-            explanation: "Search for all usages of the formatDate function",
-            pattern: "formatDate",
-          },
-          output: {
-            matches: [
-              {
-                lineNum: 1,
-                lineText: "export function formatDate(date: Date): string {",
-                modifiedAt: 1_704_067_200_000,
-                path: "src/utils/helpers.ts",
-              },
-              {
-                lineNum: 5,
-                lineText: "import { formatDate } from './utils/helpers';",
-                modifiedAt: 1_704_067_300_000,
-                path: "src/app.ts",
-              },
-              {
-                lineNum: 12,
-                lineText: "  const formatted = formatDate(new Date());",
-                modifiedAt: 1_704_067_300_000,
-                path: "src/app.ts",
-              },
-            ],
-            totalMatches: 3,
-            truncated: false,
-          },
-          type: "tool-grep",
-        }),
-        builder.toolPart(assistantMessageId, "output-available", {
-          input: {
             explanation:
               "Read the helpers file to understand the implementation",
             filePath: "./src/utils/helpers.ts",

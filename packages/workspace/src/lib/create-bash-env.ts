@@ -48,6 +48,7 @@ import {
   PYTHON3_COMMAND,
   PYTHON_COMMAND,
 } from "./shell-commands/python";
+import { createRgCommand, RG_COMMAND } from "./shell-commands/rg";
 import { createTsCommand, TS_COMMAND } from "./shell-commands/ts";
 import { createTscCommand, TSC_COMMAND } from "./shell-commands/tsc";
 import { createUvCommand, UV_COMMAND } from "./shell-commands/uv";
@@ -177,6 +178,7 @@ const commandOrderPlugin: TransformPlugin<{ commands: string[] }> = {
 const DESCRIBED_COMMANDS: Record<string, string> = {
   curl: "Download files or fetch HTTP responses (use `-L -o <path> <url>` to download a file)",
   jq: "Parse and manipulate JSON",
+  rg: RG_COMMAND.description,
   xan: "Fast CSV processing, filtering, aggregation, and visualization",
   yq: "Parse and manipulate YAML (like jq but for YAML; e.g. `yq '.key' file.yaml`)",
 };
@@ -333,6 +335,8 @@ export function createBashDescription() {
     IMPORTANT: Prefer specialized tools over shell equivalents:
       - Use the \`${TOOL_NAMES.readFile}\` tool instead of \`cat\`/\`head\`/\`tail\`.
       - Use the \`${TOOL_NAMES.editFile}\`/\`${TOOL_NAMES.writeFile}\` tools instead of \`sed\`/\`awk\`/redirects for editing.
+      - Use \`rg\` for all searching -- there is no separate search tool. File contents: \`rg -n 'pattern'\`, \`-C 3\` for surrounding lines, \`-l\` for filenames only. Files by name: \`rg --files -g '*.ts'\`. It composes, so \`rg -l TODO | head\` works.
+      - Prefer \`rg\` over \`grep\`/\`egrep\`/\`fgrep\`: \`rg\` is the real ripgrep binary and far faster.
       - For audio, video, or image inspection, prefer \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json <path>\` over \`file\`.
 
     TIP: Before using an unfamiliar command, run \`<command> --help\` to check its argument syntax.
@@ -382,6 +386,11 @@ export async function createBashEnv({
         sessionId,
         taskId,
       }),
+      // Registered after the bundled commands, which is what lets it shadow
+      // just-bash's own `rg`. The built-in is a TypeScript reimplementation;
+      // the real binary is orders of magnitude faster on a large tree and does
+      // not carry its `(?i)` and root-level-glob bugs.
+      createRgCommand({ attachedFolders, taskId }),
       ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(taskId)),
       createWhichCommand(
         new Set([

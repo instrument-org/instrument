@@ -1,11 +1,10 @@
 import { err, ok, type Result } from "neverthrow";
 import fs from "node:fs/promises";
-import path from "node:path";
 
 import { REGISTRY_FOLDER_NAMES } from "../constants";
 import { type AbsolutePath, type WorkspaceDir } from "../schemas/paths";
-import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
+import { getSkillProvenance, getWritableSkillsRoot } from "./skill-provenance";
 import { findSkill } from "./skills";
 
 export async function deleteSkill(
@@ -33,8 +32,8 @@ export async function deleteSkill(
     return err(new TypedError.NotFound(`Skill "${name}" was not found`));
   }
 
-  const writableRoot = await writableSkillsRoot(rootDir);
-  if (!isWithinWritableSkillsRoot(skill.skillDir, writableRoot)) {
+  const writableRoot = await getWritableSkillsRoot(rootDir);
+  if (!getSkillProvenance(skill, writableRoot).editable) {
     return err(
       new TypedError.Parse(
         `Skill "${name}" is not editable because it lives outside /${REGISTRY_FOLDER_NAMES.skills}`,
@@ -53,15 +52,4 @@ export async function deleteSkill(
   }
 
   return ok(undefined);
-}
-
-function isWithinWritableSkillsRoot(skillDir: string, writableRoot: string) {
-  return (
-    skillDir === writableRoot || skillDir.startsWith(writableRoot + path.sep)
-  );
-}
-
-async function writableSkillsRoot(rootDir: WorkspaceDir): Promise<string> {
-  const root = absolutePathJoin(rootDir, REGISTRY_FOLDER_NAMES.skills);
-  return fs.realpath(root).catch(() => root);
 }

@@ -1,7 +1,8 @@
-import { type BrowserWindow } from "electron";
+import { type BrowserWindow, type ContextMenuParams } from "electron";
 import contextMenu from "electron-context-menu";
 
 import { isDeveloperMode } from "../stores/preferences";
+import { saveContextMenuMediaAs } from "./context-menu-download";
 
 /**
  * How "Inspect" opens DevTools:
@@ -53,22 +54,49 @@ export function createContextMenu({
     },
     // Offer "Copy Link" for links that lead somewhere outside the app; see
     // `isCopyableLink`.
-    prepend: (defaultActions, parameters) =>
-      isCopyableLink(parameters) ? [defaultActions.copyLink({})] : [],
+    prepend: (defaultActions, parameters) => [
+      ...(isCopyableLink(parameters) ? [defaultActions.copyLink({})] : []),
+      ...getSaveMediaAsItems({ browserWindow, parameters }),
+    ],
     // Copy Link is conditional, so suppress the template's unconditional one
     // and supply it from `prepend`.
     showCopyLink: false,
     // Provided via `append` so the developer-mode check runs per right-click.
     showInspectElement: false,
-    // Off by default on macOS; kept to match prior behavior.
-    showSaveImageAs: true,
-    showSaveVideoAs: true,
+    // The library discards these downloads' promises, but canceling a native
+    // save dialog rejects one. `prepend` supplies cancel-aware equivalents.
+    showSaveImageAs: false,
+    showSaveVideoAs: false,
     // Opening the external browser from a desktop text field is out of place.
     showSearchWithGoogle: false,
     // Off by default on macOS; kept so editable/selection menus still offer it.
     showSelectAll: true,
     window: browserWindow,
   });
+}
+
+function getSaveMediaAsItems({
+  browserWindow,
+  parameters,
+}: {
+  browserWindow: BrowserWindow;
+  parameters: ContextMenuParams;
+}) {
+  if (parameters.mediaType !== "image" && parameters.mediaType !== "video") {
+    return [];
+  }
+  return [
+    {
+      click: () => {
+        void saveContextMenuMediaAs({
+          browserWindow,
+          url: parameters.srcURL,
+        });
+      },
+      label:
+        parameters.mediaType === "image" ? "Save Image As…" : "Save Video As…",
+    },
+  ];
 }
 
 /**

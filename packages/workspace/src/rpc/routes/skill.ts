@@ -1,11 +1,14 @@
+import { eventIterator } from "@orpc/server";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 
-import { REGISTRY_FOLDER_NAMES } from "../../constants";
-import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { deleteSkill } from "../../lib/delete-skill";
 import { pathIsWithin } from "../../lib/path-is-within";
+import {
+  getSkillProvenance,
+  getWritableSkillsRoot,
+} from "../../lib/skill-provenance";
 import {
   findSkill,
   findSkills,
@@ -14,8 +17,9 @@ import {
   SKILL_SOURCE_KINDS,
   splitFrontmatter,
 } from "../../lib/skills";
-import { type AbsolutePath } from "../../schemas/paths";
+import { startWatchingWorkspaceSkills } from "../../lib/workspace-skill-watcher";
 import { base, toORPCError } from "../base";
+import { publisher } from "../publisher";
 
 /**
  * Past this a file stops being something to read on a skill page, and the cost
@@ -26,6 +30,7 @@ const FILE_SIZE_LIMIT = 512 * 1024;
 const SkillSourceSchema = z.enum(SKILL_SOURCE_KINDS);
 
 const SkillSummarySchema = z.object({
+  aliases: z.string().array(),
   description: z.string(),
   /**
    * True when the skill lives in the one workspace directory the agent can
@@ -37,9 +42,15 @@ const SkillSummarySchema = z.object({
   editable: z.boolean(),
   fileCount: z.number(),
   filesTruncated: z.boolean(),
+  id: z.string(),
   modelInvocable: z.boolean(),
   name: z.string(),
   path: z.string(),
+  /**
+   * Compatibility alias for manually typed invocations. Persisted routes and
+   * mentions use `id`, whose value does not depend on installed namesakes.
+   */
+  qualifiedName: z.string(),
   source: SkillSourceSchema,
   title: z.string(),
   userInvocable: z.boolean(),
@@ -59,28 +70,11 @@ const SkillFileSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("too-large") }),
 ]);
 
-function isEditable(skillDir: string, writableRoot: string): boolean {
-  return (
-    skillDir === writableRoot || skillDir.startsWith(writableRoot + path.sep)
-  );
-}
-
-/**
- * Canonical path of the one workspace skills directory the agent can write to
- * (the writable `/skills` mount). Editability is decided by containment here,
- * which matches agent writability exactly: a symlinked skill dir canonicalizes
- * outside this root and the mount blocks the escape anyway.
- */
-async function writableSkillsRoot(rootDir: AbsolutePath): Promise<string> {
-  const root = absolutePathJoin(rootDir, REGISTRY_FOLDER_NAMES.skills);
-  return fs.realpath(root).catch(() => root);
-}
-
 const list = base
   .output(SkillSummarySchema.array())
   .handler(async ({ context }) => {
     const skills = await findSkills(getSkillSources(context.workspaceConfig));
-    const writableRoot = await writableSkillsRoot(
+    const writableRoot = await getWritableSkillsRoot(
       context.workspaceConfig.rootDir,
     );
     // Counting means walking every skill. Measured at a few milliseconds for a
@@ -92,13 +86,16 @@ const list = base
     );
 
     return skills.map((skill, index) => ({
+      aliases: skill.aliases,
       description: skill.description,
-      editable: isEditable(skill.skillDir, writableRoot),
+      editable: getSkillProvenance(skill, writableRoot).editable,
       fileCount: listings[index]?.files.length ?? 0,
       filesTruncated: listings[index]?.truncated ?? false,
+      id: skill.id,
       modelInvocable: skill.modelInvocable,
       name: skill.name,
       path: skill.skillDir,
+      qualifiedName: skill.qualifiedName,
       source: skill.source,
       title: skill.title,
       userInvocable: skill.userInvocable,
@@ -120,7 +117,7 @@ const byName = base
       skill.skillDir,
       AbortSignal.timeout(10_000),
     );
-    const writableRoot = await writableSkillsRoot(
+    const writableRoot = await getWritableSkillsRoot(
       context.workspaceConfig.rootDir,
     );
     const rawSkillFile = await fs.readFile(
@@ -129,19 +126,22 @@ const byName = base
     );
     const frontmatterResult = splitFrontmatter(rawSkillFile);
     return {
+      aliases: skill.aliases,
       compatibility: skill.compatibility ?? null,
       content: skill.content,
       description: skill.description,
-      editable: isEditable(skill.skillDir, writableRoot),
+      editable: getSkillProvenance(skill, writableRoot).editable,
       fileCount: files.length,
       files,
       filesTruncated: truncated,
       frontmatter: frontmatterResult.ok
         ? `---\n${frontmatterResult.block}\n---`
         : "",
+      id: skill.id,
       modelInvocable: skill.modelInvocable,
       name: skill.name,
       path: skill.skillDir,
+      qualifiedName: skill.qualifiedName,
       rawSkillFile,
       source: skill.source,
       title: skill.title,
@@ -214,4 +214,40 @@ const remove = base
     }
   });
 
-export const skill = { byName, file, list, remove };
+/**
+ * Fires whenever the workspace skills directory changes. Deliberately a bare
+ * signal rather than a live `list`: the surfaces that show skills each hold
+ * their own cached `list`, and a stream that re-walked every source per
+ * subscriber would trade the caching those surfaces were given for freshness
+ * they can get by invalidating once on this.
+ *
+ * `revision` counts events on this subscription. It carries no meaning beyond
+ * making one event distinguishable from the next, which a client that reacts to
+ * a cached value needs before it can act on the second change.
+ *
+ * Revision 0 is emitted as soon as the subscription is live, before any change.
+ * A live query whose stream ends without ever yielding is an error to the client
+ * runtime, which then retries and eventually gives up -- so a stream that only
+ * spoke when something changed would go quiet for good after the first
+ * disconnect. It also gives the client a resync point: events published while
+ * nothing was subscribed are gone, so a fresh subscription is exactly when a
+ * consumer wants to re-read.
+ */
+const changed = base
+  .output(eventIterator(z.object({ revision: z.number() })))
+  .handler(async function* ({ signal }) {
+    const changes = publisher.subscribe("skill.changed", { signal });
+    const stopWatching = await startWatchingWorkspaceSkills();
+    let revision = 0;
+    try {
+      yield { revision };
+      for await (const _ of changes) {
+        revision += 1;
+        yield { revision };
+      }
+    } finally {
+      await stopWatching();
+    }
+  });
+
+export const skill = { byName, file, list, live: { changed }, remove };

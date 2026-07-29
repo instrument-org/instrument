@@ -17,7 +17,18 @@ const URL_USERINFO_PATTERN = /([a-z][\w+.-]*:\/\/)[^\s/@:]*(?::[^\s/@]*)?@/gi;
  */
 const CREDENTIAL_FIELD_PATTERN = /^(password|username)=.*$/gim;
 
-export function filterShellOutput(output: string, dir: TaskDir): string {
+/**
+ * `rewriteSeparators` turns every backslash in the output into a forward slash,
+ * so paths printed by a Windows-native tool stay usable as tool path inputs. It
+ * cannot tell a separator from any other backslash, so it also rewrites escape
+ * sequences, regex literals, and matched file contents. Callers whose output is
+ * already POSIX pass false rather than pay that.
+ */
+export function filterShellOutput(
+  output: string,
+  dir: TaskDir,
+  { rewriteSeparators = true }: { rewriteSeparators?: boolean } = {},
+): string {
   let filtered = redactHostPaths(output, dir);
 
   // Redact credentials embedded in a URL's userinfo (`https://user:token@host`,
@@ -27,17 +38,24 @@ export function filterShellOutput(output: string, dir: TaskDir): string {
   filtered = filtered.replaceAll(URL_USERINFO_PATTERN, "$1***@");
   filtered = filtered.replaceAll(CREDENTIAL_FIELD_PATTERN, "$1=***");
 
-  // Keep agent-facing shell output consistent with tool path inputs.
-  filtered = filtered.replaceAll("\\", "/");
+  if (rewriteSeparators) {
+    filtered = filtered.replaceAll("\\", "/");
+  }
 
   if (
     process.env.NODE_ENV === "development" ||
     process.env.NODE_ENV === "test"
   ) {
+    // Only the debugger lines go. Trimming the result as well would eat the
+    // command's own trailing newline, running consecutive commands' output
+    // together within one bash call, and would make dev/test output differ
+    // from production for every command that routes through here.
     filtered = filtered
       .replaceAll(/^.*Debugger attached\..*$\n?/gm, "")
-      .replaceAll(/^.*Waiting for the debugger to disconnect\.\.\..*$\n?/gm, "")
-      .trim();
+      .replaceAll(
+        /^.*Waiting for the debugger to disconnect\.\.\..*$\n?/gm,
+        "",
+      );
   }
 
   return filtered;
@@ -100,20 +118,6 @@ function escapeRegExp(value: string): string {
 // so a task or home dir handed in one spelling must be redacted in the other.
 const FIRMLINK_ROOTS = ["/var", "/tmp", "/etc"];
 
-function firmlinkSpellings(value: string): string[] {
-  const spellings = [value];
-  for (const root of FIRMLINK_ROOTS) {
-    if (value === root || value.startsWith(`${root}/`)) {
-      spellings.push(`/private${value}`);
-    }
-    const priv = `/private${root}`;
-    if (value === priv || value.startsWith(`${priv}/`)) {
-      spellings.push(value.slice("/private".length));
-    }
-  }
-  return spellings;
-}
-
 /**
  * Every spelling of a path that can appear in subprocess output or file
  * contents: as given, slash-normalized, backslash-separated, the string-escaped
@@ -121,7 +125,7 @@ function firmlinkSpellings(value: string): string[] {
  * backslashes -- `path: 'C:\\Users\\...'` -- which the plain variants never
  * match), and each macOS firmlink spelling of all the above.
  */
-function pathVariants(value: string): string[] {
+export function pathVariants(value: string): string[] {
   const variants = new Set<string>();
   for (const spelling of firmlinkSpellings(value)) {
     const normalized = normalizePath(spelling);
@@ -139,6 +143,20 @@ function pathVariants(value: string): string[] {
   // Longest first so a shorter spelling (the bare `/var/...` form) never eats
   // into a longer one (its `/private/var/...` firmlink spelling) mid-replace.
   return [...variants].sort((a, b) => b.length - a.length);
+}
+
+function firmlinkSpellings(value: string): string[] {
+  const spellings = [value];
+  for (const root of FIRMLINK_ROOTS) {
+    if (value === root || value.startsWith(`${root}/`)) {
+      spellings.push(`/private${value}`);
+    }
+    const priv = `/private${root}`;
+    if (value === priv || value.startsWith(`${priv}/`)) {
+      spellings.push(value.slice("/private".length));
+    }
+  }
+  return spellings;
 }
 
 function shouldFilter() {

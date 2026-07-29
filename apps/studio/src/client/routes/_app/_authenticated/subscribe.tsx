@@ -51,7 +51,7 @@ interface PricingPlan {
 
 const planCardVariants = tv({
   slots: {
-    card: "relative flex flex-col overflow-hidden bg-card p-6 transition-all",
+    card: "relative flex flex-col overflow-hidden bg-card p-6",
     title: "text-4xl font-bold",
   },
   variants: {
@@ -214,7 +214,7 @@ function SubscribePage() {
               <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-card px-4 py-3 shadow-sm">
                 <span
                   className={cn(
-                    "text-sm font-medium transition-colors",
+                    "text-sm font-medium",
                     billingCycle === "monthly"
                       ? "text-foreground"
                       : "text-muted-foreground",
@@ -234,7 +234,7 @@ function SubscribePage() {
                 />
                 <span
                   className={cn(
-                    "flex items-center gap-2 text-sm font-medium transition-colors",
+                    "flex items-center gap-2 text-sm font-medium",
                     billingCycle === "yearly"
                       ? "text-foreground"
                       : "text-muted-foreground",
@@ -268,7 +268,7 @@ function SubscribePage() {
                     if (isFreeUser) {
                       buttonText = `Get ${plan.name}`;
                     } else if (isBasicUser) {
-                      buttonText = "Current Plan";
+                      buttonText = "Current plan";
                       showCheckmark = true;
                       variant = "secondary";
                     } else if (isProUser) {
@@ -280,7 +280,7 @@ function SubscribePage() {
                   }
                   case "Free": {
                     if (isFreeUser) {
-                      buttonText = "Current Plan";
+                      buttonText = "Current plan";
                       isButtonDisabled = true;
                       variant = "secondary";
                     } else {
@@ -291,7 +291,7 @@ function SubscribePage() {
                   }
                   case "Pro": {
                     if (isProUser) {
-                      buttonText = "Current Plan";
+                      buttonText = "Current plan";
                       showCheckmark = true;
                       variant = "secondary";
                     } else {
@@ -343,7 +343,7 @@ function SubscribePage() {
                         className="w-full gap-2 disabled:opacity-100"
                         disabled={isButtonDisabled}
                         onClick={async () => {
-                          if (buttonText === "Current Plan") {
+                          if (buttonText === "Current plan") {
                             openSettings({ tab: "General" });
                           } else {
                             await handleSubscribe(plan);
@@ -366,7 +366,7 @@ function SubscribePage() {
             <div className="mx-auto mt-12 max-w-4xl">
               <Card className="relative overflow-hidden bg-card p-8">
                 <div className="text-center">
-                  <h2 className="mb-2 text-2xl font-bold">Custom Plans</h2>
+                  <h2 className="mb-2 text-2xl font-bold">Custom plans</h2>
                   <p className="mx-auto mb-6 max-w-xl text-sm text-muted-foreground">
                     Whether you&apos;re a team, agency, or enterprise,
                     we&apos;ll build a plan that fits your needs.
@@ -400,7 +400,7 @@ function SubscribePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-lg">
             <h2 className="mb-4 text-xl font-bold">
-              {isUpgrade ? "Confirm Upgrade" : "Confirm Downgrade"}
+              {isUpgrade ? "Confirm upgrade" : "Confirm downgrade"}
             </h2>
             <p className="mb-4 text-muted-foreground">
               You are {isUpgrade ? "upgrading" : "downgrading"} to the{" "}
@@ -409,7 +409,7 @@ function SubscribePage() {
 
             <div className="mb-6 space-y-2">
               <div className="flex justify-between">
-                <span>Amount Due Today:</span>
+                <span>Amount due today:</span>
                 <span className="font-bold">
                   $
                   {Math.max(

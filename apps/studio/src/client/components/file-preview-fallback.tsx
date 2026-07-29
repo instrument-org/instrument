@@ -28,7 +28,7 @@ export function FilePreviewFallback({
 }) {
   const openControl = useTaskFileOpenControl(file);
   // Without a resolved app association, opening could dead-end in an OS
-  // error, so only promote open over download when an app is known.
+  // error, so only promote open over save-as when an app is known.
   const canOpen = openControl.showOpen;
 
   const content = (
@@ -57,7 +57,7 @@ export function FilePreviewFallback({
         onDownload && (
           <Button onClick={onDownload} size="sm">
             <ArrowLineDownIcon className="size-4" />
-            Download
+            Save as…
           </Button>
         )
       )}
@@ -77,7 +77,7 @@ export function FilePreviewFallback({
 
 // Rendering this component already means no preview could be produced, so there is
 // no decoded image/text data to put on the clipboard -- Copy stays hidden here
-// regardless of mime type, while file-level actions (download, reveal, open) still
+// regardless of mime type, while file-level actions (save as, reveal, open) still
 // operate on the underlying bytes and remain available.
 function FilePreviewFallbackContextMenu({
   children,

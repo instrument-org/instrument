@@ -7,6 +7,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 
 import { appendToPromptAtom } from "../../atoms/prompt-value";
+import { immediateClickHandlers } from "../../lib/immediate-click";
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { FileIcon } from "../file-icon";
 import { IconButton } from "../icon-button";
@@ -17,6 +18,29 @@ type ReadFilePart = Extract<
   SessionMessagePart.ToolPart,
   { type: "tool-read_file" }
 >;
+
+type UnsupportedFormatReason = Extract<
+  ReadFilePart["output"],
+  { state: "unsupported-format" }
+>["reason"];
+
+/**
+ * One line per reason the tool can refuse a file.
+ *
+ * Typed off the tool's own union rather than defaulted, so adding a reason in
+ * the workspace fails the build here instead of quietly rendering as "Cannot
+ * read binary file" -- which is how a truncated PDF and a valid-but-oversized
+ * photo both came to be described to the user as binary files.
+ */
+const UNSUPPORTED_FORMAT_MESSAGES: Record<UnsupportedFormatReason, string> = {
+  "binary-file": "Cannot read binary file",
+  "image-too-large": "Image is too large to open",
+  "truncated-image": "Image is incomplete",
+  "undecodable-image": "File is not a readable image",
+  "undecodable-media": "Cannot read this audio or video file",
+  "undecodable-pdf": "PDF is incomplete",
+  "unsupported-image-format": "Unsupported image format",
+};
 
 export function ToolReadFile({ id, part }: { id: TaskId; part: ReadFilePart }) {
   if (part.state !== "output-available") {
@@ -58,11 +82,18 @@ export function ToolReadFile({ id, part }: { id: TaskId; part: ReadFilePart }) {
     case "image": {
       const src = `data:${output.mimeType};base64,${output.base64Data}`;
       const filename = filenameFromFilePath(output.filePath);
+      const { region } = output;
       return (
         <ReadFileCard
           filePath={output.filePath}
           id={id}
           modifiedAt={output.modifiedAt}
+          note={
+            region
+              ? `zoomed to (${region.x1},${region.y1})-(${region.x2},${region.y2})`
+              : undefined
+          }
+          openOnContentClick
         >
           <div className="flex items-center justify-center">
             <ImageWithFallback
@@ -102,10 +133,7 @@ export function ToolReadFile({ id, part }: { id: TaskId; part: ReadFilePart }) {
       );
     }
     case "unsupported-format": {
-      const message =
-        output.reason === "unsupported-image-format"
-          ? "Unsupported image format"
-          : "Cannot read binary file";
+      const message = UNSUPPORTED_FORMAT_MESSAGES[output.reason];
       return (
         <ReadFileCard
           filePath={output.filePath}
@@ -140,11 +168,15 @@ function ReadFileCard({
   filePath,
   id,
   modifiedAt,
+  note,
+  openOnContentClick = false,
 }: {
   children: React.ReactNode;
   filePath: string;
   id: TaskId;
   modifiedAt?: number;
+  note?: string;
+  openOnContentClick?: boolean;
 }) {
   const filename = filenameFromFilePath(filePath);
   const appendToPrompt = useSetAtom(appendToPromptAtom);
@@ -178,6 +210,11 @@ function ReadFileCard({
           <span className="truncate text-xs font-medium text-muted-foreground">
             {filename}
           </span>
+          {note && (
+            <span className="truncate text-xs text-muted-foreground/70">
+              {note}
+            </span>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <IconButton
@@ -198,7 +235,20 @@ function ReadFileCard({
           )}
         </div>
       </div>
-      <div className="px-4 py-3">{children}</div>
+      {openOnContentClick && modifiedAt !== undefined ? (
+        <button
+          {...immediateClickHandlers<HTMLButtonElement>({
+            onClick: handleExpand,
+          })}
+          aria-label={`Open ${filename} in panel`}
+          className="block w-full cursor-zoom-in px-4 py-3 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset"
+          type="button"
+        >
+          {children}
+        </button>
+      ) : (
+        <div className="px-4 py-3">{children}</div>
+      )}
     </div>
   );
 }

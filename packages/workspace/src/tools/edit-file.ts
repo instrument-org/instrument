@@ -25,6 +25,7 @@ import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
+import { TOOL_NAMES } from "./name";
 import { ReadFile } from "./read-file";
 
 const MAX_FILE_SIZE = 250 * 1024; // 250KB
@@ -123,9 +124,12 @@ type Replacer = (
   find: string,
 ) => Generator<string, void, unknown>;
 
-// Similarity thresholds for block anchor fallback matching
-const SINGLE_CANDIDATE_SIMILARITY_THRESHOLD = 0;
-const MULTIPLE_CANDIDATES_SIMILARITY_THRESHOLD = 0.3;
+// Similarity thresholds for block anchor fallback matching. A block whose
+// middle lines score below these against the search text is rejected rather
+// than replaced: anchoring on the first and last line alone is not enough
+// evidence that the model meant this block.
+const SINGLE_CANDIDATE_SIMILARITY_THRESHOLD = 0.65;
+const MULTIPLE_CANDIDATES_SIMILARITY_THRESHOLD = 0.65;
 
 /**
  * Levenshtein distance algorithm implementation
@@ -229,6 +233,9 @@ const BlockAnchorReplacer: Replacer = function* (content, find) {
   const firstLineSearch = searchLines[0]?.trim();
   const lastLineSearch = searchLines.at(-1)?.trim();
   const searchBlockSize = searchLines.length;
+  // Anchors alone can pair up lines that are hundreds of lines apart, so a
+  // candidate has to be close to the search block's own size to be considered.
+  const maxLineDelta = Math.max(1, Math.floor(searchBlockSize * 0.25));
 
   if (!firstLineSearch || !lastLineSearch) {
     return;
@@ -246,7 +253,10 @@ const BlockAnchorReplacer: Replacer = function* (content, find) {
     for (let j = i + 2; j < originalLines.length; j++) {
       const lastLine = originalLines[j];
       if (lastLine?.trim() === lastLineSearch) {
-        candidates.push({ endLine: j, startLine: i });
+        const actualBlockSize = j - i + 1;
+        if (Math.abs(actualBlockSize - searchBlockSize) <= maxLineDelta) {
+          candidates.push({ endLine: j, startLine: i });
+        }
         break; // Only match the first occurrence of the last line
       }
     }
@@ -644,6 +654,27 @@ const MultiOccurrenceReplacer: Replacer = function* (content, find) {
   }
 };
 
+/**
+ * True when a fallback replacer matched a span far larger than the text the
+ * model asked to replace. The loose matchers can anchor onto a block many times
+ * the size of `oldString`, and silently swallowing the difference destroys code
+ * the model never saw; failing sends it back to re-read the file instead.
+ */
+function isDisproportionateMatch(search: string, oldString: string): boolean {
+  const oldLines = oldString.split("\n").length;
+  const searchLines = search.split("\n").length;
+  if (searchLines >= Math.max(oldLines + 3, oldLines * 2)) {
+    return true;
+  }
+  if (oldLines === 1) {
+    return false;
+  }
+  return (
+    search.trim().length >
+    Math.max(oldString.trim().length + 500, oldString.trim().length * 4)
+  );
+}
+
 function replace(
   content: string,
   oldString: string,
@@ -652,6 +683,11 @@ function replace(
 ): string {
   if (oldString === newString) {
     throw new Error("oldString and newString must be different");
+  }
+  if (oldString === "") {
+    throw new Error(
+      `oldString cannot be empty when editing an existing file. Provide the exact text to replace, or use ${TOOL_NAMES.writeFile} for an intentional full-file replacement.`,
+    );
   }
 
   let notFound = true;
@@ -674,6 +710,11 @@ function replace(
         continue;
       }
       notFound = false;
+      if (isDisproportionateMatch(search, oldString)) {
+        throw new Error(
+          "Refusing replacement because the matched span is much larger than oldString. Re-read the file and provide the full exact oldString for the intended replacement.",
+        );
+      }
       if (replaceAll) {
         return content.replaceAll(search, newString);
       }
@@ -765,6 +806,14 @@ export const EditFile = setupTool({
 
     try {
       if (input.oldString === "") {
+        // An empty oldString only creates a file. Models reach for it meaning
+        // "insert at the top", so treating it as a whole-file replacement
+        // destroys the file on a call that reads as additive.
+        if (exists) {
+          return executeError(
+            `oldString cannot be empty when editing an existing file. Provide the exact text to replace, or use ${TOOL_NAMES.writeFile} for an intentional full-file replacement.`,
+          );
+        }
         contentNew = input.newString;
         await writeFileWithDir(absolutePath, input.newString, { signal });
       } else {

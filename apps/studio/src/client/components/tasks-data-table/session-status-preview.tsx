@@ -106,7 +106,10 @@ function SessionStatusText({
       displayText = getToolStreamingLabel(toolName, false);
       shouldAnimate = isAgentAlive;
     }
-  } else if (latestPart.type === "data-fileChanges") {
+  } else if (
+    latestPart.type === "data-fileChanges" ||
+    latestPart.type === "data-skillChanges"
+  ) {
     displayText = "Done";
   } else if (latestPart.type === "reasoning") {
     displayText = isAgentAlive ? "Thinking" : "Thought";

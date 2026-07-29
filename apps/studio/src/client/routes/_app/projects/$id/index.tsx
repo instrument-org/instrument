@@ -181,8 +181,12 @@ function RouteComponent() {
         tucked under the heading. Narrow, the panel is a disclosure so it stays
         collapsed by default and keeps the composer near the top; wide, the same
         rule that gives it its own column forces it open and drops the toggle.
+
+        `items-start` because the panel spans column one's three rows: a panel
+        taller than what sits beside it grows those rows, and a stretched
+        composer would then paint an empty band under its own controls.
       */}
-      <div className="mx-auto grid max-w-2xl grid-cols-1 gap-y-6 px-6 py-10 @6xl/app-content:max-w-none @6xl/app-content:grid-cols-[minmax(0,42rem)_30rem] @6xl/app-content:justify-center @6xl/app-content:gap-x-8">
+      <div className="mx-auto grid max-w-2xl grid-cols-1 items-start gap-y-6 px-6 py-10 @6xl/app-content:max-w-none @6xl/app-content:grid-cols-[minmax(0,42rem)_30rem] @6xl/app-content:justify-center @6xl/app-content:gap-x-8">
         <div className="flex items-start justify-between gap-x-4">
           <div className="flex min-w-0 flex-col gap-y-1">
             <h1 className="font-serif text-2xl font-medium">
@@ -231,7 +235,7 @@ function RouteComponent() {
           </DropdownMenu>
         </div>
 
-        <details className="group/details details-animated @6xl/app-content:sticky @6xl/app-content:top-10 @6xl/app-content:col-start-2 @6xl/app-content:row-span-3 @6xl/app-content:row-start-1 @6xl/app-content:self-start @6xl/app-content:details-always-open">
+        <details className="group/details details-animated @6xl/app-content:sticky @6xl/app-content:top-10 @6xl/app-content:col-start-2 @6xl/app-content:row-span-3 @6xl/app-content:row-start-1 @6xl/app-content:details-always-open">
           <summary className="flex list-none items-center gap-x-1 py-1 text-xs font-medium text-muted-foreground/60 select-none hover:text-muted-foreground @6xl/app-content:hidden">
             <span>Project details</span>
             <CaretRightIcon className="size-3 shrink-0 transition-transform group-open/details:rotate-90" />

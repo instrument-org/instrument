@@ -57,6 +57,26 @@ export const MODELS = [
   // modelURI.openRouter("openai/gpt-5.4-nano"),
 ];
 
+export interface CompletedRun {
+  label: string;
+  modelURI: string;
+  /** The eval case this run came from, so a report can find it by task id. */
+  name: string;
+  /** Tokens at the moment the cap stopped this run; absent if it finished. */
+  overBudget?: number;
+  taskId: TaskId;
+}
+
+/**
+ * Ceiling on one run's total tokens before the harness stops it.
+ *
+ * Set from measurement rather than taste: the most expensive legitimate run
+ * observed was around 700K, and the cheapest runaway was 1.3M. Anything past
+ * this is a model that has stopped making progress, and the cost of letting it
+ * continue is unbounded.
+ */
+export const DEFAULT_MAX_RUN_TOKENS = 1_000_000;
+
 export interface EvalCase {
   assertions?: Assertion[];
   files?: FileUpload.Type[];
@@ -83,8 +103,15 @@ export async function runEvals(
   {
     concurrency = 3,
     dryRun = false,
-  }: { concurrency?: number; dryRun?: boolean } = {},
-): Promise<{ workspaceRootDir: string }> {
+    maxRunTokens = DEFAULT_MAX_RUN_TOKENS,
+    models = MODELS,
+  }: {
+    concurrency?: number;
+    dryRun?: boolean;
+    maxRunTokens?: number;
+    models?: string[];
+  } = {},
+): Promise<{ runs: CompletedRun[]; workspaceRootDir: string }> {
   const workspaceRootDir = path.join(
     os.tmpdir(),
     `${APP_NAME_SLUG}-evals-${ulid()}`,
@@ -96,7 +123,7 @@ export async function runEvals(
   process.stdout.write(`${c.dim}Registry  :${c.reset} ${registryDir}\n`);
 
   if (dryRun) {
-    return { workspaceRootDir };
+    return { runs: [], workspaceRootDir };
   }
 
   const actor = createActor(workspaceMachine, {
@@ -135,19 +162,27 @@ export async function runEvals(
 
   actor.start();
 
-  const runs = MODELS.flatMap((uri) => {
+  const runs = models.flatMap((uri) => {
     const parsed = AIGatewayModelURI.parse(uri);
     const canonicalId = parsed.ok ? parsed.value.canonicalId : uri;
     const modelPrefix = sanitizeCanonicalId(canonicalId);
     return evals.map((evalCase) => ({ evalCase, modelPrefix, uri }));
   });
 
-  await _.parallel(
+  // A task id is slugified from the prompt, and the name is claimed by creating
+  // the directory. Running one case against several models means several runs
+  // want the same slug at the same moment, and they all read it as free before
+  // any of them takes it. Creation is serialized so the numeric suffix that
+  // already exists for collisions actually gets a chance to apply; only the
+  // agent turn is worth running concurrently anyway.
+  let creating = Promise.resolve();
+
+  const completed = await _.parallel(
     concurrency,
     runs,
     async ({ evalCase, modelPrefix, uri }) => {
       const label =
-        MODELS.length > 1 ? `${evalCase.name}/${modelPrefix}` : evalCase.name;
+        models.length > 1 ? `${evalCase.name}/${modelPrefix}` : evalCase.name;
 
       process.stdout.write(
         `${evalPrefix(label)}${c.dim}Starting...${c.reset}\n`,
@@ -158,23 +193,31 @@ export async function runEvals(
         workspaceRef: actor,
       };
 
-      const { id, sessionId } = await call(
-        taskRoute.create,
-        {
-          files: evalCase.files,
-          folders: evalCase.folders,
-          modelURI: uri,
-          name: evalCase.name,
-          prompt: evalCase.prompt,
-        },
-        { context },
+      const created = creating.then(() =>
+        call(
+          taskRoute.create,
+          {
+            files: evalCase.files,
+            folders: evalCase.folders,
+            modelURI: uri,
+            name: evalCase.name,
+            prompt: evalCase.prompt,
+          },
+          { context },
+        ),
       );
+      // Chained off the settled result so one failed creation does not strand
+      // every run behind it.
+      creating = created.then(_.noop, _.noop);
+      const { id, sessionId } = await created;
 
       process.stdout.write(
         `${evalPrefix(label)}${c.green}Task created${c.reset}${c.dim} (id: ${id})${c.reset}\n`,
       );
 
       const abortController = new AbortController();
+      let stoppedForBudget = false;
+      let overBudget: number | undefined;
       const partUpdates = publisher.subscribe("part.updated", {
         signal: abortController.signal,
       });
@@ -203,6 +246,25 @@ export async function runEvals(
                 : `${c.cyan}${toolName}${c.reset}`;
               const statsSuffix = `  ${c.dim}tokens=${c.reset}${formatNumber(usage.totalTokens)}${c.dim} (in=${formatNumber(usage.inputTokens)} out=${formatNumber(usage.outputTokens)}) msgs=${c.reset}${c.yellow}${usage.messageCount}${c.reset}`;
               stream.write(`${evalPrefix(label)}${toolLabel}${statsSuffix}\n`);
+
+              // A model handed an unrecoverable input can keep trying to
+              // recover from it, and nothing in the loop is wrong enough to
+              // stop it: each attempt is a legitimate tool call. Measured, one
+              // run has reached millions of tokens on a single question before
+              // a human noticed. The eval harness is the one place that can see
+              // the running total and act on it, so it does.
+              if (
+                maxRunTokens > 0 &&
+                usage.totalTokens > maxRunTokens &&
+                !stoppedForBudget
+              ) {
+                stoppedForBudget = true;
+                overBudget = usage.totalTokens;
+                process.stderr.write(
+                  `${evalPrefix(label)}${c.red}Over budget${c.reset}${c.dim}: ${formatNumber(usage.totalTokens)} tokens > ${formatNumber(maxRunTokens)}, stopping. Raise with --max-run-tokens, or 0 to disable.${c.reset}\n`,
+                );
+                void call(sessionRoute.stop, { id }, { context });
+              }
             }
 
             if (await evalCase.shouldStop?.(part, id)) {
@@ -223,12 +285,20 @@ export async function runEvals(
       abortController.abort();
 
       process.stdout.write(`${evalPrefix(label)}${c.green}Done.${c.reset}\n`);
+
+      return {
+        label,
+        modelURI: uri,
+        name: evalCase.name,
+        overBudget,
+        taskId: id,
+      };
     },
   );
 
   actor.stop();
 
-  return { workspaceRootDir };
+  return { runs: completed, workspaceRootDir };
 }
 
 function sanitizeCanonicalId(canonicalId: string): string {

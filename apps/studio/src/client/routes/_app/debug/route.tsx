@@ -4,7 +4,7 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { debugNavigationRoutes } from "./-debug-routes";
 
 const linkBaseClasses =
-  "rounded-full px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground";
+  "rounded-full px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-background hover:text-foreground";
 const linkActiveClasses = "bg-background text-foreground! shadow-xs";
 
 export const Route = createFileRoute("/_app/debug")({

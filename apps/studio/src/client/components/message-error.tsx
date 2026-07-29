@@ -124,7 +124,7 @@ export function MessageError({
       case "api-key":
       case "invalid-tool-input":
       case "no-such-tool": {
-        return "Model Error";
+        return "Model error";
       }
       default: {
         return "Error";
@@ -135,19 +135,19 @@ export function MessageError({
   const getErrorTypeLabel = () => {
     switch (error.kind) {
       case "api-call": {
-        return "API Call Error";
+        return "API call error";
       }
       case "api-key": {
-        return "API Key Error";
+        return "API key error";
       }
       case "invalid-tool-input": {
-        return "Invalid Tool Input";
+        return "Invalid tool input";
       }
       case "no-such-tool": {
-        return "Tool Not Found";
+        return "Tool not found";
       }
       case "unknown": {
-        return "Unknown Error";
+        return "Unknown error";
       }
       default: {
         return "Error";

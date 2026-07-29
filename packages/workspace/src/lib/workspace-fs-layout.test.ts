@@ -11,8 +11,10 @@ import {
   TaskDirSchema,
   WorkspaceDirSchema,
 } from "../schemas/paths";
+import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { withTurnContext } from "./turn-context";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import {
   buildBashFs,
@@ -20,6 +22,10 @@ import {
   SKILLS_MOUNT_POINT,
   TASK_MOUNT_POINT,
 } from "./workspace-fs-layout";
+import {
+  beginSkillChangeTracking,
+  consumeSkillChanges,
+} from "./workspace-skill-index";
 
 describe("buildBashFs", () => {
   let tmpDir: string;
@@ -178,10 +184,33 @@ describe("buildBashFs", () => {
     const bash = await makeBash();
     const result = await bash.exec("ls /");
     expect(result.stdout.split("\n").filter(Boolean).sort()).toEqual([
+      "dev",
       "mnt",
       "skills",
       "task",
     ]);
+  });
+
+  // A write to a path outside every mount throws rather than returning an exit
+  // code, which drops the output of every command that already ran in the same
+  // call -- so an unbacked /dev/null would lose far more than it discards.
+  it.each(["> /dev/null", "1> /dev/null"])(
+    "discards stdout redirected with %s and keeps running",
+    async (redirect) => {
+      const bash = await makeBash();
+      const result = await bash.exec(`echo discarded ${redirect}; echo kept`);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("kept");
+      expect(result.stdout).not.toContain("discarded");
+    },
+  );
+
+  it("discards stderr redirected to /dev/null and keeps running", async () => {
+    const bash = await makeBash();
+    const result = await bash.exec("ls /nope 2> /dev/null; echo kept");
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("kept");
+    expect(result.stderr).toBe("");
   });
 
   it("skips attached mounts whose folder is missing on disk", async () => {
@@ -233,10 +262,30 @@ describe("buildBashFs skills mount", () => {
     ).resolves.toBe("body\n");
   });
 
+  it("attributes bash mutations through the mounted filesystem", async () => {
+    const bash = await makeBash();
+    const turn = {
+      id: TaskIdSchema.parse("skills-mount-test"),
+      sessionId: StoreId.newSessionId(),
+    };
+    await beginSkillChangeTracking(turn);
+
+    await withTurnContext(turn, () =>
+      bash.exec(
+        `mkdir -p ${SKILLS_MOUNT_POINT}/tracked && echo body > ${SKILLS_MOUNT_POINT}/tracked/SKILL.md`,
+      ),
+    );
+
+    await expect(consumeSkillChanges(turn)).resolves.toMatchObject({
+      created: ["tracked"],
+    });
+  });
+
   it("lists the skills mount at the virtual root", async () => {
     const bash = await makeBash();
     const result = await bash.exec("ls /");
     expect(result.stdout.split("\n").filter(Boolean).sort()).toEqual([
+      "dev",
       "skills",
       "task",
     ]);

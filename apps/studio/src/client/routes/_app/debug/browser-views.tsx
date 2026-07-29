@@ -179,7 +179,7 @@ function RouteComponent() {
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
         <header className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-base font-semibold">Agent Browsers</h1>
+            <h1 className="text-base font-semibold">Agent browsers</h1>
             <p className="text-xs text-muted-foreground">
               Live view of every agent-controlled browser plus the per-task
               machines that decide when to clean them up.

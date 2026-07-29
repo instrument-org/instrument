@@ -405,7 +405,8 @@ const getTaskFileOpenTarget = base
     return await getFileOpenTarget(fullPath);
   });
 
-// Every app that can open the file (default first), for an "Open with" picker.
+// Every app that can open the file, for an "Open with" picker. The system's own
+// choice carries `isDefault`; its position in the list is not meaningful.
 // Empty on non-macOS platforms, which lack a portable enumeration.
 const getTaskFileOpenCandidates = base
   .input(

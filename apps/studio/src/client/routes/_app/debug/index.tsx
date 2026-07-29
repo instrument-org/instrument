@@ -38,7 +38,7 @@ function RouteComponent() {
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-8">
         <header className="flex flex-col gap-1">
           <p className="text-sm font-medium text-muted-foreground">
-            Debug Home
+            Debug home
           </p>
           <h1 className="text-2xl font-semibold tracking-tight">
             Jump to a debug route.
@@ -53,11 +53,11 @@ function RouteComponent() {
                 key={route.to}
                 to={route.to}
               >
-                <Card className="h-full gap-4 bg-card/80 transition-colors hover:bg-accent/40">
+                <Card className="h-full gap-4 bg-card/80 hover:bg-accent/40">
                   <CardHeader>
                     <div className="flex items-start justify-between gap-4">
                       <CardTitle className="text-xl">{route.label}</CardTitle>
-                      <div className="rounded-full border bg-background p-2 text-muted-foreground transition-colors group-hover:text-foreground">
+                      <div className="rounded-full border bg-background p-2 text-muted-foreground group-hover:text-foreground">
                         <ArrowRightIcon className="size-4" />
                       </div>
                     </div>
@@ -75,7 +75,7 @@ function RouteComponent() {
 
         <Card>
           <CardHeader>
-            <CardTitle>System Info</CardTitle>
+            <CardTitle>System info</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>

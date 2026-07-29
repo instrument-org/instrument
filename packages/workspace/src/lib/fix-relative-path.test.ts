@@ -8,6 +8,7 @@ describe("fixRelativePath", () => {
     { input: "src/index.ts", label: "relative without leading dot" },
     { input: "/src/index.ts", label: "leading-slash path (converted to ./)" },
     { input: "file.txt", label: "bare filename" },
+    { input: "./..foo", label: "filename starting with two dots" },
   ])("accepts $label", ({ input }) => {
     expect(fixRelativePath(input)).not.toBeNull();
   });
@@ -18,20 +19,13 @@ describe("fixRelativePath", () => {
       input: "./src/../../../outside.txt",
       label: "nested forward-slash traversal",
     },
+    { input: "..", label: "bare parent" },
+    { input: "/..", label: "leading-slash parent" },
+    {
+      input: "./subdir\\..\\..\\outside.txt",
+      label: "Windows backslash traversal",
+    },
   ])("rejects $label", ({ input }) => {
     expect(fixRelativePath(input)).toBeNull();
-  });
-
-  // Confirms the known bypass: fixRelativePath only checks for "../" (forward
-  // slash). A backslash traversal like "./subdir\..\..\outside.txt" slips
-  // through because the check is !path.includes("../") and the path only
-  // contains "..\". The security boundary for this case is enforced by
-  // resolvePathWithinTaskDir (which normalizes backslashes before checking
-  // containment) — see its own test file and the tool-layer tests.
-  it("BYPASS: passes Windows backslash traversal (fixRelativePath gap)", () => {
-    const input = "./subdir\\..\\..\\outside.txt";
-    // The path contains "..\\" but no "../" → slips through fixRelativePath.
-    const result = fixRelativePath(input);
-    expect(result).not.toBeNull();
   });
 });

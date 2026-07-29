@@ -16,6 +16,11 @@ export function getWorkspaceConfig(): WorkspaceConfig {
   return current;
 }
 
+/** True once a config is set. For callers that can supply one if it is absent. */
+export function hasWorkspaceConfig(): boolean {
+  return current !== undefined;
+}
+
 export function setWorkspaceConfig(config: WorkspaceConfig): void {
   current = config;
 }

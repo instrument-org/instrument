@@ -16,16 +16,14 @@ export async function forkExecCommand(
   }>((resolve, reject) => {
     let stdout = "";
     let stderr = "";
+    // `fork`'s own signal handling covers an already-aborted signal (the child
+    // is never spawned) and tears the listener down with the child. Hooking
+    // `abort` by hand did neither.
     const child = fork(modulePath, args, {
+      signal,
       stdio: "pipe",
       ...options,
     });
-
-    if (signal) {
-      signal.addEventListener("abort", () => {
-        child.kill();
-      });
-    }
 
     child.stdout?.on("data", (data: Buffer) => {
       stdout += data.toString();
@@ -36,7 +34,9 @@ export async function forkExecCommand(
     });
 
     child.on("close", (code) => {
-      resolve({ exitCode: code ?? 0, stderr, stdout });
+      // A child killed by a signal reports a null code; treating that as 0 made
+      // it indistinguishable from a clean exit.
+      resolve({ exitCode: code ?? 1, stderr, stdout });
     });
 
     // Must handle this error or Electron will show error window

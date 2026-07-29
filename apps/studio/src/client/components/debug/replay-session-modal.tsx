@@ -111,7 +111,7 @@ export function ReplaySessionModal({
     <AlertDialog onOpenChange={handleOpenChange} open={isOpen}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Replay Chat</AlertDialogTitle>
+          <AlertDialogTitle>Replay chat</AlertDialogTitle>
           <AlertDialogDescription>
             Replays the full chat session, re-running each tool call to produce
             fresh output. Choose where the replay should run.

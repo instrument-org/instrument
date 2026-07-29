@@ -3,9 +3,13 @@ import { describe, expect, it } from "vitest";
 import { matchSkills } from "./skill-search";
 
 const skills = [
-  { description: "Ship a release", name: "release" },
-  { description: "Write a Word document", name: "docx" },
-  { description: "Run the test suite", name: "test" },
+  { description: "Ship a release", id: "workspace:release", name: "release" },
+  { description: "Write a Word document", id: "instrument:docx", name: "docx" },
+  {
+    description: "Run the test suite",
+    id: "claude:test",
+    name: "test",
+  },
 ];
 
 describe("matchSkills", () => {
@@ -25,13 +29,26 @@ describe("matchSkills", () => {
 
   it("ranks by name and reports which characters matched", () => {
     const matches = matchSkills(skills, "release");
-    expect(matches.map((match) => match.skill.name)).toEqual(["release"]);
+    expect(matches.map((match) => match.skill.id)).toEqual([
+      "workspace:release",
+    ]);
     expect(matches[0]?.nameRanges).not.toBeNull();
   });
 
   it("matches against the description, not only the name", () => {
     const matches = matchSkills(skills, "document");
-    expect(matches.map((match) => match.skill.name)).toContain("docx");
+    expect(matches.map((match) => match.skill.id)).toContain("instrument:docx");
+  });
+
+  it("matches a name typed with its source prefix", () => {
+    const matches = matchSkills(skills, "claude:test");
+    expect(matches.map((match) => match.skill.id)).toEqual(["claude:test"]);
+  });
+
+  it("reports ranges over the plain name the caller displays", () => {
+    const [match] = matchSkills(skills, "test");
+    // "test" sits at 7 in "claude:test" and at 0 in what the menu renders.
+    expect(match?.nameRanges).toEqual([0, 4]);
   });
 
   it("returns nothing when the query matches no skill", () => {

@@ -24,7 +24,7 @@ export function ModelChip({
     <div className={`flex items-center gap-1 ${className}`}>
       {provider && (
         <AIProviderIcon
-          className="size-3 shrink-0 opacity-70"
+          className="size-3.5 shrink-0 opacity-70"
           type={provider}
         />
       )}

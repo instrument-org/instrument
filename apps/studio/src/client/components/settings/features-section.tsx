@@ -32,7 +32,7 @@ export function FeaturesSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-base font-semibold">Feature Flags</h3>
+        <h3 className="text-base font-semibold">Feature flags</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Enable or disable experimental features. Changes take effect
           immediately.

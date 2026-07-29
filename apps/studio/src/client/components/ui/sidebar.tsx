@@ -7,6 +7,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import {
+  type ClickActivation,
+  immediateClickHandlers,
+} from "@/client/lib/immediate-click";
 import { cn } from "@/client/lib/utils";
 import { SIDEBAR_WIDTH } from "@/shared/constants";
 import { Slot } from "@radix-ui/react-slot";
@@ -393,15 +397,19 @@ function SidebarMenuBadge({
 }
 
 function SidebarMenuButton({
+  activation,
   asChild = false,
   className,
   isActive = false,
+  onClick,
+  onPointerDown,
   size = "default",
   tooltip,
   variant = "default",
   ...props
 }: React.ComponentProps<"button"> &
   VariantProps<typeof sidebarMenuButtonVariants> & {
+    activation?: ClickActivation;
     asChild?: boolean;
     isActive?: boolean;
     tooltip?: React.ComponentProps<typeof TooltipContent> | string;
@@ -416,6 +424,13 @@ function SidebarMenuButton({
       data-sidebar="menu-button"
       data-size={size}
       data-slot="sidebar-menu-button"
+      {...immediateClickHandlers<HTMLButtonElement>({
+        // Most of these wrap an `InternalLink`, which navigates on press
+        // itself. Activating here too would navigate twice.
+        activation: activation ?? (asChild ? "release" : "pointer-down"),
+        onClick,
+        onPointerDown,
+      })}
       {...props}
     />
   );

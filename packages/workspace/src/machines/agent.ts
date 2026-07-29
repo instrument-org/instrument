@@ -9,6 +9,7 @@ import {
   assign,
   fromPromise,
   raise,
+  sendTo,
   setup,
 } from "xstate";
 
@@ -28,10 +29,7 @@ import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { getToolByType, type ToolOutputByName } from "../tools/all";
 import { type AnyAgentTool } from "../tools/types";
-import {
-  type ExecuteToolCallActorRef,
-  executeToolCallMachine,
-} from "./execute-tool-call";
+import { executeToolCallMachine } from "./execute-tool-call";
 
 export type AgentParentEvent =
   | {
@@ -203,12 +201,13 @@ export const agentMachine = setup({
   },
 
   types: {
+    children: {} as { toolCall: "executeToolCallMachine" },
     context: {} as {
       agent: AnyAgent;
       baseLLMRetryDelayMs: number;
       error?: unknown;
       llmRequestChunkTimeoutMs: number;
-      maxRetryCount: number;
+      maxAttemptCount: number;
       maxStepCount: number;
       model: AIGatewayModel.Type;
       parentMessageId: StoreId.Message;
@@ -218,8 +217,8 @@ export const agentMachine = setup({
       sessionId: StoreId.Session;
       spawnAgent: SpawnAgentFunction;
       stepCount: number;
+      stopRequested: boolean;
       taskId: TaskId;
-      toolCallExecuteRef: ExecuteToolCallActorRef | null;
       toolCallQueue: SessionMessagePart.ToolPartInputAvailable[];
       toolChoice?: "auto" | "none" | "required";
     },
@@ -244,7 +243,7 @@ export const agentMachine = setup({
     agent: input.agent,
     baseLLMRetryDelayMs: input.baseLLMRetryDelayMs,
     llmRequestChunkTimeoutMs: input.llmRequestChunkTimeoutMs,
-    maxRetryCount: 3,
+    maxAttemptCount: 3,
     maxStepCount: input.maxStepCount || 1,
     model: input.model,
     parentMessageId: input.parentMessageId,
@@ -254,8 +253,8 @@ export const agentMachine = setup({
     sessionId: input.sessionId,
     spawnAgent: input.spawnAgent,
     stepCount: 0,
+    stopRequested: false,
     taskId: input.taskId,
-    toolCallExecuteRef: null,
     toolCallQueue: [],
     toolChoice: input.toolChoice,
   }),
@@ -275,13 +274,6 @@ export const agentMachine = setup({
       target: ".Finishing",
     },
     stop: {
-      actions: [
-        ({ context }) => {
-          if (context.toolCallExecuteRef) {
-            context.toolCallExecuteRef.send({ type: "stop" });
-          }
-        },
-      ],
       target: ".Finishing",
     },
     updateInteractiveToolCall: {
@@ -343,6 +335,7 @@ export const agentMachine = setup({
 
     ExecutingToolCall: {
       invoke: {
+        id: "toolCall",
         input: ({ context }) => {
           const [nextToolCall] = context.toolCallQueue;
           invariant(nextToolCall, "No tool call to execute");
@@ -362,7 +355,6 @@ export const agentMachine = setup({
         },
         onDone: {
           actions: assign({
-            toolCallExecuteRef: () => null,
             // Note: If we ever allow parallel tool calls, we'll need to filter
             // by id instead of just removing the first item.
             toolCallQueue: ({ context }) => {
@@ -373,15 +365,23 @@ export const agentMachine = setup({
           target: "MaybeExecutingToolCalls",
         },
         onError: {
-          actions: [
-            "assignEventError",
-            assign({
-              toolCallExecuteRef: () => null,
-            }),
-          ],
+          actions: "assignEventError",
           target: "MaybeExecutingToolCalls",
         },
         src: "executeToolCallMachine",
+      },
+      on: {
+        // Handled here instead of falling through to the machine-level `stop`:
+        // leaving this state hard-stops the invoked child, which skips its own
+        // `stop` handler and leaves the tool part stuck in `input-available`.
+        // Staying put lets the child write its "stopped by you" part first, and
+        // `MaybeExecutingToolCalls` routes to `Finishing` once it is done.
+        stop: {
+          actions: [
+            assign({ stopRequested: true }),
+            sendTo("toolCall", { type: "stop" }),
+          ],
+        },
       },
     },
 
@@ -475,7 +475,11 @@ export const agentMachine = setup({
               retryCount: ({ context }) => context.retryCount + 1,
             }),
             guard: ({ context }) => {
-              return context.retryCount + 1 < context.maxRetryCount;
+              // The initial request spends one of the attempts, and XState runs
+              // guards before the transition's actions, so `retryCount` is
+              // still the number of retries already made.
+              const attemptsSoFar = context.retryCount + 1;
+              return attemptsSoFar < context.maxAttemptCount;
             },
             target: "RetryingWithDelay",
           },
@@ -528,16 +532,14 @@ export const agentMachine = setup({
     MaybeExecutingToolCalls: {
       always: [
         {
+          guard: ({ context }) => context.stopRequested,
+          target: "Finishing",
+        },
+        {
           guard: ({ context }) => context.toolCallQueue.length > 0,
           target: "ExecutingToolCall",
         },
         {
-          // If no more tool calls and no current execution, move to next state
-          guard: ({ context }) => {
-            return (
-              context.toolCallQueue.length === 0 && !context.toolCallExecuteRef
-            );
-          },
           target: "MaybeWaitingForPendingToolCalls",
         },
       ],

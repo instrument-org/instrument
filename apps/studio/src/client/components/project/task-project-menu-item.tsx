@@ -21,7 +21,7 @@ export function TaskProjectMenuItem({
     rpcClient.workspace.project.live.list.experimental_liveOptions(),
   );
 
-  const { mutateAsync: addTask } = useMutation(
+  const { mutate: addTask } = useMutation(
     rpcClient.workspace.project.addTask.mutationOptions({
       onError: (error) => {
         toast.error("Failed to add task to project", {
@@ -31,7 +31,7 @@ export function TaskProjectMenuItem({
     }),
   );
 
-  const { mutateAsync: removeTask } = useMutation(
+  const { mutate: removeTask } = useMutation(
     rpcClient.workspace.project.removeTask.mutationOptions({
       onError: (error) => {
         toast.error("Failed to remove task from project", {
@@ -57,7 +57,7 @@ export function TaskProjectMenuItem({
             <Item
               key={project.id}
               onSelect={() => {
-                void addTask({ projectId: project.id, taskId });
+                addTask({ projectId: project.id, taskId });
               }}
             >
               <BagIcon className="size-4 text-muted-foreground" />
@@ -78,7 +78,7 @@ export function TaskProjectMenuItem({
       {currentProjectId && (
         <Item
           onSelect={() => {
-            void removeTask({ taskId });
+            removeTask({ taskId });
           }}
         >
           <XCircleIcon className="size-4 text-muted-foreground" />

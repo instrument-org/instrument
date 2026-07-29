@@ -16,13 +16,9 @@ interface ThemeProviderState {
   theme: Theme;
 }
 
-const initialState: ThemeProviderState = {
-  resolvedTheme: "light",
-  setTheme: () => null,
-  theme: "system",
-};
-
-const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
+const ThemeProviderContext = createContext<ThemeProviderState | undefined>(
+  undefined,
+);
 
 export function ThemeProvider({
   children,
@@ -85,7 +81,6 @@ export function ThemeProvider({
 export const useTheme = () => {
   const context = useContext(ThemeProviderContext);
 
-  // oxlint-disable-next-line typescript/no-unnecessary-condition
   if (context === undefined) {
     throw new Error("useTheme must be used within a ThemeProvider");
   }

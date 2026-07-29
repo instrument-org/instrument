@@ -3,6 +3,8 @@ import type { ModelMessage } from "ai";
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { dedent } from "radashi";
 
+import { mapModelMessageParts } from "./model-message-parts";
+
 type MediaCategory = "audio" | "file" | "image" | "video";
 
 const MEDIA_LABELS: Record<MediaCategory, string> = {
@@ -19,101 +21,33 @@ const MEDIA_FEATURE_MAP: Record<MediaCategory, AIGatewayModel.ModelFeatures> = {
   video: "inputVideo",
 };
 
+/**
+ * Replace media a model cannot read with a note saying so.
+ *
+ * Runs over every media slot the shared traversal knows about, which includes
+ * the ones inside a tool result: an image the agent read is media the model was
+ * never sent by the user, and a model without image input chokes on it just the
+ * same.
+ */
 export function filterUnsupportedMedia({
   messages,
   model,
 }: {
   messages: ModelMessage[];
   model: AIGatewayModel.Type;
-}): ModelMessage[] {
-  return messages.map((message) => {
-    if (message.role === "user" && Array.isArray(message.content)) {
-      message.content = message.content.map((part) => {
-        if (
-          typeof part === "object" &&
-          "type" in part &&
-          part.type === "file" &&
-          "mediaType" in part &&
-          typeof part.mediaType === "string"
-        ) {
-          const replacementText = maybeCreateReplacementText(
-            part.mediaType,
-            model,
-          );
-          if (replacementText) {
-            return { text: replacementText, type: "text" };
-          }
-        }
-        return part;
-      });
-    }
-
-    if (message.role === "assistant" && Array.isArray(message.content)) {
-      message.content = message.content.map((part) => {
-        if (
-          typeof part === "object" &&
-          "type" in part &&
-          part.type === "file" &&
-          "mediaType" in part &&
-          typeof part.mediaType === "string"
-        ) {
-          const replacementText = maybeCreateReplacementText(
-            part.mediaType,
-            model,
-          );
-          if (replacementText) {
-            return { text: replacementText, type: "text" };
-          }
-        }
-        return part;
-      });
-    }
-
-    if (message.role === "tool" && Array.isArray(message.content)) {
-      message.content = message.content.map((part) => {
-        if (
-          typeof part === "object" &&
-          "output" in part &&
-          typeof part.output === "object" &&
-          "type" in part.output &&
-          part.output.type === "content" &&
-          "value" in part.output &&
-          Array.isArray(part.output.value)
-        ) {
-          part.output.value = part.output.value.map((valuePart) => {
-            // Workaround for the entire valuePart.type being marked as deprecated
-            // due to the deprecation of type === "media"
-            const narrowedPart = valuePart as Exclude<
-              typeof valuePart,
-              { type: "media" }
-            >;
-
-            if (
-              typeof narrowedPart === "object" &&
-              "type" in narrowedPart &&
-              (narrowedPart.type === "image-data" ||
-                narrowedPart.type === "file-data") &&
-              "mediaType" in narrowedPart &&
-              typeof narrowedPart.mediaType === "string"
-            ) {
-              const replacementText = maybeCreateReplacementText(
-                narrowedPart.mediaType,
-                model,
-              );
-              if (replacementText) {
-                return { text: replacementText, type: "text" as const };
-              }
-            }
-
-            return valuePart;
-          });
-        }
-
-        return part;
-      });
-    }
-
-    return message;
+}) {
+  return mapModelMessageParts(messages, {
+    media: ({ mediaType }) => {
+      // Capability is declared per media type, so media that declares none
+      // cannot be matched against it either way.
+      const replacementText =
+        mediaType === undefined
+          ? null
+          : maybeCreateReplacementText(mediaType, model);
+      return replacementText
+        ? { note: replacementText, state: "dropped" }
+        : { state: "unchanged" };
+    },
   });
 }
 

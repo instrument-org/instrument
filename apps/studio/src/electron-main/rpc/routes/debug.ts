@@ -188,6 +188,7 @@ const trigger = {
         status: {
           notifyUser: true,
           type: "not-available",
+          updateInfo: null,
         },
       });
     });
@@ -197,6 +198,7 @@ const trigger = {
       status: {
         notifyUser: false,
         type: "not-available",
+        updateInfo: null,
       },
     });
   }),

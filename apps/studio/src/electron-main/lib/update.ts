@@ -1,3 +1,7 @@
+import {
+  createAppUpdater,
+  type UpdaterPort,
+} from "@/electron-main/lib/create-app-updater";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
@@ -5,12 +9,10 @@ import {
   RELEASES_BUCKET_URL,
 } from "@instrument-org/shared";
 import { app } from "electron";
-import pkg, { type ProgressInfo, type UpdateInfo } from "electron-updater";
-import ms from "ms";
+import pkg from "electron-updater";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
-import semver from "semver";
 
 import { getPreferencesStore, setLastUpdateCheck } from "../stores/preferences";
 
@@ -26,273 +28,54 @@ const IS_MACOS_INTEL = os.platform() === "darwin" && os.arch() === "x64";
 // macOS on Intel is the only custom channel, otherwise use the defaults.
 const MACOS_INTEL_CHANNEL = "latest-x64";
 
-export type AppUpdaterStatus =
-  | AppUpdaterStatusChecking
-  | AppUpdaterStatusDownloading
-  | AppUpdaterStatusError
-  | AppUpdaterStatusInstalling
-  | AppUpdaterStatusNotAvailable
-  | AppUpdaterStatusWithUpdateInfo;
+export function createStudioAppUpdater({
+  confirmQuit,
+}: { confirmQuit?: ConfirmQuit } = {}) {
+  autoUpdater.logger = logger.scope("appUpdater:autoUpdater");
+  autoUpdater.autoDownload = true;
+  autoUpdater.disableWebInstaller = true;
+  autoUpdater.forceDevUpdateConfig =
+    process.env.FORCE_DEV_AUTO_UPDATE === "true";
 
-interface AppUpdaterStatusChecking extends BaseAppUpdaterStatus {
-  type: "checking";
-}
+  const port: UpdaterPort = {
+    checkForUpdates: () => autoUpdater.checkForUpdates(),
+    configureFeed: () => {
+      autoUpdater.setFeedURL({
+        channel: getChannel(),
+        provider: "generic",
+        updaterCacheDirName: APP_UPDATER_CACHE_DIR_NAME,
+        url: RELEASES_BUCKET_URL,
+      });
+    },
+    install: installStagedUpdate,
+    isActive: () => autoUpdater.isUpdaterActive(),
+    subscribe: (handlers) => {
+      autoUpdater.on("download-progress", handlers.progress);
+      autoUpdater.on("error", handlers.failed);
+      autoUpdater.on("update-available", handlers.available);
+      autoUpdater.on("update-cancelled", handlers.canceled);
+      autoUpdater.on("update-downloaded", handlers.downloaded);
+      autoUpdater.on("update-not-available", handlers.notAvailable);
+    },
+  };
 
-interface AppUpdaterStatusDownloading extends BaseAppUpdaterStatus {
-  progress: ProgressInfo;
-  type: "downloading";
-}
-
-interface AppUpdaterStatusError extends BaseAppUpdaterStatus {
-  message: string;
-  type: "error";
-}
-
-interface AppUpdaterStatusInstalling extends BaseAppUpdaterStatus {
-  notice?: string;
-  type: "installing";
-}
-
-interface AppUpdaterStatusNotAvailable extends BaseAppUpdaterStatus {
-  type: "not-available";
-}
-
-interface AppUpdaterStatusWithUpdateInfo extends BaseAppUpdaterStatus {
-  type: "available" | "canceled" | "downloaded" | "inactive" | "not-available";
-  updateInfo: null | UpdateInfo;
-}
-
-interface BaseAppUpdaterStatus {
-  notifyUser: boolean;
-}
-
-export class StudioAppUpdater {
-  // perfectionist/sort-classes orders this public getter before the private
-  // fields below, which keeps it apart from the private setter.
-  // oxlint-disable-next-line typescript/adjacent-overload-signatures
-  public get status() {
-    return this.#status;
-  }
-  #confirmQuit: ConfirmQuit | undefined;
-  #notify = false;
-
-  #status: AppUpdaterStatus | null = null;
-
-  private set status(status: AppUpdaterStatus | null) {
-    if (status && !this.#shouldApplyStatus(status)) {
-      return;
-    }
-    this.#status = status;
-    if (status) {
+  const updater = createAppUpdater({
+    confirmQuit,
+    getCurrentVersion: () => app.getVersion(),
+    installNotice: getInstallNotice(),
+    log: scopedLogger,
+    publish: (status) => {
       publisher.publish("updates.status", { status });
-    }
-  }
+    },
+    recordCheck: setLastUpdateCheck,
+    updater: port,
+  });
 
-  public constructor({ confirmQuit }: { confirmQuit?: ConfirmQuit } = {}) {
-    this.#confirmQuit = confirmQuit;
-    autoUpdater.logger = logger.scope("appUpdater:autoUpdater");
-    autoUpdater.autoDownload = true;
-    autoUpdater.disableWebInstaller = true;
-    autoUpdater.forceDevUpdateConfig =
-      process.env.FORCE_DEV_AUTO_UPDATE === "true";
+  publisher.subscribe("updates.trigger-check", () => {
+    void updater.checkForUpdates({ notify: true });
+  });
 
-    this.#configureFeedURL();
-
-    autoUpdater.on("update-available", (updateInfo) => {
-      scopedLogger.info("Update available");
-      this.status = {
-        notifyUser: this.#notify,
-        type: "available",
-        updateInfo,
-      };
-    });
-
-    autoUpdater.on("update-not-available", (updateInfo) => {
-      scopedLogger.info("Update not available");
-      this.status = {
-        notifyUser: this.#notify,
-        type: "not-available",
-        updateInfo,
-      };
-    });
-
-    autoUpdater.on("download-progress", (progress) => {
-      scopedLogger.info(
-        `Download progress: ${progress.percent}%, ${progress.transferred}/${progress.total}`,
-      );
-      this.status = {
-        notifyUser: this.#notify,
-        progress,
-        type: "downloading",
-      };
-    });
-
-    autoUpdater.on("update-downloaded", (updateInfo) => {
-      scopedLogger.info("Update downloaded");
-      this.status = {
-        // Always notify when an updates is ready to install
-        notifyUser: true,
-        type: "downloaded",
-        updateInfo,
-      };
-    });
-
-    autoUpdater.on("error", (err) => {
-      scopedLogger.error("AutoUpdater error:", err);
-      this.status = {
-        message: err.message,
-        notifyUser: this.#notify,
-        type: "error",
-      };
-    });
-
-    autoUpdater.on("update-cancelled", (updateInfo) => {
-      scopedLogger.info("Update canceled");
-      this.status = {
-        notifyUser: this.#notify,
-        type: "canceled",
-        updateInfo,
-      };
-    });
-
-    publisher.subscribe("updates.trigger-check", () => {
-      void this.checkForUpdates({ notify: true });
-    });
-  }
-
-  public async checkForUpdates({ notify }: { notify?: boolean } = {}) {
-    this.#notify = notify ?? false;
-    this.#configureFeedURL();
-
-    this.status = {
-      notifyUser: this.#notify,
-      type: "checking",
-    };
-
-    const isUpdaterActive = autoUpdater.isUpdaterActive();
-
-    if (!isUpdaterActive) {
-      this.status = {
-        notifyUser: this.#notify,
-        type: "inactive",
-        updateInfo: null,
-      };
-      return;
-    }
-
-    return await autoUpdater.checkForUpdates().catch((error: unknown) => {
-      scopedLogger.error("Error checking for updates:", error);
-    });
-  }
-
-  public pollForUpdates() {
-    void this.checkForUpdates();
-    setLastUpdateCheck();
-    setInterval(() => {
-      void this.checkForUpdates();
-      setLastUpdateCheck();
-    }, ms("1 hour"));
-  }
-
-  public async quitAndInstall() {
-    // Confirm before marking `installing`, so a cancel leaves the badge on
-    // `downloaded`. before-quit then sees the `installing` status and skips a
-    // second prompt.
-    if (this.#confirmQuit && !(await this.#confirmQuit())) {
-      return;
-    }
-
-    try {
-      if (os.platform() === "linux") {
-        // On Linux, use app.relaunch() and app.quit() to avoid hanging issues
-        // with autoUpdater.quitAndInstall()
-        const notice = isUbuntu()
-          ? 'Update is installing and may take a few minutes to complete. Please ignore any "Force quit" dialogs. The app will restart when complete.'
-          : "Update is installing. Please allow a few minutes for the update to complete. The app will restart when complete.";
-
-        this.status = {
-          notice,
-          notifyUser: true,
-          type: "installing",
-        };
-
-        // cspell:ignore PRIVS pkexec
-        // app.relaunch() on Linux sets PR_SET_NO_NEW_PRIVS=1 on the child
-        // process, permanently stripping pkexec/sudo privileges so future
-        // updates cannot authenticate. Spawn a detached process that waits
-        // for us to exit before launching, bypassing the zygote inheritance.
-        // See: https://github.com/electron/electron/issues/41463
-        const child = spawn(
-          "sh",
-          [
-            "-c",
-            `while kill -0 ${process.pid} 2>/dev/null; do sleep 0.1; done; ${process.execPath} ${process.argv
-              .slice(1)
-              .map((a) => JSON.stringify(a))
-              .join(" ")} & disown`,
-          ],
-          { detached: true, stdio: "ignore" },
-        );
-        child.unref();
-        app.quit();
-        return;
-      }
-
-      this.status = {
-        notifyUser: true,
-        type: "installing",
-      };
-      autoUpdater.quitAndInstall();
-    } catch (error) {
-      // The error status clears `installing`, so a later quit warns again.
-      scopedLogger.error("Error quitting and installing:", error);
-      this.status = {
-        message: error instanceof Error ? error.message : String(error),
-        notifyUser: true,
-        type: "error",
-      };
-    }
-  }
-
-  #configureFeedURL() {
-    autoUpdater.setFeedURL({
-      channel: getChannel(),
-      provider: "generic",
-      updaterCacheDirName: APP_UPDATER_CACHE_DIR_NAME,
-      url: RELEASES_BUCKET_URL,
-    });
-  }
-
-  // A ready-to-install update is a fact that must survive background polling.
-  // Once `downloaded`, drop transient/negative statuses (checking, downloading,
-  // not-available, error, canceled) that would hide the badge. Only an explicit
-  // install or a strictly-newer build supersedes a staged update.
-  #shouldApplyStatus(next: AppUpdaterStatus): boolean {
-    const current = this.#status;
-    if (current?.type !== "downloaded") {
-      return true;
-    }
-
-    if (next.type === "installing") {
-      return true;
-    }
-
-    const stagedVersion = current.updateInfo?.version;
-    const nextVersion = getStatusVersion(next);
-    if (
-      stagedVersion &&
-      nextVersion &&
-      semver.valid(stagedVersion) &&
-      semver.valid(nextVersion) &&
-      semver.gt(nextVersion, stagedVersion)
-    ) {
-      return true;
-    }
-
-    // Re-emitting the same staged download refreshes harmlessly; everything
-    // else is background noise that must not erase the ready-to-install state.
-    return next.type === "downloaded";
-  }
+  return updater;
 }
 
 function getChannel() {
@@ -315,10 +98,43 @@ function getChannel() {
   return channel;
 }
 
-function getStatusVersion(status: AppUpdaterStatus): string | undefined {
-  return "updateInfo" in status
-    ? (status.updateInfo?.version ?? undefined)
-    : undefined;
+// Only Linux takes long enough, and involves enough OS noise, to need narrating.
+function getInstallNotice() {
+  if (os.platform() !== "linux") {
+    return;
+  }
+  return isUbuntu()
+    ? 'Update is installing and may take a few minutes to complete. Please ignore any "Force quit" dialogs. The app will restart when complete.'
+    : "Update is installing. Please allow a few minutes for the update to complete. The app will restart when complete.";
+}
+
+function installStagedUpdate() {
+  if (os.platform() === "linux") {
+    // cspell:ignore PRIVS pkexec
+    // Linux avoids autoUpdater.quitAndInstall(), which hangs here, and cannot use
+    // app.relaunch(): that sets PR_SET_NO_NEW_PRIVS=1 on the child process,
+    // permanently stripping the pkexec/sudo privileges future updates need to
+    // authenticate. Spawn a detached process that waits for us to exit before
+    // launching, bypassing the zygote inheritance.
+    // See: https://github.com/electron/electron/issues/41463
+    const child = spawn(
+      "sh",
+      [
+        "-c",
+        `while kill -0 ${process.pid} 2>/dev/null; do sleep 0.1; done; ${process.execPath} ${process.argv
+          .slice(1)
+          .map((a) => JSON.stringify(a))
+          .join(" ")} & disown`,
+      ],
+      { detached: true, stdio: "ignore" },
+    );
+    child.unref();
+    // The staged build is applied by electron-updater's own quit handler.
+    app.quit();
+    return;
+  }
+
+  autoUpdater.quitAndInstall();
 }
 
 function isUbuntu(): boolean {

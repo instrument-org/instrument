@@ -2,8 +2,9 @@
 
 import "@/electron-main/setup-environment"; // This must be imported first
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
+import { type AppUpdaterHandle } from "@/electron-main/lib/create-app-updater";
 import { runMigrations } from "@/electron-main/lib/run-migrations";
-import { StudioAppUpdater } from "@/electron-main/lib/update";
+import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
 import { getAppStateStore } from "@/electron-main/stores/app-state";
 import {
@@ -42,7 +43,7 @@ import {
 } from "./lib/theme-utils";
 import { applyStandardUserAgent } from "./lib/user-agent";
 import { initializeRPC } from "./rpc/initialize";
-let appUpdater: StudioAppUpdater | undefined;
+let appUpdater: AppUpdaterHandle | undefined;
 
 // Dev skips the single-instance lock so multiple worktrees can boot side by
 // side. Packaged builds keep it so second launches (deep links) forward to
@@ -169,12 +170,12 @@ async function bootstrapPrimaryInstance() {
     confirmQuitWithRunningAgents,
     workspaceConfig,
   } = createWorkspaceActor({
-    isQuitAlreadyConfirmed: () => appUpdater?.status?.type === "installing",
+    isQuitAlreadyConfirmed: () => appUpdater?.getStatus()?.type === "installing",
   });
 
   startAgentCompletionNotifications({ workspaceConfig, workspaceRef });
 
-  appUpdater = new StudioAppUpdater({
+  appUpdater = createStudioAppUpdater({
     confirmQuit: confirmQuitWithRunningAgents,
   });
   appUpdater.pollForUpdates();

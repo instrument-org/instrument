@@ -5,10 +5,10 @@ import {
 } from "@instrument-org/workspace/electron";
 
 import { type BrowserViewManager } from "../browser-view/manager";
-import { type StudioAppUpdater } from "../lib/update";
+import { type AppUpdaterHandle } from "../lib/create-app-updater";
 
 export interface InitialRPCContext extends WorkspaceRPCContext {
-  appUpdater: StudioAppUpdater;
+  appUpdater: AppUpdaterHandle;
   browserViewManager: BrowserViewManager;
   webContentsId: number;
   workspaceConfig: WorkspaceConfig;

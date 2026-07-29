@@ -80,7 +80,7 @@
     "electron-dl": "^4.0.0",
     "electron-log": "^5.4.1",
     "electron-store": "^10.1.0",
-    "electron-updater": "^6.8.3",
+    "electron-updater": "^6.8.9",
     "fix-path": "^5.0.0",
     "hono": "catalog:",
     "isbinaryfile": "^6.0.0",

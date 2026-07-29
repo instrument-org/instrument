@@ -3,7 +3,7 @@ import { publisher } from "@/electron-main/rpc/publisher";
 
 const live = {
   status: base.handler(async function* ({ context, signal }) {
-    yield context.appUpdater.status;
+    yield context.appUpdater.getStatus();
 
     for await (const payload of publisher.subscribe("updates.status", {
       signal,

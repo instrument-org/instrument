@@ -139,20 +139,32 @@ export function UpdateStatusIndicator() {
   const handleClick = () => {
     void (async () => {
       if (updateState?.type === "downloaded") {
-        const [error] = await safe(rpcClient.preferences.quitAndInstall.call());
-        if (!error) {
+        const [error, result] = await safe(
+          rpcClient.preferences.quitAndInstall.call(),
+        );
+        if (error) {
+          // Settings' update section holds the retry and manual-download recourse.
+          toast.error("Couldn't install the update", {
+            action: {
+              label: "Open Settings",
+              onClick: () => {
+                openSettings({ tab: "General" });
+              },
+            },
+            description: error.message,
+          });
           return;
         }
-        // Settings' update section holds the retry and manual-download recourse.
-        toast.error("Couldn't install the update", {
-          action: {
-            label: "Open Settings",
-            onClick: () => {
-              openSettings({ tab: "General" });
-            },
-          },
-          description: error.message,
-        });
+        // The badge has no copy beside it, so a pre-install check that found a
+        // newer release has to say so or the click looks like it did nothing.
+        // The second line is the important one: nothing restarts until they ask
+        // again, however long the download takes.
+        if (result.type === "deferred") {
+          toast.info(`Getting version ${result.version} instead`, {
+            description:
+              "A newer version was just released. You can install it once the download finishes.",
+          });
+        }
         return;
       }
 

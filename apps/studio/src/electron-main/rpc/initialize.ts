@@ -10,8 +10,8 @@ import { EventEmitter } from "node:events";
 
 import { type BrowserViewManager } from "../browser-view/manager";
 import { captureServerException } from "../lib/capture-server-exception";
+import { type AppUpdaterHandle } from "../lib/create-app-updater";
 import { isExpectedNetworkError } from "../lib/is-network-error";
-import { type StudioAppUpdater } from "../lib/update";
 import { type InitialRPCContext } from "./context";
 import { createErrorClientInterceptor } from "./error-interceptor";
 import { router } from "./routes";
@@ -95,7 +95,7 @@ export function initializeRPC({
   workspaceConfig,
   workspaceRef,
 }: {
-  appUpdater: StudioAppUpdater;
+  appUpdater: AppUpdaterHandle;
   browserViewManager: BrowserViewManager;
   workspaceConfig: WorkspaceConfig;
   workspaceRef: WorkspaceActorRef;

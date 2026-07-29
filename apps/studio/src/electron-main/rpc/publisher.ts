@@ -1,4 +1,4 @@
-import { type AppUpdaterStatus } from "@/electron-main/lib/update";
+import { type AppUpdaterStatus } from "@/electron-main/lib/update-status";
 import { type AppCommand } from "@/shared/app-command";
 import { EventPublisher } from "@orpc/server";
 

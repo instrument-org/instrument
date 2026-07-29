@@ -142,13 +142,12 @@ function About() {
         );
       }
       case "downloaded": {
+        const version = updateState.updateInfo?.version ?? "";
         return (
           <div className="text-xs text-muted-foreground">
             {isLinux()
-              ? `Version ${updateState.updateInfo?.version ?? ""} is
-            ready to install. Please allow a few minutes for the update to install. The app will relaunch when complete.`
-              : `Version ${updateState.updateInfo?.version ?? ""} is
-            ready to install.`}
+              ? `Version ${version} is ready to install. Installing takes a few minutes, and ${APP_NAME} restarts when it's done.`
+              : `Version ${version} is ready to install. ${APP_NAME} restarts when you install it.`}
           </div>
         );
       }
@@ -193,7 +192,7 @@ function About() {
       case "not-available": {
         return (
           <div className="text-xs text-muted-foreground">
-            No updates available
+            You&rsquo;re up to date.
           </div>
         );
       }

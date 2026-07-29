@@ -53,6 +53,7 @@ export const WriteFile = setupTool({
     - ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
     - NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
     - Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
+    - CRITICAL: never use this tool to re-emit content you already produced or read from disk, including to move a file somewhere the user can see it. That wastes tokens and corrupts bytes (line endings, whitespace, base64-ish or minified content). Copy or move it instead: \`cp work/foo.html output/foo.html\`.
   `,
   execute: async ({ input, signal, taskId, taskState }) => {
     const layout = buildWorkspaceFsLayout({

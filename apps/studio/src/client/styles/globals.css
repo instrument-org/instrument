@@ -400,6 +400,15 @@ body {
   --tw-prose-invert-th-borders: var(--border);
   --tw-prose-invert-td-borders: var(--border);
 
+  /* List markers (bullets, ordered numbers): use `--muted-foreground` instead
+     of Tailwind Typography's default cool gray, which reads as bluish next to
+     the app's warm neutrals. The token is already theme-aware, so the invert
+     variants point at the same value. */
+  --tw-prose-bullets: var(--muted-foreground);
+  --tw-prose-counters: var(--muted-foreground);
+  --tw-prose-invert-bullets: var(--muted-foreground);
+  --tw-prose-invert-counters: var(--muted-foreground);
+
   h1,
   h2,
   h3,

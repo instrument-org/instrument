@@ -70,6 +70,7 @@ const PAGES = [
   { label: "/tasks", to: "/tasks" },
   { label: "/tutorial-task", to: "/tutorial-task" },
   { label: "/subscribe", to: "/subscribe" },
+  { label: "/release-notes", to: "/release-notes" },
   // No skill can answer to this, so it exercises the redirect a deleted skill
   // takes: a toast, then the skills list.
   {

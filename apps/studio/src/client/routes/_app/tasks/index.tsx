@@ -377,8 +377,8 @@ function RouteComponent() {
     <div className="mx-auto w-full max-w-7xl flex-1">
       <div>
         <div className="mx-auto px-4 pt-10 @xl/app-content:px-6 @5xl/app-content:px-8 @5xl/app-content:pt-20 @5xl/app-content:pb-4">
-          <div className="flex flex-col items-center gap-y-4 text-center">
-            <h1 className="text-3xl font-bold tracking-tight @5xl/app-content:text-4xl">
+          <div className="flex flex-col items-center gap-y-2 text-center">
+            <h1 className="font-serif text-3xl leading-10 font-normal">
               Your tasks
             </h1>
             <CommandMenuCTA />

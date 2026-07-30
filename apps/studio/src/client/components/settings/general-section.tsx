@@ -1,3 +1,4 @@
+import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { AccountInfo } from "@/client/components/account-info";
 import { ExternalLink } from "@/client/components/external-link";
 import { ThemeToggle } from "@/client/components/theme-toggle";
@@ -14,6 +15,7 @@ import {
 import { Switch } from "@/client/components/ui/switch";
 import { ZoomStepper } from "@/client/components/zoom-controls";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -23,6 +25,7 @@ import {
 } from "@instrument-org/shared";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useSetAtom } from "jotai";
 import { type ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -77,6 +80,14 @@ function About() {
   );
 
   const developerMode = useDeveloperMode();
+
+  const { addTab } = useTabActions();
+  const closeSettings = useSetAtom(settingsModalAtom);
+
+  const handleOpenReleaseNotes = () => {
+    void addTab({ to: "/release-notes" });
+    closeSettings(null);
+  };
 
   const { data: appEnvironment } = useQuery({
     ...rpcClient.debug.getAppEnvironment.queryOptions(),
@@ -285,6 +296,13 @@ function About() {
                   : appVersion?.version || "Unknown"}
               </div>
               {getUpdateStatusContent()}
+              <Button
+                className="h-auto p-0 text-xs font-normal text-foreground"
+                onClick={handleOpenReleaseNotes}
+                variant="link"
+              >
+                Release notes
+              </Button>
             </div>
             <div className="shrink-0">{getActionButton()}</div>
           </div>
@@ -394,14 +412,22 @@ function Notifications() {
   return (
     <SettingsSection title="Notifications">
       <Card className="p-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="space-y-0.5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
             <Label htmlFor="agent-completion-notifications">
               Notify when tasks finish
             </Label>
             <p className="text-xs text-muted-foreground">
               Show a desktop notification when a task finishes.
             </p>
+            <Button
+              className="h-auto p-0 text-xs font-normal text-foreground"
+              disabled={sendTestNotificationMutation.isPending}
+              onClick={handleSendTest}
+              variant="link"
+            >
+              Send a test notification
+            </Button>
           </div>
           <Select
             disabled={setAgentCompletionNotificationsMutation.isPending}
@@ -429,16 +455,6 @@ function Notifications() {
               ))}
             </SelectContent>
           </Select>
-        </div>
-        <div className="mt-3 flex items-center border-t pt-3">
-          <Button
-            className="h-auto p-0 text-xs font-normal text-muted-foreground"
-            disabled={sendTestNotificationMutation.isPending}
-            onClick={handleSendTest}
-            variant="link"
-          >
-            Send a test notification
-          </Button>
         </div>
       </Card>
     </SettingsSection>

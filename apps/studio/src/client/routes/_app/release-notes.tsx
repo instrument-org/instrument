@@ -150,7 +150,6 @@ function RouteComponent() {
                       <Markdown
                         allowRawHtml // To support GitHub's HTML-based image attachments
                         markdown={release.body}
-                        preserveLineBreaks={false}
                       />
                     </div>
                   ) : (

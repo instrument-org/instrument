@@ -74,7 +74,7 @@ Five read-only viewers, each with page/slide navigation and zoom, text selection
 
 | | PDF | DOCX | PPTX | XLSX | CSV/TSV |
 | --- | --- | --- | --- | --- | --- |
-| Nav + zoom | plugin-zoom, plugin-scroll | measured page + CSS zoom | `usePptxViewer` | controller zoom, sheet tabs | ours |
+| Nav + zoom | plugin-zoom, plugin-scroll | measured page + CSS zoom | `usePptxViewer` | controller zoom, sheet tabs | sort only, no zoom |
 | Selection + copy | `SelectionLayer` + `CopyToClipboard` | DOM text, free | DOM text, free | controller cell selection | ours |
 | Find | plugin-search | **not shipped** | `controller.search` | **not shipped** | ours |
 | Thumbnail rail | plugin-thumbnail | `useDocxViewerThumbnails` | `controller.renderThumbnail` | n/a, sheet tabs | n/a |
@@ -84,6 +84,10 @@ Five read-only viewers, each with page/slide navigation and zoom, text selection
 PDF selection needed far less than expected: `@embedpdf/plugin-selection` ships `SelectionLayer` and `CopyToClipboard`, so the ~150 lines of scaffolding budgeted for it were not required. That was the item flagged as the known-hard part, and it was not.
 
 DOCX page navigation is the piece that did need hand-work. The editor controller's `currentPage` tracks the caret, which in read-only mode reports whatever the paginator touched last, so a freshly opened document showed its final page. The visible page is measured from scroll position against the rendered page wrappers instead.
+
+Each engine counts zoom in its own units, and the toolbar's are factors where 1 is 100%. pdfium and the DOCX viewer agree; XLSX does not — its `setZoomScale` takes Excel's percentage, clamped to 10..400, so handing it a factor lands every document at the 10% floor. Its toolbar readout is also driven from `controller.zoomScale` rather than local state, so a trackpad pinch on the grid moves the number with it. Read-only is likewise a property of that controller, not of the viewer component: the component reads its editing state from whichever controller it is handed and only builds one from its own props when none is supplied, so a `readOnly` prop on the component alone leaves cell editing, paste and undo live.
+
+Fit-width is a one-shot rather than a mode wherever we compute it ourselves. PDF has a real `ZoomMode.FitWidth` that re-fits on resize; DOCX gets the level a page needs to span its scroll container, measured against `useDocxPageLayout`'s `pageWidthPx`, and then keeps whatever number that produced so the stepper has somewhere to step from.
 
 CSV/TSV gets a viewer we own outright, on `@tanstack/react-virtual` — already a Studio dependency — plus `papaparse` for RFC 4180 parsing, which is the only new dependency in this row. Routing CSV through the XLSX stack is not available: that worker only accepts zipped workbook bytes via `Workbook.fromBytes`.
 
@@ -96,19 +100,25 @@ CSV/TSV gets a viewer we own outright, on `@tanstack/react-virtual` — already 
 
 Nothing is removed. `TaskFileViewerModal`, `atoms/task-file-viewer.ts`, `FilePreviewListItem`, and `FileViewer`'s `onExpand` all stay.
 
-## The expand modal goes full-bleed
+## The expand modal takes the window, less the window's own chrome
 
 `TaskFileViewerModal` stays, and gets the window. The 64px padding and the max-width/height caps go, so the document or image is as large as the window allows.
 
+It stops short of the top edge, because the window's controls live there. On macOS the traffic lights are drawn by the OS over whatever the page puts underneath them, so a viewer running to the top edge puts its filename behind three buttons; on Windows the caption buttons land on the viewer's own close button. The top inset is `TOOLBAR_HEIGHT`, which clears the whole toolbar on both platforms at once, and the other three sides get a small gutter so the shell still reads as being there behind the viewer.
+
+That inset is the plain constant, not one divided by the zoom. The dialog content carries the same zoom factor the app root does, so a length in its units scales exactly as the toolbar's own height does. `StudioToolbar`'s `calc(5rem / var(--app-zoom))` traffic-light gutter is the opposite case and stays that way: it reserves room for OS-drawn buttons, which are real pixels and do not scale.
+
 The chrome is identical to the artifact panel's: one `FileViewer`, one document toolbar, the same controls in both hosts. The modal is a bigger window onto the same thing, not a different mode. Because the artifact panel can be narrow, the toolbar collapses its controls into an overflow menu below a width threshold — measured against the toolbar's own container, not the viewport, per `docs/architecture/responsive-layout.md`.
 
-Layout: the filename/actions header and the document toolbar stay as solid rows at the top; prev/next stay as overlay buttons at the left and right edges; the multi-file thumbnail strip stays as a row at the bottom with its padding reduced. Audio keeps its intrinsic width centered inside the full-bleed shell rather than stretching.
+Layout: the filename/actions header and the document toolbar stay as solid rows at the top; prev/next stay as overlay buttons at the left and right edges; the multi-file thumbnail strip stays as a row at the bottom with its padding reduced. Audio keeps its intrinsic width centered inside the shell rather than stretching.
+
+Having a gutter also keeps click-to-dismiss meaningful: the exposed border of the dialog content closes the viewer, alongside Escape and the close button.
 
 ### Zoom
 
 The modal currently portals to `document.body` (outside `ZoomRoot`) and never applies `useAppZoomStyle`, so it renders at 1x while the rest of the app is zoomed. Fix that here: apply `useAppZoomStyle` to the dialog content like every other Studio dialog, so modal chrome matches app chrome at any zoom level. The document's own size stays under the viewer's zoom control, which is where a user looking for a bigger document will reach.
 
-Full-bleed is the easier case under CSS `zoom`, which is worth stating so it is not re-derived later. `inset-0` is zero on all four sides, and zero is zero at any scale factor, so a self-zoomed `fixed inset-0` box still covers exactly the real viewport while its contents scale. Percentage sizing inside it resolves in the element's own zoomed units and needs no compensation. It is the current `h-[80vh]` / `max-w-4xl` sizing that is fragile — `vw`/`vh` are *not* rescaled by an element's own zoom and have to be divided by `--content-zoom` — and going full-bleed deletes it.
+A viewport-filling box is the easier case under CSS `zoom`, which is worth stating so it is not re-derived later. `inset-0` is zero on all four sides, and zero is zero at any scale factor, so a self-zoomed `fixed inset-0` box still covers exactly the real viewport while its contents scale. Percentage sizing inside it resolves in the element's own zoomed units and needs no compensation. It is the current `h-[80vh]` / `max-w-4xl` sizing that is fragile — `vw`/`vh` are *not* rescaled by an element's own zoom and have to be divided by `--content-zoom` — and `inset-0` plus padding deletes it.
 
 Which also collapses `fileViewerVariants`. Its `error` variant is already dead (`FileViewer` passes `error: false` literally), and once the modal passes `fullSize` like the artifact panel does, every `fileType` size variant is unreachable too. The whole `tv()` call becomes a single base class.
 
@@ -137,6 +147,10 @@ Each document viewer renders inside a shared surface that provides a `CatchBound
 
 The viewers render a toolbar row beneath `FileViewer`'s existing filename/actions header, rather than injecting controls into it. The header is host chrome (open, copy, reveal, close); the toolbar is document chrome (pages, zoom, find, thumbnails). Keeping them separate means the lazy viewer boundary stays a plain component boundary with no slot plumbing across it, and each viewer owns its controls without the header knowing which format is mounted. A shared `viewer-toolbar.tsx` supplies the pieces so the five toolbars stay visually identical and collapse identically when narrow.
 
+Two of those pieces are the app's, not the viewers'. Zoom is `ZoomStepperControl`, already shared by the settings row and the browser guest's page zoom, with its readout opened up into a menu of fixed levels and a fit-width entry; stepping runs through the same `steppedZoom` ladder the rest of the app uses, and the preset levels are a subset of that ladder so the two never disagree. Find is `FindRow`, extracted from the browser panel's find bar and used verbatim inside the viewers' find popover — same field, match readout, and previous/next/close. The viewers keep the popover rather than the browser's always-visible bar because the artifact panel can be too narrow to give a bar its own row.
+
+Groups within the toolbar are spaced apart rather than ruled apart. The zoom stepper is already a bounded control with its own internal divisions, so vertical separators between groups stacked a second set of lines onto it.
+
 ### Layout
 
 ```text
@@ -152,9 +166,13 @@ apps/studio/src/client/components/document-viewers/
 apps/studio/src/client/lib/document-viewers.ts   wasm sources + lazy handles
 ```
 
-CSV uses `@tanstack/react-virtual` alone. TanStack Table is already a Studio dependency and was considered, but a read-only grid with no sorting, no column definitions, and no row model earns nothing from it; the virtualizer is the part doing the work.
+CSV uses `@tanstack/react-virtual` alone. TanStack Table is already a Studio dependency and was considered, but a grid with no column definitions and one sort key earns nothing from it; the virtualizer is the part doing the work, and click-to-sort is a comparator plus a sorted copy of the row references.
+
+CSV is also the one viewer with no zoom control. Its grid is plain DOM text that the window's own zoom already scales, so a second scale factor inside it would only be a way for the two to disagree.
 
 XLSX keeps the library's grid but not its header: `showDefaultToolbar` covers the whole header including the sheet tabs, so those are supplied here, at the bottom where a spreadsheet's tabs belong.
+
+PPTX needs `height="100%"` passed explicitly. The prop becomes the min *and* max height of the slide workspace, and its default is a `min(76vh, 780px)` clamp, so the viewer leaves the bottom of the panel empty however tall the panel is — and being a `vh` clamp, it is wrong again at any zoom other than 1x. A percentage resolves against the element `inset-0` has already sized.
 
 ## Runtime plumbing
 
@@ -216,7 +234,7 @@ App zoom: the toolbar's dropdowns, popovers, selects, and tooltips get `useAppZo
 
 Per `.agents/skills/validate-changes/SKILL.md`, none of this is observable from reading the code. Each format needs a real file opened in a running Studio:
 
-- Dev, all five formats, in the artifact panel and the expand modal, both themes, app zoom at 1x and something else. All five have been opened in the artifact panel in dev; the modal, the light theme, and zoom levels other than 1x have not.
+- Dev, all five formats, in the artifact panel and the expand modal, both themes, app zoom at 1x and something else. All five have been opened in the artifact panel in dev, and DOCX in the expand modal; the light theme and zoom levels other than 1x have not been exercised. Page navigation has been confirmed to move the modal's viewer and not the panel's copy, which is the failure the two hosts mounting the same file invites.
 - A packaged build, all five formats — the `file://` origin, the app protocol, and the copied `resources/wasm/` only exist there. This is the step that catches wasm and worker regressions.
 - A narrow artifact panel, to confirm the toolbar collapses rather than overflowing.
 - A large file per format (a 500-page PDF, a workbook with many sheets) for the virtualization and memory paths.

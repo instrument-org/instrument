@@ -27,6 +27,10 @@ export async function runHelper({
   const { stdout } = await execFileAsync(file, args, {
     maxBuffer,
     timeout: LOOKUP_TIMEOUT_MS,
+    // Every resolver runs a console program, and on Windows each one is given a
+    // console window of its own unless this is set: the lookups behind a file
+    // grid would pop up a command prompt each.
+    windowsHide: true,
   });
   return stdout;
 }

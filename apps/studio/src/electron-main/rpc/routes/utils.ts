@@ -198,7 +198,10 @@ const checkEditorAvailability = async (
 
   try {
     const command = getDetectionCommand(editor, platform);
-    await execAsync(command);
+    // Detection goes through a shell, which on Windows means a command prompt
+    // window per editor probed unless it is hidden. The commands that exist to
+    // open a terminal must not do this.
+    await execAsync(command, { windowsHide: true });
     return { available: true, id: editor.id, name: editor.name };
   } catch {
     return { available: false, id: editor.id, name: editor.name };

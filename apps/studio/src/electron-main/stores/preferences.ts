@@ -105,11 +105,23 @@ let versionBumpChecked = false;
 // Compares the version we last launched with the version running now. A
 // strictly-newer running version means the app was updated since the last
 // launch. Persists the current version so the next launch has a baseline.
+//
+// Only packaged builds can be updated, and only there does the version track
+// installs: unpackaged builds read it from the checked-out package.json, so
+// every release commit pulled in reads as an update. Dev instances also share
+// one userData directory, so worktrees on different commits trade the baseline
+// back and forth and each relaunch of the newer one claims a bump.
+// FORCE_DEV_AUTO_UPDATE, which already puts the updater itself in its packaged
+// behavior, is the way to exercise this in dev.
 export function checkRecentVersionBump(): void {
   if (versionBumpChecked) {
     return;
   }
   versionBumpChecked = true;
+
+  if (!app.isPackaged && process.env.FORCE_DEV_AUTO_UPDATE !== "true") {
+    return;
+  }
 
   const store = getPreferencesStore();
   const previous = store.get("lastLaunchedVersion");

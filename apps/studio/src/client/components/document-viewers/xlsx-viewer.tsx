@@ -6,19 +6,21 @@ import {
 } from "@extend-ai/react-xlsx";
 import { useState } from "react";
 
-import { useTheme } from "../theme-provider";
 import { ViewerLoading } from "./viewer-surface";
 import {
   ViewerToolbar,
-  ViewerToolbarSeparator,
   ViewerToolbarSpacer,
   ViewerZoomControl,
 } from "./viewer-toolbar";
 
 /**
- * Spreadsheets get sheet tabs instead of a page rail, and no find control:
- * the library exposes no workbook search, and a cell walk over a live wasm
- * session is its own piece of work. Tracked in the plan.
+ * Spreadsheets get no page rail and no find control: a workbook has sheets
+ * rather than pages, and the library exposes no workbook search, so finding
+ * would mean walking cells over a live wasm session. Tracked in the plan.
+ *
+ * `showDefaultToolbar` covers the library's whole header, sheet tabs included,
+ * so turning it off means supplying the tabs here. They sit at the bottom,
+ * where a spreadsheet's tabs belong, rather than above the grid.
  */
 export function XlsxViewer({
   filename,
@@ -27,8 +29,6 @@ export function XlsxViewer({
   filename: string;
   url: string;
 }) {
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
   const controller = useXlsxViewerController({ fileName: filename, src: url });
   const [zoom, setZoom] = useState(1);
 
@@ -37,8 +37,11 @@ export function XlsxViewer({
     throw controller.error;
   }
 
+  // Sheets render in their own colors at every app theme, matching the PDF and
+  // DOCX viewers: a workbook's cell fills and conditional formatting are
+  // content, not chrome, and inverting them changes what the data looks like.
   return (
-    <XlsxViewerProvider controller={controller} isDark={isDark}>
+    <XlsxViewerProvider controller={controller} isDark={false}>
       <ViewerToolbar>
         <ViewerZoomControl
           onZoomChange={(level) => {
@@ -47,7 +50,6 @@ export function XlsxViewer({
           }}
           zoom={zoom}
         />
-        <ViewerToolbarSeparator />
         <ViewerToolbarSpacer />
       </ViewerToolbar>
 
@@ -62,6 +64,7 @@ export function XlsxViewer({
             className="absolute inset-0"
             controller={controller}
             readOnly
+            showDefaultToolbar={false}
           />
         )}
       </div>

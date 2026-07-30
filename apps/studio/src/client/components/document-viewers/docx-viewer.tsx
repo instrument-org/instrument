@@ -7,7 +7,6 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
-import { useTheme } from "../theme-provider";
 import { ViewerBody, ViewerLoading } from "./viewer-surface";
 import {
   ViewerPageControl,
@@ -39,7 +38,10 @@ export function DocxViewer({
   const editor = useDocxEditor({ initialFileName: filename });
   const [railOpen, setRailOpen] = useState(false);
   const [zoom, setZoom] = useState(1);
-  const { resolvedTheme } = useTheme();
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(
+    null,
+  );
+  const currentPage = useVisiblePage(scrollElement);
 
   const { data: file, error } = useQuery({
     queryFn: async () => {
@@ -64,12 +66,14 @@ export function DocxViewer({
     void editor.importDocxFile(file);
   }, [editor, file, url]);
 
-  // The document surface has its own light/dark treatment (a night-reader path
-  // that inverts content while preserving image hues), so it follows the app
-  // theme rather than rendering a white page inside a dark shell.
+  // The document renders in its own colors at every app theme, matching the PDF
+  // viewer. The library offers a night-reader mode that inverts content, but
+  // applying it here would make DOCX the only format whose pages change color
+  // with the app, and its inverted body text reads washed out against the
+  // shell. The surrounding chrome still follows the app theme.
   useEffect(() => {
-    editor.setDocumentTheme(resolvedTheme === "dark" ? "dark" : "light");
-  }, [editor, resolvedTheme]);
+    editor.setDocumentTheme("light");
+  }, [editor]);
 
   // Thrown rather than rendered so it reaches the surface's `CatchBoundary`.
   if (error) {
@@ -96,7 +100,7 @@ export function DocxViewer({
           onPageChange={(page) => {
             revealPage(page - 1);
           }}
-          page={Math.max(editor.currentPage, 1)}
+          page={Math.min(currentPage, Math.max(editor.totalPages, 1))}
         />
         <ViewerToolbarSeparator />
         <ViewerZoomControl onZoomChange={setZoom} zoom={zoom} />
@@ -104,13 +108,22 @@ export function DocxViewer({
       </ViewerToolbar>
 
       <ViewerBody
-        rail={<DocxThumbnailRail editor={editor} onSelect={revealPage} />}
+        rail={
+          <DocxThumbnailRail
+            currentPage={currentPage}
+            editor={editor}
+            onSelect={revealPage}
+          />
+        }
         railOpen={railOpen}
       >
         {isLoading ? (
           <ViewerLoading />
         ) : (
-          <div className="absolute inset-0 overflow-auto bg-muted/40">
+          <div
+            className="absolute inset-0 overflow-auto bg-muted/40"
+            ref={setScrollElement}
+          >
             <DocxEditorViewer
               className="mx-auto"
               editor={editor}
@@ -128,9 +141,11 @@ export function DocxViewer({
 }
 
 function DocxThumbnailRail({
+  currentPage,
   editor,
   onSelect,
 }: {
+  currentPage: number;
   editor: ReturnType<typeof useDocxEditor>;
   onSelect: (pageIndex: number) => void;
 }) {
@@ -144,7 +159,7 @@ function DocxThumbnailRail({
         <button
           className={cn(
             "flex flex-col items-center gap-1 rounded-md p-1",
-            editor.currentPage === thumbnail.pageNumber
+            currentPage === thumbnail.pageNumber
               ? "bg-accent"
               : "hover:bg-muted",
           )}
@@ -177,4 +192,62 @@ function revealPage(pageIndex: number) {
     `[data-docx-page-index="${pageIndex}"]`,
   );
   target?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/**
+ * Which page number is currently in view, as a one-based number.
+ *
+ * The editor controller's own `currentPage` tracks the caret, which in
+ * read-only mode never moves off whatever the paginator touched last -- a
+ * freshly opened document reports its final page. Reading the scroll position
+ * against the rendered page wrappers is what actually answers "what am I
+ * looking at".
+ */
+function useVisiblePage(scrollElement: HTMLDivElement | null) {
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    if (!scrollElement) {
+      return;
+    }
+
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      const viewportTop = scrollElement.getBoundingClientRect().top;
+      let visible = 1;
+      for (const element of scrollElement.querySelectorAll<HTMLElement>(
+        "[data-docx-page-index]",
+      )) {
+        const { bottom } = element.getBoundingClientRect();
+        // The first page whose bottom edge is still below the top of the
+        // viewport is the one filling it.
+        if (bottom > viewportTop) {
+          const index = Number(element.dataset.docxPageIndex);
+          visible = Number.isFinite(index) ? index + 1 : 1;
+          break;
+        }
+      }
+      setPage(visible);
+    };
+
+    const schedule = () => {
+      frame ||= requestAnimationFrame(measure);
+    };
+
+    schedule();
+    scrollElement.addEventListener("scroll", schedule, { passive: true });
+    // Pages mount and unmount as the viewer virtualizes, which changes what is
+    // measurable without any scrolling having happened.
+    const observer = new MutationObserver(schedule);
+    observer.observe(scrollElement, { childList: true, subtree: true });
+
+    return () => {
+      cancelAnimationFrame(frame);
+      scrollElement.removeEventListener("scroll", schedule);
+      observer.disconnect();
+    };
+  }, [scrollElement]);
+
+  return page;
 }

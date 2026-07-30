@@ -8,6 +8,7 @@ import fs from "node:fs/promises";
 import { noop } from "radashi";
 
 import { publisher } from "../rpc/publisher";
+import { NATIVE_WATCHER_BACKEND } from "./native-watcher-backend";
 import { SKILL_ARTIFACT_WATCHER_IGNORE } from "./skill-artifact-ignore";
 import { getWorkspaceConfig } from "./workspace-config";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
@@ -104,7 +105,10 @@ async function initialize(entry: WatcherEntry) {
           }
         }, DEBOUNCE_MS);
       },
-      { ignore: SKILL_ARTIFACT_WATCHER_IGNORE },
+      {
+        backend: NATIVE_WATCHER_BACKEND,
+        ignore: SKILL_ARTIFACT_WATCHER_IGNORE,
+      },
     );
     if (isDisposed(entry)) {
       await subscription.unsubscribe().catch(noop);

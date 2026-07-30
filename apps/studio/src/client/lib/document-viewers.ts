@@ -19,33 +19,33 @@ export const PDFIUM_WASM_URL = wasmUrl("pdfium.wasm");
 // read the configured source when they first parse a document, so setting it
 // any time before the viewer mounts is enough.
 export const LazyDocxViewer = lazy(async () => {
-  const [, module] = await Promise.all([
-    configureDocxWasmSource(),
-    import("@/client/components/document-viewers/docx-viewer"),
-  ]);
+  await configureDocxWasmSource();
+  const module = await import(
+    "@/client/components/document-viewers/docx-viewer"
+  );
   return { default: module.DocxViewer };
 });
 
 // The PDF engine takes its wasm URL as an argument rather than through global
-// configuration, so `pdf-engine.ts` passes `PDFIUM_WASM_URL` directly.
+// configuration, so the viewer passes `PDFIUM_WASM_URL` when it builds it.
 export const LazyPdfViewer = lazy(async () => {
   const module = await import("@/client/components/document-viewers/pdf-viewer");
   return { default: module.PdfViewer };
 });
 
 export const LazyPptxViewer = lazy(async () => {
-  const [, module] = await Promise.all([
-    configurePptxWasmSource(),
-    import("@/client/components/document-viewers/pptx-viewer"),
-  ]);
+  await configurePptxWasmSource();
+  const module = await import(
+    "@/client/components/document-viewers/pptx-viewer"
+  );
   return { default: module.PptxViewer };
 });
 
 export const LazyXlsxViewer = lazy(async () => {
-  const [, module] = await Promise.all([
-    configureXlsxWasmSource(),
-    import("@/client/components/document-viewers/xlsx-viewer"),
-  ]);
+  await configureXlsxWasmSource();
+  const module = await import(
+    "@/client/components/document-viewers/xlsx-viewer"
+  );
   return { default: module.XlsxViewer };
 });
 

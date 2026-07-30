@@ -83,9 +83,6 @@ function copyVendorAssets(): Plugin {
     "resources",
   );
   const wasmDir = path.join(resourcesDir, "wasm");
-  // @embedpdf/pdfium is a transitive dependency of @embedpdf/engines, so under
-  // pnpm's isolated layout it is only resolvable from the engines package.
-  const embedPdfEnginesDir = path.dirname(require.resolve("@embedpdf/engines"));
   const assets = [
     {
       from: require.resolve("@tailwindcss/browser"),
@@ -95,9 +92,7 @@ function copyVendorAssets(): Plugin {
     // bundled assets is blocked, so these are served over the app protocol
     // from `resources/` instead of being emitted into the renderer bundle.
     {
-      from: require.resolve("@embedpdf/pdfium/pdfium.wasm", {
-        paths: [embedPdfEnginesDir],
-      }),
+      from: require.resolve("@embedpdf/pdfium/pdfium.wasm"),
       to: path.join(wasmDir, "pdfium.wasm"),
     },
     {

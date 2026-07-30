@@ -261,9 +261,9 @@ const WORKSPACE_HELP_EXTERNAL = dedent`
 
   A normally running Chrome is NOT connectable: Chrome 136+ disables remote debugging on the default profile, so --auto-connect only reaches an instance someone launched with it enabled. To act as the user in their own logged-in Chrome, use --profile, which launches a debuggable copy of that profile with its logins.
 
-  There is no way to see what the user currently has open in their own browser. --profile starts a separate copy of the profile, so it carries their logins but opens with no tabs of its own, and no flag reaches the windows, tabs, or history of the Chrome they are looking at. Asked what they have open, say that plainly instead of working through the targeting flags.
+  There is no way to see what the user currently has open in their own browser. --profile launches a separate copy of the profile, so no flag reaches the live windows or tabs of the Chrome they are looking at, and nothing here reports them. Asked what they have open, say that plainly instead of working through the targeting flags.
 
-  An external browser launched locally (--profile, --executable-path) opens a window the user can see and use; ask them to complete any sign-in or approval there rather than reporting that you are blocked. A browser reached with --cdp, --auto-connect, or --provider was launched elsewhere and is visible only if it already was.
+  An external browser launched locally (--profile) opens a window the user can see and use; ask them to complete any sign-in or approval there rather than reporting that you are blocked. A browser reached with --cdp, --auto-connect, or --provider was launched elsewhere and is visible only if it already was.
 
   Screenshots land in the same task location as managed-browser output, and \`screenshot --full\` works here (it is unavailable in the managed browser). Downloads do not: an external browser saves to its own download folder, which for a \`--profile\` launch is the user's normal one. Avoid \`download\` too -- it redirects that browser's download destination and never resets it, which outlives the task. To get a file into the task, fetch its URL at page level and write it yourself.
 `.trim();
@@ -425,15 +425,39 @@ export async function resolveAgentBrowserPathArgs(
 }
 
 /**
+ * Refuse `--executable-path`. It is the one flag whose value the CLI runs as a
+ * program, and an external invocation runs on the host with the user's own
+ * environment rather than the sandbox's, so honouring it would let a file the
+ * agent wrote in the task execute outside every boundary the rest of this
+ * environment keeps -- with the user's credentials in its env. Nothing legitimate
+ * needs it: the app ships the browser it drives, and `--profile` covers acting
+ * as the user in their own Chrome.
+ */
+function executablePathMessage() {
+  return [
+    "agent-browser: --executable-path is not available.",
+    "It names a program for the workspace to launch on the host rather than a browser to target, so the binary that runs is not the agent's to choose.",
+    "To act as the user in their own Chrome, use --profile (`agent-browser profiles` lists the names). Otherwise drop the flag: the task browser is the default target, and the app ships the browser it drives.",
+    "",
+  ].join("\n");
+}
+
+/**
  * The base environment for an invocation that drives a browser outside the app.
  *
  * The sandbox env is shaped for the task: a bare PATH, a per-task virtualenv,
  * task-local temp. Driving the host's own browser stack needs the host's
  * environment instead. The CLI finds the user's Chrome install, their profiles,
  * and any already-running Chrome through platform variables it never otherwise
- * sees -- LOCALAPPDATA on Windows, HOME elsewhere -- and `--executable-path`
- * runs a real host binary. Inheriting covers those by construction; naming them
- * one platform at a time covers only the ones we thought of.
+ * sees -- LOCALAPPDATA on Windows, HOME elsewhere. Inheriting covers those by
+ * construction; naming them one platform at a time covers only the ones we
+ * thought of.
+ *
+ * This is the only path on which a subprocess sees the host environment rather
+ * than the sandbox's, so what it may launch has to stay outside the agent's
+ * control: the browser is resolved from the host's own installs, the sandbox
+ * PATH is replaced rather than merged so a task-local binary cannot shadow one,
+ * and `--executable-path` is refused (see executablePathMessage).
  */
 function externalBrowserBaseEnv(): Record<string, string | undefined> {
   return {
@@ -457,6 +481,12 @@ function externalBrowserUnavailableMessage() {
     "The task's managed browser is the only browser. It keeps cookies and signed-in sessions across a task, so when a page needs an account, open it there and ask the user to sign in -- they can see and use that browser in the app.",
     "",
   ].join("\n");
+}
+
+/** Whether the invocation carries `--executable-path` in any accepted form. */
+function hasExecutablePathFlag(args: string[]): boolean {
+  const { globalFlags } = parseAgentBrowserArgs(args);
+  return globalFlags.some(({ name }) => name === "--executable-path");
 }
 
 /**
@@ -587,6 +617,14 @@ export function createAgentBrowserCommand({
       return {
         exitCode: 1,
         stderr: profileDirMessage(profileDir),
+        stdout: "",
+      };
+    }
+
+    if (!isInfoOnly && hasExecutablePathFlag(args)) {
+      return {
+        exitCode: 1,
+        stderr: executablePathMessage(),
         stdout: "",
       };
     }

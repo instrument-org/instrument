@@ -551,6 +551,44 @@ describe("agent-browser routing", () => {
     expect(execa).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { name: "a task-relative program", value: "work/chrome.sh" },
+    { name: "a task-absolute program", value: "/task/work/chrome.sh" },
+    { name: "a host browser build", value: "/Applications/Chromium.app" },
+  ])("refuses an --executable-path naming $name", async ({ value }) => {
+    // An external invocation runs with the host environment, so honouring this
+    // would execute an agent-authored file outside the sandbox with the user's
+    // own credentials in its env.
+    const result = await command.execute(
+      ["--executable-path", value, "open", "https://example.com"],
+      commandCtx,
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("--executable-path is not available");
+    const { execa } = await import("execa");
+    expect(execa).not.toHaveBeenCalled();
+  });
+
+  it("keeps the host environment out of reach of an agent-named program", async () => {
+    // The pairing that matters: the host env is inherited (so Chrome can be
+    // found) only on invocations where nothing the agent supplied decides which
+    // program runs.
+    const refused = await command.execute(
+      ["--executable-path", "work/chrome.sh", "open", "https://example.com"],
+      commandCtx,
+    );
+    expect(refused.exitCode).toBe(1);
+
+    const { env } = await spawnedWith([
+      "--profile",
+      "Default",
+      "open",
+      "x.com",
+    ]);
+    expect(env.HOME).toBe(os.homedir());
+  });
+
   it("routes profiles to the host even without a targeting flag", async () => {
     const { args, env } = await spawnedWith(["profiles"]);
 

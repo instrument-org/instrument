@@ -14,12 +14,14 @@ import {
   type AppUpdaterStatus,
   POLL_INTERVAL_MS,
   STAGED_POLL_INTERVAL_MS,
+  SUPERSEDING_DOWNLOAD_WAIT_MS,
   VERIFY_TIMEOUT_MS,
 } from "./update-status";
 
 const CURRENT = "1.4.0";
 const STAGED = "1.5.0";
 const NEWER = "1.6.0";
+const NEWEST = "1.7.0";
 
 // A stand-in for electron-updater: the check resolves to whatever the test
 // queued, and the events it would emit are fired by hand so ordering is explicit.
@@ -133,7 +135,17 @@ function updateInfo(version: string): UpdateInfo {
   };
 }
 
+// Fake timers throughout: a request that finds itself superseded waits out the
+// download before answering, so every deferral has a deadline to advance past.
 describe("quitAndInstall", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("installs the staged build when the feed confirms it is the latest", async () => {
     const h = createHarness();
     h.stage(STAGED);
@@ -155,6 +167,10 @@ describe("quitAndInstall", () => {
 
     const install = h.updater.quitAndInstall();
     h.events().available(updateInfo(NEWER));
+
+    // The request waits for that download first; the deferral is what is left
+    // when it does not land in time.
+    await vi.advanceTimersByTimeAsync(SUPERSEDING_DOWNLOAD_WAIT_MS);
 
     await expect(install).resolves.toEqual({
       type: "deferred",
@@ -189,7 +205,10 @@ describe("quitAndInstall", () => {
     // Retrying keeps chasing the newer build rather than running an installer
     // that is no longer on disk.
     h.respondWith(NEWER);
-    await expect(h.updater.quitAndInstall()).resolves.toEqual({
+    const retry = h.updater.quitAndInstall();
+    await vi.advanceTimersByTimeAsync(SUPERSEDING_DOWNLOAD_WAIT_MS);
+
+    await expect(retry).resolves.toEqual({
       type: "deferred",
       version: NEWER,
     });
@@ -214,7 +233,10 @@ describe("quitAndInstall", () => {
     h.events().available(updateInfo(NEWER));
     h.respondWithFailure(new Error("offline"));
 
-    await expect(h.updater.quitAndInstall()).resolves.toEqual({
+    const install = h.updater.quitAndInstall();
+    await vi.advanceTimersByTimeAsync(SUPERSEDING_DOWNLOAD_WAIT_MS);
+
+    await expect(install).resolves.toEqual({
       type: "deferred",
       version: NEWER,
     });
@@ -262,7 +284,9 @@ describe("quitAndInstall", () => {
     h.stage(STAGED);
     h.respondWith(NEWER);
 
-    await h.updater.quitAndInstall();
+    const install = h.updater.quitAndInstall();
+    await vi.advanceTimersByTimeAsync(SUPERSEDING_DOWNLOAD_WAIT_MS);
+    await install;
 
     expect(confirmQuit).not.toHaveBeenCalled();
   });
@@ -306,10 +330,19 @@ describe("quitAndInstall", () => {
     h.stage(STAGED);
     h.respondWith(confirmQuit ? STAGED : NEWER);
 
-    await h.updater.quitAndInstall();
-    await h.updater.quitAndInstall();
+    const first = h.updater.quitAndInstall();
+    await vi.advanceTimersByTimeAsync(SUPERSEDING_DOWNLOAD_WAIT_MS);
+    await first;
 
-    expect(h.checks).toHaveBeenCalledTimes(2);
+    // Counted rather than fixed: a deferral re-checks the feed once per round it
+    // waits, so what matters is that the second request checked at all instead of
+    // joining the first.
+    const checksAfterFirst = h.checks.mock.calls.length;
+    const second = h.updater.quitAndInstall();
+    await vi.advanceTimersByTimeAsync(SUPERSEDING_DOWNLOAD_WAIT_MS);
+    await second;
+
+    expect(h.checks.mock.calls.length).toBeGreaterThan(checksAfterFirst);
   });
 
   // electron-updater's BaseUpdater.install() catches a missing installer or a
@@ -394,6 +427,99 @@ describe("pre-install check", () => {
 
     h.events().available(updateInfo(NEWER));
     releaseConfirm?.(true);
+
+    await expect(install).resolves.toEqual({
+      type: "deferred",
+      version: NEWER,
+    });
+    expect(h.installs).not.toHaveBeenCalled();
+  });
+});
+
+describe("waiting out a superseding download", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("installs the superseding build once its download finishes", async () => {
+    const h = createHarness();
+    h.stage(STAGED);
+    h.respondWith(NEWER);
+
+    const install = h.updater.quitAndInstall();
+    h.events().available(updateInfo(NEWER));
+    // Lets the pre-install check resolve, so the request is parked on the
+    // download rather than still deciding.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.installs).not.toHaveBeenCalled();
+
+    h.events().downloaded(updateInfo(NEWER));
+
+    await expect(install).resolves.toEqual({ type: "installing" });
+    expect(h.installs).toHaveBeenCalledOnce();
+  });
+
+  it("confirms the quit only once the download has landed", async () => {
+    const confirmQuit = vi.fn(() => Promise.resolve(true));
+    const h = createHarness({ confirmQuit });
+    h.stage(STAGED);
+    h.respondWith(NEWER);
+
+    const install = h.updater.quitAndInstall();
+    h.events().available(updateInfo(NEWER));
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Waiting must not spend the running-agents prompt on an install that has
+    // not been decided yet.
+    expect(confirmQuit).not.toHaveBeenCalled();
+
+    h.events().downloaded(updateInfo(NEWER));
+
+    await expect(install).resolves.toEqual({ type: "installing" });
+    expect(confirmQuit).toHaveBeenCalledOnce();
+  });
+
+  it("keeps waiting when the build it waited for was itself superseded", async () => {
+    const h = createHarness();
+    h.stage(STAGED);
+    h.respondWith(NEWER);
+
+    const install = h.updater.quitAndInstall();
+    h.events().available(updateInfo(NEWER));
+    await vi.advanceTimersByTimeAsync(0);
+
+    // electron-updater will not start a second download while one is in flight,
+    // so the release found mid-download is skipped and the older build is what
+    // lands. Re-checking the feed is the only way to notice.
+    h.events().available(updateInfo(NEWEST));
+    h.events().downloaded(updateInfo(NEWER));
+    h.respondWith(NEWEST);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.installs).not.toHaveBeenCalled();
+
+    h.events().available(updateInfo(NEWEST));
+    h.events().downloaded(updateInfo(NEWEST));
+
+    await expect(install).resolves.toEqual({ type: "installing" });
+    expect(h.installs).toHaveBeenCalledOnce();
+  });
+
+  it("stops waiting when the superseding download fails", async () => {
+    const h = createHarness();
+    h.stage(STAGED);
+    h.respondWith(NEWER);
+
+    const install = h.updater.quitAndInstall();
+    h.events().available(updateInfo(NEWER));
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Settles on the failure instead of sitting out the rest of the deadline. The
+    // re-check has started the download again, which is what the deferral says.
+    h.events().failed(new Error("connection reset"));
 
     await expect(install).resolves.toEqual({
       type: "deferred",

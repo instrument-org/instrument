@@ -13,6 +13,7 @@ import {
   nextPollDelayMs,
   resolveInstallDecision,
   resolveStatus,
+  SUPERSEDING_DOWNLOAD_WAIT_MS,
   VERIFY_TIMEOUT_MS,
 } from "./update-status";
 
@@ -95,6 +96,38 @@ export function createAppUpdater({
     return failure;
   };
 
+  // Install requests parked on a download that superseded the staged build. Woken
+  // by every terminal download event, not just success, so a failed or canceled
+  // download ends the wait instead of sitting out the whole deadline.
+  let downloadWaiters: (() => void)[] = [];
+
+  const wakeDownloadWaiters = () => {
+    const waiters = downloadWaiters;
+    downloadWaiters = [];
+    for (const wake of waiters) {
+      wake();
+    }
+  };
+
+  // Resolves when the download in flight reaches any terminal state, or when
+  // `timeoutMs` runs out, whichever comes first.
+  const awaitDownloadSettled = async (timeoutMs: number) => {
+    let onSettled: (() => void) | undefined;
+    // Registered synchronously, before the first suspension point, so a download
+    // that settles while this is being set up cannot be missed.
+    const settled = new Promise<void>((resolve) => {
+      onSettled = resolve;
+      downloadWaiters.push(resolve);
+    });
+    const timer = setTimeout(() => onSettled?.(), timeoutMs);
+    try {
+      await settled;
+    } finally {
+      clearTimeout(timer);
+      downloadWaiters = downloadWaiters.filter((it) => it !== onSettled);
+    }
+  };
+
   const setStatus = (next: AppUpdaterStatus) => {
     const resolved = resolveStatus({ next, phase });
     if (status && isSameStatus(status, resolved)) {
@@ -144,6 +177,7 @@ export function createAppUpdater({
       log.info(`Update canceled: ${info.version}`);
       phase.pendingNewer = null;
       setStatus({ notifyUser: notify, type: "canceled", updateInfo: info });
+      wakeDownloadWaiters();
     },
     downloaded: (info) => {
       log.info(`Update downloaded: ${info.version}`);
@@ -155,6 +189,7 @@ export function createAppUpdater({
       // build scheduled its successor while nothing was staged yet. Re-arm now
       // or the tighter staged interval would almost never apply.
       schedulePoll();
+      wakeDownloadWaiters();
     },
     failed: (error) => {
       log.error("Updater error:", error);
@@ -170,6 +205,7 @@ export function createAppUpdater({
         type: "error",
       });
       phase.installing = false;
+      wakeDownloadWaiters();
     },
     notAvailable: (info) => {
       log.info("Update not available");
@@ -304,9 +340,35 @@ export function createAppUpdater({
     // Verified before the quit prompt, so discovering a superseded build never
     // costs the user a "quit with agents running?" dialog for an install that
     // then does not happen.
-    const checked = reportNonInstall(
-      decideFromPhase(await verifyLatestVersion()),
-    );
+    let decision = decideFromPhase(await verifyLatestVersion());
+
+    // Being superseded is a race the user never asked to manage: the replacement
+    // is already downloading, so wait it out and install that instead of handing
+    // back a deferral they have to answer with a second click.
+    //
+    // Each round re-checks the feed rather than trusting local state, because
+    // electron-updater will not begin a second download while one is in flight:
+    // a newer release found mid-download is skipped, so the build that lands can
+    // itself already be superseded. Re-verifying picks that up and starts the
+    // download the earlier check declined to.
+    //
+    // Bounded twice over. The deadline covers a download that stalls, and
+    // requiring a strictly newer target each round covers one that keeps failing
+    // and being re-offered at the same version.
+    const waitUntilMs = Date.now() + SUPERSEDING_DOWNLOAD_WAIT_MS;
+    let waitedFor: string | undefined;
+    while (decision.type === "defer" && decision.version !== waitedFor) {
+      const remainingMs = waitUntilMs - Date.now();
+      if (remainingMs <= 0) {
+        break;
+      }
+      log.info(`Waiting for ${decision.version} to download before installing`);
+      waitedFor = decision.version;
+      await awaitDownloadSettled(remainingMs);
+      decision = decideFromPhase(await verifyLatestVersion());
+    }
+
+    const checked = reportNonInstall(decision);
     if (checked) {
       return checked;
     }

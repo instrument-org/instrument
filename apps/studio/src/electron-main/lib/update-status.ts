@@ -81,6 +81,14 @@ export const POLL_INTERVAL_MS = ms("1 hour");
 // waiting than when there is nothing to go stale.
 export const STAGED_POLL_INTERVAL_MS = ms("15 minutes");
 
+// How long an install request will wait for the download that superseded the
+// staged build before giving up and handing back a deferral. Generous on
+// purpose: a click that spins for a while and then installs is the outcome the
+// user wanted, and it beats making them come back and click again. The bound
+// exists so a stalled or repeatedly failing download cannot park the request
+// forever.
+export const SUPERSEDING_DOWNLOAD_WAIT_MS = ms("3 minutes");
+
 // Bounds the pre-install check. Long enough for a slow network, short enough
 // that clicking install doesn't feel stuck; falling through installs what is
 // already staged rather than blocking on an unreachable feed.

@@ -29,12 +29,12 @@ That guard exists because of two electron-updater behaviors that are easy to mis
 
 It runs a bounded pre-install check against the feed (`VERIFY_TIMEOUT_MS`), then `resolveInstallDecision` picks:
 
-| Decision         | When                                                                                   | Result                                                                                |
-| ---------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `defer`          | the feed advertises, or a download is in flight for, a build newer than the staged one | no install; the newer download becomes the status and the badge returns when it lands |
-| `install`        | staged build is newer than the running app and nothing newer exists                    | confirm quit, then install                                                            |
-| `stale-staged`   | staged build is at or below the running app                                            | discard it; installing would be a downgrade                                           |
-| `nothing-staged` | no artifact and nothing newer on offer                                                 | error status                                                                          |
+| Decision         | When                                                                                   | Result                                             |
+| ---------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `defer`          | the feed advertises, or a download is in flight for, a build newer than the staged one | wait for that download, then re-decide (see below) |
+| `install`        | staged build is newer than the running app and nothing newer exists                    | confirm quit, then install                         |
+| `stale-staged`   | staged build is at or below the running app                                            | discard it; installing would be a downgrade        |
+| `nothing-staged` | no artifact and nothing newer on offer                                                 | error status                                       |
 
 `defer` is checked first, because a superseding download has already destroyed the staged artifact: "1.6.0 is on the way" is the truthful answer where "nothing is staged" would be technically true but useless.
 
@@ -45,7 +45,17 @@ Two ordering details that are easy to undo by accident:
 - An install failure is published while `installing` is still latched, then the latch clears. Otherwise `resolveStatus` would fold the error back into "update ready" and the user would never see it.
 - `BaseUpdater.install()` catches a missing installer or a failed launch, emits `error`, and returns normally rather than throwing, so a `try`/`catch` around it sees nothing. The `failed` handler clearing `phase.installing` is the only signal that the install did not take, and the request checks it before reporting success — otherwise the single-flight latch would be held forever and no retry would ever run.
 
-The decision is also re-run from local state after the quit confirmation. That dialog is something the user can sit on, and the pre-install check is raced against a timeout rather than cancelled, so the release it was fetching can still land while the dialog is open and take the chosen artifact with it.
+The decision is also re-run from local state after the quit confirmation. That dialog is something the user can sit on, and the pre-install check is raced against a timeout rather than cancelled, so the release it was fetching can still land while the dialog is open and take the chosen artifact with it. A deferral at that point is reported rather than waited out: the user has already agreed to quit, and holding a confirmed quit open for minutes is worse than asking for a second click.
+
+### Waiting out a superseding download
+
+A `defer` before the quit prompt does not end the request. Being superseded is a race the user never asked to manage: the replacement is already downloading, so the request parks on that download for up to `SUPERSEDING_DOWNLOAD_WAIT_MS` and installs whatever lands. On a fast connection this is invisible: the badge shows progress for a few seconds and the app restarts, which is what clicking install asked for. Only a download that outlasts the deadline falls back to reporting the deferral and waiting for a second click.
+
+The wait re-checks the feed each round rather than trusting local state, because `AppUpdater.downloadUpdate` returns the in-flight promise instead of starting a second download. A release discovered while a download is running is therefore never fetched, and the build that lands can already be superseded; re-verifying notices that and starts the download the earlier check declined to.
+
+It is bounded twice over, and both bounds are load-bearing. The deadline covers a download that stalls. Requiring a strictly newer target each round covers one that keeps failing and being re-offered at the same version. Without it, a fast-failing download and a reachable feed would spin.
+
+The wait sits **before** the running-agents quit prompt, so nothing restarts underneath a running agent and a long wait never spends a dialog on an install that has not been decided. Every terminal download event wakes the waiters, not just success, so a failed or canceled download ends the wait immediately instead of sitting out the deadline.
 
 ### When the newer download fails
 

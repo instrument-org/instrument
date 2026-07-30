@@ -29,20 +29,18 @@
          apps/studio/src/client/styles/globals.css. Regenerate with the command
          in SKILL.md rather than editing by hand. */
       @theme {
+        /* sync:start */
         --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
-        --font-mono: "JetBrains Mono", ui-monospace, monospace;
+        --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
 
-        --radius-sm: 4px;
-        --radius-md: 6px;
-        --radius-lg: 8px;
-        --radius-xl: 12px;
+        --radius: 0.5rem;
+        --radius-sm: calc(var(--radius) - 4px);
+        --radius-md: calc(var(--radius) - 2px);
+        --radius-lg: var(--radius);
+        --radius-xl: calc(var(--radius) + 4px);
 
-        --shadow-sm:
-          0 2px 4px 0 rgb(10 13 18 / 0.04), 0 1px 2px -1px rgb(10 13 18 / 0.06),
-          0 0 0 1px rgb(10 13 18 / 0.06);
-        --shadow-xl:
-          0 12px 24px -4px rgb(10 13 18 / 0.07),
-          0 6px 10px -6px rgb(10 13 18 / 0.07), 0 0 0 1px rgb(10 13 18 / 0.06);
+        --shadow-sm: 0 2px 4px 0 rgb(10 13 18 / 0.04), 0 1px 2px -1px rgb(10 13 18 / 0.06), 0 0 0 1px rgb(10 13 18 / 0.06);
+        --shadow-xl: 0 12px 24px -4px rgb(10 13 18 / 0.07), 0 6px 10px -6px rgb(10 13 18 / 0.07), 0 0 0 1px rgb(10 13 18 / 0.06);
 
         --color-gray-25: #fdfdfc;
         --color-gray-50: #fafaf9;
@@ -121,6 +119,7 @@
         --color-border: #e7e5e4;
         --color-input: #e7e5e4;
         --color-ring: #a9a29d;
+        /* sync:end */
       }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -136,8 +135,13 @@
          frame bottoms out together and the captions align. -->
     <div class="grid max-w-[1240px] grid-cols-3 gap-6">
       <div>
-        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span class="grid size-4.5 place-items-center rounded-full bg-gray-300 text-[11px] font-semibold text-white">1</span>
+        <div
+          class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground"
+        >
+          <span
+            class="grid size-4.5 place-items-center rounded-full bg-gray-300 text-[11px] font-semibold text-white"
+            >1</span
+          >
           State name
         </div>
         <div class="min-h-105 rounded-lg border border-border bg-gray-50 p-4.5">

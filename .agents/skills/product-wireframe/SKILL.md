@@ -19,24 +19,14 @@ Tailwind v4 compiles in the page from the CDN browser build, with Studio's light
 
 This is the same shape as the `wireframe` skill we ship to users, with one difference: that one points at a Tailwind bundle served from the task, which only resolves inside that task. These have to render from a plain file and from a Notion HTML embed, so they load the CDN instead.
 
-Regenerate the `@theme` block when the ramps move:
+The tokens are copied into each file, so a script keeps the copy honest:
 
 ```bash
-python3 - <<'PY'
-import re, pathlib
-src = pathlib.Path("apps/studio/src/client/styles/globals.css").read_text()
-root = src[src.index("LIGHT MODE THEME"):src.index("DARK MODE THEME")]
-vals = dict(re.findall(r'^\s*(--[a-z0-9-]+):\s*([^;]+);', root, re.M))
-def res(v, d=0):
-    m = re.fullmatch(r'var\((--[a-z0-9-]+)\)', v.strip())
-    return res(vals.get(m.group(1), v), d+1) if m and d < 5 else v.strip()
-for r in ["gray","brand","error","warning","success","yellow","brown"]:
-    for k in sorted([k for k in vals if re.fullmatch(rf'--{r}-\d+',k)], key=lambda k:int(k.split('-')[-1])):
-        print(f"        --color-{k[2:]}: {res(vals[k])};")
-for k in ["background","foreground","card","popover","primary","primary-foreground","secondary","secondary-foreground","muted","muted-foreground","accent","accent-foreground","destructive","border","input","ring"]:
-    if f"--{k}" in vals: print(f"        --color-{k}: {res(vals['--'+k])};")
-PY
+node .agents/skills/product-wireframe/scripts/sync-theme.ts          # rewrite them
+node .agents/skills/product-wireframe/scripts/sync-theme.ts --check  # fail if stale
 ```
+
+It reads `globals.css`, resolves the `var()` indirection to literal values, and rewrites whatever sits between the `/* sync:start */` and `/* sync:end */` markers in the template and every `docs/plans/active/wireframes-*.html`. Run it after touching the ramps, and leave the markers alone.
 
 ## The two rules that matter
 
@@ -54,15 +44,15 @@ Corollaries:
 
 Values worth getting right, since drift here is what makes a wireframe read as generic. Re-check against source if they look stale.
 
-| Thing | Recipe |
-| --- | --- |
-| Conversation column | `max-w-2xl p-4` ([chat.tsx](../../../apps/studio/src/client/components/task/chat.tsx)) |
-| User bubble | `inline-block max-w-[80%] rounded-tl-xl rounded-tr-sm rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-2 shadow-sm` ([user-message.tsx](../../../apps/studio/src/client/components/user-message.tsx)) |
-| Message action button | `rounded-sm p-1 text-muted-foreground` around a `size-3.5` icon, hover `bg-muted/50 text-foreground` ([styles.tsx](../../../apps/studio/src/client/lib/styles.tsx)) |
-| Action row | hidden until the message is hovered |
-| Placeholder prose | `h-[7px] rounded-full bg-gray-300` at varying widths |
-| Error text and stacks | `font-mono text-[11px]` in `rounded-md bg-muted p-3`, stack collapsed behind a caret ([error-details.tsx](../../../apps/studio/src/client/components/error-details.tsx)) |
-| Icons | Phosphor regular via CDN, the set the app uses: `<i class="ph ph-gear"></i>`, sized with Tailwind (`text-sm` is the 14px action-row size). `ph-fill` for the filled weight |
+| Thing                 | Recipe                                                                                                                                                                                                                       |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Conversation column   | `max-w-2xl p-4` ([chat.tsx](../../../apps/studio/src/client/components/task/chat.tsx))                                                                                                                                       |
+| User bubble           | `inline-block max-w-[80%] rounded-tl-xl rounded-tr-sm rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-2 shadow-sm` ([user-message.tsx](../../../apps/studio/src/client/components/user-message.tsx)) |
+| Message action button | `rounded-sm p-1 text-muted-foreground` around a `size-3.5` icon, hover `bg-muted/50 text-foreground` ([styles.tsx](../../../apps/studio/src/client/lib/styles.tsx))                                                          |
+| Action row            | hidden until the message is hovered                                                                                                                                                                                          |
+| Placeholder prose     | `h-[7px] rounded-full bg-gray-300` at varying widths                                                                                                                                                                         |
+| Error text and stacks | `font-mono text-[11px]` in `rounded-md bg-muted p-3`, stack collapsed behind a caret ([error-details.tsx](../../../apps/studio/src/client/components/error-details.tsx))                                                     |
+| Icons                 | Phosphor regular via CDN, the set the app uses: `<i class="ph ph-gear"></i>`, sized with Tailwind (`text-sm` is the 14px action-row size). `ph-fill` for the filled weight                                                   |
 
 Two that are wrong on sight if you guess:
 

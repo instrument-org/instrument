@@ -193,7 +193,14 @@ export function DevPanel() {
         <Menubar className="h-auto gap-0 border-none bg-transparent p-0">
           <MenubarMenu>
             <MenubarTrigger className={pillTriggerClassName}>
-              <span className="font-mono text-[9px] leading-none">
+              <span
+                className={cn(
+                  "rounded-sm px-1 py-px font-mono text-[9px] leading-none",
+                  isPackaged
+                    ? "bg-dev-500/15 text-dev-700/80 dark:bg-dev-400/15 dark:text-dev-300/80"
+                    : "bg-warning-500/20 text-warning-700 dark:bg-warning-300/20 dark:text-warning-300",
+                )}
+              >
                 {envLabel}
               </span>
               {/* Only in a packaged build: the version of a dev run is whatever

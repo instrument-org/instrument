@@ -1,0 +1,218 @@
+
+# Document viewers
+
+Status: active
+
+Give the artifact panel real viewers for the document formats people open in a task — PDF, DOCX, PPTX, XLSX, CSV — replacing the `<iframe>` PDF preview and the "preview unavailable" card. Read-only, no editing.
+
+The `<iframe>` does render PDFs; the problem is that it is an opaque cross-origin frame, so Studio has no control over zoom, page navigation, thumbnails, theme, or find, and cannot integrate any of it with the app's own chrome.
+
+The viewers are Studio components built on Studio's own Radix primitives, driving four MIT wasm document engines. [Extend UI](https://ui.extend.ai) is a behavior reference for what good chrome over these engines looks like; none of its component code is carried.
+
+## Why depend on the engines but not the components
+
+The engines are the part nobody sensibly rebuilds:
+
+| Format | Package | What it actually is |
+| --- | --- | --- |
+| PDF | `@embedpdf/*` | pdfium (Chromium's PDF engine) compiled to wasm, behind a plugin architecture. Independent project, ~39 packages, active release cadence. |
+| DOCX | `@extend-ai/react-docx` | A Rust OOXML implementation (`docx-core` crate) compiled to wasm, plus a TypeScript layout engine and React renderer. |
+| PPTX | `@extend-ai/react-pptx` | A Rust presentation parser compiled to wasm, plus a slide renderer with regl/d3 charts and an EMF/WMF metafile rasterizer. |
+| XLSX | `@extend-ai/react-xlsx` | A canvas/regl grid over `@dukelib/sheets-wasm`, a third-party Rust spreadsheet engine with a formula calculator. |
+
+All five packages are MIT with full public source. Reimplementing DOCX pagination or a spreadsheet formula engine is not a realistic alternative, and no better-maintained option exists for DOCX or PPTX in the browser at all.
+
+What is worth owning is everything above them. Each library already exposes a controller (`useDocxEditor`, `usePptxViewer`, `useXlsxViewerController`, embedpdf's plugin hooks) and renders the document itself. The Extend UI viewer components — 1,300 to 2,900 lines each — are toolbars, page-number fields, zoom menus, thumbnail rails, and search popovers over those controllers, written against Base UI and a token set that is not ours. Carrying them means owning someone else's chrome under a UI kit Studio does not otherwise use, for code that is not where the difficulty lives.
+
+So: depend on the engines, write the chrome.
+
+### Why pdfium rather than pdf.js
+
+The two credible PDF engines are pdfium (via `@embedpdf/*`) and pdf.js. This is Chrome's engine against Firefox's engine, not an industrial engine against an upstart — both are a major browser's default and both have rendered billions of documents. No public head-to-head fidelity benchmark exists; embedpdf's own docs argue for pdfium on general grounds and never claim to beat pdf.js.
+
+The deciding factor is what this product has to open. Users bring arbitrary PDFs from their working lives — scanned contracts, government forms, old archives, CJK documents, whatever a generator produced a decade ago. The goal is robust compatibility with unknown input, and that is the axis where pdfium has the stronger claim: Foxit's commercial engine lineage, continuous large-scale fuzzing because it is an attack surface in Chrome, and exposure to a wider corpus of malformed real-world documents than any other engine. Agent-generated PDFs (the `pdf` skill's ReportLab and PyMuPDF output, `agent-browser`'s print-to-PDF) are the easy case that either engine handles; they are not what decides this.
+
+What pdf.js would have bought is a real positioned text layer, so selection, copy, and find are native browser behavior. pdfium rasterizes to canvas, so selection has to be reconstructed above it — Extend's viewer spends roughly 150 lines on a text selection layer, a copy shortcut, and a selection release guard to simulate what the browser otherwise gives free. That is a bounded, already-solved cost, and it only matters on documents that render correctly to begin with. Robustness outranks it.
+
+**Selection is therefore the known-hard part of the PDF viewer** and needs real attention during implementation rather than being assumed to come with the plugin.
+
+Annotation, form filling, redaction, signature, and export ship as further plugins over the same engine, so PDF editing is closer to enabling a plugin and wiring a save path back into the task folder than to a project. Out of scope here; recorded because it is cheap to reach and the engine choice is what makes it cheap.
+
+### Dependency risk, stated plainly
+
+`@embedpdf/*` is a young project (created January 2025) whose commits are overwhelmingly from a single maintainer. The mitigation is that the durable asset is pdfium — a compiled artifact maintained by Google — and the single-maintainer part is the TypeScript and React layer wrapping it, which is the replaceable one. If the wrapper were abandoned, the engine remains and the wrapper is forkable or rewritable. It is MIT.
+
+The three `@extend-ai/*` packages are likewise pre-1.0 (0.8.1, 0.1.2, 0.15.0) and published by one vendor for their own product. That is real risk, and the mitigation is that they are MIT with complete source (`extend-hq/react-docx`, `extend-hq/react-pptx`, `extend-hq/react-xlsx`) and forkable. Two consequences for how we consume them:
+
+- Pin exact versions and exclude them from `minimumReleaseAge` floating, so a publish is a deliberate upgrade.
+- Keep our own code on the libraries' documented public API. Reaching into internals is what makes a fork or a version bump expensive.
+
+`@extend-ai/react-docx@0.8.1` needs a patch: it unmounts a React root synchronously from an effect when tearing down detached thumbnail surfaces, which trips React 19's "attempted to synchronously unmount a root while React was already rendering" when switching documents with the thumbnail rail open. Upstream carries the fix; mirror it in `patches/`.
+
+## Where the wasm runs
+
+Considered and rejected: parsing documents outside the renderer and shipping the parsed model over the wire, so the renderer needs no wasm.
+
+The libraries split cleanly in two, and it is worth recording which is which:
+
+| Format | What the wasm does | Could it move off the renderer? |
+| --- | --- | --- |
+| DOCX | **Parse only.** OOXML → `DocModel`. Layout and render are TypeScript; only the `docx-core` crate is Rust. | Yes. The parse already crosses a `postMessage` boundary, so the model is structured-cloneable by construction. |
+| PPTX | **Parse only.** Same shape, via `native-parser-worker.ts`. | Yes, same reasoning. |
+| XLSX | **Live session.** The worker holds `Workbook.fromBytes` alive and answers `getCellSnapshot` / `getRowsBatch` / `parseCharts` per virtualized scroll, plus formula recalculation. | No, not without proxying every scroll query over RPC. |
+| PDF | **Live session.** pdfium rasterizes tiles at the current zoom and scroll position. | No, same reason. |
+
+It works for two of four, and those two are where it buys the least. Because PDF and XLSX have to keep wasm in the renderer regardless, every item in [Runtime plumbing](#runtime-plumbing) survives either way: the app-protocol wasm serving, `corsEnabled`, `wasm-unsafe-eval`, `worker-src blob:`, `worker.format: "es"`, and the `optimizeDeps` exclusions. Moving DOCX and PPTX parsing out would add an RPC and a serialization path for a multi-MB model while eliminating zero constraints.
+
+It would not shrink the renderer bundle either: both packages publish a single `.` export with no renderer-only subpath, so the renderer imports the same `dist/index.js` whether or not it does the parsing.
+
+This becomes worth revisiting only if PDF and XLSX ever leave the renderer — which, given both need a live wasm session to answer scroll and zoom, is not foreseeable.
+
+Converting everything to PDF with a bundled headless office suite and shipping only one viewer was also considered: several hundred MB of binary, per-platform signing, fidelity loss on every non-PDF format, and no live spreadsheet.
+
+## Scope
+
+Five read-only viewers, each with page/slide navigation and zoom, text selection and copy, find-in-document, and a page thumbnail rail where the format has pages.
+
+| | PDF | DOCX | PPTX | XLSX | CSV/TSV |
+| --- | --- | --- | --- | --- | --- |
+| Nav + zoom | plugin-zoom, plugin-scroll | `useDocxPageLayout` | `usePptxViewer` | controller zoom, sheet tabs | ours |
+| Selection + copy | plugin-selection + a selection layer over the canvas | DOM text, free | DOM text, free | controller cell selection | ours |
+| Find | plugin-search | **see below** | `searchQuery` / `onSearchResults` | ours, walks cells | ours |
+| Thumbnail rail | plugin-thumbnail | `useDocxViewerThumbnails` | `usePptxViewerThumbnails` | n/a, sheet tabs | n/a |
+
+**Find in DOCX is the one uncertain item.** `@extend-ai/react-docx` exposes no search API, and Extend UI's DOCX viewer has no find UI either — so there is no reference implementation to read. The viewer paginates and virtualizes, so the browser's own find cannot see off-screen pages. Approach: walk the parsed `DocModel` text, map matches to page index, drive the existing page-scroll path, and highlight within the mounted page. If that turns out to need library internals, DOCX ships without find and it becomes its own follow-up rather than blocking the other four.
+
+CSV/TSV gets a viewer we own outright, on `@tanstack/react-table` and `@tanstack/react-virtual` — both already Studio dependencies, Table behind `tasks-data-table` — plus `papaparse` for RFC 4180 parsing, which is the only new dependency in this row. Routing CSV through the XLSX stack is not available: that worker only accepts zipped workbook bytes via `Workbook.fromBytes`.
+
+### Explicitly out
+
+- The Finder-style file browser (`file-system.tsx`, 5,292 lines) and file-grid thumbnailing. The Files panel stays exactly as it is on `main`.
+- Base UI. Nothing under `ui/extend/`, no `@base-ui/react`, no `@hugeicons/*`. With the file browser gone the viewers need only button, dropdown-menu, input, popover, select, separator, spinner, tabs, and tooltip — Studio's Radix layer has all of them. `command` and `dialog` were file-browser-only.
+- Bounding-box / OCR / citation overlays, document splits, e-signature, and every editing path.
+- `ScrollArea`. Studio has no scroll-area primitive and does not need one: our chrome uses plain scroll containers with refs.
+
+Nothing is removed. `TaskFileViewerModal`, `atoms/task-file-viewer.ts`, `FilePreviewListItem`, and `FileViewer`'s `onExpand` all stay.
+
+## The expand modal goes full-bleed
+
+`TaskFileViewerModal` stays, and gets the window. The 64px padding and the max-width/height caps go, so the document or image is as large as the window allows.
+
+The chrome is identical to the artifact panel's: one `FileViewer`, one document toolbar, the same controls in both hosts. The modal is a bigger window onto the same thing, not a different mode. Because the artifact panel can be narrow, the toolbar collapses its controls into an overflow menu below a width threshold — measured against the toolbar's own container, not the viewport, per `docs/architecture/responsive-layout.md`.
+
+Layout: the filename/actions header and the document toolbar stay as solid rows at the top; prev/next stay as overlay buttons at the left and right edges; the multi-file thumbnail strip stays as a row at the bottom with its padding reduced. Audio keeps its intrinsic width centered inside the full-bleed shell rather than stretching.
+
+### Zoom
+
+The modal currently portals to `document.body` (outside `ZoomRoot`) and never applies `useAppZoomStyle`, so it renders at 1x while the rest of the app is zoomed. Fix that here: apply `useAppZoomStyle` to the dialog content like every other Studio dialog, so modal chrome matches app chrome at any zoom level. The document's own size stays under the viewer's zoom control, which is where a user looking for a bigger document will reach.
+
+Full-bleed is the easier case under CSS `zoom`, which is worth stating so it is not re-derived later. `inset-0` is zero on all four sides, and zero is zero at any scale factor, so a self-zoomed `fixed inset-0` box still covers exactly the real viewport while its contents scale. Percentage sizing inside it resolves in the element's own zoomed units and needs no compensation. It is the current `h-[80vh]` / `max-w-4xl` sizing that is fragile — `vw`/`vh` are *not* rescaled by an element's own zoom and have to be divided by `--content-zoom` — and going full-bleed deletes it.
+
+Which also collapses `fileViewerVariants`. Its `error` variant is already dead (`FileViewer` passes `error: false` literally), and once the modal passes `fullSize` like the artifact panel does, every `fileType` size variant is unreachable too. The whole `tv()` call becomes a single base class.
+
+## Restructuring `file-viewer.tsx`
+
+`FileViewer` is a 666-line component ending in a twelve-branch `?:` ladder over `fileType`. Five more formats, each with its own chrome and error behavior, does not fit that shape.
+
+Replace the ladder with a registry keyed on `FileType`:
+
+```ts
+type ViewerEntry = {
+  layout: "audio" | "default" | "document" | "text";
+  render: (props: ViewerProps) => ReactNode;
+};
+
+const VIEWERS = { ... } satisfies Record<FileType, ViewerEntry>;
+```
+
+`satisfies Record<FileType, ViewerEntry>` makes adding a `FileType` a compile error until it is routed, which also backs `canPreviewFile()` — the predicate deciding whether a file opens in the panel or gets handed to the OS-associated app.
+
+`get-file-type.ts` gains `csv`, `docx`, `pptx`, and `xlsx` types alongside the existing `pdf`.
+
+Each document viewer renders inside a shared surface that provides a `CatchBoundary` keyed on the file URL and a `Suspense` fallback, so a parser that throws on a malformed file degrades to the "preview unavailable" card and recovers when the user picks another file, instead of taking down the panel.
+
+### Where the controls live
+
+The viewers render a toolbar row beneath `FileViewer`'s existing filename/actions header, rather than injecting controls into it. The header is host chrome (open, copy, reveal, close); the toolbar is document chrome (pages, zoom, find, thumbnails). Keeping them separate means the lazy viewer boundary stays a plain component boundary with no slot plumbing across it, and each viewer owns its controls without the header knowing which format is mounted. A shared `viewer-toolbar.tsx` supplies the pieces so the five toolbars stay visually identical and collapse identically when narrow.
+
+### Layout
+
+```text
+apps/studio/src/client/components/document-viewers/
+  csv-viewer.tsx
+  docx-viewer.tsx
+  pdf-viewer.tsx
+  pptx-viewer.tsx
+  xlsx-viewer.tsx
+  viewer-toolbar.tsx      shared toolbar controls
+  viewer-surface.tsx      error/suspense boundary + thumbnail rail frame
+apps/studio/src/client/lib/document-viewers.ts   wasm sources + lazy handles
+```
+
+## Runtime plumbing
+
+This is where the real integration cost sits, and it is orthogonal to how much chrome we write. All of it was established on an earlier spike and carries over.
+
+### WASM cannot be fetched from the renderer bundle
+
+`studioURL()` loads the renderer from `file://` in packaged builds, so `fetch()` of a bundled asset is blocked and none of the four wasm binaries can load from the Vite output directory.
+
+They are copied into `resources/wasm/` at build time and served over the already-privileged app protocol. The renderer's own origin is never that scheme, so every wasm fetch is cross-origin, and Chromium rejects those for custom schemes unless the scheme opts in — independent of the response's CORS headers. `registerSchemesAsPrivileged` therefore needs `corsEnabled: true` alongside the existing `secure` / `standard` / `supportFetchAPI`. `APP_PROTOCOL` is `instrument-local` in dev and `instrument` when packaged, so both have to be allowed wherever the binaries are reached.
+
+Every library exposes `setWasmSource()`, so no bundler aliasing is needed.
+
+| Source | Served as |
+| --- | --- |
+| `@embedpdf/pdfium/dist/pdfium.wasm` | `instrument://wasm/pdfium.wasm` |
+| `@extend-ai/react-docx/dist/docx_wasm_bg.wasm` | `instrument://wasm/docx.wasm` |
+| `@extend-ai/react-pptx/dist/pptx_wasm_bg.wasm` | `instrument://wasm/pptx.wasm` |
+| `@extend-ai/react-xlsx/dist/duke_sheets_wasm_bg.wasm` | `instrument://wasm/xlsx.wasm` |
+
+`@embedpdf/pdfium` is transitive through `@embedpdf/engines`, so under pnpm's isolated layout it only resolves from the engines package.
+
+The copy step runs on `buildStart` of the main build alone, and skips when the destination already holds the current bytes — `buildStart` fires on every watch rebuild and this is ~11MB. The mtime check has to be exact rather than newer: pnpm hard-links from its store, so a reinstall can drop in a same-size asset older than what was copied.
+
+Module workers do still work from `file://`: the `grantFileProtocolExtraPrivileges` fuse is on by default and this app never flips it, so a worker script at a sibling `file://` path is same-origin. All the parsers run off the main thread.
+
+### Parser workers and Vite's dev pre-bundler
+
+`@extend-ai/react-{docx,pptx,xlsx}` each spawn their parser with `new Worker(new URL("./x.js", import.meta.url), { type: "module" })`. Dev pre-bundling rewrites `import.meta.url` to `node_modules/.vite/deps/`, where the sibling worker file does not exist, so the dev server answers with SPA fallback HTML and the worker dies on load with an empty `error` event. The renderer lists all three in `optimizeDeps.exclude`, plus their CommonJS-only imports (`utif`, `regl`, `react-dom/server`) in `optimizeDeps.include` so those still get ESM interop.
+
+`@embedpdf/engines/pdfium-worker-engine` builds its worker from `URL.createObjectURL(new Blob([...]))` instead, which needs `blob:` in `worker-src`.
+
+### CSP
+
+`src/index.html` needs `'wasm-unsafe-eval'` in `script-src`, `instrument:` and `instrument-local:` in `connect-src`, `blob:` in `img-src` (viewers rasterize pages to canvas and hand the object URL to an `<img>`), and `worker-src 'self' blob:` — `worker-src` otherwise falls back to `script-src`, which does not allow `blob:`.
+
+### Renderer build
+
+The viewers take the renderer from ~5.3k to ~13k modules:
+
+- Parser worker entries code-split, which the default `iife` worker format cannot express. Set `worker.format: "es"`.
+- Rendering the chunks with sourcemaps exceeds Node's default heap (fails at 5GB, passes at 6.5GB). The three `electron-vite build` scripts invoke the bin through `node --max-old-space-size=8192` rather than a `NODE_OPTIONS` prefix, which would not survive the Windows release runner.
+
+Nothing loaded during renderer startup may statically import a viewer library. Each ships as a single side-effectful entry point, so importing one symbol pulls the whole package: configuring all three wasm sources from `main.tsx` put 5.6MB of library source in the entry chunk. `lib/document-viewers.ts` reaches each library through a dynamic import and owns the `lazy()` handles that pair wasm configuration with the viewer's own import, so no host can mount a viewer that would fall back to the library's default wasm source.
+
+### `@embedpdf`'s preact peer
+
+`@embedpdf/*` declares a `preact: ^10.26.4` peer alongside React, Svelte, and Vue. On the earlier spike, pnpm auto-installed one and picked up `@pierre/trees`' v11 prerelease, which does not satisfy `^10`; the fix was carrying `preact` as a devDependency. `@pierre/trees` was a file-browser dependency and is not in this branch, so the conflict may not reproduce — verify at install time and only add `preact` if it does.
+
+## Data flow
+
+Unchanged. Asset URLs come from the existing local HTTP server (`http://assets.<taskId>.<host>/<path>?version=<mtime>`), which already supports Range requests and CORS — embedpdf streams PDFs through range requests rather than fetching whole files. No new RPC.
+
+Theme: the DOCX and XLSX viewers take dark mode as a controlled prop (they own a night-render toggle that inverts document content while preserving image hues). Seed it from Studio's `ThemeProvider` and re-seed when the app theme changes, so the viewer's own toggle wins in between rather than being inert.
+
+App zoom: the toolbar's dropdowns, popovers, selects, and tooltips get `useAppZoomStyle` for free by using Studio's primitives. Canvas-rendered document content needs checking at zoom levels other than 1x — the viewers do their own device-pixel-ratio math.
+
+## Validation
+
+Per `.agents/skills/validate-changes/SKILL.md`, none of this is observable from reading the code. Each format needs a real file opened in a running Studio:
+
+- Dev, all five formats, in the artifact panel and the expand modal, both themes, app zoom at 1x and something else.
+- A packaged build, all five formats — the `file://` origin, the app protocol, and the copied `resources/wasm/` only exist there. This is the step that catches wasm and worker regressions.
+- A narrow artifact panel, to confirm the toolbar collapses rather than overflowing.
+- A large file per format (a 500-page PDF, a workbook with many sheets) for the virtualization and memory paths.
+- A malformed file per format, to confirm the `CatchBoundary` degrades to the fallback card rather than taking down the panel.
+- For PDF specifically, a corpus of awkward real-world documents rather than only generated ones: a scan, a filled government form, a CJK document, something from an old generator. Robust compatibility with whatever a user brings is why pdfium was chosen, so it is the thing to actually check.
+- PDF text selection and copy across page boundaries and at several zoom levels. This is reconstructed above a canvas rather than native browser selection, so it is the part most likely to be subtly wrong.

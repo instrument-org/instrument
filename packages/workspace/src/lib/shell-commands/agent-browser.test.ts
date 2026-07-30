@@ -60,6 +60,9 @@ describe("createAgentBrowserCommand", () => {
     expect(result.stdout).toContain("Chrome 136+");
     expect(result.stdout).toContain("--provider ios");
     expect(result.stdout).toContain("never resets it");
+    expect(result.stdout).toContain(
+      "no way to see what the user currently has open",
+    );
   });
 
   it.each([
@@ -333,6 +336,7 @@ describe("agent-browser routing", () => {
 
   afterEach(() => {
     vi.resetAllMocks();
+    vi.unstubAllEnvs();
   });
 
   async function spawnedWith(
@@ -498,6 +502,53 @@ describe("agent-browser routing", () => {
     for (const key of ["TEMP", "TMP", "TMPDIR"]) {
       expect(env[key]).toContain(taskDirPath);
     }
+  });
+
+  it("hands an external browser the host environment", async () => {
+    // The variable the CLI reads to find Chrome and the user's profiles on
+    // Windows. The sandbox env carries no such thing, so an external
+    // invocation that inherits it cannot resolve --profile or `profiles`.
+    vi.stubEnv("LOCALAPPDATA", String.raw`C:\Users\person\AppData\Local`);
+
+    const { env } = await spawnedWith([
+      "--profile",
+      "Default",
+      "open",
+      "https://example.com",
+    ]);
+
+    expect(env.LOCALAPPDATA).toBe(String.raw`C:\Users\person\AppData\Local`);
+    // Inheriting the host env must not hand back the color the sandbox env
+    // was suppressing; the CLI's output is read by the model.
+    expect(env.NO_COLOR).toBe("1");
+  });
+
+  it("keeps the host environment away from the task browser", async () => {
+    vi.stubEnv("LOCALAPPDATA", String.raw`C:\Users\person\AppData\Local`);
+
+    const { env } = await spawnedWith(["open", "https://example.com"]);
+
+    expect(env.LOCALAPPDATA).toBeUndefined();
+  });
+
+  it.each([
+    { name: "a relative directory", value: "work/browser-profile" },
+    { name: "a task-absolute directory", value: "/task/work/profile" },
+    { name: "a home-relative directory", value: "~/chrome-profile" },
+  ])("refuses a --profile naming $name", async ({ value }) => {
+    // Chrome takes the value as its data directory verbatim: relative, it
+    // resolves against Chrome's working directory rather than the task;
+    // absolute, it plants a Chrome profile inside the task tree.
+    const result = await command.execute(
+      ["--profile", value, "open", "https://example.com"],
+      commandCtx,
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(`"${value}" is a directory`);
+    expect(result.stderr).toContain("agent-browser profiles");
+    const { execa } = await import("execa");
+    expect(execa).not.toHaveBeenCalled();
   });
 
   it("routes profiles to the host even without a targeting flag", async () => {

@@ -140,7 +140,7 @@ const BLOCKED_SUBCOMMANDS = new Set([
   "doctor", // Diagnoses real Chrome installs, not our Electron bridge.
   "inspect", // Opens Chrome DevTools, which doesn't work against our WebContentsView CDP bridge.
   "install", // Browser binary is bundled with the app.
-  "launch", // Daemon pre-launch; open/read already launch on demand.
+  "launch", // Daemon pre-launch; a command that needs a page already launches on demand. (`read` never does, with or without this: it is skip-launch upstream.)
   "mcp", // MCP tool hosting is managed outside the in-app browser wrapper.
   "plugin", // Plugin capabilities would bypass workspace policy.
   "session", // Session metadata is owned by the workspace.
@@ -247,7 +247,7 @@ const WORKSPACE_HELP_EXTERNAL = dedent`
   External browsers (flags apply per invocation; a bare command targets the
   managed task browser again):
     profiles                    List the user's Chrome profiles
-    --profile <name|dir>        Launch Chrome with an existing profile (logins)
+    --profile <name>            Launch Chrome with an existing profile (logins)
     --auto-connect              Connect to a Chromium already running with
                                 remote debugging enabled
     --cdp <port|http://host:port>
@@ -260,6 +260,8 @@ const WORKSPACE_HELP_EXTERNAL = dedent`
     --state | --restore <key>   Load or persist storage state
 
   A normally running Chrome is NOT connectable: Chrome 136+ disables remote debugging on the default profile, so --auto-connect only reaches an instance someone launched with it enabled. To act as the user in their own logged-in Chrome, use --profile, which launches a debuggable copy of that profile with its logins.
+
+  There is no way to see what the user currently has open in their own browser. --profile starts a separate copy of the profile, so it carries their logins but opens with no tabs of its own, and no flag reaches the windows, tabs, or history of the Chrome they are looking at. Asked what they have open, say that plainly instead of working through the targeting flags.
 
   An external browser launched locally (--profile, --executable-path) opens a window the user can see and use; ask them to complete any sign-in or approval there rather than reporting that you are blocked. A browser reached with --cdp, --auto-connect, or --provider was launched elsewhere and is visible only if it already was.
 
@@ -423,6 +425,26 @@ export async function resolveAgentBrowserPathArgs(
 }
 
 /**
+ * The base environment for an invocation that drives a browser outside the app.
+ *
+ * The sandbox env is shaped for the task: a bare PATH, a per-task virtualenv,
+ * task-local temp. Driving the host's own browser stack needs the host's
+ * environment instead. The CLI finds the user's Chrome install, their profiles,
+ * and any already-running Chrome through platform variables it never otherwise
+ * sees -- LOCALAPPDATA on Windows, HOME elsewhere -- and `--executable-path`
+ * runs a real host binary. Inheriting covers those by construction; naming them
+ * one platform at a time covers only the ones we thought of.
+ */
+function externalBrowserBaseEnv(): Record<string, string | undefined> {
+  return {
+    ...process.env,
+    // Carried by the sandbox env on every other invocation, and not something a
+    // host sets, so without it here the CLI colors output the model has to read.
+    NO_COLOR: "1",
+  };
+}
+
+/**
  * Written to contradict a model that believes otherwise: training data, a
  * stale skill copy on the user's machine, or its own earlier turn in this
  * session. It states the absence, then names the route that does work, so the
@@ -435,6 +457,38 @@ function externalBrowserUnavailableMessage() {
     "The task's managed browser is the only browser. It keeps cookies and signed-in sessions across a task, so when a page needs an account, open it there and ask the user to sign in -- they can see and use that browser in the app.",
     "",
   ].join("\n");
+}
+
+/**
+ * Refuse a `--profile` that names a directory instead of one of the user's
+ * Chrome profiles. Written as a redirect rather than a wall: the flag exists to
+ * reuse the user's logins, and a directory cannot carry any, so the answer is
+ * always another route rather than a corrected path.
+ */
+function profileDirMessage(value: string) {
+  return [
+    `agent-browser: --profile takes the name of one of the user's Chrome profiles, and "${value}" is a directory.`,
+    "The value is handed to Chrome as its data directory unchanged, so a relative one resolves against Chrome's own working directory rather than the task, and either way the profile it opens holds none of the logins --profile exists to reuse.",
+    "Run `agent-browser profiles` for the names available. For a browser with no logins, drop the flag: the task browser is the default target, and it keeps cookies and signed-in sessions for the whole task.",
+    "",
+  ].join("\n");
+}
+
+/**
+ * The `--profile` value when it names a directory, mirroring the CLI's own
+ * predicate: a profile name carries no `/`, `\`, or `~`, and anything else is
+ * passed through to Chrome as a path after tilde expansion only.
+ */
+function profileDirValue(args: string[]): string | undefined {
+  const { globalFlags } = parseAgentBrowserArgs(args);
+  const value = globalFlags.find(({ name }) => name === "--profile")?.value;
+  if (
+    value === undefined ||
+    !(value.includes("/") || value.includes("\\") || value.includes("~"))
+  ) {
+    return undefined;
+  }
+  return value;
 }
 
 function workspaceHelp() {
@@ -524,6 +578,15 @@ export function createAgentBrowserCommand({
       return {
         exitCode: 1,
         stderr: externalBrowserUnavailableMessage(),
+        stdout: "",
+      };
+    }
+
+    const profileDir = isInfoOnly ? undefined : profileDirValue(args);
+    if (profileDir !== undefined) {
+      return {
+        exitCode: 1,
+        stderr: profileDirMessage(profileDir),
         stdout: "",
       };
     }
@@ -651,14 +714,18 @@ export function createAgentBrowserCommand({
     // absolute.
     const screenshotDirRelative = path.relative(taskCwd, screenshotDir);
 
+    // An external invocation drives the host's browser stack, so it runs with
+    // the host's environment; only the task browser gets the sandbox's.
+    const baseEnv = isExternal ? externalBrowserBaseEnv() : env;
+
     const spawnEnv = {
-      ...env,
+      ...baseEnv,
       // `agent-browser record` spawns a real `ffmpeg` process by bare name,
       // resolved against PATH. The bundled ffmpeg-static binary isn't on the
       // sandbox PATH, so prepend its dir (the in-bash `ffmpeg` command is a
       // just-bash intercept that a separate subprocess can't see).
-      ...ffmpegSubprocessEnv(env.PATH),
-      // Wins over the task-local TEMP/TMP/TMPDIR the spread above carries.
+      ...ffmpegSubprocessEnv(baseEnv.PATH),
+      // Wins over whichever temp dir the base env carries.
       ...(externalTmpDir
         ? { TEMP: externalTmpDir, TMP: externalTmpDir, TMPDIR: externalTmpDir }
         : {}),
@@ -697,12 +764,11 @@ export function createAgentBrowserCommand({
       // only for task-browser invocations so an external --executable-path
       // launch of an Electron-based app is unaffected.
       ELECTRON_RUN_AS_NODE: pluginRegistry ? "1" : undefined,
-      // External invocations get the real host HOME: --auto-connect
-      // discovers running Chromes via DevToolsActivePort under the real
-      // user-data dirs, and --profile resolves named profiles there.
-      // Task-browser invocations keep the per-task sink so agent-browser
-      // never writes to the host home.
-      HOME: isExternal ? (process.env.HOME ?? homeDir) : homeDir,
+      // Task-browser invocations write to a per-task sink instead of the host
+      // home. External ones keep whatever the host uses to locate the user's
+      // browser data, which is the base env's HOME on macOS and Linux and is
+      // not HOME at all on Windows.
+      ...(isExternal ? {} : { HOME: homeDir }),
     };
 
     let result: Awaited<ReturnType<typeof runAgentBrowser>>;

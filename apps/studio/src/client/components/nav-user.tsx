@@ -7,6 +7,7 @@ import {
 import { SidebarMenu, SidebarMenuItem } from "@/client/components/ui/sidebar";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { getInitials } from "@/client/lib/get-initials";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { FadersHorizontalIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
@@ -14,10 +15,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useLiveSubscriptionStatus } from "../hooks/use-live-subscription-status";
 import { useLiveUser } from "../hooks/use-live-user";
 
-// Both variants share a height so the footer never resizes as auth, profile,
-// and subscription resolve at different times and shove the rows above it.
 const rowClassName =
-  "flex h-19 w-full items-center gap-3 pr-5 pl-4 hover:bg-black/5 dark:hover:bg-white/5";
+  "flex w-full items-center gap-3 pr-5 pl-4 hover:bg-black/5 dark:hover:bg-white/5";
 
 export function NavUser() {
   // Resolves from the main process without an API round trip, so it settles
@@ -43,7 +42,10 @@ export function NavUser() {
       <SidebarMenu>
         <SidebarMenuItem>
           <button
-            className={`${rowClassName} text-gray-400 dark:text-gray-600`}
+            className={cn(
+              rowClassName,
+              "h-15 text-gray-400 dark:text-gray-600",
+            )}
             onClick={() => {
               openSettings({ tab: "General" });
             }}
@@ -61,7 +63,9 @@ export function NavUser() {
     <SidebarMenu>
       <SidebarMenuItem>
         <button
-          className={rowClassName}
+          // Fixed so the row keeps one height as profile and subscription
+          // resolve at different times rather than shoving the rows above it.
+          className={cn(rowClassName, "h-19")}
           onClick={() => {
             openSettings({ tab: "General" });
           }}

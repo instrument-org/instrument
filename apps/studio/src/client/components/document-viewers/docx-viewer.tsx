@@ -2,6 +2,7 @@ import { cn } from "@/client/lib/utils";
 import {
   DocxEditorViewer,
   useDocxEditor,
+  useDocxPageLayout,
   useDocxViewerThumbnails,
 } from "@extend-ai/react-docx";
 import { useQuery } from "@tanstack/react-query";
@@ -12,12 +13,15 @@ import {
   ViewerPageControl,
   ViewerRailToggle,
   ViewerToolbar,
-  ViewerToolbarSeparator,
   ViewerToolbarSpacer,
   ViewerZoomControl,
 } from "./viewer-toolbar";
+import { MAX_ZOOM, MIN_ZOOM } from "./zoom-levels";
 
 const THUMBNAIL_WIDTH = 104;
+// Margin left either side of a fitted page, so it does not sit flush against
+// the scrollbar and the panel edge.
+const FIT_WIDTH_GUTTER = 32;
 
 /**
  * DOCX rendering goes through the library's editor controller in `read-only`
@@ -42,6 +46,20 @@ export function DocxViewer({
     null,
   );
   const currentPage = useVisiblePage(scrollElement);
+  const { layout } = useDocxPageLayout(editor);
+
+  // Fit is a one-shot that picks the zoom level a page needs to span the
+  // panel, not a mode that re-fits on resize: the page keeps whatever level it
+  // lands on, so the readout stays a real number the stepper can move from.
+  const fitWidth = () => {
+    if (!scrollElement || layout.pageWidthPx <= 0) {
+      return;
+    }
+    const available = scrollElement.clientWidth - FIT_WIDTH_GUTTER;
+    setZoom(
+      Math.min(Math.max(available / layout.pageWidthPx, MIN_ZOOM), MAX_ZOOM),
+    );
+  };
 
   const { data: file, error } = useQuery({
     queryFn: async () => {
@@ -94,7 +112,6 @@ export function DocxViewer({
           }}
           open={railOpen}
         />
-        <ViewerToolbarSeparator />
         <ViewerPageControl
           count={Math.max(editor.totalPages, 1)}
           onPageChange={(page) => {
@@ -102,8 +119,7 @@ export function DocxViewer({
           }}
           page={Math.min(currentPage, Math.max(editor.totalPages, 1))}
         />
-        <ViewerToolbarSeparator />
-        <ViewerZoomControl onZoomChange={setZoom} zoom={zoom} />
+        <ViewerZoomControl onFit={fitWidth} onZoomChange={setZoom} zoom={zoom} />
         <ViewerToolbarSpacer />
       </ViewerToolbar>
 
@@ -130,9 +146,12 @@ export function DocxViewer({
               className="mx-auto"
               editor={editor}
               mode="read-only"
-              // Passing the scale explicitly keeps the viewer's virtual page
-              // offsets in step with the toolbar; left to infer, it reads CSS
-              // `zoom` off its ancestors and lands a frame behind.
+              // Both are otherwise inferred: the scroll container by walking up
+              // for the nearest scrollable ancestor, and the scale by reading
+              // CSS `zoom` off the ancestor chain, which cannot see the `zoom`
+              // this element sets on itself. Naming them keeps the virtual page
+              // offsets in step with the toolbar instead of a frame behind.
+              pageVirtualization={{ scrollElement, zoomScale: zoom }}
               style={{ zoom }}
             />
           </div>

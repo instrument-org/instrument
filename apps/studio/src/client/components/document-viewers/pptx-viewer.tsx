@@ -12,7 +12,6 @@ import {
   ViewerPageControl,
   ViewerRailToggle,
   ViewerToolbar,
-  ViewerToolbarSeparator,
   ViewerToolbarSpacer,
   ViewerZoomControl,
 } from "./viewer-toolbar";
@@ -74,7 +73,6 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
           }}
           open={railOpen}
         />
-        <ViewerToolbarSeparator />
         <ViewerPageControl
           count={slideCount}
           label="slide"
@@ -83,7 +81,6 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
           }}
           page={slideIndex + 1}
         />
-        <ViewerToolbarSeparator />
         <ViewerZoomControl
           onFit={() => {
             void controller?.setFitMode("contain");
@@ -118,9 +115,15 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
         railOpen={railOpen}
       >
         {/* The library's own toolbar and thumbnail rail are off: this viewer
-            supplies both from Studio's chrome so every format matches. */}
+            supplies both from Studio's chrome so every format matches.
+
+            `height` becomes the min and max height of the slide workspace, and
+            defaults to a `min(76vh, 780px)` clamp that leaves the bottom of the
+            panel empty however tall the panel is. A percentage resolves against
+            this element, which `inset-0` has already sized. */}
         <ReactPptxViewer
           className="absolute inset-0 bg-muted/40"
+          height="100%"
           onLoad={(presentation) => {
             setSlideCount(Math.max(presentation.document.slides.length, 1));
           }}

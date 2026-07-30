@@ -4,7 +4,6 @@ import {
   XlsxViewerProvider,
   XlsxViewer as XlsxWorkbookViewer,
 } from "@extend-ai/react-xlsx";
-import { useState } from "react";
 
 import { ViewerLoading } from "./viewer-surface";
 import {
@@ -29,8 +28,15 @@ export function XlsxViewer({
   filename: string;
   url: string;
 }) {
-  const controller = useXlsxViewerController({ fileName: filename, src: url });
-  const [zoom, setZoom] = useState(1);
+  // Read-only belongs on the controller, not the viewer component: the
+  // component reads its editing state from whichever controller it is handed,
+  // and only builds one from its own props when no controller is supplied.
+  // Passing it to the component alone leaves cell editing, paste and undo live.
+  const controller = useXlsxViewerController({
+    fileName: filename,
+    readOnly: true,
+    src: url,
+  });
 
   // Thrown rather than rendered so it reaches the surface's `CatchBoundary`.
   if (controller.error) {
@@ -43,12 +49,17 @@ export function XlsxViewer({
   return (
     <XlsxViewerProvider controller={controller} isDark={false}>
       <ViewerToolbar>
+        {/* The library counts zoom in Excel's units, where 100 is 100%, and
+            clamps to its own range; handing it a 1 lands at the 10% floor. The
+            readout comes back off the controller so a trackpad pinch on the
+            grid moves the toolbar with it. */}
         <ViewerZoomControl
+          max={controller.maxZoomScale / 100}
+          min={controller.minZoomScale / 100}
           onZoomChange={(level) => {
-            setZoom(level);
-            controller.setZoomScale(level);
+            controller.setZoomScale(level * 100);
           }}
-          zoom={zoom}
+          zoom={controller.zoomScale / 100}
         />
         <ViewerToolbarSpacer />
       </ViewerToolbar>
@@ -63,7 +74,6 @@ export function XlsxViewer({
             allowResizeInReadOnly
             className="absolute inset-0"
             controller={controller}
-            readOnly
             showDefaultToolbar={false}
           />
         )}

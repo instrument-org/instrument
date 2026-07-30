@@ -114,6 +114,7 @@ export function ViewerFindControl({
                 : `${activeMatch + 1}/${matchCount}`}
           </span>
           <Button
+            aria-label="Previous match"
             className={actionClassName}
             disabled={matchCount === 0}
             onClick={onPreviousMatch}
@@ -123,6 +124,7 @@ export function ViewerFindControl({
             <CaretLeftIcon className="size-4" />
           </Button>
           <Button
+            aria-label="Next match"
             className={actionClassName}
             disabled={matchCount === 0}
             onClick={onNextMatch}
@@ -132,6 +134,7 @@ export function ViewerFindControl({
             <CaretRightIcon className="size-4" />
           </Button>
           <Button
+            aria-label="Close find"
             className={actionClassName}
             onClick={() => {
               onQueryChange("");

@@ -32,6 +32,10 @@ export function ViewerBody({
             "shrink-0 overflow-hidden border-r border-border/60 transition-[width] duration-200",
             railOpen ? "w-40" : "w-0 border-r-0",
           )}
+          // Collapsed by clipping rather than unmounting, so the thumbnails stay
+          // rendered and keep their scroll position. `inert` is what keeps them
+          // out of the tab order while they are invisible.
+          inert={!railOpen}
         >
           <div className="h-full w-40 overflow-y-auto overscroll-contain">
             {rail}
@@ -82,6 +86,12 @@ export function ViewerSurface({
   );
 }
 
+// Matches the centering the registry's own fallback branches apply, so a
+// viewer that throws lands the card in the same place an unsupported file does.
 function ViewerFallback() {
-  return useContext(ViewerFallbackContext);
+  return (
+    <div className="flex size-full items-center justify-center">
+      {useContext(ViewerFallbackContext)}
+    </div>
+  );
 }

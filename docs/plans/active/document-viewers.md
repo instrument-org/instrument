@@ -85,7 +85,7 @@ PDF selection needed far less than expected: `@embedpdf/plugin-selection` ships 
 
 DOCX page navigation is the piece that did need hand-work. The editor controller's `currentPage` tracks the caret, which in read-only mode reports whatever the paginator touched last, so a freshly opened document showed its final page. The visible page is measured from scroll position against the rendered page wrappers instead.
 
-CSV/TSV gets a viewer we own outright, on `@tanstack/react-table` and `@tanstack/react-virtual` — both already Studio dependencies, Table behind `tasks-data-table` — plus `papaparse` for RFC 4180 parsing, which is the only new dependency in this row. Routing CSV through the XLSX stack is not available: that worker only accepts zipped workbook bytes via `Workbook.fromBytes`.
+CSV/TSV gets a viewer we own outright, on `@tanstack/react-virtual` — already a Studio dependency — plus `papaparse` for RFC 4180 parsing, which is the only new dependency in this row. Routing CSV through the XLSX stack is not available: that worker only accepts zipped workbook bytes via `Workbook.fromBytes`.
 
 ### Explicitly out
 

@@ -161,7 +161,16 @@ function loadEngine() {
   enginePromise ??= import("@embedpdf/engines/pdfium-worker-engine").then(
     ({ createPdfiumEngine }) => createPdfiumEngine(PDFIUM_WASM_URL, {}),
   );
-  return enginePromise;
+  // A failed start is not kept: caching the rejection would leave every later
+  // PDF showing the error card for the rest of the session, which defeats the
+  // surface's recovery-on-next-file behavior.
+  const pending = enginePromise;
+  pending.catch(() => {
+    if (enginePromise === pending) {
+      enginePromise = null;
+    }
+  });
+  return pending;
 }
 
 function PdfDocument({ url }: { url: string }) {
@@ -183,6 +192,8 @@ function PdfDocument({ url }: { url: string }) {
     const handleError = () => {
       setErrorUrl(url);
     };
+    let openedId: string | undefined;
+    let unmounted = false;
 
     documentManager
       .openDocumentUrl({
@@ -192,15 +203,28 @@ function PdfDocument({ url }: { url: string }) {
         url,
       })
       .wait((response) => {
-        response.task.wait(() => {
+        response.task.wait((opened) => {
+          openedId = opened.id;
           for (const id of previousIds) {
             // Best effort: a document that fails to close is already
             // unreachable, and surfacing it would replace a rendered PDF with
             // an error card.
             documentManager.closeDocument(id).wait(ignore, ignore);
           }
+          if (unmounted) {
+            documentManager.closeDocument(opened.id).wait(ignore, ignore);
+          }
         }, handleError);
       }, handleError);
+
+    // The engine is shared across the renderer's lifetime, so a document left
+    // open after the panel closes holds its pdfium memory indefinitely.
+    return () => {
+      unmounted = true;
+      if (openedId !== undefined) {
+        documentManager.closeDocument(openedId).wait(ignore, ignore);
+      }
+    };
   }, [documentManager, url]);
 
   if (loadError || activeDocument?.status === "error") {

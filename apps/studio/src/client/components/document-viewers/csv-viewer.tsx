@@ -21,6 +21,7 @@ const MAX_COLUMN_WIDTH = 420;
 const WIDTH_SAMPLE_ROWS = 200;
 const CHARACTER_WIDTH = 7.2;
 const CELL_PADDING = 24;
+const FIND_DEBOUNCE_MS = 200;
 
 interface Match { column: number; row: number }
 
@@ -67,11 +68,17 @@ function CsvGrid({ filename, text }: { filename: string; text: string }) {
     [filename, text],
   );
 
-  const matches = useMemo(() => findMatches({ query, rows }), [query, rows]);
+  // Scanning every cell is O(rows x columns) and this viewer is built for large
+  // exports, so it runs on a settled query rather than on each keystroke.
+  const settledQuery = useDebounced(query, FIND_DEBOUNCE_MS);
+  const matches = useMemo(
+    () => findMatches({ query: settledQuery, rows }),
+    [rows, settledQuery],
+  );
 
   useEffect(() => {
     setActiveMatch(0);
-  }, [query]);
+  }, [settledQuery]);
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
@@ -80,6 +87,15 @@ function CsvGrid({ filename, text }: { filename: string; text: string }) {
     getScrollElement: () => scrollRef.current,
     overscan: 12,
   });
+
+  // Row heights come from `estimateSize` and are cached, and the virtualizer
+  // memoizes measurements on count/padding/key/lanes -- not on `estimateSize`.
+  // Without this, zooming scales the text and the column widths while every row
+  // keeps its original height, clipping content and leaving the scroll length
+  // wrong.
+  useEffect(() => {
+    virtualizer.measure();
+  }, [virtualizer, zoom]);
 
   const current = matches[activeMatch];
   useEffect(() => {
@@ -163,8 +179,8 @@ function CsvGrid({ filename, text }: { filename: string; text: string }) {
               >
                 {(rows[virtualRow.index] ?? []).map((cell, column) => {
                   const isMatch =
-                    query !== "" &&
-                    cell.toLowerCase().includes(query.toLowerCase());
+                    settledQuery !== "" &&
+                    cell.toLowerCase().includes(settledQuery.toLowerCase());
                   const isActive =
                     current?.row === virtualRow.index &&
                     current.column === column;
@@ -239,9 +255,10 @@ function parseDelimited({
   const header = records.length > 0 ? normalize(records[0]) : [];
   const rows = records.slice(1).map((record) => normalize(record));
 
+  const sample = rows.slice(0, WIDTH_SAMPLE_ROWS);
   const columnWidths = Array.from({ length: columnCount }, (_, column) => {
     let widest = header[column]?.length ?? 0;
-    for (const row of rows.slice(0, WIDTH_SAMPLE_ROWS)) {
+    for (const row of sample) {
       widest = Math.max(widest, row[column]?.length ?? 0);
     }
     return Math.min(
@@ -251,4 +268,20 @@ function parseDelimited({
   });
 
   return { columnWidths, header, rows };
+}
+
+/** Holds a value back until it has stopped changing for `delay` ms. */
+function useDebounced(value: string, delay: number) {
+  const [settled, setSettled] = useState(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSettled(value);
+    }, delay);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [delay, value]);
+
+  return settled;
 }

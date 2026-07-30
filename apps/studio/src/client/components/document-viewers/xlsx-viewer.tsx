@@ -73,6 +73,9 @@ export function XlsxViewer({
         <div className="flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-t border-border/60 px-2">
           {controller.sheets.map((sheet, index) => (
             <button
+              aria-current={
+                controller.activeSheetIndex === index ? "true" : undefined
+              }
               className={cn(
                 "shrink-0 rounded-md px-2 py-1 text-xs whitespace-nowrap",
                 controller.activeSheetIndex === index

@@ -44,6 +44,8 @@ const resolve = {
   },
 };
 
+let stagingCounter = 0;
+
 // `buildStart` fires on every watch rebuild, so re-copying ~11MB of WASM each
 // time is skipped when the destination already holds the current bytes. The
 // mtime has to match exactly rather than merely be newer: pnpm hard links from
@@ -67,7 +69,10 @@ async function copyVendorAsset({ from, to }: { from: string; to: string }) {
   await fs.mkdir(path.dirname(to), { recursive: true });
   // Stage then rename so an interrupted or concurrent build cannot leave a torn
   // binary in place, and stamp the source mtime so the skip check above holds.
-  const staging = `${to}.tmp`;
+  // The staging name is unique per writer: two builds sharing one checkout
+  // would otherwise interleave into the same temp path, and the rename would
+  // publish the mixed bytes with a current-looking mtime.
+  const staging = `${to}.${process.pid}.${stagingCounter++}.tmp`;
   await fs.copyFile(from, staging);
   await fs.utimes(staging, source.atime, source.mtime);
   await fs.rename(staging, to);

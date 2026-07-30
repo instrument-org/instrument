@@ -128,14 +128,12 @@ export function TaskFileViewerModal() {
           <DialogPrimitive.Description className="sr-only">
             File viewer
           </DialogPrimitive.Description>
-          <div
-            className="relative flex size-full flex-col"
-            onClick={(e) => {
-              if (e.target === e.currentTarget) {
-                collapseViewer();
-              }
-            }}
-          >
+          {/*
+            No click-to-dismiss backdrop: full bleed means the viewer covers
+            this element entirely, so there is no gutter left to click. Escape
+            and the viewer's own close button are the dismiss paths.
+          */}
+          <div className="relative flex size-full flex-col">
             <div className="relative flex min-h-0 flex-1">
               {hasMultipleFiles && (
                 <>

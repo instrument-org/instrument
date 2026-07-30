@@ -98,7 +98,7 @@ export function DocxViewer({
         <ViewerPageControl
           count={Math.max(editor.totalPages, 1)}
           onPageChange={(page) => {
-            revealPage(page - 1);
+            revealPage(scrollElement, page - 1);
           }}
           page={Math.min(currentPage, Math.max(editor.totalPages, 1))}
         />
@@ -112,7 +112,9 @@ export function DocxViewer({
           <DocxThumbnailRail
             currentPage={currentPage}
             editor={editor}
-            onSelect={revealPage}
+            onSelect={(pageIndex) => {
+              revealPage(scrollElement, pageIndex);
+            }}
           />
         }
         railOpen={railOpen}
@@ -187,8 +189,13 @@ function DocxThumbnailRail({
 
 // The viewer paginates internally and exposes no imperative scroll API, so
 // page navigation goes through the page wrapper's own data attribute.
-function revealPage(pageIndex: number) {
-  const target = document.querySelector(
+//
+// Scoped to the viewer's own scroll container rather than the document: the
+// artifact panel keeps its viewer mounted while the expand modal renders a
+// second one for the same file, so a global lookup always resolves to the
+// panel's copy and the modal's navigation would scroll the hidden viewer.
+function revealPage(scrollElement: HTMLElement | null, pageIndex: number) {
+  const target = scrollElement?.querySelector(
     `[data-docx-page-index="${pageIndex}"]`,
   );
   target?.scrollIntoView({ behavior: "smooth", block: "start" });

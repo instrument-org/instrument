@@ -5,6 +5,14 @@ import { encodeBrowserTargetId } from "../types";
 import { getBrowserState } from "./browser-state";
 import { getWorkspaceConfig } from "./workspace-config";
 
+// A browser sitting on the blank page is not news, in either direction: it has
+// no state to tell the model about and nothing to resume. agent-browser creates
+// a page for any command that needs one, including commands that only read
+// state, so a target can exist for a whole session without a page ever being
+// asked for -- and telling the model "a browser tab is already open" about that
+// invites it to keep addressing a browser that has nothing in it.
+const BLANK_PAGE_URL = "about:blank";
+
 export async function createBrowserStatusPart({
   createdAt,
   messageId,
@@ -23,6 +31,10 @@ export async function createBrowserStatusPart({
     );
 
     if (target) {
+      if (target.url === BLANK_PAGE_URL) {
+        return undefined;
+      }
+
       const browserStateResult = await getBrowserState(taskId, sessionId);
       if (browserStateResult.isErr()) {
         getWorkspaceConfig().captureException(browserStateResult.error);
@@ -55,23 +67,23 @@ export async function createBrowserStatusPart({
     }
 
     const browserState = browserStateResult.value;
-    if (!browserState) {
+    const lastUrl =
+      browserState?.lastUrl === BLANK_PAGE_URL
+        ? undefined
+        : browserState?.lastUrl;
+    // No page to name means the browser closed without ever holding one, so
+    // there is nothing for the model to restore and no reason to raise it.
+    if (!lastUrl) {
       return undefined;
     }
 
     return createPart({
       createdAt,
       data: {
-        ...(browserState.lastUrl
-          ? {
-              previousTarget: {
-                ...(browserState.lastTitle
-                  ? { title: browserState.lastTitle }
-                  : {}),
-                url: browserState.lastUrl,
-              },
-            }
-          : {}),
+        previousTarget: {
+          ...(browserState?.lastTitle ? { title: browserState.lastTitle } : {}),
+          url: lastUrl,
+        },
         status: "closed",
       },
       messageId,

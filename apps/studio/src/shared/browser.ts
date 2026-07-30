@@ -39,6 +39,10 @@ export interface BrowserGuestTarget {
   // generation to know it must dispose the old guest and mount a fresh one.
   generation: number;
   id: BrowserTargetId;
+  // Whether a real page has started loading in this guest (see
+  // BrowserEntry.navigated). What the UI shows a browser for: an attached guest
+  // that has only ever held `about:blank` is one nothing asked to see.
+  navigated: boolean;
 }
 
 /**

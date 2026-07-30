@@ -191,6 +191,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     guest.on("did-start-navigation", (details) => {
       if (details.isMainFrame && !details.isSameDocument) {
         focusGuard.onNavigationStart(targetId);
+        markNavigated(entry, details.url);
       }
     });
     guest.on("dom-ready", () => {
@@ -572,6 +573,7 @@ export function createBrowserViewManager(): BrowserViewManager {
         ),
         generation: entry.generation,
         id: entry.targetId,
+        navigated: entry.navigated,
       })),
     navigateFocusedGuest,
     reloadFocusedGuest,
@@ -591,6 +593,18 @@ export function createBrowserViewManager(): BrowserViewManager {
 
 export function getBrowserViewManager(): BrowserViewManager | undefined {
   return managerInstance;
+}
+
+// Record that a guest has started loading a real page, and republish so the UI
+// can surface it. `about:blank` doesn't count: bindGuest loads it to materialize
+// the RenderFrame, and agent-browser's own page bootstrap lands there too, so
+// treating it as a navigation would mark every target navigated at birth.
+function markNavigated(entry: BrowserEntry, url: string) {
+  if (entry.navigated || url === "about:blank") {
+    return;
+  }
+  entry.navigated = true;
+  notifyEntriesChanged();
 }
 
 function navigateGuest(wc: WebContents, direction: "back" | "forward") {

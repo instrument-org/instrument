@@ -36,6 +36,12 @@ export interface BrowserEntry {
   // fresh guest instead of stranding the destroyed one.
   generation: number;
   id: TaskId;
+  // Whether a main-frame navigation to a real URL has started on this guest.
+  // False for the whole life of a target that only ever held `about:blank` --
+  // agent-browser mints a page for any command that needs one, including
+  // commands that only read existing state, so an entry existing does not mean
+  // anything asked for a browser to be shown.
+  navigated: boolean;
   // Workspace browser profile directory, threaded through BrowserConfig so the
   // task lifecycle can correlate a target with its storage without re-deriving
   // the path.
@@ -89,6 +95,7 @@ export function createEntry({
     eventListeners: new Set(),
     generation: ++generationCounter,
     id,
+    navigated: false,
     partitionDir,
     pendingDownloadGuids: new Map(),
     screencastInterval: null,

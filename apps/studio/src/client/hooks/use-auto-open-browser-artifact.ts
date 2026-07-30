@@ -1,4 +1,4 @@
-import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
+import { useNavigatedBrowserTargets } from "@/client/hooks/use-browser-targets";
 import {
   type BrowserTargetId,
   encodeBrowserTargetId,
@@ -13,12 +13,16 @@ import { useEffect, useEffectEvent } from "react";
 // browser the user already dismissed.
 const autoOpenedTargets = new Set<BrowserTargetId>();
 
-// Opens the browser artifact panel once when a browser guest first attaches for
-// the selected session (whether the agent or the user opened it), even
-// overriding an artifact panel the user already has open (worth surfacing since
-// it's the first time the browser becomes visible). Won't re-open after the user
-// closes it, since the guard fires at most once per session for the renderer's
-// lifetime.
+// Opens the browser artifact panel once when the selected session's browser
+// first starts loading a real page (whether the agent or the user opened it),
+// even overriding an artifact panel the user already has open (worth surfacing
+// since it's the first time the browser becomes visible). Won't re-open after
+// the user closes it, since the guard fires at most once per session for the
+// renderer's lifetime.
+//
+// Keyed on navigation rather than attach because agent-browser creates a page
+// for any command that needs one, including commands that only read state it
+// turns out not to have. Those used to hijack the panel to show `about:blank`.
 export function useAutoOpenBrowserArtifact({
   id,
   selectedSessionId,
@@ -28,7 +32,7 @@ export function useAutoOpenBrowserArtifact({
 }) {
   const navigate = useNavigate();
 
-  const attachedTargets = useBrowserTargets();
+  const navigatedTargets = useNavigatedBrowserTargets();
 
   const onTargets = useEffectEvent((ids: ReadonlySet<BrowserTargetId>) => {
     if (!selectedSessionId) {
@@ -48,6 +52,6 @@ export function useAutoOpenBrowserArtifact({
   });
 
   useEffect(() => {
-    onTargets(attachedTargets);
-  }, [attachedTargets]);
+    onTargets(navigatedTargets);
+  }, [navigatedTargets]);
 }

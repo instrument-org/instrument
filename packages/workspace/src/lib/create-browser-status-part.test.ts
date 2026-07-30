@@ -63,4 +63,85 @@ describe("createBrowserStatusPart", () => {
       }),
     ).resolves.toBeUndefined();
   });
+
+  it("skips a target that has never left the blank page", async () => {
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      browser: {
+        ...getWorkspaceConfig().browser,
+        listTargets: () =>
+          Promise.resolve([
+            {
+              id: encodeBrowserTargetId(taskId, sessionId),
+              title: "about:blank",
+              type: "page" as const,
+              url: "about:blank",
+            },
+          ]),
+      },
+    });
+
+    await expect(
+      createBrowserStatusPart({
+        createdAt: new Date(),
+        messageId: StoreId.newMessageId(),
+        sessionId,
+        taskId,
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("skips a closed browser that never held a page", async () => {
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      browser: {
+        ...getWorkspaceConfig().browser,
+        listTargets: () => Promise.resolve([]),
+      },
+    });
+    await recordBrowserUse({ sessionId, taskId, url: "about:blank" });
+
+    await expect(
+      createBrowserStatusPart({
+        createdAt: new Date(),
+        messageId: StoreId.newMessageId(),
+        sessionId,
+        taskId,
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("reports a closed browser by the last real page it held", async () => {
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      browser: {
+        ...getWorkspaceConfig().browser,
+        listTargets: () => Promise.resolve([]),
+      },
+    });
+    await recordBrowserUse({
+      sessionId,
+      taskId,
+      title: "Example",
+      url: "https://example.com",
+    });
+
+    const part = await createBrowserStatusPart({
+      createdAt: new Date(),
+      messageId: StoreId.newMessageId(),
+      sessionId,
+      taskId,
+    });
+
+    expect(part?.type === "data-browserStatus" ? part.data : undefined)
+      .toMatchInlineSnapshot(`
+      {
+        "previousTarget": {
+          "title": "Example",
+          "url": "https://example.com",
+        },
+        "status": "closed",
+      }
+    `);
+  });
 });

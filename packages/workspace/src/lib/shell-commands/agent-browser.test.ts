@@ -473,6 +473,25 @@ describe("agent-browser routing", () => {
     }
   });
 
+  it("leaves an external browser's downloads where that browser puts them", async () => {
+    const { env } = await spawnedWith([
+      "--profile",
+      "Default",
+      "open",
+      "https://example.com",
+    ]);
+
+    // The CLI applies this browser-wide at launch, so a task path here would
+    // capture every download that browser makes, the user's own included.
+    expect(env.AGENT_BROWSER_DOWNLOAD_PATH).toBeUndefined();
+  });
+
+  it("keeps the task browser's downloads inside the task", async () => {
+    const { env } = await spawnedWith(["open", "https://example.com"]);
+
+    expect(env.AGENT_BROWSER_DOWNLOAD_PATH).toBe(`${taskDirPath}/downloads`);
+  });
+
   it("keeps the task browser's temp files inside the task", async () => {
     const { env } = await spawnedWith(["open", "https://example.com"]);
 

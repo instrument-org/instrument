@@ -263,7 +263,7 @@ const WORKSPACE_HELP_EXTERNAL = dedent`
 
   An external browser launched locally (--profile, --executable-path) opens a window the user can see and use; ask them to complete any sign-in or approval there rather than reporting that you are blocked. A browser reached with --cdp, --auto-connect, or --provider was launched elsewhere and is visible only if it already was.
 
-  Screenshots and downloads land in the same task locations as managed-browser output, and \`screenshot --full\` works here (it is unavailable in the managed browser). Avoid \`download\`: against an external browser it redirects that browser's download destination and never resets it, which outlives the task. Prefer a page-level fetch.
+  Screenshots land in the same task location as managed-browser output, and \`screenshot --full\` works here (it is unavailable in the managed browser). Downloads do not: an external browser saves to its own download folder, which for a \`--profile\` launch is the user's normal one. Avoid \`download\` too -- it redirects that browser's download destination and never resets it, which outlives the task. To get a file into the task, fetch its URL at page level and write it yourself.
 `.trim();
 
 /**
@@ -636,7 +636,15 @@ export function createAgentBrowserCommand({
     }
 
     const screenshotDir = getScreenshotsDir(taskDir(taskId));
-    const downloadPath = getDownloadsDir(taskDir(taskId));
+    // Managed browser only. The CLI applies this at launch as a browser-wide
+    // `Browser.setDownloadBehavior`, so on an external browser it would capture
+    // every download that browser makes for the rest of its life: ones the user
+    // starts in the window themselves, and ones Chrome resumes from the profile
+    // it was launched with. Those land in the task folder instead of where the
+    // user expects them, and get reported as the agent's own file changes.
+    const downloadPath = isExternal
+      ? undefined
+      : getDownloadsDir(taskDir(taskId));
     const agentBrowserStateDir = screenshotDir;
     // Relative so agent-browser outputs screenshot paths the agent sees as
     // relative to its cwd (e.g. "work/screenshots/shot.png"), not host

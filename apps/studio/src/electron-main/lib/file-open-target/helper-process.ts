@@ -5,16 +5,18 @@ const execFileAsync = promisify(execFile);
 
 const LOOKUP_TIMEOUT_MS = 10_000;
 
-// osascript lookups are CPU- and LaunchServices-bound. A file grid can mount
+// Lookups are interpreter-bound: osascript on CPU and LaunchServices, and
+// PowerShell on a cold start that JITs the .NET runtime. A file grid can mount
 // many open buttons at once, and letting every distinct extension spawn its own
-// interpreter pushes them all past LOOKUP_TIMEOUT_MS together.
+// interpreter pushes them all past LOOKUP_TIMEOUT_MS together, on top of
+// starving the renderer that asked for them.
 const MAX_CONCURRENT_LOOKUPS = 2;
 
 let activeLookups = 0;
 const lookupQueue: (() => void)[] = [];
 
-// Runs a helper process directly. Used by the platform resolvers that spawn one
-// short-lived process per request.
+// Runs a helper process directly. Used by the platform resolvers whose
+// interpreter is cheap enough to start once per request.
 export async function runHelper({
   args,
   file,
@@ -36,8 +38,8 @@ export async function runHelper({
 }
 
 // Runs a helper process behind the shared concurrency cap. Used by the macOS
-// resolvers, which can otherwise be triggered once per distinct extension by a
-// single file grid.
+// and Windows resolvers, which can otherwise be triggered once per distinct
+// extension by a single file grid.
 export async function runThrottledHelper(options: {
   args: string[];
   file: string;

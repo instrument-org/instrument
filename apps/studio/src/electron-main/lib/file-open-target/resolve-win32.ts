@@ -3,7 +3,7 @@ import path from "node:path";
 import { z } from "zod";
 
 import { storeFileOpenNativeImage } from "../app-protocol";
-import { runHelper } from "./helper-process";
+import { runThrottledHelper } from "./helper-process";
 import { type ResolvedApp } from "./types";
 
 const Win32ResultSchema = z.object({
@@ -37,7 +37,7 @@ $name = (Get-Item -LiteralPath $exe).VersionInfo.FileDescription
 if (-not $name) { $name = [IO.Path]::GetFileNameWithoutExtension($exe) }
 @{ appName = $name; exePath = $exe } | ConvertTo-Json -Compress
 `;
-  const stdout = await runHelper({
+  const stdout = await runThrottledHelper({
     args: ["-NoProfile", "-NonInteractive", "-Command", script],
     file: "powershell",
   });

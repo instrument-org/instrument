@@ -26,6 +26,7 @@
         --brand-50: #e2eae7;
         --brand-500: #0e7869;
         --brand-600: #0b6056;
+        --brand-700: #0a4a42;
 
         --error-100: #f8e4e8;
         --error-500: #b4324f;
@@ -243,6 +244,94 @@
         height: 14px;
         margin: 0 6px;
         background: var(--border);
+      }
+
+      /* Settings and list surfaces ---------------------------------------- */
+
+      .frame-head {
+        margin-bottom: 14px;
+      }
+
+      .frame-head h2 {
+        margin: 0 0 3px;
+        font-size: 15px;
+        font-weight: 600;
+      }
+
+      .frame-head p {
+        margin: 0;
+        color: var(--muted-foreground);
+        font-size: 12px;
+      }
+
+      .callout {
+        margin-bottom: 14px;
+        padding: 10px 12px;
+        border-radius: var(--radius-md);
+        background: var(--brand-50);
+        color: var(--brand-700);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .list-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--gray-200);
+        font-size: 12.5px;
+      }
+
+      .list-row:last-child {
+        border-bottom: 0;
+      }
+
+      .list-row .meta {
+        margin-left: auto;
+        color: var(--muted-foreground);
+        font-size: 11.5px;
+      }
+
+      .tag {
+        flex: none;
+        padding: 2px 7px;
+        border-radius: 999px;
+        background: var(--muted);
+        color: var(--gray-800);
+        font-size: 11px;
+      }
+
+      .mono {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 11.5px;
+      }
+
+      .switch {
+        flex: none;
+        width: 34px;
+        height: 20px;
+        padding: 2px;
+        border-radius: 999px;
+        background: var(--gray-300);
+      }
+
+      .switch::after {
+        display: block;
+        width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        background: #fff;
+        box-shadow: var(--elevation-sm);
+        content: "";
+      }
+
+      .switch.on {
+        background: var(--brand-500);
+      }
+
+      .switch.on::after {
+        margin-left: 14px;
       }
 
       /* Popover / disclosure panel ---------------------------------------- */

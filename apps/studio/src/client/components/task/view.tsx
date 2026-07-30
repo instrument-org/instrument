@@ -233,7 +233,6 @@ export function TaskView({
                   <div className="flex h-full">
                     <FileViewer
                       file={currentFile}
-                      fullSize
                       key={`${currentFile.url}#${artifactReloadNonce}`}
                       onClose={handleArtifactPanelClose}
                       onExpand={() => {

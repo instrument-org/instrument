@@ -4,6 +4,7 @@ import {
   taskFileViewerAtom,
 } from "@/client/atoms/task-file-viewer";
 import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
+import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useRouter } from "@tanstack/react-router";
@@ -14,12 +15,21 @@ import { FilePreviewListItem } from "../file-preview-list-item";
 import { FileViewer } from "../file-viewer";
 import { Button } from "../ui/button";
 
+// Left, right and bottom breathing room. Small enough that the viewer still
+// reads as filling the window, big enough to show the shell behind it.
+const GUTTER = 12;
+
 export function TaskFileViewerModal() {
   const state = useAtomValue(taskFileViewerAtom);
   const collapseViewer = useSetAtom(closeFileViewerAtom);
   const setCurrentIndex = useSetAtom(setTaskFileViewerIndexAtom);
   const router = useRouter();
-  const zoomStyle = useAppZoomStyle();
+  const zoomStyle = useAppZoomStyle({
+    paddingBottom: GUTTER,
+    paddingLeft: GUTTER,
+    paddingRight: GUTTER,
+    paddingTop: TOOLBAR_HEIGHT,
+  });
 
   const currentFile = state.files[state.currentIndex];
   const hasMultipleFiles = state.files.length > 1;
@@ -117,9 +127,24 @@ export function TaskFileViewerModal() {
           Percentage sizing inside resolves in the element's own zoomed units
           and needs no compensation; `vw`/`vh` would (they are not rescaled by
           an element's own zoom), which is why nothing here uses them.
+
+          The padding is what keeps the window's own controls usable: the top
+          inset clears the toolbar, so the macOS traffic lights and the Windows
+          caption buttons stay visible and clickable rather than sitting on top
+          of the viewer's filename and close button. It is the plain constant
+          rather than one divided by the zoom because this element carries the
+          same zoom factor the app root does, so `TOOLBAR_HEIGHT` here scales to
+          exactly the toolbar's on-screen height at every level.
         */}
         <DialogPrimitive.Content
           className="fixed inset-0 z-50 flex items-center justify-center data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0"
+          onClick={(event) => {
+            // Only the gutter itself, never a click that bubbled out of the
+            // viewer.
+            if (event.target === event.currentTarget) {
+              collapseViewer();
+            }
+          }}
           style={zoomStyle}
         >
           <DialogPrimitive.Title className="sr-only">
@@ -128,11 +153,6 @@ export function TaskFileViewerModal() {
           <DialogPrimitive.Description className="sr-only">
             File viewer
           </DialogPrimitive.Description>
-          {/*
-            No click-to-dismiss backdrop: full bleed means the viewer covers
-            this element entirely, so there is no gutter left to click. Escape
-            and the viewer's own close button are the dismiss paths.
-          */}
           <div className="relative flex size-full flex-col">
             <div className="relative flex min-h-0 flex-1">
               {hasMultipleFiles && (

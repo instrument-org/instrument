@@ -191,6 +191,11 @@ export function ModelPicker({
     !selectedModel && modelURI ? modelNameFromURI(modelURI) : null;
   const isUnavailable = isInvalidOurModel || !!unresolvedName;
   const selectedName = selectedModel?.name.trim() ?? unresolvedName;
+  // A restriction carries its own explanation; anything else unavailable is a
+  // model no connected provider serves.
+  const unavailableReason =
+    selectedModel?.restricted?.message ??
+    "No connected AI provider offers this model. Pick another one, or switch to Auto.";
 
   const placeholderText = isLoading
     ? "Loading models..."
@@ -247,7 +252,7 @@ export function ModelPicker({
                     {selectedModel && !isUnavailable ? (
                       <p>{selectedModel.providerName}</p>
                     ) : (
-                      <p>Unavailable. Switch to Auto or pick another model.</p>
+                      <p>{unavailableReason}</p>
                     )}
                   </TooltipContent>
                 </Tooltip>

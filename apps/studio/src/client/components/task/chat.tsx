@@ -21,7 +21,13 @@ import {
 } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { useLayoutEffect, useRef, useState } from "react";
+import {
+  type RefObject,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 
 import { ChatStream } from "../chat-stream";
@@ -34,6 +40,7 @@ import {
   MessageScrollerContent,
   MessageScrollerProvider,
   MessageScrollerViewport,
+  useMessageScroller,
 } from "../ui/message-scroller";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
@@ -69,6 +76,9 @@ export function TaskChat({
   useHydrateTaskDraft(id, promptDraft);
 
   const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
+  const scrollToEndRef = useRef<
+    null | ReturnType<typeof useMessageScroller>["scrollToEnd"]
+  >(null);
 
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions({
@@ -239,6 +249,9 @@ export function TaskChat({
       }}
       onSubmit={({ files, folders, modelURI, prompt }) => {
         promptInputRef.current?.clear();
+        // Submitting is a request to watch what happens next, so a reader who
+        // had scrolled back returns to the live edge and follows it again.
+        scrollToEndRef.current?.();
         if (isTutorialVisible) {
           handleDismissTutorial();
         }
@@ -294,6 +307,7 @@ export function TaskChat({
       defaultScrollPosition="end"
       key={selectedSessionId}
     >
+      <ScrollToEndBridge commandRef={scrollToEndRef} />
       <div className="flex h-full min-h-0 flex-col">
         <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport>
@@ -394,4 +408,23 @@ export function TaskChat({
       </div>
     </MessageScrollerProvider>
   );
+}
+
+// The scroll commands come from the provider's context, so they are only
+// reachable below it. This renders nothing and exists to hand scrollToEnd to
+// the submit handler, which sits above the provider.
+function ScrollToEndBridge({
+  commandRef,
+}: {
+  commandRef: RefObject<
+    null | ReturnType<typeof useMessageScroller>["scrollToEnd"]
+  >;
+}) {
+  const { scrollToEnd } = useMessageScroller();
+
+  useEffect(() => {
+    commandRef.current = scrollToEnd;
+  }, [commandRef, scrollToEnd]);
+
+  return null;
 }

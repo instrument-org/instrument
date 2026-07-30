@@ -7,7 +7,7 @@ import {
   PlusIcon,
 } from "@phosphor-icons/react";
 import { useAtom } from "jotai";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 // How long the transient readout stays up after the last zoom change (or after
 // the pointer leaves it, so its reset button is reachable while hovered).
@@ -51,43 +51,87 @@ export function ZoomStepper() {
 }
 
 /**
+ * Shared hover treatment for every segment of {@link ZoomStepperControl}, and
+ * for a readout a caller substitutes in.
+ */
+export const zoomStepperSegmentClassName =
+  "hover:bg-secondary dark:hover:bg-gray-600 disabled:pointer-events-none disabled:opacity-40";
+
+/**
  * Presentational `-` / `%` / `+` stepper shell. Shared by the main-window UI
- * zoom ({@link ZoomStepper}) and the browser guest's per-page zoom, which drive
- * distinct mechanisms (CSS `zoom` on the window vs. the guest's `setZoomFactor`)
+ * zoom ({@link ZoomStepper}), the browser guest's per-page zoom, and the
+ * document viewers' per-document zoom, which drive distinct mechanisms (CSS
+ * `zoom` on the window, the guest's `setZoomFactor`, each engine's own scale)
  * but render the same control. Callers supply the readout and handlers.
+ *
+ * `readout` replaces the reset-to-100% button in the middle segment, for
+ * callers that hang a menu of zoom levels off it instead. It is rendered as a
+ * direct child of the divided row, so it should be a single element carrying
+ * {@link zoomStepperSegmentClassName}.
  */
 export function ZoomStepperControl({
+  canZoomIn = true,
+  canZoomOut = true,
   onReset,
   onZoomIn,
   onZoomOut,
   percent,
+  readout,
+  size = "default",
 }: {
-  onReset: () => void;
+  canZoomIn?: boolean;
+  canZoomOut?: boolean;
+  onReset?: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
-  percent: number;
+  percent?: number;
+  readout?: ReactNode;
+  size?: "default" | "sm";
 }) {
+  const compact = size === "sm";
+
   return (
-    <div className="flex h-9 items-stretch divide-x divide-border overflow-hidden rounded-lg bg-card button-sheen text-card-foreground shadow-sm dark:bg-gray-700 dark:text-foreground dark:shadow-sm">
+    <div
+      className={cn(
+        "flex items-stretch divide-x divide-border overflow-hidden bg-card button-sheen text-card-foreground shadow-sm dark:bg-gray-700 dark:text-foreground dark:shadow-sm",
+        compact ? "h-7 rounded-md" : "h-9 rounded-lg",
+      )}
+    >
       <button
         aria-label="Zoom out"
-        className="flex w-9 items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground dark:hover:bg-gray-600"
+        className={cn(
+          "flex items-center justify-center text-muted-foreground hover:text-foreground",
+          zoomStepperSegmentClassName,
+          compact ? "w-7" : "w-9",
+        )}
+        disabled={!canZoomOut}
         onClick={onZoomOut}
         type="button"
       >
         <MinusIcon className="size-4" />
       </button>
-      <button
-        className="min-w-12 px-2 text-sm font-medium tabular-nums hover:bg-secondary dark:hover:bg-gray-600"
-        onClick={onReset}
-        title="Reset to 100%"
-        type="button"
-      >
-        {percent}%
-      </button>
+      {readout ?? (
+        <button
+          className={cn(
+            "px-2 font-medium tabular-nums",
+            zoomStepperSegmentClassName,
+            compact ? "min-w-10 text-xs" : "min-w-12 text-sm",
+          )}
+          onClick={onReset}
+          title="Reset to 100%"
+          type="button"
+        >
+          {percent}%
+        </button>
+      )}
       <button
         aria-label="Zoom in"
-        className="flex w-9 items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground dark:hover:bg-gray-600"
+        className={cn(
+          "flex items-center justify-center text-muted-foreground hover:text-foreground",
+          zoomStepperSegmentClassName,
+          compact ? "w-7" : "w-9",
+        )}
+        disabled={!canZoomIn}
         onClick={onZoomIn}
         type="button"
       >

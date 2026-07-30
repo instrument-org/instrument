@@ -574,19 +574,24 @@ export function FileViewer({
   return (
     <div className={fileViewerClassName}>
       <div className="@container flex min-w-0 shrink-0 items-center gap-2 px-4 py-3">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="min-w-0 flex-1 truncate text-xs font-medium">
-              {filename}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent
-            className="max-w-[min(500px,90vw)] wrap-break-word"
-            collisionPadding={10}
-          >
-            {filePath}
-          </TooltipContent>
-        </Tooltip>
+        {/* The trigger is the filename, not the space it sits in: as a flex
+            item it shrinks to the text it holds, so the tooltip is anchored
+            under the name rather than under the middle of a header-wide box. */}
+        <div className="flex min-w-0 flex-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="min-w-0 truncate text-xs font-medium">
+                {filename}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent
+              className="max-w-[min(500px,90vw)] wrap-break-word"
+              collisionPadding={10}
+            >
+              {filePath}
+            </TooltipContent>
+          </Tooltip>
+        </div>
         <div className="flex shrink-0 items-center gap-1">
           <OpenTaskFileButton
             className={fileViewerHeaderActionClassName}

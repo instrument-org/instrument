@@ -1,16 +1,15 @@
 import { cn } from "@/client/lib/utils";
+import { steppedZoom } from "@/shared/zoom";
 import {
   CaretDownIcon,
   CaretLeftIcon,
   CaretRightIcon,
   MagnifyingGlassIcon,
-  MinusIcon,
-  PlusIcon,
   SidebarSimpleIcon,
-  XIcon,
 } from "@phosphor-icons/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
+import { FindRow } from "../find-row";
 import { Button } from "../ui/button";
 import {
   DropdownMenu,
@@ -20,9 +19,12 @@ import {
 } from "../ui/dropdown-menu";
 import { Input } from "../ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { Separator } from "../ui/separator";
 import { toolbarClassName } from "../ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import {
+  ZoomStepperControl,
+  zoomStepperSegmentClassName,
+} from "../zoom-controls";
 import { MAX_ZOOM, MIN_ZOOM, ZOOM_LEVELS } from "./zoom-levels";
 
 const actionClassName = toolbarClassName({
@@ -34,9 +36,10 @@ const openableClassName =
   "data-[state=open]:bg-accent data-[state=open]:text-accent-foreground";
 
 /**
- * Find lives behind a popover in every viewer rather than as an always-visible
- * field, so the toolbar stays the same width at every panel size and the
- * narrow artifact panel does not have to drop it.
+ * Find lives behind a popover in every viewer rather than as the always-visible
+ * bar the browser panel uses, so the toolbar stays the same width at every
+ * panel size and the narrow artifact panel does not have to drop it. What is
+ * inside the popover is the same {@link FindRow} the browser bar is built from.
  */
 export function ViewerFindControl({
   activeMatch,
@@ -82,70 +85,21 @@ export function ViewerFindControl({
         </TooltipTrigger>
         <TooltipContent>Find in document</TooltipContent>
       </Tooltip>
-      <PopoverContent align="end" className="w-80 p-2">
-        <div className="flex items-center gap-1">
-          <Input
-            className="h-8 min-w-0 flex-1 text-xs"
-            onChange={(event) => {
-              onQueryChange(event.target.value);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                if (event.shiftKey) {
-                  onPreviousMatch();
-                } else {
-                  onNextMatch();
-                }
-              }
-              if (event.key === "Escape") {
-                setOpen(false);
-              }
-            }}
-            placeholder="Find"
-            ref={inputRef}
-            value={query}
-          />
-          <span className="w-14 shrink-0 text-center text-xs text-muted-foreground tabular-nums">
-            {query === ""
-              ? ""
-              : matchCount === 0
-                ? "None"
-                : `${activeMatch + 1}/${matchCount}`}
-          </span>
-          <Button
-            aria-label="Previous match"
-            className={actionClassName}
-            disabled={matchCount === 0}
-            onClick={onPreviousMatch}
-            size="icon-sm"
-            variant="ghost"
-          >
-            <CaretLeftIcon className="size-4" />
-          </Button>
-          <Button
-            aria-label="Next match"
-            className={actionClassName}
-            disabled={matchCount === 0}
-            onClick={onNextMatch}
-            size="icon-sm"
-            variant="ghost"
-          >
-            <CaretRightIcon className="size-4" />
-          </Button>
-          <Button
-            aria-label="Close find"
-            className={actionClassName}
-            onClick={() => {
-              onQueryChange("");
-              setOpen(false);
-            }}
-            size="icon-sm"
-            variant="ghost"
-          >
-            <XIcon className="size-4" />
-          </Button>
-        </div>
+      <PopoverContent align="end" className="w-80 p-1.5">
+        <FindRow
+          activeMatch={activeMatch + 1}
+          inputRef={inputRef}
+          matchCount={matchCount}
+          onClose={() => {
+            onQueryChange("");
+            setOpen(false);
+          }}
+          onNextMatch={onNextMatch}
+          onPreviousMatch={onPreviousMatch}
+          onQueryChange={onQueryChange}
+          placeholder="Find in document"
+          query={query}
+        />
       </PopoverContent>
     </Popover>
   );
@@ -270,24 +224,19 @@ export function ViewerRailToggle({
  * The row of document controls beneath the file viewer's own header. Sized in
  * the same idiom as that header so the two read as one piece of chrome.
  *
+ * Groups are spaced apart rather than ruled apart: the zoom stepper is a single
+ * bounded control and the rest are ghost buttons, so gaps alone carry the
+ * grouping without stacking a second set of vertical lines onto it.
+ *
  * Declares a container so the controls inside can collapse against the panel's
  * own width. The artifact panel is resizable and the window is zoomable, so a
  * viewport breakpoint would be measuring the wrong thing.
  */
 export function ViewerToolbar({ children }: { children: ReactNode }) {
   return (
-    <div className="@container/viewer-toolbar flex h-10 shrink-0 items-center gap-1 border-t border-border/60 px-2">
+    <div className="@container/viewer-toolbar flex h-10 shrink-0 items-center gap-3 border-t border-border/60 px-2">
       {children}
     </div>
-  );
-}
-
-export function ViewerToolbarSeparator() {
-  return (
-    <Separator
-      className="mx-1 h-4 @max-[420px]/viewer-toolbar:hidden"
-      orientation="vertical"
-    />
   );
 }
 
@@ -296,92 +245,69 @@ export function ViewerToolbarSpacer() {
 }
 
 /**
- * Zoom stepper plus a menu of fixed levels. `onFit` is optional because not
- * every format has a meaningful fit-to-width (a spreadsheet does not).
+ * The app's zoom stepper, with its readout opened up into a menu of fixed
+ * levels. `onFit` is optional because not every format has a meaningful
+ * fit-to-width (a spreadsheet does not).
+ *
+ * `min`/`max` default to the range the level menu offers; a format whose engine
+ * clamps to its own range passes that instead, so the stepper stops where the
+ * document actually stops.
  */
 export function ViewerZoomControl({
+  max = MAX_ZOOM,
+  min = MIN_ZOOM,
   onFit,
   onZoomChange,
   zoom,
 }: {
+  max?: number;
+  min?: number;
   onFit?: () => void;
   onZoomChange: (zoom: number) => void;
   zoom: number;
 }) {
-  const step = (direction: -1 | 1) => {
-    const next =
-      direction === 1
-        ? ZOOM_LEVELS.find((level) => level > zoom + 0.001)
-        : [...ZOOM_LEVELS].reverse().find((level) => level < zoom - 0.001);
-    if (next !== undefined) {
-      onZoomChange(next);
-    }
-  };
-
   return (
-    <div className="flex items-center gap-0.5">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            className={cn(actionClassName, "@max-[520px]/viewer-toolbar:hidden")}
-            disabled={zoom <= MIN_ZOOM}
-            onClick={() => {
-              step(-1);
-            }}
-            size="icon-sm"
-            variant="ghost"
-          >
-            <MinusIcon className="size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Zoom out</TooltipContent>
-      </Tooltip>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            className={toolbarClassName({
-              className: cn("h-7 gap-1 px-1.5 text-xs tabular-nums", openableClassName),
-              pressed: false,
-            })}
-            size="sm"
-            variant="ghost"
+    <ZoomStepperControl
+      canZoomIn={zoom < max}
+      canZoomOut={zoom > min}
+      onZoomIn={() => {
+        onZoomChange(steppedZoom({ direction: "in", factor: zoom, max, min }));
+      }}
+      onZoomOut={() => {
+        onZoomChange(steppedZoom({ direction: "out", factor: zoom, max, min }));
+      }}
+      readout={
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className={cn(
+              "flex items-center gap-1 px-2 text-xs font-medium tabular-nums",
+              zoomStepperSegmentClassName,
+              openableClassName,
+            )}
           >
             {Math.round(zoom * 100)}%
             <CaretDownIcon className="size-3" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-28">
-          {onFit && (
-            <DropdownMenuItem onClick={onFit}>Fit width</DropdownMenuItem>
-          )}
-          {ZOOM_LEVELS.map((level) => (
-            <DropdownMenuItem
-              key={level}
-              onClick={() => {
-                onZoomChange(level);
-              }}
-            >
-              {Math.round(level * 100)}%
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            className={cn(actionClassName, "@max-[520px]/viewer-toolbar:hidden")}
-            disabled={zoom >= MAX_ZOOM}
-            onClick={() => {
-              step(1);
-            }}
-            size="icon-sm"
-            variant="ghost"
-          >
-            <PlusIcon className="size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Zoom in</TooltipContent>
-      </Tooltip>
-    </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-28">
+            {onFit && (
+              <DropdownMenuItem onClick={onFit}>Fit width</DropdownMenuItem>
+            )}
+            {ZOOM_LEVELS.filter(
+              (level) => level >= min && level <= max,
+            ).map((level) => (
+              <DropdownMenuItem
+                key={level}
+                onClick={() => {
+                  onZoomChange(level);
+                }}
+              >
+                {Math.round(level * 100)}%
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      }
+      size="sm"
+    />
   );
 }

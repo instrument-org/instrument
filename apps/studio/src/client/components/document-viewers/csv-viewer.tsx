@@ -1,4 +1,5 @@
 import { cn } from "@/client/lib/utils";
+import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import Papa from "papaparse";
@@ -8,9 +9,7 @@ import { ViewerLoading } from "./viewer-surface";
 import {
   ViewerFindControl,
   ViewerToolbar,
-  ViewerToolbarSeparator,
   ViewerToolbarSpacer,
-  ViewerZoomControl,
 } from "./viewer-toolbar";
 
 const ROW_HEIGHT = 28;
@@ -24,6 +23,8 @@ const CELL_PADDING = 24;
 const FIND_DEBOUNCE_MS = 200;
 
 interface Match { column: number; row: number }
+
+interface Sort { column: number; direction: "ascending" | "descending" }
 
 export function CsvViewer({
   filename,
@@ -57,10 +58,33 @@ export function CsvViewer({
   return <CsvGrid filename={filename} text={data ?? ""} />;
 }
 
+/**
+ * Compares two cells as numbers when both read as numbers and as text
+ * otherwise, so a column of counts does not sort 10 before 9. Blanks sort last
+ * in either direction: they are missing data rather than the smallest value.
+ */
+function compareCells(first: string, second: string) {
+  if (first === second) {
+    return 0;
+  }
+  if (first === "") {
+    return 1;
+  }
+  if (second === "") {
+    return -1;
+  }
+  const firstNumber = Number(first);
+  const secondNumber = Number(second);
+  if (!Number.isNaN(firstNumber) && !Number.isNaN(secondNumber)) {
+    return firstNumber - secondNumber;
+  }
+  return first.localeCompare(second);
+}
+
 function CsvGrid({ filename, text }: { filename: string; text: string }) {
-  const [zoom, setZoom] = useState(1);
   const [query, setQuery] = useState("");
   const [activeMatch, setActiveMatch] = useState(0);
+  const [sort, setSort] = useState<null | Sort>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { columnWidths, header, rows } = useMemo(
@@ -68,12 +92,14 @@ function CsvGrid({ filename, text }: { filename: string; text: string }) {
     [filename, text],
   );
 
+  const sortedRows = useMemo(() => sortRows({ rows, sort }), [rows, sort]);
+
   // Scanning every cell is O(rows x columns) and this viewer is built for large
   // exports, so it runs on a settled query rather than on each keystroke.
   const settledQuery = useDebounced(query, FIND_DEBOUNCE_MS);
   const matches = useMemo(
-    () => findMatches({ query: settledQuery, rows }),
-    [rows, settledQuery],
+    () => findMatches({ query: settledQuery, rows: sortedRows }),
+    [settledQuery, sortedRows],
   );
 
   useEffect(() => {
@@ -82,20 +108,11 @@ function CsvGrid({ filename, text }: { filename: string; text: string }) {
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
-    count: rows.length,
-    estimateSize: () => ROW_HEIGHT * zoom,
+    count: sortedRows.length,
+    estimateSize: () => ROW_HEIGHT,
     getScrollElement: () => scrollRef.current,
     overscan: 12,
   });
-
-  // Row heights come from `estimateSize` and are cached, and the virtualizer
-  // memoizes measurements on count/padding/key/lanes -- not on `estimateSize`.
-  // Without this, zooming scales the text and the column widths while every row
-  // keeps its original height, clipping content and leaving the scroll length
-  // wrong.
-  useEffect(() => {
-    virtualizer.measure();
-  }, [virtualizer, zoom]);
 
   const current = matches[activeMatch];
   useEffect(() => {
@@ -116,18 +133,19 @@ function CsvGrid({ filename, text }: { filename: string; text: string }) {
 
   let totalWidth = 0;
   for (const width of columnWidths) {
-    totalWidth += width * zoom;
+    totalWidth += width;
   }
 
   return (
     <>
+      {/* No zoom control: the grid is plain DOM text that the window's own zoom
+          already scales, so a second scale factor inside it would only be a
+          way to disagree with the rest of the app. */}
       <ViewerToolbar>
         <span className="px-1 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
           {rows.length.toLocaleString()}{" "}
           {rows.length === 1 ? "row" : "rows"}
         </span>
-        <ViewerToolbarSeparator />
-        <ViewerZoomControl onZoomChange={setZoom} zoom={zoom} />
         <ViewerToolbarSpacer />
         <ViewerFindControl
           activeMatch={activeMatch}
@@ -144,23 +162,27 @@ function CsvGrid({ filename, text }: { filename: string; text: string }) {
       </ViewerToolbar>
 
       <div className="min-h-0 flex-1 overflow-auto" ref={scrollRef}>
-        <div
-          className="relative"
-          style={{
-            fontSize: `${zoom * 0.8125}rem`,
-            width: totalWidth,
-          }}
-        >
+        <div className="relative text-[0.8125rem]" style={{ width: totalWidth }}>
           <div className="sticky top-0 z-10 flex bg-muted/95 backdrop-blur-sm">
             {header.map((cell, column) => (
-              <div
-                className="truncate border-r border-b border-border/60 px-2 py-1.5 font-medium"
+              <button
+                className="flex items-center gap-1 border-r border-b border-border/60 px-2 py-1.5 text-left font-medium hover:bg-muted"
                 key={column}
-                style={{ width: (columnWidths[column] ?? MIN_COLUMN_WIDTH) * zoom }}
-                title={cell}
+                onClick={() => {
+                  setSort(nextSort(sort, column));
+                }}
+                style={{ width: columnWidths[column] ?? MIN_COLUMN_WIDTH }}
+                title={`Sort by ${cell}`}
+                type="button"
               >
-                {cell}
-              </div>
+                <span className="min-w-0 flex-1 truncate">{cell}</span>
+                {sort?.column === column &&
+                  (sort.direction === "ascending" ? (
+                    <CaretUpIcon className="size-3 shrink-0" />
+                  ) : (
+                    <CaretDownIcon className="size-3 shrink-0" />
+                  ))}
+              </button>
             ))}
           </div>
 
@@ -177,7 +199,7 @@ function CsvGrid({ filename, text }: { filename: string; text: string }) {
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
-                {(rows[virtualRow.index] ?? []).map((cell, column) => {
+                {(sortedRows[virtualRow.index] ?? []).map((cell, column) => {
                   const isMatch =
                     settledQuery !== "" &&
                     cell.toLowerCase().includes(settledQuery.toLowerCase());
@@ -193,7 +215,7 @@ function CsvGrid({ filename, text }: { filename: string; text: string }) {
                         isActive && "bg-yellow-500/60",
                       )}
                       key={column}
-                      style={{ width: (columnWidths[column] ?? MIN_COLUMN_WIDTH) * zoom }}
+                      style={{ width: columnWidths[column] ?? MIN_COLUMN_WIDTH }}
                       title={cell}
                     >
                       {cell}
@@ -223,6 +245,16 @@ function findMatches({ query, rows }: { query: string; rows: string[][] }) {
     }
   }
   return found;
+}
+
+/** Ascending, then descending, then back to the file's own order. */
+function nextSort(sort: null | Sort, column: number): null | Sort {
+  if (sort?.column !== column) {
+    return { column, direction: "ascending" };
+  }
+  return sort.direction === "ascending"
+    ? { column, direction: "descending" }
+    : null;
 }
 
 function parseDelimited({
@@ -268,6 +300,30 @@ function parseDelimited({
   });
 
   return { columnWidths, header, rows };
+}
+
+/**
+ * Rows in display order. Unsorted returns the parsed array itself rather than a
+ * copy, so the common case adds no allocation to a large export; sorting copies
+ * the row references only, not the cells.
+ */
+function sortRows({ rows, sort }: { rows: string[][]; sort: null | Sort }) {
+  if (!sort) {
+    return rows;
+  }
+  const direction = sort.direction === "ascending" ? 1 : -1;
+  return [...rows].sort((first, second) => {
+    const compared = compareCells(
+      first[sort.column] ?? "",
+      second[sort.column] ?? "",
+    );
+    // Blanks are pushed to the end by `compareCells` regardless of direction,
+    // so their ordering is not flipped along with everything else.
+    if (compared !== 0 && (first[sort.column] === "" || second[sort.column] === "")) {
+      return compared;
+    }
+    return compared * direction;
+  });
 }
 
 /** Holds a value back until it has stopped changing for `delay` ms. */

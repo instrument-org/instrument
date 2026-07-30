@@ -51,7 +51,6 @@ import {
   ViewerPageControl,
   ViewerRailToggle,
   ViewerToolbar,
-  ViewerToolbarSeparator,
   ViewerToolbarSpacer,
   ViewerZoomControl,
 } from "./viewer-toolbar";
@@ -283,7 +282,6 @@ function PdfDocumentView({ documentId }: { documentId: string }) {
           }}
           open={railOpen}
         />
-        <ViewerToolbarSeparator />
         <ViewerPageControl
           count={scrollState.totalPages}
           onPageChange={(page) => {
@@ -291,7 +289,6 @@ function PdfDocumentView({ documentId }: { documentId: string }) {
           }}
           page={scrollState.currentPage}
         />
-        <ViewerToolbarSeparator />
         <ViewerZoomControl
           onFit={() => {
             zoom?.requestZoom(ZoomMode.FitWidth);

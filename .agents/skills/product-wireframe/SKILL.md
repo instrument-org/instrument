@@ -1,70 +1,87 @@
 ---
 name: product-wireframe
-description: Build a static HTML wireframe of a proposed Studio flow, styled with the app's real design tokens. Use when a plan or design brief needs a picture, when asked for a wireframe or mockup of a feature, or when a proposal would be clearer as a sequence of UI states.
+description: Build a static HTML wireframe of a proposed Studio flow, styled with the app's real design tokens and Tailwind. Use when a plan or design brief needs a picture, when asked for a wireframe or mockup of a feature, or when a proposal would be clearer as a sequence of UI states.
 ---
 
 # Product wireframe
 
-A wireframe here is one self-contained HTML file showing a **flow across states**, embedded in a plan or a Notion page. It is not a prototype and not a component spec. It exists to make a proposal legible to someone who will not read the plan.
-
-Start from `template.html` in this skill directory. Copy it next to the plan it illustrates:
+One self-contained HTML file showing a **flow across states**, embedded in a plan or a Notion page. Not a prototype, not a component spec. It exists to make a proposal legible to someone who will not read the plan.
 
 ```bash
 cp .agents/skills/product-wireframe/template.html docs/plans/active/wireframes-<topic>.html
 ```
 
-Naming: `wireframes-<topic>.html`, beside the plan in `docs/plans/active/`. Link it from the plan.
+Name it `wireframes-<topic>.html`, put it beside the plan, and link it from the plan.
+
+## How it is styled
+
+Tailwind v4 compiles in the page from the CDN browser build, with Studio's light theme in an `@theme` block. Write ordinary Tailwind utilities. Do not build a class library in the `<style>` block; if a pattern repeats within one file, that is fine, and it should not graduate into this template.
+
+This is the same shape as the `wireframe` skill we ship to users, with one difference: that one points at a Tailwind bundle served from the task, which only resolves inside that task. These have to render from a plain file and from a Notion HTML embed, so they load the CDN instead.
+
+Regenerate the `@theme` block when the ramps move:
+
+```bash
+python3 - <<'PY'
+import re, pathlib
+src = pathlib.Path("apps/studio/src/client/styles/globals.css").read_text()
+root = src[src.index("LIGHT MODE THEME"):src.index("DARK MODE THEME")]
+vals = dict(re.findall(r'^\s*(--[a-z0-9-]+):\s*([^;]+);', root, re.M))
+def res(v, d=0):
+    m = re.fullmatch(r'var\((--[a-z0-9-]+)\)', v.strip())
+    return res(vals.get(m.group(1), v), d+1) if m and d < 5 else v.strip()
+for r in ["gray","brand","error","warning","success","yellow","brown"]:
+    for k in sorted([k for k in vals if re.fullmatch(rf'--{r}-\d+',k)], key=lambda k:int(k.split('-')[-1])):
+        print(f"        --color-{k[2:]}: {res(vals[k])};")
+for k in ["background","foreground","card","popover","primary","primary-foreground","secondary","secondary-foreground","muted","muted-foreground","accent","accent-foreground","destructive","border","input","ring"]:
+    if f"--{k}" in vals: print(f"        --color-{k}: {res(vals['--'+k])};")
+PY
+```
 
 ## The two rules that matter
 
-**Show a sequence, not a screen.** Three columns, one per state: resting, the moment of interaction, the result. A single screen shows what something looks like; a sequence shows what happens, which is the thing a plan actually needs to argue. If a flow genuinely has two states or four, change the column count in `.row`, not the approach.
+**Show a sequence, not a screen.** One column per state: resting, the moment of interaction, the result. A single screen shows what something looks like; a sequence shows what happens, which is what a plan needs to argue. Some subjects want a different axis (three kinds of data rather than three moments) and that is fine, as long as the columns are doing comparative work.
 
-**Bars for prose, real copy only where the idea lives.** Every piece of text is a decision the reader has to evaluate. Placeholder bars (`.bar` with a width class) for message bodies and anything incidental; real, final-quality copy for the labels, warnings, and buttons that carry the proposal. A wireframe full of lorem reads as unfinished; a wireframe full of real text buries the point. If you find yourself writing a sentence into a bar's place, ask whether that sentence is the idea.
+**Bars for prose, real copy only where the idea lives.** Every piece of text is a decision the reader has to evaluate. Grey bars for message bodies and anything incidental; real, final-quality copy for the labels, warnings, and buttons that carry the proposal. All lorem reads as unfinished; all real text buries the point.
 
 Corollaries:
 
 - The caption under each frame says **what the frame proves**, not what it depicts. "Nothing is sent by hovering" beats "the thumbs buttons".
 - Put the burden of proof in the middle frame. That is where the reader looks first.
-- Do not draw chrome that is not in question. No sidebar, no title bar, no tab strip, unless the proposal is about them.
+- Draw no chrome that is not in question. No sidebar, title bar, or tab strip unless the proposal is about them.
 
-## Accuracy
+## Looking like this product
 
-The wireframe should be recognisable as this product. Values below are from the app; re-check them against source if they look stale, since drift here is what makes a wireframe read as generic.
+Values worth getting right, since drift here is what makes a wireframe read as generic. Re-check against source if they look stale.
 
-Tokens live in [globals.css](../../../apps/studio/src/client/styles/globals.css). The template carries the light-theme subset a wireframe needs. Light only: a wireframe is a document illustration.
+| Thing | Recipe |
+| --- | --- |
+| Conversation column | `max-w-2xl p-4` ([chat.tsx](../../../apps/studio/src/client/components/task/chat.tsx)) |
+| User bubble | `inline-block max-w-[80%] rounded-tl-xl rounded-tr-sm rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-2 shadow-sm` ([user-message.tsx](../../../apps/studio/src/client/components/user-message.tsx)) |
+| Message action button | `rounded-sm p-1 text-muted-foreground` around a `size-3.5` icon, hover `bg-muted/50 text-foreground` ([styles.tsx](../../../apps/studio/src/client/lib/styles.tsx)) |
+| Action row | hidden until the message is hovered |
+| Placeholder prose | `h-[7px] rounded-full bg-gray-300` at varying widths |
+| Error text and stacks | `font-mono text-[11px]` in `rounded-md bg-muted p-3`, stack collapsed behind a caret ([error-details.tsx](../../../apps/studio/src/client/components/error-details.tsx)) |
+| Icons | Phosphor regular via CDN, the set the app uses: `<i class="ph ph-gear"></i>`, sized with Tailwind (`text-sm` is the 14px action-row size). `ph-fill` for the filled weight |
 
-| Thing                 | Value                                                                                                  | Source                                                                          |
-| --------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
-| Body font             | Work Sans 400/500/600                                                                                  | `--font-sans`                                                                   |
-| Mono                  | JetBrains Mono                                                                                         | `--font-mono`                                                                   |
-| Base radius           | 8px, with sm 4 / md 6 / xl 12                                                                          | `--radius`                                                                      |
-| Conversation column   | `max-w-2xl` (672px), `p-4`                                                                             | [chat.tsx](../../../apps/studio/src/client/components/task/chat.tsx)            |
-| User bubble           | max 80% width, radius 12/4/12/12, gradient `--card` to `--gray-25`, 8px/16px padding, `--elevation-sm` | [user-message.tsx](../../../apps/studio/src/client/components/user-message.tsx) |
-| Message action button | 14px icon, 4px padding, 4px radius, `--muted-foreground`, hover `--muted` at 50%                       | [styles.tsx](../../../apps/studio/src/client/lib/styles.tsx)                    |
-| Action row visibility | hidden until the message is hovered                                                                    | [user-message.tsx](../../../apps/studio/src/client/components/user-message.tsx) |
-| Icons                 | Phosphor regular                                                                                       | `@phosphor-icons/react`                                                         |
+Two that are wrong on sight if you guess:
 
-Two things that are easy to get wrong and are visible immediately:
-
-- **The user bubble is a white-to-near-white gradient with a shadow, not a grey fill.** The asymmetric corner (small radius, top right) is the most recognisable detail in the transcript.
-- **Action buttons are small and quiet.** 14px icons at 4px padding, muted until hover. Drawing them at 24px with visible borders makes the whole frame look like a different product.
-
-Icons: use the sprite in the template and reference with `<svg class="ico"><use href="#i-thumb-up" /></svg>`. Add symbols as needed at `viewBox="0 0 24 24"`, `stroke-width="2"`, round caps, approximating the Phosphor regular weight. Do not pull an icon font or a CDN.
-
-Self-containment: one file, hand-written CSS, no Tailwind CDN and no build step, so it opens from disk and survives being copied around. The one network dependency is the Work Sans link, which falls back to the system sans if offline.
+- **The user bubble is a white-to-near-white gradient with a shadow, not a grey fill.** The small top-right corner against three large ones is the most recognisable detail in the transcript.
+- **Action buttons are small and quiet.** 14px icons at 4px padding, muted until hover. Drawn at 24px with borders, the frame reads as a different product.
 
 ## Layout
 
-Frames in a row have different natural heights, which leaves the captions ragged. Raise `.frame { min-height }` until the tallest state fits, so all three bottom out together. Do this last, once the content is final.
+Frames in a row have different natural heights, which leaves the captions ragged. Raise `min-h-*` on the frames until the tallest state fits, so they bottom out together. Do it last, once the content is final.
 
 ## Publishing
 
-Prefer the file itself over a picture of it. In Notion, upload it with the `create-attachment` tool and place it with an `<embed src="file-upload://...">` block, which renders it inline in a sandboxed iframe. It stays legible at any zoom, and revising it is a re-upload rather than a re-crop.
+Prefer the file over a picture of it. In Notion, upload it with the `create-attachment` tool and place it with `<embed src="file-upload://...">`, which renders it inline in a sandboxed iframe. It stays legible at any zoom and revising it is a re-upload.
 
-When somewhere really does need a raster image, screenshot the file with whatever headless browser the machine has. Three things to get right whichever tool that is:
+When something needs a raster image, screenshot the file with whatever headless browser the machine has. Four things to get right whichever tool that is:
 
+- Give the page time to compile. Tailwind builds at runtime here, so a screenshot taken on the load event can catch the page unstyled.
 - Render at 2x device scale, or the text is mushy everywhere it gets embedded.
-- Size the viewport to the whole sheet. Browsers capture the viewport, so anything below the fold is silently cut rather than scaled down.
+- Size the viewport to the whole sheet. Browsers capture the viewport, so anything below the fold is silently cut rather than scaled.
 - **Read the image back and look at it.** Clipped captions and ragged frame heights are invisible in the HTML and obvious in the picture.
 
 Write images to a scratch directory, not the repo, unless asked to commit one.

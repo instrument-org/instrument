@@ -2,656 +2,150 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Wireframe: TITLE</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap"
       rel="stylesheet"
     />
-    <style>
-      /* Tokens copied from apps/studio/src/client/styles/globals.css (light).
-         Only the stops a wireframe needs. Re-check if the ramp has moved. */
-      :root {
-        --gray-25: #fdfdfc;
-        --gray-50: #fafaf9;
-        --gray-100: #f5f5f4;
-        --gray-200: #e7e5e4;
-        --gray-300: #d7d3d0;
-        --gray-400: #a9a29d;
-        --gray-500: #79716b;
-        --gray-800: #292524;
-        --gray-950: #171412;
+    <!-- Phosphor regular, the icon set the app uses. Write <i class="ph ph-gear"></i>
+         and size it with Tailwind (text-sm is 14px, the app's action-row size). -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <style type="text/tailwindcss">
+      @import "tailwindcss";
 
-        --brand-50: #e2eae7;
-        --brand-500: #0e7869;
-        --brand-600: #0b6056;
-        --brand-700: #0a4a42;
+      /* Studio's light theme, resolved from
+         apps/studio/src/client/styles/globals.css. Regenerate with the command
+         in SKILL.md rather than editing by hand. */
+      @theme {
+        --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+        --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
-        --error-100: #f8e4e8;
-        --error-500: #b4324f;
-        --warning-100: #fef0c7;
-        --warning-500: #f79009;
-        --success-500: #29a845;
-
-        --background: var(--gray-50);
-        --foreground: var(--gray-950);
-        --card: #ffffff;
-        --muted: var(--gray-100);
-        --muted-foreground: var(--gray-500);
-        --border: var(--gray-200);
-
-        --radius: 0.5rem;
         --radius-sm: 4px;
         --radius-md: 6px;
         --radius-lg: 8px;
         --radius-xl: 12px;
 
-        --elevation-sm:
+        --shadow-sm:
           0 2px 4px 0 rgb(10 13 18 / 0.04), 0 1px 2px -1px rgb(10 13 18 / 0.06),
           0 0 0 1px rgb(10 13 18 / 0.06);
-        --elevation-xl:
+        --shadow-xl:
           0 12px 24px -4px rgb(10 13 18 / 0.07),
           0 6px 10px -6px rgb(10 13 18 / 0.07), 0 0 0 1px rgb(10 13 18 / 0.06);
-      }
 
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        margin: 0;
-        padding: 40px 32px 48px;
-        background: var(--gray-100);
-        color: var(--foreground);
-        font-family: "Work Sans", ui-sans-serif, system-ui, sans-serif;
-        font-size: 14px;
-        line-height: 1.5;
-        -webkit-font-smoothing: antialiased;
-      }
-
-      /* Sheet ------------------------------------------------------------ */
-
-      .sheet-title {
-        margin: 0 0 4px;
-        font-size: 17px;
-        font-weight: 600;
-      }
-
-      .sheet-sub {
-        margin: 0 0 32px;
-        color: var(--muted-foreground);
-        font-size: 13px;
-      }
-
-      .row {
-        display: grid;
-        /* One column per state. Change the count, not the gap. */
-        grid-template-columns: repeat(3, 1fr);
-        gap: 24px;
-        max-width: 1240px;
-      }
-
-      .step-label {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 10px;
-        color: var(--muted-foreground);
-        font-size: 12px;
-        font-weight: 500;
-      }
-
-      .step-num {
-        display: grid;
-        place-items: center;
-        width: 18px;
-        height: 18px;
-        border-radius: 999px;
-        background: var(--gray-300);
-        color: #fff;
-        font-size: 11px;
-        font-weight: 600;
-      }
-
-      /* Raise min-height until the tallest frame fits, so captions align. */
-      .frame {
-        min-height: 420px;
-        padding: 18px;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-lg);
-        background: var(--gray-50);
-      }
-
-      .caption {
-        margin-top: 12px;
-        color: var(--muted-foreground);
-        font-size: 12px;
-        line-height: 1.5;
-      }
-
-      /* Transcript ------------------------------------------------------- */
-
-      .msg {
-        margin-bottom: 18px;
-      }
-
-      .msg-out {
-        text-align: right;
-      }
-
-      /* Real bubble: max-w-[80%], asymmetric radius, card-to-gray-25
-         gradient, px-4 py-2, shadow-sm. See user-message.tsx. */
-      .bubble {
-        display: inline-block;
-        max-width: 80%;
-        padding: 8px 16px;
-        border-radius: var(--radius-xl) var(--radius-sm) var(--radius-xl)
-          var(--radius-xl);
-        background: linear-gradient(to bottom, var(--card), var(--gray-25));
-        box-shadow: var(--elevation-sm);
-        text-align: left;
-      }
-
-      /* Placeholder prose. Use these for text that is not the point. */
-      .bar {
-        height: 7px;
-        border-radius: 999px;
-        background: var(--gray-300);
-      }
-
-      .bar + .bar {
-        margin-top: 7px;
-      }
-
-      .bubble .bar {
-        background: var(--gray-300);
-      }
-
-      .w95 {
-        width: 95%;
-      }
-      .w80 {
-        width: 80%;
-      }
-      .w70 {
-        width: 70%;
-      }
-      .w55 {
-        width: 55%;
-      }
-      .w40 {
-        width: 40%;
-      }
-
-      .chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        margin-top: 10px;
-        padding: 4px 9px;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-md);
-        background: var(--card);
-        color: var(--gray-800);
-        font-size: 12px;
-      }
-
-      .chip::before {
-        width: 11px;
-        height: 13px;
-        border: 1px solid var(--gray-400);
-        border-radius: 2px;
-        content: "";
-      }
-
-      /* Message action row ------------------------------------------------
-         Real buttons are 14px icons with p-1 and rounded-sm, muted until
-         hover. See lib/styles.tsx and assistant-messages-footer.tsx. */
-
-      .actions {
-        display: flex;
-        align-items: center;
-        gap: 2px;
-        margin-top: 12px;
-      }
-
-      .icon-btn {
-        display: grid;
-        place-items: center;
-        padding: 4px;
-        border-radius: var(--radius-sm);
-        color: var(--muted-foreground);
-      }
-
-      .icon-btn svg {
-        width: 14px;
-        height: 14px;
-      }
-
-      .icon-btn.hover {
-        background: color-mix(in srgb, var(--muted) 50%, transparent);
-        color: var(--foreground);
-      }
-
-      .icon-btn.on {
-        background: var(--brand-50);
-        color: var(--brand-600);
-      }
-
-      .divider {
-        width: 1px;
-        height: 14px;
-        margin: 0 6px;
-        background: var(--border);
-      }
-
-      /* Settings and list surfaces ---------------------------------------- */
-
-      .frame-head {
-        margin-bottom: 14px;
-      }
-
-      .frame-head h2 {
-        margin: 0 0 3px;
-        font-size: 15px;
-        font-weight: 600;
-      }
-
-      .frame-head p {
-        margin: 0;
-        color: var(--muted-foreground);
-        font-size: 12px;
-      }
-
-      .callout {
-        margin-bottom: 14px;
-        padding: 10px 12px;
-        border-radius: var(--radius-md);
-        background: var(--brand-50);
-        color: var(--brand-700);
-        font-size: 12px;
-        line-height: 1.45;
-      }
-
-      .list-row {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 0;
-        border-bottom: 1px solid var(--gray-200);
-        font-size: 12.5px;
-      }
-
-      .list-row:last-child {
-        border-bottom: 0;
-      }
-
-      .list-row .meta {
-        margin-left: auto;
-        color: var(--muted-foreground);
-        font-size: 11.5px;
-      }
-
-      .tag {
-        flex: none;
-        padding: 2px 7px;
-        border-radius: 999px;
-        background: var(--muted);
-        color: var(--gray-800);
-        font-size: 11px;
-      }
-
-      .mono {
-        font-family: "JetBrains Mono", ui-monospace, monospace;
-        font-size: 11.5px;
-      }
-
-      .switch {
-        flex: none;
-        width: 34px;
-        height: 20px;
-        padding: 2px;
-        border-radius: 999px;
-        background: var(--gray-300);
-      }
-
-      .switch::after {
-        display: block;
-        width: 16px;
-        height: 16px;
-        border-radius: 999px;
-        background: #fff;
-        box-shadow: var(--elevation-sm);
-        content: "";
-      }
-
-      .switch.on {
-        background: var(--brand-500);
-      }
-
-      .switch.on::after {
-        margin-left: 14px;
-      }
-
-      /* Popover / disclosure panel ---------------------------------------- */
-
-      .panel {
-        margin-top: 10px;
-        border-radius: var(--radius-lg);
-        background: var(--card);
-        box-shadow: var(--elevation-xl);
-      }
-
-      /* Modal over a frame. Add .has-modal to the frame, then a .scrim and a
-         .panel wrapped in .modal. Draw the underlying state behind it. */
-      .has-modal {
-        position: relative;
-        overflow: hidden;
-      }
-
-      .scrim {
-        position: absolute;
-        inset: 0;
-        background: rgb(23 20 18 / 0.3);
-      }
-
-      .modal {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: calc(100% - 36px);
-        transform: translate(-50%, -50%);
-      }
-
-      .modal .panel {
-        margin-top: 0;
-      }
-
-      .panel-head {
-        padding: 14px 16px 12px;
-        border-bottom: 1px solid var(--border);
-      }
-
-      .panel-head h3 {
-        margin: 0 0 3px;
-        font-size: 14px;
-        font-weight: 600;
-      }
-
-      .panel-head p {
-        margin: 0;
-        color: var(--muted-foreground);
-        font-size: 12px;
-      }
-
-      .panel-body {
-        padding: 6px 16px 12px;
-      }
-
-      .panel-foot {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 12px 16px;
-        border-top: 1px solid var(--border);
-      }
-
-      .item {
-        display: flex;
-        gap: 10px;
-        padding: 9px 0;
-        border-bottom: 1px solid var(--gray-100);
-      }
-
-      .item:last-child {
-        border-bottom: 0;
-      }
-
-      .item-text {
-        font-size: 13px;
-      }
-
-      .item-note {
-        margin-top: 2px;
-        color: var(--muted-foreground);
-        font-size: 11.5px;
-      }
-
-      .item-link {
-        margin-top: 4px;
-        color: var(--brand-600);
-        font-size: 11.5px;
-        text-decoration: underline;
-        text-underline-offset: 2px;
-      }
-
-      .box {
-        flex: none;
-        width: 15px;
-        height: 15px;
-        margin-top: 1px;
-        border: 1px solid var(--gray-400);
-        border-radius: 3px;
-      }
-
-      .box.checked {
-        border-color: var(--brand-500);
-        background: var(--brand-500);
-      }
-
-      .box.checked::after {
-        display: block;
-        width: 4px;
-        height: 8px;
-        margin: 1px 0 0 4px;
-        border: solid #fff;
-        border-width: 0 1.5px 1.5px 0;
-        content: "";
-        transform: rotate(45deg);
-      }
-
-      /* Inline checkbox with a label, for panel footers. */
-      .check-inline {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        color: var(--muted-foreground);
-        font-size: 11.5px;
-      }
-
-      .check-inline .box {
-        width: 14px;
-        height: 14px;
-        margin-top: 0;
-      }
-
-      .radio {
-        flex: none;
-        width: 15px;
-        height: 15px;
-        margin-top: 1px;
-        border: 1px solid var(--gray-400);
-        border-radius: 999px;
-      }
-
-      .radio.checked {
-        border: 4.5px solid var(--brand-500);
-      }
-
-      .note {
-        margin: 4px 0 0;
-        padding: 10px 12px;
-        border-radius: var(--radius-md);
-        background: var(--muted);
-        color: var(--gray-800);
-        font-size: 11.5px;
-        line-height: 1.45;
-      }
-
-      .btns {
-        display: flex;
-        gap: 8px;
-      }
-
-      .btn {
-        padding: 6px 14px;
-        border: 1px solid var(--gray-300);
-        border-radius: var(--radius-md);
-        background: var(--card);
-        font-size: 12.5px;
-        font-weight: 500;
-      }
-
-      .btn.primary {
-        border-color: var(--brand-600);
-        background: var(--brand-600);
-        color: #fff;
-      }
-
-      /* Inline result / receipt ------------------------------------------- */
-
-      .receipt {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-top: 12px;
-        padding: 10px 12px;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-lg);
-        background: var(--card);
-        font-size: 12.5px;
-      }
-
-      .receipt .tick {
-        display: grid;
-        flex: none;
-        place-items: center;
-        width: 18px;
-        height: 18px;
-        border-radius: 999px;
-        background: var(--brand-500);
-        color: #fff;
-        font-size: 11px;
-      }
-
-      .receipt-links {
-        display: flex;
-        gap: 12px;
-        margin-left: auto;
-        color: var(--brand-600);
-      }
-
-      .receipt-links span {
-        text-decoration: underline;
-        text-underline-offset: 2px;
-      }
-
-      /* Section break inside a frame, for "and later..." */
-      .after {
-        margin-top: 14px;
-        padding-top: 14px;
-        border-top: 1px dashed var(--gray-300);
-      }
-
-      .after-label {
-        margin-bottom: 8px;
-        color: var(--muted-foreground);
-        font-size: 11.5px;
+        --color-gray-25: #fdfdfc;
+        --color-gray-50: #fafaf9;
+        --color-gray-100: #f5f5f4;
+        --color-gray-200: #e7e5e4;
+        --color-gray-300: #d7d3d0;
+        --color-gray-400: #a9a29d;
+        --color-gray-500: #79716b;
+        --color-gray-600: #57534e;
+        --color-gray-700: #44403c;
+        --color-gray-800: #292524;
+        --color-gray-900: #1c1917;
+        --color-gray-950: #171412;
+
+        --color-brand-25: #f1f4f2;
+        --color-brand-50: #e2eae7;
+        --color-brand-100: #c5d5d0;
+        --color-brand-200: #9dbfb6;
+        --color-brand-300: #6ca89c;
+        --color-brand-400: #338c81;
+        --color-brand-500: #0e7869;
+        --color-brand-600: #0b6056;
+        --color-brand-700: #0a4a42;
+        --color-brand-800: #093a34;
+        --color-brand-900: #082c28;
+        --color-brand-950: #051b18;
+
+        --color-error-50: #fbeef0;
+        --color-error-100: #f8e4e8;
+        --color-error-300: #e197a6;
+        --color-error-500: #b4324f;
+        --color-error-700: #7a1f30;
+        --color-error-900: #3f121a;
+
+        --color-warning-50: #fffaeb;
+        --color-warning-100: #fef0c7;
+        --color-warning-300: #fec84b;
+        --color-warning-500: #f79009;
+        --color-warning-700: #b54708;
+        --color-warning-900: #7a2e0e;
+
+        --color-success-50: #e9f5eb;
+        --color-success-100: #d9f1db;
+        --color-success-300: #7dcb87;
+        --color-success-500: #29a845;
+        --color-success-700: #176229;
+        --color-success-900: #0b3216;
+
+        --color-yellow-50: #fdf6e2;
+        --color-yellow-100: #fbebc9;
+        --color-yellow-300: #f1cc8e;
+        --color-yellow-500: #d58f4f;
+        --color-yellow-700: #b26747;
+        --color-yellow-900: #59301e;
+
+        --color-brown-50: #fcfbf8;
+        --color-brown-100: #f6f4f0;
+        --color-brown-300: #e8e3da;
+        --color-brown-500: #bbaa8e;
+        --color-brown-700: #937b5b;
+        --color-brown-900: #564538;
+
+        --color-background: #fafaf9;
+        --color-foreground: #171412;
+        --color-card: #ffffff;
+        --color-popover: #ffffff;
+        --color-primary: #171412;
+        --color-primary-foreground: #ffffff;
+        --color-secondary: #f5f5f4;
+        --color-secondary-foreground: #292524;
+        --color-muted: #f5f5f4;
+        --color-muted-foreground: #79716b;
+        --color-accent: #e7e5e4;
+        --color-accent-foreground: #292524;
+        --color-destructive: #b4324f;
+        --color-border: #e7e5e4;
+        --color-input: #e7e5e4;
+        --color-ring: #a9a29d;
       }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   </head>
-  <body>
-    <!-- Icon sprite. Reference with <svg class="ico"><use href="#i-thumb-up"/></svg>
-         Add icons as needed, approximating the Phosphor regular weight. -->
-    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
-      <defs>
-        <g
-          id="stroke"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        ></g>
-        <symbol
-          id="i-thumb-up"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M7 10v11H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z" />
-          <path
-            d="M7 10l4.5-7a2 2 0 0 1 3.4 2l-1.4 5H19a2 2 0 0 1 2 2.4l-1.4 6A2 2 0 0 1 17.6 21H7z"
-          />
-        </symbol>
-        <symbol
-          id="i-thumb-down"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M17 14V3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1z" />
-          <path
-            d="M17 14l-4.5 7a2 2 0 0 1-3.4-2l1.4-5H5a2 2 0 0 1-2-2.4l1.4-6A2 2 0 0 1 6.4 3H17z"
-          />
-        </symbol>
-        <symbol
-          id="i-copy"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <rect x="9" y="9" width="12" height="12" rx="2" />
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-        </symbol>
-        <symbol
-          id="i-retry"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M21 12a9 9 0 1 1-3-6.7" />
-          <path d="M21 3v6h-6" />
-        </symbol>
-      </defs>
-    </svg>
 
-    <h1 class="sheet-title">TITLE</h1>
-    <p class="sheet-sub">One line saying what the flow is.</p>
+  <body class="bg-gray-100 p-10 font-sans text-sm text-foreground antialiased">
+    <h1 class="text-[17px] font-semibold">TITLE</h1>
+    <p class="mt-1 mb-8 text-[13px] text-muted-foreground">
+      One line saying what the flow is.
+    </p>
 
-    <div class="row">
+    <!-- One column per state. Raise min-h once the content is final so every
+         frame bottoms out together and the captions align. -->
+    <div class="grid max-w-[1240px] grid-cols-3 gap-6">
       <div>
-        <div class="step-label"><span class="step-num">1</span> State name</div>
-        <div class="frame">
-          <!-- Build the state here. Bars for prose, real copy only where the
-               idea lives. -->
+        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <span class="grid size-4.5 place-items-center rounded-full bg-gray-300 text-[11px] font-semibold text-white">1</span>
+          State name
         </div>
-        <p class="caption">What this frame proves, not what it shows.</p>
-      </div>
-
-      <div>
-        <div class="step-label"><span class="step-num">2</span> State name</div>
-        <div class="frame"></div>
-        <p class="caption"></p>
-      </div>
-
-      <div>
-        <div class="step-label"><span class="step-num">3</span> State name</div>
-        <div class="frame"></div>
-        <p class="caption"></p>
+        <div class="min-h-105 rounded-lg border border-border bg-gray-50 p-4.5">
+          <!-- Build the state here. -->
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          What this frame proves, not what it shows.
+        </p>
       </div>
     </div>
   </body>

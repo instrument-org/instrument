@@ -1,7 +1,7 @@
 import type { KnipConfig } from "knip";
 
 const config: KnipConfig = {
-  ignore: ["registry/**/*"],
+  ignore: ["registry/**/*", ".agents/skills/**/*", ".claude/skills/**/*"],
   // Namespace members are exported for organization (see AGENTS.md), not always
   // consumed cross-file. knip 5 did not check them; keep that scope under knip 6.
   rules: {

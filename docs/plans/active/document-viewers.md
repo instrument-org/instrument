@@ -32,9 +32,7 @@ The two credible PDF engines are pdfium (via `@embedpdf/*`) and pdf.js. This is 
 
 The deciding factor is what this product has to open. Users bring arbitrary PDFs from their working lives — scanned contracts, government forms, old archives, CJK documents, whatever a generator produced a decade ago. The goal is robust compatibility with unknown input, and that is the axis where pdfium has the stronger claim: Foxit's commercial engine lineage, continuous large-scale fuzzing because it is an attack surface in Chrome, and exposure to a wider corpus of malformed real-world documents than any other engine. Agent-generated PDFs (the `pdf` skill's ReportLab and PyMuPDF output, `agent-browser`'s print-to-PDF) are the easy case that either engine handles; they are not what decides this.
 
-What pdf.js would have bought is a real positioned text layer, so selection, copy, and find are native browser behavior. pdfium rasterizes to canvas, so selection has to be reconstructed above it — Extend's viewer spends roughly 150 lines on a text selection layer, a copy shortcut, and a selection release guard to simulate what the browser otherwise gives free. That is a bounded, already-solved cost, and it only matters on documents that render correctly to begin with. Robustness outranks it.
-
-**Selection is therefore the known-hard part of the PDF viewer** and needs real attention during implementation rather than being assumed to come with the plugin.
+What pdf.js would have bought is a real positioned text layer, so selection, copy, and find are native browser behavior. pdfium rasterizes to canvas, so selection has to be reconstructed above it. That looked like the expensive part of the trade — Extend's viewer spends roughly 150 lines on a text selection layer, a copy shortcut, and a selection release guard — but `@embedpdf/plugin-selection` ships `SelectionLayer` and `CopyToClipboard`, which cover it. Extend's scaffolding is around their own hand-rolled scroller, not a gap in the plugin.
 
 Annotation, form filling, redaction, signature, and export ship as further plugins over the same engine, so PDF editing is closer to enabling a plugin and wiring a save path back into the task folder than to a project. Out of scope here; recorded because it is cheap to reach and the engine choice is what makes it cheap.
 
@@ -76,12 +74,16 @@ Five read-only viewers, each with page/slide navigation and zoom, text selection
 
 | | PDF | DOCX | PPTX | XLSX | CSV/TSV |
 | --- | --- | --- | --- | --- | --- |
-| Nav + zoom | plugin-zoom, plugin-scroll | `useDocxPageLayout` | `usePptxViewer` | controller zoom, sheet tabs | ours |
-| Selection + copy | plugin-selection + a selection layer over the canvas | DOM text, free | DOM text, free | controller cell selection | ours |
-| Find | plugin-search | **see below** | `searchQuery` / `onSearchResults` | ours, walks cells | ours |
-| Thumbnail rail | plugin-thumbnail | `useDocxViewerThumbnails` | `usePptxViewerThumbnails` | n/a, sheet tabs | n/a |
+| Nav + zoom | plugin-zoom, plugin-scroll | measured page + CSS zoom | `usePptxViewer` | controller zoom, sheet tabs | ours |
+| Selection + copy | `SelectionLayer` + `CopyToClipboard` | DOM text, free | DOM text, free | controller cell selection | ours |
+| Find | plugin-search | **not shipped** | `controller.search` | **not shipped** | ours |
+| Thumbnail rail | plugin-thumbnail | `useDocxViewerThumbnails` | `controller.renderThumbnail` | n/a, sheet tabs | n/a |
 
-**Find in DOCX is the one uncertain item.** `@extend-ai/react-docx` exposes no search API, and Extend UI's DOCX viewer has no find UI either — so there is no reference implementation to read. The viewer paginates and virtualizes, so the browser's own find cannot see off-screen pages. Approach: walk the parsed `DocModel` text, map matches to page index, drive the existing page-scroll path, and highlight within the mounted page. If that turns out to need library internals, DOCX ships without find and it becomes its own follow-up rather than blocking the other four.
+**Find is missing in DOCX and XLSX.** Neither library exposes a search API, and both virtualize, so the browser's own find cannot see off-screen content either. For DOCX the approach would be to walk the parsed `DocModel` text, map matches to a page index, and drive the existing page-scroll path; for XLSX it means walking cells over the live wasm session. Both are their own follow-up rather than part of this change.
+
+PDF selection needed far less than expected: `@embedpdf/plugin-selection` ships `SelectionLayer` and `CopyToClipboard`, so the ~150 lines of scaffolding budgeted for it were not required. That was the item flagged as the known-hard part, and it was not.
+
+DOCX page navigation is the piece that did need hand-work. The editor controller's `currentPage` tracks the caret, which in read-only mode reports whatever the paginator touched last, so a freshly opened document showed its final page. The visible page is measured from scroll position against the rendered page wrappers instead.
 
 CSV/TSV gets a viewer we own outright, on `@tanstack/react-table` and `@tanstack/react-virtual` — both already Studio dependencies, Table behind `tasks-data-table` — plus `papaparse` for RFC 4180 parsing, which is the only new dependency in this row. Routing CSV through the XLSX stack is not available: that worker only accepts zipped workbook bytes via `Workbook.fromBytes`.
 
@@ -146,8 +148,13 @@ apps/studio/src/client/components/document-viewers/
   xlsx-viewer.tsx
   viewer-toolbar.tsx      shared toolbar controls
   viewer-surface.tsx      error/suspense boundary + thumbnail rail frame
+  zoom-levels.ts          shared zoom stops
 apps/studio/src/client/lib/document-viewers.ts   wasm sources + lazy handles
 ```
+
+CSV uses `@tanstack/react-virtual` alone. TanStack Table is already a Studio dependency and was considered, but a read-only grid with no sorting, no column definitions, and no row model earns nothing from it; the virtualizer is the part doing the work.
+
+XLSX keeps the library's grid but not its header: `showDefaultToolbar` covers the whole header including the sheet tabs, so those are supplied here, at the bottom where a spreadsheet's tabs belong.
 
 ## Runtime plumbing
 
@@ -201,7 +208,7 @@ Nothing loaded during renderer startup may statically import a viewer library. E
 
 Unchanged. Asset URLs come from the existing local HTTP server (`http://assets.<taskId>.<host>/<path>?version=<mtime>`), which already supports Range requests and CORS — embedpdf streams PDFs through range requests rather than fetching whole files. No new RPC.
 
-Theme: the DOCX and XLSX viewers take dark mode as a controlled prop (they own a night-render toggle that inverts document content while preserving image hues). Seed it from Studio's `ThemeProvider` and re-seed when the app theme changes, so the viewer's own toggle wins in between rather than being inert.
+Theme: documents render in their own colors at every app theme, matching the PDF viewer. The DOCX and XLSX libraries both offer a night-reader mode that inverts content, and both were tried; the inverted body text reads washed out, and applying it would make those two the only formats whose pages change color with the app. A workbook's cell fills and conditional formatting are content, not chrome. The surrounding chrome still follows the app theme.
 
 App zoom: the toolbar's dropdowns, popovers, selects, and tooltips get `useAppZoomStyle` for free by using Studio's primitives. Canvas-rendered document content needs checking at zoom levels other than 1x — the viewers do their own device-pixel-ratio math.
 
@@ -209,10 +216,10 @@ App zoom: the toolbar's dropdowns, popovers, selects, and tooltips get `useAppZo
 
 Per `.agents/skills/validate-changes/SKILL.md`, none of this is observable from reading the code. Each format needs a real file opened in a running Studio:
 
-- Dev, all five formats, in the artifact panel and the expand modal, both themes, app zoom at 1x and something else.
+- Dev, all five formats, in the artifact panel and the expand modal, both themes, app zoom at 1x and something else. All five have been opened in the artifact panel in dev; the modal, the light theme, and zoom levels other than 1x have not.
 - A packaged build, all five formats — the `file://` origin, the app protocol, and the copied `resources/wasm/` only exist there. This is the step that catches wasm and worker regressions.
 - A narrow artifact panel, to confirm the toolbar collapses rather than overflowing.
 - A large file per format (a 500-page PDF, a workbook with many sheets) for the virtualization and memory paths.
 - A malformed file per format, to confirm the `CatchBoundary` degrades to the fallback card rather than taking down the panel.
 - For PDF specifically, a corpus of awkward real-world documents rather than only generated ones: a scan, a filled government form, a CJK document, something from an old generator. Robust compatibility with whatever a user brings is why pdfium was chosen, so it is the thing to actually check.
-- PDF text selection and copy across page boundaries and at several zoom levels. This is reconstructed above a canvas rather than native browser selection, so it is the part most likely to be subtly wrong.
+- PDF text selection and copy across page boundaries and at several zoom levels. This is reconstructed above a canvas rather than native browser selection, so it is the part most likely to be subtly wrong. Not yet exercised by hand.

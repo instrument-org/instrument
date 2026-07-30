@@ -57,6 +57,8 @@ It is bounded twice over, and both bounds are load-bearing. The deadline covers 
 
 The wait sits **before** the running-agents quit prompt, so nothing restarts underneath a running agent and a long wait never spends a dialog on an install that has not been decided. Every terminal download event wakes the waiters, not just success, so a failed or canceled download ends the wait immediately instead of sitting out the deadline.
 
+The waiter reports _why_ it woke, and that reason cannot be recovered afterwards: `failed` clears `pendingNewer`, so once the wait resumes nothing distinguishes a download that died from one that was never in flight. It matters because the round's re-check can be as offline as the download was, leaving no staged and no pending version. Deciding from that alone yields `nothing-staged`, which publishes "up to date" over a real failure and strands the user on the one status offering no recourse. Carrying the reason through means the request republishes the download error and returns `failed` instead.
+
 ### When the newer download fails
 
 Nothing is installable, and the UI says so. The old artifact was deleted when the newer download started, so there is no fallback to offer — a retry keeps chasing the newer build rather than running an installer that is no longer on disk. On macOS the previous build does survive in Squirrel's own staging directory and will apply on quit, but we deliberately do not advertise it: understating what is available is safe, overstating it is not.

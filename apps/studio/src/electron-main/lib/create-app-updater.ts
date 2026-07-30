@@ -50,6 +50,16 @@ export interface UpdaterPort {
   subscribe: (handlers: UpdaterEvents) => void;
 }
 
+// Why a parked install request stopped waiting. Carried out of the event rather
+// than read back off the phase afterwards: `failed` clears `pendingNewer`, so by
+// the time the wait resumes nothing distinguishes a download that died from one
+// that was never in flight.
+type DownloadSettled =
+  | { message: string; type: "failed" }
+  | { type: "canceled" }
+  | { type: "downloaded" }
+  | { type: "timeout" };
+
 interface UpdaterLogger {
   error: (message: string, ...args: unknown[]) => void;
   info: (message: string) => void;
@@ -99,29 +109,29 @@ export function createAppUpdater({
   // Install requests parked on a download that superseded the staged build. Woken
   // by every terminal download event, not just success, so a failed or canceled
   // download ends the wait instead of sitting out the whole deadline.
-  let downloadWaiters: (() => void)[] = [];
+  let downloadWaiters: ((settled: DownloadSettled) => void)[] = [];
 
-  const wakeDownloadWaiters = () => {
+  const wakeDownloadWaiters = (settled: DownloadSettled) => {
     const waiters = downloadWaiters;
     downloadWaiters = [];
     for (const wake of waiters) {
-      wake();
+      wake(settled);
     }
   };
 
   // Resolves when the download in flight reaches any terminal state, or when
   // `timeoutMs` runs out, whichever comes first.
   const awaitDownloadSettled = async (timeoutMs: number) => {
-    let onSettled: (() => void) | undefined;
+    let onSettled: ((settled: DownloadSettled) => void) | undefined;
     // Registered synchronously, before the first suspension point, so a download
     // that settles while this is being set up cannot be missed.
-    const settled = new Promise<void>((resolve) => {
+    const settled = new Promise<DownloadSettled>((resolve) => {
       onSettled = resolve;
       downloadWaiters.push(resolve);
     });
-    const timer = setTimeout(() => onSettled?.(), timeoutMs);
+    const timer = setTimeout(() => onSettled?.({ type: "timeout" }), timeoutMs);
     try {
-      await settled;
+      return await settled;
     } finally {
       clearTimeout(timer);
       downloadWaiters = downloadWaiters.filter((it) => it !== onSettled);
@@ -177,7 +187,7 @@ export function createAppUpdater({
       log.info(`Update canceled: ${info.version}`);
       phase.pendingNewer = null;
       setStatus({ notifyUser: notify, type: "canceled", updateInfo: info });
-      wakeDownloadWaiters();
+      wakeDownloadWaiters({ type: "canceled" });
     },
     downloaded: (info) => {
       log.info(`Update downloaded: ${info.version}`);
@@ -189,7 +199,7 @@ export function createAppUpdater({
       // build scheduled its successor while nothing was staged yet. Re-arm now
       // or the tighter staged interval would almost never apply.
       schedulePoll();
-      wakeDownloadWaiters();
+      wakeDownloadWaiters({ type: "downloaded" });
     },
     failed: (error) => {
       log.error("Updater error:", error);
@@ -205,7 +215,7 @@ export function createAppUpdater({
         type: "error",
       });
       phase.installing = false;
-      wakeDownloadWaiters();
+      wakeDownloadWaiters({ message: error.message, type: "failed" });
     },
     notAvailable: (info) => {
       log.info("Update not available");
@@ -364,8 +374,25 @@ export function createAppUpdater({
       }
       log.info(`Waiting for ${decision.version} to download before installing`);
       waitedFor = decision.version;
-      await awaitDownloadSettled(remainingMs);
+      const settled = await awaitDownloadSettled(remainingMs);
       decision = decideFromPhase(await verifyLatestVersion());
+
+      // Starting that download already deleted the artifact it replaced, so a
+      // failure with nothing on offer to replace it leaves the app with neither.
+      // `nothing-staged` would publish "up to date" over the error, which is the
+      // one status carrying no recourse. Reachable whenever the re-check is as
+      // offline as the download was.
+      if (settled.type === "failed" && decision.type === "nothing-staged") {
+        log.warn(
+          `Nothing left to install after ${waitedFor} failed to download`,
+        );
+        setStatus({
+          message: settled.message,
+          notifyUser: true,
+          type: "error",
+        });
+        return { message: settled.message, type: "failed" };
+      }
     }
 
     const checked = reportNonInstall(decision);

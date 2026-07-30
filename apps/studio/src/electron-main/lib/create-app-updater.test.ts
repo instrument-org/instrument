@@ -508,6 +508,32 @@ describe("waiting out a superseding download", () => {
     expect(h.installs).toHaveBeenCalledOnce();
   });
 
+  it("reports the download failure when nothing can replace it", async () => {
+    const h = createHarness();
+    h.stage(STAGED);
+    h.respondWith(NEWER);
+
+    const install = h.updater.quitAndInstall();
+    h.events().available(updateInfo(NEWER));
+    await vi.advanceTimersByTimeAsync(0);
+
+    // The download dies and the feed is unreachable, so nothing can replace the
+    // artifact that starting it already deleted. Calling that "up to date" would
+    // hide a real failure behind the one status that offers no recourse.
+    h.respondWithFailure(new Error("offline"));
+    h.events().failed(new Error("connection reset"));
+
+    await expect(install).resolves.toEqual({
+      message: "connection reset",
+      type: "failed",
+    });
+    expect(h.published.at(-1)).toMatchObject({
+      message: "connection reset",
+      type: "error",
+    });
+    expect(h.installs).not.toHaveBeenCalled();
+  });
+
   it("stops waiting when the superseding download fails", async () => {
     const h = createHarness();
     h.stage(STAGED);

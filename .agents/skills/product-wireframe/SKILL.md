@@ -1,11 +1,11 @@
 ---
 name: product-wireframe
-description: Build a static HTML wireframe of a proposed Studio flow, styled with the app's real design tokens, and render it to PNG. Use when a plan or design brief needs a picture, when asked for a wireframe or mockup of a feature, or when a proposal would be clearer as a sequence of UI states.
+description: Build a static HTML wireframe of a proposed Studio flow, styled with the app's real design tokens. Use when a plan or design brief needs a picture, when asked for a wireframe or mockup of a feature, or when a proposal would be clearer as a sequence of UI states.
 ---
 
 # Product wireframe
 
-A wireframe here is one self-contained HTML file showing a **flow across states**, rendered to a PNG that can be pasted into a plan or a Notion page. It is not a prototype and not a component spec. It exists to make a proposal legible to someone who will not read the plan.
+A wireframe here is one self-contained HTML file showing a **flow across states**, embedded in a plan or a Notion page. It is not a prototype and not a component spec. It exists to make a proposal legible to someone who will not read the plan.
 
 Start from `template.html` in this skill directory. Copy it next to the plan it illustrates:
 
@@ -57,20 +57,14 @@ Self-containment: one file, hand-written CSS, no Tailwind CDN and no build step,
 
 Frames in a row have different natural heights, which leaves the captions ragged. Raise `.frame { min-height }` until the tallest state fits, so all three bottom out together. Do this last, once the content is final.
 
-## Render
+## Publishing
 
-```bash
-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  --headless --disable-gpu --hide-scrollbars \
-  --force-device-scale-factor=2 --window-size=1320,830 \
-  --screenshot=wireframe.png \
-  "file:///abs/path/to/wireframes-<topic>.html"
-```
+Prefer the file itself over a picture of it. In Notion, upload it with the `create-attachment` tool and place it with an `<embed src="file-upload://...">` block, which renders it inline in a sandboxed iframe. It stays legible at any zoom, and revising it is a re-upload rather than a re-crop.
 
-`--force-device-scale-factor=2` is what makes the PNG legible when embedded. Set `--window-size` height to fit the whole sheet: Chrome screenshots the viewport, so anything below the fold is silently cut. **Read the PNG back and look at it** before handing it over. Clipped captions and uneven frames are invisible in the HTML and obvious in the image.
+When somewhere really does need a raster image, screenshot the file with whatever headless browser the machine has. Three things to get right whichever tool that is:
 
-Write PNGs to the scratchpad, not the repo, unless asked to commit one.
+- Render at 2x device scale, or the text is mushy everywhere it gets embedded.
+- Size the viewport to the whole sheet. Browsers capture the viewport, so anything below the fold is silently cut rather than scaled down.
+- **Read the image back and look at it.** Clipped captions and ragged frame heights are invisible in the HTML and obvious in the picture.
 
-## Publishing to Notion
-
-Prefer the HTML attachment over a screenshot: upload the file with the Notion `create-attachment` tool and place it with an `<embed src="file-upload://...">` block, which renders it inline in a sandboxed iframe. The wireframe stays live and legible at any zoom, and updating it is a re-upload rather than a re-crop. Use a PNG only when the destination cannot embed.
+Write images to a scratch directory, not the repo, unless asked to commit one.

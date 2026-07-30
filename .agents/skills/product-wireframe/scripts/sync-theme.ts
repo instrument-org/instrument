@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Regenerate the `@theme` block that wireframes compile Tailwind against, from
  * Studio's own stylesheet, so a wireframe drawn a year ago still shows the
@@ -17,8 +16,7 @@
  * paths are given. `--check` writes nothing and exits non-zero when a file is
  * stale.
  */
-import { readFileSync, writeFileSync } from "node:fs";
-import { globSync } from "node:fs";
+import { globSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../../..");
@@ -61,37 +59,27 @@ const SEMANTIC = [
   "ring",
 ];
 
-function declarations(css: string): Map<string, string> {
-  const out = new Map<string, string>();
-  // Split on `;` rather than matching per line: the elevation ramps are
-  // multi-line values and a line-anchored regex silently truncates them.
-  for (const chunk of css.split(";")) {
-    const match = /(--[a-z0-9-]+)\s*:\s*([\s\S]+)$/.exec(chunk.trim());
-    if (match?.[1] && match[2]) {
-      out.set(match[1], match[2].replace(/\s+/g, " ").trim());
-    }
+function applyTo(file: string, block: string, check: boolean): boolean {
+  const absolute = path.join(REPO_ROOT, file);
+  const source = readFileSync(absolute, "utf8");
+  const from = source.indexOf(START);
+  const to = source.indexOf(END);
+  if (from === -1 || to === -1) {
+    throw new Error(
+      `${file} has no ${START} / ${END} markers around its @theme tokens.`,
+    );
   }
-  return out;
-}
+  const updated =
+    source.slice(0, from + START.length) +
+    "\n" +
+    block +
+    "\n" +
+    INDENT +
+    source.slice(to);
 
-/** Follow `var(--x)` indirection so wireframes carry literal values. */
-function resolve(value: string, vals: Map<string, string>, depth = 0): string {
-  const match = /^var\((--[a-z0-9-]+)\)$/.exec(value.trim());
-  const target = match?.[1] && vals.get(match[1]);
-  return target && depth < 5 ? resolve(target, vals, depth + 1) : value.trim();
-}
-
-/**
- * The app loads fonts from @fontsource, which registers families under names a
- * font CDN does not serve ("JetBrains Mono Variable" vs "JetBrains Mono").
- * Keep the app's name first so the stack stays truthful, and slot the CDN name
- * in behind it so a wireframe actually renders in the right typeface.
- */
-function withWebFontNames(stack: string): string {
-  return stack.replace(
-    /"([^"]+) Variable"/g,
-    (match, family: string) => `${match}, "${family}"`,
-  );
+  if (updated === source) return false;
+  if (!check) writeFileSync(absolute, updated);
+  return true;
 }
 
 function buildThemeBlock(globalsCss: string): string {
@@ -153,27 +141,44 @@ function buildThemeBlock(globalsCss: string): string {
   return lines.join("\n");
 }
 
-function applyTo(file: string, block: string, check: boolean): boolean {
-  const absolute = path.join(REPO_ROOT, file);
-  const source = readFileSync(absolute, "utf8");
-  const from = source.indexOf(START);
-  const to = source.indexOf(END);
-  if (from === -1 || to === -1) {
-    throw new Error(
-      `${file} has no ${START} / ${END} markers around its @theme tokens.`,
-    );
+function declarations(css: string): Map<string, string> {
+  const out = new Map<string, string>();
+  // Split on `;` rather than matching per line: the elevation ramps are
+  // multi-line values and a line-anchored regex silently truncates them.
+  for (const chunk of css.split(";")) {
+    // Match only the property name, then slice the value off by index. A regex
+    // greedy enough to also capture a multi-line value backtracks badly, and
+    // the first colon in a chunk is not always the property's (a chunk can
+    // open with `:root {`).
+    const name = /(--[a-z0-9-]+)\s*:/.exec(chunk);
+    if (!name?.[1]) continue;
+    const value = chunk
+      .slice(name.index + name[0].length)
+      .replaceAll(/\s+/g, " ")
+      .trim();
+    if (value.length > 0) out.set(name[1], value);
   }
-  const updated =
-    source.slice(0, from + START.length) +
-    "\n" +
-    block +
-    "\n" +
-    INDENT +
-    source.slice(to);
+  return out;
+}
 
-  if (updated === source) return false;
-  if (!check) writeFileSync(absolute, updated);
-  return true;
+/** Follow `var(--x)` indirection so wireframes carry literal values. */
+function resolve(value: string, vals: Map<string, string>, depth = 0): string {
+  const match = /^var\((--[a-z0-9-]+)\)$/.exec(value.trim());
+  const target = match?.[1] && vals.get(match[1]);
+  return target && depth < 5 ? resolve(target, vals, depth + 1) : value.trim();
+}
+
+/**
+ * The app loads fonts from @fontsource, which registers families under names a
+ * font CDN does not serve ("JetBrains Mono Variable" vs "JetBrains Mono").
+ * Keep the app's name first so the stack stays truthful, and slot the CDN name
+ * in behind it so a wireframe actually renders in the right typeface.
+ */
+function withWebFontNames(stack: string): string {
+  return stack.replaceAll(
+    /"([^"]+) Variable"/g,
+    (match, family: string) => `${match}, "${family}"`,
+  );
 }
 
 const args = process.argv.slice(2);
@@ -193,9 +198,10 @@ const stale = targets.filter((file) => applyTo(file, block, check));
 if (check) {
   if (stale.length > 0) {
     console.error(`Stale theme block in:\n  ${stale.join("\n  ")}`);
-    process.exit(1);
+    process.exitCode = 1;
+  } else {
+    console.log(`In sync with ${GLOBALS} (${targets.length} files).`);
   }
-  console.log(`In sync with ${GLOBALS} (${targets.length} files).`);
 } else {
   console.log(
     stale.length > 0

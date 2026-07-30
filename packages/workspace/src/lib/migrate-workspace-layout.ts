@@ -59,6 +59,10 @@ export interface WorkspaceLayoutMigration {
   // existed under tasks/ (never clobbered).
   conflictedTaskIds: string[];
   movedTaskCount: number;
+  // Chrome profile clones deleted, each a recursive delete of a few hundred MB
+  // on the thread that owns the window. Reported so a boot that stalls on one
+  // says so rather than looking like a hang.
+  removedBrowserProfileCloneCount: number;
 }
 
 // Boot migration: two passes.
@@ -76,14 +80,19 @@ export function migrateWorkspaceLayout({
   let migration: WorkspaceLayoutMigration = {
     conflictedTaskIds: [],
     movedTaskCount: 0,
+    removedBrowserProfileCloneCount: 0,
   };
   if (!legacyProjectsMigrationDone(rootDir)) {
     migration = migrateLegacyProjectsDir(rootDir);
     markLegacyProjectsMigrationDone(rootDir);
   }
 
-  normalizeTasks(path.join(rootDir, TASKS_DIR_NAME));
-  return migration;
+  return {
+    ...migration,
+    removedBrowserProfileCloneCount: normalizeTasks(
+      path.join(rootDir, TASKS_DIR_NAME),
+    ),
+  };
 }
 
 // A real project has a ProjectId (prj_<ULID>) in its settings; structurally
@@ -146,6 +155,7 @@ function migrateLegacyProjectsDir(rootDir: string): WorkspaceLayoutMigration {
   const migration: WorkspaceLayoutMigration = {
     conflictedTaskIds: [],
     movedTaskCount: 0,
+    removedBrowserProfileCloneCount: 0,
   };
 
   if (!fs.existsSync(legacyDir)) {
@@ -229,8 +239,9 @@ function normalizeTaskPrivateFiles(taskFolder: string) {
 // and no-ops on a task already in the current shape.
 function normalizeTasks(tasksDir: string) {
   if (!fs.existsSync(tasksDir)) {
-    return;
+    return 0;
   }
+  let removedBrowserProfileCloneCount = 0;
   for (const entry of fs.readdirSync(tasksDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) {
       continue;
@@ -242,8 +253,9 @@ function normalizeTasks(tasksDir: string) {
     normalizeTaskAttachments(taskFolder);
     // After the work/ move, so a pre-work-layout task's clones are found at
     // their current path rather than the root one they were written to.
-    removeBrowserProfileClones(taskFolder);
+    removedBrowserProfileCloneCount += removeBrowserProfileClones(taskFolder);
   }
+  return removedBrowserProfileCloneCount;
 }
 
 // Moves the settings file from the task root into the private dir, whether it
@@ -274,8 +286,9 @@ function removeBrowserProfileClones(taskFolder: string) {
     TASK_FOLDER_NAMES.tmp,
   );
   if (!fs.existsSync(tmpDir)) {
-    return;
+    return 0;
   }
+  let removed = 0;
   for (const entry of fs.readdirSync(tmpDir, { withFileTypes: true })) {
     if (
       entry.isDirectory() &&
@@ -285,6 +298,8 @@ function removeBrowserProfileClones(taskFolder: string) {
         force: true,
         recursive: true,
       });
+      removed += 1;
     }
   }
+  return removed;
 }

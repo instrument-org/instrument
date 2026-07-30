@@ -50,6 +50,7 @@ describe("migrateWorkspaceLayout", () => {
     expect(result).toEqual({
       conflictedTaskIds: [],
       movedTaskCount: 0,
+      removedBrowserProfileCloneCount: 0,
     });
     expect(exists("tasks")).toBe(false);
     // Fresh install: the marker is dropped on first boot so a later project in

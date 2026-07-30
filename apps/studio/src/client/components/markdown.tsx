@@ -50,6 +50,11 @@ interface MarkdownProps {
   // to name a picture the reader will never see.
   hideImages?: boolean;
   markdown: string;
+  // Chat messages mean a single newline as a hard break, so that is the
+  // default. Prose authored elsewhere (e.g. GitHub release bodies) wraps
+  // paragraphs on single newlines and expects them to reflow; pass false there
+  // to drop `remark-breaks` and let the text flow.
+  preserveLineBreaks?: boolean;
   // Present only when rendered inside a task chat. Enables the task-file
   // right-click menu (Open in {App} / Save as… / Reveal / …); left-click
   // open-in-panel works without it.
@@ -386,6 +391,7 @@ export const Markdown = memo(
     assetBaseUrl,
     hideImages,
     markdown,
+    preserveLineBreaks = true,
     taskId,
   }: MarkdownProps) => {
     const openFilePreview = useSetAtom(openFilePreviewAtom);
@@ -483,7 +489,11 @@ export const Markdown = memo(
             pre: markdownPre,
           }}
           rehypePlugins={rehypePlugins}
-          remarkPlugins={[remarkGfm, remarkBreaks, ...remarkPlugins]}
+          remarkPlugins={[
+            remarkGfm,
+            ...(preserveLineBreaks ? [remarkBreaks] : []),
+            ...remarkPlugins,
+          ]}
         >
           {remend(markdown)}
         </ReactMarkdown>

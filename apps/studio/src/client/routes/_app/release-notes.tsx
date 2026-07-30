@@ -14,7 +14,6 @@ import { APP_NAME, RELEASE_NOTES_URL } from "@instrument-org/shared";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 
 export const Route = createFileRoute("/_app/release-notes")({
   component: RouteComponent,
@@ -49,9 +48,6 @@ function RouteComponent() {
   const appVersionQuery = useQuery(
     rpcClient.preferences.getAppVersion.queryOptions(),
   );
-  const preferencesQuery = useQuery(
-    rpcClient.preferences.live.get.experimental_liveOptions(),
-  );
 
   const checkForUpdatesMutation = useMutation(
     rpcClient.preferences.checkForUpdates.mutationOptions(),
@@ -62,24 +58,21 @@ function RouteComponent() {
   };
 
   const releases = releasesQuery.data?.releases ?? [];
-  const hasMoreReleases = releasesQuery.data?.hasMore ?? false;
   const currentVersion = appVersionQuery.data?.version;
-
-  const lastChecked = preferencesQuery.data?.lastUpdateCheck
-    ? new Date(preferencesQuery.data.lastUpdateCheck)
-    : null;
 
   return (
     <div className="h-full overflow-y-auto scroll-fade-y">
-      <div className="container mx-auto space-y-6 p-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Release notes</h1>
-            <p className="mt-2 text-muted-foreground">
-              Latest updates and changes to {APP_NAME}
-            </p>
-          </div>
-          <div className="flex flex-col items-end gap-1">
+      <div className="mx-auto w-full max-w-3xl flex-1">
+        <div className="px-4 pt-10 @xl/app-content:px-6 @5xl/app-content:px-8 @5xl/app-content:pt-20 @5xl/app-content:pb-4">
+          <div className="flex flex-col items-center gap-y-5 text-center">
+            <div className="space-y-2">
+              <h1 className="font-serif text-3xl leading-10 font-normal">
+                Release notes
+              </h1>
+              <p className="text-muted-foreground">
+                Updates shipped in your current version of {APP_NAME}
+              </p>
+            </div>
             <Button
               disabled={checkForUpdatesMutation.isPending}
               onClick={handleCheckForUpdates}
@@ -87,17 +80,12 @@ function RouteComponent() {
             >
               {checkForUpdatesMutation.isPending
                 ? "Checking..."
-                : "Check for Updates"}
+                : "Check for updates"}
             </Button>
-            {lastChecked && (
-              <p className="text-xs text-muted-foreground/50">
-                Checked {formatDistanceToNow(lastChecked, { addSuffix: true })}
-              </p>
-            )}
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 px-4 py-12 @xl/app-content:px-6 @5xl/app-content:px-8">
           {releasesQuery.isLoading ? (
             Array.from({ length: 3 }).map((_, i) => (
               <Card key={i}>
@@ -116,32 +104,24 @@ function RouteComponent() {
             <ZeroState />
           ) : (
             releases.map((release) => (
-              <Card className="overflow-hidden" key={release.id}>
-                <CardHeader className="border-b">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="flex items-center gap-2">
-                          {release.name || release.tag_name}
-                          {currentVersion &&
-                            (release.tag_name === currentVersion ||
-                              release.tag_name === `v${currentVersion}`) && (
-                              <Badge variant="outline">Your version</Badge>
-                            )}
-                        </CardTitle>
-                        <ExternalLink
-                          className="inline-flex shrink-0 items-center gap-1 text-sm text-primary hover:text-primary/80"
-                          href={release.html_url}
-                        >
-                          View on GitHub
-                          <ArrowSquareOutIcon className="size-3" />
-                        </ExternalLink>
-                      </div>
+              <Card className="gap-0 overflow-hidden py-0" key={release.id}>
+                <CardHeader className="px-6 pt-5 pb-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 space-y-0.5">
+                      <CardTitle className="flex items-center gap-2 text-xl leading-tight">
+                        {APP_NAME} {release.name || release.tag_name}
+                        {currentVersion &&
+                          (release.tag_name === currentVersion ||
+                            release.tag_name === `v${currentVersion}`) && (
+                            <Badge variant="outline">Your version</Badge>
+                          )}
+                      </CardTitle>
                       {release.name && release.name !== release.tag_name ? (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <span>Version {release.tag_name}</span>
                           <span>•</span>
                           <span>
+                            Released on{" "}
                             {new Date(
                               release.published_at || release.created_at,
                             ).toLocaleDateString()}
@@ -149,20 +129,28 @@ function RouteComponent() {
                         </div>
                       ) : (
                         <div className="text-sm text-muted-foreground">
+                          Released on{" "}
                           {new Date(
                             release.published_at || release.created_at,
                           ).toLocaleDateString()}
                         </div>
                       )}
                     </div>
+                    <Button asChild size="sm" variant="ghost">
+                      <ExternalLink href={release.html_url}>
+                        View on GitHub
+                        <ArrowSquareOutIcon />
+                      </ExternalLink>
+                    </Button>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-6">
+                <CardContent className="border-t border-border/50 px-6 py-6">
                   {release.body ? (
-                    <div className="prose prose-sm prose-custom dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm">
+                    <div className="prose prose-sm prose-custom max-w-none dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm">
                       <Markdown
                         allowRawHtml // To support GitHub's HTML-based image attachments
                         markdown={release.body}
+                        preserveLineBreaks={false}
                       />
                     </div>
                   ) : (
@@ -177,16 +165,14 @@ function RouteComponent() {
 
           {!releasesQuery.isLoading &&
             !releasesQuery.isError &&
-            releases.length > 0 &&
-            hasMoreReleases && (
-              <div className="pt-8 pb-4 text-center">
-                <ExternalLink
-                  className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-                  href={RELEASE_NOTES_URL}
-                >
-                  View older releases on GitHub
-                  <ArrowSquareOutIcon className="size-3" />
-                </ExternalLink>
+            releases.length > 0 && (
+              <div className="flex justify-center pt-4">
+                <Button asChild size="lg" variant="outline">
+                  <ExternalLink href={RELEASE_NOTES_URL}>
+                    All release notes
+                    <ArrowSquareOutIcon />
+                  </ExternalLink>
+                </Button>
               </div>
             )}
         </div>

@@ -153,6 +153,26 @@ The insertion point is clean when someone does it: `FileThumbnail` is the single
 
 One shortcut is worth knowing about and not worth relying on. OOXML packages may carry a `docProps/thumbnail.jpeg`, and PDFs may embed page thumbnails, either of which would be a cheap read with no wasm at all. Both are optional, Office does not write them by default on every platform, and a file an agent generated will not have one — so it can only ever be a fast path in front of real rendering, never the mechanism.
 
+### How it should be built, when it is
+
+PDF and the rest are not the same problem, and the shape of the answer differs.
+
+PDF needs no DOM at all. `PdfEngine.renderThumbnail(document, page, { dpr, imageType, scaleFactor, withAnnotations })` hands back an image blob directly, so the whole path is: share one engine, open the document, render page zero. That is a small amount of code over what the PDF viewer already module-caches.
+
+DOCX, PPTX and XLSX have no equivalent, because their thumbnails are captured from painted DOM. The only way to get one is to mount the viewer, let it lay out, and read the pages back off canvases. Extend UI does exactly this in its file explorer, and it is worth reading their `file-system-docx-thumbnails.tsx` before writing ours, mostly for the failure modes it documents: pagination reports a rising page count while it measures, so the capture waits for a quiet period rather than the first count; the canvas reports ready once for the blank pre-import page, so a "does this have ink" sample rejects the empty frame; and a capture in flight can be invalidated by pagination moving underneath it, so the settled count is re-checked before the result is accepted. It is roughly two hundred lines of racing the library's own layout, and their version mounts an 816x1056 viewer per file behind `opacity-0` in the live page, with results held in React state that a reload discards.
+
+Being an Electron app is what makes this better rather than merely possible. A hidden `BrowserWindow` can host that generation code as a service: main sends it a job, it renders, it returns bytes, main writes them under the cache dir and serves them over the app protocol like any other vendor asset. What that buys over doing it in the app renderer is most of the objection above.
+
+- The app renderer pays nothing. No wasm boots, no offscreen viewers mounted in the message list, no layout thrash while the transcript scrolls.
+- Each engine boots once for the life of the window instead of once per file, so the marginal cost of the eighth DOCX is a parse, not a parse plus 1.1MB of wasm.
+- Jobs can be serialized. The DOCX capture is a race against pagination even when it is the only thing running; eight concurrent ones in a shared event loop is asking for the blank-frame and stale-count paths to fire constantly. A queue in the main process is the natural place to say "one at a time".
+- A hang or a crash is contained. The window is disposable — kill it, restart it, and thumbnails degrade to the icons we draw today.
+- The cache outlives the window and the app, so a given file version is rendered once ever rather than once per session.
+
+Two details that will bite. Hidden windows get their timers and rAF throttled, which stalls exactly the layout-then-paint sequence the capture depends on, so that window needs `backgroundThrottling: false`. And the cache key has to include mtime, not just path, or a regenerated file keeps its old cover.
+
+Studio already creates windows with `show: false` in `windows/main` and `windows/onboarding.ts`, so the lifecycle pattern is established; what is new is the job protocol, the disk cache and its eviction, and the protocol route to serve entries.
+
 ## The expand modal takes the window, less the window's own chrome
 
 `TaskFileViewerModal` stays, and gets the window. The 64px padding and the max-width/height caps go, so the document or image is as large as the window allows.

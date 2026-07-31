@@ -211,7 +211,7 @@ function DocxThumbnailRail({
  * The viewer exposes no imperative scroll API, so navigation goes through the
  * page wrappers' own data attribute -- but it also virtualizes, keeping only a
  * couple of pages either side of the viewport mounted. Looking the target up in
- * the DOM therefore works for a neighbouring page and silently does nothing for
+ * the DOM therefore works for a neighboring page and silently does nothing for
  * anything further away, which is most of the document.
  *
  * So the offset is computed from the page geometry, and the DOM lookup is only

@@ -388,7 +388,7 @@ function PdfDocumentView({ documentId }: { documentId: string }) {
             captures no text, but the browser still paints a selection box over
             whichever page bitmap it spans, which reads as a grey rectangle
             sitting over part of the page, and grey rather than blue whenever
-            the window is not frontmost. */}
+            the window is not front-most. */}
         <div
           className="absolute inset-0 outline-none select-none"
           onPointerDownCapture={(event) => {

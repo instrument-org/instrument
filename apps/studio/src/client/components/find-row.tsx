@@ -68,7 +68,9 @@ export function FindRow({
         value={query}
       />
       <span className="shrink-0 px-1 text-xs text-muted-foreground tabular-nums">
-        {query === "" ? "" : `${matchCount === 0 ? 0 : activeMatch}/${matchCount}`}
+        {query === ""
+          ? ""
+          : `${matchCount === 0 ? 0 : activeMatch}/${matchCount}`}
       </span>
       <Button
         aria-label="Previous match"

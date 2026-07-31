@@ -22,39 +22,38 @@ export const PDFIUM_WASM_URL = vendorUrl("pdfium.wasm");
 // any time before the viewer mounts is enough.
 export const LazyDocxViewer = lazy(async () => {
   await configureDocxWasmSource();
-  const module = await import(
-    "@/client/components/document-viewers/docx-viewer"
-  );
+  const module =
+    await import("@/client/components/document-viewers/docx-viewer");
   return { default: module.DocxViewer };
 });
 
 // The PDF engine takes its wasm URL as an argument rather than through global
 // configuration, so the viewer passes `PDFIUM_WASM_URL` when it builds it.
 export const LazyPdfViewer = lazy(async () => {
-  const module = await import("@/client/components/document-viewers/pdf-viewer");
+  const module =
+    await import("@/client/components/document-viewers/pdf-viewer");
   return { default: module.PdfViewer };
 });
 
 export const LazyPptxViewer = lazy(async () => {
   await configurePptxWasmSource();
-  const module = await import(
-    "@/client/components/document-viewers/pptx-viewer"
-  );
+  const module =
+    await import("@/client/components/document-viewers/pptx-viewer");
   return { default: module.PptxViewer };
 });
 
 export const LazyXlsxViewer = lazy(async () => {
   await configureXlsxWasmSource();
-  const module = await import(
-    "@/client/components/document-viewers/xlsx-viewer"
-  );
+  const module =
+    await import("@/client/components/document-viewers/xlsx-viewer");
   return { default: module.XlsxViewer };
 });
 
 // CSV parses in-process with no wasm, but stays lazy so papaparse and the grid
 // only load when a delimited file is actually opened.
 export const LazyCsvViewer = lazy(async () => {
-  const module = await import("@/client/components/document-viewers/csv-viewer");
+  const module =
+    await import("@/client/components/document-viewers/csv-viewer");
   return { default: module.CsvViewer };
 });
 

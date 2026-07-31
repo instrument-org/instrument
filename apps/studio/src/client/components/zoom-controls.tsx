@@ -1,17 +1,95 @@
 import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
 import { cn } from "@/client/lib/utils";
+import { ZOOM_LEVELS } from "@/client/lib/zoom-levels";
 import { steppedZoom } from "@/shared/zoom";
 import {
   ArrowCounterClockwiseIcon,
+  CaretDownIcon,
   MinusIcon,
   PlusIcon,
 } from "@phosphor-icons/react";
 import { useAtom } from "jotai";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
+
 // How long the transient readout stays up after the last zoom change (or after
 // the pointer leaves it, so its reset button is reachable while hovered).
 const ZOOM_TOAST_MS = 2200;
+
+/**
+ * Shared hover treatment for every segment of {@link ZoomStepperControl},
+ * including the readout {@link ZoomLevelMenu} substitutes in.
+ */
+const zoomStepperSegmentClassName =
+  "hover:bg-secondary dark:hover:bg-gray-600 disabled:pointer-events-none disabled:opacity-40";
+
+/**
+ * The stepper's readout, opened up into a menu of fixed levels.
+ *
+ * Every zoom in the app offers the same jump-straight-to-a-level menu, filtered
+ * to whatever range that particular zoom allows: stepping a rung at a time is
+ * the wrong interaction for going from 100% to 400%. `onFit` is only passed by
+ * the document viewers, since nothing else has a width to fit to.
+ */
+export function ZoomLevelMenu({
+  compact = false,
+  isFit = false,
+  max,
+  min,
+  onFit,
+  onSelect,
+  zoom,
+}: {
+  compact?: boolean;
+  isFit?: boolean;
+  max: number;
+  min: number;
+  onFit?: () => void;
+  onSelect: (zoom: number) => void;
+  zoom: number;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className={cn(
+          "flex items-center gap-1 px-2 font-medium tabular-nums",
+          zoomStepperSegmentClassName,
+          "data-[state=open]:bg-secondary dark:data-[state=open]:bg-gray-600",
+          compact ? "min-w-10 text-xs" : "min-w-12 text-sm",
+        )}
+      >
+        {Math.round(zoom * 100)}%
+        <CaretDownIcon className="size-3" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-32">
+        {onFit && (
+          <DropdownMenuCheckboxItem checked={isFit} onClick={onFit}>
+            Fit width
+          </DropdownMenuCheckboxItem>
+        )}
+        {ZOOM_LEVELS.filter((level) => level >= min && level <= max).map(
+          (level) => (
+            <DropdownMenuCheckboxItem
+              checked={!isFit && Math.abs(level - zoom) < 0.001}
+              key={level}
+              onClick={() => {
+                onSelect(level);
+              }}
+            >
+              {Math.round(level * 100)}%
+            </DropdownMenuCheckboxItem>
+          ),
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 /**
  * Full stepper for the main-window UI zoom ({@link zoomAtom}), driving the atom
@@ -22,9 +100,8 @@ export function ZoomStepper() {
 
   return (
     <ZoomStepperControl
-      onReset={() => {
-        setZoom(1);
-      }}
+      canZoomIn={zoom < ZOOM_MAX}
+      canZoomOut={zoom > ZOOM_MIN}
       onZoomIn={() => {
         setZoom((z) =>
           steppedZoom({
@@ -45,17 +122,17 @@ export function ZoomStepper() {
           }),
         );
       }}
-      percent={Math.round(zoom * 100)}
+      readout={
+        <ZoomLevelMenu
+          max={ZOOM_MAX}
+          min={ZOOM_MIN}
+          onSelect={setZoom}
+          zoom={zoom}
+        />
+      }
     />
   );
 }
-
-/**
- * Shared hover treatment for every segment of {@link ZoomStepperControl}, and
- * for a readout a caller substitutes in.
- */
-export const zoomStepperSegmentClassName =
-  "hover:bg-secondary dark:hover:bg-gray-600 disabled:pointer-events-none disabled:opacity-40";
 
 /**
  * Presentational `-` / `%` / `+` stepper shell. Shared by the main-window UI

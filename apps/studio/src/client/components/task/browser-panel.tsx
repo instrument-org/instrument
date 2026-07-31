@@ -19,7 +19,10 @@ import {
   InputGroupInput,
 } from "@/client/components/ui/input-group";
 import { Spinner } from "@/client/components/ui/spinner";
-import { ZoomStepperControl } from "@/client/components/zoom-controls";
+import {
+  ZoomLevelMenu,
+  ZoomStepperControl,
+} from "@/client/components/zoom-controls";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useBrowserFind } from "@/client/hooks/use-browser-find";
 import { useBrowserSlot } from "@/client/hooks/use-browser-slot";
@@ -398,9 +401,8 @@ export function TaskBrowserPanel({
             <div className="flex items-center justify-between px-2 py-1.5">
               <span className="text-sm">Zoom</span>
               <ZoomStepperControl
-                onReset={() => {
-                  applyZoom(1);
-                }}
+                canZoomIn={zoomFactor < BROWSER_ZOOM_MAX}
+                canZoomOut={zoomFactor > BROWSER_ZOOM_MIN}
                 onZoomIn={() => {
                   applyZoom(
                     steppedZoom({
@@ -421,7 +423,14 @@ export function TaskBrowserPanel({
                     }),
                   );
                 }}
-                percent={Math.round(zoomFactor * 100)}
+                readout={
+                  <ZoomLevelMenu
+                    max={BROWSER_ZOOM_MAX}
+                    min={BROWSER_ZOOM_MIN}
+                    onSelect={applyZoom}
+                    zoom={zoomFactor}
+                  />
+                }
               />
             </div>
             <DropdownMenuSeparator />

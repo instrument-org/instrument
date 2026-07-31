@@ -1,7 +1,7 @@
 import { cn } from "@/client/lib/utils";
+import { MAX_ZOOM, MIN_ZOOM } from "@/client/lib/zoom-levels";
 import { steppedZoom } from "@/shared/zoom";
 import {
-  CaretDownIcon,
   CaretLeftIcon,
   CaretRightIcon,
   MagnifyingGlassIcon,
@@ -11,21 +11,11 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { FindRow } from "../find-row";
 import { Button } from "../ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
 import { Input } from "../ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { toolbarClassName } from "../ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
-import {
-  ZoomStepperControl,
-  zoomStepperSegmentClassName,
-} from "../zoom-controls";
-import { MAX_ZOOM, MIN_ZOOM, ZOOM_LEVELS } from "./zoom-levels";
+import { ZoomLevelMenu, ZoomStepperControl } from "../zoom-controls";
 
 const actionClassName = toolbarClassName({
   className: "size-7",
@@ -284,38 +274,15 @@ export function ViewerZoomControl({
         onZoomChange(steppedZoom({ direction: "out", factor: zoom, max, min }));
       }}
       readout={
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            className={cn(
-              "flex items-center gap-1 px-2 text-xs font-medium tabular-nums",
-              zoomStepperSegmentClassName,
-              openableClassName,
-            )}
-          >
-            {Math.round(zoom * 100)}%
-            <CaretDownIcon className="size-3" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-32">
-            {onFit && (
-              <DropdownMenuCheckboxItem checked={isFit} onClick={onFit}>
-                Fit width
-              </DropdownMenuCheckboxItem>
-            )}
-            {ZOOM_LEVELS.filter((level) => level >= min && level <= max).map(
-              (level) => (
-                <DropdownMenuCheckboxItem
-                  checked={!isFit && Math.abs(level - zoom) < 0.001}
-                  key={level}
-                  onClick={() => {
-                    onZoomChange(level);
-                  }}
-                >
-                  {Math.round(level * 100)}%
-                </DropdownMenuCheckboxItem>
-              ),
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <ZoomLevelMenu
+          compact
+          isFit={isFit}
+          max={max}
+          min={min}
+          onFit={onFit}
+          onSelect={onZoomChange}
+          zoom={zoom}
+        />
       }
       size="sm"
     />

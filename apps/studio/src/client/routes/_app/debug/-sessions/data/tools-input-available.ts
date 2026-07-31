@@ -1,13 +1,13 @@
 import { StoreId } from "@instrument-org/workspace/client";
 
-import { registerSession, SessionBuilder } from "../helpers";
+import { type PresetSessionData, SessionBuilder } from "../helpers";
 
 const builder = new SessionBuilder();
 const sessionId = builder.getSessionId();
 
 const assistantMessageId = StoreId.newMessageId();
 
-registerSession({
+export const session: PresetSessionData = {
   messages: [
     {
       id: assistantMessageId,
@@ -214,4 +214,4 @@ describe("slugify", () => {
     },
   ],
   name: "Tools: Input Available",
-});
+};

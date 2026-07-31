@@ -1,7 +1,7 @@
 import { OUR_MODELS } from "@instrument-org/shared";
 import { StoreId } from "@instrument-org/workspace/client";
 
-import { registerSession, SessionBuilder } from "../helpers";
+import { type PresetSessionData, SessionBuilder } from "../helpers";
 
 const builder = new SessionBuilder();
 const sessionId = builder.getSessionId();
@@ -9,7 +9,7 @@ const sessionId = builder.getSessionId();
 const userMessageId = StoreId.newMessageId();
 const assistantMessageId = StoreId.newMessageId();
 
-registerSession({
+export const session: PresetSessionData = {
   messages: [
     {
       id: userMessageId,
@@ -454,4 +454,4 @@ describe("slugify", () => {
     },
   ],
   name: "Tools: Valid",
-});
+};

@@ -1,6 +1,6 @@
 import { StoreId } from "@instrument-org/workspace/client";
 
-import { registerSession, SessionBuilder } from "../helpers";
+import { type PresetSessionData, SessionBuilder } from "../helpers";
 
 const builder = new SessionBuilder();
 const sessionId = builder.getSessionId();
@@ -12,7 +12,7 @@ const assistantMessage2Id = StoreId.newMessageId();
 const userMessage3Id = StoreId.newMessageId();
 const assistantMessage3Id = StoreId.newMessageId();
 
-registerSession({
+export const session: PresetSessionData = {
   messages: [
     {
       id: userMessage1Id,
@@ -99,4 +99,4 @@ registerSession({
     },
   ],
   name: "Error: Multiple Errors",
-});
+};

@@ -1,18 +1,18 @@
 import { StoreId } from "@instrument-org/workspace/client";
 
-import { registerSession, SessionBuilder } from "../helpers";
+import { type PresetSessionData, SessionBuilder } from "../helpers";
 
 const builder = new SessionBuilder();
 const sessionId = builder.getSessionId();
 const assistantMessageId = StoreId.newMessageId();
 
-registerSession({
+export const session: PresetSessionData = {
   messages: [
     {
       id: StoreId.newMessageId(),
       metadata: { createdAt: builder.nextTime(), sessionId },
       parts: [
-        builder.textPart("Do various bash things.", StoreId.newMessageId()),
+        builder.textPart("Do various bash things?", StoreId.newMessageId()),
       ],
       role: "user",
     },
@@ -188,4 +188,4 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
     },
   ],
   name: "Tools: Bash Scenarios",
-});
+};

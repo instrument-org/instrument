@@ -3,7 +3,7 @@ import { StoreId } from "@instrument-org/workspace/client";
 import {
   createDefaultAIGatewayModel,
   createErrorMessage,
-  registerSession,
+  type PresetSessionData,
   SessionBuilder,
 } from "../helpers";
 
@@ -13,7 +13,7 @@ const sessionId = builder.getSessionId();
 const userMessageId = StoreId.newMessageId();
 const assistantMessageId = StoreId.newMessageId();
 
-registerSession({
+export const session: PresetSessionData = {
   messages: [
     {
       id: userMessageId,
@@ -45,4 +45,4 @@ registerSession({
     },
   ],
   name: "Error: Model Not Allowed",
-});
+};

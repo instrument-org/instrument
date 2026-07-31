@@ -1,8 +1,6 @@
 import { type SessionMessage } from "@instrument-org/workspace/client";
 
-import { getRegisteredSessions } from "./helpers";
-
-import.meta.glob("./data/*.ts", { eager: true });
+import { sessionData } from "./data";
 
 interface PresetSession {
   id: string;
@@ -20,7 +18,7 @@ function presetSessionSortGroup(name: string): number {
   return 1;
 }
 
-export const presetSessions: PresetSession[] = [...getRegisteredSessions()]
+export const presetSessions: PresetSession[] = [...sessionData]
   .sort((a, b) => {
     const ga = presetSessionSortGroup(a.name);
     const gb = presetSessionSortGroup(b.name);

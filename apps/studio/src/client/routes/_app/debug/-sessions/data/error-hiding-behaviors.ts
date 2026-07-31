@@ -3,7 +3,7 @@ import { StoreId } from "@instrument-org/workspace/client";
 import {
   createDefaultAIGatewayModel,
   createErrorMessage,
-  registerSession,
+  type PresetSessionData,
   SessionBuilder,
 } from "../helpers";
 
@@ -17,7 +17,7 @@ const assistantMessage2Id = StoreId.newMessageId();
 const userMessage3Id = StoreId.newMessageId();
 const assistantMessage3Id = StoreId.newMessageId();
 
-registerSession({
+export const session: PresetSessionData = {
   messages: [
     {
       id: userMessage1Id,
@@ -129,4 +129,4 @@ registerSession({
     },
   ],
   name: "Error: Hiding Behaviors",
-});
+};

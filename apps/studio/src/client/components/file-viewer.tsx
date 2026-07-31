@@ -283,8 +283,7 @@ interface ViewerContext {
  *
  * `scrolls: "self"` means the viewer manages its own scrolling and fills the
  * content area; the others sit inside the shared scroll container. Declared as
- * an exhaustive record so a new `FileType` is a type error until it is routed,
- * which is the same table `canPreviewFile` is built on.
+ * an exhaustive record so a new `FileType` is a type error until it is routed.
  */
 interface ViewerEntry {
   render: (context: ViewerContext) => ReactNode;

@@ -1,25 +1,5 @@
 import { isTextMimeType } from "./is-text-mime-type";
 
-// Whether the artifact panel can render this type at all. Anything false is
-// handed to the OS-associated application instead. Declared as an exhaustive
-// table so adding a `FileType` is a type error until it is routed, rather than
-// silently defaulting to one behavior or the other.
-const PREVIEWABLE: Record<FileType, boolean> = {
-  audio: true,
-  code: true,
-  csv: true,
-  docx: true,
-  html: true,
-  image: true,
-  markdown: true,
-  pdf: true,
-  pptx: true,
-  text: true,
-  unknown: false,
-  video: true,
-  xlsx: true,
-};
-
 export type FileType =
   | "audio"
   | "code"
@@ -34,13 +14,6 @@ export type FileType =
   | "unknown"
   | "video"
   | "xlsx";
-
-export function canPreviewFile(file: {
-  filename: string;
-  mimeType?: string;
-}): boolean {
-  return PREVIEWABLE[getFileType(file)];
-}
 
 function fileKindLabel(fileType: FileType): string {
   switch (fileType) {
@@ -246,9 +219,8 @@ const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
   csv: "csv",
   docm: "docx",
   docx: "docx",
-  // PDF was previously detected by mime type alone, which leaves a `.pdf` with
-  // no mime type unpreviewable now that `canPreviewFile` decides whether a file
-  // opens here or is handed to the OS.
+  // PDF was detected by mime type alone, which left a `.pdf` arriving without
+  // one falling through to the fallback card.
   pdf: "pdf",
   ppt: "pptx",
   pptm: "pptx",

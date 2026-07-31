@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canPreviewFile, getFileType } from "./get-file-type";
+import { getFileType } from "./get-file-type";
 
 describe("getFileType", () => {
   it.each([
@@ -63,16 +63,20 @@ describe("getFileType", () => {
   });
 });
 
-describe("canPreviewFile", () => {
+// Extension alone has to be enough for the formats with a viewer: these files
+// reach the panel from agent output and downloads, which do not always carry a
+// mime type. `.doc` and `.zip` stay unknown, which is what leaves them on the
+// fallback card instead of a viewer that cannot read them.
+describe("types a viewer exists for", () => {
   it.each([
-    ["report.docx", true],
-    ["deck.pptx", true],
-    ["model.xlsx", true],
-    ["data.csv", true],
-    ["scan.pdf", true],
-    ["archive.zip", false],
-    ["report.doc", false],
-  ] as const)("returns %s for %s", (filename, expected) => {
-    expect(canPreviewFile({ filename })).toBe(expected);
+    ["report.docx", "docx"],
+    ["deck.pptx", "pptx"],
+    ["model.xlsx", "xlsx"],
+    ["data.csv", "csv"],
+    ["scan.pdf", "pdf"],
+    ["archive.zip", "unknown"],
+    ["report.doc", "unknown"],
+  ] as const)("resolves %s to %s without a mime type", (filename, expected) => {
+    expect(getFileType({ filename })).toBe(expected);
   });
 });

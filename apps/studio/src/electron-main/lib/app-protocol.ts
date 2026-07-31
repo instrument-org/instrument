@@ -8,29 +8,20 @@ import { getResourcePath } from "./resource-path";
 
 const FILE_OPEN_ICON_HOST = "file-open-icon";
 // The renderer runs from `file://` in production, where bundled assets cannot
-// be fetched, so the document viewers load their engines from here instead:
-// wasm binaries, the PDF worker, and the font and character-map tables those
-// engines ask for by URL at parse time.
+// be fetched, so the document viewers load their wasm engines from here
+// instead.
 const VENDOR_HOST = "vendor";
 const ICON_SIZE = 64;
 const ICON_FILENAME_PATTERN = /^[a-f0-9]{64}\.png$/;
 // Deliberately narrow: these paths come from the renderer, and the only ones
-// that need to work are the vendored trees copied in at build time. Every dot
-// has to be followed by more of the segment, which is what makes `..`
-// unspellable, so nothing here can climb out of the vendor directory. Dots
-// inside a segment are allowed because filenames carry them: `pdf.worker.mjs`
-// and `qcms_bg.wasm` are both real.
+// that need to work are the payloads copied in at build time. Every dot has to
+// be followed by more of the segment, which is what makes `..` unspellable, so
+// nothing here can climb out of the vendor directory.
 const VENDOR_PATH_PATTERN = /^[\w-]+(?:\.[\w-]+)*(?:\/[\w-]+(?:\.[\w-]+)*)*$/;
 // Doubles as the allowlist of servable kinds: a path whose extension is not
 // here is a 404, so the license files sitting beside the binaries stay
 // unreachable.
 const VENDOR_CONTENT_TYPES: Record<string, string> = {
-  ".bcmap": "application/octet-stream",
-  ".icc": "application/octet-stream",
-  ".js": "text/javascript",
-  ".mjs": "text/javascript",
-  ".pfb": "application/octet-stream",
-  ".ttf": "font/ttf",
   ".wasm": "application/wasm",
 };
 const IMMUTABLE_CACHE_SECONDS = 365 * 24 * 60 * 60;

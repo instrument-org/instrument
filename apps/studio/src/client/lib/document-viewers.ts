@@ -10,16 +10,6 @@ const vendorUrl = (assetPath: string) =>
 
 export const PDFIUM_WASM_URL = vendorUrl("pdfium.wasm");
 
-// pdf.js resolves these itself while parsing, so each is a directory prefix
-// with the trailing slash it documents rather than a single file.
-export const PDFJS_ASSET_URLS = {
-  cMapUrl: vendorUrl("pdfjs/cmaps/"),
-  iccUrl: vendorUrl("pdfjs/iccs/"),
-  standardFontDataUrl: vendorUrl("pdfjs/standard_fonts/"),
-  wasmUrl: vendorUrl("pdfjs/wasm/"),
-  workerUrl: vendorUrl("pdfjs/pdf.worker.mjs"),
-};
-
 // Every host that mounts a viewer goes through these handles, so a viewer can
 // never reach its parser with the library's default wasm source: that one
 // resolves against `import.meta.url` and is loaded through a dynamic `import()`
@@ -43,16 +33,6 @@ export const LazyDocxViewer = lazy(async () => {
 export const LazyPdfViewer = lazy(async () => {
   const module = await import("@/client/components/document-viewers/pdf-viewer");
   return { default: module.PdfViewer };
-});
-
-// The second PDF renderer, reachable through the `pdfjs_viewer` feature flag.
-// It is a whole second engine, so it stays out of the default chunk graph
-// entirely until someone turns it on.
-export const LazyPdfJsViewer = lazy(async () => {
-  const module = await import(
-    "@/client/components/document-viewers/pdfjs-viewer"
-  );
-  return { default: module.PdfJsViewer };
 });
 
 export const LazyPptxViewer = lazy(async () => {

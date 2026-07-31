@@ -1,4 +1,4 @@
-# pdfium is the PDF engine, with pdf.js kept as a flagged escape hatch
+# pdfium is the PDF engine
 
 ## Context
 
@@ -12,7 +12,7 @@ That gap was large enough to justify building the second viewer rather than argu
 
 ## Decision
 
-pdfium is the engine. pdf.js stays behind the `pdfjs_viewer` flag, off by default, and is removed once the corpus comparison below is done.
+pdfium is the engine. The pdf.js viewer was built, compared, and removed.
 
 Two things decided it.
 
@@ -24,19 +24,26 @@ What remains genuinely impossible on pdfium is right-click Copy and Look Up. Chr
 
 ## Consequences
 
-- Right-click Copy and Look Up do not work over a PDF selection, and will not. Cmd/Ctrl+C is the copy path, and the pdf.js flag is the answer for anyone who needs the native menu.
-- The flag is an escape hatch during the beta rather than a permanent fork. If a beta user hits a document pdfium renders wrong, it can be turned on without a code change or a release, which is worth more than the code it costs while real-world coverage is still thin.
-- Keeping it is not free: `pdfjs-dist` contributes 6.2MB of the 18MB `resources/vendor` payload — cmaps, colour profiles, standard fonts, codec wasm — and those ship whether the flag is on or not. The renderer chunk is lazy and never loads while the flag is off.
-- pdf.js also needs three overrides that fight its defaults, and each is a maintenance liability across upgrades: `content-box` restored for its subtree against Tailwind's preflight, or find highlights drift up to 2% off their words; `AnnotationMode.ENABLE` instead of `ENABLE_FORMS`, or a viewer with no save path invites people to type into a form and lose it; and link borders suppressed with `!important`, since it writes the PDF's own border as an inline style.
+- Right-click Copy and Look Up do not work over a PDF selection, and will not. Cmd/Ctrl+C is the copy path.
+- Removing pdf.js takes 6.2MB out of what was an 18MB `resources/vendor` payload — character maps, colour profiles, standard fonts and codec wasm, all of which shipped whether the flag was on or not. The recursive build-time tree walk that copied them goes with it, and the `vendor` protocol host narrows to serving wasm alone.
+- It also retires three overrides that fought pdf.js's defaults, each a maintenance liability across upgrades: `content-box` restored for its subtree against Tailwind's preflight, or find highlights drift up to 2% off their words; `AnnotationMode.ENABLE` instead of `ENABLE_FORMS`, or a viewer with no save path invites people to type into a form and lose it; and link borders suppressed with `!important`, since pdf.js writes the PDF's own border as an inline style.
 - Editing, if it ever comes, is cheaper on pdfium: annotation, form filling, redaction, signature and export are further plugins over the same engine.
+- The viewer is recoverable rather than gone. Its commits stay on the pull request that introduced it, viewable after a squash-merge and restorable from the branch ref, so revisiting means reading real code rather than rebuilding from this description.
+
+## The option not taken
+
+Reverting to the `<iframe>` this branch replaced was reconsidered at the end and rejected. It is not a fidelity question: Chrome's built-in PDF viewer *is* pdfium, the same engine, so rendering would be identical — and it would hand back native selection, right-click Copy, Look Up, find and print for nothing, in about ten lines, with no dependency at all.
+
+What it costs is the reason the branch exists. PDF would become the only format with foreign chrome: no shared toolbar, no thumbnail rail, no zoom control matching the other four, and Chromium's own grey background instead of the app's theme — for the format people open most. An opaque frame also hands out no pixels, so it forecloses capturing a page for [thumbnails](../plans/active/document-thumbnails.md), and editing later stops being a plugin away.
+
+That trade is closer than it looks, and it turns on whether integrated chrome is worth more than a native context menu. It is worth revisiting if the beta says otherwise.
 
 ## What would reopen this
 
-The comparison that matters has not been made. Both engines have been driven over generated documents and one paper; neither has been run over a corpus of awkward real-world input — a scan, a filled government form, a CJK document, something from an old generator. That is on the viewers plan's validation list, and it is the evidence that either removes pdf.js or overturns this.
+The comparison that matters has not been made. Both engines were driven over generated documents and one paper; neither was run over a corpus of awkward real-world input — a scan, a filled government form, a CJK document, something from an old generator. That is on the viewers plan's validation list. Robust compatibility with whatever a user brings is the whole basis on which pdfium was picked, so it is also the evidence that would overturn this.
 
 ## Implementation
 
 - [pdfium viewer](../../apps/studio/src/client/components/document-viewers/pdf-viewer.tsx)
-- [pdf.js viewer](../../apps/studio/src/client/components/document-viewers/pdfjs-viewer.tsx)
-- [Engine selection](../../apps/studio/src/client/components/file-viewer.tsx)
+- [Viewer registry](../../apps/studio/src/client/components/file-viewer.tsx)
 - [Plan](../plans/active/document-viewers.md)

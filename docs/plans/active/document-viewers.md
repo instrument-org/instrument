@@ -32,7 +32,7 @@ The two credible PDF engines are pdfium (via `@embedpdf/*`) and pdf.js. This is 
 
 The deciding factor is what this product has to open. Users bring arbitrary PDFs from their working lives — scanned contracts, government forms, old archives, CJK documents, whatever a generator produced a decade ago. The goal is robust compatibility with unknown input, and that is the axis where pdfium has the stronger claim: Foxit's commercial engine lineage, continuous large-scale fuzzing because it is an attack surface in Chrome, and exposure to a wider corpus of malformed real-world documents than any other engine. Agent-generated PDFs (the `pdf` skill's ReportLab and PyMuPDF output, `agent-browser`'s print-to-PDF) are the easy case that either engine handles; they are not what decides this.
 
-What pdf.js buys is a real positioned text layer, so selection, copy, and find are native browser behavior. pdfium rasterizes to canvas, so selection has to be reconstructed above it. `@embedpdf/plugin-selection` ships `SelectionLayer` and `CopyToClipboard`, and those do cover *rendering* a highlight and performing a clipboard write — but not the interactions a browser gives text for free, which is where the cost of this trade actually landed. See the second-engine section below.
+What pdf.js buys is a real positioned text layer, so selection, copy, and find are native browser behavior. pdfium rasterizes to canvas, so selection has to be reconstructed above it. `@embedpdf/plugin-selection` ships `SelectionLayer` and `CopyToClipboard`, and those do cover *rendering* a highlight and performing a clipboard write — but not the interactions a browser gives text for free, which is where the cost of this trade actually landed.
 
 Annotation, form filling, redaction, signature, and export ship as further plugins over the same engine, so PDF editing is closer to enabling a plugin and wiring a save path back into the task folder than to a project. Out of scope here; recorded because it is cheap to reach and the engine choice is what makes it cheap.
 
@@ -46,23 +46,9 @@ The pdfium selection lives inside the engine. `document.getSelection()` is empty
 
 Supplying our own context menu was tried and reverted. Our menu suppresses the native one, so a right-click over a selection loses Copy and Look Up and gains Open With and Save As: actions about the file, presented where the user just highlighted text. A sparse native menu beats a full menu about the wrong subject.
 
-The formats whose content is real DOM — DOCX, PPTX, CSV — have none of these problems, and PPTX gets image copy out of slides for nothing. That contrast is what motivated a second PDF engine.
+The formats whose content is real DOM — DOCX, PPTX, CSV — have none of these problems, and PPTX gets image copy out of slides for nothing. That contrast is what motivated building a second PDF engine to compare against.
 
-### The second engine, behind a flag
-
-The `pdfjs_viewer` feature flag swaps `PdfViewer` for `PdfJsViewer`. pdf.js paints each page to a canvas and lays transparent positioned text over it, so all three bullets above dissolve: the selection is an ordinary DOM selection, the native menu is correct, and no shortcut needs intercepting.
-
-pdfium stays the default. The argument in this section's opening still holds — robustness against arbitrary real-world input is the axis PDF rendering is judged on here, and no head-to-head fidelity comparison on our corpus exists yet. The flag is how that comparison gets made. It defaults off, so the second engine's chunk is never loaded until someone turns it on, and turning it off is the way back if pdf.js renders something wrong.
-
-The viewer is built on `pdfjs-dist/web/pdf_viewer.mjs`, the component layer behind Firefox's own viewer: `PDFViewer` for scrolling, virtualization, the text layer and zoom presets, `PDFFindController` for find with match counts, all driven through an `EventBus` rather than props. Thumbnails are ours, because `PDFThumbnailViewer` is not in the published bundle.
-
-Three things about its stylesheet and defaults are not optional here.
-
-**The box model.** `pdf_viewer.css` is written against the browser default, and Tailwind's preflight sets `border-box` on everything. A page element takes its width from the scaled page size *and* carries a 9px border, so under `border-box` the canvas paints 18px smaller than the absolutely positioned text and annotation layers stacked over it. Nothing looks broken: the page renders, and selection still reads the right characters because their order is unchanged. What gives it away is find, where every highlight sits up to 2% off the word it belongs to and the error grows across the page. Restoring `content-box` for the subtree is the fix, and it has to be the whole subtree rather than the page alone, since any bordered element inside is mis-sized the same way.
-
-**Forms.** `PDFViewer` defaults to `AnnotationMode.ENABLE_FORMS`, which builds interactive HTML widgets for form fields. A viewer with no save path would let someone type into a PDF and lose it. `ENABLE` paints the field from its appearance stream instead, which is what a filled form should look like.
-
-**Link borders.** A PDF may specify a visible border on a link annotation, and pdf.js honours it where pdfium does not, so a paper's citations come back ringed in colour under one engine and not the other. Suppressed in CSS, which needs `!important` because pdf.js writes the border as an inline style.
+That comparison happened, and pdfium won it. A full pdf.js viewer was built behind a feature flag, driven on real documents, and removed once the answer was clear: rendering favoured pdfium by eye on the axis the choice turns on, and the interaction gap above turned out to be mostly closable. [The decision](../../decisions/2026-07-31-pdfium-is-the-pdf-engine.md) records what each engine cost and what would reopen it.
 
 ### Dependency risk, stated plainly
 
@@ -237,18 +223,12 @@ Every wasm library exposes `setWasmSource()`, so no bundler aliasing is needed.
 | `@extend-ai/react-docx/dist/docx_wasm_bg.wasm` | `instrument://vendor/docx.wasm` |
 | `@extend-ai/react-pptx/dist/pptx_wasm_bg.wasm` | `instrument://vendor/pptx.wasm` |
 | `@extend-ai/react-xlsx/dist/duke_sheets_wasm_bg.wasm` | `instrument://vendor/xlsx.wasm` |
-| `pdfjs-dist/build/pdf.worker.min.mjs` | `instrument://vendor/pdfjs/pdf.worker.mjs` |
-| `pdfjs-dist/{cmaps,iccs,standard_fonts,wasm}/` | `instrument://vendor/pdfjs/<tree>/…` |
 
 `@embedpdf/pdfium` is transitive through `@embedpdf/engines`, so under pnpm's isolated layout it only resolves from the engines package.
 
-pdf.js needs whole directories rather than named files: its worker resolves character maps, standard fonts, image codecs and colour profiles by URL as a document turns out to need them, ~190 files. They are enumerated by walking the source tree at build time, one `copyVendorAsset` call each, so the skip logic below still applies per file.
+`@embedpdf/engines` builds its parser worker from a blob, which is why `worker-src blob:` is in the CSP; the spreadsheet and slide engines put their embedded images on blob URLs, which is why `img-src` needs it too.
 
-The pdf.js worker gets a further step. It is not a module the renderer can import, and on the app protocol it is cross-origin, which `new Worker` refuses outright; it is fetched and handed to `GlobalWorkerOptions.workerSrc` as a blob of the same bytes. That is the same shape as `@embedpdf/engines`, which builds its worker from a blob too, and the reason `worker-src blob:` is in the CSP.
-
-The copy step runs on `buildStart` of the main build alone, and skips when the destination already holds the current bytes — `buildStart` fires on every watch rebuild and this is ~17MB. The mtime check has to be exact rather than newer: pnpm hard-links from its store, so a reinstall can drop in a same-size asset older than what was copied.
-
-`resources/vendor` is in the ESLint global ignores. The pdf.js trees carry `.js` fallbacks for the wasm codecs, which would otherwise be linted as if we had written them.
+The copy step runs on `buildStart` of the main build alone, and skips when the destination already holds the current bytes — `buildStart` fires on every watch rebuild and this is ~11MB. The mtime check has to be exact rather than newer: pnpm hard-links from its store, so a reinstall can drop in a same-size asset older than what was copied.
 
 Module workers do still work from `file://`: the `grantFileProtocolExtraPrivileges` fuse is on by default and this app never flips it, so a worker script at a sibling `file://` path is same-origin. All the parsers run off the main thread.
 
@@ -312,13 +292,12 @@ Per `.agents/skills/validate-changes/SKILL.md`, none of this is observable from 
 - Dev, all five formats, in the artifact panel and the expand modal, both themes, app zoom at 1x and something else. All five have been opened in the artifact panel in dev, DOCX and PDF in the expand modal, and PPTX at 1x and above; the light theme has not been exercised. Two host-collision failures have been checked and do not occur: page navigation moves the modal's viewer rather than the panel's copy, and a PDF open in both survives the modal closing even though each `PdfDocument` closes the documents it did not open.
 - PDF text selection and copy, which is the part reconstructed above a bitmap rather than native browser selection. Selecting the title of a paper and pressing Cmd+C puts that title on the clipboard. Still worth checking by hand across a page boundary and at several zoom levels.
 - Spreadsheet copy, which has no browser behaviour to fall back on. Verified in dev by driving real input over CDP: clicking a cell and pressing Cmd+C puts that cell's value on the clipboard, and dragging a block puts tab-separated text and an HTML table there.
-- The pdf.js engine end to end, since none of it is props. Verified in dev with the flag on: pages lay out and rasterize, the text layer carries real spans, fit-width lands, find reports `1/97` for a word in a paper, and a selection copies through Chromium's own copy command with nothing intercepting it.
-- Every path the `vendor` host answers, one request per kind. The pattern guarding it has to admit `pdf.worker.mjs` — two dots in one filename — while still making `..` unspellable, and getting that wrong 404s the worker, at which point pdf.js quietly falls back to parsing on the main thread by importing a blob, which the CSP then blocks. Three errors, one missing file.
+- Every payload the `vendor` host answers for, one request each. A path it rejects is a 404, and a 404 for an engine binary does not surface as one: `fetch` resolves, the error body is handed to the engine as if it were the module, and the failure appears somewhere else entirely.
 - A packaged build, all five formats — the `file://` origin, the app protocol, and the copied `resources/vendor/` only exist there. This is the step that catches wasm and worker regressions.
 - A narrow artifact panel, to confirm the toolbar collapses rather than overflowing.
 - A large file per format (a 500-page PDF, a workbook with many sheets) for the virtualization and memory paths.
 - A malformed file per format, to confirm the `CatchBoundary` degrades to the fallback card rather than taking down the panel.
-- For PDF specifically, a corpus of awkward real-world documents rather than only generated ones: a scan, a filled government form, a CJK document, something from an old generator. Robust compatibility with whatever a user brings is why pdfium was chosen, so it is the thing to actually check — and now the thing that decides between the two engines, since it is the only axis on which pdfium is still ahead. Run the same corpus with `pdfjs_viewer` on and off.
+- For PDF specifically, a corpus of awkward real-world documents rather than only generated ones: a scan, a filled government form, a CJK document, something from an old generator. Robust compatibility with whatever a user brings is why pdfium was chosen, so it is the thing to actually check, and the thing that would reopen the engine decision if it went badly.
 - `.numbers` files, which do not preview: `@dukelib/sheets-wasm` reads OOXML and legacy `.xls`, and Apple's format is neither. Supporting it means a separate parser for a proprietary, undocumented container, so those files keep falling through to the "open in the associated app" path.
 - The artifact panel's own loading state, which is not a viewer concern but shows up as one. `TaskView` renders the "File not found" card whenever it has a path and no resolved file, so every file flashed that card on its way in — most visibly on a PDF, which takes longest to appear afterwards. It now waits for the lookup to actually answer, read off the query's update stamps: while the query is disabled, which it is on the render where the path arrives, it reports neither pending nor fetching while still holding no data, so neither of those flags can stand in for "we have not heard back yet".
 

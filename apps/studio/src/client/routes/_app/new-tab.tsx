@@ -1,6 +1,6 @@
 import {
   pendingComposePromptAtom,
-  promptDraftAtom,
+  setPromptDraftAtom,
 } from "@/client/atoms/prompt-value";
 import { openWelcome } from "@/client/atoms/welcome-modal";
 import { AnimatedOutlineBrandIconGlyph } from "@/client/components/brand-icon";
@@ -19,7 +19,7 @@ import {
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
-import { useStore } from "jotai";
+import { useSetAtom, useStore } from "jotai";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -71,15 +71,19 @@ function RouteComponent() {
   }, [router]);
 
   // Consume a one-shot prompt handed in by "Set up" on a connector, etc.
+  // Through setPromptDraftAtom, not the draft atom directly: the editor builds
+  // its document once and ignores later `defaultValue` changes, so writing the
+  // atom alone would leave the text invisible but still submittable.
   const store = useStore();
+  const setDraft = useSetAtom(setPromptDraftAtom);
   useEffect(() => {
     const pending = store.get(pendingComposePromptAtom);
     if (pending === null) {
       return;
     }
     store.set(pendingComposePromptAtom, null);
-    store.set(promptDraftAtom({ scope: "compose", tabId }), pending);
-  }, [store, tabId]);
+    setDraft({ key: { scope: "compose", tabId }, update: pending });
+  }, [setDraft, store, tabId]);
 
   return (
     <div className="grid h-full w-full flex-1 place-items-center px-8">

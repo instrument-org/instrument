@@ -3,7 +3,7 @@ import { cn } from "@/client/lib/utils";
 import { CatchBoundary } from "@tanstack/react-router";
 import { createContext, type ReactNode, Suspense, useContext } from "react";
 
-import { Spinner } from "../ui/spinner";
+import { Skeleton } from "../ui/skeleton";
 
 // `CatchBoundary` instantiates `errorComponent` as a component type, so it has
 // to be stable; passing the fallback through context keeps it from remounting
@@ -47,10 +47,19 @@ export function ViewerBody({
   );
 }
 
+/**
+ * Stands in for the document while it parses.
+ *
+ * A skeleton filling the content area rather than a spinner in the middle of
+ * it: these waits end with something appearing in exactly this space, so a
+ * placeholder that already occupies it makes the swap a fill instead of a jump.
+ * It stays a plain block rather than a page or grid mock-up, because the
+ * viewers that use it land on all three and a wrong guess is worse than none.
+ */
 export function ViewerLoading() {
   return (
-    <div className="flex size-full items-center justify-center">
-      <Spinner className="size-8 text-muted-foreground" />
+    <div className="size-full p-4">
+      <Skeleton className="size-full" />
     </div>
   );
 }

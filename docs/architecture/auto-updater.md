@@ -21,7 +21,7 @@ The invariant that makes the rest simple: **`staged` and `pendingNewer` are neve
 That guard exists because of two electron-updater behaviors that are easy to mistake for real events:
 
 - The feed re-advertises the staged version on every poll, so `update-available` fires again for a build that is already downloaded.
-- `executeDownload` short-circuits to the cached artifact and re-emits `update-downloaded` for it, on macOS re-staging the same build with Squirrel each time.
+- `executeDownload` short-circuits to the cached artifact and re-emits `update-downloaded` for it. On macOS that re-stages the same build with Squirrel, which is why a check is no longer allowed to download what is already staged (see [What a check may download](#what-a-check-may-download)).
 
 ## Installing
 
@@ -67,9 +67,19 @@ Nothing is installable, and the UI says so. The old artifact was deleted when th
 
 electron-updater's `MacUpdater` hands each completed download to Squirrel immediately (`autoInstallOnAppQuit` defaults to true) and tracks it with a `squirrelDownloadedUpdate` latch that is never cleared. Once Squirrel has staged something, it applies on quit whether or not we asked.
 
-We cannot un-stage it. What we can do is never _offer_ it: the pre-install check means an explicit install always reflects the newest known build. The remaining exposure is quitting the app during the window where a newer build is still downloading, which applies the older Squirrel-staged one. That is self-healing (the next launch immediately finds and downloads the newer build) and it is still an upgrade over what was running, so it is accepted rather than worked around.
+That the latch is sticky is also what makes a lost staging silent: it stays true across a later download pass that restarted Squirrel from zero, so `quitAndInstall` calls straight through and the app quits with nothing to apply.
+
+We cannot un-stage it deliberately. What we can do is never _offer_ it: the pre-install check means an explicit install always reflects the newest known build. The remaining exposure is quitting the app during the window where a newer build is still downloading, which applies the older Squirrel-staged one. That is self-healing (the next launch immediately finds and downloads the newer build) and it is still an upgrade over what was running, so it is accepted rather than worked around.
 
 Windows and Linux have no equivalent survival: `pending/` is already empty by then, so an on-quit install in that window fails harmlessly instead of installing something stale.
+
+## What a check may download
+
+A check downloads only when there is something to fetch: nothing staged yet, or a build strictly newer than the one already on disk. Where a check was held back and does find something newer, `runCheck` starts that download explicitly, so `defer` still has something to wait on.
+
+This is not an optimization. `MacUpdater.updateDownloaded` runs at the end of every download pass, cached artifact or not, and it opens by tearing down the proxy server Squirrel is streaming the staged build from; it then points Squirrel at a replacement and restarts staging from zero. A check that re-offered the staged build therefore un-staged it, and a `quitAndInstall` landing in that window quit and relaunched the running version with the update still pending. The pre-install check made that near-certain by firing milliseconds before the install, and the staged poll reopened the same window every 15 minutes. See [the finding](../findings/update-check-un-stages-the-macos-build.md).
+
+`autoDownload` is scoped to the individual check rather than set once, because electron-updater reads it synchronously inside `doCheckForUpdates` — so setting it around the awaited call is enough, and no other check inherits it.
 
 ## Polling
 

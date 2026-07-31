@@ -31,14 +31,28 @@ const MACOS_INTEL_CHANNEL = "latest-x64";
 export function createStudioAppUpdater({
   confirmQuit,
 }: { confirmQuit?: ConfirmQuit } = {}) {
-  autoUpdater.logger = logger.scope("appUpdater:autoUpdater");
+  autoUpdater.logger = createAutoUpdaterLogger();
   autoUpdater.autoDownload = true;
   autoUpdater.disableWebInstaller = true;
   autoUpdater.forceDevUpdateConfig =
     process.env.FORCE_DEV_AUTO_UPDATE === "true";
 
+  // The version and channel every later feed line in the log reads against.
+  scopedLogger.info(
+    `Running ${app.getVersion()} on the ${getChannel() ?? "latest"} channel`,
+  );
+
   const port: UpdaterPort = {
-    checkForUpdates: () => autoUpdater.checkForUpdates(),
+    checkForUpdates: async ({ download }) => {
+      // electron-updater reads `autoDownload` synchronously while the check
+      // runs, so setting it around the call is enough to scope it to this check.
+      autoUpdater.autoDownload = download;
+      try {
+        return await autoUpdater.checkForUpdates();
+      } finally {
+        autoUpdater.autoDownload = true;
+      }
+    },
     configureFeed: () => {
       autoUpdater.setFeedURL({
         channel: getChannel(),
@@ -47,6 +61,7 @@ export function createStudioAppUpdater({
         url: RELEASES_BUCKET_URL,
       });
     },
+    downloadUpdate: () => autoUpdater.downloadUpdate(),
     install: installStagedUpdate,
     isActive: () => autoUpdater.isUpdaterActive(),
     subscribe: (handlers) => {
@@ -76,6 +91,29 @@ export function createStudioAppUpdater({
   });
 
   return updater;
+}
+
+// electron-updater logs at debug level the proxy-server lifecycle and, on
+// macOS, the event that says Squirrel finished staging the build. The production
+// file transport drops that level, and those are the only lines separating an
+// install that could not take from one that never ran, so route them to info and
+// keep a failed update diagnosable from a user's log alone.
+function createAutoUpdaterLogger() {
+  const autoUpdaterLogger = logger.scope("appUpdater:autoUpdater");
+  return {
+    debug: (message: string) => {
+      autoUpdaterLogger.info(message);
+    },
+    error: (message?: unknown) => {
+      autoUpdaterLogger.error(message);
+    },
+    info: (message?: unknown) => {
+      autoUpdaterLogger.info(message);
+    },
+    warn: (message?: unknown) => {
+      autoUpdaterLogger.warn(message);
+    },
+  };
 }
 
 function getChannel() {

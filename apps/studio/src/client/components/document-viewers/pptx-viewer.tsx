@@ -140,6 +140,14 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
         <div className="absolute inset-0" ref={setContainer}>
           <ReactPptxViewer
             className="size-full bg-muted/40"
+            // Studio owns the fit, so the library must not apply its own. Its
+            // default `contain` resolves to `min(1, viewport / slideWidth)` and
+            // is *multiplied* by the zoom handed in, so a fitted slide in a
+            // panel narrower than the slide's natural width was scaled down
+            // twice. The clamp at 1 is why it looked correct in a wide panel:
+            // the second factor only bites once there is less room than the
+            // slide wants.
+            fitMode="none"
             height="100%"
             onLoad={(presentation) => {
               setSlideCount(Math.max(presentation.document.slides.length, 1));

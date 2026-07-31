@@ -15,12 +15,19 @@ const VENDOR_HOST = "vendor";
 const ICON_SIZE = 64;
 const ICON_FILENAME_PATTERN = /^[a-f0-9]{64}\.png$/;
 // Deliberately narrow: these paths come from the renderer, and the only ones
-// that need to work are the vendored trees copied in at build time. Anything
-// with a segment this rejects, `..` included, never reaches the filesystem.
-const VENDOR_PATH_PATTERN = /^[\w-]+(?:\/[\w-]+)*\.[a-z0-9]+$/i;
+// that need to work are the vendored trees copied in at build time. Every dot
+// has to be followed by more of the segment, which is what makes `..`
+// unspellable, so nothing here can climb out of the vendor directory. Dots
+// inside a segment are allowed because filenames carry them: `pdf.worker.mjs`
+// and `qcms_bg.wasm` are both real.
+const VENDOR_PATH_PATTERN = /^[\w-]+(?:\.[\w-]+)*(?:\/[\w-]+(?:\.[\w-]+)*)*$/;
+// Doubles as the allowlist of servable kinds: a path whose extension is not
+// here is a 404, so the license files sitting beside the binaries stay
+// unreachable.
 const VENDOR_CONTENT_TYPES: Record<string, string> = {
   ".bcmap": "application/octet-stream",
   ".icc": "application/octet-stream",
+  ".js": "text/javascript",
   ".mjs": "text/javascript",
   ".pfb": "application/octet-stream",
   ".ttf": "font/ttf",

@@ -1,8 +1,8 @@
 diff --git a/out/codeSign/macCodeSign.js b/out/codeSign/macCodeSign.js
-index 17e0c1e7be271b7bce8a7671bfe9d0760a0c9f9a..ea5790d0a45d010034f9972333105f8cd94275e6 100644
+index 9a69042fd48f4759a1c697bf23fa5b44f2da2366..e2f4a11a083bc3f4bd5329ac99d66c7c6269d795 100644
 --- a/out/codeSign/macCodeSign.js
 +++ b/out/codeSign/macCodeSign.js
-@@ -157,16 +157,18 @@ async function createKeychain({ tmpDir, cscLink, cscKeyPassword, cscILink, cscIK
+@@ -156,16 +156,18 @@ async function createKeychain({ tmpDir, cscLink, cscKeyPassword, cscILink, cscIK
      if (cscIKeyPassword != null) {
          cscPasswords.push(cscIKeyPassword);
      }

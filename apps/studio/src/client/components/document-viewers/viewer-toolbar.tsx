@@ -13,8 +13,8 @@ import { FindRow } from "../find-row";
 import { Button } from "../ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { Input } from "../ui/input";
@@ -252,14 +252,21 @@ export function ViewerToolbarSpacer() {
  * `min`/`max` default to the range the level menu offers; a format whose engine
  * clamps to its own range passes that instead, so the stepper stops where the
  * document actually stops.
+ *
+ * `isFit` marks fit-width as the current selection. Fit is a mode that survives
+ * container resizes, not a one-off jump to a level, so the menu has to show
+ * which of the two the document is on; the readout stays a percentage because
+ * that is still what the stepper would move from.
  */
 export function ViewerZoomControl({
+  isFit = false,
   max = MAX_ZOOM,
   min = MIN_ZOOM,
   onFit,
   onZoomChange,
   zoom,
 }: {
+  isFit?: boolean;
   max?: number;
   min?: number;
   onFit?: () => void;
@@ -288,22 +295,25 @@ export function ViewerZoomControl({
             {Math.round(zoom * 100)}%
             <CaretDownIcon className="size-3" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-28">
+          <DropdownMenuContent align="start" className="min-w-32">
             {onFit && (
-              <DropdownMenuItem onClick={onFit}>Fit width</DropdownMenuItem>
+              <DropdownMenuCheckboxItem checked={isFit} onClick={onFit}>
+                Fit width
+              </DropdownMenuCheckboxItem>
             )}
-            {ZOOM_LEVELS.filter(
-              (level) => level >= min && level <= max,
-            ).map((level) => (
-              <DropdownMenuItem
-                key={level}
-                onClick={() => {
-                  onZoomChange(level);
-                }}
-              >
-                {Math.round(level * 100)}%
-              </DropdownMenuItem>
-            ))}
+            {ZOOM_LEVELS.filter((level) => level >= min && level <= max).map(
+              (level) => (
+                <DropdownMenuCheckboxItem
+                  checked={!isFit && Math.abs(level - zoom) < 0.001}
+                  key={level}
+                  onClick={() => {
+                    onZoomChange(level);
+                  }}
+                >
+                  {Math.round(level * 100)}%
+                </DropdownMenuCheckboxItem>
+              ),
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       }

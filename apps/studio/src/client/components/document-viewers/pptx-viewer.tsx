@@ -6,6 +6,7 @@ import {
 } from "@extend-ai/react-pptx";
 import { useEffect, useState } from "react";
 
+import { useFitWidth } from "./use-fit-width";
 import { ViewerBody } from "./viewer-surface";
 import {
   ViewerFindControl,
@@ -18,17 +19,30 @@ import {
 
 import "@extend-ai/react-pptx/styles.css";
 
+// OOXML measures slide geometry in English Metric Units.
+const EMU_PER_PIXEL = 9525;
+
 export function PptxViewer({ url }: { filename: string; url: string }) {
   const [slideIndex, setSlideIndex] = useState(0);
-  const [zoom, setZoom] = useState(1);
   const [railOpen, setRailOpen] = useState(false);
   const [slideCount, setSlideCount] = useState(1);
+  const [slideWidth, setSlideWidth] = useState(0);
   const [query, setQuery] = useState("");
   const [matches, setMatches] = useState<PresentationSearchResult[]>([]);
   const [activeMatch, setActiveMatch] = useState(0);
   const [controller, setController] = useState<null | PptxViewerController>(
     null,
   );
+  const [container, setContainer] = useState<HTMLDivElement | null>(null);
+  // `controller.setFitMode` cannot drive this: `zoom` below is a controlled
+  // prop, so whatever the library computes for a fit mode is overwritten by
+  // the next render with our own number. Fitting therefore means computing the
+  // number ourselves and continuing to hand it over.
+  const { fit, isFit, selectZoom, zoom } = useFitWidth({
+    container,
+    contentWidth: slideWidth,
+    initialFit: true,
+  });
 
   // `controller.search` is synchronous and imperative, so it runs on the input
   // event rather than in an effect watching `query`, which would both lag a
@@ -82,10 +96,9 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
           page={slideIndex + 1}
         />
         <ViewerZoomControl
-          onFit={() => {
-            void controller?.setFitMode("contain");
-          }}
-          onZoomChange={setZoom}
+          isFit={isFit}
+          onFit={fit}
+          onZoomChange={selectZoom}
           zoom={zoom}
         />
         <ViewerToolbarSpacer />
@@ -121,11 +134,16 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
             defaults to a `min(76vh, 780px)` clamp that leaves the bottom of the
             panel empty however tall the panel is. A percentage resolves against
             this element, which `inset-0` has already sized. */}
+        <div className="absolute inset-0" ref={setContainer}>
         <ReactPptxViewer
-          className="absolute inset-0 bg-muted/40"
+          className="size-full bg-muted/40"
           height="100%"
           onLoad={(presentation) => {
             setSlideCount(Math.max(presentation.document.slides.length, 1));
+            // The deck carries its slide size in EMUs, the OOXML unit. Divided
+            // out, it is the width one slide occupies at 100% zoom, which is
+            // what fit-width scales against.
+            setSlideWidth(presentation.document.size.widthEmu / EMU_PER_PIXEL);
           }}
           onReady={setController}
           onSlideChange={setSlideIndex}
@@ -135,6 +153,7 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
           source={url}
           zoom={zoom * 100}
         />
+        </div>
       </ViewerBody>
     </>
   );

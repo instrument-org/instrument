@@ -8,6 +8,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
+import { useFitWidth } from "./use-fit-width";
 import { ViewerBody, ViewerLoading } from "./viewer-surface";
 import {
   ViewerPageControl,
@@ -16,12 +17,8 @@ import {
   ViewerToolbarSpacer,
   ViewerZoomControl,
 } from "./viewer-toolbar";
-import { MAX_ZOOM, MIN_ZOOM } from "./zoom-levels";
 
 const THUMBNAIL_WIDTH = 104;
-// Margin left either side of a fitted page, so it does not sit flush against
-// the scrollbar and the panel edge.
-const FIT_WIDTH_GUTTER = 32;
 
 /**
  * DOCX rendering goes through the library's editor controller in `read-only`
@@ -41,25 +38,19 @@ export function DocxViewer({
 }) {
   const editor = useDocxEditor({ initialFileName: filename });
   const [railOpen, setRailOpen] = useState(false);
-  const [zoom, setZoom] = useState(1);
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(
     null,
   );
   const currentPage = useVisiblePage(scrollElement);
   const { layout } = useDocxPageLayout(editor);
-
-  // Fit is a one-shot that picks the zoom level a page needs to span the
-  // panel, not a mode that re-fits on resize: the page keeps whatever level it
-  // lands on, so the readout stays a real number the stepper can move from.
-  const fitWidth = () => {
-    if (!scrollElement || layout.pageWidthPx <= 0) {
-      return;
-    }
-    const available = scrollElement.clientWidth - FIT_WIDTH_GUTTER;
-    setZoom(
-      Math.min(Math.max(available / layout.pageWidthPx, MIN_ZOOM), MAX_ZOOM),
-    );
-  };
+  // Fitted by default: a Word page is 8.5in of content, which overflows the
+  // artifact panel at any usual panel width, so opening at 100% means opening
+  // on a horizontal scrollbar.
+  const { fit, isFit, selectZoom, zoom } = useFitWidth({
+    container: scrollElement,
+    contentWidth: layout.pageWidthPx,
+    initialFit: true,
+  });
 
   const { data: file, error } = useQuery({
     queryFn: async () => {
@@ -119,7 +110,12 @@ export function DocxViewer({
           }}
           page={Math.min(currentPage, Math.max(editor.totalPages, 1))}
         />
-        <ViewerZoomControl onFit={fitWidth} onZoomChange={setZoom} zoom={zoom} />
+        <ViewerZoomControl
+          isFit={isFit}
+          onFit={fit}
+          onZoomChange={selectZoom}
+          zoom={zoom}
+        />
         <ViewerToolbarSpacer />
       </ViewerToolbar>
 

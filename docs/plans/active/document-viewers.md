@@ -56,6 +56,14 @@ pdfium stays the default. The argument in this section's opening still holds —
 
 The viewer is built on `pdfjs-dist/web/pdf_viewer.mjs`, the component layer behind Firefox's own viewer: `PDFViewer` for scrolling, virtualization, the text layer and zoom presets, `PDFFindController` for find with match counts, all driven through an `EventBus` rather than props. Thumbnails are ours, because `PDFThumbnailViewer` is not in the published bundle.
 
+Three things about its stylesheet and defaults are not optional here.
+
+**The box model.** `pdf_viewer.css` is written against the browser default, and Tailwind's preflight sets `border-box` on everything. A page element takes its width from the scaled page size *and* carries a 9px border, so under `border-box` the canvas paints 18px smaller than the absolutely positioned text and annotation layers stacked over it. Nothing looks broken: the page renders, and selection still reads the right characters because their order is unchanged. What gives it away is find, where every highlight sits up to 2% off the word it belongs to and the error grows across the page. Restoring `content-box` for the subtree is the fix, and it has to be the whole subtree rather than the page alone, since any bordered element inside is mis-sized the same way.
+
+**Forms.** `PDFViewer` defaults to `AnnotationMode.ENABLE_FORMS`, which builds interactive HTML widgets for form fields. A viewer with no save path would let someone type into a PDF and lose it. `ENABLE` paints the field from its appearance stream instead, which is what a filled form should look like.
+
+**Link borders.** A PDF may specify a visible border on a link annotation, and pdf.js honours it where pdfium does not, so a paper's citations come back ringed in colour under one engine and not the other. Suppressed in CSS, which needs `!important` because pdf.js writes the border as an inline style.
+
 ### Dependency risk, stated plainly
 
 `@embedpdf/*` is a young project (created January 2025) whose commits are overwhelmingly from a single maintainer. The mitigation is that the durable asset is pdfium — a compiled artifact maintained by Google — and the single-maintainer part is the TypeScript and React layer wrapping it, which is the replaceable one. If the wrapper were abandoned, the engine remains and the wrapper is forkable or rewritable. It is MIT.

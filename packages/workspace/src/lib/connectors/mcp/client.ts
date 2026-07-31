@@ -10,6 +10,7 @@ import { err, ok, type Result } from "neverthrow";
 import { noop } from "radashi";
 
 import { isLoopbackHost } from "../manifest";
+import { checkPublicUrl } from "../safe-url";
 
 /**
  * How to reach and authenticate to an MCP server. Token auth injects a static
@@ -99,11 +100,13 @@ export async function withMcpClient<T>({
       reason: "connect",
     });
   }
-  if (url.protocol !== "https:" && !isLoopbackHost(url.hostname)) {
-    return err({
-      message: `MCP server URL must be https (got ${url.protocol}//).`,
-      reason: "connect",
-    });
+  // Same guard the api path runs, so a manifest cannot reach a private address
+  // by choosing the mcp type: the agent picks this hostname too.
+  const unsafe = await checkPublicUrl(url, {
+    allowLoopback: isLoopbackHost(url.hostname),
+  });
+  if (unsafe !== null) {
+    return err({ message: unsafe, reason: "connect" });
   }
 
   const transport = new StreamableHTTPClientTransport(url, {

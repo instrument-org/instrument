@@ -116,7 +116,16 @@ export function ViewerPageControl({
   const commit = (value: string) => {
     const parsed = Number.parseInt(value, 10);
     if (Number.isFinite(parsed)) {
-      onPageChange(Math.min(Math.max(parsed, 1), count));
+      const target = Math.min(Math.max(parsed, 1), count);
+      // Only navigate when the number actually changed. Blur commits whatever
+      // the field holds, and the field holds the current page until something
+      // is typed, so clicking the box and clicking away would otherwise
+      // re-navigate to the page already on screen. Every host answers that by
+      // scrolling to the top of it, taking the reader off the line they were
+      // on.
+      if (target !== page) {
+        onPageChange(target);
+      }
     }
     setDraft(null);
   };

@@ -1,10 +1,30 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import { getFileType } from "@/client/lib/get-file-type";
+import { type FileType, getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 import { tv } from "tailwind-variants";
 
 import { FileIcon } from "./file-icon";
 import { ImageWithFallback } from "./image-with-fallback";
+
+// Which types are drawn as ruled lines standing in for text, rather than their
+// file icon. Exhaustive so a new `FileType` has to choose: as a list of
+// matches, `.csv` lost its lines the moment it stopped being reported as
+// `code`. The rest are binary formats whose icon says more than fake text.
+const HAS_LINE_THUMBNAIL: Record<FileType, boolean> = {
+  audio: false,
+  code: true,
+  csv: true,
+  docx: false,
+  html: false,
+  image: false,
+  markdown: true,
+  pdf: false,
+  pptx: false,
+  text: true,
+  unknown: false,
+  video: false,
+  xlsx: false,
+};
 
 const thumbnailIcon = tv({
   base: "size-4 shrink-0",
@@ -66,7 +86,7 @@ export function FileThumbnail({
     );
   }
 
-  if (kind === "markdown" || kind === "text" || kind === "code") {
+  if (HAS_LINE_THUMBNAIL[kind]) {
     return (
       <ThumbnailFrame
         className="flex flex-col p-1"

@@ -1,5 +1,5 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import { getFileType } from "@/client/lib/get-file-type";
+import { type FileType, getFileType } from "@/client/lib/get-file-type";
 import {
   isFileInTaskFolder,
   isRootTaskFile,
@@ -292,17 +292,31 @@ function hasMediaPreview(file: TaskFileViewerFile) {
   return fileType === "image" || fileType === "video";
 }
 
+// Which types get a full-width preview row rather than a compact chip. Images
+// and video are the exceptions: they have their own square media section above.
+//
+// Exhaustive rather than a list of matches, so a new `FileType` has to say
+// which it is. As a list, adding the document types silently moved Word, Excel,
+// PowerPoint and CSV attachments from rows to chips, because those files used
+// to arrive here as `unknown` and `code`.
+const ROW_CARD_PREVIEW: Record<FileType, boolean> = {
+  audio: true,
+  code: true,
+  csv: true,
+  docx: true,
+  html: true,
+  image: false,
+  markdown: true,
+  pdf: true,
+  pptx: true,
+  text: true,
+  unknown: true,
+  video: false,
+  xlsx: true,
+};
+
 function hasRowCardPreview(file: TaskFileViewerFile) {
-  const fileType = getFileType(file);
-  return (
-    fileType === "html" ||
-    fileType === "pdf" ||
-    fileType === "markdown" ||
-    fileType === "text" ||
-    fileType === "code" ||
-    fileType === "audio" ||
-    fileType === "unknown"
-  );
+  return ROW_CARD_PREVIEW[getFileType(file)];
 }
 
 function isArtifactPanelFileSelected(

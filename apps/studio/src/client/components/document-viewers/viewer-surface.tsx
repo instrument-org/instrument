@@ -1,7 +1,13 @@
 import { captureComponentError } from "@/client/lib/telemetry";
 import { cn } from "@/client/lib/utils";
 import { CatchBoundary } from "@tanstack/react-router";
-import { createContext, type ReactNode, Suspense, useContext } from "react";
+import {
+  createContext,
+  type ReactNode,
+  Suspense,
+  useContext,
+  useState,
+} from "react";
 
 import { FileLoading } from "../file-loading";
 
@@ -12,8 +18,14 @@ const ViewerFallbackContext = createContext<ReactNode>(null);
 
 /**
  * The body of a document viewer: an optional thumbnail rail beside the page
- * area. The rail collapses by translating out rather than unmounting, so its
- * scroll position and any rendered thumbnails survive a toggle.
+ * area.
+ *
+ * The rail is not built until it is first opened, and stays mounted afterwards.
+ * Both halves of that matter. Mounting it with the document pays for every page
+ * up front: the DOCX and PPTX rails attach a canvas per page and paint each
+ * one, so a long document renders a thumbnail of every page before anyone has
+ * asked to see one. Unmounting it on close throws those renders and the rail's
+ * scroll position away on every toggle.
  */
 export function ViewerBody({
   children,
@@ -24,9 +36,14 @@ export function ViewerBody({
   rail?: ReactNode;
   railOpen?: boolean;
 }) {
+  const [railWasOpened, setRailWasOpened] = useState(false);
+  if (railOpen && !railWasOpened) {
+    setRailWasOpened(true);
+  }
+
   return (
     <div className="flex min-h-0 flex-1">
-      {rail && (
+      {rail && railWasOpened && (
         <div
           className={cn(
             "shrink-0 overflow-hidden border-r border-border/60 transition-[width] duration-200",

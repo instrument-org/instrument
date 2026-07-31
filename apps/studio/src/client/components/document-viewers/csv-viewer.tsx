@@ -5,7 +5,6 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import Papa from "papaparse";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { ViewerLoading } from "./viewer-surface";
 import {
   ViewerFindControl,
   ViewerToolbar,
@@ -46,7 +45,7 @@ export function CsvViewer({
   });
 
   if (isLoading) {
-    return <ViewerLoading />;
+    return null;
   }
 
   // Thrown rather than rendered so it reaches the surface's `CatchBoundary`,

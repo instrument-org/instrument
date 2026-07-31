@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import "pdfjs-dist/web/pdf_viewer.css";
 
 import "./pdfjs-viewer.css";
-import { ViewerBody, ViewerLoading } from "./viewer-surface";
+import { ViewerBody } from "./viewer-surface";
 import {
   ViewerFindControl,
   ViewerPageControl,
@@ -316,7 +316,6 @@ export function PdfJsViewer({ url }: { filename: string; url: string }) {
         >
           <div className={PDF_VIEWER_CLASS} ref={setViewerElement} />
         </div>
-        {!pdfDocument && <ViewerLoading />}
       </ViewerBody>
     </>
   );

@@ -10,7 +10,6 @@ import { list } from "radashi";
 import { useState } from "react";
 
 import { useCopyShortcut } from "./use-copy-shortcut";
-import { ViewerLoading } from "./viewer-surface";
 import {
   ViewerToolbar,
   ViewerToolbarSpacer,
@@ -121,9 +120,7 @@ export function XlsxViewer({
       </ViewerToolbar>
 
       <div className="relative min-h-0 flex-1" ref={setGrid}>
-        {controller.isLoading ? (
-          <ViewerLoading />
-        ) : (
+        {!controller.isLoading && (
           <XlsxWorkbookViewer
             // Row and column resizing stays available even though editing is
             // off, since a truncated column is unreadable otherwise.

@@ -26,7 +26,6 @@ import { useSetAtom } from "jotai";
 import { type ReactNode, useState } from "react";
 
 import { Button } from "../ui/button";
-import { Skeleton } from "../ui/skeleton";
 import { TaskBrowserPanel } from "./browser-panel";
 import { TaskSidebar, type TaskSidebarMode } from "./sidebar";
 
@@ -263,17 +262,14 @@ export function TaskView({
                   // Rendering the missing state while the query is still in
                   // flight flashes "File not found" over every file on its way
                   // in, which is a lie the panel then corrects a frame later.
+                  // The wait itself shows nothing: it is over faster than the
+                  // eye settles, so anything drawn there is a flicker between
+                  // two files rather than a sign of progress.
                   <ArtifactPanelShell
                     filePath={filePanel.filePath}
                     onClose={handleArtifactPanelClose}
                   >
-                    {isResolvingFile ? (
-                      <div className="size-full p-4">
-                        <Skeleton className="size-full" />
-                      </div>
-                    ) : (
-                      <MissingFileNotice />
-                    )}
+                    {!isResolvingFile && <MissingFileNotice />}
                   </ArtifactPanelShell>
                 ) : null}
               </div>

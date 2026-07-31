@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import { useFitWidth } from "./use-fit-width";
-import { ViewerBody, ViewerLoading } from "./viewer-surface";
+import { ViewerBody } from "./viewer-surface";
 import {
   ViewerPageControl,
   ViewerRailToggle,
@@ -132,9 +132,7 @@ export function DocxViewer({
         }
         railOpen={railOpen}
       >
-        {isLoading ? (
-          <ViewerLoading />
-        ) : (
+        {!isLoading && (
           <div
             className="absolute inset-0 overflow-auto bg-muted/40"
             ref={setScrollElement}

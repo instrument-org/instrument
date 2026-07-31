@@ -48,7 +48,7 @@ import { useZoom, ZoomMode, ZoomPluginPackage } from "@embedpdf/plugin-zoom/reac
 import { useEffect, useState } from "react";
 
 import { useCopyShortcut } from "./use-copy-shortcut";
-import { ViewerBody, ViewerLoading } from "./viewer-surface";
+import { ViewerBody } from "./viewer-surface";
 import {
   ViewerFindControl,
   ViewerPageControl,
@@ -157,7 +157,7 @@ export function PdfViewer({ url }: { filename: string; url: string }) {
   }
 
   if (!engine) {
-    return <ViewerLoading />;
+    return null;
   }
 
   return (
@@ -242,7 +242,7 @@ function PdfDocument({ url }: { url: string }) {
   }
 
   if (!activeDocumentId || activeDocument?.status !== "loaded") {
-    return <ViewerLoading />;
+    return null;
   }
 
   return <PdfDocumentView documentId={activeDocumentId} />;

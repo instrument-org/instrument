@@ -170,6 +170,7 @@
     "@typescript/native-preview": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "@vitest/browser-playwright": "^4.1.10",
+    "@zip.js/zip.js": "^2.8.14",
     "agentation": "^3.0.2",
     "babel-plugin-react-compiler": "^1.0.0",
     "clsx": "^2.1.1",

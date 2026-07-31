@@ -1,12 +1,14 @@
 import { isTextMimeType } from "./is-text-mime-type";
 
 export type FileType =
+  | "archive"
   | "audio"
   | "code"
   | "csv"
   | "docx"
   | "html"
   | "image"
+  | "iwork"
   | "markdown"
   | "pdf"
   | "pptx"
@@ -18,6 +20,9 @@ export type FileType =
 
 function fileKindLabel(fileType: FileType): string {
   switch (fileType) {
+    case "archive": {
+      return "ZIP archive";
+    }
     case "audio": {
       return "Audio";
     }
@@ -35,6 +40,9 @@ function fileKindLabel(fileType: FileType): string {
     }
     case "image": {
       return "Image";
+    }
+    case "iwork": {
+      return "iWork document";
     }
     case "markdown": {
       return "Markdown";
@@ -228,6 +236,13 @@ const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
   db: "sqlite",
   docm: "docx",
   docx: "docx",
+  // The iWork formats are zip containers around Apple's own IWA payload, which
+  // has no reader outside Apple's apps; what the viewer shows is the preview
+  // image inside. Listed before the archive entry below on purpose, since a
+  // member listing of one of these is the least useful way to read it.
+  key: "iwork",
+  numbers: "iwork",
+  pages: "iwork",
   // PDF was detected by mime type alone, which left a `.pdf` arriving without
   // one falling through to the fallback card.
   pdf: "pdf",
@@ -240,6 +255,10 @@ const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
   xls: "xlsx",
   xlsm: "xlsx",
   xlsx: "xlsx",
+  // Only zip. The other archive formats in the kind-label table (7z, rar, tar
+  // and the compressed tarballs) are different containers that this reader
+  // cannot open, and they keep their labelled download card.
+  zip: "archive",
 };
 
 export function getFileType({

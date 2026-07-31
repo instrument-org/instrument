@@ -52,6 +52,22 @@ export const LazyXlsxViewer = lazy(async () => {
   return { default: module.XlsxViewer };
 });
 
+// Neither of these needs a wasm source configured: zip.js is plain JavaScript.
+// They stay lazy so the archive reader loads only when a container is opened.
+export const LazyArchiveViewer = lazy(async () => {
+  const module = await import(
+    "@/client/components/document-viewers/archive-viewer"
+  );
+  return { default: module.ArchiveViewer };
+});
+
+export const LazyIWorkViewer = lazy(async () => {
+  const module = await import(
+    "@/client/components/document-viewers/iwork-viewer"
+  );
+  return { default: module.IWorkViewer };
+});
+
 // CSV parses in-process with no wasm, but stays lazy so papaparse and the grid
 // only load when a delimited file is actually opened.
 export const LazyCsvViewer = lazy(async () => {

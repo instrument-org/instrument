@@ -1,7 +1,9 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import {
+  LazyArchiveViewer,
   LazyCsvViewer,
   LazyDocxViewer,
+  LazyIWorkViewer,
   LazyPdfViewer,
   LazyPptxViewer,
   LazySqliteViewer,
@@ -207,6 +209,14 @@ interface ViewerEntry {
 }
 
 const VIEWERS = {
+  archive: {
+    render: ({ fallback, file }) => (
+      <ViewerSurface fallback={fallback} resetKey={file.url}>
+        <LazyArchiveViewer url={file.url} />
+      </ViewerSurface>
+    ),
+    scrolls: "self",
+  },
   audio: {
     render: ({ file, onMediaError }) => (
       <div className="flex size-full items-center justify-center p-8">
@@ -279,6 +289,14 @@ const VIEWERS = {
         </ContextMenu>
       ),
     scrolls: "container",
+  },
+  iwork: {
+    render: ({ fallback, file }) => (
+      <ViewerSurface fallback={fallback} resetKey={file.url}>
+        <LazyIWorkViewer filename={file.filename} url={file.url} />
+      </ViewerSurface>
+    ),
+    scrolls: "self",
   },
   markdown: {
     render: (context) =>

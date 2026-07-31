@@ -318,7 +318,19 @@ export function PdfJsViewer({ url }: { filename: string; url: string }) {
 
 function loadWorker() {
   workerPromise ??= fetch(PDFJS_ASSET_URLS.workerUrl)
-    .then((response) => response.blob())
+    .then((response) => {
+      // `fetch` resolves for a 404, and pdf.js answers a worker it cannot
+      // start by falling back to running the parser on the main thread --
+      // which it does by importing a blob, which the CSP then blocks, three
+      // errors deep from a missing file. Fail here where it still reads as
+      // one.
+      if (!response.ok) {
+        throw new Error(
+          `The PDF worker could not be loaded (${response.status}).`,
+        );
+      }
+      return response.blob();
+    })
     .then((blob) => {
       GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob);
     });

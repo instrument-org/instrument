@@ -9,6 +9,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
+import { FileLoading } from "../file-loading";
 import { useFitWidth } from "./use-fit-width";
 import { ViewerBody } from "./viewer-surface";
 import {
@@ -132,6 +133,7 @@ export function DocxViewer({
         }
         railOpen={railOpen}
       >
+        {isLoading && <FileLoading />}
         {!isLoading && (
           <div
             className="absolute inset-0 overflow-auto bg-muted/40"

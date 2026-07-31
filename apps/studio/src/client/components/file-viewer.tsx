@@ -43,6 +43,7 @@ import { useTaskFileOpenControl } from "../hooks/use-task-file-open-control";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { ViewerSurface } from "./document-viewers/viewer-surface";
 import { FileActionsMenuItems } from "./file-actions-menu";
+import { FileLoading } from "./file-loading";
 import { FilePreviewFallback } from "./file-preview-fallback";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageWithFallback } from "./image-with-fallback";
@@ -69,7 +70,6 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { contextMenuComponents } from "./ui/menu-components";
-import { Spinner } from "./ui/spinner";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
@@ -166,11 +166,7 @@ function MarkdownPreview({ url }: { url: string }) {
   });
 
   if (isLoading) {
-    return (
-      <div className="flex size-full items-center justify-center">
-        <Spinner className="size-8 text-muted-foreground" />
-      </div>
-    );
+    return <FileLoading />;
   }
 
   if (error) {
@@ -219,11 +215,7 @@ function TextView({
   });
 
   if (isLoading) {
-    return (
-      <div className="flex size-full items-center justify-center">
-        <Spinner className="size-8 text-muted-foreground" />
-      </div>
-    );
+    return <FileLoading />;
   }
 
   if (error) {

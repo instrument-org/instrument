@@ -3,6 +3,8 @@ import { cn } from "@/client/lib/utils";
 import { CatchBoundary } from "@tanstack/react-router";
 import { createContext, type ReactNode, Suspense, useContext } from "react";
 
+import { FileLoading } from "../file-loading";
+
 // `CatchBoundary` instantiates `errorComponent` as a component type, so it has
 // to be stable; passing the fallback through context keeps it from remounting
 // on every render of the surface.
@@ -75,7 +77,7 @@ export function ViewerSurface({
         getResetKey={() => resetKey}
         onCatch={captureComponentError}
       >
-        <Suspense fallback={null}>{children}</Suspense>
+        <Suspense fallback={<FileLoading />}>{children}</Suspense>
       </CatchBoundary>
     </ViewerFallbackContext>
   );

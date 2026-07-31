@@ -25,6 +25,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import { type ReactNode, useState } from "react";
 
+import { FileLoading } from "../file-loading";
 import { Button } from "../ui/button";
 import { TaskBrowserPanel } from "./browser-panel";
 import { TaskSidebar, type TaskSidebarMode } from "./sidebar";
@@ -269,7 +270,7 @@ export function TaskView({
                     filePath={filePanel.filePath}
                     onClose={handleArtifactPanelClose}
                   >
-                    {!isResolvingFile && <MissingFileNotice />}
+                    {isResolvingFile ? <FileLoading /> : <MissingFileNotice />}
                   </ArtifactPanelShell>
                 ) : null}
               </div>

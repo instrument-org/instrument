@@ -9,6 +9,7 @@ import {
 import { list } from "radashi";
 import { useState } from "react";
 
+import { FileLoading } from "../file-loading";
 import { useCopyShortcut } from "./use-copy-shortcut";
 import {
   ViewerToolbar,
@@ -120,6 +121,7 @@ export function XlsxViewer({
       </ViewerToolbar>
 
       <div className="relative min-h-0 flex-1" ref={setGrid}>
+        {controller.isLoading && <FileLoading />}
         {!controller.isLoading && (
           <XlsxWorkbookViewer
             // Row and column resizing stays available even though editing is

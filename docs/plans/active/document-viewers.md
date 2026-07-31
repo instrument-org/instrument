@@ -133,12 +133,25 @@ CSV/TSV gets a viewer we own outright, on `@tanstack/react-virtual` — already 
 
 ### Explicitly out
 
-- The Finder-style file browser (`file-system.tsx`, 5,292 lines) and file-grid thumbnailing. The Files panel stays exactly as it is on `main`.
+- The Finder-style file browser (`file-system.tsx`, 5,292 lines). The Files panel stays exactly as it is on `main`.
+- Cover thumbnails for files in the grid and the sidebar, for the reasons below.
 - Base UI. Nothing under `ui/extend/`, no `@base-ui/react`, no `@hugeicons/*`. With the file browser gone the viewers need only button, dropdown-menu, input, popover, select, separator, spinner, tabs, and tooltip — Studio's Radix layer has all of them. `command` and `dialog` were file-browser-only.
 - Bounding-box / OCR / citation overlays, document splits, e-signature, and every editing path.
 - `ScrollArea`. Studio has no scroll-area primitive and does not need one: our chrome uses plain scroll containers with refs.
 
 Nothing is removed. `TaskFileViewerModal`, `atoms/task-file-viewer.ts`, `FilePreviewListItem`, and `FileViewer`'s `onExpand` all stay.
+
+### Why cover thumbnails are their own piece of work
+
+All three document libraries expose a thumbnail hook — `useDocxPageThumbnails`, `usePptxViewerThumbnails`, `useXlsxViewerThumbnails` — and the DOCX rail here is built on one. None of them is the feature a file grid wants. They enumerate the pages, slides or sheets *of a document already open in a controller*, so what they answer is "draw page 7 of the thing on screen", not "draw a cover for this path on disk". DOCX is explicit about it: its thumbnails paint from the live page DOM, which is why generating a full set means turning page virtualization off so every page is mounted at once.
+
+So a cover thumbnail costs a full open: fetch the bytes, boot that format's wasm, parse the document, mount it, paint page one, throw it away. Between 0.5MB and 5.1MB of wasm per format, once per file. A chat message listing eight attachments would pay that eight times, in the renderer, while the transcript scrolls. PDF is the one cheap case — the pdfium engine is already module-cached and can render a page without any of it being in the DOM — but shipping covers for PDF alone means a grid where PDFs have pictures and Word and PowerPoint have icons.
+
+What makes it a subsystem rather than a component change is that the render has to happen once, not once per mount. That needs a cache keyed by path and mtime, living in the main process where it survives a reload, with a protocol route to serve entries, a generation path that cannot block the message list, and an eviction policy. The rendering itself is the small part.
+
+The insertion point is clean when someone does it: `FileThumbnail` is the single component behind both the grid's row cards and the sidebar's file list, so a cover branch there covers both surfaces at once.
+
+One shortcut is worth knowing about and not worth relying on. OOXML packages may carry a `docProps/thumbnail.jpeg`, and PDFs may embed page thumbnails, either of which would be a cheap read with no wasm at all. Both are optional, Office does not write them by default on every platform, and a file an agent generated will not have one — so it can only ever be a fast path in front of real rendering, never the mechanism.
 
 ## The expand modal takes the window, less the window's own chrome
 

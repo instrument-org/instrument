@@ -3,7 +3,7 @@ import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import { PDFJS_ASSET_URLS } from "@/client/lib/document-viewers";
 import { cn } from "@/client/lib/utils";
 import { MAX_ZOOM, MIN_ZOOM } from "@/client/lib/zoom-levels";
-import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
+import { AnnotationMode, getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import {
   EventBus,
   PDFFindController,
@@ -13,6 +13,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import "pdfjs-dist/web/pdf_viewer.css";
 
+import "./pdfjs-viewer.css";
 import { ViewerBody, ViewerLoading } from "./viewer-surface";
 import {
   ViewerFindControl,
@@ -88,6 +89,11 @@ export function PdfJsViewer({ url }: { filename: string; url: string }) {
       updateMatchesCountOnProgress: true,
     });
     const pdfViewer = new PDFViewer({
+      // `ENABLE` paints a form field from its appearance stream, which is what
+      // a filled form is meant to look like. The library's default one step up
+      // builds interactive HTML widgets instead, so a viewer with no way to
+      // save would let someone type into a PDF and lose it.
+      annotationMode: AnnotationMode.ENABLE,
       container,
       eventBus,
       findController,

@@ -1,6 +1,5 @@
+import { MAX_ZOOM, MIN_ZOOM } from "@/client/lib/zoom-levels";
 import { useEffect, useState } from "react";
-
-import { MAX_ZOOM, MIN_ZOOM } from "./zoom-levels";
 
 // Space left either side of fitted content, so a page does not sit flush
 // against the scrollbar and the panel edge.
@@ -48,15 +47,32 @@ export function useFitWidth({
 
     const apply = () => {
       const available = container.clientWidth - GUTTER;
-      setZoom(
-        Math.min(Math.max(available / contentWidth, MIN_ZOOM), MAX_ZOOM),
+      const next = Math.min(
+        Math.max(available / contentWidth, MIN_ZOOM),
+        MAX_ZOOM,
+      );
+      // Rounded to whole percent, and only applied when that whole percent
+      // moves. A splitter drag delivers a resize per frame, and for DOCX every
+      // distinct scale is a re-layout of the document, so passing through every
+      // sub-percent difference is most of what makes the drag feel heavy.
+      setZoom((current) =>
+        Math.round(next * 100) === Math.round(current * 100) ? current : next,
       );
     };
 
     apply();
-    const observer = new ResizeObserver(apply);
+    // Coalesced to one recompute per frame: a drag can deliver several resize
+    // records in the same frame, and only the last one is worth acting on.
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      frame ||= requestAnimationFrame(() => {
+        frame = 0;
+        apply();
+      });
+    });
     observer.observe(container);
     return () => {
+      cancelAnimationFrame(frame);
       observer.disconnect();
     };
   }, [container, contentWidth, isFit]);

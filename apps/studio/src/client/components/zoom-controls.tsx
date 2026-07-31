@@ -15,6 +15,9 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 
@@ -42,6 +45,7 @@ export function ZoomLevelMenu({
   isFit = false,
   max,
   min,
+  nested = false,
   onFit,
   onSelect,
   zoom,
@@ -50,10 +54,58 @@ export function ZoomLevelMenu({
   isFit?: boolean;
   max: number;
   min: number;
+  nested?: boolean;
   onFit?: () => void;
   onSelect: (zoom: number) => void;
   zoom: number;
 }) {
+  const levels = (
+    <>
+      {onFit && (
+        <DropdownMenuCheckboxItem checked={isFit} onClick={onFit}>
+          Fit width
+        </DropdownMenuCheckboxItem>
+      )}
+      {ZOOM_LEVELS.filter((level) => level >= min && level <= max).map(
+        (level) => (
+          <DropdownMenuCheckboxItem
+            checked={!isFit && Math.abs(level - zoom) < 0.001}
+            key={level}
+            onClick={() => {
+              onSelect(level);
+            }}
+          >
+            {Math.round(level * 100)}%
+          </DropdownMenuCheckboxItem>
+        ),
+      )}
+    </>
+  );
+
+  // A menu already inside an open menu has to be a submenu of it rather than a
+  // second root. Opening a root moves focus into content portalled outside the
+  // menu containing it, which that menu reads as an interaction elsewhere and
+  // closes on — taking the level list down with it before anything can be
+  // picked. A submenu is a child layer of the same menu, so the parent stays.
+  if (nested) {
+    return (
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger
+          className={cn(
+            "gap-1 px-2 font-medium tabular-nums",
+            zoomStepperSegmentClassName,
+            compact ? "min-w-10 text-xs" : "min-w-12 text-sm",
+          )}
+        >
+          {Math.round(zoom * 100)}%
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="min-w-32">
+          {levels}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+    );
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -68,24 +120,7 @@ export function ZoomLevelMenu({
         <CaretDownIcon className="size-3" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-32">
-        {onFit && (
-          <DropdownMenuCheckboxItem checked={isFit} onClick={onFit}>
-            Fit width
-          </DropdownMenuCheckboxItem>
-        )}
-        {ZOOM_LEVELS.filter((level) => level >= min && level <= max).map(
-          (level) => (
-            <DropdownMenuCheckboxItem
-              checked={!isFit && Math.abs(level - zoom) < 0.001}
-              key={level}
-              onClick={() => {
-                onSelect(level);
-              }}
-            >
-              {Math.round(level * 100)}%
-            </DropdownMenuCheckboxItem>
-          ),
-        )}
+        {levels}
       </DropdownMenuContent>
     </DropdownMenu>
   );

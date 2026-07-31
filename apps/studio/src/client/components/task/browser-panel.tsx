@@ -427,6 +427,7 @@ export function TaskBrowserPanel({
                   <ZoomLevelMenu
                     max={BROWSER_ZOOM_MAX}
                     min={BROWSER_ZOOM_MIN}
+                    nested
                     onSelect={applyZoom}
                     zoom={zoomFactor}
                   />

@@ -28,11 +28,15 @@ export function XlsxViewer({
   filename: string;
   url: string;
 }) {
-  // Read-only belongs on the controller, not the viewer component: the
+  // Both of these belong on the controller, not the viewer component: the
   // component reads its editing state from whichever controller it is handed,
   // and only builds one from its own props when no controller is supplied.
-  // Passing it to the component alone leaves cell editing, paste and undo live.
+  // `readOnly` on the component alone leaves cell editing, paste and undo live;
+  // `allowResizeInReadOnly` on the component alone leaves columns stuck at
+  // their stored widths, because the controller is what resolves the two into
+  // its own `canResizeReadOnly`.
   const controller = useXlsxViewerController({
+    allowResizeInReadOnly: true,
     fileName: filename,
     readOnly: true,
     src: url,

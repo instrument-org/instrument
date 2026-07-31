@@ -30,6 +30,7 @@ import {
   CopyToClipboard,
   SelectionLayer,
   SelectionPluginPackage,
+  useSelectionCapability,
 } from "@embedpdf/plugin-selection/react";
 import {
   ThumbImg,
@@ -59,6 +60,15 @@ import { ZOOM_LEVELS } from "./zoom-levels";
 const ignore = () => {
   // Nothing to do; see the call sites.
 };
+
+// Applied to the two bitmap layers so neither takes a pointer nor offers itself
+// to the browser's drag machinery. `WebkitUserDrag` is the part Chromium
+// actually honours for an `<img>`; `pointerEvents` keeps hit-testing on the
+// wrapper that owns selection.
+const NON_INTERACTIVE_LAYER = {
+  pointerEvents: "none",
+  WebkitUserDrag: "none",
+} as const;
 
 const PAGE_GAP = 16;
 const THUMBNAIL_WIDTH = 104;
@@ -242,7 +252,40 @@ function PdfDocumentView({ documentId }: { documentId: string }) {
   const { provides: scroll, state: scrollState } = useScroll(documentId);
   const { provides: zoom, state: zoomState } = useZoom(documentId);
   const { provides: search, state: searchState } = useSearch(documentId);
+  const { provides: selection } = useSelectionCapability();
   const [query, setQuery] = useState("");
+
+  // pdfium extracts real text and `SelectionLayer` tracks a selection over it,
+  // but nothing in the library binds a copy shortcut, so a selection could be
+  // made and never taken anywhere -- which reads as the page being a picture.
+  //
+  // Guarded on there being rects, for two reasons: `copyToClipboard` with an
+  // empty selection emits an empty string and would wipe the clipboard on any
+  // Cmd+C elsewhere in the app, and both the artifact panel and the expand
+  // modal can have a viewer mounted at once, so whichever one holds the
+  // selection should be the one that answers.
+  useEffect(() => {
+    if (!selection) {
+      return;
+    }
+    const scope = selection.forDocument(documentId);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "c" || !(event.metaKey || event.ctrlKey)) {
+        return;
+      }
+      if (scope.getBoundingRects().length === 0) {
+        return;
+      }
+      event.preventDefault();
+      scope.copyToClipboard();
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [documentId, selection]);
 
   // The search session has to be open before results can be requested, and it
   // is torn down with the document so a reopened file starts clean.
@@ -355,13 +398,24 @@ function PdfPage({
         style={{ height: page.height, position: "relative", width: page.width }}
       >
         {/* A full-page bitmap paints first, then tiles refine the visible
-            region; both are needed or high zoom shows blank until tiles land. */}
+            region; both are needed or high zoom shows blank until tiles land.
+
+            Both render an `<img>`, which the browser makes draggable. Left
+            alone, a drag starting anywhere but exactly on a glyph tears the
+            page bitmap out as a drag image rather than selecting text, so
+            selection looks broken to anyone who misses on the first attempt.
+            Neither layer needs to see a pointer: selection is driven by the
+            pointer provider wrapping them. */}
         <RenderLayer
           documentId={documentId}
           pageIndex={page.pageIndex}
-          style={{ pointerEvents: "none" }}
+          style={NON_INTERACTIVE_LAYER}
         />
-        <TilingLayer documentId={documentId} pageIndex={page.pageIndex} />
+        <TilingLayer
+          documentId={documentId}
+          pageIndex={page.pageIndex}
+          style={NON_INTERACTIVE_LAYER}
+        />
         <SearchLayer documentId={documentId} pageIndex={page.pageIndex} />
         <SelectionLayer documentId={documentId} pageIndex={page.pageIndex} />
       </PagePointerProvider>

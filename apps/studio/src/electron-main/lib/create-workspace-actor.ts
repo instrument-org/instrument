@@ -265,8 +265,9 @@ export function createWorkspaceActor({
       buttons: ["Cancel", "Quit"],
       cancelId: 0,
       defaultId: 0,
-      detail: `Quitting ${APP_NAME} will stop ${count === 1 ? "this agent" : "these agents"} and you may lose in-progress work.`,
-      message: `One or more ${count === 1 ? "agent is still running" : "agents are still running"}.`,
+      detail:
+        "Active tasks will be interrupted and you may lose in-progress work.",
+      message: `Quit ${APP_NAME}?`,
       noLink: true,
       type: "warning",
     };

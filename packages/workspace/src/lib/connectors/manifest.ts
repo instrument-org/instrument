@@ -94,11 +94,15 @@ const ApiConnectorManifestSchema = z.strictObject({
       "baseUrl must be a valid https:// URL (http:// is allowed only for loopback hosts) with no embedded credentials",
   }),
   displayName: z.string().min(1),
-  // Flipped to true by a passing connector test; request tool refuses while false.
+  // Flipped to true by a passing connector test; request tool refuses while
+  // false. Not a trust boundary: the manifest sits in a writable mount, so an
+  // agent can set this itself and skip the test (see
+  // docs/findings/connector-enabled-flag-is-agent-writable.md).
   enabled: z.boolean(),
   // Static, non-secret headers sent with every request (e.g. Notion-Version).
-  // The auth binding wins on conflicts; secrets never belong here -- the
-  // secret scan fails the connector if one appears.
+  // The auth binding wins on conflicts, and secrets never belong here -- but
+  // the only thing checking for one is the secret scan the connector test runs,
+  // which self-enabling skips.
   headers: z.record(z.string(), z.string()).optional(),
   // Canary the connector test uses to verify auth + connectivity. Defaults to
   // GET; set method + body for APIs whose only cheap auth check is a POST

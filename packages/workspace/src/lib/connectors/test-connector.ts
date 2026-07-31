@@ -237,8 +237,10 @@ export async function runConnectorTest({
 
 /**
  * Run the connector test and, on a green run, flip the manifest's `enabled`
- * flag. The single enablement path shared by the connector_test tool and the
- * settings UI's Test button.
+ * flag. The intended enablement path, shared by the connector_test tool and the
+ * settings UI's Test button -- but the flag lives in a writable mount, so it is
+ * not the only way that field can end up true (see
+ * docs/findings/connector-enabled-flag-is-agent-writable.md).
  */
 export async function runConnectorTestAndEnable(options: {
   connectorsDir: AbsolutePath;

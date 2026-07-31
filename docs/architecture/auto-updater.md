@@ -102,3 +102,5 @@ Linux does not call `autoUpdater.quitAndInstall()`, which hangs there, and canno
 The manifest asks for `^6.8.9` and the lockfile currently resolves 6.8.9. 6.8.8 hardened the install path against relative `PATH` entries, path traversal, and environment-variable interception, so staying current on the 6.x line matters more here than in most dependencies.
 
 7.x is in alpha and adds the primitives for the gaps documented above: an `autoInstallEvent: "manual" | "onQuit" | "onNextLaunch"` enum in place of the `autoInstallOnAppQuit` boolean, a guard against the OS killing an installer mid-write during shutdown, and re-validation of the cached installer at launch. Worth revisiting when it ships; it is a breaking API change (`quitAndInstall` takes an options object).
+
+What 7.x does **not** change is any of what [What a check may download](#what-a-check-may-download) guards against. Through 7.0.0-alpha, `updateDownloaded` still opens by closing the proxy server, `executeDownload` still short-circuits a cached artifact into the same hook, and `squirrelDownloadedUpdate` is still never cleared. The gating has to survive the upgrade.

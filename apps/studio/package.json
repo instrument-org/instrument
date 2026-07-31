@@ -32,6 +32,7 @@
     "cleanup:releases": "node scripts/cleanup-releases.ts",
     "dev": "cross-env NODE_OPTIONS=--enable-source-maps electron-vite dev --sourcemap",
     "dev:fresh": "cross-env ELECTRON_USE_NEW_USER_FOLDER=true NODE_OPTIONS=--enable-source-maps electron-vite dev --sourcemap",
+    "dev:web": "vite --config web/vite.config.ts",
     "fix:lint": "eslint . --max-warnings 0 --fix && oxlint --type-aware --fix",
     "icons:check": "node scripts/generate-icons.ts --check",
     "icons:generate": "node scripts/generate-icons.ts",

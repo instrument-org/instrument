@@ -173,6 +173,14 @@ Two details that will bite. Hidden windows get their timers and rAF throttled, w
 
 Studio already creates windows with `show: false` in `windows/main` and `windows/onboarding.ts`, so the lifecycle pattern is established; what is new is the job protocol, the disk cache and its eviction, and the protocol route to serve entries.
 
+### Caching engine state across restarts is not the win it looks like
+
+Every restart re-reads the file and re-boots an engine, which invites the idea of holding something back in the main process. Measured over the app protocol, cold, that whole cost is about 65ms: pdfium 4.4MB in 21ms with an 8ms compile, xlsx 4.1MB in 15ms/6ms, docx 1.1MB in 8ms/2ms, pptx 0.5MB in 4ms/2ms. The bytes never leave the machine — the file is already in the task folder — and V8's baseline compile of a 4.4MB module is single-digit milliseconds. There is nothing to win.
+
+The expensive part is the parse and layout, and that is the part no cache can hold. A parsed document lives in wasm linear memory as an opaque object graph; none of the four libraries exposes a serialization API, and a snapshot would be locked to the exact engine build and invalidated by every dependency bump.
+
+What survives a restart usefully is the engines' *output* — rendered page bitmaps and extracted text — which is the artifact the thumbnail service above already produces. So reopening a document is a free upgrade on that work rather than a subsystem of its own: paint the cached page-one bitmap immediately, boot the engine behind it, swap to live rendering when it is ready. Same cache, same key, first paint becomes a disk read.
+
 ## The expand modal takes the window, less the window's own chrome
 
 `TaskFileViewerModal` stays, and gets the window. The 64px padding and the max-width/height caps go, so the document or image is as large as the window allows.

@@ -472,19 +472,36 @@ function DocumentContextMenu({
 }) {
   const [selection, setSelection] = useState<null | ViewerSelectionApi>(null);
   const [hasSelection, setHasSelection] = useState(false);
+  const selectionRef = useRef(selection);
+
+  useEffect(() => {
+    selectionRef.current = selection;
+  });
+
+  // Sampled on the way down from the right-click that opens the menu, not when
+  // the menu opens.
+  //
+  // These viewers run their own selection off pointer events, and a press of
+  // any button starts a new one: pdfium clears the highlight on pointerdown and
+  // restores it once the gesture ends. By the time the menu is open the
+  // selection reads as empty, so Copy would render disabled over a visible
+  // highlight. The capture phase runs before the viewer's own handler, which is
+  // the only moment the answer is still true.
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.button === 2) {
+        setHasSelection(selectionRef.current?.hasSelection() ?? false);
+      }
+    };
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+    };
+  }, []);
 
   return (
     <ViewerSelectionRegistry value={setSelection}>
-      <ContextMenu
-        onOpenChange={(open) => {
-          // Read on open rather than tracking it: the answer only matters at
-          // the moment the menu appears, and subscribing would re-render the
-          // whole viewer on every change of selection.
-          if (open) {
-            setHasSelection(selection?.hasSelection() ?? false);
-          }
-        }}
-      >
+      <ContextMenu>
         <ContextMenuTrigger className="flex min-h-0 flex-1 flex-col">
           {children}
         </ContextMenuTrigger>

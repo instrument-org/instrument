@@ -5,6 +5,7 @@ import {
   XlsxViewer as XlsxWorkbookViewer,
 } from "@extend-ai/react-xlsx";
 
+import { useRegisterViewerSelection } from "./viewer-selection";
 import { ViewerLoading } from "./viewer-surface";
 import {
   ViewerToolbar,
@@ -40,6 +41,16 @@ export function XlsxViewer({
     fileName: filename,
     readOnly: true,
     src: url,
+  });
+
+  // The grid is a canvas and its selection lives in the controller, so the
+  // browser has nothing to copy and the library binds no copy shortcut of its
+  // own. Right-click Copy comes from here instead.
+  useRegisterViewerSelection({
+    copy: () => {
+      void controller.copySelectionToClipboard();
+    },
+    hasSelection: () => controller.selection !== null,
   });
 
   // Thrown rather than rendered so it reaches the surface's `CatchBoundary`.

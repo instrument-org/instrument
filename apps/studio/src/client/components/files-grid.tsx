@@ -309,6 +309,7 @@ const ROW_CARD_PREVIEW: Record<FileType, boolean> = {
   markdown: true,
   pdf: true,
   pptx: true,
+  sqlite: true,
   text: true,
   unknown: true,
   video: false,

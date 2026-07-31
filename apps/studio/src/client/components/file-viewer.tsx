@@ -4,6 +4,7 @@ import {
   LazyDocxViewer,
   LazyPdfViewer,
   LazyPptxViewer,
+  LazySqliteViewer,
   LazyXlsxViewer,
 } from "@/client/lib/document-viewers";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
@@ -293,6 +294,14 @@ const VIEWERS = {
     render: ({ fallback, file }) => (
       <ViewerSurface fallback={fallback} resetKey={file.url}>
         <LazyPptxViewer filename={file.filename} url={file.url} />
+      </ViewerSurface>
+    ),
+    scrolls: "self",
+  },
+  sqlite: {
+    render: ({ fallback, file }) => (
+      <ViewerSurface fallback={fallback} resetKey={file.url}>
+        <LazySqliteViewer url={file.url} />
       </ViewerSurface>
     ),
     scrolls: "self",

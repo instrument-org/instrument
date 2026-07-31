@@ -9,6 +9,7 @@ const vendorUrl = (assetPath: string) =>
   `${APP_PROTOCOL}://vendor/${assetPath}`;
 
 export const PDFIUM_WASM_URL = vendorUrl("pdfium.wasm");
+export const SQLITE_WASM_URL = vendorUrl("sqlite3.wasm");
 
 // Every host that mounts a viewer goes through these handles, so a viewer can
 // never reach its parser with the library's default wasm source: that one
@@ -56,6 +57,15 @@ export const LazyXlsxViewer = lazy(async () => {
 export const LazyCsvViewer = lazy(async () => {
   const module = await import("@/client/components/document-viewers/csv-viewer");
   return { default: module.CsvViewer };
+});
+
+// SQLite fetches its wasm through the Emscripten `locateFile` hook rather than
+// a module-level setter, so the viewer passes `SQLITE_WASM_URL` itself.
+export const LazySqliteViewer = lazy(async () => {
+  const module = await import(
+    "@/client/components/document-viewers/sqlite-viewer"
+  );
+  return { default: module.SqliteViewer };
 });
 
 async function configureDocxWasmSource() {

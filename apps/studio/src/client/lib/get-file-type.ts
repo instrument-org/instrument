@@ -10,6 +10,7 @@ export type FileType =
   | "markdown"
   | "pdf"
   | "pptx"
+  | "sqlite"
   | "text"
   | "unknown"
   | "video"
@@ -43,6 +44,9 @@ function fileKindLabel(fileType: FileType): string {
     }
     case "pptx": {
       return "PowerPoint presentation";
+    }
+    case "sqlite": {
+      return "Database";
     }
     case "text": {
       return "Text file";
@@ -217,6 +221,11 @@ export function getFileKindLabel({
 // cspell:ignore docm pptm xlsm
 const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
   csv: "csv",
+  // A database has no registered mime type of its own, so the extension is the
+  // only thing that identifies one. `.db` is the loosest of the three and does
+  // get used for unrelated formats; those still reach the fallback card,
+  // because opening one fails on the header rather than rendering nonsense.
+  db: "sqlite",
   docm: "docx",
   docx: "docx",
   // PDF was detected by mime type alone, which left a `.pdf` arriving without
@@ -225,6 +234,8 @@ const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
   ppt: "pptx",
   pptm: "pptx",
   pptx: "pptx",
+  sqlite: "sqlite",
+  sqlite3: "sqlite",
   tsv: "csv",
   xls: "xlsx",
   xlsm: "xlsx",

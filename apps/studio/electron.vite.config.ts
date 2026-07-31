@@ -112,6 +112,10 @@ function copyVendorAssets(): Plugin {
       from: require.resolve("@extend-ai/react-xlsx/duke_sheets_wasm_bg.wasm"),
       to: path.join(vendorDir, "xlsx.wasm"),
     },
+    {
+      from: require.resolve("@sqlite.org/sqlite-wasm/sqlite3.wasm"),
+      to: path.join(vendorDir, "sqlite3.wasm"),
+    },
   ];
   return {
     async buildStart() {

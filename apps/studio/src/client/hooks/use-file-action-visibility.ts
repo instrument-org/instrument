@@ -20,6 +20,7 @@ const IS_TEXT_LIKE: Record<FileType, boolean> = {
   markdown: true,
   pdf: false,
   pptx: false,
+  sqlite: false,
   text: true,
   unknown: false,
   video: false,

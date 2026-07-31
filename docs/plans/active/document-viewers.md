@@ -83,11 +83,18 @@ Five read-only viewers, each with page/slide navigation and zoom, text selection
 
 PDF selection needed far less than expected: `@embedpdf/plugin-selection` ships `SelectionLayer` and `CopyToClipboard`, so the ~150 lines of scaffolding budgeted for it were not required. That was the item flagged as the known-hard part, and it was not.
 
+It did need two things the plugin does not do, and without either one the page reads as a picture of a document rather than a document:
+
+- **Nothing binds a copy shortcut.** `CopyToClipboard` only subscribes to a `copyToClipboard` event; the plugin never emits one on its own, so a selection could be made and never taken anywhere. The viewer binds Cmd/Ctrl+C itself, guarded on the document actually holding selection rects — an unguarded call emits the empty string, which would wipe the clipboard on any copy elsewhere in the app.
+- **The page bitmaps were draggable.** `RenderLayer` and `TilingLayer` both render an `<img>`, and an `<img>` is a drag source by default. A press that landed a few pixels off a glyph tore the page bitmap out as a drag image instead of starting a selection, and a right-click offered Chromium's Save Image As on it. Both layers are `pointer-events: none` now, leaving hit-testing to the pointer provider that owns selection.
+
 DOCX page navigation is the piece that did need hand-work. The editor controller's `currentPage` tracks the caret, which in read-only mode reports whatever the paginator touched last, so a freshly opened document showed its final page. The visible page is measured from scroll position against the rendered page wrappers instead.
 
 Each engine counts zoom in its own units, and the toolbar's are factors where 1 is 100%. pdfium and the DOCX viewer agree; XLSX does not — its `setZoomScale` takes Excel's percentage, clamped to 10..400, so handing it a factor lands every document at the 10% floor. Its toolbar readout is also driven from `controller.zoomScale` rather than local state, so a trackpad pinch on the grid moves the number with it. Read-only is likewise a property of that controller, not of the viewer component: the component reads its editing state from whichever controller it is handed and only builds one from its own props when none is supplied, so a `readOnly` prop on the component alone leaves cell editing, paste and undo live.
 
-Fit-width is a one-shot rather than a mode wherever we compute it ourselves. PDF has a real `ZoomMode.FitWidth` that re-fits on resize; DOCX gets the level a page needs to span its scroll container, measured against `useDocxPageLayout`'s `pageWidthPx`, and then keeps whatever number that produced so the stepper has somewhere to step from.
+Fit-width is a mode everywhere, not a one-shot. PDF gets that from pdfium's own `ZoomMode.FitWidth`; DOCX and PPTX get it from `use-fit-width.ts`, which recomputes the level from a `ResizeObserver` on the scroll container. A one-shot is wrong here because both things that change the available width — dragging the artifact panel's splitter and zooming the app — are continuous, so a level computed once is stale before the drag ends. DOCX opens fitted: a Word page is 8.5in of content, which overflows the panel at any usual width, so opening at 100% means opening on a horizontal scrollbar.
+
+PPTX fit needs the level computed here rather than `controller.setFitMode`. `zoom` is a controlled prop on `ReactPptxViewer`, so whatever the library resolves for a fit mode is overwritten on the next render by our number; the fit has to be our number. The slide's natural width comes from the deck's own `size.widthEmu`, EMUs being OOXML's unit, over 9525 per pixel.
 
 CSV/TSV gets a viewer we own outright, on `@tanstack/react-virtual` — already a Studio dependency — plus `papaparse` for RFC 4180 parsing, which is the only new dependency in this row. Routing CSV through the XLSX stack is not available: that worker only accepts zipped workbook bytes via `Workbook.fromBytes`.
 
@@ -226,6 +233,8 @@ Nothing loaded during renderer startup may statically import a viewer library. E
 
 Unchanged. Asset URLs come from the existing local HTTP server (`http://assets.<taskId>.<host>/<path>?version=<mtime>`), which already supports Range requests and CORS — embedpdf streams PDFs through range requests rather than fetching whole files. No new RPC.
 
+Right-click: PDF, PPTX and XLSX get the file's own actions, the same menu the image and video viewers use. All three paint their content as images, so Chromium infers Save Image As and Copy Image on what the user is reading as a document — and what it would save is one rasterized page at whatever resolution it happened to be rendered. DOCX and CSV keep the native menu: those are real DOM text, and Copy on a selection is the right offer there.
+
 Theme: documents render in their own colors at every app theme, matching the PDF viewer. The DOCX and XLSX libraries both offer a night-reader mode that inverts content, and both were tried; the inverted body text reads washed out, and applying it would make those two the only formats whose pages change color with the app. A workbook's cell fills and conditional formatting are content, not chrome. The surrounding chrome still follows the app theme.
 
 App zoom: the toolbar's dropdowns, popovers, selects, and tooltips get `useAppZoomStyle` for free by using Studio's primitives. Canvas-rendered document content needs checking at zoom levels other than 1x — the viewers do their own device-pixel-ratio math.
@@ -234,10 +243,11 @@ App zoom: the toolbar's dropdowns, popovers, selects, and tooltips get `useAppZo
 
 Per `.agents/skills/validate-changes/SKILL.md`, none of this is observable from reading the code. Each format needs a real file opened in a running Studio:
 
-- Dev, all five formats, in the artifact panel and the expand modal, both themes, app zoom at 1x and something else. All five have been opened in the artifact panel in dev, and DOCX in the expand modal; the light theme and zoom levels other than 1x have not been exercised. Page navigation has been confirmed to move the modal's viewer and not the panel's copy, which is the failure the two hosts mounting the same file invites.
+- Dev, all five formats, in the artifact panel and the expand modal, both themes, app zoom at 1x and something else. All five have been opened in the artifact panel in dev, DOCX and PDF in the expand modal, and PPTX at 1x and above; the light theme has not been exercised. Two host-collision failures have been checked and do not occur: page navigation moves the modal's viewer rather than the panel's copy, and a PDF open in both survives the modal closing even though each `PdfDocument` closes the documents it did not open.
+- PDF text selection and copy, which is the part reconstructed above a bitmap rather than native browser selection. Selecting the title of a paper and pressing Cmd+C puts that title on the clipboard. Still worth checking by hand across a page boundary and at several zoom levels.
 - A packaged build, all five formats — the `file://` origin, the app protocol, and the copied `resources/wasm/` only exist there. This is the step that catches wasm and worker regressions.
 - A narrow artifact panel, to confirm the toolbar collapses rather than overflowing.
 - A large file per format (a 500-page PDF, a workbook with many sheets) for the virtualization and memory paths.
 - A malformed file per format, to confirm the `CatchBoundary` degrades to the fallback card rather than taking down the panel.
 - For PDF specifically, a corpus of awkward real-world documents rather than only generated ones: a scan, a filled government form, a CJK document, something from an old generator. Robust compatibility with whatever a user brings is why pdfium was chosen, so it is the thing to actually check.
-- PDF text selection and copy across page boundaries and at several zoom levels. This is reconstructed above a canvas rather than native browser selection, so it is the part most likely to be subtly wrong. Not yet exercised by hand.
+- `.numbers` files, which do not preview: `@dukelib/sheets-wasm` reads OOXML and legacy `.xls`, and Apple's format is neither. Supporting it means a separate parser for a proprietary, undocumented container, so those files keep falling through to the "open in the associated app" path.

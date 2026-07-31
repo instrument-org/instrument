@@ -15,7 +15,10 @@ import {
   InteractionManagerPluginPackage,
   PagePointerProvider,
 } from "@embedpdf/plugin-interaction-manager/react";
-import { RenderLayer, RenderPluginPackage } from "@embedpdf/plugin-render/react";
+import {
+  RenderLayer,
+  RenderPluginPackage,
+} from "@embedpdf/plugin-render/react";
 import {
   type PageLayout,
   Scroller,
@@ -39,12 +42,19 @@ import {
   ThumbnailPluginPackage,
   ThumbnailsPane,
 } from "@embedpdf/plugin-thumbnail/react";
-import { TilingLayer, TilingPluginPackage } from "@embedpdf/plugin-tiling/react";
+import {
+  TilingLayer,
+  TilingPluginPackage,
+} from "@embedpdf/plugin-tiling/react";
 import {
   Viewport,
   ViewportPluginPackage,
 } from "@embedpdf/plugin-viewport/react";
-import { useZoom, ZoomMode, ZoomPluginPackage } from "@embedpdf/plugin-zoom/react";
+import {
+  useZoom,
+  ZoomMode,
+  ZoomPluginPackage,
+} from "@embedpdf/plugin-zoom/react";
 import { useEffect, useState } from "react";
 
 import { FileLoading } from "../file-loading";

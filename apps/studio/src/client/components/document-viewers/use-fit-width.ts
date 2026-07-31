@@ -1,5 +1,5 @@
 import { MAX_ZOOM, MIN_ZOOM } from "@/client/lib/zoom-levels";
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 
 // Space left either side of fitted content, so a page does not sit flush
 // against the scrollbar and the panel edge.
@@ -40,7 +40,10 @@ export function useFitWidth({
   const [zoom, setZoom] = useState(1);
   const [isFit, setIsFit] = useState(initialFit);
 
-  useEffect(() => {
+  // A layout effect rather than a passive one: the fit is measured off the
+  // container, and both callers open fitted, so running after paint would show
+  // a frame of the document at 100% before it snapped down to fit.
+  useLayoutEffect(() => {
     if (!isFit || !container || contentWidth <= 0) {
       return;
     }

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useEffectEvent } from "react";
 
 /**
  * Cmd/Ctrl+C for a viewer whose selection the browser cannot see.
@@ -24,6 +24,11 @@ export function useCopyShortcut({
   container: HTMLElement | null;
   onCopy: () => boolean;
 }) {
+  // `onCopy` closes over its viewer's selection state, so it is a different
+  // function on every render. Held as an effect event, the listener subscribes
+  // once per container instead of being torn down and re-added each time.
+  const copy = useEffectEvent(onCopy);
+
   useEffect(() => {
     if (!container) {
       return;
@@ -36,7 +41,7 @@ export function useCopyShortcut({
       if (!container.contains(document.activeElement)) {
         return;
       }
-      if (onCopy()) {
+      if (copy()) {
         event.preventDefault();
       }
     };
@@ -45,5 +50,5 @@ export function useCopyShortcut({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [container, onCopy]);
+  }, [container]);
 }

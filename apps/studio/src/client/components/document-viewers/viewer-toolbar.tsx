@@ -126,7 +126,10 @@ export function ViewerPageControl({
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            className={cn(actionClassName, "@max-[360px]/viewer-toolbar:hidden")}
+            className={cn(
+              actionClassName,
+              "@max-[360px]/viewer-toolbar:hidden",
+            )}
             disabled={page <= 1}
             onClick={() => {
               onPageChange(page - 1);
@@ -172,7 +175,10 @@ export function ViewerPageControl({
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            className={cn(actionClassName, "@max-[360px]/viewer-toolbar:hidden")}
+            className={cn(
+              actionClassName,
+              "@max-[360px]/viewer-toolbar:hidden",
+            )}
             disabled={page >= count}
             onClick={() => {
               onPageChange(page + 1);

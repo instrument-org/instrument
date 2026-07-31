@@ -21,6 +21,8 @@ import {
 } from "./viewer-toolbar";
 
 const THUMBNAIL_WIDTH = 104;
+// How long `revealPage` waits for the viewer to mount the page it jumped to.
+const REVEAL_CORRECTION_FRAMES = 10;
 
 /**
  * DOCX rendering goes through the library's editor controller in `read-only`
@@ -250,11 +252,31 @@ function revealPage({
   const stride =
     (layout.pageHeightPx + layout.viewportDefaults.pageGapPx) * zoom;
   scrollElement.scrollTo({ behavior: "instant", top: pageIndex * stride });
+
   // The jump mounts the page; landing exactly on it needs the real element,
-  // which only exists after the viewer has rendered that window.
-  requestAnimationFrame(() => {
-    findTarget()?.scrollIntoView({ behavior: "instant", block: "start" });
-  });
+  // which only exists once the viewer has rendered that window. How many frames
+  // that takes is the viewer's business, so the correction is retried over a
+  // short window and then abandoned: the computed offset already lands close,
+  // so giving up is a near miss rather than a failure to navigate.
+  const landedAt = scrollElement.scrollTop;
+  let attempts = REVEAL_CORRECTION_FRAMES;
+  const correct = () => {
+    // A scroll position that is no longer where the jump left it means the user
+    // has taken over, and correcting now would drag them back off their page.
+    if (Math.abs(scrollElement.scrollTop - landedAt) > 1) {
+      return;
+    }
+    const target = findTarget();
+    if (target) {
+      target.scrollIntoView({ behavior: "instant", block: "start" });
+      return;
+    }
+    attempts -= 1;
+    if (attempts > 0) {
+      requestAnimationFrame(correct);
+    }
+  };
+  requestAnimationFrame(correct);
 }
 
 /**

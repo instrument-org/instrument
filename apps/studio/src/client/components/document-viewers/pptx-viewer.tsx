@@ -47,18 +47,21 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
   // `controller.search` is synchronous and imperative, so it runs on the input
   // event rather than in an effect watching `query`, which would both lag a
   // render behind and re-run the search whenever the controller identity moved.
-  const handleQueryChange = (next: string) => {
-    setQuery(next);
-    if (!controller) {
-      return;
-    }
+  const runSearch = (target: PptxViewerController, next: string) => {
     if (next === "") {
-      controller.clearSearchHighlights();
+      target.clearSearchHighlights();
       setMatches([]);
       return;
     }
-    setMatches(controller.search(next));
+    setMatches(target.search(next));
     setActiveMatch(0);
+  };
+
+  const handleQueryChange = (next: string) => {
+    setQuery(next);
+    if (controller) {
+      runSearch(controller, next);
+    }
   };
 
   const current = matches[activeMatch];
@@ -135,24 +138,33 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
             panel empty however tall the panel is. A percentage resolves against
             this element, which `inset-0` has already sized. */}
         <div className="absolute inset-0" ref={setContainer}>
-        <ReactPptxViewer
-          className="size-full bg-muted/40"
-          height="100%"
-          onLoad={(presentation) => {
-            setSlideCount(Math.max(presentation.document.slides.length, 1));
-            // The deck carries its slide size in EMUs, the OOXML unit. Divided
-            // out, it is the width one slide occupies at 100% zoom, which is
-            // what fit-width scales against.
-            setSlideWidth(presentation.document.size.widthEmu / EMU_PER_PIXEL);
-          }}
-          onReady={setController}
-          onSlideChange={setSlideIndex}
-          showThumbnails={false}
-          showToolbar={false}
-          slideIndex={slideIndex}
-          source={url}
-          zoom={zoom * 100}
-        />
+          <ReactPptxViewer
+            className="size-full bg-muted/40"
+            height="100%"
+            onLoad={(presentation) => {
+              setSlideCount(Math.max(presentation.document.slides.length, 1));
+              // The deck carries its slide size in EMUs, the OOXML unit. Divided
+              // out, it is the width one slide occupies at 100% zoom, which is
+              // what fit-width scales against.
+              setSlideWidth(
+                presentation.document.size.widthEmu / EMU_PER_PIXEL,
+              );
+            }}
+            onReady={(ready) => {
+              setController(ready);
+              // A query typed while the deck was still parsing had no controller
+              // to run against, so it is searched once one exists.
+              if (query !== "") {
+                runSearch(ready, query);
+              }
+            }}
+            onSlideChange={setSlideIndex}
+            showThumbnails={false}
+            showToolbar={false}
+            slideIndex={slideIndex}
+            source={url}
+            zoom={zoom * 100}
+          />
         </div>
       </ViewerBody>
     </>

@@ -3,7 +3,7 @@ import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import Papa from "papaparse";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import { FileLoading } from "../file-loading";
 import {
@@ -20,11 +20,16 @@ const MAX_COLUMN_WIDTH = 420;
 const WIDTH_SAMPLE_ROWS = 200;
 const CHARACTER_WIDTH = 7.2;
 const CELL_PADDING = 24;
-const FIND_DEBOUNCE_MS = 200;
 
-interface Match { column: number; row: number }
+interface Match {
+  column: number;
+  row: number;
+}
 
-interface Sort { column: number; direction: "ascending" | "descending" }
+interface Sort {
+  column: number;
+  direction: "ascending" | "descending";
+}
 
 export function CsvViewer({
   filename,
@@ -95,16 +100,22 @@ function CsvGrid({ filename, text }: { filename: string; text: string }) {
   const sortedRows = useMemo(() => sortRows({ rows, sort }), [rows, sort]);
 
   // Scanning every cell is O(rows x columns) and this viewer is built for large
-  // exports, so it runs on a settled query rather than on each keystroke.
-  const settledQuery = useDebounced(query, FIND_DEBOUNCE_MS);
+  // exports, so the scan trails the field rather than keeping pace with it:
+  // typing stays responsive and the match runs at a lower priority once React
+  // has caught up.
+  const deferredQuery = useDeferredValue(query);
   const matches = useMemo(
-    () => findMatches({ query: settledQuery, rows: sortedRows }),
-    [settledQuery, sortedRows],
+    () => findMatches({ query: deferredQuery, rows: sortedRows }),
+    [deferredQuery, sortedRows],
   );
 
-  useEffect(() => {
-    setActiveMatch(0);
-  }, [settledQuery]);
+  // Every rendered cell asks whether it is a match, which is the question
+  // `findMatches` has already answered for the whole file. Indexed once so the
+  // render reads an answer instead of recomputing one per cell per frame.
+  const matchKeys = useMemo(
+    () => new Set(matches.map((match) => `${match.row}:${match.column}`)),
+    [matches],
+  );
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
@@ -114,7 +125,11 @@ function CsvGrid({ filename, text }: { filename: string; text: string }) {
     overscan: 12,
   });
 
-  const current = matches[activeMatch];
+  // Sorting rebuilds `matches` under an unchanged query, so the index is
+  // wrapped rather than trusted: left alone it can point past the new end,
+  // dropping the highlight and leaving the readout counting past the total.
+  const activeIndex = matches.length === 0 ? 0 : activeMatch % matches.length;
+  const current = matches[activeIndex];
   useEffect(() => {
     if (current) {
       virtualizer.scrollToIndex(current.row, { align: "center" });
@@ -125,10 +140,8 @@ function CsvGrid({ filename, text }: { filename: string; text: string }) {
     if (matches.length === 0) {
       return;
     }
-    setActiveMatch((index) => {
-      const next = (index + delta) % matches.length;
-      return next < 0 ? next + matches.length : next;
-    });
+    const next = (activeIndex + delta) % matches.length;
+    setActiveMatch(next < 0 ? next + matches.length : next);
   };
 
   let totalWidth = 0;
@@ -143,12 +156,11 @@ function CsvGrid({ filename, text }: { filename: string; text: string }) {
           way to disagree with the rest of the app. */}
       <ViewerToolbar>
         <span className="px-1 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-          {rows.length.toLocaleString()}{" "}
-          {rows.length === 1 ? "row" : "rows"}
+          {rows.length.toLocaleString()} {rows.length === 1 ? "row" : "rows"}
         </span>
         <ViewerToolbarSpacer />
         <ViewerFindControl
-          activeMatch={activeMatch}
+          activeMatch={activeIndex}
           matchCount={matches.length}
           onNextMatch={() => {
             goToMatch(1);
@@ -156,13 +168,21 @@ function CsvGrid({ filename, text }: { filename: string; text: string }) {
           onPreviousMatch={() => {
             goToMatch(-1);
           }}
-          onQueryChange={setQuery}
+          onQueryChange={(next) => {
+            setQuery(next);
+            // A new query starts at its own first match rather than wherever
+            // the previous one happened to be left.
+            setActiveMatch(0);
+          }}
           query={query}
         />
       </ViewerToolbar>
 
       <div className="min-h-0 flex-1 overflow-auto" ref={scrollRef}>
-        <div className="relative text-[0.8125rem]" style={{ width: totalWidth }}>
+        <div
+          className="relative text-[0.8125rem]"
+          style={{ width: totalWidth }}
+        >
           <div className="sticky top-0 z-10 flex bg-muted/95 backdrop-blur-sm">
             {header.map((cell, column) => (
               <button
@@ -200,9 +220,9 @@ function CsvGrid({ filename, text }: { filename: string; text: string }) {
                 }}
               >
                 {(sortedRows[virtualRow.index] ?? []).map((cell, column) => {
-                  const isMatch =
-                    settledQuery !== "" &&
-                    cell.toLowerCase().includes(settledQuery.toLowerCase());
+                  const isMatch = matchKeys.has(
+                    `${virtualRow.index}:${column}`,
+                  );
                   const isActive =
                     current?.row === virtualRow.index &&
                     current.column === column;
@@ -215,7 +235,9 @@ function CsvGrid({ filename, text }: { filename: string; text: string }) {
                         isActive && "bg-yellow-500/60",
                       )}
                       key={column}
-                      style={{ width: columnWidths[column] ?? MIN_COLUMN_WIDTH }}
+                      style={{
+                        width: columnWidths[column] ?? MIN_COLUMN_WIDTH,
+                      }}
                       title={cell}
                     >
                       {cell}
@@ -319,25 +341,12 @@ function sortRows({ rows, sort }: { rows: string[][]; sort: null | Sort }) {
     );
     // Blanks are pushed to the end by `compareCells` regardless of direction,
     // so their ordering is not flipped along with everything else.
-    if (compared !== 0 && (first[sort.column] === "" || second[sort.column] === "")) {
+    if (
+      compared !== 0 &&
+      (first[sort.column] === "" || second[sort.column] === "")
+    ) {
       return compared;
     }
     return compared * direction;
   });
-}
-
-/** Holds a value back until it has stopped changing for `delay` ms. */
-function useDebounced(value: string, delay: number) {
-  const [settled, setSettled] = useState(value);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setSettled(value);
-    }, delay);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [delay, value]);
-
-  return settled;
 }

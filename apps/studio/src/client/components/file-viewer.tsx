@@ -560,7 +560,11 @@ export function FileViewer({
   const viewerContext: ViewerContext = {
     fallback: (
       <FilePreviewFallback
-        fallbackExtension={fileType === "image" ? "jpg" : undefined}
+        // Only consulted when the filename carries no recognizable extension,
+        // where the type is all there is to go on: an image gets a picture
+        // icon and everything else the generic binary one, rather than the
+        // blank an absent stand-in leaves.
+        fallbackExtension={fileType === "image" ? "jpg" : "bin"}
         file={file}
         filename={filename}
         onDownload={fileActions.showDownload ? handleDownload : undefined}

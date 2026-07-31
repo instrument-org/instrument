@@ -6,8 +6,8 @@ import Panzoom, {
 import { clamp } from "radashi";
 import { type RefObject, useEffect, useRef, useState } from "react";
 
-// The file viewer tags the panzoom viewport element with this class (see
-// file-viewer), which runs its own wheel zoom below.
+// The image viewer tags the panzoom viewport element with this class (see
+// image-viewer), which runs its own wheel zoom below.
 export const IMAGE_PANZOOM_VIEWPORT_CLASS = "image-panzoom-viewport";
 
 const ZOOMED_IN_THRESHOLD = 1.01;

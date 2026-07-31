@@ -41,6 +41,11 @@ const CODE_EXTENSION_OVERRIDES: Record<string, string> = {
   hx: "text/plain",
   java: "text/plain",
   jl: "text/plain",
+  // Line-delimited JSON is text, but `mime-types` knows neither extension, so
+  // both resolved to `application/octet-stream` and the viewer showed the
+  // "no preview" card. Not `application/json`, which they are not: each line
+  // parses on its own, the file as a whole does not.
+  jsonl: "text/plain",
   jsx: "text/jsx",
   kt: "text/plain",
   latex: "text/plain",
@@ -54,6 +59,7 @@ const CODE_EXTENSION_OVERRIDES: Record<string, string> = {
   mjs: "text/javascript",
   ml: "text/plain",
   mts: "text/typescript",
+  ndjson: "text/plain",
   nim: "text/plain",
   nix: "text/plain",
   objc: "text/plain",

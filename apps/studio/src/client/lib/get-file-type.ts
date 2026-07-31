@@ -1,15 +1,19 @@
 import { isTextMimeType } from "./is-text-mime-type";
 
-type FileType =
+export type FileType =
   | "audio"
   | "code"
+  | "csv"
+  | "docx"
   | "html"
   | "image"
   | "markdown"
   | "pdf"
+  | "pptx"
   | "text"
   | "unknown"
-  | "video";
+  | "video"
+  | "xlsx";
 
 function fileKindLabel(fileType: FileType): string {
   switch (fileType) {
@@ -18,6 +22,12 @@ function fileKindLabel(fileType: FileType): string {
     }
     case "code": {
       return "Code";
+    }
+    case "csv": {
+      return "CSV data";
+    }
+    case "docx": {
+      return "Word document";
     }
     case "html": {
       return "HTML";
@@ -31,11 +41,17 @@ function fileKindLabel(fileType: FileType): string {
     case "pdf": {
       return "PDF";
     }
+    case "pptx": {
+      return "PowerPoint presentation";
+    }
     case "text": {
       return "Text file";
     }
     case "video": {
       return "Video";
+    }
+    case "xlsx": {
+      return "Excel spreadsheet";
     }
     default: {
       return "File";
@@ -189,6 +205,32 @@ export function getFileKindLabel({
   return fileKindLabel(getFileType({ filename, mimeType }));
 }
 
+// Extensions each document viewer can actually parse, checked before the
+// text/code fallbacks so `.csv` does not land in the syntax highlighter.
+//
+// The legacy binary formats are deliberate: `@extend-ai/react-pptx` decodes
+// `.ppt` compound documents, and `@extend-ai/react-xlsx` falls back to a
+// reduced path for `.xls` when it detects OLE magic bytes. Both render less
+// than their OOXML equivalents but more than the "preview unavailable" card,
+// and a hard parse failure still degrades to it. `.doc` is absent because
+// `@extend-ai/react-docx` reads OOXML only.
+// cspell:ignore docm pptm xlsm
+const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
+  csv: "csv",
+  docm: "docx",
+  docx: "docx",
+  // PDF was detected by mime type alone, which left a `.pdf` arriving without
+  // one falling through to the fallback card.
+  pdf: "pdf",
+  ppt: "pptx",
+  pptm: "pptx",
+  pptx: "pptx",
+  tsv: "csv",
+  xls: "xlsx",
+  xlsm: "xlsx",
+  xlsx: "xlsx",
+};
+
 export function getFileType({
   filename,
   mimeType,
@@ -197,6 +239,15 @@ export function getFileType({
   mimeType?: string;
 }): FileType {
   const lowerFilename = filename.toLowerCase();
+
+  const extensionStart = lowerFilename.lastIndexOf(".");
+  const documentType =
+    extensionStart === -1
+      ? undefined
+      : DOCUMENT_EXTENSIONS[lowerFilename.slice(extensionStart + 1)];
+  if (documentType) {
+    return documentType;
+  }
 
   if (mimeType) {
     if (mimeType.startsWith("image/")) {

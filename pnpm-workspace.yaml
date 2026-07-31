@@ -53,6 +53,14 @@ ignoredOptionalDependencies:
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - agent-browser
+  # Document-viewer libraries pinned to exact pre-1.0 versions. The viewers are
+  # written against these exact releases, so a newer publish is a deliberate
+  # upgrade rather than something to float onto.
+  - "@extend-ai/react-docx"
+  - "@extend-ai/react-pptx"
+  - "@extend-ai/react-xlsx"
+  # Transitive, version-locked by @extend-ai/react-xlsx.
+  - "@dukelib/sheets-wasm"
 
 overrides:
   "@electron/rebuild>node-abi": 4.31.0
@@ -63,6 +71,7 @@ overrides:
   jiti: 2.7.0
 
 patchedDependencies:
+  "@extend-ai/react-docx@0.8.1": patches/@extend-ai__react-docx@0.8.1.patch
   "@parcel/watcher@2.6.0": patches/@parcel__watcher@2.6.0.patch
   app-builder-lib@26.15.7: patches/app-builder-lib@26.15.7.patch
   conf@14.0.0: patches/conf@14.0.0.patch

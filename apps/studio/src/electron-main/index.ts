@@ -56,6 +56,11 @@ if (gotTheLock) {
   protocol.registerSchemesAsPrivileged([
     {
       privileges: {
+        // The renderer's origin is never this scheme, so the document viewers
+        // fetching their WASM from it is always a cross-origin request.
+        // Chromium rejects those for custom schemes unless the scheme itself
+        // opts in, regardless of the response's CORS headers.
+        corsEnabled: true,
         secure: true,
         standard: true,
         supportFetchAPI: true,

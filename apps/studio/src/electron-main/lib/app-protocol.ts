@@ -4,9 +4,26 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { getResourcePath } from "./resource-path";
+
 const FILE_OPEN_ICON_HOST = "file-open-icon";
+// The renderer runs from `file://` in production, where bundled assets cannot
+// be fetched, so the document viewers load their wasm engines from here
+// instead.
+const VENDOR_HOST = "vendor";
 const ICON_SIZE = 64;
 const ICON_FILENAME_PATTERN = /^[a-f0-9]{64}\.png$/;
+// Deliberately narrow: these paths come from the renderer, and the only ones
+// that need to work are the payloads copied in at build time. Every dot has to
+// be followed by more of the segment, which is what makes `..` unspellable, so
+// nothing here can climb out of the vendor directory.
+const VENDOR_PATH_PATTERN = /^[\w-]+(?:\.[\w-]+)*(?:\/[\w-]+(?:\.[\w-]+)*)*$/;
+// Doubles as the allowlist of servable kinds: a path whose extension is not
+// here is a 404, so the license files sitting beside the binaries stay
+// unreachable.
+const VENDOR_CONTENT_TYPES: Record<string, string> = {
+  ".wasm": "application/wasm",
+};
 const IMMUTABLE_CACHE_SECONDS = 365 * 24 * 60 * 60;
 
 export function registerAppProtocol() {
@@ -15,6 +32,9 @@ export function registerAppProtocol() {
     switch (url.hostname) {
       case FILE_OPEN_ICON_HOST: {
         return handleFileOpenIconRequest({ request, url });
+      }
+      case VENDOR_HOST: {
+        return handleVendorRequest({ request, url });
       }
       default: {
         return new Response(null, { status: 404 });
@@ -65,6 +85,43 @@ async function handleFileOpenIconRequest({
         // This finite lifetime only bounds retention of unchanged content.
         "Cache-Control": `public, max-age=${IMMUTABLE_CACHE_SECONDS}, immutable`,
         "Content-Type": "image/png",
+      },
+    });
+  } catch {
+    return new Response(null, { status: 404 });
+  }
+}
+
+async function handleVendorRequest({
+  request,
+  url,
+}: {
+  request: Request;
+  url: URL;
+}) {
+  const assetPath = url.pathname.slice(1);
+  const contentType = VENDOR_CONTENT_TYPES[path.extname(assetPath)];
+  if (
+    request.method !== "GET" ||
+    !VENDOR_PATH_PATTERN.test(assetPath) ||
+    !contentType
+  ) {
+    return new Response(null, { status: 404 });
+  }
+
+  try {
+    const asset = await fs.readFile(getResourcePath(VENDOR_HOST, assetPath));
+    return new Response(asset, {
+      headers: {
+        // The renderer's own origin is `file://` (or the dev server) and never
+        // this scheme, so every request here is cross-origin and `fetch()`
+        // would fail CORS without this. The bytes ship with the app and the
+        // scheme is only reachable from the app's own web contents.
+        "Access-Control-Allow-Origin": "*",
+        // These ship with the app build, so they only change when the app
+        // itself is replaced and the renderer is reloaded from scratch.
+        "Cache-Control": `public, max-age=${IMMUTABLE_CACHE_SECONDS}, immutable`,
+        "Content-Type": contentType,
       },
     });
   } catch {

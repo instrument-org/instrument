@@ -15,6 +15,9 @@ dist/
 # Vendored uv binary (downloaded by scripts/download-uv.ts)
 resources/uv/
 
+# Document-viewer WASM binaries (copied from node_modules by the main build)
+resources/vendor/
+
 # Turbo
 .turbo
 

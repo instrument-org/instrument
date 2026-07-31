@@ -44,21 +44,79 @@ const resolve = {
   },
 };
 
+let stagingCounter = 0;
+
+// `buildStart` fires on every watch rebuild, so re-copying ~11MB of WASM each
+// time is skipped when the destination already holds the current bytes. The
+// mtime has to match exactly rather than merely be newer: pnpm hard links from
+// its store, which carries the store's timestamps, so a reinstall can drop in a
+// same-size asset that is older than what was copied before. Both sides are
+// truncated to whole milliseconds because the stamp below goes through a `Date`,
+// which drops the sub-millisecond precision a source file can carry.
+async function copyVendorAsset({ from, to }: { from: string; to: string }) {
+  const source = await fs.stat(from);
+  try {
+    const target = await fs.stat(to);
+    if (
+      target.size === source.size &&
+      Math.trunc(target.mtimeMs) === Math.trunc(source.mtimeMs)
+    ) {
+      return;
+    }
+  } catch {
+    // No destination yet.
+  }
+  await fs.mkdir(path.dirname(to), { recursive: true });
+  // Stage then rename so an interrupted or concurrent build cannot leave a torn
+  // binary in place, and stamp the source mtime so the skip check above holds.
+  // The staging name is unique per writer: two builds sharing one checkout
+  // would otherwise interleave into the same temp path, and the rename would
+  // publish the mixed bytes with a current-looking mtime.
+  const staging = `${to}.${process.pid}.${stagingCounter++}.tmp`;
+  await fs.copyFile(from, staging);
+  await fs.utimes(staging, source.atime, source.mtime);
+  await fs.rename(staging, to);
+}
+
+// Registered on the main build alone. Every `electron-vite dev` and `build`
+// invocation builds main, and the destinations are read by the main process, so
+// a second registration would only add copies racing each other.
 function copyVendorAssets(): Plugin {
   const require = createRequire(import.meta.url);
+  const resourcesDir = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "resources",
+  );
+  const vendorDir = path.join(resourcesDir, "vendor");
   const assets = [
     {
       from: require.resolve("@tailwindcss/browser"),
-      to: path.join(
-        path.dirname(fileURLToPath(import.meta.url)),
-        "resources/tailwind-browser.js",
-      ),
+      to: path.join(resourcesDir, "tailwind-browser.js"),
+    },
+    // The renderer runs from `file://` in production, where `fetch()` of
+    // bundled assets is blocked, so these are served over the app protocol
+    // from `resources/` instead of being emitted into the renderer bundle.
+    {
+      from: require.resolve("@embedpdf/pdfium/pdfium.wasm"),
+      to: path.join(vendorDir, "pdfium.wasm"),
+    },
+    {
+      from: require.resolve("@extend-ai/react-docx/docx_wasm_bg.wasm"),
+      to: path.join(vendorDir, "docx.wasm"),
+    },
+    {
+      from: require.resolve("@extend-ai/react-pptx/pptx_wasm_bg.wasm"),
+      to: path.join(vendorDir, "pptx.wasm"),
+    },
+    {
+      from: require.resolve("@extend-ai/react-xlsx/duke_sheets_wasm_bg.wasm"),
+      to: path.join(vendorDir, "xlsx.wasm"),
     },
   ];
   return {
     async buildStart() {
       for (const { from, to } of assets) {
-        await fs.copyFile(from, to);
+        await copyVendorAsset({ from, to });
       }
     },
     name: "copy-vendor-assets",
@@ -216,6 +274,27 @@ export default defineConfig(({ command }) => {
         sourcemap: isProduction,
         watch: {}, // Enable hot reloading
       },
+      // Each document viewer spawns its parser worker with `new Worker(new
+      // URL("./x.js", import.meta.url), { type: "module" })`. Pre-bundling
+      // rewrites `import.meta.url` to the dependency cache, where the sibling
+      // worker file does not exist, so the dev server answers with the SPA
+      // fallback HTML and the worker dies on load. Serving these unbundled
+      // lets Vite's worker transform resolve the real entry.
+      optimizeDeps: {
+        exclude: [
+          "@extend-ai/react-docx",
+          "@extend-ai/react-pptx",
+          "@extend-ai/react-xlsx",
+        ],
+        // Excluding a package stops its CommonJS-only imports from being
+        // converted to ESM, so those are pre-bundled on their own.
+        include: [
+          "@extend-ai/react-docx > utif",
+          "@extend-ai/react-pptx > regl",
+          "@extend-ai/react-xlsx > regl",
+          "react-dom/server",
+        ],
+      },
       plugins: [
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
         createValidateProductionEnv("renderer"),
@@ -235,6 +314,10 @@ export default defineConfig(({ command }) => {
       ],
       resolve,
       root: path.resolve("src"),
+      // The document viewers' parser workers are module workers whose entries
+      // code-split, which the default IIFE worker format cannot express, so the
+      // build fails without this.
+      worker: { format: "es" },
     },
   };
 });

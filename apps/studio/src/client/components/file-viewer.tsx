@@ -1,41 +1,42 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import {
+  LazyCsvViewer,
+  LazyDocxViewer,
+  LazyPdfViewer,
+  LazyPptxViewer,
+  LazyXlsxViewer,
+} from "@/client/lib/document-viewers";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
-import { getFileType } from "@/client/lib/get-file-type";
+import { type FileType, getFileType } from "@/client/lib/get-file-type";
 import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   ArrowClockwiseIcon,
   ArrowLineDownIcon,
-  ArrowsInIcon,
   ArrowsOutSimpleIcon,
   CheckIcon,
   CodeIcon,
   CopyIcon,
   DotsThreeOutlineVerticalIcon,
   EyeIcon,
-  MagnifyingGlassMinusIcon,
-  MagnifyingGlassPlusIcon,
   XIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { tv } from "tailwind-variants";
 
 import { useFileActionVisibility } from "../hooks/use-file-action-visibility";
-import {
-  IMAGE_PANZOOM_VIEWPORT_CLASS,
-  useImagePanzoom,
-} from "../hooks/use-image-panzoom";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
 import { useTaskFileOpenControl } from "../hooks/use-task-file-open-control";
 import { useTimedFlag } from "../hooks/use-timed-flag";
+import { ViewerSurface } from "./document-viewers/viewer-surface";
 import { FileActionsMenuItems } from "./file-actions-menu";
+import { FileLoading } from "./file-loading";
 import { FilePreviewFallback } from "./file-preview-fallback";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
-import { ImageWithFallback } from "./image-with-fallback";
+import { ImageViewer } from "./image-viewer";
 import { OpenTaskFileButton } from "./open-task-file-button";
 import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
 import { SessionMarkdown } from "./session-markdown";
@@ -59,88 +60,8 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { contextMenuComponents } from "./ui/menu-components";
-import { Spinner } from "./ui/spinner";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-
-function ImagePanzoomViewer({
-  filename,
-  onError,
-  url,
-}: {
-  filename: string;
-  onError: () => void;
-  url: string;
-}) {
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const { canReset, reset, zoomIn, zoomOut } = useImagePanzoom({
-    contentRef,
-    viewportRef,
-  });
-
-  return (
-    <div className={`${IMAGE_PANZOOM_VIEWPORT_CLASS} relative size-full`}>
-      <div
-        className="flex size-full items-center justify-center overflow-hidden"
-        ref={viewportRef}
-      >
-        <div
-          className="flex items-center justify-center"
-          ref={contentRef}
-          style={{ height: "100%", width: "100%" }}
-        >
-          <ImageWithFallback
-            alt={filename}
-            className="size-auto max-h-full max-w-full object-contain select-none"
-            filename={filename}
-            onError={onError}
-            showCheckerboard
-            src={url}
-          />
-        </div>
-      </div>
-      <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
-        <div className="pointer-events-auto">
-          <ImageZoomControls
-            canReset={canReset}
-            onReset={reset}
-            onZoomIn={zoomIn}
-            onZoomOut={zoomOut}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ImageZoomControls({
-  canReset,
-  onReset,
-  onZoomIn,
-  onZoomOut,
-}: {
-  canReset: boolean;
-  onReset: () => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-1 rounded-xl bg-background/90 p-1 text-foreground shadow-lg">
-      <Button onClick={onZoomOut} size="icon-sm" variant="ghost">
-        <MagnifyingGlassMinusIcon className="size-5" />
-      </Button>
-      <Button onClick={onZoomIn} size="icon-sm" variant="ghost">
-        <MagnifyingGlassPlusIcon className="size-5" />
-      </Button>
-      {canReset && (
-        <Button onClick={onReset} size="icon-sm" variant="ghost">
-          <ArrowsInIcon className="size-5" />
-        </Button>
-      )}
-    </div>
-  );
-}
 
 function MarkdownPreview({ url }: { url: string }) {
   const { data, error, isLoading } = useQuery({
@@ -156,11 +77,7 @@ function MarkdownPreview({ url }: { url: string }) {
   });
 
   if (isLoading) {
-    return (
-      <div className="flex size-full items-center justify-center">
-        <Spinner className="size-8 text-muted-foreground" />
-      </div>
-    );
+    return <FileLoading />;
   }
 
   if (error) {
@@ -209,11 +126,7 @@ function TextView({
   });
 
   if (isLoading) {
-    return (
-      <div className="flex size-full items-center justify-center">
-        <Spinner className="size-8 text-muted-foreground" />
-      </div>
-    );
+    return <FileLoading />;
   }
 
   if (error) {
@@ -256,28 +169,198 @@ function TextView({
   return <>{children(data ?? "")}</>;
 }
 
-const fileViewerVariants = tv({
-  base: "flex w-full flex-col overflow-hidden rounded-xl bg-card shadow-sm",
-  defaultVariants: {
-    error: false,
-    fileType: "default",
-    fullSize: false,
+// Both hosts (the artifact panel and the expand modal) give the viewer the
+// space they have, so there is no intrinsic-size variant left to pick.
+const fileViewerClassName =
+  "flex h-full w-full flex-col overflow-hidden rounded-xl bg-card shadow-sm";
+
+interface ViewerContext {
+  fallback: ReactNode;
+  file: TaskFileViewerFile;
+  htmlReloadNonce: number;
+  imageLoadError: boolean;
+  onImageError: () => void;
+  onMediaError: (fallbackExtension: string) => void;
+  viewMode: "preview" | "raw";
+}
+
+/**
+ * How a file type reaches the screen.
+ *
+ * `scrolls: "self"` means the viewer manages its own scrolling and fills the
+ * content area; the others sit inside the shared scroll container. Declared as
+ * an exhaustive record so a new `FileType` is a type error until it is routed.
+ *
+ * Only images and video wrap themselves in our own context menu. The document
+ * viewers deliberately do not, and it is worth saying why, because supplying
+ * one looks like an improvement until you use it: our menu suppresses the
+ * native one, so right-clicking a selection loses Copy and Look Up and offers
+ * Open With and Save As in their place -- actions about the file, presented as
+ * though they were about the text just highlighted. That is worse than a menu
+ * with less in it. Formats whose selection the browser cannot see keep a
+ * keyboard copy binding inside their own viewer instead.
+ */
+interface ViewerEntry {
+  render: (context: ViewerContext) => ReactNode;
+  scrolls: "container" | "self";
+}
+
+const VIEWERS = {
+  audio: {
+    render: ({ file, onMediaError }) => (
+      <div className="flex size-full items-center justify-center p-8">
+        <audio
+          className="w-full max-w-2xl"
+          controls
+          key={file.url}
+          onError={() => {
+            onMediaError("mp3");
+          }}
+          src={file.url}
+        />
+      </div>
+    ),
+    scrolls: "container",
   },
-  variants: {
-    error: {
-      true: "h-auto max-w-2xl!",
-    },
-    fileType: {
-      audio: "h-auto max-w-2xl",
-      default: "h-[80vh] max-w-4xl",
-      html: "h-[80vh] max-w-6xl",
-      text: "h-[70vh] max-w-4xl",
-    },
-    fullSize: {
-      true: "h-full max-w-none!",
-    },
+  code: { render: renderText, scrolls: "container" },
+  csv: {
+    render: ({ fallback, file }) => (
+      <ViewerSurface fallback={fallback} resetKey={file.url}>
+        <LazyCsvViewer filename={file.filename} url={file.url} />
+      </ViewerSurface>
+    ),
+    scrolls: "self",
   },
-});
+  docx: {
+    render: ({ fallback, file }) => (
+      <ViewerSurface fallback={fallback} resetKey={file.url}>
+        <LazyDocxViewer filename={file.filename} url={file.url} />
+      </ViewerSurface>
+    ),
+    scrolls: "self",
+  },
+  html: {
+    render: (context) =>
+      context.viewMode === "raw" ? (
+        renderText(context)
+      ) : (
+        <SandboxedHtmlIframe
+          className="absolute inset-0 size-full border-0"
+          key={context.htmlReloadNonce}
+          src={context.file.url}
+          title={context.file.filename}
+        />
+      ),
+    scrolls: "container",
+  },
+  image: {
+    render: ({ fallback, file, imageLoadError, onImageError }) =>
+      imageLoadError ? (
+        <div className="flex size-full items-center justify-center">
+          {fallback}
+        </div>
+      ) : (
+        <ContextMenu>
+          <ContextMenuTrigger className="size-full">
+            <ImageViewer
+              filename={file.filename}
+              key={file.url}
+              onError={onImageError}
+              url={file.url}
+            />
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <FileActionsMenuItems
+              file={file}
+              menuComponents={contextMenuComponents}
+            />
+          </ContextMenuContent>
+        </ContextMenu>
+      ),
+    scrolls: "container",
+  },
+  markdown: {
+    render: (context) =>
+      context.viewMode === "raw" ? (
+        renderText(context)
+      ) : (
+        <MarkdownPreview url={context.file.url} />
+      ),
+    scrolls: "container",
+  },
+  pdf: { render: renderPdf, scrolls: "self" },
+  pptx: {
+    render: ({ fallback, file }) => (
+      <ViewerSurface fallback={fallback} resetKey={file.url}>
+        <LazyPptxViewer filename={file.filename} url={file.url} />
+      </ViewerSurface>
+    ),
+    scrolls: "self",
+  },
+  text: { render: renderText, scrolls: "container" },
+  unknown: {
+    render: ({ fallback }) => (
+      <div className="flex size-full items-center justify-center">
+        {fallback}
+      </div>
+    ),
+    scrolls: "container",
+  },
+  video: {
+    // Muted is what makes autoplay allowed at all: Chrome blocks an unmuted
+    // `autoPlay` outright, so the viewer would open on a frozen first frame.
+    // Controls stay available to unmute and scrub.
+    render: ({ file, onMediaError }) => (
+      <ContextMenu>
+        <ContextMenuTrigger className="size-full">
+          <video
+            autoPlay
+            className="size-full object-contain"
+            controls
+            key={file.url}
+            muted
+            onError={() => {
+              onMediaError("mp4");
+            }}
+            playsInline
+            src={file.url}
+          />
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <FileActionsMenuItems
+            file={file}
+            menuComponents={contextMenuComponents}
+          />
+        </ContextMenuContent>
+      </ContextMenu>
+    ),
+    scrolls: "container",
+  },
+  xlsx: {
+    render: ({ fallback, file }) => (
+      <ViewerSurface fallback={fallback} resetKey={file.url}>
+        <LazyXlsxViewer filename={file.filename} url={file.url} />
+      </ViewerSurface>
+    ),
+    scrolls: "self",
+  },
+} satisfies Record<FileType, ViewerEntry>;
+
+function renderPdf({ fallback, file }: ViewerContext) {
+  return (
+    <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <LazyPdfViewer filename={file.filename} url={file.url} />
+    </ViewerSurface>
+  );
+}
+
+function renderText({ file }: ViewerContext) {
+  return (
+    <TextView filename={file.filename} url={file.url}>
+      {(text) => <pre className="p-4 text-sm text-foreground">{text}</pre>}
+    </TextView>
+  );
+}
 
 const fileViewerHeaderActionClassName = toolbarClassName({
   className: "h-7 gap-1.5 px-2 text-xs has-[>svg]:px-2",
@@ -303,12 +386,10 @@ const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
 
 export function FileViewer({
   file,
-  fullSize = false,
   onClose,
   onExpand,
 }: {
   file: TaskFileViewerFile;
-  fullSize?: boolean;
   onClose: () => void;
   onExpand?: () => void;
 }) {
@@ -382,41 +463,54 @@ export function FileViewer({
     });
   };
 
-  const getViewerLayoutType = () => {
-    if (fileType === "audio") {
-      return "audio";
-    }
-    if (fileType === "code" || fileType === "text") {
-      return "text";
-    }
-    if (fileType === "html" && !mediaLoadError) {
-      return "html";
-    }
-    return "default";
+  const viewer: ViewerEntry = VIEWERS[fileType];
+  const viewerContext: ViewerContext = {
+    fallback: (
+      <FilePreviewFallback
+        // Only consulted when the filename carries no recognizable extension,
+        // where the type is all there is to go on: an image gets a picture
+        // icon and everything else the generic binary one, rather than the
+        // blank an absent stand-in leaves.
+        fallbackExtension={fileType === "image" ? "jpg" : "bin"}
+        file={file}
+        filename={filename}
+        onDownload={fileActions.showDownload ? handleDownload : undefined}
+      />
+    ),
+    file,
+    htmlReloadNonce,
+    imageLoadError,
+    onImageError: () => {
+      setImageErrorUrl(url);
+    },
+    onMediaError: (fallbackExtension) => {
+      setMediaLoadError(true);
+      setMediaErrorType(fallbackExtension);
+    },
+    viewMode,
   };
 
   return (
-    <div
-      className={fileViewerVariants({
-        error: false,
-        fileType: getViewerLayoutType(),
-        fullSize,
-      })}
-    >
+    <div className={fileViewerClassName}>
       <div className="@container flex min-w-0 shrink-0 items-center gap-2 px-4 py-3">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="min-w-0 flex-1 truncate text-xs font-medium">
-              {filename}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent
-            className="max-w-[min(500px,90vw)] wrap-break-word"
-            collisionPadding={10}
-          >
-            {filePath}
-          </TooltipContent>
-        </Tooltip>
+        {/* The trigger is the filename, not the space it sits in: as a flex
+            item it shrinks to the text it holds, so the tooltip is anchored
+            under the name rather than under the middle of a header-wide box. */}
+        <div className="flex min-w-0 flex-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="min-w-0 truncate text-xs font-medium">
+                {filename}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent
+              className="max-w-[min(500px,90vw)] wrap-break-word"
+              collisionPadding={10}
+            >
+              {filePath}
+            </TooltipContent>
+          </Tooltip>
+        </div>
         <div className="flex shrink-0 items-center gap-1">
           <OpenTaskFileButton
             className={fileViewerHeaderActionClassName}
@@ -539,128 +633,26 @@ export function FileViewer({
         </div>
       </div>
 
-      <div className="relative min-h-0 flex-1 overflow-auto" ref={contentRef}>
-        {mediaLoadError ? (
-          <div className="flex size-full items-center justify-center">
-            <FilePreviewFallback
-              fallbackExtension={mediaErrorType}
-              file={file}
-              filename={filename}
-              onDownload={fileActions.showDownload ? handleDownload : undefined}
-            />
-          </div>
-        ) : fileType === "markdown" && viewMode === "preview" ? (
-          <MarkdownPreview url={url} />
-        ) : fileType === "html" && viewMode === "preview" ? (
-          <SandboxedHtmlIframe
-            className="absolute inset-0 size-full border-0"
-            key={htmlReloadNonce}
-            src={url}
-            title={filename}
+      {mediaLoadError ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+          <FilePreviewFallback
+            fallbackExtension={mediaErrorType}
+            file={file}
+            filename={filename}
+            onDownload={fileActions.showDownload ? handleDownload : undefined}
           />
-        ) : fileType === "image" ? (
-          imageLoadError ? (
-            <div className="flex size-full items-center justify-center">
-              <FilePreviewFallback
-                fallbackExtension="jpg"
-                file={file}
-                filename={filename}
-                onDownload={
-                  fileActions.showDownload ? handleDownload : undefined
-                }
-              />
-            </div>
-          ) : (
-            <ContextMenu>
-              <ContextMenuTrigger className="size-full">
-                <ImagePanzoomViewer
-                  filename={filename}
-                  key={url}
-                  onError={() => {
-                    setImageErrorUrl(url);
-                  }}
-                  url={url}
-                />
-              </ContextMenuTrigger>
-              <ContextMenuContent>
-                <FileActionsMenuItems
-                  file={file}
-                  menuComponents={contextMenuComponents}
-                />
-              </ContextMenuContent>
-            </ContextMenu>
-          )
-        ) : fileType === "code" ||
-          fileType === "text" ||
-          (fileType === "html" && viewMode === "raw") ||
-          (fileType === "markdown" && viewMode === "raw") ? (
-          <TextView filename={filename} url={url}>
-            {(text) => (
-              <pre className="p-4 text-sm text-foreground">{text}</pre>
-            )}
-          </TextView>
-        ) : fileType === "pdf" ? (
-          <iframe
-            className="absolute inset-0 size-full border-0"
-            key={url}
-            onError={() => {
-              setMediaLoadError(true);
-              setMediaErrorType("pdf");
-            }}
-            src={`${url}#navpanes=0`}
-            title={filename}
-          />
-        ) : fileType === "video" ? (
-          // Muted is what makes autoplay allowed at all: Chrome blocks an
-          // unmuted `autoPlay` outright, so the viewer would open on a frozen
-          // first frame. Controls stay available to unmute and scrub.
-          <ContextMenu>
-            <ContextMenuTrigger className="size-full">
-              <video
-                autoPlay
-                className="size-full object-contain"
-                controls
-                key={url}
-                muted
-                onError={() => {
-                  setMediaLoadError(true);
-                  setMediaErrorType("mp4");
-                }}
-                playsInline
-                src={url}
-              />
-            </ContextMenuTrigger>
-            <ContextMenuContent>
-              <FileActionsMenuItems
-                file={file}
-                menuComponents={contextMenuComponents}
-              />
-            </ContextMenuContent>
-          </ContextMenu>
-        ) : fileType === "audio" ? (
-          <div className="flex size-full items-center justify-center p-8">
-            <audio
-              className="w-full"
-              controls
-              key={url}
-              onError={() => {
-                setMediaLoadError(true);
-                setMediaErrorType("mp3");
-              }}
-              src={url}
-            />
-          </div>
-        ) : (
-          <div className="flex size-full items-center justify-center">
-            <FilePreviewFallback
-              fallbackExtension="bin"
-              file={file}
-              filename={filename}
-              onDownload={fileActions.showDownload ? handleDownload : undefined}
-            />
-          </div>
-        )}
-      </div>
+        </div>
+      ) : viewer.scrolls === "self" ? (
+        // Viewers that scroll internally own the whole content area, so they
+        // are not nested inside the shared scroll container.
+        <div className="flex min-h-0 flex-1 flex-col">
+          {viewer.render(viewerContext)}
+        </div>
+      ) : (
+        <div className="relative min-h-0 flex-1 overflow-auto" ref={contentRef}>
+          {viewer.render(viewerContext)}
+        </div>
+      )}
     </div>
   );
 }

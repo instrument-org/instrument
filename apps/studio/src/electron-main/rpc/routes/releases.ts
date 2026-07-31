@@ -1,6 +1,8 @@
 import { base } from "@/electron-main/rpc/base";
 import { APP_NAME, APP_REPO_NAME, GITHUB_ORG } from "@instrument-org/shared";
+import { app } from "electron";
 import ms from "ms";
+import semver from "semver";
 import { z } from "zod";
 
 import { cacheMiddleware } from "../middleware/cache";
@@ -62,7 +64,8 @@ const list = base
 
       const releases = z.array(ReleaseSchema).parse(data);
       const filteredReleases = releases.filter(
-        (release) => !release.draft && !release.prerelease,
+        (release) =>
+          !release.draft && (showsPrereleases() || !release.prerelease),
       );
 
       const hasMore = linkHeader?.includes('rel="next"') ?? false;
@@ -83,6 +86,15 @@ const list = base
       });
     }
   });
+
+// Prerelease notes are the raw commit log for a build, which is the only
+// changelog a beta gets and is meaningless to someone on a stable version. Show
+// them to the people running those builds: prerelease installs, and unpackaged
+// dev runs, where the package.json version tracks whichever release was tagged
+// last and so says nothing about which builds the developer cares about.
+function showsPrereleases() {
+  return !app.isPackaged || semver.prerelease(app.getVersion()) !== null;
+}
 
 export const releases = {
   list,

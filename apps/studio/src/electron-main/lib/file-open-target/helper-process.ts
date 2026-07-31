@@ -8,8 +8,7 @@ const LOOKUP_TIMEOUT_MS = 10_000;
 // Lookups are interpreter-bound: osascript on CPU and LaunchServices, and
 // PowerShell on a cold start that JITs the .NET runtime. A file grid can mount
 // many open buttons at once, and letting every distinct extension spawn its own
-// interpreter pushes them all past LOOKUP_TIMEOUT_MS together, on top of
-// starving the renderer that asked for them.
+// interpreter pushes them all past LOOKUP_TIMEOUT_MS together.
 const MAX_CONCURRENT_LOOKUPS = 2;
 
 let activeLookups = 0;

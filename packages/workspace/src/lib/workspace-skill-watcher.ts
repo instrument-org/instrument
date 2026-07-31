@@ -1,26 +1,18 @@
-import type {
-  AsyncSubscription,
-  Options,
-  SubscribeCallback,
-} from "@parcel/watcher";
+import type { AsyncSubscription } from "@parcel/watcher";
 
 import fs from "node:fs/promises";
 import { noop } from "radashi";
 
 import { publisher } from "../rpc/publisher";
+import {
+  NATIVE_WATCHER_BACKEND,
+  type NativeWatcherApi,
+} from "./native-watcher-backend";
 import { SKILL_ARTIFACT_WATCHER_IGNORE } from "./skill-artifact-ignore";
 import { getWorkspaceConfig } from "./workspace-config";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
 const DEBOUNCE_MS = 150;
-
-interface ParcelWatcherApi {
-  subscribe: (
-    dir: string,
-    callback: SubscribeCallback,
-    options?: Options,
-  ) => Promise<AsyncSubscription>;
-}
 
 interface WatcherEntry {
   debounceTimer: null | ReturnType<typeof setTimeout>;
@@ -31,7 +23,7 @@ interface WatcherEntry {
 }
 
 let ACTIVE: undefined | WatcherEntry;
-let PARCEL_PROMISE: Promise<ParcelWatcherApi | undefined> | undefined;
+let PARCEL_PROMISE: Promise<NativeWatcherApi | undefined> | undefined;
 
 /**
  * Keeps one process-level watcher alive while any client subscribes to skill
@@ -104,7 +96,10 @@ async function initialize(entry: WatcherEntry) {
           }
         }, DEBOUNCE_MS);
       },
-      { ignore: SKILL_ARTIFACT_WATCHER_IGNORE },
+      {
+        backend: NATIVE_WATCHER_BACKEND,
+        ignore: SKILL_ARTIFACT_WATCHER_IGNORE,
+      },
     );
     if (isDisposed(entry)) {
       await subscription.unsubscribe().catch(noop);
@@ -120,11 +115,11 @@ function isDisposed(entry: WatcherEntry) {
   return entry.disposed;
 }
 
-async function loadParcelWatcher(): Promise<ParcelWatcherApi | undefined> {
+async function loadParcelWatcher(): Promise<NativeWatcherApi | undefined> {
   PARCEL_PROMISE ??= (async () => {
     try {
       const mod = await import("@parcel/watcher");
-      return (mod as { default?: ParcelWatcherApi }).default ?? mod;
+      return (mod as { default?: NativeWatcherApi }).default ?? mod;
     } catch (error) {
       getWorkspaceConfig().captureException(error);
       return;

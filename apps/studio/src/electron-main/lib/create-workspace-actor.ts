@@ -71,9 +71,18 @@ export function createWorkspaceActor({
   // Normalize the on-disk layout of any legacy tasks before the workspace reads
   // them. Idempotent; a failure must not block boot.
   try {
+    const migrationStartedAt = performance.now();
     const migration = migrateWorkspaceLayout({ rootDir });
+    logger.info(
+      `Workspace layout migration: ${Math.round(performance.now() - migrationStartedAt)}ms`,
+    );
     if (migration.movedTaskCount > 0) {
       logger.info(`Migrated ${migration.movedTaskCount} task(s) to tasks/`);
+    }
+    if (migration.removedBrowserProfileCloneCount > 0) {
+      logger.info(
+        `Deleted ${migration.removedBrowserProfileCloneCount} leftover browser profile clone(s)`,
+      );
     }
     if (migration.conflictedTaskIds.length > 0) {
       // A legacy task was abandoned because tasks/<id> already exists. The
@@ -256,8 +265,9 @@ export function createWorkspaceActor({
       buttons: ["Cancel", "Quit"],
       cancelId: 0,
       defaultId: 0,
-      detail: `Quitting ${APP_NAME} will stop ${count === 1 ? "this agent" : "these agents"} and you may lose in-progress work.`,
-      message: `One or more ${count === 1 ? "agent is still running" : "agents are still running"}.`,
+      detail:
+        "Active tasks will be interrupted and you may lose in-progress work.",
+      message: `Quit ${APP_NAME}?`,
       noLink: true,
       type: "warning",
     };

@@ -106,6 +106,21 @@ function recordHostFocus(event: FocusEvent) {
   }
 }
 
+// Parking a guest only restyles it: the element stays in the DOM and stays
+// focusable, so one the user had clicked into keeps keyboard focus after it
+// goes invisible. Keystrokes would reach a page nobody can see, and every
+// main-process chord that targets the focused guest (reload, zoom, history)
+// would keep hitting it instead of the app. Hand focus back to the host as the
+// guest leaves the screen; the `blur` this fires clears the main process's
+// record of which guest is focused.
+function releaseGuestFocus({ webview }: PooledWebview) {
+  if (document.activeElement !== webview) {
+    return;
+  }
+  webview.blur();
+  restoreHostFocus();
+}
+
 function restoreHostFocus() {
   if (lastHostFocusedElement?.isConnected) {
     lastHostFocusedElement.focus({ preventScroll: true });
@@ -227,6 +242,7 @@ export function setPaintHost(targetId: BrowserTargetId, owner: symbol) {
   paintOwners.delete(targetId);
   const pooled = pool.get(targetId);
   if (pooled) {
+    releaseGuestFocus(pooled);
     applyPaintHost(pooled);
   }
 }

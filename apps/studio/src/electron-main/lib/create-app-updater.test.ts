@@ -38,15 +38,20 @@ function createHarness({
 
   const installs = vi.fn();
   const published: AppUpdaterStatus[] = [];
-  const checks = vi.fn();
+  const checks = vi.fn<(options: { download: boolean }) => void>();
+  const downloads = vi.fn();
   const recordCheck = vi.fn();
 
   const port: UpdaterPort = {
-    checkForUpdates: () => {
-      checks();
+    checkForUpdates: (options) => {
+      checks(options);
       return nextCheck();
     },
     configureFeed: vi.fn(),
+    downloadUpdate: () => {
+      downloads();
+      return Promise.resolve([]);
+    },
     install: installs,
     isActive: () => true,
     subscribe: (next) => {
@@ -73,6 +78,7 @@ function createHarness({
 
   return {
     checks,
+    downloads,
     // Drives the updater into "an update is downloaded and ready to install".
     events,
     installs,
@@ -587,6 +593,57 @@ describe("status stream", () => {
 
     await h.updater.checkForUpdates();
     await expect(downloadPromise).rejects.toThrow("download failed");
+  });
+});
+
+describe("downloading on check", () => {
+  it("leaves the staged build alone when the feed re-offers it", async () => {
+    const h = createHarness();
+    h.stage(STAGED);
+    h.respondWith(STAGED);
+
+    await h.updater.checkForUpdates();
+
+    // electron-updater runs its whole download pass for a cached artifact too,
+    // and on macOS that hands Squirrel a fresh copy to stage, un-staging the
+    // build the check just confirmed.
+    expect(h.checks).toHaveBeenCalledWith({ download: false });
+    expect(h.downloads).not.toHaveBeenCalled();
+  });
+
+  it("lets a check download when there is nothing staged to protect", async () => {
+    const h = createHarness();
+    h.respondWith(STAGED);
+
+    await h.updater.checkForUpdates();
+
+    expect(h.checks).toHaveBeenCalledWith({ download: true });
+    // Auto-download owns it from here; starting a second one would be a
+    // duplicate of the promise the check already returned.
+    expect(h.downloads).not.toHaveBeenCalled();
+  });
+
+  it("starts the download itself for a build that supersedes the staged one", async () => {
+    const h = createHarness();
+    h.stage(STAGED);
+    h.respondWith(NEWER);
+
+    await h.updater.checkForUpdates();
+
+    expect(h.downloads).toHaveBeenCalledOnce();
+  });
+
+  it("never un-stages the build the pre-install check just confirmed", async () => {
+    const h = createHarness();
+    h.stage(STAGED);
+    h.respondWith(STAGED);
+
+    await expect(h.updater.quitAndInstall()).resolves.toEqual({
+      type: "installing",
+    });
+    expect(h.checks).toHaveBeenCalledWith({ download: false });
+    expect(h.downloads).not.toHaveBeenCalled();
+    expect(h.installs).toHaveBeenCalledOnce();
   });
 });
 

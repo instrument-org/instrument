@@ -40,10 +40,17 @@ export interface UpdaterEvents {
 // seam tests replace, and every member is a real side effect on a process-wide
 // singleton.
 export interface UpdaterPort {
-  checkForUpdates: () => Promise<null | UpdateCheckResult>;
+  // `download` gates electron-updater's auto-download for this check alone; see
+  // `runCheck` for why a check is not always allowed to fetch what it finds.
+  checkForUpdates: (options: {
+    download: boolean;
+  }) => Promise<null | UpdateCheckResult>;
   // Re-applied before every check so a release-channel change takes effect
   // without a restart.
   configureFeed: () => void;
+  // Downloads the update the last check found. Only meaningful after a check
+  // that ran with `download: false`.
+  downloadUpdate: () => Promise<unknown>;
   // Quits and applies the staged build. Never returns on the happy path.
   install: () => void;
   isActive: () => boolean;
@@ -147,15 +154,45 @@ export function createAppUpdater({
     publish(resolved);
   };
 
-  // electron-updater hands back the auto-download promise on the check result and
-  // never attaches a rejection handler of its own, so a failed download would
-  // surface as an unhandled rejection in the main process. The `failed` event
-  // reports it to the user; this takes ownership and separates a download
-  // failure from a check failure in the log, which that event cannot do.
+  // A check that finds an update runs electron-updater's whole download pass,
+  // cached artifact or not. On macOS that pass rebuilds the local proxy server
+  // Squirrel.Mac streams the staged build from and points Squirrel at the new
+  // one, restarting staging from zero; until Squirrel finishes, `quitAndInstall`
+  // has nothing to apply and the app relaunches on the version it was already
+  // running. So a check only downloads when there is something to fetch: nothing
+  // staged yet, or a build newer than the one on disk.
+  //
+  // electron-updater also hands back the auto-download promise on the check
+  // result and never attaches a rejection handler of its own, so a failed
+  // download would surface as an unhandled rejection in the main process. The
+  // `failed` event reports it to the user; this takes ownership and separates a
+  // download failure from a check failure in the log, which that event cannot do.
   const runCheck = async () => {
-    const result = await updater.checkForUpdates();
-    if (result?.downloadPromise) {
-      void result.downloadPromise.catch((error: unknown) => {
+    // Read before the check: the `available` handler clears `staged` as soon as
+    // it sees a newer build.
+    const stagedVersion = phase.staged?.version;
+    const autoDownload = !stagedVersion;
+    const result = await updater.checkForUpdates({ download: autoDownload });
+
+    let download: null | Promise<unknown> = result?.downloadPromise ?? null;
+    if (
+      !autoDownload &&
+      result?.isUpdateAvailable &&
+      isNewerVersion({
+        baseline: stagedVersion,
+        candidate: result.updateInfo.version,
+      })
+    ) {
+      // The check was held back from downloading, so the build that supersedes
+      // the staged one needs an explicit start; a deferred install waits on it.
+      log.info(
+        `Downloading ${result.updateInfo.version} over the staged build`,
+      );
+      download = updater.downloadUpdate();
+    }
+
+    if (download) {
+      void download.catch((error: unknown) => {
         log.info(`Update download did not complete: ${String(error)}`);
       });
     }
@@ -424,6 +461,7 @@ export function createAppUpdater({
         notifyUser: true,
         type: "installing",
       });
+      log.info("Quitting to install the staged update");
       updater.install();
     } catch (error) {
       // Only a genuine throw lands here; the `failed` event is the usual path.
@@ -480,6 +518,7 @@ export function createAppUpdater({
         log.info("Install already requested, joining the in-flight request");
         return installRequest;
       }
+      log.info("Install requested");
 
       const request = runInstall().then(
         (outcome) => {

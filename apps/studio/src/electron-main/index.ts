@@ -34,6 +34,7 @@ import {
 import { startAgentCompletionNotifications } from "./lib/agent-completion-notifications";
 import { registerAppProtocol } from "./lib/app-protocol";
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
+import { timeBootStep } from "./lib/boot-timing";
 import { createWorkspaceActor } from "./lib/create-workspace-actor";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
 import { registerTelemetry } from "./lib/register-telemetry";
@@ -166,43 +167,48 @@ async function bootstrapPrimaryInstance() {
   // Registered before any window exists, so no preload can ask before it answers.
   serveResolvedTheme();
 
-  await setupBinDirectory();
+  await timeBootStep("setupBinDirectory", setupBinDirectory);
 
-  runMigrations();
+  await timeBootStep("runMigrations", runMigrations);
 
   // Detect whether the app was updated since the last launch so the renderer
   // can surface a one-time "updated" notification.
-  checkRecentVersionBump();
+  await timeBootStep("checkRecentVersionBump", checkRecentVersionBump);
 
   const {
     actor: workspaceRef,
     browserViewManager,
     confirmQuitWithRunningAgents,
     workspaceConfig,
-  } = createWorkspaceActor({
-    isQuitAlreadyConfirmed: () =>
-      appUpdater?.getStatus()?.type === "installing",
-  });
+  } = await timeBootStep("createWorkspaceActor", () =>
+    createWorkspaceActor({
+      isQuitAlreadyConfirmed: () =>
+        appUpdater?.getStatus()?.type === "installing",
+    }),
+  );
 
   startAgentCompletionNotifications({ workspaceConfig, workspaceRef });
 
-  appUpdater = createStudioAppUpdater({
+  const updater = createStudioAppUpdater({
     confirmQuit: confirmQuitWithRunningAgents,
   });
-  appUpdater.pollForUpdates();
+  appUpdater = updater;
+  updater.pollForUpdates();
 
-  initializeRPC({
-    appUpdater,
-    browserViewManager,
-    workspaceConfig,
-    workspaceRef,
+  await timeBootStep("initializeRPC", () => {
+    initializeRPC({
+      appUpdater: updater,
+      browserViewManager,
+      workspaceConfig,
+      workspaceRef,
+    });
   });
 
   if (shouldShowOnboarding()) {
     openOnboardingWindow();
     void createMainWindow({ reveal: false });
   } else {
-    await createMainWindow();
+    await timeBootStep("createMainWindow", () => createMainWindow());
   }
 
   // Let the initial window render before running the best-effort cache warmup.

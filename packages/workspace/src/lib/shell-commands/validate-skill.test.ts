@@ -3,7 +3,15 @@ import { mkdtempSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import { WorkspaceDirSchema } from "../../schemas/paths";
 import {
@@ -35,6 +43,18 @@ const run = (...args: string[]) =>
   createValidateSkillCommand().execute(args, mockCtx);
 
 const skillsDir = path.join(rootDir, "skills");
+
+// The command runs discovery over every source, and `getSkillSources` derives a
+// dozen of them from the home directory. Left real, this suite walks whatever
+// agent skills the machine happens to have installed -- slow enough to outrun
+// the test timeout under a loaded run, and a result that differs per developer.
+beforeAll(() => {
+  vi.spyOn(os, "homedir").mockReturnValue(path.join(rootDir, "home"));
+});
+
+afterAll(() => {
+  vi.restoreAllMocks();
+});
 
 afterEach(async () => {
   await fs.rm(skillsDir, { force: true, recursive: true });

@@ -1,4 +1,5 @@
-import { exec } from "dugite";
+import { setupEnvironment } from "dugite";
+import { execa } from "execa";
 import nodeIgnore from "ignore";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -80,7 +81,16 @@ async function resolveFileChangesUncached(
   ref: string,
 ): Promise<null | SessionMessageDataPart.FileChangeDataPartItem[]> {
   try {
-    const result = await exec(
+    // dugite resolves the binary and the env git needs, but its own `exec`
+    // gives git a console window of its own on Windows, so run what it resolves
+    // through execa. Ignore the user/system git config so diff-tree output is
+    // deterministic.
+    const { env, gitLocation } = setupEnvironment({
+      GIT_CONFIG_GLOBAL: "",
+      GIT_CONFIG_NOSYSTEM: "1",
+    });
+    const result = await execa(
+      gitLocation,
       [
         // core.quotepath=false keeps non-ASCII filenames (e.g. the U+202F in
         // macOS screenshot names) raw instead of octal-escaped + quoted, so
@@ -97,16 +107,16 @@ async function resolveFileChangesUncached(
         "--end-of-options",
         ref,
       ],
-      dir,
       {
-        // Ignore the user/system git config so diff-tree output is deterministic.
-        env: { GIT_CONFIG_GLOBAL: "", GIT_CONFIG_NOSYSTEM: "1" },
-        signal: AbortSignal.timeout(5000),
+        cancelSignal: AbortSignal.timeout(5000),
+        cwd: dir,
+        env,
+        reject: false,
       },
     );
 
-    // dugite only rejects when git fails to launch; a bad ref resolves with a
-    // non-zero exit code, so check it explicitly and drop the part.
+    // A bad ref, a failed launch, and the timeout all land here rather than
+    // throwing, so check the exit code explicitly and drop the part.
     if (result.exitCode !== 0) {
       // eslint-disable-next-line no-console
       console.warn("[migrate-git-commit-part] git diff-tree failed", {

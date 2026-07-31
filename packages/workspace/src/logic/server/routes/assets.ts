@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type MiddlewareHandler } from "hono";
 import { cors } from "hono/cors";
 
 import { taskDir } from "../../../lib/task-dir-utils";
@@ -19,14 +19,24 @@ const UNSAFE_PATH_SEGMENT_REGEX = /(?:^|[/\\])\.{1,2}(?:$|[/\\])|[/\\]{2,}|\\/;
 
 const app = new Hono<WorkspaceServerEnv>();
 
-app.use("/*", async (c, next) => {
+// `cors()` and the handler below are typed against this app's env explicitly:
+// the handler `app.use` infers carries `any` for its input, which does not
+// typecheck as an argument to another middleware.
+const corsMiddleware: MiddlewareHandler<WorkspaceServerEnv> = cors();
+
+const corsOnAssetsOrigin: MiddlewareHandler<WorkspaceServerEnv> = async (
+  c,
+  next,
+) => {
   const uriDetails = uriDetailsForHost(c.req.header("host") || "");
   if (uriDetails.isErr() || uriDetails.value.origin !== "assets") {
     await next();
     return;
   }
-  return cors()(c, next);
-});
+  return corsMiddleware(c, next);
+};
+
+app.use("/*", corsOnAssetsOrigin);
 
 app.all("/*", async (c, next) => {
   const uriDetails = uriDetailsForHost(c.req.header("host") || "");

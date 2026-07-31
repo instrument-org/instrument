@@ -1,9 +1,3 @@
-import type {
-  AsyncSubscription,
-  Options,
-  SubscribeCallback,
-} from "@parcel/watcher";
-
 import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -29,6 +23,10 @@ import {
   WATCHER_IGNORE_PATTERNS,
   type WatcherPatterns,
 } from "./get-task-files";
+import {
+  NATIVE_WATCHER_BACKEND,
+  type NativeWatcherApi,
+} from "./native-watcher-backend";
 import { normalizePath } from "./normalize-path";
 import { taskDir } from "./task-dir-utils";
 
@@ -37,31 +35,12 @@ import { taskDir } from "./task-dir-utils";
 const DEBOUNCE_MS = 150;
 // Re-walk cadence used only when the native watcher binding is unavailable.
 const FALLBACK_POLL_MS = 5000;
-// Pin the in-process native backend per platform. Auto-detection prefers
-// Watchman when it's on PATH, but on Windows that path pops a console window
-// and stalls subscribe for seconds (parcel-bundler/watcher#155, #168). Forcing
-// the OS-native backend bypasses Watchman entirely; an unavailable choice
-// silently falls back to the platform default.
-const NATIVE_BACKEND: Options["backend"] =
-  process.platform === "win32"
-    ? "windows"
-    : process.platform === "darwin"
-      ? "fs-events"
-      : "inotify";
 
-// Minimal surface of @parcel/watcher we depend on; loaded dynamically so the
-// native binding resolves from node_modules at runtime instead of being bundled.
 // `ignore` is narrowed from the upstream `string[]` to the branded watcher
 // dialect: the two pattern lists are interchangeable to the compiler otherwise,
 // and passing the gitignore-spelled one here fails silently -- the patterns just
 // stop matching and every excluded path flows through again.
-interface ParcelWatcherApi {
-  subscribe: (
-    dir: string,
-    callback: SubscribeCallback,
-    opts?: Omit<Options, "ignore"> & { ignore?: WatcherPatterns },
-  ) => Promise<AsyncSubscription>;
-}
+type ParcelWatcherApi = NativeWatcherApi<WatcherPatterns>;
 
 // Per-turn state: the file index snapshotted at turn start (diffed against an
 // authoritative walk at turn end) plus the watcher ref acquired for the turn.
@@ -424,7 +403,10 @@ async function initWatcher(entry: WatcherEntry) {
         }
         scheduleFlush(entry);
       },
-      { backend: NATIVE_BACKEND, ignore: WATCHER_IGNORE_PATTERNS },
+      {
+        backend: NATIVE_WATCHER_BACKEND,
+        ignore: WATCHER_IGNORE_PATTERNS,
+      },
     );
     if (isDisposed(entry)) {
       await subscription.unsubscribe().catch(noop);

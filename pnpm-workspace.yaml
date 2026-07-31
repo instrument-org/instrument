@@ -35,13 +35,13 @@ catalog:
   "@typescript/native-preview": 7.0.0-dev.20260702.3
   "@vitejs/plugin-react": ^5.1.2
   ai: ^6.0.168
-  better-auth: ^1.2.12
-  hono: ^4.7.8
+  better-auth: ^1.6.25
+  hono: ^4.12.32
   react: ^19.2.1
   react-dom: ^19.2.1
   typescript: 5.9.2
   typescript-result: ^3.5.2
-  vite: ^7.2.7
+  vite: ^7.3.6
   vitest: ^4.1.10
   zod: ^4.1.13
 

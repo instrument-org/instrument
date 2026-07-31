@@ -160,15 +160,15 @@ Which also collapses `fileViewerVariants`. Its `error` variant is already dead (
 Replace the ladder with a registry keyed on `FileType`:
 
 ```ts
-type ViewerEntry = {
-  layout: "audio" | "default" | "document" | "text";
-  render: (props: ViewerProps) => ReactNode;
-};
+interface ViewerEntry {
+  render: (context: ViewerContext) => ReactNode;
+  scrolls: "container" | "self";
+}
 
 const VIEWERS = { ... } satisfies Record<FileType, ViewerEntry>;
 ```
 
-`satisfies Record<FileType, ViewerEntry>` makes adding a `FileType` a compile error until it is routed, which also backs `canPreviewFile()` — the predicate deciding whether a file opens in the panel or gets handed to the OS-associated app.
+`satisfies Record<FileType, ViewerEntry>` makes adding a `FileType` a compile error until it is routed. `scrolls` says which side owns the scroll container: `"container"` for content the surface scrolls, `"self"` for a viewer whose engine scrolls its own pages and would otherwise sit inside a second scroller.
 
 `get-file-type.ts` gains `csv`, `docx`, `pptx`, and `xlsx` types alongside the existing `pdf`.
 
@@ -193,8 +193,11 @@ apps/studio/src/client/components/document-viewers/
   xlsx-viewer.tsx
   viewer-toolbar.tsx      shared toolbar controls
   viewer-surface.tsx      error/suspense boundary + thumbnail rail frame
+  use-copy-shortcut.ts    Cmd/Ctrl+C for engine-held selections
+  use-fit-width.ts        fit-to-container zoom, shared by DOCX and PPTX
+apps/studio/src/client/lib/
+  document-viewers.ts     wasm sources + lazy handles
   zoom-levels.ts          shared zoom stops
-apps/studio/src/client/lib/document-viewers.ts   wasm sources + lazy handles
 ```
 
 CSV uses `@tanstack/react-virtual` alone. TanStack Table is already a Studio dependency and was considered, but a grid with no column definitions and one sort key earns nothing from it; the virtualizer is the part doing the work, and click-to-sort is a comparator plus a sorted copy of the row references.
@@ -247,7 +250,6 @@ Module workers do still work from `file://`: the `grantFileProtocolExtraPrivileg
 The viewers take the renderer from ~5.3k to ~13k modules:
 
 - Parser worker entries code-split, which the default `iife` worker format cannot express. Set `worker.format: "es"`.
-- Rendering the chunks with sourcemaps exceeds Node's default heap (fails at 5GB, passes at 6.5GB). The three `electron-vite build` scripts invoke the bin through `node --max-old-space-size=8192` rather than a `NODE_OPTIONS` prefix, which would not survive the Windows release runner.
 
 Nothing loaded during renderer startup may statically import a viewer library. Each ships as a single side-effectful entry point, so importing one symbol pulls the whole package: configuring all three wasm sources from `main.tsx` put 5.6MB of library source in the entry chunk. `lib/document-viewers.ts` reaches each library through a dynamic import and owns the `lazy()` handles that pair wasm configuration with the viewer's own import, so no host can mount a viewer that would fall back to the library's default wasm source.
 

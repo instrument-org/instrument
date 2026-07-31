@@ -376,17 +376,21 @@ const VIEWERS = {
   },
   pdf: {
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
-        <LazyPdfViewer filename={file.filename} url={file.url} />
-      </ViewerSurface>
+      <DocumentContextMenu file={file}>
+        <ViewerSurface fallback={fallback} resetKey={file.url}>
+          <LazyPdfViewer filename={file.filename} url={file.url} />
+        </ViewerSurface>
+      </DocumentContextMenu>
     ),
     scrolls: "self",
   },
   pptx: {
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
-        <LazyPptxViewer filename={file.filename} url={file.url} />
-      </ViewerSurface>
+      <DocumentContextMenu file={file}>
+        <ViewerSurface fallback={fallback} resetKey={file.url}>
+          <LazyPptxViewer filename={file.filename} url={file.url} />
+        </ViewerSurface>
+      </DocumentContextMenu>
     ),
     scrolls: "self",
   },
@@ -431,13 +435,44 @@ const VIEWERS = {
   },
   xlsx: {
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
-        <LazyXlsxViewer filename={file.filename} url={file.url} />
-      </ViewerSurface>
+      <DocumentContextMenu file={file}>
+        <ViewerSurface fallback={fallback} resetKey={file.url}>
+          <LazyXlsxViewer filename={file.filename} url={file.url} />
+        </ViewerSurface>
+      </DocumentContextMenu>
     ),
     scrolls: "self",
   },
 } satisfies Record<FileType, ViewerEntry>;
+
+/**
+ * The file's own actions on right-click, in place of whatever Chromium infers
+ * from the element under the cursor.
+ *
+ * PDF pages, PPTX pictures and the XLSX grid are all painted as images, so the
+ * native menu offers Save Image As and Copy Image on what the user is reading
+ * as a document — an image of one page of it, at whatever resolution it
+ * happened to be rasterized. DOCX and CSV are left with the native menu: those
+ * are real DOM text, and Copy on a selection is exactly the right offer.
+ */
+function DocumentContextMenu({
+  children,
+  file,
+}: {
+  children: ReactNode;
+  file: TaskFileViewerFile;
+}) {
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger className="flex min-h-0 flex-1 flex-col">
+        {children}
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <FileActionsMenuItems file={file} menuComponents={contextMenuComponents} />
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
 
 function renderText({ file }: ViewerContext) {
   return (

@@ -4,8 +4,9 @@ import {
   XlsxViewerProvider,
   XlsxViewer as XlsxWorkbookViewer,
 } from "@extend-ai/react-xlsx";
-import { useEffect } from "react";
+import { useState } from "react";
 
+import { useCopyShortcut } from "./use-copy-shortcut";
 import { ViewerLoading } from "./viewer-surface";
 import {
   ViewerToolbar,
@@ -43,29 +44,28 @@ export function XlsxViewer({
     src: url,
   });
 
-  // The grid is a canvas and the selected range lives in the controller, so the
-  // browser has nothing to copy and Chromium's menu offers nothing; the library
-  // binds no copy shortcut of its own either. This is what makes a selected
-  // range reachable at all.
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "c" || !(event.metaKey || event.ctrlKey)) {
-        return;
-      }
-      // Only the viewer holding a range answers, so the artifact panel and the
-      // expand modal do not both write to the clipboard.
-      if (!controller.selection) {
-        return;
-      }
-      event.preventDefault();
-      void controller.copySelectionToClipboard();
-    };
+  const [grid, setGrid] = useState<HTMLDivElement | null>(null);
 
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [controller]);
+  // The grid is a canvas and the selected range lives in the controller, so the
+  // browser has nothing to copy and Chromium's menu offers nothing. The library
+  // does ship a `copy` handler on the grid, but the browser only raises that
+  // event for a DOM selection, which a canvas can never carry, so the shortcut
+  // is what makes a selection reachable at all.
+  //
+  // A single clicked cell counts: the controller keeps `selection` for a
+  // dragged range only, and falls back to `activeCell` when building the
+  // clipboard payload, so anything narrower here would answer for a range and
+  // do nothing for the far more common single cell.
+  useCopyShortcut({
+    container: grid,
+    onCopy: () => {
+      if (!controller.activeCell && !controller.selection) {
+        return false;
+      }
+      void controller.copySelectionToClipboard();
+      return true;
+    },
+  });
 
   // Thrown rather than rendered so it reaches the surface's `CatchBoundary`.
   if (controller.error) {
@@ -93,7 +93,7 @@ export function XlsxViewer({
         <ViewerToolbarSpacer />
       </ViewerToolbar>
 
-      <div className="relative min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1" ref={setGrid}>
         {controller.isLoading ? (
           <ViewerLoading />
         ) : (

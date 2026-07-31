@@ -2,6 +2,7 @@ import type { PdfEngine } from "@embedpdf/models";
 
 import { PDFIUM_WASM_URL } from "@/client/lib/document-viewers";
 import { cn } from "@/client/lib/utils";
+import { ZOOM_LEVELS } from "@/client/lib/zoom-levels";
 import { createPluginRegistration } from "@embedpdf/core";
 import { EmbedPDF } from "@embedpdf/core/react";
 import {
@@ -46,6 +47,7 @@ import {
 import { useZoom, ZoomMode, ZoomPluginPackage } from "@embedpdf/plugin-zoom/react";
 import { useEffect, useState } from "react";
 
+import { useRegisterViewerSelection } from "./viewer-selection";
 import { ViewerBody, ViewerLoading } from "./viewer-surface";
 import {
   ViewerFindControl,
@@ -55,7 +57,6 @@ import {
   ViewerToolbarSpacer,
   ViewerZoomControl,
 } from "./viewer-toolbar";
-import { ZOOM_LEVELS } from "./zoom-levels";
 
 const ignore = () => {
   // Nothing to do; see the call sites.
@@ -264,6 +265,12 @@ function PdfDocumentView({ documentId }: { documentId: string }) {
   // Cmd+C elsewhere in the app, and both the artifact panel and the expand
   // modal can have a viewer mounted at once, so whichever one holds the
   // selection should be the one that answers.
+  const hasSelection = () =>
+    (selection?.forDocument(documentId).getBoundingRects().length ?? 0) > 0;
+  const copySelection = () => {
+    selection?.forDocument(documentId).copyToClipboard();
+  };
+
   useEffect(() => {
     if (!selection) {
       return;
@@ -286,6 +293,11 @@ function PdfDocumentView({ documentId }: { documentId: string }) {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [documentId, selection]);
+
+  // The same commands on right-click. Chromium's own menu cannot offer Copy
+  // here: the selection is pdfium's, so `document.getSelection` is empty no
+  // matter how much of the page is highlighted.
+  useRegisterViewerSelection({ copy: copySelection, hasSelection });
 
   // The search session has to be open before results can be requested, and it
   // is torn down with the document so a reopened file starts clean.

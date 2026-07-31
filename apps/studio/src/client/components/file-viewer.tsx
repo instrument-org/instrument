@@ -38,6 +38,10 @@ import {
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
 import { useTaskFileOpenControl } from "../hooks/use-task-file-open-control";
 import { useTimedFlag } from "../hooks/use-timed-flag";
+import {
+  type ViewerSelectionApi,
+  ViewerSelectionRegistry,
+} from "./document-viewers/viewer-selection";
 import { ViewerSurface } from "./document-viewers/viewer-surface";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FilePreviewFallback } from "./file-preview-fallback";
@@ -51,6 +55,8 @@ import { Button } from "./ui/button";
 import {
   ContextMenu,
   ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "./ui/context-menu";
 import {
@@ -385,11 +391,9 @@ const VIEWERS = {
   },
   pptx: {
     render: ({ fallback, file }) => (
-      <DocumentContextMenu file={file}>
-        <ViewerSurface fallback={fallback} resetKey={file.url}>
-          <LazyPptxViewer filename={file.filename} url={file.url} />
-        </ViewerSurface>
-      </DocumentContextMenu>
+      <ViewerSurface fallback={fallback} resetKey={file.url}>
+        <LazyPptxViewer filename={file.filename} url={file.url} />
+      </ViewerSurface>
     ),
     scrolls: "self",
   },
@@ -445,14 +449,19 @@ const VIEWERS = {
 } satisfies Record<FileType, ViewerEntry>;
 
 /**
- * The file's own actions on right-click, in place of whatever Chromium infers
- * from the element under the cursor.
+ * The file's own actions on right-click, for the viewers the native menu cannot
+ * serve.
  *
- * PDF pages, PPTX pictures and the XLSX grid are all painted as images, so the
- * native menu offers Save Image As and Copy Image on what the user is reading
- * as a document — an image of one page of it, at whatever resolution it
- * happened to be rasterized. DOCX and CSV are left with the native menu: those
- * are real DOM text, and Copy on a selection is exactly the right offer.
+ * The split is whether the browser can see the content. DOCX, PPTX and CSV
+ * render real DOM text, so Chromium's own menu already offers Copy, Look Up and
+ * Copy Image on a picture, and replacing it would take those away. A PDF page
+ * is a bitmap whose selection lives in pdfium and the XLSX grid is a canvas, so
+ * the browser sees nothing selected there and offers nothing worth having.
+ *
+ * A viewer whose selection is invisible to the browser supplies its own Copy
+ * through {@link ViewerSelectionRegistry}. There is no Select All: the PDF
+ * plugin has no select-all command, and offering one that only worked for some
+ * formats would be worse than leaving it out.
  */
 function DocumentContextMenu({
   children,
@@ -461,15 +470,46 @@ function DocumentContextMenu({
   children: ReactNode;
   file: TaskFileViewerFile;
 }) {
+  const [selection, setSelection] = useState<null | ViewerSelectionApi>(null);
+  const [hasSelection, setHasSelection] = useState(false);
+
   return (
-    <ContextMenu>
-      <ContextMenuTrigger className="flex min-h-0 flex-1 flex-col">
-        {children}
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <FileActionsMenuItems file={file} menuComponents={contextMenuComponents} />
-      </ContextMenuContent>
-    </ContextMenu>
+    <ViewerSelectionRegistry value={setSelection}>
+      <ContextMenu
+        onOpenChange={(open) => {
+          // Read on open rather than tracking it: the answer only matters at
+          // the moment the menu appears, and subscribing would re-render the
+          // whole viewer on every change of selection.
+          if (open) {
+            setHasSelection(selection?.hasSelection() ?? false);
+          }
+        }}
+      >
+        <ContextMenuTrigger className="flex min-h-0 flex-1 flex-col">
+          {children}
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          {selection && (
+            <>
+              <ContextMenuItem
+                disabled={!hasSelection}
+                onClick={() => {
+                  selection.copy();
+                }}
+              >
+                <CopyIcon className="size-4" />
+                <span>Copy</span>
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+            </>
+          )}
+          <FileActionsMenuItems
+            file={file}
+            menuComponents={contextMenuComponents}
+          />
+        </ContextMenuContent>
+      </ContextMenu>
+    </ViewerSelectionRegistry>
   );
 }
 

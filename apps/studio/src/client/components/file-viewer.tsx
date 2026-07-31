@@ -16,15 +16,12 @@ import { rpcClient } from "@/client/rpc/client";
 import {
   ArrowClockwiseIcon,
   ArrowLineDownIcon,
-  ArrowsInIcon,
   ArrowsOutSimpleIcon,
   CheckIcon,
   CodeIcon,
   CopyIcon,
   DotsThreeOutlineVerticalIcon,
   EyeIcon,
-  MagnifyingGlassMinusIcon,
-  MagnifyingGlassPlusIcon,
   XIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -34,10 +31,6 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useFileActionVisibility } from "../hooks/use-file-action-visibility";
-import {
-  IMAGE_PANZOOM_VIEWPORT_CLASS,
-  useImagePanzoom,
-} from "../hooks/use-image-panzoom";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
 import { useTaskFileOpenControl } from "../hooks/use-task-file-open-control";
 import { useTimedFlag } from "../hooks/use-timed-flag";
@@ -46,7 +39,7 @@ import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileLoading } from "./file-loading";
 import { FilePreviewFallback } from "./file-preview-fallback";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
-import { ImageWithFallback } from "./image-with-fallback";
+import { ImageViewer } from "./image-viewer";
 import { OpenTaskFileButton } from "./open-task-file-button";
 import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
 import { SessionMarkdown } from "./session-markdown";
@@ -72,85 +65,6 @@ import {
 import { contextMenuComponents } from "./ui/menu-components";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-
-function ImagePanzoomViewer({
-  filename,
-  onError,
-  url,
-}: {
-  filename: string;
-  onError: () => void;
-  url: string;
-}) {
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const { canReset, reset, zoomIn, zoomOut } = useImagePanzoom({
-    contentRef,
-    viewportRef,
-  });
-
-  return (
-    <div className={`${IMAGE_PANZOOM_VIEWPORT_CLASS} relative size-full`}>
-      <div
-        className="flex size-full items-center justify-center overflow-hidden"
-        ref={viewportRef}
-      >
-        <div
-          className="flex items-center justify-center"
-          ref={contentRef}
-          style={{ height: "100%", width: "100%" }}
-        >
-          <ImageWithFallback
-            alt={filename}
-            className="size-auto max-h-full max-w-full object-contain select-none"
-            filename={filename}
-            onError={onError}
-            showCheckerboard
-            src={url}
-          />
-        </div>
-      </div>
-      <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
-        <div className="pointer-events-auto">
-          <ImageZoomControls
-            canReset={canReset}
-            onReset={reset}
-            onZoomIn={zoomIn}
-            onZoomOut={zoomOut}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ImageZoomControls({
-  canReset,
-  onReset,
-  onZoomIn,
-  onZoomOut,
-}: {
-  canReset: boolean;
-  onReset: () => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-1 rounded-xl bg-background/90 p-1 text-foreground shadow-lg">
-      <Button onClick={onZoomOut} size="icon-sm" variant="ghost">
-        <MagnifyingGlassMinusIcon className="size-5" />
-      </Button>
-      <Button onClick={onZoomIn} size="icon-sm" variant="ghost">
-        <MagnifyingGlassPlusIcon className="size-5" />
-      </Button>
-      {canReset && (
-        <Button onClick={onReset} size="icon-sm" variant="ghost">
-          <ArrowsInIcon className="size-5" />
-        </Button>
-      )}
-    </div>
-  );
-}
 
 function MarkdownPreview({ url }: { url: string }) {
   const { data, error, isLoading } = useQuery({
@@ -351,7 +265,7 @@ const VIEWERS = {
       ) : (
         <ContextMenu>
           <ContextMenuTrigger className="size-full">
-            <ImagePanzoomViewer
+            <ImageViewer
               filename={file.filename}
               key={file.url}
               onError={onImageError}

@@ -159,7 +159,7 @@
     "devtools-protocol": "^0.0.1617013",
     "dotenv": "^16.6.1",
     "electron": "^42.3.3",
-    "electron-builder": "26.8.2",
+    "electron-builder": "26.15.7",
     "electron-vite": "^5.0.0",
     "jiti": "2.6.1",
     "jotai": "^2.14.0",

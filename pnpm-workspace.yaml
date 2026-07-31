@@ -63,7 +63,7 @@ overrides:
   jiti: 2.7.0
 
 patchedDependencies:
-  "@parcel/watcher@2.5.1": patches/@parcel__watcher@2.5.1.patch
+  "@parcel/watcher@2.6.0": patches/@parcel__watcher@2.6.0.patch
   app-builder-lib@26.8.2: patches/app-builder-lib@26.8.2.patch
   conf@14.0.0: patches/conf@14.0.0.patch
 

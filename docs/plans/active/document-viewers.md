@@ -287,21 +287,54 @@ Theme: documents render in their own colors at every app theme, matching the PDF
 
 App zoom: the toolbar's dropdowns, popovers, selects, and tooltips get `useAppZoomStyle` for free by using Studio's primitives. Canvas-rendered document content needs checking at zoom levels other than 1x — the viewers do their own device-pixel-ratio math.
 
+## Data and container formats
+
+Three more viewers, added after the five above landed. They are grouped here because none of them renders a document the way the first five do: two read a container to show what is inside it, and one browses data that has no pages at all.
+
+| | SQLite | Zip | iWork |
+| --- | --- | --- | --- |
+| Extensions | `.db`, `.sqlite`, `.sqlite3` | `.zip` | `.pages`, `.numbers`, `.key` |
+| Reader | `@sqlite.org/sqlite-wasm`, Apache-2.0 | `@zip.js/zip.js`, already a workspace dependency | the same zip reader |
+| Body | the shared `DataGrid` | its own virtualized listing | an image |
+| New dependency | one wasm binary, 844KB | none | none |
+
+**The grid is now shared.** `DataGrid` holds the virtualized table, find, sort and column sizing that the CSV viewer used to own; the CSV viewer keeps only its parsing. A database table wants all four, so the alternative was a second copy of them.
+
+**SQLite runs in wasm rather than through the main process's native SQLite,** which is worth stating because Studio already has the latter for `task.db`. These files are untrusted and frequently malformed, SQLite does not claim to be hardened against hostile database files, and a fault in main takes the window with it where a wasm trap takes only the viewer. The file is read into wasm memory and opened with `sqlite3_deserialize`, so the database on disk is never touched and a preview cannot lock or corrupt one another process is using. Rows are read to a bound: a database is the only format here with no ceiling on its own size, and the grid holds what it is given.
+
+**Listing an archive decompresses nothing.** The central directory is a table of contents at the end of the file, so a listing costs the same for an ordinary zip and for a compression bomb; the bomb only exists on the inflate path. Only the single-member read inflates, and it bounds what it accepts by the bytes that actually arrive, not by the `uncompressedSize` the archive declares about itself — that field is the one an attacker controls.
+
+Members are listed flat, by full path, rather than browsed as a tree. A zip is a flat list of paths to begin with, and keeping it flat makes the whole archive one findable surface. Nothing in the listing is clickable yet: previewing a member means a route for content that has no path on disk, which is the real design question and is its own change.
+
+**zip.js inflates on the calling thread here.** Its worker pool starts from a blob URL that the renderer's CSP does not admit, and the failure is a hang rather than an error — `getData` waits on a worker that never reports for duty. `configure({ useWebWorkers: false })` in `archive.ts` is what makes the iWork path work at all. The listing path never reaches it.
+
+**iWork is a preview image, and says so.** Pages, Numbers and Keynote wrap Apple's IWA payload, a protobuf stream with no published schema and no reader outside Apple's apps, so rendering the document is not available at any price. What each file does carry is a `preview.jpg` that the authoring app rendered at its last save. That is enough to tell one file from another, confirm the right version was attached, or read a one-page memo. The banner is load-bearing: a reader not told otherwise will take a one-page snapshot for the live document, and every way that is wrong matters — one page, no selectable text, and as old as the last save by an Apple app rather than as old as the file.
+
+### Formats surveyed and not taken
+
+- **HEIC**, and with it the whole macOS ImageIO route. `sips` decodes HEIC, PSD, TIFF and about twenty camera RAW formats, and would have covered all of them through one main-process path. HEIC is what justified that path, and HEIC is a format Chromium itself declines to ship because the licensing is expensive; PSD and RAW alone do not carry a decode path, a JPEG cache and a macOS-only asymmetry.
+- **Jupyter notebooks.** Cheap to build on the markdown and syntax-highlighting already here, but a notebook is a programmer's artifact and this is not a programmer's product.
+- **Parquet** (`hyparquet`) and **email** (`postal-mime`). Both are real, both are contained, neither has demonstrated demand. They would drop into the registry the same way these three did.
+- **ODF, legacy `.doc`, `.rtf`, and full iWork rendering.** No JavaScript or wasm renderer reaches acceptable fidelity, and the honest alternative is a headless office converter measured in hundreds of megabytes. They keep their labelled download card.
+- **The other archive containers** — 7z, rar, tar and the compressed tarballs — which are different formats this reader cannot open.
+
 ## Validation
 
 Per `.agents/skills/validate-changes/SKILL.md`, none of this is observable from reading the code. Each format needs a real file opened in a running Studio:
 
-- Dev, all five formats, in the artifact panel and the expand modal, both themes, app zoom at 1x and something else. All five have been opened in the artifact panel in dev, DOCX and PDF in the expand modal, and PPTX at 1x and above; the light theme has not been exercised. Two host-collision failures have been checked and do not occur: page navigation moves the modal's viewer rather than the panel's copy, and a PDF open in both survives the modal closing even though each `PdfDocument` closes the documents it did not open.
+- Dev, every format, in the artifact panel and the expand modal, both themes, app zoom at 1x and something else. SQLite, zip and iWork have each been opened in the panel in dev against real files, with their engine reads checked against the same file read outside the app. All five have been opened in the artifact panel in dev, DOCX and PDF in the expand modal, and PPTX at 1x and above; the light theme has not been exercised. Two host-collision failures have been checked and do not occur: page navigation moves the modal's viewer rather than the panel's copy, and a PDF open in both survives the modal closing even though each `PdfDocument` closes the documents it did not open.
 - PDF text selection and copy, which is the part reconstructed above a bitmap rather than native browser selection. Selecting the title of a paper and pressing Cmd+C puts that title on the clipboard. Still worth checking by hand across a page boundary and at several zoom levels.
 - Spreadsheet copy, which has no browser behaviour to fall back on. Verified in dev by driving real input over CDP: clicking a cell and pressing Cmd+C puts that cell's value on the clipboard, and dragging a block puts tab-separated text and an HTML table there.
 - Every payload the `vendor` host answers for, one request each. A path it rejects is a 404, and a 404 for an engine binary does not surface as one: `fetch` resolves, the error body is handed to the engine as if it were the module, and the failure appears somewhere else entirely.
-- A packaged build, all five formats — the `file://` origin, the app protocol, and the copied `resources/vendor/` only exist there. This is the step that catches wasm and worker regressions.
+- A packaged build, every format — the `file://` origin, the app protocol, and the copied `resources/vendor/` only exist there. This is the step that catches wasm and worker regressions, and the zip reader's worker behaviour is exactly the kind of thing that differs there.
 - A narrow artifact panel, to confirm the toolbar collapses rather than overflowing.
 - A large file per format (a 500-page PDF, a workbook with many sheets) for the virtualization and memory paths.
 - A DOCX whose sections change page size, portrait to landscape. `revealPage` estimates a distant jump from `layout.pageHeightPx`, which describes the first section alone, so a mixed-size document accumulates error with every page crossed. The correction after the jump only waits for the target to mount at that offset; it does not re-aim, so an estimate that lands outside the target's virtualized window gives up on the wrong page. Fixing it means re-estimating from the nearest mounted page until it converges, which wants such a document in hand to test against.
 - A malformed file per format, to confirm the `CatchBoundary` degrades to the fallback card rather than taking down the panel.
 - For PDF specifically, a corpus of awkward real-world documents rather than only generated ones: a scan, a filled government form, a CJK document, something from an old generator. Robust compatibility with whatever a user brings is why pdfium was chosen, so it is the thing to actually check, and the thing that would reopen the engine decision if it went badly.
-- `.numbers` files, which do not preview: `@dukelib/sheets-wasm` reads OOXML and legacy `.xls`, and Apple's format is neither. Supporting it means a separate parser for a proprietary, undocumented container, so those files keep falling through to the "open in the associated app" path.
+- iWork files across the three apps and several versions. The preview member is whatever the authoring app last wrote, so the cases worth finding are a document saved by a version old enough to write none, one saved on iOS rather than macOS, and a password-protected document, whose preview may be encrypted along with the payload.
+- An archive with thousands of members, one with paths deep enough to truncate in the listing, and one written on Windows, whose separators and filename encoding differ from the macOS-written archives to hand.
+- A database with a few million rows in one table, to see where `MAX_ROWS` actually bites, and one whose tables are all empty. Also a `.db` that is not SQLite at all, which should reach the fallback card rather than an empty grid.
 - The artifact panel's own loading state, which is not a viewer concern but shows up as one. `TaskView` renders the "File not found" card whenever it has a path and no resolved file, so every file flashed that card on its way in — most visibly on a PDF, which takes longest to appear afterwards. It now waits for the lookup to actually answer, read off the query's update stamps: while the query is disabled, which it is on the render where the path arrives, it reports neither pending nor fetching while still holding no data, so neither of those flags can stand in for "we have not heard back yet".
 
   Every wait, in the panel and in all seven viewers, goes through one `FileLoading`: nothing for half a second, then a centred spinner. A skeleton filling the content area was tried first, on the reasoning that a placeholder occupying the space makes the swap a fill rather than a jump. In use it read as neither, because these waits are mostly shorter than the eye settles, so switching files strobed a grey block between two documents. The delay is what separates the two cases — under it there is nothing to see, over it there is something that looks like work rather than furniture — and it is measured per mount, so flipping through several files in a row stays still throughout.

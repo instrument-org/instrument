@@ -155,6 +155,11 @@ export function ViewerPageControl({
             event.currentTarget.blur();
           }
           if (event.key === "Escape") {
+            // Put the current page back before blurring rather than only
+            // dropping the draft: blur commits whatever the field holds, and
+            // React has not re-rendered by the time it fires, so the abandoned
+            // number would be the thing committed.
+            event.currentTarget.value = String(page);
             setDraft(null);
             event.currentTarget.blur();
           }

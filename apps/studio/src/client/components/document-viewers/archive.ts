@@ -1,6 +1,5 @@
 import {
   BlobReader,
-  BlobWriter,
   configure,
   type FileEntry,
   ZipReader,
@@ -42,11 +41,12 @@ export async function readArchiveEntries(url: string): Promise<FileEntry[]> {
 /**
  * One named member's bytes, or null when the archive has no such member.
  *
- * `maxBytes` is checked against what actually came out rather than the header's
- * `uncompressedSize`, which the archive declares about itself and a hostile one
- * can understate: a few hundred kilobytes of zeroes expand to gigabytes, and
- * trusting the declared figure is what turns reading a member into a way to
- * exhaust memory.
+ * Two bounds, because they catch different files. The declared
+ * `uncompressedSize` rejects an honest large member without inflating a byte,
+ * and is only ever a hint: it is the archive describing itself, and a hostile
+ * one understates it, which is exactly how a few hundred kilobytes of zeroes
+ * become gigabytes in memory. So the real cap is the one enforced on the bytes
+ * as they arrive, in {@link inflateBounded}.
  *
  * The name is matched exactly rather than by suffix, so a member deeper in the
  * tree cannot stand in for one the caller expected at the root.
@@ -70,14 +70,64 @@ export async function readArchiveMember({
     if (!entry) {
       return null;
     }
-    const blob = await entry.getData(new BlobWriter());
-    if (blob.size > maxBytes) {
+    if (entry.uncompressedSize > maxBytes) {
       throw new Error(`"${name}" is larger than this preview allows.`);
     }
-    return blob;
+    return await inflateBounded({ entry, maxBytes });
   } finally {
     await reader.close();
   }
+}
+
+/**
+ * Inflates one member, stopping the moment it produces more than `maxBytes`.
+ *
+ * The cap is enforced while the bytes arrive rather than once they have, which
+ * is the whole point: a member that expands to gigabytes has already spent the
+ * memory by the time a finished blob could be measured. Chunks are counted as
+ * the stream writes them and the sink throws past the bound, which errors the
+ * stream and unwinds the inflate rather than letting it run to completion.
+ */
+async function inflateBounded({
+  entry,
+  maxBytes,
+}: {
+  entry: FileEntry;
+  maxBytes: number;
+}) {
+  // Spelled with its buffer type so the chunks satisfy `BlobPart` below: a
+  // plain `Uint8Array` is backed by `ArrayBufferLike`, which admits
+  // `SharedArrayBuffer` and so is not something a `Blob` will take.
+  const chunks: Uint8Array<ArrayBuffer>[] = [];
+  let written = 0;
+
+  try {
+    await entry.getData(
+      new WritableStream<Uint8Array<ArrayBuffer>>({
+        write(chunk) {
+          written += chunk.length;
+          if (written > maxBytes) {
+            throw new Error("Member exceeds the preview size limit.");
+          }
+          chunks.push(chunk);
+        },
+      }),
+    );
+  } catch (error) {
+    // What escapes is not the error thrown above: zip.js goes on to close a
+    // stream that is already errored, and the `TypeError` from doing that is
+    // what surfaces. The byte count is the reliable witness to which failure
+    // this was, so the reason that reaches the log is the size rather than the
+    // plumbing.
+    if (written > maxBytes) {
+      throw new Error(
+        `"${entry.filename}" is larger than this preview allows.`,
+      );
+    }
+    throw error;
+  }
+
+  return new Blob(chunks);
 }
 
 async function openArchive(url: string) {

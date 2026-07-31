@@ -93,16 +93,26 @@ export function createStudioAppUpdater({
   return updater;
 }
 
-// electron-updater logs at debug level the proxy-server lifecycle and, on
-// macOS, the event that says Squirrel finished staging the build. The production
-// file transport drops that level, and those are the only lines separating an
-// install that could not take from one that never ran, so route them to info and
-// keep a failed update diagnosable from a user's log alone.
+// The debug lines worth keeping: the proxy-server lifecycle and, on macOS, the
+// event that says Squirrel finished staging the build. Matched by subject rather
+// than exact text so a reworded upstream message still lands.
+const SQUIRREL_HANDOFF_LOG = /nativeUpdater|proxy server/i;
+
+// electron-updater logs the handoff above at debug level, which the production
+// file transport drops, and those are the only lines separating an install that
+// could not take from one that never ran. Route them to info and keep a failed
+// update diagnosable from a user's log alone.
+//
+// Only them. The differential downloader logs at debug too, and one of its
+// messages is the entire block plan as formatted JSON: 1400+ lines per download,
+// which would bury the signal this exists to surface.
 function createAutoUpdaterLogger() {
   const autoUpdaterLogger = logger.scope("appUpdater:autoUpdater");
   return {
     debug: (message: string) => {
-      autoUpdaterLogger.info(message);
+      if (SQUIRREL_HANDOFF_LOG.test(message)) {
+        autoUpdaterLogger.info(message);
+      }
     },
     error: (message?: unknown) => {
       autoUpdaterLogger.error(message);

@@ -1,6 +1,7 @@
 import { cn } from "@/client/lib/utils";
 import {
   DocxEditorViewer,
+  type DocxPageLayoutInfo,
   useDocxEditor,
   useDocxPageLayout,
   useDocxViewerThumbnails,
@@ -106,7 +107,7 @@ export function DocxViewer({
         <ViewerPageControl
           count={Math.max(editor.totalPages, 1)}
           onPageChange={(page) => {
-            revealPage(scrollElement, page - 1);
+            revealPage({ layout, pageIndex: page - 1, scrollElement, zoom });
           }}
           page={Math.min(currentPage, Math.max(editor.totalPages, 1))}
         />
@@ -125,7 +126,7 @@ export function DocxViewer({
             currentPage={currentPage}
             editor={editor}
             onSelect={(pageIndex) => {
-              revealPage(scrollElement, pageIndex);
+              revealPage({ layout, pageIndex, scrollElement, zoom });
             }}
           />
         }
@@ -202,18 +203,58 @@ function DocxThumbnailRail({
   );
 }
 
-// The viewer paginates internally and exposes no imperative scroll API, so
-// page navigation goes through the page wrapper's own data attribute.
-//
-// Scoped to the viewer's own scroll container rather than the document: the
-// artifact panel keeps its viewer mounted while the expand modal renders a
-// second one for the same file, so a global lookup always resolves to the
-// panel's copy and the modal's navigation would scroll the hidden viewer.
-function revealPage(scrollElement: HTMLElement | null, pageIndex: number) {
-  const target = scrollElement?.querySelector(
-    `[data-docx-page-index="${pageIndex}"]`,
-  );
-  target?.scrollIntoView({ behavior: "smooth", block: "start" });
+/**
+ * Scrolls a page into view, whether or not it is currently rendered.
+ *
+ * The viewer exposes no imperative scroll API, so navigation goes through the
+ * page wrappers' own data attribute -- but it also virtualizes, keeping only a
+ * couple of pages either side of the viewport mounted. Looking the target up in
+ * the DOM therefore works for a neighbouring page and silently does nothing for
+ * anything further away, which is most of the document.
+ *
+ * So the offset is computed from the page geometry, and the DOM lookup is only
+ * a correction once the target has mounted. The computed offset assumes a
+ * uniform page height, which is what makes the correction worth doing: a
+ * document that changes page size mid-way would otherwise land near the target
+ * rather than on it.
+ *
+ * Scoped to the viewer's own scroll container rather than the document: the
+ * artifact panel keeps its viewer mounted while the expand modal renders a
+ * second one for the same file, so a global lookup always resolves to the
+ * panel's copy and the modal's navigation would scroll the hidden viewer.
+ */
+function revealPage({
+  layout,
+  pageIndex,
+  scrollElement,
+  zoom,
+}: {
+  layout: DocxPageLayoutInfo;
+  pageIndex: number;
+  scrollElement: HTMLElement | null;
+  zoom: number;
+}) {
+  if (!scrollElement) {
+    return;
+  }
+
+  const findTarget = () =>
+    scrollElement.querySelector(`[data-docx-page-index="${pageIndex}"]`);
+
+  const mounted = findTarget();
+  if (mounted) {
+    mounted.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+
+  const stride =
+    (layout.pageHeightPx + layout.viewportDefaults.pageGapPx) * zoom;
+  scrollElement.scrollTo({ behavior: "instant", top: pageIndex * stride });
+  // The jump mounts the page; landing exactly on it needs the real element,
+  // which only exists after the viewer has rendered that window.
+  requestAnimationFrame(() => {
+    findTarget()?.scrollIntoView({ behavior: "instant", block: "start" });
+  });
 }
 
 /**

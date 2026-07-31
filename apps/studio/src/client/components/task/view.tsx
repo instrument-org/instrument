@@ -23,9 +23,10 @@ import { XIcon } from "@phosphor-icons/react";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { Button } from "../ui/button";
+import { Skeleton } from "../ui/skeleton";
 import { TaskBrowserPanel } from "./browser-panel";
 import { TaskSidebar, type TaskSidebarMode } from "./sidebar";
 
@@ -107,7 +108,11 @@ export function TaskView({
 
   const showArtifactPanel = artifactPanel !== undefined;
 
-  const { data: fileInfo } = useQuery(
+  const {
+    data: fileInfo,
+    dataUpdatedAt,
+    errorUpdatedAt,
+  } = useQuery(
     rpcClient.workspace.task.files.fileInfo.queryOptions({
       input: filePanel
         ? {
@@ -136,6 +141,19 @@ export function TaskView({
           }),
         }
       : null;
+
+  // Whether the panel is still working out what this file is. "Not found" is a
+  // claim about the file, so it waits for an answer.
+  //
+  // The answer is "has this query ever delivered anything for this file", read
+  // off the update stamps, which reset to 0 when the key changes. The status
+  // flags cannot be used for it: while the query is disabled -- which it is for
+  // the render where the path arrives -- it reports neither pending nor
+  // fetching while still holding no data, so a check on those shows the missing
+  // state to every file on its way in.
+  const hasFileAnswer = dataUpdatedAt > 0 || errorUpdatedAt > 0;
+  const isResolvingFile =
+    !hasFileAnswer || (fileInfo !== undefined && currentModifiedAt === undefined);
 
   const handleArtifactPanelClose = () => {
     void navigate({
@@ -241,10 +259,22 @@ export function TaskView({
                     />
                   </div>
                 ) : filePanel ? (
-                  <MissingArtifactPanel
+                  // Only claim the file is gone once the lookup has answered.
+                  // Rendering the missing state while the query is still in
+                  // flight flashes "File not found" over every file on its way
+                  // in, which is a lie the panel then corrects a frame later.
+                  <ArtifactPanelShell
                     filePath={filePanel.filePath}
                     onClose={handleArtifactPanelClose}
-                  />
+                  >
+                    {isResolvingFile ? (
+                      <div className="size-full p-4">
+                        <Skeleton className="size-full" />
+                      </div>
+                    ) : (
+                      <MissingFileNotice />
+                    )}
+                  </ArtifactPanelShell>
                 ) : null}
               </div>
             </ResizablePanel>
@@ -255,10 +285,18 @@ export function TaskView({
   );
 }
 
-function MissingArtifactPanel({
+/**
+ * The artifact panel's frame for a file that has no viewer mounted in it,
+ * either because the file is still being looked up or because it is not there.
+ * Matches `FileViewer`'s own frame so the header does not move when one
+ * replaces the other.
+ */
+function ArtifactPanelShell({
+  children,
   filePath,
   onClose,
 }: {
+  children: ReactNode;
   filePath: string;
   onClose: () => void;
 }) {
@@ -272,12 +310,18 @@ function MissingArtifactPanel({
           <XIcon className="size-4" />
         </Button>
       </div>
-      <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-        <div className="max-w-sm text-center">
-          <div className="text-sm font-medium">File not found</div>
-          <div className="mt-1 text-sm text-muted-foreground">
-            This chat references a file that is not present in the task folder.
-          </div>
+      {children}
+    </div>
+  );
+}
+
+function MissingFileNotice() {
+  return (
+    <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+      <div className="max-w-sm text-center">
+        <div className="text-sm font-medium">File not found</div>
+        <div className="mt-1 text-sm text-muted-foreground">
+          This chat references a file that is not present in the task folder.
         </div>
       </div>
     </div>

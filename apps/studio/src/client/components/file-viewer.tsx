@@ -1,7 +1,9 @@
+import { featuresAtom } from "@/client/atoms/features";
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import {
   LazyCsvViewer,
   LazyDocxViewer,
+  LazyPdfJsViewer,
   LazyPdfViewer,
   LazyPptxViewer,
   LazyXlsxViewer,
@@ -26,6 +28,7 @@ import {
   XIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useAtomValue } from "jotai";
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -382,14 +385,7 @@ const VIEWERS = {
       ),
     scrolls: "container",
   },
-  pdf: {
-    render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
-        <LazyPdfViewer filename={file.filename} url={file.url} />
-      </ViewerSurface>
-    ),
-    scrolls: "self",
-  },
+  pdf: { render: renderPdf, scrolls: "self" },
   pptx: {
     render: ({ fallback, file }) => (
       <ViewerSurface fallback={fallback} resetKey={file.url}>
@@ -446,6 +442,29 @@ const VIEWERS = {
     scrolls: "self",
   },
 } satisfies Record<FileType, ViewerEntry>;
+
+/**
+ * Two engines render PDFs, chosen by feature flag. pdfium is the default; the
+ * pdf.js path is the one to reach for when a page needs to behave like text
+ * rather than a picture of text, and stays behind the flag until its rendering
+ * has been compared against the default on real documents.
+ */
+function PdfViewerForEngine({ file }: { file: TaskFileViewerFile }) {
+  const features = useAtomValue(featuresAtom);
+  return features.pdfjs_viewer ? (
+    <LazyPdfJsViewer filename={file.filename} url={file.url} />
+  ) : (
+    <LazyPdfViewer filename={file.filename} url={file.url} />
+  );
+}
+
+function renderPdf({ fallback, file }: ViewerContext) {
+  return (
+    <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <PdfViewerForEngine file={file} />
+    </ViewerSurface>
+  );
+}
 
 function renderText({ file }: ViewerContext) {
   return (

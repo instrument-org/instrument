@@ -7,17 +7,25 @@ import path from "node:path";
 import { getResourcePath } from "./resource-path";
 
 const FILE_OPEN_ICON_HOST = "file-open-icon";
-const WASM_HOST = "wasm";
+// The renderer runs from `file://` in production, where bundled assets cannot
+// be fetched, so the document viewers load their engines from here instead:
+// wasm binaries, the PDF worker, and the font and character-map tables those
+// engines ask for by URL at parse time.
+const VENDOR_HOST = "vendor";
 const ICON_SIZE = 64;
 const ICON_FILENAME_PATTERN = /^[a-f0-9]{64}\.png$/;
-// The renderer runs from `file://` in production, where bundled assets cannot
-// be fetched, so the document viewers load their WASM from here instead.
-const WASM_FILENAMES = new Set([
-  "docx.wasm",
-  "pdfium.wasm",
-  "pptx.wasm",
-  "xlsx.wasm",
-]);
+// Deliberately narrow: these paths come from the renderer, and the only ones
+// that need to work are the vendored trees copied in at build time. Anything
+// with a segment this rejects, `..` included, never reaches the filesystem.
+const VENDOR_PATH_PATTERN = /^[\w-]+(?:\/[\w-]+)*\.[a-z0-9]+$/i;
+const VENDOR_CONTENT_TYPES: Record<string, string> = {
+  ".bcmap": "application/octet-stream",
+  ".icc": "application/octet-stream",
+  ".mjs": "text/javascript",
+  ".pfb": "application/octet-stream",
+  ".ttf": "font/ttf",
+  ".wasm": "application/wasm",
+};
 const IMMUTABLE_CACHE_SECONDS = 365 * 24 * 60 * 60;
 
 export function registerAppProtocol() {
@@ -27,8 +35,8 @@ export function registerAppProtocol() {
       case FILE_OPEN_ICON_HOST: {
         return handleFileOpenIconRequest({ request, url });
       }
-      case WASM_HOST: {
-        return handleWasmRequest({ request, url });
+      case VENDOR_HOST: {
+        return handleVendorRequest({ request, url });
       }
       default: {
         return new Response(null, { status: 404 });
@@ -86,31 +94,36 @@ async function handleFileOpenIconRequest({
   }
 }
 
-async function handleWasmRequest({
+async function handleVendorRequest({
   request,
   url,
 }: {
   request: Request;
   url: URL;
 }) {
-  const filename = url.pathname.slice(1);
-  if (request.method !== "GET" || !WASM_FILENAMES.has(filename)) {
+  const assetPath = url.pathname.slice(1);
+  const contentType = VENDOR_CONTENT_TYPES[path.extname(assetPath)];
+  if (
+    request.method !== "GET" ||
+    !VENDOR_PATH_PATTERN.test(assetPath) ||
+    !contentType
+  ) {
     return new Response(null, { status: 404 });
   }
 
   try {
-    const wasm = await fs.readFile(getResourcePath(WASM_HOST, filename));
-    return new Response(wasm, {
+    const asset = await fs.readFile(getResourcePath(VENDOR_HOST, assetPath));
+    return new Response(asset, {
       headers: {
         // The renderer's own origin is `file://` (or the dev server) and never
         // this scheme, so every request here is cross-origin and `fetch()`
         // would fail CORS without this. The bytes ship with the app and the
         // scheme is only reachable from the app's own web contents.
         "Access-Control-Allow-Origin": "*",
-        // The binaries ship with the app build, so they only change when the
-        // app itself is replaced and the renderer is reloaded from scratch.
+        // These ship with the app build, so they only change when the app
+        // itself is replaced and the renderer is reloaded from scratch.
         "Cache-Control": `public, max-age=${IMMUTABLE_CACHE_SECONDS}, immutable`,
-        "Content-Type": "application/wasm",
+        "Content-Type": contentType,
       },
     });
   } catch {

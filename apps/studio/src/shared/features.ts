@@ -4,6 +4,7 @@ export const FeatureNameSchema = z.enum([
   "bash_summary_chip",
   "context_ring",
   "external_browser",
+  "pdfjs_viewer",
   "prompt_browser_toggle",
   "prompt_queue",
   "skills",
@@ -31,6 +32,11 @@ export const FEATURE_METADATA: Record<
     description:
       "Let the agent drive a browser outside the app: the user's own Chrome profile and its logins, a Chromium already running with remote debugging, or a cloud browser. macOS asks for a system permission the first time.",
     title: "External Browser",
+  },
+  pdfjs_viewer: {
+    description:
+      "Render PDFs with pdf.js instead of pdfium. Text becomes a real browser selection, so right-click Copy and Look Up work; page rendering is a different engine and may differ.",
+    title: "pdf.js PDF Renderer",
   },
   prompt_browser_toggle: {
     description:

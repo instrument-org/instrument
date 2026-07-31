@@ -18,6 +18,8 @@ export default [
     "bin",
     ".tmp",
     "resources/tailwind-browser.js",
+    // Engine payloads copied in at build time and shipped as they arrive.
+    "resources/vendor",
   ]),
   ...baseConfig,
   {

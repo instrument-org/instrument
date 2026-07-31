@@ -87,7 +87,10 @@ function copyVendorAssets(): Plugin {
     path.dirname(fileURLToPath(import.meta.url)),
     "resources",
   );
-  const wasmDir = path.join(resourcesDir, "wasm");
+  const vendorDir = path.join(resourcesDir, "vendor");
+  const pdfjsDir = path.dirname(
+    path.dirname(require.resolve("pdfjs-dist/build/pdf.mjs")),
+  );
   const assets = [
     {
       from: require.resolve("@tailwindcss/browser"),
@@ -98,24 +101,42 @@ function copyVendorAssets(): Plugin {
     // from `resources/` instead of being emitted into the renderer bundle.
     {
       from: require.resolve("@embedpdf/pdfium/pdfium.wasm"),
-      to: path.join(wasmDir, "pdfium.wasm"),
+      to: path.join(vendorDir, "pdfium.wasm"),
     },
     {
       from: require.resolve("@extend-ai/react-docx/docx_wasm_bg.wasm"),
-      to: path.join(wasmDir, "docx.wasm"),
+      to: path.join(vendorDir, "docx.wasm"),
     },
     {
       from: require.resolve("@extend-ai/react-pptx/pptx_wasm_bg.wasm"),
-      to: path.join(wasmDir, "pptx.wasm"),
+      to: path.join(vendorDir, "pptx.wasm"),
     },
     {
       from: require.resolve("@extend-ai/react-xlsx/duke_sheets_wasm_bg.wasm"),
-      to: path.join(wasmDir, "xlsx.wasm"),
+      to: path.join(vendorDir, "xlsx.wasm"),
+    },
+    {
+      from: path.join(pdfjsDir, "build", "pdf.worker.min.mjs"),
+      to: path.join(vendorDir, "pdfjs", "pdf.worker.mjs"),
     },
   ];
+  // pdf.js fetches these by URL from inside its worker, as a document turns out
+  // to need them: image codecs, the fourteen standard fonts a PDF is allowed to
+  // leave out, the character maps behind CJK encodings, and colour profiles.
+  const assetTrees = ["cmaps", "iccs", "standard_fonts", "wasm"];
   return {
     async buildStart() {
-      for (const { from, to } of assets) {
+      const trees = await Promise.all(
+        assetTrees.map(async (tree) => {
+          const from = path.join(pdfjsDir, tree);
+          const files = await listFiles(from);
+          return files.map((file) => ({
+            from: path.join(from, file),
+            to: path.join(vendorDir, "pdfjs", tree, file),
+          }));
+        }),
+      );
+      for (const { from, to } of [...assets, ...trees.flat()]) {
         await copyVendorAsset({ from, to });
       }
     },
@@ -165,6 +186,22 @@ function createValidateProductionEnv(
     },
     name: `validate-production-env:${context}`,
   };
+}
+
+// Every file below a directory, as paths relative to it. The vendored trees
+// are read by filename at parse time, so listing them by hand would mean
+// tracking a couple of hundred character maps and font files.
+async function listFiles(directory: string, prefix = ""): Promise<string[]> {
+  const entries = await fs.readdir(directory, { withFileTypes: true });
+  const files = await Promise.all(
+    entries.map(async (entry) => {
+      const relativePath = path.posix.join(prefix, entry.name);
+      return entry.isDirectory()
+        ? listFiles(path.join(directory, entry.name), relativePath)
+        : [relativePath];
+    }),
+  );
+  return files.flat();
 }
 
 export default defineConfig(({ command }) => {

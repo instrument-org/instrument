@@ -2,11 +2,23 @@ import { APP_PROTOCOL } from "@instrument-org/shared";
 import { lazy } from "react";
 
 // The renderer is served from `file://` in production, where `fetch()` of a
-// bundled asset is blocked. The binaries are copied into `resources/wasm/` at
-// build time and served from the privileged app protocol instead.
-const wasmUrl = (filename: string) => `${APP_PROTOCOL}://wasm/${filename}`;
+// bundled asset is blocked. Engine binaries and the tables they load are copied
+// into `resources/vendor/` at build time and served from the privileged app
+// protocol instead.
+const vendorUrl = (assetPath: string) =>
+  `${APP_PROTOCOL}://vendor/${assetPath}`;
 
-export const PDFIUM_WASM_URL = wasmUrl("pdfium.wasm");
+export const PDFIUM_WASM_URL = vendorUrl("pdfium.wasm");
+
+// pdf.js resolves these itself while parsing, so each is a directory prefix
+// with the trailing slash it documents rather than a single file.
+export const PDFJS_ASSET_URLS = {
+  cMapUrl: vendorUrl("pdfjs/cmaps/"),
+  iccUrl: vendorUrl("pdfjs/iccs/"),
+  standardFontDataUrl: vendorUrl("pdfjs/standard_fonts/"),
+  wasmUrl: vendorUrl("pdfjs/wasm/"),
+  workerUrl: vendorUrl("pdfjs/pdf.worker.mjs"),
+};
 
 // Every host that mounts a viewer goes through these handles, so a viewer can
 // never reach its parser with the library's default wasm source: that one
@@ -31,6 +43,16 @@ export const LazyDocxViewer = lazy(async () => {
 export const LazyPdfViewer = lazy(async () => {
   const module = await import("@/client/components/document-viewers/pdf-viewer");
   return { default: module.PdfViewer };
+});
+
+// The second PDF renderer, reachable through the `pdfjs_viewer` feature flag.
+// It is a whole second engine, so it stays out of the default chunk graph
+// entirely until someone turns it on.
+export const LazyPdfJsViewer = lazy(async () => {
+  const module = await import(
+    "@/client/components/document-viewers/pdfjs-viewer"
+  );
+  return { default: module.PdfJsViewer };
 });
 
 export const LazyPptxViewer = lazy(async () => {
@@ -58,15 +80,15 @@ export const LazyCsvViewer = lazy(async () => {
 
 async function configureDocxWasmSource() {
   const { setWasmSource } = await import("@extend-ai/react-docx");
-  setWasmSource(wasmUrl("docx.wasm"));
+  setWasmSource(vendorUrl("docx.wasm"));
 }
 
 async function configurePptxWasmSource() {
   const { setWasmSource } = await import("@extend-ai/react-pptx");
-  setWasmSource(wasmUrl("pptx.wasm"));
+  setWasmSource(vendorUrl("pptx.wasm"));
 }
 
 async function configureXlsxWasmSource() {
   const { setWasmSource } = await import("@extend-ai/react-xlsx");
-  setWasmSource(wasmUrl("xlsx.wasm"));
+  setWasmSource(vendorUrl("xlsx.wasm"));
 }

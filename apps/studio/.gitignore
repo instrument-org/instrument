@@ -16,7 +16,7 @@ dist/
 resources/uv/
 
 # Document-viewer WASM binaries (copied from node_modules by the main build)
-resources/wasm/
+resources/vendor/
 
 # Turbo
 .turbo

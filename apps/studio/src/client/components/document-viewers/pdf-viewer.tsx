@@ -363,9 +363,17 @@ function PdfDocumentView({ documentId }: { documentId: string }) {
             The right button is stopped before it descends: the selection
             plugin clears on any pointer press whatever the button, so
             right-clicking a highlight to reach for Copy was wiping the very
-            thing being copied. */}
+            thing being copied.
+
+            Nothing here is selectable text -- a page is a bitmap and its
+            selection belongs to pdfium -- so a drag would otherwise start a
+            second, native selection over the layer elements underneath. It
+            captures no text, but the browser still paints a selection box over
+            whichever page bitmap it spans, which reads as a grey rectangle
+            sitting over part of the page, and grey rather than blue whenever
+            the window is not frontmost. */}
         <div
-          className="absolute inset-0 outline-none"
+          className="absolute inset-0 outline-none select-none"
           onPointerDownCapture={(event) => {
             event.currentTarget.focus({ preventScroll: true });
             if (event.button === 2) {

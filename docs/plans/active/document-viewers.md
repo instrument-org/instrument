@@ -282,6 +282,8 @@ Where it cannot — a PDF page is a bitmap and the XLSX grid is a canvas, with t
 
 So those two formats bind Cmd/Ctrl+C inside the viewer instead, guarded on that viewer actually holding a selection: an unguarded copy emits an empty string, which would wipe the clipboard on any copy elsewhere in the app, and both the artifact panel and the expand modal can have a viewer mounted at once. Which viewer owns the keystroke is settled by focus, since an engine-held selection is not cleared when focus moves away and would otherwise answer for a copy made anywhere in the app.
 
+The PDF page area also needs `user-select: none`. Nothing in it is selectable text, so a drag starts a second, native selection over the layer elements beneath the one pdfium is tracking. That selection captures no text — `getSelection()` returns a lone newline — but the browser still paints a selection box over whichever page bitmap the range spans, and paints it grey rather than blue whenever the window is not frontmost. The result is an opaque grey rectangle over part of the page, aligned to a tile boundary, which looks like a rendering fault in the engine and is not one. It survives until something collapses the selection, so it disappears the moment anyone clicks to investigate.
+
 ### The spreadsheet builds its own clipboard payload
 
 `@extend-ai/react-xlsx` ships two copy paths and neither can run here, for reasons that are independent and both invisible from the API surface.

@@ -25,6 +25,26 @@ interface ConnectorLoadError {
 }
 
 /**
+ * Turn a connector off by slug, for callers that revoke access rather than hold
+ * a loaded connector: signing out of an OAuth connector takes away the only
+ * thing that made it usable, so leaving `enabled` true would keep advertising it
+ * to the agent and showing it as connected in settings.
+ *
+ * A connector that no longer loads is already unusable, so a failure to read it
+ * is not an error worth surfacing to the caller.
+ */
+export async function disableConnector(
+  connectorsDir: AbsolutePath,
+  slug: string,
+): Promise<void> {
+  const loaded = await loadConnector(connectorsDir, slug);
+  if (loaded.isErr() || !loaded.value.manifest.enabled) {
+    return;
+  }
+  await setConnectorEnabled(loaded.value, false);
+}
+
+/**
  * Read every connector folder under `connectorsDir`. Folders whose manifest
  * fails to parse are returned separately so callers (settings UI, tests tool)
  * can surface the problem instead of silently hiding the connector.

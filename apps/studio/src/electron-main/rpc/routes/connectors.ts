@@ -3,6 +3,7 @@ import {
   beginMcpOAuth,
   cancelMcpOAuth,
   ConnectorSlugSchema,
+  disableConnector,
   getConnectorCatalog,
   listConnectors,
   mcpAuthProviderForTool,
@@ -135,8 +136,14 @@ const startOAuth = base
 
 const disconnectOAuth = base
   .input(z.object({ slug: ConnectorSlugSchema }))
-  .handler(({ input }) => {
+  .handler(async ({ context, input }) => {
     clearConnectorOAuth(input.slug);
+    // The tokens were the only thing making an OAuth connector usable, so the
+    // manifest has to come off with them. Both the settings list and the
+    // agent's connector context read `enabled` from there; leaving it set would
+    // keep showing the connector as signed in and keep offering it to the agent,
+    // which would then fail at connect time.
+    await disableConnector(context.workspaceConfig.connectorsDir, input.slug);
     publisher.publish("connectors.updated", null);
   });
 

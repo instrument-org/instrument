@@ -20,7 +20,7 @@ export {
 
 export { type McpOAuthStore } from "./lib/connectors/mcp/oauth-provider";
 export { mcpAuthProviderForTool } from "./lib/connectors/mcp/tool-auth";
-export { listConnectors } from "./lib/connectors/store";
+export { disableConnector, listConnectors } from "./lib/connectors/store";
 export {
   type ConnectorTestReport,
   runConnectorTestAndEnable,

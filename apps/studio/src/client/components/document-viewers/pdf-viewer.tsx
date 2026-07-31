@@ -47,6 +47,7 @@ import {
 import { useZoom, ZoomMode, ZoomPluginPackage } from "@embedpdf/plugin-zoom/react";
 import { useEffect, useState } from "react";
 
+import { useCopyShortcut } from "./use-copy-shortcut";
 import { ViewerBody, ViewerLoading } from "./viewer-surface";
 import {
   ViewerFindControl,
@@ -249,50 +250,35 @@ function PdfDocument({ url }: { url: string }) {
 
 function PdfDocumentView({ documentId }: { documentId: string }) {
   const [railOpen, setRailOpen] = useState(false);
+  const [pageArea, setPageArea] = useState<HTMLDivElement | null>(null);
   const { provides: scroll, state: scrollState } = useScroll(documentId);
   const { provides: zoom, state: zoomState } = useZoom(documentId);
   const { provides: search, state: searchState } = useSearch(documentId);
   const { provides: selection } = useSelectionCapability();
   const [query, setQuery] = useState("");
 
-  // Guarded on there being rects, for two reasons: `copyToClipboard` with an
-  // empty selection emits an empty string and would wipe the clipboard on any
-  // Cmd+C elsewhere in the app, and both the artifact panel and the expand
-  // modal can have a viewer mounted at once, so whichever one holds the
-  // selection should be the one that answers.
   // This is the only way a selection leaves the page. Right-click cannot help:
   // the highlight belongs to pdfium, so `document.getSelection` is empty and
   // Chromium's menu offers no Copy however much of the page is selected. The
   // viewer keeps that native menu anyway, because replacing it with our own
   // would swap Look Up and the rest for file actions that read as though they
   // applied to the highlighted text.
-  useEffect(() => {
-    if (!selection) {
-      return;
-    }
-    const scope = selection.forDocument(documentId);
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "c" || !(event.metaKey || event.ctrlKey)) {
-        return;
+  useCopyShortcut({
+    container: pageArea,
+    onCopy: () => {
+      if (!selection) {
+        return false;
       }
-      // Guarded on there being rects, for two reasons: `copyToClipboard` with
-      // an empty selection emits an empty string and would wipe the clipboard
-      // on any Cmd+C elsewhere in the app, and both the artifact panel and the
-      // expand modal can have a viewer mounted at once, so whichever one holds
-      // the selection should be the one that answers.
+      const scope = selection.forDocument(documentId);
+      // An empty selection copies an empty string, which would wipe the
+      // clipboard rather than leave it alone.
       if (scope.getBoundingRects().length === 0) {
-        return;
+        return false;
       }
-      event.preventDefault();
       scope.copyToClipboard();
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [documentId, selection]);
+      return true;
+    },
+  });
 
   // The search session has to be open before results can be requested, and it
   // is torn down with the document so a reopened file starts clean.
@@ -367,21 +353,42 @@ function PdfDocumentView({ documentId }: { documentId: string }) {
         rail={<PdfThumbnailRail documentId={documentId} />}
         railOpen={railOpen}
       >
-        {/* Turns a selection into a real clipboard write on Cmd/Ctrl+C. */}
+        {/* Performs the clipboard write the selection plugin asks for. */}
         <CopyToClipboard />
-        <GlobalPointerProvider documentId={documentId}>
-          <Viewport
-            className="absolute inset-0 bg-muted/40"
-            documentId={documentId}
-          >
-            <Scroller
+        {/* Focusable so the copy shortcut can tell which mounted viewer the
+            keystroke belongs to, and focused explicitly rather than by the
+            browser's own click-to-focus, which the page's pointer handlers
+            suppress.
+
+            The right button is stopped before it descends: the selection
+            plugin clears on any pointer press whatever the button, so
+            right-clicking a highlight to reach for Copy was wiping the very
+            thing being copied. */}
+        <div
+          className="absolute inset-0 outline-none"
+          onPointerDownCapture={(event) => {
+            event.currentTarget.focus({ preventScroll: true });
+            if (event.button === 2) {
+              event.stopPropagation();
+            }
+          }}
+          ref={setPageArea}
+          tabIndex={-1}
+        >
+          <GlobalPointerProvider documentId={documentId}>
+            <Viewport
+              className="absolute inset-0 bg-muted/40"
               documentId={documentId}
-              renderPage={(page) => (
-                <PdfPage documentId={documentId} page={page} />
-              )}
-            />
-          </Viewport>
-        </GlobalPointerProvider>
+            >
+              <Scroller
+                documentId={documentId}
+                renderPage={(page) => (
+                  <PdfPage documentId={documentId} page={page} />
+                )}
+              />
+            </Viewport>
+          </GlobalPointerProvider>
+        </div>
       </ViewerBody>
     </>
   );

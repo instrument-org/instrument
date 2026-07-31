@@ -1,4 +1,6 @@
 import { err, ok, type Result } from "neverthrow";
+import dns from "node:dns/promises";
+import net from "node:net";
 
 import {
   type ApiConnectorManifest,
@@ -142,7 +144,7 @@ export async function performConnectorRequest({
   let authenticated = true;
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    const hopValid = validateHopUrl(url, { allowLoopback });
+    const hopValid = await validateHopUrl(url, { allowLoopback });
     if (hopValid.isErr()) {
       return err(hopValid.error);
     }
@@ -294,6 +296,53 @@ function displayUrl(url: URL, auth: ConnectorAuth): string {
   return copy.toString();
 }
 
+/**
+ * True for any address a request must not reach: loopback, the RFC1918 and
+ * carrier-grade ranges, and link-local (which is where the cloud metadata
+ * endpoint lives). Applied to resolved addresses, so unlike the hostname check
+ * it has to cover IPv6 -- including the v4-mapped form, which is how a v6
+ * resolver hands back `127.0.0.1`.
+ */
+function isPrivateAddress(address: string): boolean {
+  const value = address.toLowerCase().replaceAll(/^\[|\]$/g, "");
+
+  if (net.isIPv4(value)) {
+    return (
+      value.startsWith("127.") ||
+      PRIVATE_V4_PATTERNS.some((pattern) => pattern.test(value))
+    );
+  }
+
+  if (!net.isIPv6(value)) {
+    // Not an address at all; the caller only passes resolver output, so this is
+    // unreachable in practice and fails closed rather than waving it through.
+    return true;
+  }
+
+  // ::ffff:127.0.0.1 and friends: classify by the embedded v4 address.
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(value);
+  if (mapped?.[1]) {
+    return isPrivateAddress(mapped[1]);
+  }
+
+  return (
+    value === "::" ||
+    value === "::1" ||
+    // fc00::/7 unique-local, fe80::/10 link-local.
+    /^f[cd]/.test(value) ||
+    /^fe[89ab]/.test(value)
+  );
+}
+
+function privateAddressError(
+  description: string,
+): Result<undefined, ConnectorRequestError> {
+  return err({
+    message: `Refusing to request private or non-public address "${description}".`,
+    reason: "unsafe-url",
+  });
+}
+
 async function readBodyCapped(response: Response): Promise<{
   bodyText: string;
   truncated: boolean;
@@ -328,16 +377,24 @@ async function readBodyCapped(response: Response): Promise<{
 }
 
 /**
- * Reject URLs that could reach non-public address space. IP-literal and
- * well-known-name checks only -- DNS resolution is not consulted, matching the
- * guarantee level of the bash sandbox's private-range deny. Loopback stays
- * allowed only when the connector's configured base is itself loopback (local
- * services, tests).
+ * Reject URLs that could reach non-public address space.
+ *
+ * The agent writes the manifest, so it chooses the hostname: a name-only check
+ * is not enough, because a public-looking host can resolve to a private or
+ * link-local address (a name that encodes `127.0.0.1`, a CNAME to the cloud
+ * metadata endpoint). So the name is checked first, then every address it
+ * resolves to.
+ *
+ * This is a resolve-then-connect check, so it narrows the hole rather than
+ * closing it: a name that answers differently on the second lookup still
+ * rebinds. Closing that needs the socket pinned to the address that was
+ * checked, which `fetch` does not expose. Loopback stays allowed only when the
+ * connector's configured base is itself loopback (local services, tests).
  */
-function validateHopUrl(
+async function validateHopUrl(
   url: URL,
   { allowLoopback }: { allowLoopback: boolean },
-): Result<undefined, ConnectorRequestError> {
+): Promise<Result<undefined, ConnectorRequestError>> {
   const hostname = url.hostname.toLowerCase();
 
   if (isLoopbackHost(hostname)) {
@@ -367,5 +424,30 @@ function validateHopUrl(
     });
   }
 
-  return ok(undefined);
+  // A bare IP literal that got past the patterns above has nothing to resolve.
+  if (net.isIP(hostname) !== 0) {
+    return isPrivateAddress(hostname)
+      ? privateAddressError(hostname)
+      : ok(undefined);
+  }
+
+  let addresses: string[];
+  try {
+    // `lookup` rather than `resolve`, so the answer comes from the same resolver
+    // path fetch will use, including /etc/hosts.
+    const entries = await dns.lookup(hostname, { all: true });
+    addresses = entries.map((entry) => entry.address);
+  } catch (error) {
+    return err({
+      message: `Could not resolve "${hostname}": ${error instanceof Error ? error.message : String(error)}`,
+      reason: "network",
+    });
+  }
+
+  // Every answer has to be public: one private address in a multi-answer set is
+  // enough for the connection to land there.
+  const privateAddress = addresses.find((address) => isPrivateAddress(address));
+  return privateAddress === undefined
+    ? ok(undefined)
+    : privateAddressError(`${hostname} (resolves to ${privateAddress})`);
 }

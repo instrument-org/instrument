@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type ApiConnectorManifest, ConnectorManifestSchema } from "./manifest";
 import {
@@ -7,8 +7,27 @@ import {
   redactCredential,
 } from "./request";
 
+// The hop check resolves every hostname, so the suite owns what DNS answers
+// rather than depending on the machine's resolver (and on the network at all).
+vi.mock("node:dns/promises", () => ({
+  default: { lookup: vi.fn() },
+}));
+const { default: dns } = await import("node:dns/promises");
+const lookup = vi.mocked(dns.lookup);
+
+/** Point every subsequent lookup at one address. */
+function resolvesTo(address: string, family = 4) {
+  // @ts-expect-error -- the `all: true` overload is one of several on lookup.
+  lookup.mockResolvedValue([{ address, family }]);
+}
+
+beforeEach(() => {
+  resolvesTo("93.184.216.34");
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.clearAllMocks();
 });
 
 describe("buildConnectorUrl", () => {
@@ -230,4 +249,96 @@ describe("performConnectorRequest", () => {
       reason: "network",
     });
   });
+
+  // The agent writes the manifest, so it picks the hostname: a public-looking
+  // name that resolves inward must not get through on its spelling alone.
+  it.each([
+    { address: "127.0.0.1", label: "loopback" },
+    { address: "169.254.169.254", label: "the metadata endpoint" },
+    { address: "10.1.2.3", label: "an RFC1918 address" },
+    { address: "::1", family: 6, label: "IPv6 loopback" },
+    { address: "::ffff:127.0.0.1", family: 6, label: "v4-mapped loopback" },
+    { address: "fd00::1", family: 6, label: "a unique-local address" },
+  ])(
+    "refuses a public hostname resolving to $label",
+    async ({ address, family }) => {
+      resolvesTo(address, family ?? 4);
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+
+      const result = await performConnectorRequest({
+        body: undefined,
+        credential: null,
+        manifest: publicManifest(),
+        method: "GET",
+        params: {},
+        path: "/items",
+        signal: AbortSignal.timeout(1000),
+      });
+
+      const error = result._unsafeUnwrapErr();
+      expect(error.reason).toBe("unsafe-url");
+      expect(error.message).toContain(address);
+      // The point of resolving before connecting: nothing was sent.
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("refuses when any one answer in a multi-address set is private", async () => {
+    // @ts-expect-error -- the `all: true` overload is one of several on lookup.
+    lookup.mockResolvedValue([
+      { address: "93.184.216.34", family: 4 },
+      { address: "192.168.1.10", family: 4 },
+    ]);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await performConnectorRequest({
+      body: undefined,
+      credential: null,
+      manifest: publicManifest(),
+      method: "GET",
+      params: {},
+      path: "/items",
+      signal: AbortSignal.timeout(1000),
+    });
+
+    expect(result._unsafeUnwrapErr().reason).toBe("unsafe-url");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("allows a hostname that resolves to a public address", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response('{"ok":true}', {
+          headers: { "content-type": "application/json" },
+          status: 200,
+        }),
+      ),
+    );
+
+    const result = await performConnectorRequest({
+      body: undefined,
+      credential: null,
+      manifest: publicManifest(),
+      method: "GET",
+      params: {},
+      path: "/items",
+      signal: AbortSignal.timeout(1000),
+    });
+
+    expect(result._unsafeUnwrap().status).toBe(200);
+  });
 });
+
+function publicManifest(): ApiConnectorManifest {
+  return {
+    auth: { kind: "none" },
+    baseUrl: "https://api.example.com",
+    displayName: "Test",
+    enabled: true,
+    test: { path: "/ok" },
+    type: "api",
+  };
+}

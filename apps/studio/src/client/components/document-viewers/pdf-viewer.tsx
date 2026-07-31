@@ -47,7 +47,6 @@ import {
 import { useZoom, ZoomMode, ZoomPluginPackage } from "@embedpdf/plugin-zoom/react";
 import { useEffect, useState } from "react";
 
-import { useRegisterViewerSelection } from "./viewer-selection";
 import { ViewerBody, ViewerLoading } from "./viewer-surface";
 import {
   ViewerFindControl,
@@ -256,21 +255,17 @@ function PdfDocumentView({ documentId }: { documentId: string }) {
   const { provides: selection } = useSelectionCapability();
   const [query, setQuery] = useState("");
 
-  // pdfium extracts real text and `SelectionLayer` tracks a selection over it,
-  // but nothing in the library binds a copy shortcut, so a selection could be
-  // made and never taken anywhere -- which reads as the page being a picture.
-  //
   // Guarded on there being rects, for two reasons: `copyToClipboard` with an
   // empty selection emits an empty string and would wipe the clipboard on any
   // Cmd+C elsewhere in the app, and both the artifact panel and the expand
   // modal can have a viewer mounted at once, so whichever one holds the
   // selection should be the one that answers.
-  const hasSelection = () =>
-    (selection?.forDocument(documentId).getBoundingRects().length ?? 0) > 0;
-  const copySelection = () => {
-    selection?.forDocument(documentId).copyToClipboard();
-  };
-
+  // This is the only way a selection leaves the page. Right-click cannot help:
+  // the highlight belongs to pdfium, so `document.getSelection` is empty and
+  // Chromium's menu offers no Copy however much of the page is selected. The
+  // viewer keeps that native menu anyway, because replacing it with our own
+  // would swap Look Up and the rest for file actions that read as though they
+  // applied to the highlighted text.
   useEffect(() => {
     if (!selection) {
       return;
@@ -281,6 +276,11 @@ function PdfDocumentView({ documentId }: { documentId: string }) {
       if (event.key !== "c" || !(event.metaKey || event.ctrlKey)) {
         return;
       }
+      // Guarded on there being rects, for two reasons: `copyToClipboard` with
+      // an empty selection emits an empty string and would wipe the clipboard
+      // on any Cmd+C elsewhere in the app, and both the artifact panel and the
+      // expand modal can have a viewer mounted at once, so whichever one holds
+      // the selection should be the one that answers.
       if (scope.getBoundingRects().length === 0) {
         return;
       }
@@ -293,11 +293,6 @@ function PdfDocumentView({ documentId }: { documentId: string }) {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [documentId, selection]);
-
-  // The same commands on right-click. Chromium's own menu cannot offer Copy
-  // here: the selection is pdfium's, so `document.getSelection` is empty no
-  // matter how much of the page is highlighted.
-  useRegisterViewerSelection({ copy: copySelection, hasSelection });
 
   // The search session has to be open before results can be requested, and it
   // is torn down with the document so a reopened file starts clean.

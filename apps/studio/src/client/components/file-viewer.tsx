@@ -38,10 +38,6 @@ import {
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
 import { useTaskFileOpenControl } from "../hooks/use-task-file-open-control";
 import { useTimedFlag } from "../hooks/use-timed-flag";
-import {
-  type ViewerSelectionApi,
-  ViewerSelectionRegistry,
-} from "./document-viewers/viewer-selection";
 import { ViewerSurface } from "./document-viewers/viewer-surface";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FilePreviewFallback } from "./file-preview-fallback";
@@ -55,8 +51,6 @@ import { Button } from "./ui/button";
 import {
   ContextMenu,
   ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "./ui/context-menu";
 import {
@@ -290,6 +284,15 @@ interface ViewerContext {
  * `scrolls: "self"` means the viewer manages its own scrolling and fills the
  * content area; the others sit inside the shared scroll container. Declared as
  * an exhaustive record so a new `FileType` is a type error until it is routed.
+ *
+ * Only images and video wrap themselves in our own context menu. The document
+ * viewers deliberately do not, and it is worth saying why, because supplying
+ * one looks like an improvement until you use it: our menu suppresses the
+ * native one, so right-clicking a selection loses Copy and Look Up and offers
+ * Open With and Save As in their place -- actions about the file, presented as
+ * though they were about the text just highlighted. That is worse than a menu
+ * with less in it. Formats whose selection the browser cannot see keep a
+ * keyboard copy binding inside their own viewer instead.
  */
 interface ViewerEntry {
   render: (context: ViewerContext) => ReactNode;
@@ -381,11 +384,9 @@ const VIEWERS = {
   },
   pdf: {
     render: ({ fallback, file }) => (
-      <DocumentContextMenu file={file}>
-        <ViewerSurface fallback={fallback} resetKey={file.url}>
-          <LazyPdfViewer filename={file.filename} url={file.url} />
-        </ViewerSurface>
-      </DocumentContextMenu>
+      <ViewerSurface fallback={fallback} resetKey={file.url}>
+        <LazyPdfViewer filename={file.filename} url={file.url} />
+      </ViewerSurface>
     ),
     scrolls: "self",
   },
@@ -438,97 +439,13 @@ const VIEWERS = {
   },
   xlsx: {
     render: ({ fallback, file }) => (
-      <DocumentContextMenu file={file}>
-        <ViewerSurface fallback={fallback} resetKey={file.url}>
-          <LazyXlsxViewer filename={file.filename} url={file.url} />
-        </ViewerSurface>
-      </DocumentContextMenu>
+      <ViewerSurface fallback={fallback} resetKey={file.url}>
+        <LazyXlsxViewer filename={file.filename} url={file.url} />
+      </ViewerSurface>
     ),
     scrolls: "self",
   },
 } satisfies Record<FileType, ViewerEntry>;
-
-/**
- * The file's own actions on right-click, for the viewers the native menu cannot
- * serve.
- *
- * The split is whether the browser can see the content. DOCX, PPTX and CSV
- * render real DOM text, so Chromium's own menu already offers Copy, Look Up and
- * Copy Image on a picture, and replacing it would take those away. A PDF page
- * is a bitmap whose selection lives in pdfium and the XLSX grid is a canvas, so
- * the browser sees nothing selected there and offers nothing worth having.
- *
- * A viewer whose selection is invisible to the browser supplies its own Copy
- * through {@link ViewerSelectionRegistry}. There is no Select All: the PDF
- * plugin has no select-all command, and offering one that only worked for some
- * formats would be worse than leaving it out.
- */
-function DocumentContextMenu({
-  children,
-  file,
-}: {
-  children: ReactNode;
-  file: TaskFileViewerFile;
-}) {
-  const [selection, setSelection] = useState<null | ViewerSelectionApi>(null);
-  const [hasSelection, setHasSelection] = useState(false);
-  const selectionRef = useRef(selection);
-
-  useEffect(() => {
-    selectionRef.current = selection;
-  });
-
-  // Sampled on the way down from the right-click that opens the menu, not when
-  // the menu opens.
-  //
-  // These viewers run their own selection off pointer events, and a press of
-  // any button starts a new one: pdfium clears the highlight on pointerdown and
-  // restores it once the gesture ends. By the time the menu is open the
-  // selection reads as empty, so Copy would render disabled over a visible
-  // highlight. The capture phase runs before the viewer's own handler, which is
-  // the only moment the answer is still true.
-  useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      if (event.button === 2) {
-        setHasSelection(selectionRef.current?.hasSelection() ?? false);
-      }
-    };
-    document.addEventListener("pointerdown", handlePointerDown, true);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown, true);
-    };
-  }, []);
-
-  return (
-    <ViewerSelectionRegistry value={setSelection}>
-      <ContextMenu>
-        <ContextMenuTrigger className="flex min-h-0 flex-1 flex-col">
-          {children}
-        </ContextMenuTrigger>
-        <ContextMenuContent>
-          {selection && (
-            <>
-              <ContextMenuItem
-                disabled={!hasSelection}
-                onClick={() => {
-                  selection.copy();
-                }}
-              >
-                <CopyIcon className="size-4" />
-                <span>Copy</span>
-              </ContextMenuItem>
-              <ContextMenuSeparator />
-            </>
-          )}
-          <FileActionsMenuItems
-            file={file}
-            menuComponents={contextMenuComponents}
-          />
-        </ContextMenuContent>
-      </ContextMenu>
-    </ViewerSelectionRegistry>
-  );
-}
 
 function renderText({ file }: ViewerContext) {
   return (

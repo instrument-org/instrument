@@ -4,8 +4,8 @@ import {
   XlsxViewerProvider,
   XlsxViewer as XlsxWorkbookViewer,
 } from "@extend-ai/react-xlsx";
+import { useEffect } from "react";
 
-import { useRegisterViewerSelection } from "./viewer-selection";
 import { ViewerLoading } from "./viewer-surface";
 import {
   ViewerToolbar,
@@ -43,15 +43,29 @@ export function XlsxViewer({
     src: url,
   });
 
-  // The grid is a canvas and its selection lives in the controller, so the
-  // browser has nothing to copy and the library binds no copy shortcut of its
-  // own. Right-click Copy comes from here instead.
-  useRegisterViewerSelection({
-    copy: () => {
+  // The grid is a canvas and the selected range lives in the controller, so the
+  // browser has nothing to copy and Chromium's menu offers nothing; the library
+  // binds no copy shortcut of its own either. This is what makes a selected
+  // range reachable at all.
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "c" || !(event.metaKey || event.ctrlKey)) {
+        return;
+      }
+      // Only the viewer holding a range answers, so the artifact panel and the
+      // expand modal do not both write to the clipboard.
+      if (!controller.selection) {
+        return;
+      }
+      event.preventDefault();
       void controller.copySelectionToClipboard();
-    },
-    hasSelection: () => controller.selection !== null,
-  });
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [controller]);
 
   // Thrown rather than rendered so it reaches the surface's `CatchBoundary`.
   if (controller.error) {

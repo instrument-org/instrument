@@ -337,6 +337,12 @@ function PdfDocumentView({ documentId }: { documentId: string }) {
           page={scrollState.currentPage}
         />
         <ViewerZoomControl
+          // `zoomLevel` is the level that was asked for and `currentZoomLevel`
+          // the factor it resolved to, so fit-width is only visible in the
+          // former. Without it the menu ticks whichever fixed percentage the
+          // fitted factor happens to coincide with, and never fit-width, even
+          // though fit is the mode PDFs open in.
+          isFit={zoomState.zoomLevel === ZoomMode.FitWidth}
           onFit={() => {
             zoom?.requestZoom(ZoomMode.FitWidth);
           }}

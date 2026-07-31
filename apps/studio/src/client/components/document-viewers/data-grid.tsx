@@ -152,7 +152,10 @@ export function DataGrid({
           className="relative text-[0.8125rem]"
           style={{ width: totalWidth }}
         >
-          <div className="sticky top-0 z-10 flex bg-muted/95 backdrop-blur-sm">
+          {/* `card` rather than `muted`, because this one has to be opaque and
+              `--muted` is not: in the dark theme it is 8% white, so rows would
+              scroll visibly through the header it is pinned above. */}
+          <div className="sticky top-0 z-10 flex bg-card">
             {header.map((cell, column) => (
               <button
                 className="flex items-center gap-1 border-r border-b border-border/60 px-2 py-1.5 text-left font-medium hover:bg-muted"

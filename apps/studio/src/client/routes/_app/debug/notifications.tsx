@@ -74,7 +74,9 @@ function RouteComponent() {
               toast.success(`${APP_NAME} updated to 1.5.0`, {
                 action: {
                   label: "What's new",
-                  onClick: () => {},
+                  onClick: () => {
+                    // No-op: this debug toast only demos the button styling.
+                  },
                 },
               });
             }}

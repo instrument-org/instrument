@@ -5,10 +5,27 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 
-const webuiDir = path.dirname(fileURLToPath(import.meta.url));
-const studioSrc = path.resolve(webuiDir, "../src");
+const webDir = path.dirname(fileURLToPath(import.meta.url));
+const studioSrc = path.resolve(webDir, "../src");
 
 export default defineConfig({
+  // Mirrors the renderer config in `electron.vite.config.ts`; see the comments
+  // there for why each entry is needed. The document viewers reach the same
+  // parser workers in either build.
+  optimizeDeps: {
+    exclude: [
+      "@extend-ai/react-docx",
+      "@extend-ai/react-pptx",
+      "@extend-ai/react-xlsx",
+    ],
+    include: [
+      // cspell:ignore utif regl
+      "@extend-ai/react-docx > utif",
+      "@extend-ai/react-pptx > regl",
+      "@extend-ai/react-xlsx > regl",
+      "react-dom/server",
+    ],
+  },
   plugins: [
     tanstackRouter({
       autoCodeSplitting: true,
@@ -24,15 +41,16 @@ export default defineConfig({
     alias: [
       {
         find: /^@\/client\/rpc\/client$/,
-        replacement: path.join(webuiDir, "src/mock-rpc.ts"),
+        replacement: path.join(webDir, "src/mock-rpc.ts"),
       },
       { find: /^@\//, replacement: `${studioSrc}/` },
       {
         find: /^node:crypto$/,
-        replacement: path.join(webuiDir, "src/shims/node-crypto.ts"),
+        replacement: path.join(webDir, "src/shims/node-crypto.ts"),
       },
     ],
   },
-  root: webuiDir,
+  root: webDir,
   server: { port: 5180 },
+  worker: { format: "es" },
 });

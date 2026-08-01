@@ -1,5 +1,5 @@
 /* Tailwind v4 detects sources relative to the Vite root, which here is
-   `webui/` rather than the renderer it is serving, so class scanning finds
+   `web/` rather than the renderer it is serving, so class scanning finds
    nothing without pointing it back at the real component tree. */
 @source "../../src/client";
 

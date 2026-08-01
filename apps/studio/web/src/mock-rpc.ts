@@ -79,7 +79,7 @@ export function pushLive(path: string, value: unknown) {
  * It calls `setQueryData` per chunk, so an open stream still shows data, but
  * the query stays pending, which downstream reads as `isLoading`.
  */
-const PUSHABLE_PATHS = new Set([
+const OPEN_STREAM_PATHS = new Set([
   "appCommands.live.commands",
   "preferences.live.get",
 ]);
@@ -95,19 +95,19 @@ const PUSHABLE_PATHS = new Set([
  */
 function liveStream(path: string, initial: unknown) {
   async function* stream() {
-    const pushable = PUSHABLE_PATHS.has(path);
+    const staysOpen = OPEN_STREAM_PATHS.has(path);
 
     if (initial !== undefined) {
       yield initial;
-    } else if (!pushable) {
+    } else if (!staysOpen) {
       // `experimental_liveQuery` throws "did not yield any data" on a stream
-      // that ends empty, which turns every unfixtured live procedure into a
-      // crash instead of an absent value. Null settles the query and lets the
-      // screen render whatever it shows for "nothing here".
+      // that ends empty, which turns every live procedure without a fixture
+      // into a crash instead of an absent value. Null settles the query and
+      // lets the screen render whatever it shows for "nothing here".
       yield null;
     }
 
-    if (!pushable) {
+    if (!staysOpen) {
       return;
     }
 
@@ -192,16 +192,11 @@ window.__rpcCalls = {
     );
   },
   seen,
-  // How many open streams each pushable path currently has. Zero where you
+  // How many open streams each path currently has. Zero where you
   // expect one means a mutation's re-yield is going nowhere.
   subscribers: () =>
     Object.fromEntries([...subscribers].map(([path, set]) => [path, set.size])),
 };
-
-// The real module's type exports; erased at runtime, re-declared here so the
-// browser build resolves the same import specifiers the renderer already uses.
-export type RPCInput = Record<string, never>;
-export type RPCOutput = Record<string, never>;
 
 // oxlint-disable-next-line typescript/no-unsafe-argument
 export const rpcClient = createTanstackQueryUtils(createMockClient() as never);

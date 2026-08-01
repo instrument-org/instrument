@@ -79,4 +79,4 @@ Locally, run them with `pnpm test:browser` after `pnpm exec playwright install c
 - **Debug**: `_app/debug/` and `settings/debug` — experimentation only.
 - **RPC**: main handlers in `src/electron-main/rpc/routes/`; client in `src/client/rpc/client.ts` (MessageChannel only).
 - **Platform API**: main-process only, `src/electron-main/platform-api/`; UI reads via RPC (`user.me`, `plans.get`).
-- **Browser build**: `web/` runs this same renderer as a plain web page with the Electron boundary fixtured (`pnpm dev:web`, port 5180). Development only, never packaged. Adding a screen's data means adding fixtures there; see `docs/architecture/studio-in-the-browser.md`.
+- **Browser build**: `web/` runs this same renderer as a plain web page with the Electron boundary replaced by fixtures (`pnpm dev:web`, port 5180). Development only, never packaged. Adding a screen's data means adding fixtures there; see `docs/architecture/studio-in-the-browser.md`.

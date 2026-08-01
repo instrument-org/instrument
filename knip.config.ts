@@ -30,6 +30,10 @@ const config: KnipConfig = {
         "src/client/routes/_app/debug/-sessions/data/*.ts",
         "electron.vite.config.ts",
         "src/index.html",
+        // Browser build: reached through Vite aliases, which knip cannot follow.
+        "web/index.html",
+        "web/src/mock-rpc.ts",
+        "web/src/shims/*.ts",
         "electron-builder.ts",
         "validate-env.ts",
       ],
@@ -45,7 +49,6 @@ const config: KnipConfig = {
         "@derhuerst/ffprobe-static", // Imported in Vite build to fix import issues
         "ffmpeg-static", // Imported in Vite build to fix import issues
         "dugite", // Needed to ensure the git binary is available
-        "babel-plugin-react-compiler", // Used in electron.vite.config.ts as Babel plugin
         "agent-browser", // Imported in Vite build to resolve the binary path
         "@parcel/watcher", // Needed for electron.vite.config.ts to build
       ],

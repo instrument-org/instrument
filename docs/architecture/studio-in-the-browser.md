@@ -24,15 +24,15 @@ So the browser build replaces that one module by Vite alias and stubs the `windo
 
 ## Adding a fixture
 
-Never read the routers to guess what a screen needs. Open it and let the harness tell you: unfixtured procedures log a warning and `window.__rpcCalls.report()` lists every procedure called and which lack fixtures. `window.__rpcCalls.subscribers()` shows open live streams.
+Never read the routers to guess what a screen needs. Open it and let the harness tell you: procedures without a fixture log a warning and `window.__rpcCalls.report()` lists every procedure called and which lack fixtures. `window.__rpcCalls.subscribers()` shows open live streams.
 
 Pin shapes to the contracts rather than hand-rolling them, so a fixture that drifts fails loudly: `satisfies Project[]`, `TaskIdSchema.parse(...)`, `AIGatewayModel.Schema.parse(...)`.
 
-## Three behaviours that will bite you
+## Three behaviors that will bite you
 
-**Live procedures are event iterators, and the query only settles when the stream ends.** `experimental_liveQuery` calls `setQueryData` per chunk but resolves its promise only on completion, so a stream held open shows data while the query stays pending, which downstream reads as `isLoading`. Fixture streams therefore yield once and complete. Only paths in `PUSHABLE_PATHS` stay subscribed, because something actively pushes to them.
+**Live procedures are event iterators, and the query only settles when the stream ends.** `experimental_liveQuery` calls `setQueryData` per chunk but resolves its promise only on completion, so a stream held open shows data while the query stays pending, which downstream reads as `isLoading`. Fixture streams therefore yield once and complete. Only paths in `OPEN_STREAM_PATHS` stay subscribed, because something actively pushes to them.
 
-**A stream that ends without yielding throws.** `experimental_liveQuery` raises "did not yield any data" rather than returning nothing, which would turn every unfixtured live procedure into a crash. Unfixtured live streams yield `null` once so the screen renders its empty state instead.
+**A stream that ends without yielding throws.** `experimental_liveQuery` raises "did not yield any data" rather than returning nothing, which would turn every live procedure without a fixture into a crash. Live streams with no fixture yield `null` once so the screen renders its empty state instead.
 
 **Writes must hand out a fresh object.** The UI never trusts a mutation's return value; it writes and then reads the change back off a live stream. If a fixture hands out the same mutable object the setter mutates, structural sharing sees no change and nothing re-renders. `MUTATIONS` entries return `[path, value]` pairs with a copied value.
 
@@ -42,7 +42,7 @@ Every app-wide shortcut in Studio is a **native menu accelerator**: the main pro
 
 ## Known gaps
 
-- **The task detail pane is empty.** It renders and does not crash, but the session transcript, files, and output artifacts are unfixtured. The debug Chat stream page covers the same components with better-maintained sample data, so a transcript fixture here would be duplicated surface that rots.
+- **The task detail pane is empty.** It renders and does not crash, but the session transcript, files, and output artifacts have no fixtures. The debug Chat stream page covers the same components with better-maintained sample data, so a transcript fixture here would be duplicated surface that rots.
 - **The model picker is disabled**, so prompts cannot be submitted. `gateway.models.live.list` never has its query function invoked, while structurally identical live queries succeed; the query sits pending in the router-scoped cache. Note there are two `QueryClient`s ([`router.tsx`](../../apps/studio/src/client/router.tsx) and `sharedQueryClient` in [`lib/tab-router.ts`](../../apps/studio/src/client/lib/tab-router.ts)), which is where to start.
 - **The browser panel is a hole**, since a `<webview>` cannot exist here.
 - **The URL does not drive tab content.** Each tab owns its router history, so deep-linking a screen does not work; navigate with Cmd+K.

@@ -28,7 +28,7 @@ export function installStubs() {
 
   // Cast because this is deliberately a sliver of `ElectronAPI`: the renderer
   // reads `process.platform` and nothing else, and standing up ipcRenderer /
-  // webFrame / webUtils stubs would invent behaviour no caller wants.
+  // webFrame / webUtils stubs would invent behavior no caller wants.
   window.electron = {
     process: { env: {}, platform, versions: {} },
   } as unknown as Window["electron"];

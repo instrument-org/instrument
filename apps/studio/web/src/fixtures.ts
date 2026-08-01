@@ -117,6 +117,7 @@ const models = [
   model("anthropic", "claude-haiku-4-5", "Claude Haiku 4.5", ["new"]),
 ];
 
+// cspell:ignore BFNX XNFB -- letter runs inside the fixture project ULIDs
 const projects = [
   {
     createdAt: new Date("2026-06-02T10:00:00Z"),

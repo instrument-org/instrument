@@ -1,5 +1,6 @@
 import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
+import { APP_NAME } from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect } from "react";
@@ -65,6 +66,21 @@ function RouteComponent() {
             size="sm"
           >
             Send test notification
+          </Button>
+        </ActionCard>
+        <ActionCard label="System notification with a button">
+          <Button
+            onClick={() => {
+              toast.success(`${APP_NAME} updated to 1.5.0`, {
+                action: {
+                  label: "What's new",
+                  onClick: () => {},
+                },
+              });
+            }}
+            size="sm"
+          >
+            Test update success notification
           </Button>
         </ActionCard>
 

@@ -3,7 +3,8 @@ import Papa from "papaparse";
 import { useMemo } from "react";
 
 import { FileLoading } from "../file-loading";
-import { DataGrid } from "./data-grid";
+import { type CellValue, DataGrid, type GridColumn } from "./data-grid";
+import { inferAlignment } from "./grid-columns";
 
 export function CsvViewer({
   filename,
@@ -38,12 +39,12 @@ export function CsvViewer({
 }
 
 function CsvGrid({ filename, text }: { filename: string; text: string }) {
-  const { header, rows } = useMemo(
+  const { columns, rows } = useMemo(
     () => parseDelimited({ filename, text }),
     [filename, text],
   );
 
-  return <DataGrid header={header} rows={rows} />;
+  return <DataGrid columns={columns} rows={rows} />;
 }
 
 function parseDelimited({
@@ -60,7 +61,19 @@ function parseDelimited({
     skipEmptyLines: "greedy",
   });
 
-  const records = parsed.data.filter(Array.isArray);
+  const records = parsed.data.filter(
+    (record): record is string[] => Array.isArray(record),
+  );
+  const header = records[0] ?? [];
+  const rows: CellValue[][] = records.slice(1);
 
-  return { header: records[0] ?? [], rows: records.slice(1) };
+  // Delimited text carries no types, so alignment is read off the values
+  // themselves. A missing cell is an empty string rather than null: the format
+  // has no way to say "absent" as distinct from "empty".
+  const columns: GridColumn[] = header.map((name, index) => ({
+    align: inferAlignment({ index, rows }),
+    name,
+  }));
+
+  return { columns, rows };
 }

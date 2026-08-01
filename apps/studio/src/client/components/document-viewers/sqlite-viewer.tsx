@@ -8,7 +8,8 @@ import sqlite3InitModule, {
 import { useEffect, useMemo, useState } from "react";
 
 import { FileLoading } from "../file-loading";
-import { DataGrid } from "./data-grid";
+import { type CellValue, DataGrid, type GridColumn } from "./data-grid";
+import { inferAlignment } from "./grid-columns";
 
 // A database is the one format here with no natural ceiling on its own size, so
 // a table is read up to a bound rather than in full. The grid holds every row
@@ -16,6 +17,10 @@ import { DataGrid } from "./data-grid";
 // what makes an unbounded read a way to hang the renderer on someone's
 // multi-gigabyte export rather than a way to show it.
 const MAX_ROWS = 100_000;
+
+// SQLite's declared types are free text with only affinity rules behind them,
+// so this matches the families that carry numbers rather than an exact list.
+const NUMERIC_TYPE = /INT|REAL|FLOA|DOUB|NUMERIC|DEC/i;
 
 interface TableInfo {
   name: string;
@@ -98,15 +103,16 @@ export function SqliteViewer({ url }: { url: string }) {
  * SQLite's own values are richer than the grid's strings, so each one is
  * rendered the way a reader would recognise it.
  *
+ * NULL passes through as null rather than as an empty string, because those are
+ * different answers and the grid draws them differently.
+ *
  * A blob is described rather than shown: its bytes are usually an image or a
  * serialized structure, and pasting them through as text produces a cell of
- * replacement characters that is slow to render and tells nobody anything. NULL
- * and the empty string both come out blank, which loses the distinction between
- * them; that is the cost of a plain-text grid and it is worth naming.
+ * replacement characters that is slow to render and tells nobody anything.
  */
-function formatValue(value: SqlValue): string {
+function formatValue(value: SqlValue): CellValue {
   if (value === null) {
-    return "";
+    return null;
   }
   if (value instanceof Uint8Array || value instanceof Int8Array) {
     return `<${value.length.toLocaleString()} bytes>`;
@@ -129,7 +135,7 @@ function listTables(db: Database): TableInfo[] {
           ORDER BY type, name`,
   });
   return rows.map((row) => ({
-    name: formatValue(row[0] ?? null),
+    name: formatValue(row[0] ?? null) ?? "",
     type: row[1] === "view" ? "view" : "table",
   }));
 }
@@ -137,6 +143,33 @@ function listTables(db: Database): TableInfo[] {
 /** Escapes a table name for interpolation, since SQLite cannot bind one. */
 function quoteIdentifier(name: string) {
   return `"${name.replaceAll('"', '""')}"`;
+}
+
+/**
+ * The declared type of every column, by name.
+ *
+ * SQLite's types are advisory -- a column declared `INTEGER` can hold a string
+ * -- so this drives what is displayed and how it is aligned, never how a value
+ * is read back.
+ */
+function readColumnTypes({ db, table }: { db: Database; table: TableInfo }) {
+  const types = new Map<string, string>();
+  // `PRAGMA table_info` also answers for views, reporting the types their
+  // underlying expressions resolve to.
+  const rows = db.exec({
+    resultRows: [],
+    returnValue: "resultRows",
+    rowMode: "array",
+    sql: `PRAGMA table_info(${quoteIdentifier(table.name)})`,
+  });
+  for (const row of rows) {
+    const name = typeof row[1] === "string" ? row[1] : null;
+    const type = typeof row[2] === "string" ? row[2] : "";
+    if (name) {
+      types.set(name, type);
+    }
+  }
+  return types;
 }
 
 function readTable({ db, table }: { db: Database; table: TableInfo }) {
@@ -163,20 +196,44 @@ function readTable({ db, table }: { db: Database; table: TableInfo }) {
     note = `first ${MAX_ROWS.toLocaleString()} of ${Number(total?.[0] ?? 0).toLocaleString()}`;
   }
 
+  const declared = readColumnTypes({ db, table });
+  const values = rows.map((row) => row.map(formatValue));
+
   return {
-    header: columnNames,
+    columns: columnNames.map<GridColumn>((name, index) => {
+      const type = declared.get(name) ?? "";
+      return {
+        // Declared types are advisory, so a column with none, or one whose
+        // values disagree with it, still lands on whatever the data reads as.
+        align: NUMERIC_TYPE.test(type)
+          ? "right"
+          : inferAlignment({ index, rows: values }),
+        name,
+        type: type || undefined,
+      };
+    }),
     note,
-    rows: rows.map((row) => row.map(formatValue)),
+    rows: values,
   };
 }
 
 function TableContents({ db, table }: { db: Database; table: TableInfo }) {
-  const { header, note, rows } = useMemo(
+  const { columns, note, rows } = useMemo(
     () => readTable({ db, table }),
     [db, table],
   );
 
-  return <DataGrid header={header} note={note} rows={rows} />;
+  // The name is passed through even when the tab strip below is showing it,
+  // because the strip only appears for a database with more than one table and
+  // a single-table file would otherwise never say what it was displaying.
+  return (
+    <DataGrid
+      columns={columns}
+      note={note}
+      rows={rows}
+      title={table.type === "view" ? `${table.name} (view)` : table.name}
+    />
+  );
 }
 
 let sqlitePromise: null | Promise<Sqlite3Static> = null;

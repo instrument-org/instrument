@@ -75,6 +75,23 @@ export const LazyCsvViewer = lazy(async () => {
   return { default: module.CsvViewer };
 });
 
+// Neither of these needs wasm: hyparquet is plain JavaScript and JSONL is
+// `JSON.parse` per line. They stay lazy so the reader and the grid load only
+// when one is opened.
+export const LazyJsonlViewer = lazy(async () => {
+  const module = await import(
+    "@/client/components/document-viewers/jsonl-viewer"
+  );
+  return { default: module.JsonlViewer };
+});
+
+export const LazyParquetViewer = lazy(async () => {
+  const module = await import(
+    "@/client/components/document-viewers/parquet-viewer"
+  );
+  return { default: module.ParquetViewer };
+});
+
 // SQLite fetches its wasm through the Emscripten `locateFile` hook rather than
 // a module-level setter, so the viewer passes `SQLITE_WASM_URL` itself.
 export const LazySqliteViewer = lazy(async () => {

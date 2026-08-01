@@ -181,6 +181,7 @@
     "electron": "^42.3.3",
     "electron-builder": "26.15.7",
     "electron-vite": "^5.0.0",
+    "hyparquet": "^1.26.2",
     "jiti": "2.6.1",
     "jotai": "^2.14.0",
     "jsdom": "^29.1.1",

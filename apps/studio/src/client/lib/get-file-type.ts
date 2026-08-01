@@ -9,7 +9,9 @@ export type FileType =
   | "html"
   | "image"
   | "iwork"
+  | "jsonl"
   | "markdown"
+  | "parquet"
   | "pdf"
   | "pptx"
   | "sqlite"
@@ -44,8 +46,14 @@ function fileKindLabel(fileType: FileType): string {
     case "iwork": {
       return "iWork document";
     }
+    case "jsonl": {
+      return "JSON data";
+    }
     case "markdown": {
       return "Markdown";
+    }
+    case "parquet": {
+      return "Parquet data";
     }
     case "pdf": {
       return "PDF";
@@ -236,13 +244,16 @@ const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
   db: "sqlite",
   docm: "docx",
   docx: "docx",
+  jsonl: "jsonl",
   // The iWork formats are zip containers around Apple's own IWA payload, which
   // has no reader outside Apple's apps; what the viewer shows is the preview
-  // image inside. Listed before the archive entry below on purpose, since a
-  // member listing of one of these is the least useful way to read it.
+  // image inside. They take precedence over the archive entry below on purpose,
+  // since a member listing of one of these is the least useful way to read it.
   key: "iwork",
+  ndjson: "jsonl",
   numbers: "iwork",
   pages: "iwork",
+  parquet: "parquet",
   // PDF was detected by mime type alone, which left a `.pdf` arriving without
   // one falling through to the fallback card.
   pdf: "pdf",

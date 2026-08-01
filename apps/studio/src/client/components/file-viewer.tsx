@@ -4,6 +4,8 @@ import {
   LazyCsvViewer,
   LazyDocxViewer,
   LazyIWorkViewer,
+  LazyJsonlViewer,
+  LazyParquetViewer,
   LazyPdfViewer,
   LazyPptxViewer,
   LazySqliteViewer,
@@ -298,6 +300,14 @@ const VIEWERS = {
     ),
     scrolls: "self",
   },
+  jsonl: {
+    render: ({ fallback, file }) => (
+      <ViewerSurface fallback={fallback} resetKey={file.url}>
+        <LazyJsonlViewer url={file.url} />
+      </ViewerSurface>
+    ),
+    scrolls: "self",
+  },
   markdown: {
     render: (context) =>
       context.viewMode === "raw" ? (
@@ -306,6 +316,14 @@ const VIEWERS = {
         <MarkdownPreview url={context.file.url} />
       ),
     scrolls: "container",
+  },
+  parquet: {
+    render: ({ fallback, file }) => (
+      <ViewerSurface fallback={fallback} resetKey={file.url}>
+        <LazyParquetViewer url={file.url} />
+      </ViewerSurface>
+    ),
+    scrolls: "self",
   },
   pdf: { render: renderPdf, scrolls: "self" },
   pptx: {

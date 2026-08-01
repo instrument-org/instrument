@@ -80,7 +80,7 @@ function RouteComponent() {
             }}
             size="sm"
           >
-            Test update success notification
+            Send test notification
           </Button>
         </ActionCard>
 

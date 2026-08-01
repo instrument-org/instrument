@@ -291,14 +291,28 @@ App zoom: the toolbar's dropdowns, popovers, selects, and tooltips get `useAppZo
 
 Three more viewers, added after the five above landed. They are grouped here because none of them renders a document the way the first five do: two read a container to show what is inside it, and one browses data that has no pages at all.
 
-| | SQLite | Zip | iWork |
-| --- | --- | --- | --- |
-| Extensions | `.db`, `.sqlite`, `.sqlite3` | `.zip` | `.pages`, `.numbers`, `.key` |
-| Reader | `@sqlite.org/sqlite-wasm`, Apache-2.0 | `@zip.js/zip.js`, already a workspace dependency | the same zip reader |
-| Body | the shared `DataGrid` | its own virtualized listing | an image |
-| New dependency | one wasm binary, 844KB | none | none |
+| | SQLite | Zip | iWork | Parquet | JSONL |
+| --- | --- | --- | --- | --- | --- |
+| Extensions | `.db`, `.sqlite`, `.sqlite3` | `.zip` | `.pages`, `.numbers`, `.key` | `.parquet` | `.jsonl`, `.ndjson` |
+| Reader | `@sqlite.org/sqlite-wasm`, Apache-2.0 | `@zip.js/zip.js`, already a workspace dependency | the same zip reader | `hyparquet`, MIT | `JSON.parse` |
+| Body | the shared `DataGrid` | its own virtualized listing | an image | the shared `DataGrid` | the shared `DataGrid` |
+| New dependency | one wasm binary, 848KB | none | none | one pure-JS reader | none |
 
-**The grid is now shared.** `DataGrid` holds the virtualized table, find, sort and column sizing that the CSV viewer used to own; the CSV viewer keeps only its parsing. A database table wants all four, so the alternative was a second copy of them.
+**The grid is now shared, and is where most of the work went.** `DataGrid` holds everything tabular; each viewer keeps only its parsing. Four formats feed it: delimited text, database tables, Parquet and line-delimited JSON.
+
+It is built on `@tanstack/react-table` over `@tanstack/react-virtual`, both of which Studio already depended on, so the whole thing is assembly rather than a dependency decision. Table is headless and expects an external virtualizer, which is exactly the filter-sort-window pipeline the CSV viewer had by hand.
+
+What it does, and why each is there rather than being a nicety:
+
+- **Selection and copy.** The grid is divs, not a `<table>`, so the browser has no selection to copy and its own menu offers nothing. Click, shift-click and drag build a range; Cmd/Ctrl+C and a right-click menu write it. This was the gap that mattered most: the two formats where copying data is the obvious point were the two that could not do it, while PDF and XLSX could.
+- **Filtering rather than find-and-step.** Typing narrows the table and the count reads `1 of 4 rows`. For a table this is strictly more useful than stepping between highlights, and it is what `getFilteredRowModel` is for.
+- **Column resize, show/hide and pin-left**, because a forty-column export is unreadable otherwise.
+- **Column virtualization.** Rows alone were not enough: `SELECT *` across a wide table renders every column of every visible row. A 120-column database now renders 15.
+- **Type-aware cells.** Numbers right-align. `NULL` renders as a dimmed marker distinct from the empty string, which a plain-text grid had been quietly collapsing into the same blank.
+
+Two things in it are easy to get wrong and worth naming. `useReactTable` needs `"use no memo"` under React Compiler, as [tasks-data-table](../../../apps/studio/src/client/components/tasks-data-table/index.tsx) already documents. And the scroll element is held in state rather than a ref: an inline callback ref is a new function every render, so React detaches and reattaches it each time, and the virtualizers can read the null in between.
+
+Deliberately not done: a custom SQL query box, CSV export of a selection, and multi-column sort. Sorting and filtering also operate on the loaded rows, so past a viewer's row cap they cover the loaded window rather than the whole table; moving sort into SQL would trade instant client-side sorting for correctness at a size users are unlikely to open.
 
 **SQLite runs in wasm rather than through the main process's native SQLite,** which is worth stating because Studio already has the latter for `task.db`. These files are untrusted and frequently malformed, SQLite does not claim to be hardened against hostile database files, and a fault in main takes the window with it where a wasm trap takes only the viewer. The file is read into wasm memory and opened with `sqlite3_deserialize`, so the database on disk is never touched and a preview cannot lock or corrupt one another process is using. Rows are read to a bound: a database is the only format here with no ceiling on its own size, and the grid holds what it is given.
 
@@ -314,7 +328,7 @@ Members are listed flat, by full path, rather than browsed as a tree. A zip is a
 
 - **HEIC**, and with it the whole macOS ImageIO route. `sips` decodes HEIC, PSD, TIFF and about twenty camera RAW formats, and would have covered all of them through one main-process path. HEIC is what justified that path, and HEIC is a format Chromium itself declines to ship because the licensing is expensive; PSD and RAW alone do not carry a decode path, a JPEG cache and a macOS-only asymmetry.
 - **Jupyter notebooks.** Cheap to build on the markdown and syntax-highlighting already here, but a notebook is a programmer's artifact and this is not a programmer's product.
-- **Parquet** (`hyparquet`) and **email** (`postal-mime`). Both are real, both are contained, neither has demonstrated demand. They would drop into the registry the same way these three did.
+- **Email** (`postal-mime`). Real and contained, but with no demonstrated demand yet. It would drop into the registry the same way these did.
 - **ODF, legacy `.doc`, `.rtf`, and full iWork rendering.** No JavaScript or wasm renderer reaches acceptable fidelity, and the honest alternative is a headless office converter measured in hundreds of megabytes. They keep their labelled download card.
 - **The other archive containers** — 7z, rar, tar and the compressed tarballs — which are different formats this reader cannot open.
 
@@ -335,6 +349,8 @@ Per `.agents/skills/validate-changes/SKILL.md`, none of this is observable from 
 - iWork files across the three apps and several versions. The preview member is whatever the authoring app last wrote, so the cases worth finding are a document saved by a version old enough to write none, one saved on iOS rather than macOS, and a password-protected document, whose preview may be encrypted along with the payload.
 - An archive with thousands of members, one with paths deep enough to truncate in the listing, and one written on Windows, whose separators and filename encoding differ from the macOS-written archives to hand.
 - A database with a few million rows in one table, to see where `MAX_ROWS` actually bites, and one whose tables are all empty. Also a `.db` that is not SQLite at all, which should reach the fallback card rather than an empty grid.
+- Parquet written by something other than PyArrow, and one using a compression codec `hyparquet` does not carry. A JSONL file large enough that the key sample matters, and one whose records disagree about their shape.
+- The grid's own interactions at app zoom levels other than 1x, particularly the resize handle, which is a few pixels wide and is the control most likely to be missed when the pointer and layout disagree.
 - The artifact panel's own loading state, which is not a viewer concern but shows up as one. `TaskView` renders the "File not found" card whenever it has a path and no resolved file, so every file flashed that card on its way in — most visibly on a PDF, which takes longest to appear afterwards. It now waits for the lookup to actually answer, read off the query's update stamps: while the query is disabled, which it is on the render where the path arrives, it reports neither pending nor fetching while still holding no data, so neither of those flags can stand in for "we have not heard back yet".
 
   Every wait, in the panel and in all seven viewers, goes through one `FileLoading`: nothing for half a second, then a centred spinner. A skeleton filling the content area was tried first, on the reasoning that a placeholder occupying the space makes the swap a fill rather than a jump. In use it read as neither, because these waits are mostly shorter than the eye settles, so switching files strobed a grey block between two documents. The delay is what separates the two cases — under it there is nothing to see, over it there is something that looks like work rather than furniture — and it is measured per mount, so flipping through several files in a row stays still throughout.

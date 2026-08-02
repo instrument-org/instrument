@@ -10,11 +10,13 @@ export const blockToolbarButtonClassName =
 export const CodeWithCopy = ({
   children,
   content,
+  ref,
 }: {
   children: React.ReactNode;
   content: string;
+  ref?: React.Ref<HTMLDivElement>;
 }) => (
-  <div className="group relative isolate">
+  <div className="group relative isolate" ref={ref}>
     {/* `focus-within` as well as hover: the button stays in the tab order while
         it is transparent, so without it a keyboard user lands on a control
         with nothing on screen to show for it. */}

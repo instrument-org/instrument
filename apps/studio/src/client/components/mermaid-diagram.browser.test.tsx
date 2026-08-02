@@ -121,6 +121,33 @@ describe("MermaidDiagram", () => {
     expect(diagramSvg(container)?.textContent).toContain("Start");
   });
 
+  it("waits for the viewport before rendering a diagram below the fold", async () => {
+    // Pushed far past the bottom of the window. A message can carry many
+    // diagrams, and laying each one out is main-thread work, so the ones the
+    // reader has not reached must not be paid for on mount.
+    const { container } = await render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ThemeProvider>
+          <div style={{ height: "400vh" }} />
+          <div style={{ width: 600 }}>
+            <MermaidDiagram code={GRAPH} language="mermaid" />
+          </div>
+        </ThemeProvider>
+      </QueryClientProvider>,
+    );
+
+    // The source is what stands in for it, exactly as it does mid-stream.
+    await expect.poll(() => container.textContent).toContain("A[Start]");
+    await new Promise((resolve) => {
+      setTimeout(resolve, 500);
+    });
+    expect(diagramSvg(container)).toBeNull();
+
+    container.querySelector("[style*='width: 600px']")?.scrollIntoView();
+
+    await expect.poll(() => diagramSvg(container)).toBeTruthy();
+  });
+
   it("keeps a wide diagram inside its column", async () => {
     const wide = [
       "graph LR",

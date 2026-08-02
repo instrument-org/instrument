@@ -3,6 +3,7 @@ import { CodeIcon, GraphIcon } from "@phosphor-icons/react";
 import { useSetAtom } from "jotai";
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 
+import { useNearViewport } from "../hooks/use-near-viewport";
 import { renderMermaid, toDiagramImageUrl } from "../lib/mermaid";
 import {
   blockToolbarButtonClassName,
@@ -36,10 +37,14 @@ export const MermaidDiagram = ({
   // Same reason `CodeBlock` defers: the fence is rewritten on every token, and
   // a mermaid render is far too expensive to run at that rate.
   const deferredCode = useDeferredValue(code);
+  // A message can carry many diagrams, and laying one out is main-thread work
+  // measured in tens of milliseconds. Rendering the ones far below the fold on
+  // mount spends all of it before the reader has scrolled to any of them.
+  const { isNear, ref: viewportRef } = useNearViewport<HTMLDivElement>();
 
   useEffect(() => {
     const source = deferredCode.trim();
-    if (!source) {
+    if (!source || !isNear) {
       return;
     }
 
@@ -63,11 +68,13 @@ export const MermaidDiagram = ({
     return () => {
       isCancelled = true;
     };
-  }, [deferredCode, resolvedTheme]);
+  }, [deferredCode, isNear, resolvedTheme]);
 
   if (!svg) {
+    // Also where a diagram waiting on the viewport sits, which is the same
+    // thing the reader would have seen mid-stream anyway.
     return (
-      <CodeWithCopy content={code}>
+      <CodeWithCopy content={code} ref={viewportRef}>
         <CodeBlock code={code} language={language} />
       </CodeWithCopy>
     );
@@ -96,7 +103,7 @@ export const MermaidDiagram = ({
   return (
     // `not-prose` because the surrounding typography styles size and space SVG
     // text as if it were prose, which moves labels off the shapes they name.
-    <div className="group not-prose relative isolate my-4">
+    <div className="group not-prose relative isolate my-4" ref={viewportRef}>
       {/* Reveal on focus as well as hover, so tabbing to the toggle or copy
           does not land on an invisible control. */}
       <div className="absolute top-1 right-1 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">

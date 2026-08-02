@@ -97,7 +97,9 @@ export const MermaidDiagram = ({
     // `not-prose` because the surrounding typography styles size and space SVG
     // text as if it were prose, which moves labels off the shapes they name.
     <div className="group not-prose relative isolate my-4">
-      <div className="absolute top-1 right-1 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100">
+      {/* Reveal on focus as well as hover, so tabbing to the toggle or copy
+          does not land on an invisible control. */}
+      <div className="absolute top-1 right-1 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
         <button
           aria-label={showSource ? "Show diagram" : "Show source"}
           className={blockToolbarButtonClassName}

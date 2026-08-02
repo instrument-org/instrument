@@ -46,12 +46,21 @@ let mermaidPromise: Promise<Mermaid> | undefined;
  */
 export function prefetchMermaid(): void {
   void loadMermaid().catch(() => {
-    // The render path retries and reports; a warm-up failure is not news.
+    // Nothing is waiting on this one. The next render attempt starts the fetch
+    // again, and that is the call that has a diagram to answer for.
   });
 }
 
 async function loadMermaid(): Promise<Mermaid> {
-  mermaidPromise ??= import("mermaid").then((module) => module.default);
+  // Only a *resolved* import may be cached. Caching the rejection too would
+  // mean one dropped chunk fetch left every fence in the session as a code
+  // block, with nothing able to try again short of restarting the app.
+  mermaidPromise ??= import("mermaid")
+    .then((module) => module.default)
+    .catch((error: unknown) => {
+      mermaidPromise = undefined;
+      throw error;
+    });
   return mermaidPromise;
 }
 

@@ -1,7 +1,12 @@
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import { pnpmVersion } from "@/electron-main/lib/pnpm";
+import {
+  isQuitGuardForcedInDev,
+  setQuitGuardForcedInDev,
+} from "@/electron-main/lib/quit-guard";
 import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { setRecentVersionBump } from "@/electron-main/stores/preferences";
 import { openOnboardingWindow } from "@/electron-main/windows/onboarding";
 import { APP_NAME, PORTS } from "@instrument-org/shared";
 import {
@@ -202,6 +207,12 @@ const trigger = {
       },
     });
   }),
+  // Queues the bump only. The toast fires once per renderer lifetime, off a
+  // query that runs on mount, so the caller reloads afterwards to see it --
+  // which is also the path a real update takes.
+  testUpdatedToast: devOnly.handler(() => {
+    setRecentVersionBump({ from: "0.0.0-simulated", to: app.getVersion() });
+  }),
 };
 
 const openOnboarding = devOnly.input(z.void()).handler(() => {
@@ -247,9 +258,22 @@ const openWorkspaceFolder = devOnly.input(z.void()).handler(() => {
   return openFolder(getWorkspaceFolder());
 });
 
+const getQuitGuardForced = devOnly
+  .output(z.object({ forced: z.boolean() }))
+  .handler(() => {
+    return { forced: isQuitGuardForcedInDev() };
+  });
+
+const setQuitGuardForced = devOnly
+  .input(z.object({ forced: z.boolean() }))
+  .handler(({ input }) => {
+    setQuitGuardForcedInDev(input.forced);
+  });
+
 export const debug = {
   browserViewManager: browserViewManagerDebugRoutes,
   getAppEnvironment,
+  getQuitGuardForced,
   live,
   openAuthTestPage,
   openOnboarding,
@@ -257,6 +281,7 @@ export const debug = {
   openWorkspaceFolder,
   relaunchWithNewUserFolder,
   sessionMarkdown,
+  setQuitGuardForced,
   systemInfo,
   throwError,
   trigger,

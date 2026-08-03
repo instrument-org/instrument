@@ -8,9 +8,15 @@ type QuitApproval = () => Promise<boolean>;
 let approval: QuitApproval = () => Promise.resolve(true);
 let isApproved = false;
 let pending: null | Promise<boolean> = null;
+let forcedInDev = false;
 
 export function isQuitApproved() {
   return isApproved;
+}
+
+/** Whether the dev build should run the prompt it normally skips. */
+export function isQuitGuardForcedInDev() {
+  return forcedInDev;
 }
 
 /** True once the user has approved this quit; no further prompt is needed. */
@@ -28,6 +34,15 @@ export async function requestQuitApproval(): Promise<boolean> {
  */
 export function setQuitApproval(quitApproval: QuitApproval) {
   approval = quitApproval;
+}
+
+/**
+ * Opt a dev build back into the running-agent prompt, which it otherwise skips
+ * so hot reload is never blocked on a dialog nobody sees. In memory only, so a
+ * relaunch drops it and a forgotten toggle cannot strand a later rebuild.
+ */
+export function setQuitGuardForcedInDev(forced: boolean) {
+  forcedInDev = forced;
 }
 
 async function runApproval() {

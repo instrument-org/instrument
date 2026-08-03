@@ -143,6 +143,27 @@ export function DevPanel() {
     rpcClient.debug.trigger.testSilentNoUpdate.mutationOptions(),
   );
 
+  const { mutate: simulateUpdatedToast } = useMutation(
+    rpcClient.debug.trigger.testUpdatedToast.mutationOptions({
+      // The toast reads its bump once, on mount. Reload so it mounts again.
+      onSuccess: () => {
+        window.location.reload();
+      },
+    }),
+  );
+
+  const { data: quitGuardForced, refetch: refetchQuitGuardForced } = useQuery(
+    rpcClient.debug.getQuitGuardForced.queryOptions(),
+  );
+
+  const { mutate: setQuitGuardForced } = useMutation(
+    rpcClient.debug.setQuitGuardForced.mutationOptions({
+      onSuccess: () => {
+        void refetchQuitGuardForced();
+      },
+    }),
+  );
+
   const { data: appEnvironment } = useQuery(
     rpcClient.debug.getAppEnvironment.queryOptions(),
   );
@@ -393,6 +414,15 @@ export function DevPanel() {
                   >
                     <ArrowsClockwiseIcon className="size-3" />
                     Clear update badge
+                  </MenubarItem>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      simulateUpdatedToast(undefined);
+                    }}
+                  >
+                    <ArrowsClockwiseIcon className="size-3" />
+                    Simulate updated toast (reloads)
                   </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>
@@ -645,6 +675,16 @@ export function DevPanel() {
                   Force window controls
                 </MenubarCheckboxItem>
               )}
+              <MenubarCheckboxItem
+                checked={quitGuardForced?.forced ?? false}
+                className="font-mono text-xs"
+                onCheckedChange={(forced) => {
+                  setQuitGuardForced({ forced });
+                }}
+                title="Run the running-agent quit prompt that dev builds normally skip. Resets on relaunch; a rebuild while it is on will wait on the dialog."
+              >
+                Force quit guard
+              </MenubarCheckboxItem>
               <MenubarSeparator />
               <MenubarItem
                 className="font-mono text-xs"

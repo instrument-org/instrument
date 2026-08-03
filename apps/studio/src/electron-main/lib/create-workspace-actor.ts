@@ -1,5 +1,6 @@
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
 import {
+  isQuitGuardForcedInDev,
   requestQuitApproval,
   setQuitApproval,
 } from "@/electron-main/lib/quit-guard";
@@ -288,7 +289,8 @@ export function createWorkspaceActor({
     // main-process rebuild. Skip the running-agents prompt in dev so a reload is
     // never blocked waiting on a dialog nobody sees, which would strand the old
     // instance while electron-vite launches a new one. Teardown still runs.
-    if (is.dev || isQuitAlreadyConfirmed()) {
+    // The dev panel can opt back in to exercise the prompt deliberately.
+    if ((is.dev && !isQuitGuardForcedInDev()) || isQuitAlreadyConfirmed()) {
       return true;
     }
     return confirmQuitWithRunningAgents();

@@ -147,3 +147,13 @@ export function consumeRecentVersionBump(): null | VersionBump {
   recentVersionBump = null;
   return bump;
 }
+
+/**
+ * Queues a bump for the next reader, for the dev panel's simulation. The real
+ * one is computed once at startup from a version the developer cannot move
+ * without editing their own config, so this is the only way to see the toast
+ * outside an actual update. Consumed the same way, by whoever asks first.
+ */
+export function setRecentVersionBump(bump: VersionBump): void {
+  recentVersionBump = bump;
+}

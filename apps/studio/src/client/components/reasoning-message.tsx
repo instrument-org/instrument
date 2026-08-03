@@ -39,38 +39,47 @@ export const ReasoningMessage = memo(function ReasoningMessage({
   });
 
   const displayText = reasoningDisplayText(text);
+  const hasText = displayText.trim() !== "";
 
-  if (!isLoading && !displayText.trim()) {
+  if (!isLoading && !hasText) {
     return null;
   }
+
+  // The planning row stands in for progress the reader cannot see. Once
+  // reasoning is streaming text, that text is the progress, so the row drops
+  // away rather than captioning it. There is no trigger to lose with it: a
+  // loading collapsible is held open regardless of what the reader clicks.
+  const isPlanningRowVisible = isLoading && !hasText;
 
   return (
     <Collapsible
       className={cn(
         "w-full animate-in fill-mode-both fade-in",
-        !displayText.trim() && !noDelay && "delay-500",
+        !hasText && !noDelay && "delay-500",
       )}
       onOpenChange={setIsExpanded}
       open={isExpanded || isLoading}
     >
-      <CollapsibleTrigger
-        className="flex cursor-default items-center gap-1.5 text-left"
-        disabled={!displayText.trim()}
-      >
-        {isLoading ? (
-          <div className="flex items-center gap-2">
-            <PlanningDotIcon className="size-3 shrink-0" />
-            <span className="shiny-text text-sm font-medium">Planning...</span>
-          </div>
-        ) : (
-          <span className="text-sm text-foreground/40">
-            {duration ? `Thought for ${duration}` : "Thought"}
-            {isExpanded && <CaretUpIcon className="ml-1 inline size-3" />}
-          </span>
-        )}
-      </CollapsibleTrigger>
+      {(!isLoading || isPlanningRowVisible) && (
+        <CollapsibleTrigger
+          className="flex cursor-default items-center gap-1.5 py-1.5 text-left"
+          disabled={!hasText}
+        >
+          {isPlanningRowVisible ? (
+            <div className="flex h-5 items-center gap-2">
+              <PlanningDotIcon className="size-3 shrink-0" />
+              <span className="brand-shiny-text text-sm">Planning...</span>
+            </div>
+          ) : (
+            <span className="text-sm text-foreground/40">
+              {duration ? `Thought for ${duration}` : "Thought"}
+              {isExpanded && <CaretUpIcon className="ml-1 inline size-3" />}
+            </span>
+          )}
+        </CollapsibleTrigger>
+      )}
 
-      {!(isLoading && !displayText.trim()) && (
+      {hasText && (
         <CollapsibleContent>
           <div className="mt-2">
             <div

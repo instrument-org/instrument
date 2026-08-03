@@ -43,6 +43,12 @@
 //   node studio-drive.mjs boot --workspace documents
 //   node studio-drive.mjs shot task.png --workspace documents
 
+// `dir` is how a path is named throughout this repo, from `taskDir` through
+// `workspaceConfig.tasksDir` to the `ELECTRON_USER_DATA_DIR` this script sets.
+// Whole-file because `perfectionist/sort-modules` orders the declarations, so
+// any narrower scope stops covering what it was written for.
+/* eslint-disable unicorn/prevent-abbreviations */
+
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -111,6 +117,10 @@ const CHECKOUT_KEY = createHash("sha256")
 // A seeded workspace is rebuilt from its fixture in seconds, so it is cache and
 // not data: never in the repo, and never in the shared application-data
 // directory where it would mix with someone's real tasks.
+//
+// This is a standalone CLI rather than a turbo task, so the cache-location
+// variables below are not something turbo should invalidate on.
+/* eslint-disable turbo/no-undeclared-env-vars */
 const WORKSPACE_CACHE_ROOT = path.join(
   process.env.LOCALAPPDATA ??
     (process.platform === "darwin"
@@ -119,6 +129,7 @@ const WORKSPACE_CACHE_ROOT = path.join(
   "instrument-studio-drive",
   CHECKOUT_KEY,
 );
+/* eslint-enable turbo/no-undeclared-env-vars */
 
 // Workspaces nobody has driven in this long are dropped at the next boot,
 // because nobody runs a clean command. Losing one costs a reseed.
@@ -358,109 +369,6 @@ function checkoutPort(workspace) {
   return CONVENTIONAL_PORT + 1 + (digest.readUInt16BE(0) % 200);
 }
 
-// --- seeded workspaces -------------------------------------------------
-
-/**
- * Build (or reuse) the workspace this boot will run against, and hand back the
- * directory to point `ELECTRON_USER_DATA_DIR` at. The seeder is idempotent and
- * fast, so calling it on every boot is cheaper than reasoning about whether the
- * fixture has changed since last time.
- */
-function prepareWorkspace(name, { fresh }) {
-  reapStaleWorkspaces();
-
-  const userDataDir = path.join(WORKSPACE_CACHE_ROOT, name);
-  mkdirSync(WORKSPACE_CACHE_ROOT, { recursive: true });
-
-  let output;
-  try {
-    output = execFileSync(
-      "pnpm",
-      [
-        "workspace:seed",
-        "--out",
-        userDataDir,
-        "--fixture",
-        name,
-        ...(fresh ? ["--fresh"] : []),
-      ],
-      {
-        cwd: REPO_ROOT,
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "inherit"],
-      },
-    );
-  } catch {
-    fail(`Could not seed workspace "${name}". See the seeder output above.`);
-  }
-
-  // The seeder prints its summary last; pnpm's own banner precedes it.
-  const start = output.indexOf("{");
-  if (start === -1) {
-    fail(`The seeder printed no summary for "${name}":\n${output}`);
-  }
-  const result = JSON.parse(output.slice(start));
-
-  // Reaping goes by mtime, so record that this workspace was used even when the
-  // seeder had nothing to do and the app writes nothing before it is killed.
-  utimesSync(userDataDir, new Date(), new Date());
-
-  reapWorkArtifacts(path.join(userDataDir, "workspace", "tasks"));
-
-  return { tasks: result.tasks, userDataDir };
-}
-
-function reapStaleWorkspaces() {
-  let entries;
-  try {
-    entries = readdirSync(WORKSPACE_CACHE_ROOT, { withFileTypes: true });
-  } catch {
-    return;
-  }
-
-  for (const entry of entries) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-    const dir = path.join(WORKSPACE_CACHE_ROOT, entry.name);
-    if (Date.now() - statSync(dir).mtimeMs > WORKSPACE_MAX_AGE_MS) {
-      rmSync(dir, { force: true, recursive: true });
-    }
-  }
-}
-
-/**
- * Drops installed dependencies left inside tasks by a live agent run. A replay
- * never creates these, so a workspace only used for driving stays in the low
- * megabytes and this finds nothing.
- */
-function reapWorkArtifacts(tasksDir) {
-  let tasks;
-  try {
-    tasks = readdirSync(tasksDir, { withFileTypes: true });
-  } catch {
-    return;
-  }
-
-  for (const task of tasks) {
-    if (!task.isDirectory()) {
-      continue;
-    }
-    for (const name of WORK_ARTIFACT_NAMES) {
-      const dir = path.join(tasksDir, task.name, "work", name);
-      try {
-        if (Date.now() - statSync(dir).mtimeMs > WORK_ARTIFACT_MAX_AGE_MS) {
-          rmSync(dir, { force: true, recursive: true });
-        }
-      } catch {
-        // Not there, which is the normal case.
-      }
-    }
-  }
-}
-
-// --- lifecycle ---------------------------------------------------------
-
 async function cmdBoot(explicitPort, { fresh }) {
   const existing = readSession();
   if (existing && (await isPortLive(existing.port))) {
@@ -582,7 +490,7 @@ async function cmdGoto(cdp, path, newTab) {
   return drive(cdp, "state()");
 }
 
-// --- commands ----------------------------------------------------------
+// --- lifecycle ---------------------------------------------------------
 
 async function cmdModal(cdp, name) {
   await (name === "--close"
@@ -611,6 +519,8 @@ function cmdStop() {
   return { port: session.port, stopped: true };
 }
 
+// --- commands ----------------------------------------------------------
+
 function isAlive(pid) {
   try {
     // Signal 0 tests for the process without touching it.
@@ -618,6 +528,105 @@ function isAlive(pid) {
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Build (or reuse) the workspace this boot will run against, and hand back the
+ * directory to point `ELECTRON_USER_DATA_DIR` at. The seeder is idempotent and
+ * fast, so calling it on every boot is cheaper than reasoning about whether the
+ * fixture has changed since last time.
+ */
+function prepareWorkspace(name, { fresh }) {
+  reapStaleWorkspaces();
+
+  const userDataDir = path.join(WORKSPACE_CACHE_ROOT, name);
+  mkdirSync(WORKSPACE_CACHE_ROOT, { recursive: true });
+
+  let output;
+  try {
+    output = execFileSync(
+      "pnpm",
+      [
+        "workspace:seed",
+        "--out",
+        userDataDir,
+        "--fixture",
+        name,
+        ...(fresh ? ["--fresh"] : []),
+      ],
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "inherit"],
+      },
+    );
+  } catch {
+    fail(`Could not seed workspace "${name}". See the seeder output above.`);
+  }
+
+  // The seeder prints its summary last; pnpm's own banner precedes it.
+  const start = output.indexOf("{");
+  if (start === -1) {
+    fail(`The seeder printed no summary for "${name}":\n${output}`);
+  }
+  const result = JSON.parse(output.slice(start));
+
+  // Reaping goes by mtime, so record that this workspace was used even when the
+  // seeder had nothing to do and the app writes nothing before it is killed.
+  utimesSync(userDataDir, new Date(), new Date());
+
+  reapWorkArtifacts(path.join(userDataDir, "workspace", "tasks"));
+
+  return { tasks: result.tasks, userDataDir };
+}
+
+function reapStaleWorkspaces() {
+  let entries;
+  try {
+    entries = readdirSync(WORKSPACE_CACHE_ROOT, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const dir = path.join(WORKSPACE_CACHE_ROOT, entry.name);
+    if (Date.now() - statSync(dir).mtimeMs > WORKSPACE_MAX_AGE_MS) {
+      rmSync(dir, { force: true, recursive: true });
+    }
+  }
+}
+
+/**
+ * Drops installed dependencies left inside tasks by a live agent run. A replay
+ * never creates these, so a workspace only used for driving stays in the low
+ * megabytes and this finds nothing.
+ */
+function reapWorkArtifacts(tasksDir) {
+  let tasks;
+  try {
+    tasks = readdirSync(tasksDir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const task of tasks) {
+    if (!task.isDirectory()) {
+      continue;
+    }
+    for (const name of WORK_ARTIFACT_NAMES) {
+      const dir = path.join(tasksDir, task.name, "work", name);
+      try {
+        if (Date.now() - statSync(dir).mtimeMs > WORK_ARTIFACT_MAX_AGE_MS) {
+          rmSync(dir, { force: true, recursive: true });
+        }
+      } catch {
+        // Not there, which is the normal case.
+      }
+    }
   }
 }
 
@@ -862,3 +871,5 @@ async function runAgainstInstance() {
     cdp.close();
   }
 }
+
+/* eslint-enable unicorn/prevent-abbreviations */

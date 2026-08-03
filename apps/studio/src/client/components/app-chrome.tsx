@@ -9,6 +9,7 @@ import { UpdatedToast } from "@/client/components/updated-toast";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
 import { setSidebarOpen, useSidebarOpen } from "@/client/hooks/use-sidebar";
+import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { useAtomValue } from "jotai";
 import { lazy, type ReactNode, Suspense } from "react";
 
@@ -103,7 +104,11 @@ export function AppChrome({ children }: { children: ReactNode }) {
           <LazyFilePreviewModal />
         </Suspense>
       )}
-      <Toaster position="top-center" />
+      <Toaster
+        mobileOffset={{ top: TOOLBAR_HEIGHT + 16 }}
+        offset={{ top: TOOLBAR_HEIGHT + 16 }}
+        position="top-center"
+      />
       <UpdatedToast />
     </div>
   );

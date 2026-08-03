@@ -754,3 +754,30 @@ a.cursor-pointer {
   /* Ring-less md elevation so it doesn't double up with Sonner's 1px border. */
   box-shadow: var(--shadow-md-soft) !important;
 }
+
+/* Sonner's default action button is a solid, inverted (high-emphasis) button.
+   Restyle it to match our `secondary` Button variant so it reads as a subtle,
+   lower-emphasis control. The `.toaster` class raises specificity above
+   Sonner's own `[data-sonner-toast][data-styled='true'] [data-button]` rule,
+   which is injected at runtime after this stylesheet. */
+.toaster [data-sonner-toast][data-styled="true"] [data-button] {
+  height: auto;
+  padding: 4px 10px;
+  border-radius: var(--radius-md);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  box-shadow: var(--shadow-xs);
+}
+
+.toaster [data-sonner-toast][data-styled="true"] [data-button]:hover {
+  background: var(--muted);
+}
+
+.dark .toaster [data-sonner-toast][data-styled="true"] [data-button] {
+  background: var(--gray-800);
+  color: var(--foreground);
+}
+
+.dark .toaster [data-sonner-toast][data-styled="true"] [data-button]:hover {
+  background: var(--gray-700);
+}

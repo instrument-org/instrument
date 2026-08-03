@@ -37,7 +37,10 @@ describe("MermaidDiagram chunk-load failure", () => {
     const { container } = await render(
       <QueryClientProvider client={new QueryClient()}>
         <ThemeProvider>
-          <MermaidDiagram code="graph TD\n  A[Start] --> B[End]" language="mermaid" />
+          <MermaidDiagram
+            code="graph TD\n  A[Start] --> B[End]"
+            language="mermaid"
+          />
         </ThemeProvider>
       </QueryClientProvider>,
     );

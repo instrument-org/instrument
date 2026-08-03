@@ -34,8 +34,15 @@ export function TaskBreadcrumb({
 
   if (rename.isEditing) {
     return (
-      <div className="flex h-8 max-w-160 min-w-0 flex-1 items-center px-1">
-        <Input className="h-7 text-sm" {...rename.inputProps} />
+      // A title field wants far less room than the breadcrumb it replaces, and
+      // the row it sits in clips its overflow, so the focus ring is drawn
+      // inside the field: an outset one is shaved off top and bottom by a row
+      // exactly as tall as the input's own line.
+      <div className="flex h-8 max-w-96 min-w-0 flex-1 animate-in items-center px-1 duration-150 fade-in-0">
+        <Input
+          className="h-7 text-sm focus-visible:-outline-offset-3"
+          {...rename.inputProps}
+        />
       </div>
     );
   }

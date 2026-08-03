@@ -21,6 +21,7 @@ import {
   buildToolBoundaryMap,
   isActiveToolPart,
   isVisibleAssistantPart,
+  PLANNING_BOUNDARY_ID,
 } from "./chat-stream-utils";
 import { ContextMessages } from "./context-messages";
 import { MessageError } from "./message-error";
@@ -159,11 +160,12 @@ export function ChatStream({
   const toolBoundaryMap = useMemo(
     () =>
       buildToolBoundaryMap({
+        hasTrailingPlanning: isPlanningVisible,
         isDeveloperMode,
         isToolStreaming,
         regularMessages,
       }),
-    [isDeveloperMode, isToolStreaming, regularMessages],
+    [isDeveloperMode, isPlanningVisible, isToolStreaming, regularMessages],
   );
 
   const renderCtx: RenderPartContext = useMemo(
@@ -188,6 +190,7 @@ export function ChatStream({
   );
 
   const chatElements = useMemo(() => {
+    const planningBoundary = toolBoundaryMap.get(PLANNING_BOUNDARY_ID);
     const elements: React.ReactNode[] = [];
     let lastFooterIndex = 0;
     let previousBrowserStatusNote: string | undefined;
@@ -266,6 +269,26 @@ export function ChatStream({
         if (message.role === "assistant") {
           visibleAssistantContentCount++;
         }
+      }
+
+      // Planning is the tail of the last turn rather than a row of its own, so
+      // it lands where the call that replaces it will. The two swap places
+      // constantly while a run steps, and any difference in offset between them
+      // reads as the transcript jumping, so it takes its margins from the same
+      // run adjacency a tool call wrapper does.
+      if (isLastMessage && planningBoundary) {
+        messageElements.push(
+          <div
+            className={cn(!planningBoundary.prevIsToolCall && "mt-2", "mb-2")}
+            key="planning"
+          >
+            <ReasoningMessage
+              isLoading
+              noDelay={!lastAssistantMessageHasVisibleParts}
+              text=""
+            />
+          </div>,
+        );
       }
 
       // --- Per-message chrome ---
@@ -431,16 +454,6 @@ export function ChatStream({
       <ContextMessages messages={contextMessages} />
     ) : null;
 
-  const planningNode = isPlanningVisible ? (
-    <div className={cn(lastAssistantMessageHasVisibleParts && "mt-1")}>
-      <ReasoningMessage
-        isLoading
-        noDelay={!lastAssistantMessageHasVisibleParts}
-        text=""
-      />
-    </div>
-  ) : null;
-
   const continueNode = shouldShowContinueButton ? (
     <Alert className="mt-4" variant="warning">
       <WarningIcon />
@@ -467,11 +480,6 @@ export function ChatStream({
           </MessageScrollerItem>
         )}
         {chatElements}
-        {planningNode && (
-          <MessageScrollerItem key="planning">
-            {planningNode}
-          </MessageScrollerItem>
-        )}
         {continueNode && (
           <MessageScrollerItem key="continue">
             {continueNode}
@@ -490,7 +498,6 @@ export function ChatStream({
     >
       {contextNode}
       <div className="flex flex-col gap-2">{chatElements}</div>
-      {planningNode}
       {continueNode}
     </div>
   );

@@ -14,13 +14,20 @@ interface ToolBoundaryInfo {
   prevIsToolCall: boolean;
 }
 
+// The planning row's key in the map. It is not a part, but it renders a
+// tool-call-shaped row in the position the next call will take, so it joins the
+// run as a trailing entry and reads its spacing off the same adjacency.
+export const PLANNING_BOUNDARY_ID = "planning";
+
 // Per-part adjacency for tool-call runs, keyed by part id. Skips non-inline
 // parts so they don't artificially split a run.
 export function buildToolBoundaryMap({
+  hasTrailingPlanning,
   isDeveloperMode,
   isToolStreaming,
   regularMessages,
 }: {
+  hasTrailingPlanning: boolean;
   isDeveloperMode: boolean;
   isToolStreaming: (
     part: SessionMessagePart.ToolPart,
@@ -59,6 +66,10 @@ export function buildToolBoundaryMap({
         isToolCall: isToolPart(part),
       });
     }
+  }
+
+  if (hasTrailingPlanning) {
+    flat.push({ id: PLANNING_BOUNDARY_ID, isToolCall: true });
   }
 
   const result = new Map<string, ToolBoundaryInfo>();

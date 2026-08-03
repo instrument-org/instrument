@@ -1,11 +1,11 @@
-import { formatDurationFromDates } from "@/client/lib/format-time";
+import { formatDuration } from "@/client/lib/format-time";
 import { cn } from "@/client/lib/utils";
-import { CaretUpIcon } from "@phosphor-icons/react";
-import { memo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 
 import { PlanningDotIcon } from "./icons/planning-dot";
 import { reasoningDisplayText } from "./reasoning-utils";
+import { RunRowChevron } from "./run-row-chevron";
 import { SessionMarkdown } from "./session-markdown";
 import {
   Collapsible,
@@ -29,8 +29,21 @@ export const ReasoningMessage = memo(function ReasoningMessage({
   text,
 }: ReasoningMessageProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [, setTick] = useState(0);
 
-  const duration = formatDurationFromDates(createdAt, endedAt);
+  // Re-render once a second so a running duration counts up. Only while
+  // loading: a finished one is fixed, and its end is what it reads against.
+  useEffect(() => {
+    if (!isLoading) {
+      return;
+    }
+    const interval = setInterval(() => {
+      setTick((previous) => previous + 1);
+    }, 1000);
+    return () => {
+      clearInterval(interval);
+    };
+  }, [isLoading]);
 
   const { contentRef, scrollRef } = useStickToBottom({
     damping: 0.9,
@@ -45,11 +58,24 @@ export const ReasoningMessage = memo(function ReasoningMessage({
     return null;
   }
 
-  // The planning row stands in for progress the reader cannot see. Once
-  // reasoning is streaming text, that text is the progress, so the row drops
-  // away rather than captioning it. There is no trigger to lose with it: a
-  // loading collapsible is held open regardless of what the reader clicks.
-  const isPlanningRowVisible = isLoading && !hasText;
+  // Anything under a second reads as having taken a moment either way, so the
+  // duration floors at one rather than reporting milliseconds. A finished row
+  // measures to its end; a running one measures to now, and the timer above is
+  // what makes it climb.
+  const endsAt = endedAt ?? (isLoading ? new Date() : undefined);
+  const hasTiming = createdAt !== undefined && endsAt !== undefined;
+  const elapsedMs = hasTiming ? endsAt.getTime() - createdAt.getTime() : 0;
+  const duration = formatDuration(Math.max(elapsedMs, 1000));
+
+  // Without a start time there is no reasoning part behind this row: it is the
+  // stand-in the stream shows when the agent is working with nothing to report.
+  const label = isLoading
+    ? createdAt
+      ? `Thinking for ${duration}`
+      : "Planning..."
+    : hasTiming
+      ? `Thought for ${duration}`
+      : "Thought";
 
   return (
     <Collapsible
@@ -58,29 +84,30 @@ export const ReasoningMessage = memo(function ReasoningMessage({
         !hasText && !noDelay && "delay-500",
       )}
       onOpenChange={setIsExpanded}
-      open={isExpanded || isLoading}
+      open={isExpanded}
     >
-      {(!isLoading || isPlanningRowVisible) && (
-        <CollapsibleTrigger
-          className="flex cursor-default items-center gap-1.5 py-1.5 text-left"
-          disabled={!hasText}
-        >
-          {isPlanningRowVisible ? (
-            <div className="flex h-5 items-center gap-2">
-              <PlanningDotIcon className="size-3 shrink-0" />
-              <span className="brand-shiny-text text-sm">Planning...</span>
-            </div>
-          ) : (
-            <span className="text-sm text-foreground/40">
-              {duration ? `Thought for ${duration}` : "Thought"}
-              {isExpanded && <CaretUpIcon className="ml-1 inline size-3" />}
-            </span>
-          )}
-        </CollapsibleTrigger>
-      )}
+      <CollapsibleTrigger
+        className="group/run-row flex cursor-default items-center py-1.5 text-left"
+        disabled={!hasText}
+      >
+        <div className="flex h-5 items-center gap-3">
+          {isLoading && <PlanningDotIcon className="size-3 shrink-0" />}
+          <span
+            className={cn(
+              "text-sm leading-4",
+              isLoading
+                ? "brand-shiny-text"
+                : "text-muted-foreground group-hover/run-row:text-foreground",
+            )}
+          >
+            {label}
+          </span>
+          {hasText && <RunRowChevron isOpen={isExpanded} />}
+        </div>
+      </CollapsibleTrigger>
 
       {hasText && (
-        <CollapsibleContent>
+        <CollapsibleContent animated>
           <div className="mt-2">
             <div
               className="max-h-44 overflow-y-auto scroll-fade-y"

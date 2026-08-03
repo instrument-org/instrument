@@ -101,7 +101,6 @@ const THEME_OPTIONS = [
 export function DevPanel() {
   const navigate = useNavigate();
   const [hidden, setHidden] = useState(false);
-  const [showBreakpoint, setShowBreakpoint] = useState(false);
   const [crash, setCrash] = useState(false);
   const setDevToolsPanel = useSetAtom(devToolsPanelAtom);
   const [zoom, setZoom] = useAtom(zoomAtom);
@@ -658,13 +657,6 @@ export function DevPanel() {
                 </MenubarSubContent>
               </MenubarSub>
               <MenubarSeparator />
-              <MenubarCheckboxItem
-                checked={showBreakpoint}
-                className="font-mono text-xs"
-                onCheckedChange={setShowBreakpoint}
-              >
-                Show breakpoint
-              </MenubarCheckboxItem>
               {isMacOS() && (
                 <MenubarCheckboxItem
                   checked={forceWindowControls}
@@ -706,22 +698,6 @@ export function DevPanel() {
             </MenubarContent>
           </MenubarMenu>
         </Menubar>
-
-        {showBreakpoint && (
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <span className="cursor-default font-mono text-[9px] leading-none text-dev-700/40 dark:text-dev-300/40">
-                <span className="sm:hidden">&lt;sm</span>
-                <span className="hidden sm:inline md:hidden">:sm</span>
-                <span className="hidden md:inline lg:hidden">:md</span>
-                <span className="hidden lg:inline xl:hidden">:lg</span>
-                <span className="hidden xl:inline 2xl:hidden">:xl</span>
-                <span className="hidden 2xl:inline">:2xl</span>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Tailwind breakpoint</TooltipContent>
-          </Tooltip>
-        )}
       </div>
 
       <AlertDialog

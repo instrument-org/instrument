@@ -79,6 +79,37 @@ describe("rg command", () => {
     expect(result.stdout.trim()).toBe("1");
   });
 
+  it("searches piped input rather than the task folder", async () => {
+    const result = await run(
+      "printf '%s\\n' apple banana apricot | rg --color=never ap",
+    );
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("apple\napricot\n");
+  });
+
+  it("reports no match on piped input instead of matching a task file", async () => {
+    const result = await run("printf 'haystack\\n' | rg --color=never NEEDLE");
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+  });
+
+  it("treats an explicit `-` path as the pipe", async () => {
+    const result = await run("printf 'one two\\n' | rg --color=never -c two -");
+    expect(result.stdout.trim()).toBe("1");
+  });
+
+  it("prefers an explicit path over the pipe", async () => {
+    const result = await run(
+      "printf 'apple\\n' | rg --color=never NEEDLE work",
+    );
+    expect(result.stdout).toContain("work/a.ts");
+  });
+
+  it("forwards non-ASCII piped bytes unchanged", async () => {
+    const result = await run("printf 'café déjà\\n' | rg --color=never 'café'");
+    expect(result.stdout).toBe("café déjà\n");
+  });
+
   it("never walks the private dir, even when asked for hidden files", async () => {
     const result = await run("rg --hidden NEEDLE");
     expect(result.stdout).not.toContain("state.json");

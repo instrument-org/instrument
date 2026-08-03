@@ -56,7 +56,8 @@ This does not widen what the agent can reach overall. The `grep` tool it replace
 
 ## Consequences
 
-- Pipelines work: `rg -l TODO | head`, `rg --files -g '*.ts' | wc -l`, `rg foo > out.txt`. This is the main ergonomic gain — search composes with the rest of the shell instead of being a separate tool surface.
+- Pipelines work in both directions: `rg -l TODO | head`, `rg --files -g '*.ts' | wc -l`, `rg foo > out.txt`, and `cmd | rg PATTERN`. This is the main ergonomic gain — search composes with the rest of the shell instead of being a separate tool surface.
+- The pipe into `rg` is the one place a shim has to hand a real binary the shell's stdin rather than ignore it. ripgrep decides between reading stdin and walking the working directory by stat'ing fd 0, so an ignored stdin does not produce an empty search — it produces a full search of the task folder, reported as if it came from the pipe. Both directions are covered by tests.
 - The full ripgrep flag set is available, including the ones the `grep` tool never exposed (`-l`, `-c`, `-o`, `--files`, `-t`, `--heading`, multiple globs).
 - Search results are terminal output rather than a rendered result card. That is the one thing removing the tool costs.
 - Behaviour now depends on the bundled ripgrep version rather than the just-bash version. `@vscode/ripgrep` ships ripgrep 15.

@@ -13,7 +13,7 @@ import {
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 import { execShim } from "./exec-shim";
-import { resolveCommandContext } from "./utils";
+import { resolveCommandContext, subprocessStdin } from "./utils";
 
 export const RG_COMMAND = {
   description:
@@ -67,6 +67,7 @@ export function createRgCommand({
     }
 
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const stdin = subprocessStdin(ctx.stdin);
 
     const result = await execShim(
       RG_DISK_PATH,
@@ -83,7 +84,12 @@ export function createRgCommand({
         cancelSignal: ctx.signal,
         cwd: taskCwd,
         env,
-        stdin: "ignore",
+        // ripgrep picks between reading stdin and walking the working directory
+        // by stat'ing fd 0, so the piped bytes have to reach it as a real pipe.
+        // Handing it an ignored stdin instead makes `cmd | rg PATTERN` search
+        // the task folder and report those matches as if they came from the
+        // pipe. With no pipe, an ignored stdin is what selects the walk.
+        ...(stdin ? { input: stdin } : { stdin: "ignore" }),
       },
     );
 

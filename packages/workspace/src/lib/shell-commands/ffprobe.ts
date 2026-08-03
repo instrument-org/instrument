@@ -6,7 +6,11 @@ import { filterShellOutput } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { execShim } from "./exec-shim";
-import { resolveCommandContext, resolvePathArgs } from "./utils";
+import {
+  resolveCommandContext,
+  resolvePathArgs,
+  subprocessStdin,
+} from "./utils";
 
 export const FFPROBE_COMMAND = {
   description: "Probe and inspect audio and video files using FFprobe.",
@@ -16,6 +20,7 @@ export const FFPROBE_COMMAND = {
 export function createFfprobeCommand(taskId: TaskId) {
   return defineCommand(FFPROBE_COMMAND.name, async (args, ctx) => {
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const stdin = subprocessStdin(ctx.stdin);
 
     const result = await execShim(
       FFPROBE_PATH,
@@ -27,7 +32,10 @@ export function createFfprobeCommand(taskId: TaskId) {
           ...getWorkspaceConfig().nodeExecEnv,
           ...env,
         },
-        stdin: "ignore",
+        // Forwarded so a `pipe:0`/`-` input reads the pipe. Without a pipe,
+        // an ignored stdin is what makes those inputs fail fast rather than
+        // block on a stream that will never arrive.
+        ...(stdin ? { input: stdin } : { stdin: "ignore" }),
       },
     );
 

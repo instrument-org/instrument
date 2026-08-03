@@ -30,9 +30,11 @@ const BASE_CONFIG = {
   // document — a graphic that is not ours and reads as a crash in the middle of
   // a message. We decide what a failure looks like, so it renders nothing.
   suppressErrorRendering: true,
-  // Runs the generated SVG through DOMPurify and refuses click bindings and
-  // raw HTML in node labels. Diagram source arrives from a model, so it is
-  // untrusted input.
+  // Runs the generated SVG through DOMPurify and refuses the `click ... call`
+  // form that would run a function. Diagram source arrives from a model, so it
+  // is untrusted input. A `click X "https://..."` still renders as a real
+  // anchor; where such a link is allowed to go is the window's business, not
+  // this module's — see `guardNavigation`.
   securityLevel: "strict",
   startOnLoad: false,
   // Mermaid's own "dark" theme fills nodes with a near-black barely separable
@@ -186,9 +188,8 @@ export function toDiagramImageUrl({
   background: string;
   svg: string;
 }): string | undefined {
-  const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
-  const root = parsed.documentElement;
-  if (root.nodeName.toLowerCase() !== "svg") {
+  const root = parseSvg(svg);
+  if (!root) {
     return undefined;
   }
 
@@ -197,4 +198,22 @@ export function toDiagramImageUrl({
 
   const serialized = new XMLSerializer().serializeToString(root);
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serialized)}`;
+}
+
+/**
+ * Reads mermaid's output back into a DOM.
+ *
+ * Parsed as HTML rather than as XML because mermaid writes `xlink:href`
+ * without ever declaring that namespace, which leaves its own output not
+ * well-formed XML the moment a diagram declares a link. A strict parse of that
+ * yields a parser-error document instead of a diagram, so the caller below
+ * concludes there is nothing to show and the reader gets a button that does
+ * nothing. The HTML parser is lenient about exactly this, and still puts SVG
+ * elements in the SVG namespace, so the tree that comes back is the same one.
+ */
+function parseSvg(svg: string): null | SVGSVGElement {
+  const template = document.createElement("template");
+  template.innerHTML = svg;
+  const root = template.content.firstElementChild;
+  return root instanceof SVGSVGElement ? root : null;
 }

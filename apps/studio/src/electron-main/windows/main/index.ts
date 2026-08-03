@@ -1,6 +1,7 @@
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { createContextMenu } from "@/electron-main/lib/context-menu";
+import { guardNavigation } from "@/electron-main/lib/guard-navigation";
 import { openExternal } from "@/electron-main/lib/open-external";
 import {
   isQuitApproved,
@@ -236,6 +237,8 @@ async function createMainWindowInstance() {
     void openExternal(details.url);
     return { action: "deny" };
   });
+
+  guardNavigation(mainWindow.webContents);
 
   return mainWindow;
 }

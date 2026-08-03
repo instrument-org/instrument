@@ -1,4 +1,5 @@
 import { createContextMenu } from "@/electron-main/lib/context-menu";
+import { guardNavigation } from "@/electron-main/lib/guard-navigation";
 import { openExternal } from "@/electron-main/lib/open-external";
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
@@ -82,6 +83,8 @@ export function openOnboardingWindow(): BrowserWindow {
     void openExternal(details.url);
     return { action: "deny" };
   });
+
+  guardNavigation(onboardingWindow.webContents);
 
   void onboardingWindow.loadURL(studioURL("/onboarding"));
 

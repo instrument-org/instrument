@@ -11,15 +11,20 @@ import { ImageWithFallback } from "./image-with-fallback";
 // matches, `.csv` lost its lines the moment it stopped being reported as
 // `code`. The rest are binary formats whose icon says more than fake text.
 const HAS_LINE_THUMBNAIL: Record<FileType, boolean> = {
+  archive: false,
   audio: false,
   code: true,
   csv: true,
   docx: false,
   html: false,
   image: false,
+  iwork: false,
+  jsonl: true,
   markdown: true,
+  parquet: false,
   pdf: false,
   pptx: false,
+  sqlite: false,
   text: true,
   unknown: false,
   video: false,

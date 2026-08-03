@@ -10,6 +10,7 @@ import { list } from "radashi";
 import { useState } from "react";
 
 import { FileLoading } from "../file-loading";
+import { toHtmlTable, toTabSeparated } from "./table-clipboard";
 import { useCopyShortcut } from "./use-copy-shortcut";
 import {
   ViewerToolbar,
@@ -163,13 +164,6 @@ export function XlsxViewer({
   );
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-}
-
 async function readRange({
   controller,
   range,
@@ -226,20 +220,4 @@ function selectedRange(controller: XlsxViewerController) {
     return null;
   }
   return { firstCol, firstRow, lastCol, lastRow };
-}
-
-// Both formats go on the clipboard: a spreadsheet pastes the table as cells,
-// and everything else falls back to the tab-separated text.
-function toHtmlTable(rows: string[][]) {
-  const cells = rows
-    .map(
-      (row) =>
-        `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`,
-    )
-    .join("");
-  return `<table>${cells}</table>`;
-}
-
-function toTabSeparated(rows: string[][]) {
-  return rows.map((row) => row.join("\t")).join("\n");
 }

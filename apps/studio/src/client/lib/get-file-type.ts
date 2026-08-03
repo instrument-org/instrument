@@ -1,15 +1,20 @@
 import { isTextMimeType } from "./is-text-mime-type";
 
 export type FileType =
+  | "archive"
   | "audio"
   | "code"
   | "csv"
   | "docx"
   | "html"
   | "image"
+  | "iwork"
+  | "jsonl"
   | "markdown"
+  | "parquet"
   | "pdf"
   | "pptx"
+  | "sqlite"
   | "text"
   | "unknown"
   | "video"
@@ -17,6 +22,9 @@ export type FileType =
 
 function fileKindLabel(fileType: FileType): string {
   switch (fileType) {
+    case "archive": {
+      return "ZIP archive";
+    }
     case "audio": {
       return "Audio";
     }
@@ -35,14 +43,26 @@ function fileKindLabel(fileType: FileType): string {
     case "image": {
       return "Image";
     }
+    case "iwork": {
+      return "iWork document";
+    }
+    case "jsonl": {
+      return "JSON data";
+    }
     case "markdown": {
       return "Markdown";
+    }
+    case "parquet": {
+      return "Parquet data";
     }
     case "pdf": {
       return "PDF";
     }
     case "pptx": {
       return "PowerPoint presentation";
+    }
+    case "sqlite": {
+      return "Database";
     }
     case "text": {
       return "Text file";
@@ -217,18 +237,39 @@ export function getFileKindLabel({
 // cspell:ignore docm pptm xlsm
 const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
   csv: "csv",
+  // A database has no registered mime type of its own, so the extension is the
+  // only thing that identifies one. `.db` is the loosest of the three and does
+  // get used for unrelated formats; those still reach the fallback card,
+  // because opening one fails on the header rather than rendering nonsense.
+  db: "sqlite",
   docm: "docx",
   docx: "docx",
+  jsonl: "jsonl",
+  // The iWork formats are zip containers around Apple's own IWA payload, which
+  // has no reader outside Apple's apps; what the viewer shows is the preview
+  // image inside. They take precedence over the archive entry below on purpose,
+  // since a member listing of one of these is the least useful way to read it.
+  key: "iwork",
+  ndjson: "jsonl",
+  numbers: "iwork",
+  pages: "iwork",
+  parquet: "parquet",
   // PDF was detected by mime type alone, which left a `.pdf` arriving without
   // one falling through to the fallback card.
   pdf: "pdf",
   ppt: "pptx",
   pptm: "pptx",
   pptx: "pptx",
+  sqlite: "sqlite",
+  sqlite3: "sqlite",
   tsv: "csv",
   xls: "xlsx",
   xlsm: "xlsx",
   xlsx: "xlsx",
+  // Only zip. The other archive formats in the kind-label table (7z, rar, tar
+  // and the compressed tarballs) are different containers that this reader
+  // cannot open, and they keep their labelled download card.
+  zip: "archive",
 };
 
 export function getFileType({

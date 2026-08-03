@@ -300,15 +300,20 @@ function hasMediaPreview(file: TaskFileViewerFile) {
 // PowerPoint and CSV attachments from rows to chips, because those files used
 // to arrive here as `unknown` and `code`.
 const ROW_CARD_PREVIEW: Record<FileType, boolean> = {
+  archive: true,
   audio: true,
   code: true,
   csv: true,
   docx: true,
   html: true,
   image: false,
+  iwork: true,
+  jsonl: true,
   markdown: true,
+  parquet: true,
   pdf: true,
   pptx: true,
+  sqlite: true,
   text: true,
   unknown: true,
   video: false,

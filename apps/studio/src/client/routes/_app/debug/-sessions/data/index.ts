@@ -15,6 +15,7 @@ import { session as errorUnknown } from "./error-unknown";
 import { session as expandableUserMessage } from "./expandable-user-message";
 import { session as fileFolderAttachments } from "./file-folder-attachments";
 import { session as maxStepsResume } from "./max-steps-resume";
+import { session as mermaidDiagrams } from "./mermaid-diagrams";
 import { session as multiTurn } from "./multi-turn";
 import { session as toolsBash } from "./tools-bash";
 import { session as toolsEmptyMessageLeading } from "./tools-empty-message-leading";
@@ -44,6 +45,7 @@ export const sessionData: PresetSessionData[] = [
   expandableUserMessage,
   fileFolderAttachments,
   maxStepsResume,
+  mermaidDiagrams,
   multiTurn,
   toolsBash,
   toolsEmptyMessageLeading,

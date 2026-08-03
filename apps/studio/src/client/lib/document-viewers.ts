@@ -9,6 +9,7 @@ const vendorUrl = (assetPath: string) =>
   `${APP_PROTOCOL}://vendor/${assetPath}`;
 
 export const PDFIUM_WASM_URL = vendorUrl("pdfium.wasm");
+export const SQLITE_WASM_URL = vendorUrl("sqlite3.wasm");
 
 // Every host that mounts a viewer goes through these handles, so a viewer can
 // never reach its parser with the library's default wasm source: that one
@@ -49,12 +50,54 @@ export const LazyXlsxViewer = lazy(async () => {
   return { default: module.XlsxViewer };
 });
 
+// Neither of these needs a wasm source configured: zip.js is plain JavaScript.
+// They stay lazy so the archive reader loads only when a container is opened.
+export const LazyArchiveViewer = lazy(async () => {
+  const module = await import(
+    "@/client/components/document-viewers/archive-viewer"
+  );
+  return { default: module.ArchiveViewer };
+});
+
+export const LazyIWorkViewer = lazy(async () => {
+  const module = await import(
+    "@/client/components/document-viewers/iwork-viewer"
+  );
+  return { default: module.IWorkViewer };
+});
+
 // CSV parses in-process with no wasm, but stays lazy so papaparse and the grid
 // only load when a delimited file is actually opened.
 export const LazyCsvViewer = lazy(async () => {
   const module =
     await import("@/client/components/document-viewers/csv-viewer");
   return { default: module.CsvViewer };
+});
+
+// Neither of these needs wasm: hyparquet is plain JavaScript and JSONL is
+// `JSON.parse` per line. They stay lazy so the reader and the grid load only
+// when one is opened.
+export const LazyJsonlViewer = lazy(async () => {
+  const module = await import(
+    "@/client/components/document-viewers/jsonl-viewer"
+  );
+  return { default: module.JsonlViewer };
+});
+
+export const LazyParquetViewer = lazy(async () => {
+  const module = await import(
+    "@/client/components/document-viewers/parquet-viewer"
+  );
+  return { default: module.ParquetViewer };
+});
+
+// SQLite fetches its wasm through the Emscripten `locateFile` hook rather than
+// a module-level setter, so the viewer passes `SQLITE_WASM_URL` itself.
+export const LazySqliteViewer = lazy(async () => {
+  const module = await import(
+    "@/client/components/document-viewers/sqlite-viewer"
+  );
+  return { default: module.SqliteViewer };
 });
 
 async function configureDocxWasmSource() {

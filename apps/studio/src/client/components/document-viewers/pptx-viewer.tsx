@@ -7,6 +7,7 @@ import {
 import { type CSSProperties, useEffect, useState } from "react";
 
 import { useFitWidth } from "./use-fit-width";
+import { useVisiblePage } from "./use-visible-page";
 import { ViewerBody } from "./viewer-surface";
 import {
   ViewerFindControl,
@@ -39,7 +40,6 @@ const VIEWPORT_STYLE = {
 } satisfies CSSProperties;
 
 export function PptxViewer({ url }: { filename: string; url: string }) {
-  const [slideIndex, setSlideIndex] = useState(0);
   const [railOpen, setRailOpen] = useState(false);
   const [slideCount, setSlideCount] = useState(1);
   const [slideWidth, setSlideWidth] = useState(0);
@@ -64,6 +64,35 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
     contentWidth: slideWidth,
     initialFit: true,
   });
+  // Read off the scroll position rather than taken from the library's own
+  // `onSlideChange`, which reports whichever slide shows the most area. In a
+  // panel tall enough for two slides that is the slide below the one being
+  // read, from a pixel past the top of the deck onwards.
+  const slideIndex =
+    useVisiblePage({
+      pageIndexAttribute: "data-rpv-slide-index",
+      scrollElement: viewport,
+    }) - 1;
+
+  // Navigating by scrolling the list, rather than through the library's
+  // `goToSlide` or its controlled `slideIndex` prop. Both of those early-return
+  // unless the target differs from the library's *own* idea of the current
+  // slide, which is the largest-visible-area reading this viewer does not use;
+  // where the two disagree, asking it to move does nothing at all.
+  //
+  // Every slide keeps a positioned wrapper in the list whether or not its
+  // content is currently mounted, so the one to scroll to can be taken by
+  // index without measuring a stride or waiting for a render.
+  const goToSlide = (index: number) => {
+    const items = viewport?.querySelectorAll("[data-rpv-list-item]");
+    if (!items?.length) {
+      return;
+    }
+    items[Math.max(0, Math.min(index, items.length - 1))]?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
 
   // `controller.search` is synchronous and imperative, so it runs on the input
   // event rather than in an effect watching `query`, which would both lag a
@@ -115,7 +144,7 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
           count={slideCount}
           label="slide"
           onPageChange={(page) => {
-            setSlideIndex(page - 1);
+            goToSlide(page - 1);
           }}
           page={slideIndex + 1}
         />
@@ -145,7 +174,7 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
           <PptxSlideRail
             activeIndex={slideIndex}
             controller={controller}
-            onSelect={setSlideIndex}
+            onSelect={goToSlide}
             slideCount={slideCount}
           />
         }
@@ -191,11 +220,9 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
                 runSearch(ready, query);
               }
             }}
-            onSlideChange={setSlideIndex}
             onViewportReady={setViewport}
             showThumbnails={false}
             showToolbar={false}
-            slideIndex={slideIndex}
             source={url}
             viewportStyle={VIEWPORT_STYLE}
             zoom={zoom * 100}

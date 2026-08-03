@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { FileLoading } from "../file-loading";
 import { useFitWidth } from "./use-fit-width";
+import { useVisiblePage } from "./use-visible-page";
 import { ViewerBody } from "./viewer-surface";
 import {
   ViewerPageControl,
@@ -45,7 +46,14 @@ export function DocxViewer({
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(
     null,
   );
-  const currentPage = useVisiblePage(scrollElement);
+  // The editor controller's own `currentPage` tracks the caret, which in
+  // read-only mode never moves off whatever the paginator touched last -- a
+  // freshly opened document reports its final page. Reading the scroll position
+  // against the rendered page wrappers is what answers "what am I looking at".
+  const currentPage = useVisiblePage({
+    pageIndexAttribute: "data-docx-page-index",
+    scrollElement,
+  });
   const { layout } = useDocxPageLayout(editor);
   // Fitted by default: a Word page is 8.5in of content, which overflows the
   // artifact panel at any usual panel width, so opening at 100% means opening
@@ -277,62 +285,4 @@ function revealPage({
     }
   };
   requestAnimationFrame(correct);
-}
-
-/**
- * Which page number is currently in view, as a one-based number.
- *
- * The editor controller's own `currentPage` tracks the caret, which in
- * read-only mode never moves off whatever the paginator touched last -- a
- * freshly opened document reports its final page. Reading the scroll position
- * against the rendered page wrappers is what actually answers "what am I
- * looking at".
- */
-function useVisiblePage(scrollElement: HTMLDivElement | null) {
-  const [page, setPage] = useState(1);
-
-  useEffect(() => {
-    if (!scrollElement) {
-      return;
-    }
-
-    let frame = 0;
-    const measure = () => {
-      frame = 0;
-      const viewportTop = scrollElement.getBoundingClientRect().top;
-      let visible = 1;
-      for (const element of scrollElement.querySelectorAll<HTMLElement>(
-        "[data-docx-page-index]",
-      )) {
-        const { bottom } = element.getBoundingClientRect();
-        // The first page whose bottom edge is still below the top of the
-        // viewport is the one filling it.
-        if (bottom > viewportTop) {
-          const index = Number(element.dataset.docxPageIndex);
-          visible = Number.isFinite(index) ? index + 1 : 1;
-          break;
-        }
-      }
-      setPage(visible);
-    };
-
-    const schedule = () => {
-      frame ||= requestAnimationFrame(measure);
-    };
-
-    schedule();
-    scrollElement.addEventListener("scroll", schedule, { passive: true });
-    // Pages mount and unmount as the viewer virtualizes, which changes what is
-    // measurable without any scrolling having happened.
-    const observer = new MutationObserver(schedule);
-    observer.observe(scrollElement, { childList: true, subtree: true });
-
-    return () => {
-      cancelAnimationFrame(frame);
-      scrollElement.removeEventListener("scroll", schedule);
-      observer.disconnect();
-    };
-  }, [scrollElement]);
-
-  return page;
 }

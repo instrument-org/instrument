@@ -91,7 +91,7 @@ export function TaskToolbar({
 
   return (
     <>
-      <div className="w-full bg-background p-3">
+      <div className="group/task-header w-full bg-background p-3">
         <div className="flex min-w-0 items-center gap-x-2 overflow-hidden">
           {/*
             The title and its overflow menu travel together, so the menu reads
@@ -110,8 +110,11 @@ export function TaskToolbar({
           </div>
 
           <div className="flex min-w-8 shrink items-center justify-end gap-x-2 overflow-hidden">
+            {/* Counts are a debugging aid, not something to read at a glance,
+                so they fade in with the header rather than sitting there. The
+                space stays reserved either way, so nothing shifts on hover. */}
             {isDeveloperMode && (
-              <div className="min-w-0 shrink overflow-hidden">
+              <div className="min-w-0 shrink overflow-hidden opacity-0 transition-opacity group-focus-within/task-header:opacity-100 group-hover/task-header:opacity-100">
                 <TaskUsageSummary
                   id={task.id}
                   onClick={() => {

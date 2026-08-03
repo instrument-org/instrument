@@ -5,6 +5,7 @@ import { Button } from "@/client/components/ui/button";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useInlineRename } from "@/client/hooks/use-inline-rename";
+import { hasVisibleTaskFiles } from "@/client/lib/task-file-groups";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type StoreId, type Task } from "@instrument-org/workspace/client";
 import { FoldersIcon } from "@phosphor-icons/react";
@@ -42,6 +43,13 @@ export function TaskToolbar({
   const [replayModalOpen, setReplayModalOpen] = useState(false);
 
   const isDeveloperMode = useDeveloperMode();
+
+  // The trigger is the only way into this list, so it comes and goes with the
+  // list: a task with nothing to browse gets no button rather than a button
+  // onto "There are no files yet."
+  const hasFilesToBrowse =
+    hasVisibleTaskFiles(files) ||
+    (attachedFolders ? Object.keys(attachedFolders).length > 0 : false);
 
   // Inline rename is the quick path from double-clicking the title itself. The
   // menus open the dialog instead: swapping the title for an input as a menu
@@ -115,37 +123,39 @@ export function TaskToolbar({
             {/* Stays open across selections: picking a file only swaps what the
                 artifact panel shows, and browsing a few in a row is the point
                 of opening the list. Escape or a click outside dismisses it. */}
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  aria-label="Files"
-                  className={toolbarClassName({
-                    className:
-                      "shrink-0 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
-                    pressed: false,
-                  })}
-                  size="icon-sm"
-                  variant="ghost"
+            {hasFilesToBrowse && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    aria-label="Files"
+                    className={toolbarClassName({
+                      className:
+                        "shrink-0 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+                      pressed: false,
+                    })}
+                    size="icon-sm"
+                    variant="ghost"
+                  >
+                    <FoldersIcon className="size-4" />
+                  </Button>
+                </PopoverTrigger>
+                {/* The panel scrolls, not the list inside it: height is whatever
+                    the files need, capped by the space Radix measured under the
+                    trigger, divided into this content's own zoomed pixels. */}
+                <PopoverContent
+                  align="end"
+                  className="max-h-[min(560px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] w-100 overflow-y-auto p-0"
                 >
-                  <FoldersIcon className="size-4" />
-                </Button>
-              </PopoverTrigger>
-              {/* The panel scrolls, not the list inside it: height is whatever
-                  the files need, capped by the space Radix measured under the
-                  trigger, divided into this content's own zoomed pixels. */}
-              <PopoverContent
-                align="end"
-                className="max-h-[min(560px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] w-100 overflow-y-auto p-0"
-              >
-                <TaskFiles
-                  activeFilePath={activeFilePath}
-                  attachedFolders={attachedFolders}
-                  files={files}
-                  onFileSelect={onFileSelect}
-                  task={task}
-                />
-              </PopoverContent>
-            </Popover>
+                  <TaskFiles
+                    activeFilePath={activeFilePath}
+                    attachedFolders={attachedFolders}
+                    files={files}
+                    onFileSelect={onFileSelect}
+                    task={task}
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
         </div>
       </div>

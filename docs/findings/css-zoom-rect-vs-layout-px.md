@@ -34,6 +34,7 @@ Safe by contrast:
 ## Known sites
 
 - Fixed: `@shadcn/react` message-scroller (scroll gap). Carried on a forked git build (`apps/studio/package.json` -> `github:mutewinter/ui#...`) pending upstream `shadcn-ui/ui#11249`.
+- Fixed: `sonner` toast stacking and swipe, via `patches/sonner@2.0.7.patch`. Toast heights were measured with the rect and spent on `--offset` (a `translateY`), and swipe deltas came from `event.clientX/Y` and were spent on `--swipe-amount-*`; both are layout px inside the zoomed subtree. An expanded stack's 14px gap rendered as 135px at 2x and -7px (overlap) at 0.5x. The patch divides by `node.currentCSSZoom`, which is the effective zoom of the whole ancestor chain and needs no wiring to `zoomAtom`. Covered by `apps/studio/src/client/components/ui/sonner.browser.test.tsx`.
 - Fixed: `studio-command-menu.tsx` (virtualizer, uses `offsetHeight`).
 - Fixed: `model-picker.tsx` (virtualizer, was `getBoundingClientRect().height`).
 - Open candidates flagged but not yet addressed:

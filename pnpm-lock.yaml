@@ -76,6 +76,7 @@ patchedDependencies:
   '@parcel/watcher@2.6.0': 70710158e60b08547967e90663191ecfdf5f5e02082b07253a8bdff11303ce2b
   app-builder-lib@26.15.7: c30615a9a3396ac72fd40f8b21782e0824090bd8d35989d568731abb8ffb95f4
   conf@14.0.0: 56254a98f20461a96d6b30db95d31a459ca15443a73844e166da79dcb6392d02
+  sonner@2.0.7: 22b16004d10f44d3ea7fef7bc84bfb401b07f878993d914696c7b0a1586bcb29
 
 importers:
 
@@ -633,7 +634,7 @@ importers:
         version: 1.2.2
       sonner:
         specifier: ^2.0.7
-        version: 2.0.7(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+        version: 2.0.7(patch_hash=22b16004d10f44d3ea7fef7bc84bfb401b07f878993d914696c7b0a1586bcb29)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       tailwindcss:
         specifier: ^4.1.18
         version: 4.3.2
@@ -19941,7 +19942,7 @@ snapshots:
 
   smol-toml@1.7.0: {}
 
-  sonner@2.0.7(react-dom@19.2.1(react@19.2.1))(react@19.2.1):
+  sonner@2.0.7(patch_hash=22b16004d10f44d3ea7fef7bc84bfb401b07f878993d914696c7b0a1586bcb29)(react-dom@19.2.1(react@19.2.1))(react@19.2.1):
     dependencies:
       react: 19.2.1
       react-dom: 19.2.1(react@19.2.1)

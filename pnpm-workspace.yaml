@@ -75,6 +75,7 @@ patchedDependencies:
   "@parcel/watcher@2.6.0": patches/@parcel__watcher@2.6.0.patch
   app-builder-lib@26.15.7: patches/app-builder-lib@26.15.7.patch
   conf@14.0.0: patches/conf@14.0.0.patch
+  sonner@2.0.7: patches/sonner@2.0.7.patch
 
 sideEffectsCache: false
 

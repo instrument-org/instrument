@@ -62,6 +62,7 @@ export function ViewerFindControl({
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
             <Button
+              aria-label="Find in document"
               className={toolbarClassName({
                 className: cn("size-7", openableClassName),
                 pressed: false,
@@ -135,6 +136,7 @@ export function ViewerPageControl({
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
+            aria-label={`Previous ${label}`}
             className={cn(
               actionClassName,
               "@max-[360px]/viewer-toolbar:hidden",
@@ -184,6 +186,7 @@ export function ViewerPageControl({
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
+            aria-label={`Next ${label}`}
             className={cn(
               actionClassName,
               "@max-[360px]/viewer-toolbar:hidden",
@@ -215,6 +218,7 @@ export function ViewerRailToggle({
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
+          aria-label={open ? "Hide thumbnails" : "Show thumbnails"}
           className={toolbarClassName({ className: "size-7", pressed: open })}
           onClick={onToggle}
           size="icon-sm"

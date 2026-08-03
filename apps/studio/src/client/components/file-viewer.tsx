@@ -580,6 +580,7 @@ export function FileViewer({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
+                    aria-label="Reload"
                     className={fileViewerHeaderIconActionClassName}
                     onClick={() => {
                       setHtmlReloadNonce((nonce) => nonce + 1);

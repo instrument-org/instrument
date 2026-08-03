@@ -77,6 +77,7 @@ export function TaskActionsCell({
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
+              aria-label="Stop"
               onClick={(e) => {
                 e.preventDefault();
                 onStop(id);
@@ -93,6 +94,7 @@ export function TaskActionsCell({
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
+            aria-label="Delete"
             onClick={(e) => {
               e.preventDefault();
               onDelete(id);

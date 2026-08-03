@@ -123,6 +123,7 @@ export function ServerExceptionsAlert() {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
+              aria-label="Clear"
               className="size-5 select-none"
               onClick={() => {
                 clearExceptions();

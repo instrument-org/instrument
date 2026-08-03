@@ -301,9 +301,15 @@ export function TaskChat({
   // transcript, so the scroller's "at the bottom" math stays exact. A soft
   // gradient overlay at the scroll frame's bottom edge eases the transcript into
   // the composer; pb-8 keeps the last turn's text clear of the fade band.
+  //
+  // autoScroll only while the session is alive: follow-bottom cannot tell new
+  // output from content the reader grew themselves, so on an idle transcript it
+  // reads a collapsible expanding as output and yanks the row out from under the
+  // click. Alive rather than running, so a turn paused for approval still
+  // follows.
   return (
     <MessageScrollerProvider
-      autoScroll
+      autoScroll={isAgentAlive}
       defaultScrollPosition="end"
       key={selectedSessionId}
     >

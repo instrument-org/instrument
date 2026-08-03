@@ -16,7 +16,6 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { type KeyboardEvent, useEffect, useMemo, useState } from "react";
 
 import { Button } from "../ui/button";
-import { Checkbox } from "../ui/checkbox";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -26,8 +25,8 @@ import {
 } from "../ui/context-menu";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { Input } from "../ui/input";
@@ -180,14 +179,12 @@ export function DataGrid({
   const visibleRows = table.getRowModel().rows;
   const visibleColumns = table.getVisibleLeafColumns();
 
-
   const rowVirtualizer = useVirtualizer({
     count: visibleRows.length,
     estimateSize: () => ROW_HEIGHT,
     getScrollElement: () => grid,
     overscan: 12,
   });
-
 
   const columnVirtualizer = useVirtualizer({
     count: visibleColumns.length,
@@ -314,10 +311,7 @@ export function DataGrid({
     // than stepping off it, since there is nothing to step from.
     const target = selection
       ? {
-          column: Math.min(
-            Math.max(to.column, 0),
-            visibleColumns.length - 1,
-          ),
+          column: Math.min(Math.max(to.column, 0), visibleColumns.length - 1),
           row: Math.min(Math.max(to.row, 0), visibleRows.length - 1),
         }
       : { column: 0, row: 0 };
@@ -328,6 +322,18 @@ export function DataGrid({
   };
 
   const filtered = visibleRows.length !== rows.length;
+
+  const emptyState = describeEmptyGrid({
+    clearFilter: () => {
+      setGlobalFilter("");
+    },
+    rowCount: rows.length,
+    showAllColumns: () => {
+      table.resetColumnVisibility();
+    },
+    visibleColumnCount: visibleColumns.length,
+    visibleRowCount: visibleRows.length,
+  });
 
   return (
     <>
@@ -354,128 +360,143 @@ export function DataGrid({
         <ColumnMenu columns={columns} table={table} />
       </ViewerToolbar>
 
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          <div
-            // `select-none` because a drag has to mean one thing. Without it a
-            // drag across cells builds the grid's range and the browser's own
-            // text selection at the same time, and since the copy shortcut
-            // answers with the range, what the reader can see highlighted is
-            // not what lands on their clipboard.
-            className="min-h-0 flex-1 overflow-auto outline-none select-none focus-visible:outline-[2px] focus-visible:-outline-offset-2 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]"
-            onKeyDown={moveSelection}
-            onPointerDown={() => {
-              grid?.focus({ preventScroll: true });
-            }}
-            ref={setGrid}
-            role="grid"
-            tabIndex={0}
-          >
+      {emptyState ? (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+          <p className="text-sm text-muted-foreground">{emptyState.text}</p>
+          {emptyState.label && (
+            <Button onClick={emptyState.onAct} size="sm" variant="outline">
+              {emptyState.label}
+            </Button>
+          )}
+        </div>
+      ) : (
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
             <div
-              className="relative text-[0.8125rem]"
-              style={{
-                height: rowVirtualizer.getTotalSize() + HEADER_HEIGHT,
-                width: totalWidth,
+              // `select-none` because a drag has to mean one thing. Without it a
+              // drag across cells builds the grid's range and the browser's own
+              // text selection at the same time, and since the copy shortcut
+              // answers with the range, what the reader can see highlighted is
+              // not what lands on their clipboard.
+              className="min-h-0 flex-1 overflow-auto outline-none select-none focus-visible:outline-[2px] focus-visible:-outline-offset-2 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]"
+              onKeyDown={moveSelection}
+              onPointerDown={() => {
+                grid?.focus({ preventScroll: true });
               }}
+              ref={setGrid}
+              role="grid"
+              tabIndex={0}
             >
               <div
-                className="sticky top-0 z-20 bg-card"
-                role="row"
-                style={{ height: HEADER_HEIGHT }}
+                className="relative text-[0.8125rem]"
+                style={{
+                  height: rowVirtualizer.getTotalSize() + HEADER_HEIGHT,
+                  width: totalWidth,
+                }}
               >
-                {columnVirtualizer.getVirtualItems().map((virtualColumn) => {
-                  const column = visibleColumns[virtualColumn.index];
-                  return column ? (
-                    <HeaderCell
-                      column={column}
-                      key={column.id}
-                      left={virtualColumn.start}
-                      onResize={headersById.get(column.id)?.getResizeHandler()}
-                      spec={columns[Number(column.id)]}
-                    />
-                  ) : null;
+                <div
+                  className="sticky top-0 z-20 bg-card"
+                  role="row"
+                  style={{ height: HEADER_HEIGHT }}
+                >
+                  {columnVirtualizer.getVirtualItems().map((virtualColumn) => {
+                    const column = visibleColumns[virtualColumn.index];
+                    return column ? (
+                      <HeaderCell
+                        column={column}
+                        key={column.id}
+                        left={virtualColumn.start}
+                        onResize={headersById
+                          .get(column.id)
+                          ?.getResizeHandler()}
+                        spec={columns[Number(column.id)]}
+                      />
+                    ) : null;
+                  })}
+                </div>
+
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const record = visibleRows[virtualRow.index];
+                  if (!record) {
+                    return null;
+                  }
+                  return (
+                    <div
+                      className={cn(
+                        // `top-0` matters: without it an absolutely positioned
+                        // row falls back to its static position, which is below
+                        // the header already in flow, and the header offset in
+                        // the transform below is then counted a second time.
+                        "absolute inset-x-0 top-0",
+                        virtualRow.index % 2 === 1 && "bg-muted/30",
+                      )}
+                      key={record.id}
+                      role="row"
+                      style={{
+                        height: virtualRow.size,
+                        transform: `translateY(${virtualRow.start + HEADER_HEIGHT}px)`,
+                      }}
+                    >
+                      {columnVirtualizer
+                        .getVirtualItems()
+                        .map((virtualColumn) => {
+                          const column = visibleColumns[virtualColumn.index];
+                          if (!column) {
+                            return null;
+                          }
+                          const position = {
+                            column: virtualColumn.index,
+                            row: virtualRow.index,
+                          };
+                          return (
+                            <BodyCell
+                              align={columns[Number(column.id)]?.align}
+                              key={column.id}
+                              left={virtualColumn.start}
+                              onSelect={extendTo}
+                              position={position}
+                              selected={inRange(selectedRange, position)}
+                              value={record.original[Number(column.id)] ?? null}
+                              width={column.getSize()}
+                            />
+                          );
+                        })}
+                    </div>
+                  );
                 })}
               </div>
-
-              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                const record = visibleRows[virtualRow.index];
-                if (!record) {
-                  return null;
-                }
-                return (
-                  <div
-                    className={cn(
-                      // `top-0` matters: without it an absolutely positioned
-                      // row falls back to its static position, which is below
-                      // the header already in flow, and the header offset in
-                      // the transform below is then counted a second time.
-                      "absolute inset-x-0 top-0",
-                      virtualRow.index % 2 === 1 && "bg-muted/30",
-                    )}
-                    key={record.id}
-                    role="row"
-                    style={{
-                      height: virtualRow.size,
-                      transform: `translateY(${virtualRow.start + HEADER_HEIGHT}px)`,
-                    }}
-                  >
-                    {columnVirtualizer.getVirtualItems().map((virtualColumn) => {
-                      const column = visibleColumns[virtualColumn.index];
-                      if (!column) {
-                        return null;
-                      }
-                      const position = {
-                        column: virtualColumn.index,
-                        row: virtualRow.index,
-                      };
-                      return (
-                        <BodyCell
-                          align={columns[Number(column.id)]?.align}
-                          key={column.id}
-                          left={virtualColumn.start}
-                          onSelect={extendTo}
-                          position={position}
-                          selected={inRange(selectedRange, position)}
-                          value={record.original[Number(column.id)] ?? null}
-                          width={column.getSize()}
-                        />
-                      );
-                    })}
-                  </div>
-                );
-              })}
             </div>
-          </div>
-        </ContextMenuTrigger>
-        <ContextMenuContent>
-          <ContextMenuItem
-            disabled={!selectedRange}
-            onSelect={() => {
-              copyBlock(readSelection(false));
-            }}
-          >
-            Copy
-          </ContextMenuItem>
-          <ContextMenuItem
-            disabled={!selectedRange}
-            onSelect={() => {
-              copyBlock(readSelection(true));
-            }}
-          >
-            Copy with headers
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-          <ContextMenuItem
-            onSelect={() => {
-              setSelection(null);
-              setGlobalFilter("");
-              setSorting([]);
-            }}
-          >
-            Reset sort and filter
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem
+              disabled={!selectedRange}
+              onSelect={() => {
+                copyBlock(readSelection(false));
+              }}
+            >
+              Copy
+            </ContextMenuItem>
+            <ContextMenuItem
+              disabled={!selectedRange}
+              onSelect={() => {
+                copyBlock(readSelection(true));
+              }}
+            >
+              Copy with headers
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              onSelect={() => {
+                setSelection(null);
+                setGlobalFilter("");
+                setSorting([]);
+              }}
+            >
+              Reset sort and filter
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+      )}
     </>
   );
 }
@@ -561,7 +582,8 @@ function ColumnMenu({
       </Tooltip>
       <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
         {table.getAllLeafColumns().map((column) => (
-          <DropdownMenuItem
+          <DropdownMenuCheckboxItem
+            checked={column.getIsVisible()}
             key={column.id}
             onSelect={(event) => {
               // Kept open so several columns can be turned off in one visit.
@@ -569,11 +591,10 @@ function ColumnMenu({
               column.toggleVisibility();
             }}
           >
-            <Checkbox checked={column.getIsVisible()} />
             <span className="truncate">
               {columns[Number(column.id)]?.name ?? column.id}
             </span>
-          </DropdownMenuItem>
+          </DropdownMenuCheckboxItem>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -633,12 +654,55 @@ function copyBlock(block: null | string[][]) {
   if (!block || block.length === 0) {
     return false;
   }
-  navigator.clipboard.write([tableClipboardItem(block)]).catch(
-    (error: unknown) => {
+  navigator.clipboard
+    .write([tableClipboardItem(block)])
+    .catch((error: unknown) => {
       logger.error("Copying the selection failed", error);
-    },
-  );
+    });
   return true;
+}
+
+/**
+ * What to tell the reader when the grid has nothing to draw, or null when it
+ * has something.
+ *
+ * Keeping the three apart matters more than it looks. An empty table is the
+ * file, and nothing can be done about it. The other two are states the reader
+ * put the grid into, and unless something names them a hidden last column or an
+ * unmatched filter reads as a viewer that broke, with the way back out of it
+ * invisible.
+ */
+function describeEmptyGrid({
+  clearFilter,
+  rowCount,
+  showAllColumns,
+  visibleColumnCount,
+  visibleRowCount,
+}: {
+  clearFilter: () => void;
+  rowCount: number;
+  showAllColumns: () => void;
+  visibleColumnCount: number;
+  visibleRowCount: number;
+}): null | { label?: string; onAct?: () => void; text: string } {
+  if (visibleColumnCount === 0) {
+    return {
+      label: "Show all columns",
+      onAct: showAllColumns,
+      text: "Every column is hidden.",
+    };
+  }
+  if (rowCount === 0) {
+    return { text: "This table has no rows." };
+  }
+  if (visibleRowCount === 0) {
+    return {
+      label: "Clear filter",
+      onAct: clearFilter,
+      text: "No rows match the filter.",
+    };
+  }
+  return null;
 }
 
 function HeaderCell({
@@ -749,7 +813,10 @@ function resolveRange({
   return {
     firstColumn,
     firstRow,
-    lastColumn: Math.min(Math.max(anchor.column, focus.column), columnCount - 1),
+    lastColumn: Math.min(
+      Math.max(anchor.column, focus.column),
+      columnCount - 1,
+    ),
     lastRow: Math.min(Math.max(anchor.row, focus.row), rowCount - 1),
   };
 }

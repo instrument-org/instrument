@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
 
 import { FileLoading } from "../file-loading";
 import { type CellValue, DataGrid, type GridColumn } from "./data-grid";
@@ -10,6 +9,13 @@ import { inferAlignment } from "./grid-columns";
 // them. The columns come from a prefix instead, which is where a well-formed
 // export puts its shape anyway.
 const KEY_SAMPLE_LINES = 1000;
+
+// A log is the file most likely to arrive here and the one with no ceiling on
+// its length, so parsing stops at the same bound the database and Parquet
+// viewers read to. The grid holds every row it is given and answers sort and
+// filter across all of them, which is what makes an unbounded read a way to
+// hang the renderer rather than a way to show a large file.
+const MAX_ROWS = 100_000;
 
 /**
  * Line-delimited JSON, as a table when the lines describe one and as text when
@@ -43,7 +49,10 @@ export function JsonlViewer({ url }: { url: string }) {
     throw error;
   }
 
-  return <JsonlBody text={data ?? ""} />;
+  // Keyed by url so a second file starts on a fresh grid rather than inheriting
+  // the sort, filter and hidden columns the reader set up for the last one,
+  // which are all held by column position and would land on unrelated data.
+  return <JsonlBody key={url} text={data ?? ""} />;
 }
 
 /**
@@ -79,7 +88,7 @@ function formatValue(value: unknown): CellValue {
 }
 
 function JsonlBody({ text }: { text: string }) {
-  const parsed = useMemo(() => parseLines(text), [text]);
+  const parsed = parseLines(text);
 
   if (!parsed) {
     // Valid JSONL that is not tabular still deserves to be readable, so it
@@ -105,8 +114,13 @@ function parseLines(text: string) {
   const lines = text.split("\n").filter((line) => line.trim() !== "");
   const records: Record<string, unknown>[] = [];
   let malformed = 0;
+  let truncated = false;
 
   for (const line of lines) {
+    if (records.length === MAX_ROWS) {
+      truncated = true;
+      break;
+    }
     try {
       const value: unknown = JSON.parse(line);
       // Arrays are objects too, and an array per line is a list rather than a
@@ -145,12 +159,21 @@ function parseLines(text: string) {
     name,
   }));
 
+  const notes: string[] = [];
+  if (truncated) {
+    notes.push(
+      `first ${MAX_ROWS.toLocaleString()} of ${lines.length.toLocaleString()} lines`,
+    );
+  }
+  if (malformed > 0) {
+    notes.push(
+      `${malformed.toLocaleString()} ${malformed === 1 ? "line" : "lines"} skipped`,
+    );
+  }
+
   return {
     columns,
-    note:
-      malformed > 0
-        ? `${malformed.toLocaleString()} ${malformed === 1 ? "line" : "lines"} skipped`
-        : undefined,
+    note: notes.length > 0 ? notes.join(", ") : undefined,
     rows,
   };
 }

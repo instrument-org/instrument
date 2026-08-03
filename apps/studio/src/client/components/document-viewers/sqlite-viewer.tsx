@@ -66,7 +66,15 @@ export function SqliteViewer({ url }: { url: string }) {
 
   return (
     <>
-      <TableContents db={database.db} table={active} />
+      {/* Keyed by the table it is showing so switching tabs starts on a fresh
+          grid rather than inheriting the sort, filter and hidden columns the
+          reader set up for the last one, all of which are held by column
+          position and would land on unrelated data. */}
+      <TableContents
+        db={database.db}
+        key={`${url}:${active.name}`}
+        table={active}
+      />
 
       {database.tables.length > 1 && (
         <div className="flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-t border-border/60 px-2">

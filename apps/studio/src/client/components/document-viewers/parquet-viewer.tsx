@@ -9,6 +9,11 @@ import { inferAlignment } from "./grid-columns";
 // filling memory with a file that was never meant to be looked at whole.
 const MAX_ROWS = 100_000;
 
+// Parquet is schema-driven, so every record carries the same keys and a prefix
+// is enough to collect them. Reading all of them would allocate a key array per
+// row for no answer the first few thousand have not already given.
+const KEY_SAMPLE_ROWS = 1000;
+
 /**
  * Parquet files, read with `hyparquet`.
  *
@@ -36,7 +41,17 @@ export function ParquetViewer({ url }: { url: string }) {
     throw new Error("This file holds no readable Parquet data.");
   }
 
-  return <DataGrid columns={data.columns} note={data.note} rows={data.rows} />;
+  // Keyed by url so a second file starts on a fresh grid rather than inheriting
+  // the sort, filter and hidden columns the reader set up for the last one,
+  // which are all held by column position and would land on unrelated data.
+  return (
+    <DataGrid
+      columns={data.columns}
+      key={url}
+      note={data.note}
+      rows={data.rows}
+    />
+  );
 }
 
 /**
@@ -105,7 +120,13 @@ async function readParquet(url: string) {
   // through wrapper nodes the format names itself, so collecting leaf names
   // yields a column called `element` that matches no key on any record. The
   // reader has already resolved that tree; its keys are the real columns.
-  const header = [...new Set(records.flatMap((record) => Object.keys(record)))];
+  const header = [
+    ...new Set(
+      records
+        .slice(0, KEY_SAMPLE_ROWS)
+        .flatMap((record) => Object.keys(record)),
+    ),
+  ];
 
   const rows: CellValue[][] = records.map((record) =>
     header.map((name) =>

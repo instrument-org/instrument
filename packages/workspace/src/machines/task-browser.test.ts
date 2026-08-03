@@ -14,6 +14,7 @@ import { TaskIdSchema } from "../schemas/task-id";
 import {
   type BrowserConfig,
   type BrowserTargetId,
+  encodeArtifactTargetId,
   encodeBrowserTargetId,
 } from "../types";
 import {
@@ -51,12 +52,16 @@ vi.mock(import("../lib/agent-browser-cleanup"), () => ({
 const { closeAgentBrowserSessionsForSessions } =
   await import("../lib/agent-browser-cleanup");
 
+const createArtifactTargetMock: BrowserConfig["createArtifactTarget"] = (id) =>
+  Promise.resolve({ targetId: encodeArtifactTargetId(id) });
+
 const createTargetMock: BrowserConfig["createTarget"] = (id, sessionId) =>
   Promise.resolve({ targetId: encodeBrowserTargetId(id, sessionId) });
 
 function makeBrowser(): BrowserConfig {
   return {
     closeTarget: vi.fn(asyncNoop),
+    createArtifactTarget: vi.fn(createArtifactTargetMock),
     createTarget: vi.fn(createTargetMock),
     getTargetMeta: vi.fn(() => null),
     listTargets: vi.fn(emptyTargets),

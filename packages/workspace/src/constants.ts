@@ -6,6 +6,11 @@ export const REGISTRY_FOLDER_NAMES = {
 import { TASK_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 
 export const TASK_FOLDER_NAMES = {
+  // Storage profile for the HTML artifact-preview guests, kept apart from
+  // `browserSession` so agent-authored pages get their own cookie jar and
+  // storage rather than sharing the browsing profile. One directory for all
+  // tasks: per-task isolation already comes from the distinct asset origins.
+  artifactPreviewSession: "artifact-preview-session",
   attachments: "attachments",
   browserSession: "browser-session",
   downloads: "downloads",

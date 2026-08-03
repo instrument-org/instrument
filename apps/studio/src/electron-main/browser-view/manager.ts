@@ -11,6 +11,7 @@ import {
   type BrowserConfig,
   type BrowserTarget,
   type BrowserTargetId,
+  encodeArtifactTargetId,
   encodeBrowserTargetId,
   type StoreId,
   type TaskId,
@@ -158,8 +159,13 @@ export function createBrowserViewManager(): BrowserViewManager {
     // guest's locked-down, same-partition session (see guestWindowOpenHandler),
     // so the opener/postMessage channel that "Continue with Google" and similar
     // flows complete through stays intact instead of hanging.
+    // An artifact-preview guest denies every window open. The allowance below
+    // exists for sign-in popups reached by browsing; agent-generated HTML has
+    // no such flow, and a real popup window spawned out of a local artifact is
+    // not something to hand it.
+    const isArtifactGuest = !entry.sessionId;
     guest.setWindowOpenHandler((details) =>
-      focusGuard.isGuarded(targetId)
+      isArtifactGuest || focusGuard.isGuarded(targetId)
         ? { action: "deny" }
         : guestWindowOpenHandler(details),
     );
@@ -336,16 +342,48 @@ export function createBrowserViewManager(): BrowserViewManager {
     });
   }
 
+  // The task's HTML artifact-preview guest. Same mount path as createTarget,
+  // differing only in the id kind and the (separate) storage profile it is
+  // given; see BrowserTargetIdSchema for why the two ids cannot collide.
+  function createArtifactTarget(
+    id: TaskId,
+    partitionDir: AbsolutePath,
+  ): Promise<{ targetId: BrowserTargetId }> {
+    return ensureTarget({
+      id,
+      partitionDir,
+      sessionId: null,
+      targetId: encodeArtifactTargetId(id),
+    });
+  }
+
   function createTarget(
     id: TaskId,
     sessionId: StoreId.Session,
     partitionDir: AbsolutePath,
   ): Promise<{ targetId: BrowserTargetId }> {
-    const targetId = encodeBrowserTargetId(id, sessionId);
+    return ensureTarget({
+      id,
+      partitionDir,
+      sessionId,
+      targetId: encodeBrowserTargetId(id, sessionId),
+    });
+  }
 
+  function ensureTarget({
+    id,
+    partitionDir,
+    sessionId,
+    targetId,
+  }: {
+    id: TaskId;
+    partitionDir: AbsolutePath;
+    sessionId: null | StoreId.Session;
+    targetId: BrowserTargetId;
+  }): Promise<{ targetId: BrowserTargetId }> {
     const existing = entries.get(targetId);
     if (existing) {
-      // Idempotent: a single (id, sessionId) pair owns at most one guest.
+      // Idempotent: a target id owns at most one guest.
       // Already bound -> reuse it; mount still in flight -> wait on it.
       if (existing.webContents && !existing.webContents.isDestroyed()) {
         return Promise.resolve({ targetId });
@@ -395,6 +433,12 @@ export function createBrowserViewManager(): BrowserViewManager {
       if (entry.id !== id) {
         continue;
       }
+      // This list is the agent's `/json` target discovery. An artifact-preview
+      // guest is the user's, not the agent's, so it stays out of it and the
+      // agent sees exactly the targets it always has.
+      if (!entry.sessionId) {
+        continue;
+      }
 
       const wc = entry.webContents;
       // electron/electron#50249: webContents is undefined after destruction in Electron 41+
@@ -440,6 +484,7 @@ export function createBrowserViewManager(): BrowserViewManager {
         destroyEntry(entries, targetId);
         notifyEntriesChanged();
       }),
+    createArtifactTarget,
     createTarget,
     getTargetMeta: (targetId) => {
       const entry = entries.get(targetId);

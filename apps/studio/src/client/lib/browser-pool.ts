@@ -29,11 +29,14 @@ const RECONNECT_DELAY_MS = 500;
  *  - visible: positioned over a host slot (e.g. the task page's browser panel,
  *    measured by that component) and scaled to fit, with input enabled.
  *
- * At most one guest is visible at a time: each task's browser panel shows its
- * guest only while its tab is the foreground tab (see use-active-tab) and parks
- * it otherwise, so two guests can never be shown at once. The main process owns
- * guest existence via the desired-targets stream; the host slot only toggles
- * paint-host vs visible. Hiding/closing the slot never disposes a guest.
+ * Nothing here limits how many guests are visible: `showOverSlot` and
+ * `setPaintHost` are per-target, and two guests over two disjoint rects would
+ * both paint. In practice the callers keep it to one, because a task's browser
+ * panel and its artifact preview are the same slot and each shows its guest
+ * only while its tab is the foreground tab (see use-active-tab). The main
+ * process owns guest existence via the desired-targets stream; the host slot
+ * only toggles paint-host vs visible. Hiding/closing the slot never disposes a
+ * guest.
  */
 
 interface Bounds {
@@ -263,12 +266,20 @@ export function setPaintHost(targetId: BrowserTargetId, owner: symbol) {
  * (CDP, main-process side): Electron does not reliably re-layout an
  * already-loaded guest just because its host element was resized, so that
  * concern and this one are deliberately independent -- see device-emulation.ts.
+ *
+ * `zIndex` is the stacking level for the body-mounted container. It exists for
+ * one reason: a slot inside a dialog sits under an overlay the guest is not a
+ * descendant of, so the guest has to be raised above that overlay explicitly or
+ * it paints behind it. Panels in the ordinary page flow pass nothing and stay
+ * at 0 -- per docs/findings/leaking-z-index-stacks.md, a raised level has to be
+ * earned by a host that genuinely covers the guest, not applied by default.
  */
 export function showOverSlot(
   targetId: BrowserTargetId,
   bounds: Bounds,
   owner: symbol,
   renderedSize?: null | { height: number; width: number },
+  zIndex = 0,
 ) {
   const pooled = pool.get(targetId);
   if (!pooled) {
@@ -292,7 +303,7 @@ export function showOverSlot(
     visibility: "visible",
     width: `${bounds.width}px`,
     willChange: "",
-    zIndex: "0",
+    zIndex: String(zIndex),
   } satisfies Partial<CSSStyleDeclaration>);
 
   if (renderedSize) {

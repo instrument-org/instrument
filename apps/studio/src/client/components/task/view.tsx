@@ -70,10 +70,12 @@ export function TaskView({
   const openFileViewer = useSetAtom(openFileViewerAtom);
   const assetBaseUrl = getAssetBaseUrl(task.id);
 
-  // Bumped to force the file viewer to remount when the user re-opens the
-  // already-active artifact, snapping an HTML preview back to its entry page
-  // after an in-iframe link navigated it away.
-  const [artifactReloadNonce, setArtifactReloadNonce] = useState(0);
+  // Re-selecting the artifact that is already open means "take me back to the
+  // start of it" -- the router sees an identical search state, so there is no
+  // navigation for the viewer to react to. Bumped on that gesture and handed to
+  // the HTML preview, which sends its guest home. Not a remount key: the guest
+  // is pooled and survives one.
+  const [artifactHomeNonce, setArtifactHomeNonce] = useState(0);
 
   const filePanel = artifactPanel?.type === "file" ? artifactPanel : undefined;
   const browserPanel = artifactPanel?.type === "browser";
@@ -167,7 +169,7 @@ export function TaskView({
 
   const handleFileSelect = (file: TaskFileViewerFile) => {
     if (filePanel?.filePath === file.filePath) {
-      setArtifactReloadNonce((nonce) => nonce + 1);
+      setArtifactHomeNonce((nonce) => nonce + 1);
     }
     void navigate({
       from: "/tasks/$id/",
@@ -238,7 +240,8 @@ export function TaskView({
                   <div className="flex h-full">
                     <FileViewer
                       file={currentFile}
-                      key={`${currentFile.url}#${artifactReloadNonce}`}
+                      goHomeNonce={artifactHomeNonce}
+                      key={currentFile.url}
                       onClose={handleArtifactPanelClose}
                       onExpand={() => {
                         openFileViewer({ files: [currentFile] });

@@ -18,6 +18,13 @@ import { type WebSearchClient } from "./schemas/web-search";
 
 export interface BrowserConfig {
   closeTarget: (targetId: BrowserTargetId) => Promise<void>;
+  // The task's artifact-preview guest: one per task, navigated between HTML
+  // files rather than recreated per file. Separate from `createTarget` because
+  // it has no session -- see BrowserTargetIdSchema for the two id kinds.
+  createArtifactTarget: (
+    id: TaskId,
+    partitionDir: AbsolutePath,
+  ) => Promise<{ targetId: BrowserTargetId }>;
   createTarget: (
     id: TaskId,
     sessionId: StoreId.Session,
@@ -26,7 +33,9 @@ export interface BrowserConfig {
   getTargetMeta: (targetId: BrowserTargetId) => null | {
     id: TaskId;
     partitionDir: AbsolutePath;
-    sessionId: StoreId.Session;
+    // Null for an artifact-preview target, which belongs to a task rather than
+    // to any one session.
+    sessionId: null | StoreId.Session;
   };
   listTargets: (id: TaskId) => Promise<BrowserTarget[]>;
   onTargetDestroyed: (
@@ -60,13 +69,26 @@ export interface BrowserTarget {
 
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 
-// The bridge routing key for a single browser view: a (id, sessionId)
-// tuple encoded as `${id}/${sessionId}`. The schema delegates to the
-// existing TaskId and StoreId.Session validators so a parse failure
-// pinpoints the offending half. Use `encodeBrowserTargetId` /
-// `decodeBrowserTargetId` to construct or parse one; never build by hand.
+/**
+ * Second half of an artifact-preview target id. A fixed sentinel rather than an
+ * id: session ids are `ses_`-prefixed ULIDs, so the two forms cannot collide.
+ */
+export const ARTIFACT_TARGET_KEY = "artifact";
+
+// The bridge routing key for a single browser view. Two admissible forms, one
+// per guest kind:
+//
+//   `${id}/${sessionId}`  session guest  -- the task's agent-drivable browser
+//   `${id}/artifact`      artifact guest -- the task's HTML artifact preview
+//
+// The session form delegates to the existing TaskId and StoreId.Session
+// validators so a parse failure pinpoints the offending half. Use
+// `encodeBrowserTargetId` / `encodeArtifactTargetId` / `decodeBrowserTargetId`
+// to construct or parse one; never build by hand.
 export const BrowserTargetIdSchema = z
-  .custom<`${TaskId}/${StoreId.Session}`>()
+  .custom<
+    `${TaskId}/${StoreId.Session}` | `${TaskId}/${typeof ARTIFACT_TARGET_KEY}`
+  >()
   .superRefine((val, ctx) => {
     if (typeof val !== "string") {
       ctx.addIssue({
@@ -84,7 +106,7 @@ export const BrowserTargetIdSchema = z
         fatal: true,
         input: val,
         message:
-          "BrowserTargetId must be `${id}/${sessionId}` with both halves non-empty",
+          "BrowserTargetId must be `${id}/${sessionId}` or `${id}/artifact` with both halves non-empty",
       });
       return;
     }
@@ -94,7 +116,11 @@ export const BrowserTargetIdSchema = z
         ctx.addIssue({ ...issue, path: ["id", ...issue.path] });
       }
     }
-    const sessionResult = StoreId.SessionSchema.safeParse(val.slice(slash + 1));
+    const rest = val.slice(slash + 1);
+    if (rest === ARTIFACT_TARGET_KEY) {
+      return;
+    }
+    const sessionResult = StoreId.SessionSchema.safeParse(rest);
     if (!sessionResult.success) {
       for (const issue of sessionResult.error.issues) {
         ctx.addIssue({ ...issue, path: ["sessionId", ...issue.path] });
@@ -148,18 +174,33 @@ type CdpSendArgs<M extends CdpMethod> =
         ? [params?: P]
         : never;
 
+/**
+ * Parse a target id into its kind and parts. Discriminated on `kind` so callers
+ * that only make sense for one guest kind -- the CDP bridge and the agent's
+ * target list, both of which are session-only -- have to say so.
+ */
 export function decodeBrowserTargetId(
   targetId: string,
-): null | { id: TaskId; sessionId: StoreId.Session } {
+):
+  | null
+  | { id: TaskId; kind: "artifact" }
+  | { id: TaskId; kind: "session"; sessionId: StoreId.Session } {
   const result = BrowserTargetIdSchema.safeParse(targetId);
   if (!result.success) {
     return null;
   }
   const slash = result.data.indexOf("/");
-  return {
-    id: result.data.slice(0, slash) as TaskId,
-    sessionId: result.data.slice(slash + 1) as StoreId.Session,
-  };
+  const id = result.data.slice(0, slash) as TaskId;
+  const rest = result.data.slice(slash + 1);
+  if (rest === ARTIFACT_TARGET_KEY) {
+    return { id, kind: "artifact" };
+  }
+  return { id, kind: "session", sessionId: rest as StoreId.Session };
+}
+
+/** The task's single artifact-preview target id (see ARTIFACT_TARGET_KEY). */
+export function encodeArtifactTargetId(id: TaskId): BrowserTargetId {
+  return BrowserTargetIdSchema.parse(`${id}/${ARTIFACT_TARGET_KEY}`);
 }
 
 export function encodeBrowserTargetId(

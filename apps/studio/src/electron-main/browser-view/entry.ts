@@ -50,8 +50,12 @@ export interface BrowserEntry {
   pendingDownloadGuids: Map<string, string>;
   screencastInterval: null | ReturnType<typeof setInterval>;
   screencastSessionId: number;
-  sessionId: StoreId.Session;
-  // Stable, externally-meaningful target id: `${id}/${sessionId}`.
+  // Null for an artifact-preview guest: it belongs to a task, not to any one
+  // session, and is never reachable over CDP. Anything session-shaped (agent
+  // daemon cleanup, CDP heartbeats) keys off this being present.
+  sessionId: null | StoreId.Session;
+  // Stable, externally-meaningful target id: `${id}/${sessionId}` for a
+  // session guest, `${id}/artifact` for the task's preview guest.
   // Used as the manager Map key, the CDP URL path component, and the wire
   // identifier in BrowserConfig. Independent of webContents.id (which becomes
   // undefined after destruction in Electron 41+, electron/electron#50249).
@@ -83,7 +87,7 @@ export function createEntry({
 }: {
   id: TaskId;
   partitionDir: AbsolutePath;
-  sessionId: StoreId.Session;
+  sessionId: null | StoreId.Session;
   targetId: BrowserTargetId;
 }): BrowserEntry {
   return {

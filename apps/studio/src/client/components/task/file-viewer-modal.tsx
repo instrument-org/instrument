@@ -19,6 +19,12 @@ import { Button } from "../ui/button";
 // reads as filling the window, big enough to show the shell behind it.
 const GUTTER = 12;
 
+// A viewer that mounts a browser guest puts it on `document.body`, outside this
+// dialog's portal, so the overlay and content (both `z-50`) would cover it. It
+// has to clear them to be seen at all -- the one case where a raised level is
+// earned rather than inherited, per docs/findings/leaking-z-index-stacks.md.
+const GUEST_Z_INDEX = 51;
+
 export function TaskFileViewerModal() {
   const state = useAtomValue(taskFileViewerAtom);
   const collapseViewer = useSetAtom(closeFileViewerAtom);
@@ -176,7 +182,11 @@ export function TaskFileViewerModal() {
                 </>
               )}
               <div className="flex min-h-0 flex-1" key={currentFile.url}>
-                <FileViewer file={currentFile} onClose={collapseViewer} />
+                <FileViewer
+                  file={currentFile}
+                  guestZIndex={GUEST_Z_INDEX}
+                  onClose={collapseViewer}
+                />
               </div>
             </div>
 

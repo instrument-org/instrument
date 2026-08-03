@@ -44,6 +44,10 @@ import {
   type WorkspaceConfig,
 } from "../../types";
 import { type ToolCallUpdate } from "../agent";
+import {
+  artifactPreviewMachine,
+  type ArtifactPreviewParentEvent,
+} from "../artifact-preview";
 import { runtimeMachine } from "../runtime";
 import {
   type SessionActorRef,
@@ -57,9 +61,14 @@ import {
 import { type WorkspaceContext } from "./types";
 
 export type WorkspaceEvent =
+  | ArtifactPreviewParentEvent
   | SessionMachineParentEvent
   | TaskBrowserParentEvent
   | WorkspaceServerParentEvent
+  | {
+      type: "acquireArtifactPreviewPresence";
+      value: { id: TaskId };
+    }
   | {
       type: "acquireBrowserPresence";
       value: { id: TaskId };
@@ -113,6 +122,10 @@ export type WorkspaceEvent =
       value: { id: TaskId; onBrowserReaped?: () => void };
     }
   | {
+      type: "registerArtifactPreviewTarget";
+      value: { id: TaskId; targetId: BrowserTargetId };
+    }
+  | {
       type: "registerBrowserTarget";
       value: {
         id: TaskId;
@@ -120,6 +133,10 @@ export type WorkspaceEvent =
         sessionId: StoreId.Session;
         targetId: BrowserTargetId;
       };
+    }
+  | {
+      type: "releaseArtifactPreviewPresence";
+      value: { id: TaskId };
     }
   | {
       type: "releaseBrowserPresence";
@@ -158,6 +175,32 @@ export type WorkspaceEvent =
 
 export const workspaceMachine = setup({
   actions: {
+    // Get-or-spawn the task's artifact-preview machine and lease it. Spawning
+    // on presence (not only on open) means a lease that arrives before the
+    // open RPC lands still keeps the guest alive.
+    acquireArtifactPreviewPresence: enqueueActions(
+      ({ enqueue }, { id }: { id: TaskId }) => {
+        enqueue.assign(({ context, spawn }) => {
+          const existing = context.artifactPreviewRefs.get(id);
+          const ref =
+            existing ??
+            spawn("artifactPreviewMachine", {
+              input: { browser: context.config.browser, id },
+            });
+          ref.send({ type: "acquirePresence" });
+          if (existing) {
+            return {};
+          }
+          return {
+            artifactPreviewRefs: new Map(context.artifactPreviewRefs).set(
+              id,
+              ref,
+            ),
+          };
+        });
+      },
+    ),
+
     acquireBrowserPresence: enqueueActions(
       ({ enqueue }, { id }: { id: TaskId }) => {
         enqueue.assign(({ context, spawn }) => {
@@ -221,6 +264,32 @@ export const workspaceMachine = setup({
     // The user-open (`registerTarget`) and agent CDP (`updateCdpHeartbeat`) paths
     // carry the same payload and differ only in which event the ref receives;
     // the ref decides how each affects its liveness state.
+    forwardToArtifactPreview: enqueueActions(
+      (
+        { enqueue },
+        { id, targetId }: { id: TaskId; targetId: BrowserTargetId },
+      ) => {
+        enqueue.assign(({ context, spawn }) => {
+          const existing = context.artifactPreviewRefs.get(id);
+          const ref =
+            existing ??
+            spawn("artifactPreviewMachine", {
+              input: { browser: context.config.browser, id },
+            });
+          ref.send({ type: "registerTarget", value: { targetId } });
+          if (existing) {
+            return {};
+          }
+          return {
+            artifactPreviewRefs: new Map(context.artifactPreviewRefs).set(
+              id,
+              ref,
+            ),
+          };
+        });
+      },
+    ),
+
     forwardToTaskBrowser: enqueueActions(
       (
         { enqueue },
@@ -269,6 +338,18 @@ export const workspaceMachine = setup({
           type: "updateHeartbeat",
           value: { createdAt },
         });
+      },
+    ),
+
+    handleArtifactPreviewStopped: enqueueActions(
+      ({ context, enqueue }, { id }: { id: TaskId }) => {
+        const ref = context.artifactPreviewRefs.get(id);
+        if (ref) {
+          enqueue.stopChild(ref);
+        }
+        const nextRefs = new Map(context.artifactPreviewRefs);
+        nextRefs.delete(id);
+        enqueue.assign({ artifactPreviewRefs: nextRefs });
       },
     ),
 
@@ -325,6 +406,12 @@ export const workspaceMachine = setup({
       void setTaskIndicator(id, "completed");
     },
 
+    releaseArtifactPreviewPresence: enqueueActions(
+      ({ context }, { id }: { id: TaskId }) => {
+        context.artifactPreviewRefs.get(id)?.send({ type: "releasePresence" });
+      },
+    ),
+
     releaseBrowserPresence: enqueueActions(
       ({ context }, { id }: { id: TaskId }) => {
         context.taskBrowserRefs.get(id)?.send({ type: "releasePresence" });
@@ -372,6 +459,8 @@ export const workspaceMachine = setup({
   },
 
   actors: {
+    artifactPreviewMachine,
+
     runtimeMachine,
 
     sessionMachine,
@@ -437,6 +526,7 @@ export const workspaceMachine = setup({
     // getWorkspaceConfig() instead of threading it through every TaskId.
     setWorkspaceConfig(workspaceConfig);
     return {
+      artifactPreviewRefs: new Map(),
       config: workspaceConfig,
       pendingBrowserReapResolvers: new Map(),
       runtimeRefs: new Map(),
@@ -466,6 +556,12 @@ export const workspaceMachine = setup({
           event,
           self,
         });
+      },
+    },
+    acquireArtifactPreviewPresence: {
+      actions: {
+        params: ({ event }) => ({ id: event.value.id }),
+        type: "acquireArtifactPreviewPresence",
       },
     },
     acquireBrowserPresence: {
@@ -517,6 +613,12 @@ export const workspaceMachine = setup({
         }),
       },
     ],
+    "artifactPreview.stopped": {
+      actions: {
+        params: ({ event }) => ({ id: event.value.id }),
+        type: "handleArtifactPreviewStopped",
+      },
+    },
     createSession: {
       actions: raise(({ event }) => {
         const taskId = event.value.id;
@@ -625,6 +727,14 @@ export const workspaceMachine = setup({
           browserRef.send({ type: "forceReap" });
         }
 
+        // The artifact preview goes too, but nothing waits on it: its storage
+        // partition lives outside the task directory and it reads task files
+        // over the asset origin rather than holding them open, so deleting the
+        // directory does not depend on its guest being gone first.
+        context.artifactPreviewRefs
+          .get(event.value.id)
+          ?.send({ type: "forceReap" });
+
         if (event.value.onBrowserReaped) {
           const resolver = event.value.onBrowserReaped;
           if (matchingTaskIds.length === 0) {
@@ -666,10 +776,22 @@ export const workspaceMachine = setup({
         });
       }),
     },
+    registerArtifactPreviewTarget: {
+      actions: {
+        params: ({ event }) => event.value,
+        type: "forwardToArtifactPreview",
+      },
+    },
     registerBrowserTarget: {
       actions: {
         params: ({ event }) => ({ event: "registerTarget", ...event.value }),
         type: "forwardToTaskBrowser",
+      },
+    },
+    releaseArtifactPreviewPresence: {
+      actions: {
+        params: ({ event }) => ({ id: event.value.id }),
+        type: "releaseArtifactPreviewPresence",
       },
     },
     releaseBrowserPresence: {

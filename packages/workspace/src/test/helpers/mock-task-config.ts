@@ -26,6 +26,7 @@ import {
 } from "../../schemas/web-search";
 import {
   type BrowserConfig,
+  encodeArtifactTargetId,
   encodeBrowserTargetId,
   type WorkspaceConfig,
 } from "../../types";
@@ -154,6 +155,8 @@ export function createMockTaskConfigForDir(
 export function createStubBrowserConfig(): BrowserConfig {
   return {
     closeTarget: () => Promise.resolve(),
+    createArtifactTarget: (id) =>
+      Promise.resolve({ targetId: encodeArtifactTargetId(id) }),
     createTarget: (id, sessionId) =>
       Promise.resolve({
         targetId: encodeBrowserTargetId(id, sessionId),

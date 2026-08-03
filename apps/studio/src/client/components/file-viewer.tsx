@@ -17,7 +17,6 @@ import { type FileType, getFileType } from "@/client/lib/get-file-type";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
-  ArrowClockwiseIcon,
   ArrowLineDownIcon,
   ArrowsOutSimpleIcon,
   CheckIcon,
@@ -40,10 +39,10 @@ import { ViewerSurface } from "./document-viewers/viewer-surface";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileLoading } from "./file-loading";
 import { FilePreviewFallback } from "./file-preview-fallback";
+import { HtmlArtifactPreview } from "./html-artifact-preview";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageViewer } from "./image-viewer";
 import { OpenTaskFileButton } from "./open-task-file-button";
-import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
 import { SessionMarkdown } from "./session-markdown";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
@@ -184,7 +183,12 @@ export const fileViewerClassName =
 interface ViewerContext {
   fallback: ReactNode;
   file: TaskFileViewerFile;
-  htmlReloadNonce: number;
+  // Bumped when the user asks to return to the start of the file they are
+  // already looking at; see TaskView.
+  goHomeNonce?: number;
+  // Stacking level for a viewer that mounts a browser guest, set only when this
+  // viewer is inside an overlay the body-mounted guest would paint behind.
+  guestZIndex?: number;
   imageLoadError: boolean;
   onImageError: () => void;
   onMediaError: (fallbackExtension: string) => void;
@@ -273,11 +277,11 @@ const VIEWERS = {
       context.viewMode === "raw" ? (
         renderText(context)
       ) : (
-        <SandboxedHtmlIframe
-          className="absolute inset-0 size-full border-0"
-          key={context.htmlReloadNonce}
-          src={context.file.url}
-          title={context.file.filename}
+        <HtmlArtifactPreview
+          entryUrl={context.file.url}
+          goHomeNonce={context.goHomeNonce}
+          taskId={context.file.taskId}
+          zIndex={context.guestZIndex}
         />
       ),
     scrolls: "container",
@@ -457,19 +461,21 @@ const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
 
 export function FileViewer({
   file,
+  goHomeNonce,
+  guestZIndex,
   onClose,
   onExpand,
 }: {
   file: TaskFileViewerFile;
+  // Both passed through to a viewer that mounts a browser guest; see
+  // ViewerContext.
+  goHomeNonce?: number;
+  guestZIndex?: number;
   onClose: () => void;
   onExpand?: () => void;
 }) {
   const { filename, filePath, mimeType, taskId, url } = file;
   const [viewMode, setViewMode] = useState<"preview" | "raw">("preview");
-  // Remounts the sandboxed HTML iframe back to its entry page. The iframe is a
-  // cross-origin, opaque-origin sandbox, so we can't read or drive its history;
-  // reloading `src` is the only way to escape an in-page link navigation.
-  const [htmlReloadNonce, setHtmlReloadNonce] = useState(0);
   const [mediaLoadError, setMediaLoadError] = useState(false);
   const [mediaErrorType, setMediaErrorType] = useState<string | undefined>();
   const [imageErrorUrl, setImageErrorUrl] = useState<null | string>(null);
@@ -549,7 +555,8 @@ export function FileViewer({
       />
     ),
     file,
-    htmlReloadNonce,
+    goHomeNonce,
+    guestZIndex,
     imageLoadError,
     onImageError: () => {
       setImageErrorUrl(url);
@@ -576,24 +583,6 @@ export function FileViewer({
               size="sm"
               variant="ghost"
             />
-            {fileType === "html" && viewMode === "preview" && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    aria-label="Reload"
-                    className={fileViewerHeaderIconActionClassName}
-                    onClick={() => {
-                      setHtmlReloadNonce((nonce) => nonce + 1);
-                    }}
-                    size="icon-sm"
-                    variant="ghost"
-                  >
-                    <ArrowClockwiseIcon className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Reload</TooltipContent>
-              </Tooltip>
-            )}
             {fileActions.showCopy && !imageLoadError && (
               <Button
                 className={fileViewerHeaderActionClassName}

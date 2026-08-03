@@ -11,6 +11,14 @@ import { type TaskId } from "../schemas/task-id";
 import { absolutePathJoin } from "./absolute-path-join";
 import { getWorkspaceConfig } from "./workspace-config";
 
+export function getArtifactPreviewSessionDir(): AbsolutePath {
+  return absolutePathJoin(
+    getWorkspaceConfig().rootDir,
+    TASK_FOLDER_NAMES.private,
+    TASK_FOLDER_NAMES.artifactPreviewSession,
+  );
+}
+
 export function getBrowserSessionDir(): AbsolutePath {
   return absolutePathJoin(
     getWorkspaceConfig().rootDir,

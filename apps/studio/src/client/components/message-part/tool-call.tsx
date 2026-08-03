@@ -20,8 +20,6 @@ import { ToolWriteFile } from "./tool-write-file";
 
 export function ToolCall({
   assetBaseUrl,
-  isAgentRunning,
-  isCurrentTool,
   isDeveloperMode,
   isStreaming,
   onRetry,
@@ -29,8 +27,6 @@ export function ToolCall({
   task,
 }: {
   assetBaseUrl: string;
-  isAgentRunning: boolean;
-  isCurrentTool: boolean;
   isDeveloperMode: boolean;
   isStreaming: boolean;
   onRetry: (prompt: string) => void;
@@ -45,11 +41,7 @@ export function ToolCall({
     !hasTerminalToolState(part) && !isStreaming && isDeveloperMode;
 
   return (
-    <ToolCallSessionProvider
-      isAgentRunning={isAgentRunning}
-      isCurrentTool={isCurrentTool}
-      isStreaming={isStreaming}
-    >
+    <ToolCallSessionProvider isStreaming={isStreaming}>
       <ToolCallSummary
         assetBaseUrl={assetBaseUrl}
         isDeadDevMode={isDeadDevMode}

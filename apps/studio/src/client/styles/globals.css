@@ -750,6 +750,41 @@ a.cursor-pointer {
     animation: none;
   }
 
+  /* Brand-tinted sibling of .shiny-text, for text that sits alongside the
+   * planning dot while the agent is working. */
+  .brand-shiny-text {
+    color: #17604a;
+    background: linear-gradient(
+      270deg,
+      #17604a 24.14%,
+      #55e8bb 34.66%,
+      #17604a 60.34%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: inline-block;
+    animation: shine 3s linear infinite;
+  }
+
+  /* The light base green clears 2.3:1 on the dark surface, so the stretch
+   * between shimmer passes is unreadable. A brighter base off the same ramp
+   * reaches 5.2:1; the highlight is bright enough to carry over unchanged.
+   * The `background` shorthand resets size and clip, so both are restated. */
+  .dark .brand-shiny-text {
+    color: #2e9e79;
+    background: linear-gradient(
+      270deg,
+      #2e9e79 24.14%,
+      #55e8bb 34.66%,
+      #2e9e79 60.34%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+
   .planning-dot-core {
     transform-origin: center;
     animation: planning-dot-breathe 1.5s ease-in-out infinite;

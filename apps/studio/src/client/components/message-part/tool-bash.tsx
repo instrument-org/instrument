@@ -20,23 +20,14 @@ type BashPart = Extract<SessionMessagePart.ToolPart, { type: "tool-bash" }>;
 
 const MAX_BASH_COMMAND_CHIPS = 3;
 
-export function BashCommandChip({
-  commands,
-  isEmphasized,
-}: {
-  commands: string[];
-  isEmphasized: boolean;
-}) {
+export function BashCommandChip({ commands }: { commands: string[] }) {
   if (commands.length === 0) {
     return null;
   }
   const visible = commands.slice(0, MAX_BASH_COMMAND_CHIPS);
   const extra = commands.length - visible.length;
   return (
-    <ToolChip
-      className="max-w-[10rem] gap-1 px-1.5"
-      isEmphasized={isEmphasized}
-    >
+    <ToolChip className="max-w-[10rem] gap-1 px-1.5">
       <span className="truncate font-mono text-xs text-foreground/50">
         {visible.join(", ")}
       </span>
@@ -47,18 +38,12 @@ export function BashCommandChip({
   );
 }
 
-export function BrowserChip({
-  info,
-  isEmphasized,
-}: {
-  info: BrowserInfo;
-  isEmphasized: boolean;
-}) {
+export function BrowserChip({ info }: { info: BrowserInfo }) {
   const topDomain = info.domains[0] ?? "";
   const extra = info.domains.length - 1;
 
   return (
-    <ToolChip className="max-w-[12rem]" isEmphasized={isEmphasized}>
+    <ToolChip className="max-w-[12rem]">
       <Favicon
         className="size-3.5 border border-muted bg-background"
         url={`https://${topDomain}`}

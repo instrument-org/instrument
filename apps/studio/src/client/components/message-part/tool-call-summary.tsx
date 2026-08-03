@@ -3,9 +3,14 @@ import {
   getToolNameByType,
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
-import { EyeIcon, GlobeIcon, type Icon } from "@phosphor-icons/react";
+import {
+  CaretRightIcon,
+  EyeIcon,
+  GlobeIcon,
+  type Icon,
+} from "@phosphor-icons/react";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { getToolExplanation } from "../../lib/get-tool-explanation";
 import {
@@ -14,22 +19,17 @@ import {
   TOOL_ICONS,
 } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
+import { PlanningDotIcon } from "../icons/planning-dot";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "../ui/collapsible";
-import { Spinner } from "../ui/spinner";
 import { BashCommandChip, BrowserChip, type BrowserInfo } from "./tool-bash";
 import { useToolCallSession } from "./tool-call-session";
 import { FileChip } from "./tool-card";
 import { SourceImagesChip } from "./tool-generate-image";
 import { WebSearchChip } from "./tool-web-search";
-
-// Auto-expand only long-running tools; short browser/tool calls stay collapsed.
-const AUTO_OPEN_DELAY_MS = 1500;
-const AUTO_CLOSE_DELAY_MS = 800;
-const AUTO_MIN_OPEN_MS = 1200;
 
 export function ToolCallSummary({
   assetBaseUrl,
@@ -43,39 +43,8 @@ export function ToolCallSummary({
   part: SessionMessagePart.ToolPart;
 }) {
   const features = useAtomValue(featuresAtom);
-  const { isAgentRunning, isCurrentTool, isStreaming } = useToolCallSession();
-  const [isManuallyOpen, setIsManuallyOpen] = useState(false);
-  const [isAutoOpen, setIsAutoOpen] = useState(false);
-  const autoOpenedAtRef = useRef<null | number>(null);
-  const isAutoOpenRef = useRef(false);
-
-  useEffect(() => {
-    const timer = setTimeout(
-      () => {
-        if (isCurrentTool) {
-          autoOpenedAtRef.current = Date.now();
-          isAutoOpenRef.current = true;
-          setIsAutoOpen(true);
-          return;
-        }
-
-        autoOpenedAtRef.current = null;
-        isAutoOpenRef.current = false;
-        setIsAutoOpen(false);
-      },
-      getAutoOpenDelay({
-        isAutoOpen: isAutoOpenRef.current,
-        isCurrentTool,
-        openedAt: autoOpenedAtRef.current,
-      }),
-    );
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [isCurrentTool]);
-
-  const isCollapsibleOpen = isManuallyOpen || isAutoOpen;
-  const isEmphasized = isCollapsibleOpen && !isStreaming && !isAgentRunning;
+  const { isStreaming } = useToolCallSession();
+  const [isOpen, setIsOpen] = useState(false);
 
   const toolName = getToolNameByType(part.type);
   const browserInfo = getBrowserInfo(part);
@@ -118,23 +87,14 @@ export function ToolCallSummary({
     : null;
 
   const trigger = (
-    <div
-      className={cn(
-        "inline-flex max-w-full min-w-0 items-center gap-3 rounded-full border py-2 pr-4 pl-3",
-        isEmphasized
-          ? "border-foreground/5 bg-accent"
-          : "border-border bg-card",
-      )}
-    >
+    <div className="group/tool inline-flex max-w-full min-w-0 items-center gap-3 py-1.5">
       {isDeadDevMode ? (
         <span className="flex shrink-0 items-center gap-1 rounded-full border border-dev-500/30 bg-dev-500/10 px-1.5 py-0.5 text-[10px] font-medium text-dev-500 uppercase">
           <EyeIcon className="size-2.5" />
           Dev
         </span>
       ) : isStreaming ? (
-        <span className="flex size-5 shrink-0 items-center justify-center">
-          <Spinner className="size-3 text-foreground/60" />
-        </span>
+        <PlanningDotIcon className="size-3 shrink-0" />
       ) : (
         Icon && (
           <span className="flex size-5 shrink-0 items-center justify-center rounded-lg bg-black/5 dark:bg-white/5">
@@ -145,63 +105,40 @@ export function ToolCallSummary({
 
       <span
         className={cn(
-          "min-w-0 truncate text-sm leading-4 text-foreground",
-          isStreaming && "shiny-text",
+          "min-w-0 truncate text-sm leading-4",
+          isStreaming ? "brand-shiny-text" : "text-muted-foreground",
         )}
       >
         {deadLabel ?? label}
       </span>
 
       {browserInfo ? (
-        <BrowserChip info={browserInfo} isEmphasized={isEmphasized} />
+        <BrowserChip info={browserInfo} />
       ) : (
         features.bash_summary_chip &&
         part.type === "tool-bash" &&
         part.state === "output-available" && (
-          <BashCommandChip
-            commands={part.output.commands}
-            isEmphasized={isEmphasized}
-          />
+          <BashCommandChip commands={part.output.commands} />
         )
       )}
-      <WebSearchChip isEmphasized={isEmphasized} part={part} />
-      <SourceImagesChip
-        assetBaseUrl={assetBaseUrl}
-        isEmphasized={isEmphasized}
-        part={part}
+      <WebSearchChip part={part} />
+      <SourceImagesChip assetBaseUrl={assetBaseUrl} part={part} />
+      <FileChip part={part} />
+
+      <CaretRightIcon
+        className={cn(
+          "size-3 shrink-0 text-muted-foreground/50 transition-transform duration-200 group-hover/tool:text-muted-foreground",
+          isOpen && "rotate-90",
+        )}
       />
-      <FileChip isEmphasized={isEmphasized} part={part} />
     </div>
   );
 
   return (
-    <Collapsible onOpenChange={setIsManuallyOpen} open={isCollapsibleOpen}>
+    <Collapsible onOpenChange={setIsOpen} open={isOpen}>
       <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
       <CollapsibleContent animated>{children}</CollapsibleContent>
     </Collapsible>
-  );
-}
-
-function getAutoOpenDelay({
-  isAutoOpen,
-  isCurrentTool,
-  openedAt,
-}: {
-  isAutoOpen: boolean;
-  isCurrentTool: boolean;
-  openedAt: null | number;
-}) {
-  if (isCurrentTool) {
-    return AUTO_OPEN_DELAY_MS;
-  }
-
-  if (!isAutoOpen || !openedAt) {
-    return 0;
-  }
-
-  return Math.max(
-    AUTO_CLOSE_DELAY_MS,
-    AUTO_MIN_OPEN_MS - (Date.now() - openedAt),
   );
 }
 

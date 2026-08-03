@@ -7,13 +7,7 @@ import { cn } from "../../lib/utils";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
-export function FileChip({
-  isEmphasized,
-  part,
-}: {
-  isEmphasized: boolean;
-  part: SessionMessagePart.ToolPart;
-}) {
+export function FileChip({ part }: { part: SessionMessagePart.ToolPart }) {
   let filePath: string | undefined;
 
   if (
@@ -37,7 +31,7 @@ export function FileChip({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <ToolChip className="max-w-[12rem] px-2" isEmphasized={isEmphasized}>
+        <ToolChip className="max-w-[12rem] px-2">
           <span className="truncate text-xs font-medium text-foreground/50">
             {filename}
           </span>
@@ -114,17 +108,14 @@ export function ToolCardSection({
 export function ToolChip({
   children,
   className,
-  isEmphasized,
 }: {
   children: ReactNode;
   className?: string;
-  isEmphasized?: boolean;
 }) {
   return (
     <span
       className={cn(
-        "ml-1 flex shrink-0 items-center gap-1.5 rounded-full py-0.5 pr-2.5 pl-1",
-        isEmphasized ? "bg-foreground/10" : "bg-foreground/5",
+        "ml-1 flex shrink-0 items-center gap-1.5 rounded-full bg-foreground/5 py-0.5 pr-2.5 pl-1",
         className,
       )}
     >

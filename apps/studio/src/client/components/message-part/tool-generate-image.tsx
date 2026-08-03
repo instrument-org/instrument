@@ -41,11 +41,9 @@ type GenerateImagePart = Extract<
 
 export function SourceImagesChip({
   assetBaseUrl,
-  isEmphasized,
   part,
 }: {
   assetBaseUrl: string;
-  isEmphasized: boolean;
   part: SessionMessagePart.ToolPart;
 }) {
   if (part.type !== "tool-generate_image") {
@@ -71,7 +69,7 @@ export function SourceImagesChip({
   }
 
   return (
-    <ToolChip className="gap-0 px-1" isEmphasized={isEmphasized}>
+    <ToolChip className="gap-0 px-1">
       {sourceImages.slice(0, 3).map((file, index) => {
         const fallback = (
           <span

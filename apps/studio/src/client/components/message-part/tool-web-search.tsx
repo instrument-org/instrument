@@ -127,13 +127,7 @@ export function ToolWebSearch({
   );
 }
 
-export function WebSearchChip({
-  isEmphasized,
-  part,
-}: {
-  isEmphasized: boolean;
-  part: SessionMessagePart.ToolPart;
-}) {
+export function WebSearchChip({ part }: { part: SessionMessagePart.ToolPart }) {
   if (
     part.type !== "tool-web_search" ||
     part.state !== "output-available" ||
@@ -159,7 +153,7 @@ export function WebSearchChip({
   ].slice(0, 5);
 
   return (
-    <ToolChip className="gap-0 px-1" isEmphasized={isEmphasized}>
+    <ToolChip className="gap-0 px-1">
       {uniqueUrls.map((url, index) => (
         <Favicon
           className="-ml-0.5 size-3.5 border border-muted bg-background first:ml-0"

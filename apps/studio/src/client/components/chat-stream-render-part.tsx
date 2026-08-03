@@ -16,7 +16,6 @@ import { UserMessage } from "./user-message";
 
 export interface RenderPartContext {
   assetBaseUrl: string;
-  currentToolId: string | undefined;
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
   isToolStreaming: (
@@ -95,8 +94,6 @@ export function renderChatPart({
     return (
       <ToolCall
         assetBaseUrl={ctx.assetBaseUrl}
-        isAgentRunning={ctx.isAgentRunning}
-        isCurrentTool={part.metadata.id === ctx.currentToolId}
         isDeveloperMode={ctx.isDeveloperMode}
         isStreaming={streaming}
         key={part.metadata.id}

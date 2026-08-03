@@ -89,26 +89,6 @@ export function ChatStream({
     [isAgentRunning, lastMessageId],
   );
 
-  // When a run emits several tool calls at once they are all active, but only
-  // the first visible still-active one is the "current" call. Upcoming calls
-  // stay collapsed so the run reveals top-to-bottom instead of all expanding at
-  // once.
-  const currentToolId = useMemo(() => {
-    if (!isAgentRunning) {
-      return;
-    }
-    return lastRegularMessage?.parts.find(
-      (part) =>
-        isToolPart(part) &&
-        isActiveToolPart(part) &&
-        isVisibleAssistantPart({
-          isDeveloperMode,
-          isStreaming: true,
-          part,
-        }),
-    )?.metadata.id;
-  }, [isAgentRunning, isDeveloperMode, lastRegularMessage]);
-
   // A still-streaming text part at the tail of the live assistant message that
   // already has visible content. It is the one active state with no inline
   // loading affordance of its own (AssistantMessage renders plain markdown), so
@@ -189,7 +169,6 @@ export function ChatStream({
   const renderCtx: RenderPartContext = useMemo(
     () => ({
       assetBaseUrl,
-      currentToolId,
       isAgentRunning,
       isDeveloperMode,
       isToolStreaming,
@@ -199,7 +178,6 @@ export function ChatStream({
     }),
     [
       assetBaseUrl,
-      currentToolId,
       isAgentRunning,
       isDeveloperMode,
       isToolStreaming,

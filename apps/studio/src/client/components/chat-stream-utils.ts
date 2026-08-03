@@ -8,20 +8,22 @@ import { dataPartVisibility, isDataPart } from "./chat-stream-data-parts";
 import { isToolCallVisible } from "./message-part/tool-call-utils";
 import { isReasoningPartVisible } from "./reasoning-utils";
 
-interface ToolBoundaryInfo {
-  isToolCall: boolean;
-  nextIsToolCall: boolean;
-  prevIsToolCall: boolean;
+interface RunBoundaryInfo {
+  isRunRow: boolean;
+  nextIsRunRow: boolean;
+  prevIsRunRow: boolean;
 }
 
-// The planning row's key in the map. It is not a part, but it renders a
-// tool-call-shaped row in the position the next call will take, so it joins the
-// run as a trailing entry and reads its spacing off the same adjacency.
+// The planning row's key in the map. It is not a part, but it renders a run row
+// in the position the next call will take, so it joins the run as a trailing
+// entry and reads its spacing off the same adjacency.
 export const PLANNING_BOUNDARY_ID = "planning";
 
-// Per-part adjacency for tool-call runs, keyed by part id. Skips non-inline
-// parts so they don't artificially split a run.
-export function buildToolBoundaryMap({
+// Per-part adjacency for runs of the compact status rows the agent emits as it
+// works: tool calls, reasoning, and the planning row. They stack against each
+// other, and the run as a whole is what gets set off from surrounding prose.
+// Skips non-inline parts so they don't artificially split a run.
+export function buildRunBoundaryMap({
   hasTrailingPlanning,
   isDeveloperMode,
   isToolStreaming,
@@ -34,8 +36,8 @@ export function buildToolBoundaryMap({
     message: SessionMessage.WithParts,
   ) => boolean;
   regularMessages: SessionMessage.WithParts[];
-}): Map<string, ToolBoundaryInfo> {
-  const flat: { id: string; isToolCall: boolean }[] = [];
+}): Map<string, RunBoundaryInfo> {
+  const flat: { id: string; isRunRow: boolean }[] = [];
   const seenSourceIds = new Set<string>();
 
   for (const message of regularMessages) {
@@ -63,21 +65,21 @@ export function buildToolBoundaryMap({
 
       flat.push({
         id: part.metadata.id,
-        isToolCall: isToolPart(part),
+        isRunRow: isToolPart(part) || part.type === "reasoning",
       });
     }
   }
 
   if (hasTrailingPlanning) {
-    flat.push({ id: PLANNING_BOUNDARY_ID, isToolCall: true });
+    flat.push({ id: PLANNING_BOUNDARY_ID, isRunRow: true });
   }
 
-  const result = new Map<string, ToolBoundaryInfo>();
+  const result = new Map<string, RunBoundaryInfo>();
   for (const [i, item] of flat.entries()) {
     result.set(item.id, {
-      isToolCall: item.isToolCall,
-      nextIsToolCall: flat[i + 1]?.isToolCall ?? false,
-      prevIsToolCall: flat[i - 1]?.isToolCall ?? false,
+      isRunRow: item.isRunRow,
+      nextIsRunRow: flat[i + 1]?.isRunRow ?? false,
+      prevIsRunRow: flat[i - 1]?.isRunRow ?? false,
     });
   }
 

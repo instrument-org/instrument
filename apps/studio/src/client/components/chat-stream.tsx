@@ -18,7 +18,7 @@ import {
   type RenderPartContext,
 } from "./chat-stream-render-part";
 import {
-  buildToolBoundaryMap,
+  buildRunBoundaryMap,
   isActiveToolPart,
   isVisibleAssistantPart,
   PLANNING_BOUNDARY_ID,
@@ -156,10 +156,10 @@ export function ChatStream({
     );
   }, [isDeveloperMode, isToolStreaming, lastAssistantMessage]);
 
-  // Precomputed so tool-run edges can span message boundaries.
-  const toolBoundaryMap = useMemo(
+  // Precomputed so run edges can span message boundaries.
+  const runBoundaryMap = useMemo(
     () =>
-      buildToolBoundaryMap({
+      buildRunBoundaryMap({
         hasTrailingPlanning: isPlanningVisible,
         isDeveloperMode,
         isToolStreaming,
@@ -190,7 +190,7 @@ export function ChatStream({
   );
 
   const chatElements = useMemo(() => {
-    const planningBoundary = toolBoundaryMap.get(PLANNING_BOUNDARY_ID);
+    const planningBoundary = runBoundaryMap.get(PLANNING_BOUNDARY_ID);
     const elements: React.ReactNode[] = [];
     let lastFooterIndex = 0;
     let previousBrowserStatusNote: string | undefined;
@@ -249,15 +249,15 @@ export function ChatStream({
           continue;
         }
 
-        const boundary = toolBoundaryMap.get(part.metadata.id);
-        if (boundary?.isToolCall) {
+        const boundary = runBoundaryMap.get(part.metadata.id);
+        if (boundary?.isRunRow) {
           messageElements.push(
             <div
               className={cn(
-                !boundary.prevIsToolCall && "mt-2",
-                !boundary.nextIsToolCall && "mb-2",
+                !boundary.prevIsRunRow && "mt-2",
+                !boundary.nextIsRunRow && "mb-2",
               )}
-              key={`tool-wrap-${part.metadata.id}`}
+              key={`run-row-${part.metadata.id}`}
             >
               {node}
             </div>,
@@ -279,7 +279,7 @@ export function ChatStream({
       if (isLastMessage && planningBoundary) {
         messageElements.push(
           <div
-            className={cn(!planningBoundary.prevIsToolCall && "mt-2", "mb-2")}
+            className={cn(!planningBoundary.prevIsRunRow && "mt-2", "mb-2")}
             key="planning"
           >
             <ReasoningMessage
@@ -425,7 +425,7 @@ export function ChatStream({
     regularMessages,
     renderCtx,
     renderAsItems,
-    toolBoundaryMap,
+    runBoundaryMap,
     assetBaseUrl,
     task.id,
     isAgentRunning,

@@ -33,6 +33,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import { formatAccelerator } from "@/client/lib/format-accelerator";
 import { cn, isMacOS } from "@/client/lib/utils";
 import {
   componentPages,
@@ -41,14 +42,18 @@ import {
 } from "@/client/routes/_app/debug/-debug-routes";
 import { presetSessions } from "@/client/routes/_app/debug/-sessions";
 import { rpcClient } from "@/client/rpc/client";
-import { FEATURE_METADATA, type FeatureName } from "@/shared/features";
+import {
+  FEATURE_METADATA,
+  type FeatureName,
+  type Features,
+} from "@/shared/features";
+import { SHORTCUTS } from "@/shared/shortcuts";
 import { steppedZoom } from "@/shared/zoom";
 import {
   ArrowLineDownIcon,
   ArrowsClockwiseIcon,
   ChartBarIcon,
   DatabaseIcon,
-  type Icon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
   MonitorIcon,
@@ -85,18 +90,30 @@ const PAGES = [
   to: NavigateTo;
 }[];
 
-const pillTriggerClassName =
-  "flex items-center gap-x-1 rounded-sm px-1.5 py-0.5" +
-  " text-dev-700/50 hover:bg-dev-500/10 hover:text-dev-700/80 aria-expanded:bg-dev-500/10 aria-expanded:text-dev-700/80" +
-  " dark:text-dev-300/50 dark:hover:bg-dev-400/10 dark:hover:text-dev-300/80 dark:aria-expanded:bg-dev-400/10 dark:aria-expanded:text-dev-300/80";
+// Every control sits inside one hairline pill, so they share a height and read
+// as a single object in the toolbar.
+const controlClassName =
+  "flex h-4 items-center rounded-full text-dev-700/60 hover:bg-foreground/8 hover:text-dev-700/90" +
+  " aria-expanded:bg-foreground/10 aria-expanded:text-dev-700/90" +
+  " dark:text-dev-300/60 dark:hover:text-dev-300/90 dark:aria-expanded:text-dev-300/90";
 
-type Theme = "dark" | "light" | "system";
+const pillTriggerClassName = `${controlClassName} gap-x-1.5 px-1.5`;
 
-const THEME_OPTIONS = [
-  { Icon: SunIcon, label: "Light", value: "light" },
-  { Icon: MoonIcon, label: "Dark", value: "dark" },
-  { Icon: MonitorIcon, label: "System", value: "system" },
-] as const satisfies { Icon: Icon; label: string; value: Theme }[];
+/**
+ * One letter per flag. The strip is read by position, so each flag keeps its
+ * slot whether it is on or off; letters only have to be distinct from each
+ * other, and the Flags menu prints them next to the flag they stand for.
+ */
+const FEATURE_CODES: Record<FeatureName, string> = {
+  bash_summary_chip: "b",
+  context_ring: "c",
+  external_browser: "x",
+  prompt_browser_toggle: "t",
+  prompt_queue: "q",
+  skills: "s",
+};
+
+const FEATURE_NAMES = Object.keys(FEATURE_CODES) as FeatureName[];
 
 export function DevPanel() {
   const navigate = useNavigate();
@@ -187,8 +204,6 @@ export function DevPanel() {
 
   const isPackaged = appEnvironment?.isPackaged === true;
 
-  const enabledFlagCount = Object.values(features).filter(Boolean).length;
-
   function handleNavigate(
     to: NavigateTo,
     search?: { session: string },
@@ -208,17 +223,17 @@ export function DevPanel() {
   return (
     <>
       {crash && <CrashProbe />}
-      <div className="flex items-center gap-x-1.5">
+      <div className="flex h-5 items-center gap-x-0.5 rounded-full bg-foreground/4 px-0.5 ring-1 ring-foreground/8 ring-inset">
         <ThemeToggle />
         <Menubar className="h-auto gap-0 border-none bg-transparent p-0">
           <MenubarMenu>
             <MenubarTrigger className={pillTriggerClassName}>
               <span
                 className={cn(
-                  "rounded-sm px-1 py-px font-mono text-[9px] leading-none",
+                  "font-mono text-[9px] leading-none",
                   isPackaged
-                    ? "bg-dev-500/15 text-dev-700/80 dark:bg-dev-400/15 dark:text-dev-300/80"
-                    : "bg-warning-500/20 text-warning-700 dark:bg-warning-300/20 dark:text-warning-300",
+                    ? "text-dev-700/80 dark:text-dev-300/80"
+                    : "text-warning-700 dark:text-warning-300",
                 )}
               >
                 {envLabel}
@@ -230,11 +245,7 @@ export function DevPanel() {
                   {appVersion.version}
                 </span>
               )}
-              {enabledFlagCount > 0 && (
-                <span className="rounded-sm bg-dev-500/20 px-1 py-px font-mono text-[9px] leading-none text-dev-600 tabular-nums dark:bg-dev-400/20 dark:text-dev-400">
-                  {enabledFlagCount}
-                </span>
-              )}
+              <FeatureFlagStrip features={features} />
             </MenubarTrigger>
             <MenubarContent align="end" side="bottom">
               <div className="grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-0.5 px-2 py-1.5">
@@ -632,28 +643,25 @@ export function DevPanel() {
               <MenubarSub>
                 <MenubarSubTrigger className="font-mono text-xs">
                   Flags
-                  {enabledFlagCount > 0 && (
-                    <span className="ml-1 font-mono text-[9px] text-dev-500/70 dark:text-dev-400/60">
-                      {enabledFlagCount} enabled
-                    </span>
-                  )}
+                  <FeatureFlagStrip features={features} />
                 </MenubarSubTrigger>
                 <MenubarSubContent>
-                  {(Object.keys(FEATURE_METADATA) as FeatureName[]).map(
-                    (feature) => (
-                      <MenubarCheckboxItem
-                        checked={features[feature]}
-                        className="font-mono text-xs"
-                        key={feature}
-                        onCheckedChange={(enabled) => {
-                          setFeatureEnabled({ enabled, feature });
-                        }}
-                        title={FEATURE_METADATA[feature].description}
-                      >
-                        {FEATURE_METADATA[feature].title}
-                      </MenubarCheckboxItem>
-                    ),
-                  )}
+                  {FEATURE_NAMES.map((feature) => (
+                    <MenubarCheckboxItem
+                      checked={features[feature]}
+                      className="font-mono text-xs"
+                      key={feature}
+                      onCheckedChange={(enabled) => {
+                        setFeatureEnabled({ enabled, feature });
+                      }}
+                      title={FEATURE_METADATA[feature].description}
+                    >
+                      {FEATURE_METADATA[feature].title}
+                      <span className="ml-auto pl-4 font-mono text-[9px] text-dev-500/70 dark:text-dev-400/60">
+                        {FEATURE_CODES[feature]}
+                      </span>
+                    </MenubarCheckboxItem>
+                  ))}
                 </MenubarSubContent>
               </MenubarSub>
               <MenubarSeparator />
@@ -733,51 +741,63 @@ function CrashProbe(): never {
   throw new Error("Simulated render crash (dev panel)");
 }
 
-const THEME_SHORTCUTS: Record<Theme, string> = {
-  dark: "D",
-  light: "L",
-  system: "M",
-};
+/**
+ * A fixed slot per flag, in one order, so an enabled flag reads as its letter
+ * and the rest stay dots: the whole set fits in the width of the old count,
+ * and a screenshot says which flags were on rather than how many.
+ */
+function FeatureFlagStrip({ features }: { features: Features }) {
+  return (
+    <span className="flex items-center gap-x-px font-mono text-[9px] leading-none">
+      {FEATURE_NAMES.map((feature) =>
+        features[feature] ? (
+          <span className="text-dev-600 dark:text-dev-400" key={feature}>
+            {FEATURE_CODES[feature]}
+          </span>
+        ) : (
+          <span className="text-dev-700/25 dark:text-dev-300/25" key={feature}>
+            ·
+          </span>
+        ),
+      )}
+    </span>
+  );
+}
 
 function ThemeToggle() {
-  const { setTheme, theme } = useTheme();
-  const mod = isMacOS() ? "⌘⇧" : "^⇧";
+  const { resolvedTheme, setTheme, theme } = useTheme();
+
+  const next = resolvedTheme === "dark" ? "light" : "dark";
+  // The icon reports what the theme actually is, so following the system reads
+  // differently from being pinned to the same appearance.
+  const ThemeIcon =
+    theme === "system"
+      ? MonitorIcon
+      : resolvedTheme === "dark"
+        ? MoonIcon
+        : SunIcon;
 
   return (
-    <div className="flex items-center gap-x-0.5">
-      {THEME_OPTIONS.map(({ Icon: OptionIcon, label, value }) => {
-        const active = theme === value;
-
-        return (
-          <Tooltip delayDuration={300} key={value}>
-            <TooltipTrigger asChild>
-              <button
-                aria-label={label}
-                aria-pressed={active}
-                className={cn(
-                  "flex size-4 items-center justify-center rounded-sm",
-                  active
-                    ? "bg-dev-500/15 text-dev-700/90 dark:bg-dev-400/15 dark:text-dev-300/90"
-                    : "text-dev-700/40 hover:bg-dev-500/10 hover:text-dev-700/70 dark:text-dev-300/40 dark:hover:bg-dev-400/10 dark:hover:text-dev-300/70",
-                )}
-                onClick={() => {
-                  setTheme(value);
-                }}
-                type="button"
-              >
-                <OptionIcon className="size-2.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {label}{" "}
-              <span className="opacity-60">
-                {mod}
-                {THEME_SHORTCUTS[value]}
-              </span>
-            </TooltipContent>
-          </Tooltip>
-        );
-      })}
-    </div>
+    <Tooltip delayDuration={300}>
+      <TooltipTrigger asChild>
+        <button
+          aria-label={`Switch to ${next} theme`}
+          className={cn(controlClassName, "w-4 justify-center")}
+          onClick={() => {
+            setTheme(next);
+          }}
+          type="button"
+        >
+          <ThemeIcon className="size-3" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">
+        Switch to {next}{" "}
+        <span className="opacity-60">
+          {formatAccelerator(SHORTCUTS.themeSystem.accelerator).join(" ")} for
+          system
+        </span>
+      </TooltipContent>
+    </Tooltip>
   );
 }

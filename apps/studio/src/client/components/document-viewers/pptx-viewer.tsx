@@ -4,7 +4,7 @@ import {
   type PresentationSearchResult,
   ReactPptxViewer,
 } from "@extend-ai/react-pptx";
-import { useEffect, useState } from "react";
+import { type CSSProperties, useEffect, useState } from "react";
 
 import { useFitWidth } from "./use-fit-width";
 import { ViewerBody } from "./viewer-surface";
@@ -22,6 +22,20 @@ import "@extend-ai/react-pptx/styles.css";
 // OOXML measures slide geometry in English Metric Units.
 const EMU_PER_PIXEL = 9525;
 
+// The library insets its slide surface by 34px (18px once the *window* is under
+// 760px wide, which has nothing to do with how wide this panel is). That inset
+// is width the fit has already handed to the slide, so the slide overhangs the
+// surface by exactly that much: Chrome keeps the leading inset and drops the
+// trailing one from the scroll region, which reads as a slide pushed right.
+// Studio's gutter comes from the fit instead, so the horizontal inset goes.
+const VIEWPORT_STYLE = {
+  paddingInline: 0,
+  // Where a scrollbar takes layout space, reserving it on both edges keeps the
+  // gutter even, and keeps a slide sitting near the panel's height from
+  // resizing itself in a loop as the scrollbar appears and disappears.
+  scrollbarGutter: "stable both-edges",
+} satisfies CSSProperties;
+
 export function PptxViewer({ url }: { filename: string; url: string }) {
   const [slideIndex, setSlideIndex] = useState(0);
   const [railOpen, setRailOpen] = useState(false);
@@ -33,13 +47,18 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
   const [controller, setController] = useState<null | PptxViewerController>(
     null,
   );
-  const [container, setContainer] = useState<HTMLDivElement | null>(null);
+  const [viewport, setViewport] = useState<HTMLDivElement | null>(null);
   // `controller.setFitMode` cannot drive this: `zoom` below is a controlled
   // prop, so whatever the library computes for a fit mode is overwritten by
   // the next render with our own number. Fitting therefore means computing the
   // number ourselves and continuing to hand it over.
+  //
+  // Measured off the library's own slide surface rather than the element around
+  // it, so the width the fit scales against is the width the slide is laid out
+  // in -- scrollbar included, since that is the one part of it the panel's own
+  // box cannot see.
   const { fit, isFit, selectZoom, zoom } = useFitWidth({
-    container,
+    container: viewport,
     contentWidth: slideWidth,
     initialFit: true,
   });
@@ -137,7 +156,7 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
             defaults to a `min(76vh, 780px)` clamp that leaves the bottom of the
             panel empty however tall the panel is. A percentage resolves against
             this element, which `inset-0` has already sized. */}
-        <div className="absolute inset-0" ref={setContainer}>
+        <div className="absolute inset-0">
           <ReactPptxViewer
             className="size-full bg-muted/40"
             // Studio owns the fit, so the library must not apply its own. Its
@@ -167,10 +186,12 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
               }
             }}
             onSlideChange={setSlideIndex}
+            onViewportReady={setViewport}
             showThumbnails={false}
             showToolbar={false}
             slideIndex={slideIndex}
             source={url}
+            viewportStyle={VIEWPORT_STYLE}
             zoom={zoom * 100}
           />
         </div>

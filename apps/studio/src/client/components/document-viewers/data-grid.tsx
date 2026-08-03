@@ -685,15 +685,18 @@ function describeEmptyGrid({
   visibleColumnCount: number;
   visibleRowCount: number;
 }): null | { label?: string; onAct?: () => void; text: string } {
+  // Emptiness is checked before hidden columns because a file with nothing in
+  // it has no columns either, and reporting that as columns the reader hid
+  // offers them a button that cannot put back what was never there.
+  if (rowCount === 0) {
+    return { text: "This table has no rows." };
+  }
   if (visibleColumnCount === 0) {
     return {
       label: "Show all columns",
       onAct: showAllColumns,
       text: "Every column is hidden.",
     };
-  }
-  if (rowCount === 0) {
-    return { text: "This table has no rows." };
   }
   if (visibleRowCount === 0) {
     return {

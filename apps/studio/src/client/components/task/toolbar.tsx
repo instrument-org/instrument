@@ -51,7 +51,7 @@ export function TaskToolbar({
     hasVisibleTaskFiles(files) ||
     (attachedFolders ? Object.keys(attachedFolders).length > 0 : false);
 
-  // Inline rename is the quick path from double-clicking the title itself. The
+  // Inline rename is the quick path from clicking the title itself. The
   // menus open the dialog instead: swapping the title for an input as a menu
   // closes drops the focus that was meant to land in it, and resizes the header
   // out from under the click that asked for the rename.

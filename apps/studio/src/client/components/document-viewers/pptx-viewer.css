@@ -22,7 +22,7 @@
 /* The status overlay covers the stage while a deck parses, which includes the
    moment a second deck is opened over a first, so it stays opaque -- but as the
    surface above resolved against the frame behind it rather than as its own
-   colour. */
+   color. */
 .pptx-viewer .rpv-status {
   background: color-mix(in oklab, var(--muted) 40%, var(--card));
 }

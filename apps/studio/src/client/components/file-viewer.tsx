@@ -14,7 +14,7 @@ import {
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
 import { type FileType, getFileType } from "@/client/lib/get-file-type";
-import { getRevealInFolderLabel } from "@/client/lib/utils";
+import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   ArrowClockwiseIcon,
@@ -175,8 +175,10 @@ function TextView({
 }
 
 // Both hosts (the artifact panel and the expand modal) give the viewer the
-// space they have, so there is no intrinsic-size variant left to pick.
-const fileViewerClassName =
+// space they have, so there is no intrinsic-size variant left to pick. Exported
+// for the panel's placeholder frame, which stands in while a file is being
+// looked up and has to be the same card.
+export const fileViewerClassName =
   "flex h-full w-full flex-col overflow-hidden rounded-xl bg-card shadow-sm";
 
 interface ViewerContext {
@@ -206,12 +208,22 @@ interface ViewerContext {
  * keyboard copy binding inside their own viewer instead.
  */
 interface ViewerEntry {
+  /**
+   * Whether this format's viewer opens a `ViewerToolbar` beneath the title
+   * row. Declared here rather than read off the rendered tree, because
+   * the answer decides which row closes the chrome band and the title row has
+   * to know on its first frame -- a viewer mounts its toolbar only once the
+   * document has parsed, so anything that observes the tree draws the hairline
+   * under the title row and then moves it a row down when the file lands.
+   */
+  hasToolbar: boolean;
   render: (context: ViewerContext) => ReactNode;
   scrolls: "container" | "self";
 }
 
 const VIEWERS = {
   archive: {
+    hasToolbar: true,
     render: ({ fallback, file }) => (
       <ViewerSurface fallback={fallback} resetKey={file.url}>
         <LazyArchiveViewer url={file.url} />
@@ -220,6 +232,7 @@ const VIEWERS = {
     scrolls: "self",
   },
   audio: {
+    hasToolbar: false,
     render: ({ file, onMediaError }) => (
       <div className="flex size-full items-center justify-center p-8">
         <audio
@@ -235,8 +248,9 @@ const VIEWERS = {
     ),
     scrolls: "container",
   },
-  code: { render: renderText, scrolls: "container" },
+  code: { hasToolbar: false, render: renderText, scrolls: "container" },
   csv: {
+    hasToolbar: true,
     render: ({ fallback, file }) => (
       <ViewerSurface fallback={fallback} resetKey={file.url}>
         <LazyCsvViewer filename={file.filename} url={file.url} />
@@ -245,6 +259,7 @@ const VIEWERS = {
     scrolls: "self",
   },
   docx: {
+    hasToolbar: true,
     render: ({ fallback, file }) => (
       <ViewerSurface fallback={fallback} resetKey={file.url}>
         <LazyDocxViewer filename={file.filename} url={file.url} />
@@ -253,6 +268,7 @@ const VIEWERS = {
     scrolls: "self",
   },
   html: {
+    hasToolbar: false,
     render: (context) =>
       context.viewMode === "raw" ? (
         renderText(context)
@@ -267,6 +283,7 @@ const VIEWERS = {
     scrolls: "container",
   },
   image: {
+    hasToolbar: false,
     render: ({ fallback, file, imageLoadError, onImageError }) =>
       imageLoadError ? (
         <div className="flex size-full items-center justify-center">
@@ -293,6 +310,7 @@ const VIEWERS = {
     scrolls: "container",
   },
   iwork: {
+    hasToolbar: false,
     render: ({ fallback, file }) => (
       <ViewerSurface fallback={fallback} resetKey={file.url}>
         <LazyIWorkViewer filename={file.filename} url={file.url} />
@@ -301,6 +319,7 @@ const VIEWERS = {
     scrolls: "self",
   },
   jsonl: {
+    hasToolbar: true,
     render: ({ fallback, file }) => (
       <ViewerSurface fallback={fallback} resetKey={file.url}>
         <LazyJsonlViewer url={file.url} />
@@ -309,6 +328,7 @@ const VIEWERS = {
     scrolls: "self",
   },
   markdown: {
+    hasToolbar: false,
     render: (context) =>
       context.viewMode === "raw" ? (
         renderText(context)
@@ -318,6 +338,7 @@ const VIEWERS = {
     scrolls: "container",
   },
   parquet: {
+    hasToolbar: true,
     render: ({ fallback, file }) => (
       <ViewerSurface fallback={fallback} resetKey={file.url}>
         <LazyParquetViewer url={file.url} />
@@ -325,8 +346,9 @@ const VIEWERS = {
     ),
     scrolls: "self",
   },
-  pdf: { render: renderPdf, scrolls: "self" },
+  pdf: { hasToolbar: true, render: renderPdf, scrolls: "self" },
   pptx: {
+    hasToolbar: true,
     render: ({ fallback, file }) => (
       <ViewerSurface fallback={fallback} resetKey={file.url}>
         <LazyPptxViewer filename={file.filename} url={file.url} />
@@ -335,6 +357,7 @@ const VIEWERS = {
     scrolls: "self",
   },
   sqlite: {
+    hasToolbar: true,
     render: ({ fallback, file }) => (
       <ViewerSurface fallback={fallback} resetKey={file.url}>
         <LazySqliteViewer url={file.url} />
@@ -342,8 +365,9 @@ const VIEWERS = {
     ),
     scrolls: "self",
   },
-  text: { render: renderText, scrolls: "container" },
+  text: { hasToolbar: false, render: renderText, scrolls: "container" },
   unknown: {
+    hasToolbar: false,
     render: ({ fallback }) => (
       <div className="flex size-full items-center justify-center">
         {fallback}
@@ -352,6 +376,7 @@ const VIEWERS = {
     scrolls: "container",
   },
   video: {
+    hasToolbar: false,
     // Muted is what makes autoplay allowed at all: Chrome blocks an unmuted
     // `autoPlay` outright, so the viewer would open on a frozen first frame.
     // Controls stay available to unmute and scrub.
@@ -382,6 +407,7 @@ const VIEWERS = {
     scrolls: "container",
   },
   xlsx: {
+    hasToolbar: true,
     render: ({ fallback, file }) => (
       <ViewerSurface fallback={fallback} resetKey={file.url}>
         <LazyXlsxViewer filename={file.filename} url={file.url} />
@@ -537,146 +563,126 @@ export function FileViewer({
 
   return (
     <div className={fileViewerClassName}>
-      <div className="@container flex min-w-0 shrink-0 items-center gap-2 px-4 py-3">
-        {/* The trigger is the filename, not the space it sits in: as a flex
-            item it shrinks to the text it holds, so the tooltip is anchored
-            under the name rather than under the middle of a header-wide box. */}
-        <div className="flex min-w-0 flex-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="min-w-0 truncate text-xs font-medium">
-                {filename}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent
-              className="max-w-[min(500px,90vw)] wrap-break-word"
-              collisionPadding={10}
-            >
-              {filePath}
-            </TooltipContent>
-          </Tooltip>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <OpenTaskFileButton
-            className={fileViewerHeaderActionClassName}
-            control={openControl}
-            dropdownClassName={fileViewerHeaderOpenWithTriggerClassName}
-            file={file}
-            iconClassName="size-4"
-            labelClassName="hidden max-w-40 min-w-0 truncate @min-[380px]:inline"
-            size="sm"
-            variant="ghost"
-          />
-          {fileType === "html" && viewMode === "preview" && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  className={fileViewerHeaderIconActionClassName}
-                  onClick={() => {
-                    setHtmlReloadNonce((nonce) => nonce + 1);
-                  }}
-                  size="icon-sm"
-                  variant="ghost"
-                >
-                  <ArrowClockwiseIcon className="size-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Reload</TooltipContent>
-            </Tooltip>
-          )}
-          {fileActions.showCopy && !imageLoadError && (
-            <Button
+      <FileViewerHeader
+        actions={
+          <>
+            <OpenTaskFileButton
               className={fileViewerHeaderActionClassName}
-              onClick={() => void handleCopy()}
+              control={openControl}
+              dropdownClassName={fileViewerHeaderOpenWithTriggerClassName}
+              file={file}
+              iconClassName="size-4"
+              labelClassName="hidden max-w-40 min-w-0 truncate @min-[380px]:inline"
               size="sm"
               variant="ghost"
-            >
-              {copied ? (
-                <CheckIcon className="size-4" />
-              ) : (
-                <CopyIcon className="size-4" />
-              )}
-              <span className="hidden min-w-0 truncate @min-[380px]:inline">
-                Copy
-              </span>
-            </Button>
-          )}
-          {showOverflowMenu && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  className={fileViewerHeaderMenuTriggerClassName}
-                  size="icon-sm"
-                  variant="ghost"
-                >
-                  <DotsThreeOutlineVerticalIcon
-                    className="size-4"
-                    weight="fill"
-                  />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {onExpand && (
-                  <DropdownMenuItem onClick={onExpand}>
-                    <ArrowsOutSimpleIcon className="size-4" />
-                    <span>Expand</span>
-                  </DropdownMenuItem>
+            />
+            {fileType === "html" && viewMode === "preview" && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    className={fileViewerHeaderIconActionClassName}
+                    onClick={() => {
+                      setHtmlReloadNonce((nonce) => nonce + 1);
+                    }}
+                    size="icon-sm"
+                    variant="ghost"
+                  >
+                    <ArrowClockwiseIcon className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Reload</TooltipContent>
+              </Tooltip>
+            )}
+            {fileActions.showCopy && !imageLoadError && (
+              <Button
+                className={fileViewerHeaderActionClassName}
+                onClick={() => void handleCopy()}
+                size="sm"
+                variant="ghost"
+              >
+                {copied ? (
+                  <CheckIcon className="size-4" />
+                ) : (
+                  <CopyIcon className="size-4" />
                 )}
-                {fileActions.showDownload && (
-                  <DropdownMenuItem onClick={() => void handleDownload()}>
-                    <ArrowLineDownIcon className="size-4" />
-                    <span>Save as…</span>
-                  </DropdownMenuItem>
-                )}
-                {fileActions.showReveal && (
-                  <DropdownMenuItem onClick={handleRevealInFolder}>
-                    <RevealInFolderIcon className="size-4" />
-                    <span>{getRevealInFolderLabel()}</span>
-                  </DropdownMenuItem>
-                )}
-                {hasHeaderMenuActions && hasPreview && (
-                  <DropdownMenuSeparator />
-                )}
-                {hasPreview && (
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      {viewMode === "preview" ? (
-                        <EyeIcon className="size-4" />
-                      ) : (
-                        <CodeIcon className="size-4" />
-                      )}
-                      <span>View mode</span>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="min-w-36">
-                      <DropdownMenuRadioGroup
-                        onValueChange={handleViewModeChange}
-                        value={viewMode}
-                      >
-                        <DropdownMenuRadioItem value="preview">
+                <span className="hidden min-w-0 truncate @min-[380px]:inline">
+                  Copy
+                </span>
+              </Button>
+            )}
+            {showOverflowMenu && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    className={fileViewerHeaderMenuTriggerClassName}
+                    size="icon-sm"
+                    variant="ghost"
+                  >
+                    <DotsThreeOutlineVerticalIcon
+                      className="size-4"
+                      weight="fill"
+                    />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {onExpand && (
+                    <DropdownMenuItem onClick={onExpand}>
+                      <ArrowsOutSimpleIcon className="size-4" />
+                      <span>Expand</span>
+                    </DropdownMenuItem>
+                  )}
+                  {fileActions.showDownload && (
+                    <DropdownMenuItem onClick={() => void handleDownload()}>
+                      <ArrowLineDownIcon className="size-4" />
+                      <span>Save as…</span>
+                    </DropdownMenuItem>
+                  )}
+                  {fileActions.showReveal && (
+                    <DropdownMenuItem onClick={handleRevealInFolder}>
+                      <RevealInFolderIcon className="size-4" />
+                      <span>{getRevealInFolderLabel()}</span>
+                    </DropdownMenuItem>
+                  )}
+                  {hasHeaderMenuActions && hasPreview && (
+                    <DropdownMenuSeparator />
+                  )}
+                  {hasPreview && (
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        {viewMode === "preview" ? (
                           <EyeIcon className="size-4" />
-                          <span>Preview</span>
-                        </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="raw">
+                        ) : (
                           <CodeIcon className="size-4" />
-                          <span>Code</span>
-                        </DropdownMenuRadioItem>
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-          <Button
-            className={fileViewerHeaderIconActionClassName}
-            onClick={onClose}
-            size="icon-sm"
-            variant="ghost"
-          >
-            <XIcon className="size-4" />
-          </Button>
-        </div>
-      </div>
+                        )}
+                        <span>View mode</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="min-w-36">
+                        <DropdownMenuRadioGroup
+                          onValueChange={handleViewModeChange}
+                          value={viewMode}
+                        >
+                          <DropdownMenuRadioItem value="preview">
+                            <EyeIcon className="size-4" />
+                            <span>Preview</span>
+                          </DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="raw">
+                            <CodeIcon className="size-4" />
+                            <span>Code</span>
+                          </DropdownMenuRadioItem>
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </>
+        }
+        filename={filename}
+        filePath={filePath}
+        mimeType={mimeType}
+        onClose={onClose}
+      />
 
       {mediaLoadError ? (
         <div className="flex min-h-0 flex-1 items-center justify-center">
@@ -698,6 +704,76 @@ export function FileViewer({
           {viewer.render(viewerContext)}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * The file viewer's title row: the name on the left, the file's actions and the
+ * close button on the right.
+ *
+ * Shared with the artifact panel's placeholder frame, which wears it while a
+ * file is still being looked up. That is not a nicety: the two are on screen
+ * back to back every time a file is opened, so any difference between them
+ * reads as the name jumping the moment the viewer takes over.
+ *
+ * Where the format's viewer opens a toolbar, that row closes the band of chrome
+ * and this one carries no stroke. The registry is asked rather than the tree,
+ * so the answer holds from the first frame -- including in the placeholder,
+ * which knows the path and nothing else yet.
+ */
+export function FileViewerHeader({
+  actions,
+  filename,
+  filePath,
+  mimeType,
+  onClose,
+}: {
+  actions?: ReactNode;
+  filename: string;
+  filePath: string;
+  mimeType?: string;
+  onClose: () => void;
+}) {
+  return (
+    // `h-10 px-2` matches `ViewerToolbar`, which some viewers render right
+    // below this, so the two rows read as one band.
+    <div
+      className={cn(
+        "@container flex h-10 min-w-0 shrink-0 items-center gap-2 px-2",
+        !VIEWERS[getFileType({ filename, mimeType })].hasToolbar &&
+          "viewer-chrome-stroke",
+      )}
+    >
+      {/* The trigger is the filename, not the space it sits in: as a flex
+          item it shrinks to the text it holds, so the tooltip is anchored
+          under the name rather than under the middle of a header-wide box. */}
+      <div className="flex min-w-0 flex-1 pl-1.5">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="min-w-0 truncate text-xs font-medium">
+              {filename}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent
+            className="max-w-[min(500px,90vw)] wrap-break-word"
+            collisionPadding={10}
+          >
+            {filePath}
+          </TooltipContent>
+        </Tooltip>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        {actions}
+        <Button
+          className={fileViewerHeaderIconActionClassName}
+          onClick={onClose}
+          size="icon-sm"
+          variant="ghost"
+        >
+          <XIcon className="size-4" />
+        </Button>
+      </div>
     </div>
   );
 }

@@ -338,7 +338,7 @@ export function DataGrid({
   return (
     <>
       <ViewerToolbar>
-        <span className="px-1 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+        <span className="px-1.5 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
           {title && <span className="text-foreground">{title}</span>}
           {title && " · "}
           {filtered

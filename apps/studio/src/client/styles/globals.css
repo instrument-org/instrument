@@ -580,6 +580,22 @@ body {
   box-shadow: inset 0 0px 4px var(--tw-inset-shadow-color, rgb(0 0 0 / 0.05));
 }
 
+/* Hairline closing the file viewer's chrome band, inset so it costs no height.
+ * Worn by whichever row is last: the document toolbar where the format has one,
+ * and the title row where it does not. Which of the two that is comes from the
+ * viewer registry rather than from the shape of the rendered tree, so it does
+ * not change under a document that is still loading. */
+@utility viewer-chrome-stroke {
+  /* Only the color is themed, so `box-shadow` is declared once here rather than
+     restated per theme. */
+  --viewer-chrome-stroke-color: rgb(0 0 0 / 0.05);
+  box-shadow: inset 0 -1px 0 0 var(--viewer-chrome-stroke-color);
+
+  :is(.dark *) & {
+    --viewer-chrome-stroke-color: rgb(255 255 255 / 0.05);
+  }
+}
+
 /* Very subtle top-to-bottom sheen layered over a button's background color:
  * lightens the top edge and darkens the bottom edge a touch, giving a soft
  * physical depth. Works in both themes since it's a translucent overlay, and

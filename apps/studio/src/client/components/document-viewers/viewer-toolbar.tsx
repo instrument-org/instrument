@@ -231,8 +231,11 @@ export function ViewerRailToggle({
 }
 
 /**
- * The row of document controls beneath the file viewer's own header. Sized in
- * the same idiom as that header so the two read as one piece of chrome.
+ * The row of document controls beneath the file viewer's own header. Same
+ * height as that header (`h-10` in both) and no rule between them, so the two
+ * read as one band of chrome. Being the last row of that band, this is the one
+ * that carries the hairline closing it; the header defers to it for every
+ * format the viewer registry marks as having a toolbar.
  *
  * Groups are spaced apart rather than ruled apart: the zoom stepper is a single
  * bounded control and the rest are ghost buttons, so gaps alone carry the
@@ -244,7 +247,7 @@ export function ViewerRailToggle({
  */
 export function ViewerToolbar({ children }: { children: ReactNode }) {
   return (
-    <div className="@container/viewer-toolbar flex h-10 shrink-0 items-center gap-3 border-t border-border/60 px-2">
+    <div className="@container/viewer-toolbar flex h-10 shrink-0 items-center gap-3 px-2 pb-3 viewer-chrome-stroke">
       {children}
     </div>
   );
@@ -287,6 +290,9 @@ export function ViewerZoomControl({
     <ZoomStepperControl
       canZoomIn={zoom < max}
       canZoomOut={zoom > min}
+      // Leading the row, the stepper's own box edge is what has to land on the
+      // filename's column, not a glyph inset like the ghost buttons have.
+      className="first:ml-1.5"
       onZoomIn={() => {
         onZoomChange(steppedZoom({ direction: "in", factor: zoom, max, min }));
       }}

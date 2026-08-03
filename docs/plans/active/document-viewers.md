@@ -289,7 +289,7 @@ App zoom: the toolbar's dropdowns, popovers, selects, and tooltips get `useAppZo
 
 ## Data and container formats
 
-Three more viewers, added after the five above landed. They are grouped here because none of them renders a document the way the first five do: two read a container to show what is inside it, and one browses data that has no pages at all.
+Five more viewers, added after the five above landed. They are grouped here because none of them renders a document the way the first five do: two read a container to show what is inside it, and three browse data that has no pages at all.
 
 | | SQLite | Zip | iWork | Parquet | JSONL |
 | --- | --- | --- | --- | --- | --- |
@@ -305,12 +305,15 @@ It is built on `@tanstack/react-table` over `@tanstack/react-virtual`, both of w
 What it does, and why each is there rather than being a nicety:
 
 - **Selection and copy.** The grid is divs, not a `<table>`, so the browser has no selection to copy and its own menu offers nothing. Click, shift-click and drag build a range; Cmd/Ctrl+C and a right-click menu write it. This was the gap that mattered most: the two formats where copying data is the obvious point were the two that could not do it, while PDF and XLSX could.
+- **Keyboard navigation.** Arrows move the focused cell, shift extends the block, Home and End run to the ends of a row and with the platform modifier to the corners of the table. `role="grid"` commits to this, and without it a keyboard-only reader cannot build a selection and so cannot reach the copy shortcut at all.
 - **Filtering rather than find-and-step.** Typing narrows the table and the count reads `1 of 4 rows`. For a table this is strictly more useful than stepping between highlights, and it is what `getFilteredRowModel` is for.
 - **Column resize, show/hide and pin-left**, because a forty-column export is unreadable otherwise.
 - **Column virtualization.** Rows alone were not enough: `SELECT *` across a wide table renders every column of every visible row. A 120-column database now renders 15.
 - **Type-aware cells.** Numbers right-align. `NULL` renders as a dimmed marker distinct from the empty string, which a plain-text grid had been quietly collapsing into the same blank.
 
-Two things in it are easy to get wrong and worth naming. `useReactTable` needs `"use no memo"` under React Compiler, as [tasks-data-table](../../../apps/studio/src/client/components/tasks-data-table/index.tsx) already documents. And the scroll element is held in state rather than a ref: an inline callback ref is a new function every render, so React detaches and reattaches it each time, and the virtualizers can read the null in between.
+Four things in it are easy to get wrong and worth naming. `useReactTable` needs `"use no memo"` under React Compiler, as [tasks-data-table](../../../apps/studio/src/client/components/tasks-data-table/index.tsx) already documents. The scroll element is held in state rather than a ref: an inline callback ref is a new function every render, so React detaches and reattaches it each time, and the virtualizers can read the null in between. Pinned columns need a sticky layer rather than a fixed offset, because every cell is absolutely positioned inside the scrolled content and would otherwise slide away with it. And a resize has to call `columnVirtualizer.measure()`: the virtualizer caches each column's measurement, and handing it a new `estimateSize` closure does not invalidate that cache, so the cells change width while the offsets they sit at still describe the old ones.
+
+Blanks sort last through TanStack's `sortUndefined` rather than through the comparator, which cannot arrange it: a descending sort negates whatever a comparator returns, so deliberate blanks-last becomes blanks-first. The accessor reports a blank as `undefined` for that reason, and the cell reads its display text off the row instead, which is what keeps `NULL` and the empty string distinguishable.
 
 Deliberately not done: a custom SQL query box, CSV export of a selection, and multi-column sort. Sorting and filtering also operate on the loaded rows, so past a viewer's row cap they cover the loaded window rather than the whole table; moving sort into SQL would trade instant client-side sorting for correctness at a size users are unlikely to open.
 

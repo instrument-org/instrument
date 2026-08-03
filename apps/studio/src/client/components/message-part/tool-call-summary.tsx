@@ -3,12 +3,7 @@ import {
   getToolNameByType,
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
-import {
-  CaretRightIcon,
-  EyeIcon,
-  GlobeIcon,
-  type Icon,
-} from "@phosphor-icons/react";
+import { EyeIcon, GlobeIcon, type Icon } from "@phosphor-icons/react";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useState } from "react";
 
@@ -20,6 +15,7 @@ import {
 } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
 import { PlanningDotIcon } from "../icons/planning-dot";
+import { RunRowChevron } from "../run-row-chevron";
 import {
   Collapsible,
   CollapsibleContent,
@@ -87,7 +83,7 @@ export function ToolCallSummary({
     : null;
 
   const trigger = (
-    <div className="group/tool inline-flex max-w-full min-w-0 items-center gap-3 py-1.5">
+    <div className="group/run-row inline-flex max-w-full min-w-0 items-center gap-3 py-1.5">
       {isDeadDevMode ? (
         <span className="flex shrink-0 items-center gap-1 rounded-full border border-dev-500/30 bg-dev-500/10 px-1.5 py-0.5 text-[10px] font-medium text-dev-500 uppercase">
           <EyeIcon className="size-2.5" />
@@ -106,7 +102,9 @@ export function ToolCallSummary({
       <span
         className={cn(
           "min-w-0 truncate text-sm leading-4",
-          isStreaming ? "brand-shiny-text" : "text-muted-foreground",
+          isStreaming
+            ? "brand-shiny-text"
+            : "text-muted-foreground group-hover/run-row:text-foreground",
         )}
       >
         {deadLabel ?? label}
@@ -125,12 +123,7 @@ export function ToolCallSummary({
       <SourceImagesChip assetBaseUrl={assetBaseUrl} part={part} />
       <FileChip part={part} />
 
-      <CaretRightIcon
-        className={cn(
-          "size-3 shrink-0 text-muted-foreground/50 transition-transform duration-200 group-hover/tool:text-muted-foreground",
-          isOpen && "rotate-90",
-        )}
-      />
+      <RunRowChevron isOpen={isOpen} />
     </div>
   );
 

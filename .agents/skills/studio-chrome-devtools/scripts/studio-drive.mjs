@@ -1,9 +1,11 @@
 // Drive the running Studio dev app over CDP.
 //
 // Talks to the debug port directly rather than through the chrome-devtools CLI
-// daemon: no socket to go stale when the app restarts, and access to the raw
-// domains the CLI does not expose (key events, and a screenshot clip that
-// crops server-side so nothing has to redo the device-pixel math).
+// daemon: no socket to go stale when the app restarts, no page ids to be
+// invalidated by a reconnect, and a screenshot clip that crops server-side so
+// nothing has to redo the device-pixel math. The CLI covers the input side
+// perfectly well (it has press_key and type_text); this is about owning the
+// lifecycle, not about what it can dispatch.
 //
 //   node studio-drive.mjs boot          # start an instance this session owns
 //   node studio-drive.mjs state

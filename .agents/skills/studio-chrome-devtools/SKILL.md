@@ -136,6 +136,8 @@ Important: the argument must be a named `function()` declaration string, not an 
 
 ## Interaction Notes
 
+- Read the whole subcommand list before hand-rolling input. `press_key` (accepts combinations like `Control+Shift+R`), `type_text`, `handle_dialog`, `upload_file`, and `screencast_start` are all there and easy to miss partway down `--help`.
+- An unmodified hotkey can be declined on purpose. `?` opens the shortcut guide only when focus is outside an editable and no modal is blocking, so pressing it while the prompt composer holds focus does nothing and looks like the tool failed. Blur first, then press.
 - `element.click()` from `evaluate_script` reaches a plain `<button>` but not a handler mounted on an ancestor, which is how file cards and list rows are built. It returns normally, so the script carries on against an unchanged UI. Use real input (`studio-drive.mjs click`, or the CLI's `click <uid>`).
 - Anything driven by a real gesture needs one. `use-stick-to-bottom` releases auto-follow on `wheel`, so assigning `scrollTop` is immediately overridden and transient UI that only shows when scrolled away from the live edge stays unreachable.
 - After editing main-process code, the dev server relaunches Electron and the new instance can lose the debug port to the dying one (`bind() failed: Address already in use`). The app comes back without a debug endpoint; restart the dev server.

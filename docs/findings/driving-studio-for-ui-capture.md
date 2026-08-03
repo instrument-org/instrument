@@ -52,7 +52,7 @@ The dev panel's Updates submenu simulates download, error, and no-updates, but n
 
 ### Tooling gaps in the CDP CLI
 
-- No keyboard primitive. There is `click`, `fill`, `drag`, `hover`, but nothing for a key press, so hotkey-triggered UI needs a synthetic `KeyboardEvent` — which only works when the handler is a document-level listener, as the `?` shortcut guide happens to be.
+- The subcommand list is long enough to be worth reading to the end. `press_key`, `type_text`, `handle_dialog`, `upload_file` and `screencast_start` are all there and easy to miss, and reaching for a synthetic `KeyboardEvent` instead only works when the handler is a document-level listener, as the `?` shortcut guide happens to be.
 - `click_at` is behind `--experimentalVision`.
 - The daemon does not notice when the app it was pointed at dies. The resulting error names Chrome, not Studio, which sends you to look at the wrong process.
 - `take_screenshot` writes device pixels while `getBoundingClientRect()` returns CSS pixels. Documented in the studio-chrome-devtools repro recipes, but every run still rebuilds the same crop arithmetic.
@@ -67,7 +67,7 @@ Most of the list below has landed. `.agents/skills/studio-chrome-devtools/script
 
 - Icon-only controls carry an accessible name, guarded by `components/ui/icon-button-accessible-name.test.ts`.
 - `window.__studioDrive` (dev builds, main window) exposes `goto`, `openModal`, `closeModal`, and a `state` that reports the real route, the tabs, and any open dialog's title.
-- The script speaks CDP directly, so there is no daemon to go stale, and it can send real key events. Screenshots crop browser-side, and refuse to fire when nothing is mounted.
+- The script speaks CDP directly, so there is no daemon to go stale and no reconnect to invalidate page ids mid-run. Screenshots crop browser-side, and refuse to fire when nothing is mounted.
 - `boot` claims a port of its own rather than attaching to the conventional one, so an agent and a person are never driving the same window.
 - The dev panel can simulate the post-update toast and force the quit guard.
 

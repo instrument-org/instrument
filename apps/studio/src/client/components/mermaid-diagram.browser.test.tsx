@@ -1,6 +1,6 @@
 import "@/client/styles/globals.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
 
 import { MermaidDiagram } from "./mermaid-diagram";
@@ -192,6 +192,89 @@ describe("MermaidDiagram", () => {
     expect(diagram.getBoundingClientRect().top).toBeGreaterThan(
       scroller.getBoundingClientRect().bottom,
     );
+  });
+
+  it("draws nodes the reader can tell apart from the surface in dark mode", async () => {
+    // Mermaid's own dark theme fills a node with a near-black a shade off our
+    // background, which reads as an outline drawn on nothing. The palette we
+    // hand it makes a node a card on a surface, the same as the rest of the
+    // app, and this is the property that has to hold for it to be legible at
+    // all — asserting the exact color would only restate the token.
+    const { container } = await render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ThemeProvider defaultTheme="dark">
+          <div className="bg-background">
+            <MermaidDiagram code={GRAPH} language="mermaid" />
+          </div>
+        </ThemeProvider>
+      </QueryClientProvider>,
+    );
+
+    await expect.poll(() => diagramSvg(container)).toBeTruthy();
+    const node = diagramSvg(container)?.querySelector("rect");
+    const surface = container.querySelector(".bg-background");
+    if (!node || !surface) {
+      throw new Error("diagram did not render");
+    }
+
+    expect(globalThis.getComputedStyle(node).fill).not.toBe(
+      globalThis.getComputedStyle(surface).backgroundColor,
+    );
+  });
+
+  it("styles the source view as an ordinary code block", async () => {
+    const screen = await render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ThemeProvider>
+          <div className="prose prose-custom">
+            <MermaidDiagram code={GRAPH} language="mermaid" />
+          </div>
+        </ThemeProvider>
+      </QueryClientProvider>,
+    );
+
+    await expect.poll(() => diagramSvg(screen.container)).toBeTruthy();
+    await screen.getByRole("button", { name: "Show source" }).click();
+
+    const pre = await vi.waitFor(() => {
+      const found = screen.container.querySelector("pre");
+      if (!found) {
+        throw new Error("source view did not render");
+      }
+      return found;
+    });
+
+    // `not-prose` anywhere above the source view strips the typography styles
+    // that give every other code block its surface, leaving the source on a
+    // transparent background that matches nothing else in the transcript.
+    expect(globalThis.getComputedStyle(pre).backgroundColor).not.toBe(
+      "rgba(0, 0, 0, 0)",
+    );
+  });
+
+  it("zooms the diagram in place", async () => {
+    const screen = await render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ThemeProvider>
+          <div style={{ width: 600 }}>
+            <MermaidDiagram code={GRAPH} language="mermaid" />
+          </div>
+        </ThemeProvider>
+      </QueryClientProvider>,
+    );
+    await expect.poll(() => diagramSvg(screen.container)).toBeTruthy();
+
+    const drawnWidth = () =>
+      diagramSvg(screen.container)?.getBoundingClientRect().width ?? 0;
+    const fitWidth = drawnWidth();
+
+    await screen.getByRole("button", { name: "Zoom in" }).click();
+    await expect.poll(drawnWidth).toBeGreaterThan(fitWidth);
+
+    // The reset control only exists once there is a zoom to undo, so its
+    // presence is also the assertion that the zoom registered.
+    await screen.getByRole("button", { name: "Reset zoom" }).click();
+    await expect.poll(drawnWidth).toBe(fitWidth);
   });
 
   it("keeps a wide diagram inside its column", async () => {

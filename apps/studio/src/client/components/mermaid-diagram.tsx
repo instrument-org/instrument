@@ -1,8 +1,15 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
-import { CodeIcon, GraphIcon } from "@phosphor-icons/react";
+import {
+  ArrowsInIcon,
+  CodeIcon,
+  GraphIcon,
+  MagnifyingGlassMinusIcon,
+  MagnifyingGlassPlusIcon,
+} from "@phosphor-icons/react";
 import { useSetAtom } from "jotai";
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 
+import { useDiagramPanzoom } from "../hooks/use-diagram-panzoom";
 import { useNearViewport } from "../hooks/use-near-viewport";
 import { renderMermaid, toDiagramImageUrl } from "../lib/mermaid";
 import {
@@ -17,6 +24,10 @@ import { useTheme } from "./theme-provider";
  * how many times. Spaced out and few: a fetch still failing after this is not
  * the transient blip the retry is for. */
 const RETRY_DELAYS_MS = [1000, 5000];
+
+/** How far the pointer may travel between press and release and still count as
+ * a click on the diagram rather than the end of a pan. */
+const CLICK_SLOP_PX = 4;
 
 /**
  * A ```mermaid fence, rendered as a diagram once its source parses.
@@ -37,6 +48,9 @@ export const MermaidDiagram = ({
   const { resolvedTheme } = useTheme();
   const openFilePreview = useSetAtom(openFilePreviewAtom);
   const surfaceRef = useRef<HTMLDivElement>(null);
+  const panViewportRef = useRef<HTMLDivElement>(null);
+  const panContentRef = useRef<HTMLDivElement>(null);
+  const dragOriginRef = useRef<null | { x: number; y: number }>(null);
   const [svg, setSvg] = useState<string>();
   const [showSource, setShowSource] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -47,6 +61,11 @@ export const MermaidDiagram = ({
   // measured in tens of milliseconds. Rendering the ones far below the fold on
   // mount spends all of it before the reader has scrolled to any of them.
   const { isNear, ref: viewportRef } = useNearViewport<HTMLDivElement>();
+  const { isZoomed, reset, zoomIn, zoomOut } = useDiagramPanzoom({
+    contentRef: panContentRef,
+    enabled: Boolean(svg) && !showSource,
+    viewportRef: panViewportRef,
+  });
 
   useEffect(() => {
     const source = deferredCode.trim();
@@ -120,13 +139,62 @@ export const MermaidDiagram = ({
     }
   };
 
+  // A pan ends with a click on the surface it was dragged across, which would
+  // otherwise open the preview every time someone finished moving a zoomed
+  // diagram around.
+  const handleSurfaceClick = (event: React.MouseEvent) => {
+    const origin = dragOriginRef.current;
+    dragOriginRef.current = null;
+    if (
+      origin &&
+      Math.hypot(event.clientX - origin.x, event.clientY - origin.y) >
+        CLICK_SLOP_PX
+    ) {
+      return;
+    }
+    openInPreview();
+  };
+
   return (
-    // `not-prose` because the surrounding typography styles size and space SVG
-    // text as if it were prose, which moves labels off the shapes they name.
-    <div className="group not-prose relative isolate my-4" ref={viewportRef}>
+    <div className="group relative isolate my-4" ref={viewportRef}>
       {/* Reveal on focus as well as hover, so tabbing to the toggle or copy
           does not land on an invisible control. */}
       <div className="absolute top-1 right-1 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+        {!showSource && (
+          <>
+            <button
+              aria-label="Zoom out"
+              className={blockToolbarButtonClassName}
+              onClick={zoomOut}
+              title="Zoom out"
+              type="button"
+            >
+              <MagnifyingGlassMinusIcon size={12} />
+            </button>
+            <button
+              aria-label="Zoom in"
+              className={blockToolbarButtonClassName}
+              onClick={zoomIn}
+              title="Zoom in"
+              type="button"
+            >
+              <MagnifyingGlassPlusIcon size={12} />
+            </button>
+            {/* Only once there is something to undo, so the row stays as short
+                as it can be over the diagram it covers. */}
+            {isZoomed && (
+              <button
+                aria-label="Reset zoom"
+                className={blockToolbarButtonClassName}
+                onClick={reset}
+                title="Reset zoom"
+                type="button"
+              >
+                <ArrowsInIcon size={12} />
+              </button>
+            )}
+          </>
+        )}
         <button
           aria-label={showSource ? "Show diagram" : "Show source"}
           className={blockToolbarButtonClassName}
@@ -150,25 +218,42 @@ export const MermaidDiagram = ({
       {showSource ? (
         <CodeBlock code={code} language={language} />
       ) : (
+        // `not-prose` on the surface rather than the whole block: the
+        // typography styles size and space SVG text as if it were prose, which
+        // moves labels off the shapes they name, but the source view above is
+        // a code block and wants exactly the styling every other one gets.
         <div
-          className="overflow-x-auto rounded-md border border-border bg-background"
+          className="not-prose rounded-md border border-border bg-background"
           ref={surfaceRef}
         >
           {/* A diagram wider than the chat column shrinks to fit rather than
-              pushing the column open; the scroller above is the escape hatch
-              for one that cannot shrink any further, and the click opens it
-              full-window through the same preview the images use. */}
-          <button
-            className="block w-full p-3"
-            onClick={openInPreview}
-            title="Open diagram"
-            type="button"
-          >
+              pushing the column open, so zooming is how the detail in a large
+              one is read in place; panning is what reaches the part of it
+              currently outside the frame. */}
+          <div className="overflow-hidden p-3" ref={panViewportRef}>
             <div
-              className="[&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full"
-              dangerouslySetInnerHTML={{ __html: svg }}
-            />
-          </button>
+              className={isZoomed ? "cursor-grab [&_button]:cursor-grab" : ""}
+              ref={panContentRef}
+            >
+              <button
+                className="block w-full"
+                onClick={handleSurfaceClick}
+                onPointerDown={(event) => {
+                  dragOriginRef.current = {
+                    x: event.clientX,
+                    y: event.clientY,
+                  };
+                }}
+                title="Open diagram"
+                type="button"
+              >
+                <div
+                  className="[&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full"
+                  dangerouslySetInnerHTML={{ __html: svg }}
+                />
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -35,7 +35,58 @@ const BASE_CONFIG = {
   // untrusted input.
   securityLevel: "strict",
   startOnLoad: false,
+  // Mermaid's own "dark" theme fills nodes with a near-black barely separable
+  // from the surface we draw it on, and greys the text. "base" is the one
+  // theme it will let us drive entirely, so both palettes below are ours.
+  theme: "base",
 } as const;
+
+/**
+ * The app's colors, in the variables mermaid draws a diagram from.
+ *
+ * A diagram is a card on a surface, the same as everything else in the app: a
+ * node takes the card fill and the surface takes the background, which is what
+ * gives a shape its edge. Mermaid derives the rest of its palette from these,
+ * so only opaque tokens are used — the semantic border and muted-foreground
+ * tokens are translucent white in dark mode, and mermaid's color math reads
+ * them as the color underneath rather than the color you see.
+ */
+function themeVariables(theme: "dark" | "light") {
+  // Read off the document, since this is the app's palette rather than a
+  // second copy of it kept in sync by hand.
+  const styles = globalThis.getComputedStyle(document.documentElement);
+  const token = (name: string) => styles.getPropertyValue(name).trim();
+
+  // A node's outline is chrome and takes card-border weight, but the edges
+  // between nodes are the diagram's content — at the same weight a flowchart
+  // reads as a set of boxes with the arrows between them nearly gone.
+  const border = token(theme === "dark" ? "--gray-700" : "--gray-300");
+  const line = token(theme === "dark" ? "--gray-400" : "--gray-500");
+  const surface = token("--background");
+  const text = token("--foreground");
+
+  return {
+    background: surface,
+    // Tells mermaid's own derivations which way to move a color it is asked to
+    // shade, so the ones we do not name here land on the right side.
+    darkMode: theme === "dark",
+    // Sits flush with the surface rather than in a chip of its own, which in
+    // dark mode reads as a smudge over the edge it labels.
+    edgeLabelBackground: surface,
+    fontFamily: token("--font-sans"),
+    lineColor: line,
+    mainBkg: token("--card"),
+    primaryBorderColor: border,
+    primaryColor: token("--card"),
+    primaryTextColor: text,
+    // Alternate fills: subgraphs, notes, and the shaded bands in a sequence
+    // diagram. One step further from the surface than a node, so nesting still
+    // reads without inventing a color the app does not have.
+    secondaryColor: token(theme === "dark" ? "--gray-700" : "--gray-100"),
+    tertiaryColor: surface,
+    textColor: text,
+  };
+}
 
 let mermaidPromise: Promise<Mermaid> | undefined;
 
@@ -93,7 +144,7 @@ export async function renderMermaid({
     // reaches diagrams that are already mounted: they re-run this.
     mermaid.initialize({
       ...BASE_CONFIG,
-      theme: theme === "dark" ? "dark" : "default",
+      themeVariables: themeVariables(theme),
     });
 
     const parsed = await mermaid.parse(code, { suppressErrors: true });

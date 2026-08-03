@@ -309,7 +309,6 @@ export function ViewerZoomControl({
           min={min}
           onFit={onFit}
           onSelect={onZoomChange}
-          showCaret={false}
           zoom={zoom}
         />
       }

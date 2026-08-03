@@ -95,9 +95,11 @@ Only once the above is boring. `.agents/cloud-dev.md` has the headless notes alr
 
 ## Settings are per workspace, and that is a feature
 
-Redirecting `userData` moves more than the tasks. `preferences.json`, `features.json`, `app-state.json`, `tabs.json` and the provider config all live there, so a fixture can pin the settings a surface needs instead of depending on how the developer left their app: feature flags on or off, theme, developer mode, zoom, which tabs are open.
+Redirecting `userData` moves more than the tasks. `preferences.json`, `features.json`, `app-state.json` and the provider config all live there, so a fixture can pin the settings a surface needs instead of depending on how the developer left their app: feature flags on or off, theme, developer mode, zoom.
 
 Let the manifest declare only what the fixture actually depends on, and let everything else fall through to the app's own defaults. A fixture that pins every setting will break every time a default changes, which is the opposite of what it is for. A fixture for the skills UI should say "skills enabled" and nothing more.
+
+Open tabs are the exception, and worth checking early because it is the one most people would expect to pin. The tab model is a renderer atom persisted to `localStorage`, so it lives in the Chromium profile's leveldb rather than a file the seeder can write. There is a stale `tabs.json` in the application-data directory from an earlier implementation; nothing reads it. Either seed tabs by driving the app once after boot and letting it persist, or treat "which tabs are open" as something a run sets with `goto` rather than something the fixture owns. The second is simpler and probably right.
 
 One thing does not follow this pattern. A seeded workspace has no provider credentials, and it must not: they cannot be committed. That is fine for anything replayed, which is the point of `replay-stub`. A fixture that needs a live model has to take credentials from the environment, and in CI that means a secret, which is a good reason to keep live-model fixtures out of the first pass.
 

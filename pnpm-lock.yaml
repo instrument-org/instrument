@@ -442,6 +442,9 @@ importers:
       '@shadcn/react':
         specifier: github:mutewinter/ui#a4fb2dc756980ca95e99bc6d955146816fa5b19e
         version: https://codeload.github.com/mutewinter/ui/tar.gz/a4fb2dc756980ca95e99bc6d955146816fa5b19e(@types/react@19.2.7)(react@19.2.1)
+      '@sqlite.org/sqlite-wasm':
+        specifier: 3.53.0-build1
+        version: 3.53.0-build1
       '@tailwindcss/browser':
         specifier: ^4.2.2
         version: 4.2.2
@@ -514,6 +517,9 @@ importers:
       '@vitest/browser-playwright':
         specifier: ^4.1.10
         version: 4.1.10(msw@2.7.5(@types/node@24.13.1)(typescript@5.9.2))(playwright@1.57.0)(vite@7.3.6(@types/node@24.13.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.39.0)(tsx@4.20.3)(yaml@2.9.0))(vitest@4.1.10)
+      '@zip.js/zip.js':
+        specifier: ^2.8.14
+        version: 2.8.14
       agentation:
         specifier: ^3.0.2
         version: 3.0.2(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
@@ -544,6 +550,9 @@ importers:
       electron-vite:
         specifier: ^5.0.0
         version: 5.0.0(@swc/core@1.11.24)(vite@7.3.6(@types/node@24.13.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.39.0)(tsx@4.20.3)(yaml@2.9.0))
+      hyparquet:
+        specifier: ^1.26.2
+        version: 1.26.2
       jiti:
         specifier: 2.7.0
         version: 2.7.0
@@ -4301,6 +4310,10 @@ packages:
     resolution: {integrity: sha512-tlqY9xq5ukxTUZBmoOp+m61cqwQD5pHJtFY3Mn8CA8ps6yghLH/Hw8UPdqg4OLmFW3IFlcXnQNmo/dh8HzXYIQ==}
     engines: {node: '>=18'}
 
+  '@sqlite.org/sqlite-wasm@3.53.0-build1':
+    resolution: {integrity: sha512-PfWPWN2n+/37doa8oh2/oUXk4OOsRYZsxc1W1sDXIGb/Pu5Yrb+f2eyYpgQMGITVX7HVgxhs9P18Rc6I97ym/g==}
+    engines: {node: '>=22'}
+
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
@@ -7525,6 +7538,9 @@ packages:
   human-signals@8.0.1:
     resolution: {integrity: sha512-eKCa6bwnJhvxj14kZk5NCPc6Hb6BdsU9DZcOnmQKSnO1VKrfV0zCvtttPZUsBvjmNDn8rpcJfpwSYnHBjc95MQ==}
     engines: {node: '>=18.18.0'}
+
+  hyparquet@1.26.2:
+    resolution: {integrity: sha512-6qjyK7R2tZ4vnYP1J8NpcCeDPK1UIYk3xh5XgtQUnUM1iwkYbvI6Mz3xtmpMd6AfCCeoUoJVbEq29k5GReZRWA==}
 
   iconv-lite@0.6.3:
     resolution: {integrity: sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==}
@@ -13702,6 +13718,8 @@ snapshots:
 
   '@sindresorhus/merge-streams@4.0.0': {}
 
+  '@sqlite.org/sqlite-wasm@3.53.0-build1': {}
+
   '@standard-schema/spec@1.1.0': {}
 
   '@sveltejs/acorn-typescript@1.0.11(acorn@8.17.0)':
@@ -17433,6 +17451,8 @@ snapshots:
   human-signals@2.1.0: {}
 
   human-signals@8.0.1: {}
+
+  hyparquet@1.26.2: {}
 
   iconv-lite@0.6.3:
     dependencies:

@@ -11,15 +11,20 @@ import { type FileType, getFileType } from "@/client/lib/get-file-type";
 // are zip containers, so their bytes are not paste-able even though the
 // documents inside them are mostly text.
 const IS_TEXT_LIKE: Record<FileType, boolean> = {
+  archive: false,
   audio: false,
   code: true,
   csv: true,
   docx: false,
   html: true,
   image: false,
+  iwork: false,
+  jsonl: true,
   markdown: true,
+  parquet: false,
   pdf: false,
   pptx: false,
+  sqlite: false,
   text: true,
   unknown: false,
   video: false,

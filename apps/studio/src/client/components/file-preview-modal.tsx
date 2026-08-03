@@ -8,17 +8,21 @@ import { XIcon } from "@phosphor-icons/react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { FileIcon } from "./file-icon";
 import { FilePreviewFallback } from "./file-preview-fallback";
-import { ImageWithFallback } from "./image-with-fallback";
+import { ImageViewer } from "./image-viewer";
 import { Button } from "./ui/button";
 
 export function FilePreviewModal() {
   const state = useAtomValue(filePreviewAtom);
   const closePreview = useSetAtom(closeFilePreviewAtom);
   const router = useRouter();
+  // Remembered against the url rather than as a bare flag, so the fallback
+  // card belongs to the file that actually failed instead of standing in front
+  // of every file opened after it.
+  const [failedUrl, setFailedUrl] = useState<null | string>(null);
 
   const { file } = state;
 
@@ -110,21 +114,24 @@ export function FilePreviewModal() {
                   }
                 }}
               >
-                {isImage ? (
-                  <ImageWithFallback
-                    alt={file.filename}
-                    className="size-auto max-h-full max-w-full rounded-sm object-contain"
-                    fallback={
-                      <FilePreviewFallback
-                        fallbackExtension="jpg"
-                        filename={file.filename}
-                      />
-                    }
-                    fallbackClassName="size-32 rounded-lg"
+                {isImage && failedUrl !== file.url ? (
+                  /* Full-window is where the detail in a large image or
+                     diagram is actually read, and nothing here scrolls, so the
+                     wheel, a drag, and a pinch can all mean what they usually
+                     mean. Keyed by url so each file opens back at fit scale
+                     rather than inheriting the last one's zoom. */
+                  <ImageViewer
                     filename={file.filename}
-                    onClick={closePreview}
-                    showCheckerboard
-                    src={file.url}
+                    key={file.url}
+                    onError={() => {
+                      setFailedUrl(file.url);
+                    }}
+                    url={file.url}
+                  />
+                ) : isImage ? (
+                  <FilePreviewFallback
+                    fallbackExtension="jpg"
+                    filename={file.filename}
                   />
                 ) : (
                   <FilePreviewFallback filename={file.filename} />

@@ -1,8 +1,9 @@
 import "@/client/styles/globals.css";
+import { filePreviewAtom } from "@/client/atoms/file-preview";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createStore, Provider } from "jotai";
 import { describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
-import { userEvent } from "vitest/browser";
 
 import { MermaidDiagram } from "./mermaid-diagram";
 import { ThemeProvider } from "./theme-provider";
@@ -253,102 +254,47 @@ describe("MermaidDiagram", () => {
     );
   });
 
-  it("zooms the diagram in place", async () => {
+  it("opens the diagram full-window", async () => {
+    // A diagram is fitted to the column, so a large one arrives small and the
+    // full-window preview — not anything inline — is where it gets read. The
+    // SVG is handed over as a data URL carrying the surface it was drawn
+    // against, since an `img` brings none of the page's CSS with it.
+    const store = createStore();
     const screen = await render(
-      <QueryClientProvider client={new QueryClient()}>
-        <ThemeProvider>
-          <div style={{ width: 600 }}>
-            <MermaidDiagram code={GRAPH} language="mermaid" />
-          </div>
-        </ThemeProvider>
-      </QueryClientProvider>,
+      <Provider store={store}>
+        <QueryClientProvider client={new QueryClient()}>
+          <ThemeProvider>
+            <div style={{ width: 600 }}>
+              <MermaidDiagram code={GRAPH} language="mermaid" />
+            </div>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </Provider>,
     );
     await expect.poll(() => diagramSvg(screen.container)).toBeTruthy();
 
-    const drawnWidth = () =>
-      diagramSvg(screen.container)?.getBoundingClientRect().width ?? 0;
-    const fitWidth = drawnWidth();
+    expect(store.get(filePreviewAtom).isOpen).toBe(false);
+    await screen.getByRole("button", { name: "Open diagram" }).click();
 
-    await screen.getByRole("button", { name: "Zoom in" }).click();
-    await expect.poll(drawnWidth).toBeGreaterThan(fitWidth);
-
-    // The reset control only exists once there is a zoom to undo, so its
-    // presence is also the assertion that the zoom registered.
-    await screen.getByRole("button", { name: "Reset zoom" }).click();
-    await expect.poll(drawnWidth).toBe(fitWidth);
+    const preview = store.get(filePreviewAtom);
+    expect(preview.isOpen).toBe(true);
+    expect(preview.file?.url.startsWith("data:image/svg+xml")).toBe(true);
   });
 
-  it("gives the wheel to the diagram only once it is asked for", async () => {
-    const screen = await render(
-      <QueryClientProvider client={new QueryClient()}>
-        <ThemeProvider>
-          <div style={{ width: 600 }}>
-            <MermaidDiagram code={GRAPH} language="mermaid" />
-          </div>
-        </ThemeProvider>
-      </QueryClientProvider>,
-    );
-    await expect.poll(() => diagramSvg(screen.container)).toBeTruthy();
+  it("leaves the diagram itself selectable", async () => {
+    const { container } = await renderDiagram(GRAPH);
+    await expect.poll(() => diagramSvg(container)).toBeTruthy();
 
-    const drawnWidth = () =>
-      diagramSvg(screen.container)?.getBoundingClientRect().width ?? 0;
-    const scrollWheelOverDiagram = () => {
-      diagramSvg(screen.container)?.dispatchEvent(
-        new WheelEvent("wheel", {
-          bubbles: true,
-          cancelable: true,
-          deltaY: -300,
-        }),
-      );
-    };
-    const fitWidth = drawnWidth();
-
-    // A diagram nobody has taken hold of must let the transcript scroll past
-    // it. Swallowing the wheel of anyone whose pointer happened to cross it is
-    // the trap this whole interaction exists to avoid.
-    scrollWheelOverDiagram();
-    expect(drawnWidth()).toBe(fitWidth);
-
-    await screen.getByRole("button", { name: "Zoom this diagram" }).click();
-    scrollWheelOverDiagram();
-    await expect.poll(drawnWidth).toBeGreaterThan(fitWidth);
-
-    // Handing it back has to be as easy as taking it.
-    await userEvent.keyboard("{Escape}");
-    await expect
-      .poll(() =>
-        screen.container.querySelector("[aria-label='Zoom this diagram']"),
-      )
-      .toBeTruthy();
-    const heldWidth = drawnWidth();
-    scrollWheelOverDiagram();
-    expect(drawnWidth()).toBe(heldWidth);
-  });
-
-  it("keeps the controls still as the zoom state changes", async () => {
-    const screen = await render(
-      <QueryClientProvider client={new QueryClient()}>
-        <ThemeProvider>
-          <div style={{ width: 600 }}>
-            <MermaidDiagram code={GRAPH} language="mermaid" />
-          </div>
-        </ThemeProvider>
-      </QueryClientProvider>,
-    );
-    await expect.poll(() => diagramSvg(screen.container)).toBeTruthy();
-
-    // A control that mounts only once it has something to do shifts every
-    // button beside it out from under the pointer that was reaching for one.
-    const columns = () =>
-      [...screen.container.querySelectorAll("[aria-label]")].map((element) =>
-        Math.round(element.getBoundingClientRect().x),
-      );
-
-    const atRest = columns();
-    await screen.getByRole("button", { name: "Zoom in" }).click();
-    expect(columns()).toEqual(atRest);
-    await screen.getByRole("button", { name: "Zoom this diagram" }).click();
-    expect(columns()).toEqual(atRest);
+    // Wrapping the diagram in a button to catch a click made its labels
+    // unselectable and gave the whole surface a single meaning. Expanding is
+    // the toolbar's job, and nothing between the frame and the drawing may be
+    // a control.
+    const svg = diagramSvg(container);
+    if (!svg) {
+      throw new Error("diagram did not render");
+    }
+    expect(svg.closest("button")).toBeNull();
+    expect(globalThis.getComputedStyle(svg).userSelect).not.toBe("none");
   });
 
   it("keeps a wide diagram inside its column", async () => {

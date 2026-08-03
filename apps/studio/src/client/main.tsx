@@ -7,6 +7,7 @@ import { MainWindow } from "./components/main-window";
 import { initBrowserPool } from "./lib/browser-pool";
 import { initDebugRpcBridge } from "./lib/debug-rpc-bridge";
 import { initRendererLogForwarding } from "./lib/forward-renderer-logs";
+import { initStudioDrive } from "./lib/studio-drive";
 
 declare global {
   var __studioRoot: Root | undefined;
@@ -33,5 +34,7 @@ if (rootElement) {
     // Subscribe the browser webview pool to main-process mount/unmount
     // commands for the lifetime of the main-window renderer.
     initBrowserPool();
+    // Only the main window has tabs and app-wide modals to drive.
+    initStudioDrive();
   }
 }

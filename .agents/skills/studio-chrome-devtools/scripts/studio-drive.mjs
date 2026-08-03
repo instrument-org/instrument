@@ -43,10 +43,15 @@
 //   node studio-drive.mjs boot --workspace documents
 //   node studio-drive.mjs shot task.png --workspace documents
 
-// `dir` is how a path is named throughout this repo, from `taskDir` through
-// `workspaceConfig.tasksDir` to the `ELECTRON_USER_DATA_DIR` this script sets.
-// Whole-file because `perfectionist/sort-modules` orders the declarations, so
-// any narrower scope stops covering what it was written for.
+// The repo does not lint `.agents`, so these only ever fire when a changed-file
+// pass runs without ignores. None is worth reshaping this file for:
+// `sort-modules` would order the declarations alphabetically and leave the
+// section banners labelling whatever landed under them; the cache-location
+// variables belong to a standalone CLI rather than a turbo task; and `dir` is
+// how a path is named everywhere this script reaches, from `taskDir` through
+// `workspaceConfig.tasksDir` to the `ELECTRON_USER_DATA_DIR` it sets.
+/* eslint-disable perfectionist/sort-modules */
+/* eslint-disable turbo/no-undeclared-env-vars */
 /* eslint-disable unicorn/prevent-abbreviations */
 
 import { execFileSync, spawn } from "node:child_process";
@@ -117,10 +122,6 @@ const CHECKOUT_KEY = createHash("sha256")
 // A seeded workspace is rebuilt from its fixture in seconds, so it is cache and
 // not data: never in the repo, and never in the shared application-data
 // directory where it would mix with someone's real tasks.
-//
-// This is a standalone CLI rather than a turbo task, so the cache-location
-// variables below are not something turbo should invalidate on.
-/* eslint-disable turbo/no-undeclared-env-vars */
 const WORKSPACE_CACHE_ROOT = path.join(
   process.env.LOCALAPPDATA ??
     (process.platform === "darwin"
@@ -129,7 +130,6 @@ const WORKSPACE_CACHE_ROOT = path.join(
   "instrument-studio-drive",
   CHECKOUT_KEY,
 );
-/* eslint-enable turbo/no-undeclared-env-vars */
 
 // Workspaces nobody has driven in this long are dropped at the next boot,
 // because nobody runs a clean command. Losing one costs a reseed.
@@ -369,167 +369,7 @@ function checkoutPort(workspace) {
   return CONVENTIONAL_PORT + 1 + (digest.readUInt16BE(0) % 200);
 }
 
-async function cmdBoot(explicitPort, { fresh }) {
-  const existing = readSession();
-  if (existing && (await isPortLive(existing.port))) {
-    if (fresh) {
-      fail(
-        `--fresh rebuilds the workspace on disk and the instance on port ${existing.port} has it open.\n` +
-          `Run \`studio-drive.mjs stop${WORKSPACE ? ` --workspace ${WORKSPACE}` : ""}\` first.`,
-      );
-    }
-    return { ...existing, reused: true };
-  }
-
-  const workspace = WORKSPACE
-    ? prepareWorkspace(WORKSPACE, { fresh })
-    : undefined;
-
-  const port = explicitPort ? Number(explicitPort) : checkoutPort(WORKSPACE);
-  // Refuse rather than scanning for the next free port. Scanning is what makes
-  // this dangerous: two checkouts booting at once can both see a port free,
-  // both spawn, and the one that loses the bind then connects to the winner's
-  // window and drives the wrong app believing it is its own.
-  if (await isPortLive(port)) {
-    fail(
-      `Port ${port} belongs to this checkout but something is already on it.\n` +
-        `Stop it (\`studio-drive.mjs stop\`, or quit that window) or pass --port to target it deliberately.`,
-    );
-  }
-
-  mkdirSync(path.dirname(SESSION_FILE), { recursive: true });
-  const logFile = SESSION_FILE.replace(/\.json$/, ".log");
-  const log = openSync(logFile, "a");
-
-  const child = spawn("pnpm", ["dev"], {
-    cwd: STUDIO_DIR,
-    detached: true,
-    env: {
-      ...process.env,
-      // Set by some editor integrations; leaving it on makes Electron run as
-      // plain Node and exit without ever opening a window.
-      ELECTRON_RUN_AS_NODE: undefined,
-      REMOTE_DEBUGGING_PORT: String(port),
-      // A seeded workspace has no provider credentials and must not: they
-      // cannot be committed. Without this the app opens the onboarding window
-      // and never reveals the main one, which reads as a hang.
-      ...(workspace && {
-        ELECTRON_USER_DATA_DIR: workspace.userDataDir,
-        SKIP_ONBOARDING: "true",
-      }),
-    },
-    stdio: ["ignore", log, log],
-  });
-  child.unref();
-
-  const session = {
-    logFile,
-    pid: child.pid,
-    port,
-    startedAt: new Date().toISOString(),
-    ...(workspace && { tasks: workspace.tasks, workspace: WORKSPACE }),
-  };
-  writeSession(session);
-
-  // Ready means the renderer has attached its handle, not that the port
-  // answers: the debug endpoint is up well before the app can be driven.
-  const deadline = Date.now() + 180_000;
-  for (;;) {
-    // If the process we started is gone, whatever answers on this port is not
-    // ours -- most likely we lost the bind and something else took it.
-    if (!isAlive(child.pid)) {
-      fail(`Studio exited during startup. See ${logFile}`);
-    }
-    if (await isPortLive(port)) {
-      try {
-        const cdp = await connect(`http://127.0.0.1:${port}`);
-        try {
-          await waitForDriveHandle(cdp);
-          return { ...session, reused: false };
-        } finally {
-          cdp.close();
-        }
-      } catch {
-        // Renderer not serving a target yet; keep waiting.
-      }
-    }
-    if (Date.now() > deadline) {
-      fail(`Studio did not become drivable within 180s. See ${logFile}`);
-    }
-    await sleep(2000);
-  }
-}
-
-/**
- * Real mouse input rather than `element.click()`, which reaches a plain button
- * but not a handler mounted on an ancestor -- and returns as if it worked.
- */
-async function cmdClick(cdp, kind, needle) {
-  const rect = await rectFor(cdp, kind, needle);
-  const x = Math.round(rect.x + rect.width / 2);
-  const y = Math.round(rect.y + rect.height / 2);
-  for (const type of ["mousePressed", "mouseReleased"]) {
-    await cdp.send("Input.dispatchMouseEvent", {
-      button: "left",
-      clickCount: 1,
-      type,
-      x,
-      y,
-    });
-  }
-  await settle(cdp);
-  return { clicked: needle, x, y };
-}
-
-async function cmdGoto(cdp, path, newTab) {
-  await drive(
-    cdp,
-    `goto(${JSON.stringify(path)}, ${JSON.stringify({ newTab })})`,
-  );
-  await settle(cdp);
-  return drive(cdp, "state()");
-}
-
-// --- lifecycle ---------------------------------------------------------
-
-async function cmdModal(cdp, name) {
-  await (name === "--close"
-    ? drive(cdp, "closeModal()")
-    : drive(cdp, `openModal(${JSON.stringify(name)})`));
-  await settle(cdp);
-  return drive(cdp, "state()");
-}
-
-async function cmdState(cdp) {
-  return drive(cdp, "state()");
-}
-
-function cmdStop() {
-  const session = readSession();
-  if (!session) {
-    return { stopped: false };
-  }
-  try {
-    // The dev server is the process group leader; the Electron app is its child.
-    process.kill(-session.pid, "SIGTERM");
-  } catch {
-    // Already gone.
-  }
-  rmSync(SESSION_FILE, { force: true });
-  return { port: session.port, stopped: true };
-}
-
-// --- commands ----------------------------------------------------------
-
-function isAlive(pid) {
-  try {
-    // Signal 0 tests for the process without touching it.
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
+// --- seeded workspaces -------------------------------------------------
 
 /**
  * Build (or reuse) the workspace this boot will run against, and hand back the
@@ -627,6 +467,171 @@ function reapWorkArtifacts(tasksDir) {
         // Not there, which is the normal case.
       }
     }
+  }
+}
+
+// --- lifecycle ---------------------------------------------------------
+
+async function cmdBoot(explicitPort, { fresh }) {
+  const existing = readSession();
+  if (existing && (await isPortLive(existing.port))) {
+    if (fresh) {
+      fail(
+        `--fresh rebuilds the workspace on disk and the instance on port ${existing.port} has it open.\n` +
+          `Run \`studio-drive.mjs stop${WORKSPACE ? ` --workspace ${WORKSPACE}` : ""}\` first.`,
+      );
+    }
+    return { ...existing, reused: true };
+  }
+
+  const port = explicitPort ? Number(explicitPort) : checkoutPort(WORKSPACE);
+  // Refuse rather than scanning for the next free port. Scanning is what makes
+  // this dangerous: two checkouts booting at once can both see a port free,
+  // both spawn, and the one that loses the bind then connects to the winner's
+  // window and drives the wrong app believing it is its own.
+  //
+  // Checked before the workspace is built so a boot that cannot proceed does
+  // not pay for a seed first.
+  if (await isPortLive(port)) {
+    fail(
+      `Port ${port} belongs to this checkout but something is already on it.\n` +
+        `Stop it (\`studio-drive.mjs stop\`, or quit that window) or pass --port to target it deliberately.`,
+    );
+  }
+
+  const workspace = WORKSPACE
+    ? prepareWorkspace(WORKSPACE, { fresh })
+    : undefined;
+
+  mkdirSync(path.dirname(SESSION_FILE), { recursive: true });
+  const logFile = SESSION_FILE.replace(/\.json$/, ".log");
+  const log = openSync(logFile, "a");
+
+  const child = spawn("pnpm", ["dev"], {
+    cwd: STUDIO_DIR,
+    detached: true,
+    env: {
+      ...process.env,
+      // Set by some editor integrations; leaving it on makes Electron run as
+      // plain Node and exit without ever opening a window.
+      ELECTRON_RUN_AS_NODE: undefined,
+      REMOTE_DEBUGGING_PORT: String(port),
+      // A seeded workspace has no provider credentials and must not: they
+      // cannot be committed. Without this the app opens the onboarding window
+      // and never reveals the main one, which reads as a hang.
+      ...(workspace && {
+        ELECTRON_USER_DATA_DIR: workspace.userDataDir,
+        SKIP_ONBOARDING: "true",
+      }),
+    },
+    stdio: ["ignore", log, log],
+  });
+  child.unref();
+
+  const session = {
+    logFile,
+    pid: child.pid,
+    port,
+    startedAt: new Date().toISOString(),
+    ...(workspace && { tasks: workspace.tasks, workspace: WORKSPACE }),
+  };
+  writeSession(session);
+
+  // Ready means the renderer has attached its handle, not that the port
+  // answers: the debug endpoint is up well before the app can be driven.
+  const deadline = Date.now() + 180_000;
+  for (;;) {
+    // If the process we started is gone, whatever answers on this port is not
+    // ours -- most likely we lost the bind and something else took it.
+    if (!isAlive(child.pid)) {
+      fail(`Studio exited during startup. See ${logFile}`);
+    }
+    if (await isPortLive(port)) {
+      try {
+        const cdp = await connect(`http://127.0.0.1:${port}`);
+        try {
+          await waitForDriveHandle(cdp);
+          return { ...session, reused: false };
+        } finally {
+          cdp.close();
+        }
+      } catch {
+        // Renderer not serving a target yet; keep waiting.
+      }
+    }
+    if (Date.now() > deadline) {
+      fail(`Studio did not become drivable within 180s. See ${logFile}`);
+    }
+    await sleep(2000);
+  }
+}
+
+/**
+ * Real mouse input rather than `element.click()`, which reaches a plain button
+ * but not a handler mounted on an ancestor -- and returns as if it worked.
+ */
+async function cmdClick(cdp, kind, needle) {
+  const rect = await rectFor(cdp, kind, needle);
+  const x = Math.round(rect.x + rect.width / 2);
+  const y = Math.round(rect.y + rect.height / 2);
+  for (const type of ["mousePressed", "mouseReleased"]) {
+    await cdp.send("Input.dispatchMouseEvent", {
+      button: "left",
+      clickCount: 1,
+      type,
+      x,
+      y,
+    });
+  }
+  await settle(cdp);
+  return { clicked: needle, x, y };
+}
+
+async function cmdGoto(cdp, path, newTab) {
+  await drive(
+    cdp,
+    `goto(${JSON.stringify(path)}, ${JSON.stringify({ newTab })})`,
+  );
+  await settle(cdp);
+  return drive(cdp, "state()");
+}
+
+// --- commands ----------------------------------------------------------
+
+async function cmdModal(cdp, name) {
+  await (name === "--close"
+    ? drive(cdp, "closeModal()")
+    : drive(cdp, `openModal(${JSON.stringify(name)})`));
+  await settle(cdp);
+  return drive(cdp, "state()");
+}
+
+async function cmdState(cdp) {
+  return drive(cdp, "state()");
+}
+
+function cmdStop() {
+  const session = readSession();
+  if (!session) {
+    return { stopped: false };
+  }
+  try {
+    // The dev server is the process group leader; the Electron app is its child.
+    process.kill(-session.pid, "SIGTERM");
+  } catch {
+    // Already gone.
+  }
+  rmSync(SESSION_FILE, { force: true });
+  return { port: session.port, stopped: true };
+}
+
+function isAlive(pid) {
+  try {
+    // Signal 0 tests for the process without touching it.
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -872,4 +877,6 @@ async function runAgainstInstance() {
   }
 }
 
+/* eslint-enable perfectionist/sort-modules */
+/* eslint-enable turbo/no-undeclared-env-vars */
 /* eslint-enable unicorn/prevent-abbreviations */

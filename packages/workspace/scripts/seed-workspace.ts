@@ -112,17 +112,18 @@ async function main() {
 
   const digest = await digestFixtures(fixtures);
 
-  if (values.fresh) {
-    await removeSeededWorkspace(userDataDir);
-  } else {
-    const marker = await readMarker(userDataDir);
-    if (marker?.digest === digest) {
-      process.stderr.write(`Workspace already seeded at ${userDataDir}\n`);
-      report({ reused: true, tasks: marker.tasks, userDataDir });
-      return;
-    }
+  const marker = await readMarker(userDataDir);
+  if (!values.fresh && marker?.digest === digest) {
+    process.stderr.write(`Workspace already seeded at ${userDataDir}\n`);
+    report({ reused: true, tasks: marker.tasks, userDataDir });
+    return;
   }
 
+  // Anything still here was built from a description that has since changed, so
+  // it goes. Seeding on top would leave the old tasks in place and hand the new
+  // ones fallback folder names, which is the one thing a fixture's ids must not
+  // do: they are how a driving script addresses a task.
+  await removeSeededWorkspace(userDataDir);
   await fs.mkdir(userDataDir, { recursive: true });
 
   const tasks = [];

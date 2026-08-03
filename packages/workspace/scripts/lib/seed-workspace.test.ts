@@ -41,13 +41,18 @@ async function readSeededSession(taskId: TaskId) {
   return { session: loaded._unsafeUnwrap(), sessionIds };
 }
 
+async function seedInto(userDataDir: string, now?: Date) {
+  const fixture = await loadWorkspaceFixture(FIXTURE);
+  const tasks = await seedWorkspace({ fixture, now, userDataDir });
+  opened.push(...tasks.map((task) => task.id));
+  return { fixture, tasks };
+}
+
 async function seedIntoTempDir(now?: Date) {
   const userDataDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "instrument-seed-test-"),
   );
-  const fixture = await loadWorkspaceFixture(FIXTURE);
-  const tasks = await seedWorkspace({ fixture, now, userDataDir });
-  opened.push(...tasks.map((task) => task.id));
+  const { fixture, tasks } = await seedInto(userDataDir, now);
   return { first: at(fixture.tasks, 0), fixture, tasks, userDataDir };
 }
 
@@ -87,6 +92,17 @@ describe("seedWorkspace", () => {
       const settings = await getTaskSettings(taskDir(seeded.id));
       expect(settings?.name).toBe(seeded.name);
     }
+  });
+
+  // The caller clears the directory first; if it ever stops doing that, the
+  // fallback naming inside `newTaskId` would quietly hand the task a dated
+  // folder and the fixture's promised id would be a lie.
+  it("refuses to seed on top of a workspace that already holds the task", async () => {
+    const { userDataDir } = await seedIntoTempDir();
+
+    await expect(seedInto(userDataDir)).rejects.toThrow(
+      /tasks\/generated-pdf already exists/,
+    );
   });
 
   it("puts the app's stores beside the workspace, not inside it", async () => {

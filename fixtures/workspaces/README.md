@@ -22,7 +22,7 @@ pnpm workspace:seed --list
 pnpm workspace:seed --out <dir> --fixture documents [--fresh]
 ```
 
-Idempotent: a workspace whose contents already match the fixture is left alone, so calling it before every run is cheap. `--fresh` rebuilds, and refuses to clear a directory it did not create.
+Idempotent: a workspace whose contents already match the fixture is left alone, so calling it before every run is cheap. Anything else is cleared and rebuilt, since seeding on top of a workspace built from an older description would keep the stale tasks and hand the new ones fallback ids. `--fresh` forces that rebuild. Either way it refuses to clear a directory it did not create.
 
 Usually you want `studio-drive` to do all of it:
 
@@ -85,3 +85,5 @@ Prefer a few fixtures covering distinct surface families over one per surface. A
 **Timestamps are anchored to seed time.** The whole transcript shifts so its last message lands `agedMinutes` before now, preserving the recorded spacing, so relative dates read the way they did when captured. Anything asserting on pixels still has to mask them.
 
 **Tool calls are not re-executed.** The recorded outputs stand, and the artifacts a tool would have written come from `files/`. Re-running them would need the whole runtime and a model, which seeding deliberately does without.
+
+**A transcript names the model that produced it.** That is what the run really used, and it renders in the transcript, so a fixture will eventually show a model slug that no longer exists. Cosmetic, and re-recording fixes it; not a reason to rewrite recorded metadata.

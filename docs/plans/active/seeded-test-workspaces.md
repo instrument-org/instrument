@@ -20,43 +20,30 @@ Most of the plumbing is there. This is mostly a corpus and a seeder, not new app
 | Point the app at an arbitrary workspace | `ELECTRON_USER_DATA_DIR`, handled in `electron-main/setup-environment.ts` | Redirects `userData` wholesale, and the workspace lives at `userData/workspace`. Everything follows: tasks, preferences, tabs, providers, browser session |
 | Skip the provider-setup gate | `SKIP_ONBOARDING=true`, checked in `shouldShowOnboarding` in `electron-main/index.ts` | Without this a fresh workspace opens the onboarding window and the main window never reveals, which in CI reads as a hang |
 | Whole-task round trip | `task.exportZip` and `task.importTask` (`packages/workspace/src/rpc/routes/task/index.ts`, `lib/export-task-zip.ts`) | Import takes base64 zip data, so a seeder can drive it without the file picker |
-| Deterministic conversations | `workspace.debug.replaySession` (`packages/workspace/src/rpc/routes/debug.ts`) | Replays a recorded session into a new task or session against a `replay-stub` model. No provider, no network, no spend |
+| Deterministic conversations | `workspace.debug.replaySession` (`packages/workspace/src/rpc/routes/debug.ts`) | Replays a recorded session into a new task or session against a `replay-stub` model. Reads its source from a task already in the workspace, and re-executes each tool call, so the seeder does not use it — see §2 |
 | Call any route from a script | `window.__studioDebug.rpc(path, input)` | Gated on the Developer Mode preference at call time |
 | Drive the app | `.agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs` | Already spawns Studio with a controlled environment |
 
 ## The shape, concretely
 
-What is committed, and what gets built from it:
+What is committed and what gets built from it is drawn in [fixtures/workspaces/README.md](../../../fixtures/workspaces/README.md), which is the accurate copy and the one to keep current. In outline: a manifest and a recorded transcript per task, plus a `files/` directory of committed inputs; the task database and the app's store files are built from those.
 
-```
-committed to the repo                    built on demand, gitignored
-─────────────────────────                ──────────────────────────
-fixtures/documents/
-  manifest.yaml       ── the tasks   ─┐
-  session.json        ── the messages ├─▶  <workspace>/
-  files/                              │      workspace/tasks/<id>/
-    attention.pdf     ── real inputs ─┘        .instrument/task.db
-    weird.pdf                                  output/attention.pdf
-    crazy-chart-zoo.xlsx                     preferences.json
-                                             tabs.json
-```
-
-Then:
+Driving it:
 
 ```
 studio-drive.mjs boot --workspace documents
   │
-  ├─ workspace missing?  seed it:  create the tasks, replay the messages,
-  │                                copy files/ into place
+  ├─ seed if the fixture has changed since last time (or is absent):
+  │     create the tasks, write the recorded messages, copy files/ into place
   ├─ spawn Studio with ELECTRON_USER_DATA_DIR=<workspace> SKIP_ONBOARDING=true
   └─ wait until drivable, then hand back the port
 ```
 
-No model is involved at any point. `replaySession` writes recorded messages against a `replay-stub` model, so seeding costs nothing and produces the same transcript every time.
+No model is involved at any point, and no network: seeding writes the recorded messages straight to the store, so it costs nothing and produces the same transcript every time.
 
-## Shape
+## Proposed shape
 
-The corpus lives in [fixtures/workspaces/](../../../fixtures/workspaces/), whose README is the working reference for adding one. What follows is why it is built that way, and what is left.
+Why it is built the way it is, and what is left.
 
 ### 1. Separate what rots from what does not
 

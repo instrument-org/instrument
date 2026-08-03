@@ -184,6 +184,17 @@ async function seedTask({
     workspaceConfig,
   });
 
+  // `newTaskId` falls back to a dated name when the folder is taken, which for
+  // a fixture is silent corruption rather than a convenience: the seeded id
+  // stops matching the one the manifest promises and every script addressing
+  // the task by name breaks. Seeding is only ever meant to run against a clean
+  // directory, so say so instead of producing a workspace that looks fine.
+  if (id !== task.key) {
+    throw new Error(
+      `tasks/${task.key} already exists in this workspace. Seed into an empty directory, or pass --fresh to rebuild.`,
+    );
+  }
+
   // Open SQLite handles are cached by task id, and a fixture's ids are the same
   // in every workspace built from it. Drop any handle held over from an earlier
   // seed so this one cannot write through a database belonging to another

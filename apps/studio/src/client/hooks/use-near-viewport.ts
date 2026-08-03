@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
-/** How far outside the viewport still counts as near, so work finishes before
- * the element is actually looked at. */
+/** How far outside the scroll port still counts as near, so work finishes
+ * before the element is actually looked at. */
 const DEFAULT_ROOT_MARGIN = "400px";
 
 /**
@@ -41,7 +41,7 @@ export function useNearViewport<T extends HTMLElement>({
           observer.disconnect();
         }
       },
-      { rootMargin },
+      { root: nearestScrollPort(element), rootMargin },
     );
     observer.observe(element);
 
@@ -51,4 +51,27 @@ export function useNearViewport<T extends HTMLElement>({
   }, [isNear, rootMargin]);
 
   return { isNear, ref };
+}
+
+/**
+ * The scroll container the element sits in, or `null` for the window.
+ *
+ * `rootMargin` expands the observer's root and nothing else. A target is
+ * clipped by every scrolling ancestor on the way up before the expanded root
+ * rect is ever consulted, so watching the window from inside one discards the
+ * head start entirely: the element is reported near only once it is already on
+ * screen, which for expensive content means the reader watches it appear.
+ */
+function nearestScrollPort(element: Element): Element | null {
+  for (
+    let parent = element.parentElement;
+    parent;
+    parent = parent.parentElement
+  ) {
+    const { overflowY } = globalThis.getComputedStyle(parent);
+    if (overflowY === "auto" || overflowY === "scroll") {
+      return parent;
+    }
+  }
+  return null;
 }

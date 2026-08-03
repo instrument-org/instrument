@@ -148,6 +148,52 @@ describe("MermaidDiagram", () => {
     await expect.poll(() => diagramSvg(container)).toBeTruthy();
   });
 
+  it("gets its head start inside a scrolling ancestor", async () => {
+    // The transcript is a scroll container, not the window. `rootMargin`
+    // expands only the observer's root, and a scrolling ancestor clips the
+    // target before that rect is consulted — so a diagram watched against the
+    // window is reported near only once it is already on screen, and the
+    // reader sees the source block flash before it. It has to start rendering
+    // while it is still below the fold.
+    const { container } = await render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ThemeProvider>
+          <div style={{ height: 300, overflowY: "auto" }}>
+            <div style={{ height: 2000 }} />
+            <div style={{ width: 600 }}>
+              <MermaidDiagram code={GRAPH} language="mermaid" />
+            </div>
+          </div>
+        </ThemeProvider>
+      </QueryClientProvider>,
+    );
+
+    const scroller = container.querySelector<HTMLElement>(
+      "[style*='overflow-y: auto']",
+    );
+    const diagram = container.querySelector("[style*='width: 600px']");
+    if (!scroller || !diagram) {
+      throw new Error("scroller did not render");
+    }
+
+    // 2000px down is far past any head start: still just source.
+    await expect.poll(() => container.textContent).toContain("A[Start]");
+    await new Promise((resolve) => {
+      setTimeout(resolve, 500);
+    });
+    expect(diagramSvg(container)).toBeNull();
+
+    // Now 200px below the scroller's bottom edge — inside the head start,
+    // still out of sight.
+    scroller.scrollTop = 1500;
+
+    await expect.poll(() => diagramSvg(container)).toBeTruthy();
+    // The point of the head start: it rendered while still out of sight.
+    expect(diagram.getBoundingClientRect().top).toBeGreaterThan(
+      scroller.getBoundingClientRect().bottom,
+    );
+  });
+
   it("keeps a wide diagram inside its column", async () => {
     const wide = [
       "graph LR",

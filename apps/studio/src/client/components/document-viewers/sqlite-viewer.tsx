@@ -20,6 +20,8 @@ const MAX_ROWS = 100_000;
 
 // SQLite's declared types are free text with only affinity rules behind them,
 // so this matches the families that carry numbers rather than an exact list.
+// The truncated ones are SQLite's own affinity prefixes, not typos.
+// cspell:ignore FLOA DOUB capi FREEONCLOSE
 const NUMERIC_TYPE = /INT|REAL|FLOA|DOUB|NUMERIC|DEC/i;
 
 interface TableInfo {
@@ -95,7 +97,9 @@ export function SqliteViewer({ url }: { url: string }) {
               onClick={() => {
                 setSelected(table.name);
               }}
-              title={table.type === "view" ? `${table.name} (view)` : table.name}
+              title={
+                table.type === "view" ? `${table.name} (view)` : table.name
+              }
               type="button"
             >
               {table.name}
@@ -109,7 +113,7 @@ export function SqliteViewer({ url }: { url: string }) {
 
 /**
  * SQLite's own values are richer than the grid's strings, so each one is
- * rendered the way a reader would recognise it.
+ * rendered the way a reader would recognize it.
  *
  * NULL passes through as null rather than as an empty string, because those are
  * different answers and the grid draws them differently.

@@ -128,7 +128,7 @@ export function DataGrid({
       columns.map((column, index) => ({
         // Blank and absent are the same thing to sort and filter, and both are
         // reported as undefined because that is the only value `sortUndefined`
-        // recognises. What a cell displays is read off the row itself, so the
+        // recognizes. What a cell displays is read off the row itself, so the
         // difference between an empty string and NULL survives for the reader.
         accessorFn: (row) => {
           const value = row[index];

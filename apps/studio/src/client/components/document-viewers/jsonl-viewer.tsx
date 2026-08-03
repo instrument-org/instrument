@@ -92,7 +92,7 @@ function JsonlBody({ text }: { text: string }) {
 
   if (!parsed) {
     // Valid JSONL that is not tabular still deserves to be readable, so it
-    // falls through to the same plain rendering an unrecognised text file gets
+    // falls through to the same plain rendering an unrecognized text file gets
     // rather than to the "preview unavailable" card.
     return (
       <div className="min-h-0 flex-1 overflow-auto p-4">

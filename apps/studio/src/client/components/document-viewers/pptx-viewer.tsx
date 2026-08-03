@@ -19,6 +19,8 @@ import {
 
 import "@extend-ai/react-pptx/styles.css";
 
+import "./pptx-viewer.css";
+
 // OOXML measures slide geometry in English Metric Units.
 const EMU_PER_PIXEL = 9525;
 
@@ -158,7 +160,11 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
             this element, which `inset-0` has already sized. */}
         <div className="absolute inset-0">
           <ReactPptxViewer
-            className="size-full bg-muted/40"
+            // The surface, and everything else the library's own stylesheet
+            // insists on, is themed from `pptx-viewer.css` against this class:
+            // that stylesheet sits outside any cascade layer, so a utility here
+            // would never take.
+            className="pptx-viewer size-full"
             // Studio owns the fit, so the library must not apply its own. Its
             // default `contain` resolves to `min(1, viewport / slideWidth)` and
             // is *multiplied* by the zoom handed in, so a fitted slide in a

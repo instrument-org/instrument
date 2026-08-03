@@ -27,7 +27,13 @@
     "tailwindcss/no-unknown-classes": [
       "error",
       {
-        "allowlist": ["toaster"]
+        "allowlist": [
+          "pptx-viewer",
+          "rpv-root",
+          "rpv-stage",
+          "rpv-status",
+          "toaster"
+        ]
       }
     ]
   }

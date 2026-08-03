@@ -1,0 +1,32 @@
+/* The presentation library ships a fixed warm palette and a rule around its own
+   root, and neither can be reached from a utility class: its stylesheet sits
+   outside any cascade layer, so every declaration in it outranks anything
+   Tailwind emits into `@layer utilities` however late that layer loads. Each
+   selector here carries the viewer's own class as well, which wins on
+   specificity rather than on the order two stylesheets happen to arrive in. */
+
+.pptx-viewer.rpv-root {
+  /* This viewer is mounted inside a rounded frame that clips its contents, so a
+     square border reads as a line that runs into the curve and stops. */
+  border: 0;
+  /* `bg-muted/40`, the surface the PDF and DOCX viewers lay their pages on. */
+  background: color-mix(in oklab, var(--muted) 40%, transparent);
+  color: var(--foreground);
+}
+
+/* The stage repaints that surface in the library's own grey. */
+.pptx-viewer .rpv-stage {
+  background: transparent;
+}
+
+/* The status overlay covers the stage while a deck parses, which includes the
+   moment a second deck is opened over a first, so it stays opaque -- but as the
+   surface above resolved against the frame behind it rather than as its own
+   colour. */
+.pptx-viewer .rpv-status {
+  background: color-mix(in oklab, var(--muted) 40%, var(--card));
+}
+
+.pptx-viewer .rpv-status--error span {
+  color: var(--muted-foreground);
+}

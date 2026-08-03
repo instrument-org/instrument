@@ -233,7 +233,9 @@ export function ViewerRailToggle({
 /**
  * The row of document controls beneath the file viewer's own header. Same
  * height as that header (`h-10` in both) and no rule between them, so the two
- * read as one band of chrome.
+ * read as one band of chrome. Being the last row of that band, this is the one
+ * that carries the hairline closing it; the header defers to it for every
+ * format the viewer registry marks as having a toolbar.
  *
  * Groups are spaced apart rather than ruled apart: the zoom stepper is a single
  * bounded control and the rest are ghost buttons, so gaps alone carry the
@@ -245,11 +247,7 @@ export function ViewerRailToggle({
  */
 export function ViewerToolbar({ children }: { children: ReactNode }) {
   return (
-    // `data-viewer-toolbar` is the hook `viewer-chrome-stroke` selects on.
-    <div
-      className="@container/viewer-toolbar flex h-10 shrink-0 items-center gap-3 px-2 pb-3 viewer-chrome-stroke"
-      data-viewer-toolbar
-    >
+    <div className="@container/viewer-toolbar flex h-10 shrink-0 items-center gap-3 px-2 pb-3 viewer-chrome-stroke">
       {children}
     </div>
   );

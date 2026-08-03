@@ -72,7 +72,10 @@ export function IWorkViewer({
 
   return (
     <>
-      <div className="flex shrink-0 items-start gap-2 border-t border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+      {/* No rule of its own: this sits at the top of the document area, right
+          under the hairline that closes the viewer's chrome, and a border here
+          reads as a second line a pixel below the first. */}
+      <div className="flex shrink-0 items-start gap-2 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
         <InfoIcon className="mt-px size-4 shrink-0" />
         <span>
           Preview of the first page, saved by {appName(filename)}. The full

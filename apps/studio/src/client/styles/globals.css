@@ -581,20 +581,18 @@ body {
 }
 
 /* Hairline closing the file viewer's chrome band, inset so it costs no height.
- * Goes on every chrome row; a row followed by a document toolbar isn't the last
- * one, so it drops the stroke and lets that row close the band instead. */
+ * Worn by whichever row is last: the document toolbar where the format has one,
+ * and the title row where it does not. Which of the two that is comes from the
+ * viewer registry rather than from the shape of the rendered tree, so it does
+ * not change under a document that is still loading. */
 @utility viewer-chrome-stroke {
-  /* Only the color is themed, so the rule below stays the only one setting
-     `box-shadow` and wins in both themes. */
+  /* Only the color is themed, so `box-shadow` is declared once here rather than
+     restated per theme. */
   --viewer-chrome-stroke-color: rgb(0 0 0 / 0.05);
   box-shadow: inset 0 -1px 0 0 var(--viewer-chrome-stroke-color);
 
   :is(.dark *) & {
     --viewer-chrome-stroke-color: rgb(255 255 255 / 0.05);
-  }
-
-  &:has(+ * [data-viewer-toolbar]) {
-    box-shadow: none;
   }
 }
 

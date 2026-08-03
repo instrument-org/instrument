@@ -2,7 +2,11 @@ import {
   openFileViewerAtom,
   type TaskFileViewerFile,
 } from "@/client/atoms/task-file-viewer";
-import { FileViewer } from "@/client/components/file-viewer";
+import {
+  FileViewer,
+  fileViewerClassName,
+  FileViewerHeader,
+} from "@/client/components/file-viewer";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -19,14 +23,12 @@ import {
   type StoreId,
   type Task,
 } from "@instrument-org/workspace/client";
-import { XIcon } from "@phosphor-icons/react";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import { type ReactNode, useState } from "react";
 
 import { FileLoading } from "../file-loading";
-import { Button } from "../ui/button";
 import { TaskBrowserPanel } from "./browser-panel";
 import { TaskSidebar, type TaskSidebarMode } from "./sidebar";
 
@@ -286,8 +288,9 @@ export function TaskView({
 /**
  * The artifact panel's frame for a file that has no viewer mounted in it,
  * either because the file is still being looked up or because it is not there.
- * Matches `FileViewer`'s own frame so the header does not move when one
- * replaces the other.
+ * Built from `FileViewer`'s own frame and header so nothing moves when one
+ * replaces the other -- including the hairline under the chrome, which sits a
+ * row lower for a format whose viewer opens a toolbar.
  */
 function ArtifactPanelShell({
   children,
@@ -298,16 +301,18 @@ function ArtifactPanelShell({
   filePath: string;
   onClose: () => void;
 }) {
+  const filename = filePath.slice(filePath.lastIndexOf("/") + 1);
+
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden rounded-xl bg-card shadow-sm">
-      <div className="flex min-w-0 shrink-0 items-center gap-2 px-4 py-3">
-        <div className="min-w-0 flex-1 truncate text-xs font-medium">
-          {filePath}
-        </div>
-        <Button onClick={onClose} size="icon-sm" variant="ghost">
-          <XIcon className="size-4" />
-        </Button>
-      </div>
+    <div className={fileViewerClassName}>
+      {/* No mime type: that is part of what the panel is still waiting on.
+          Every format whose viewer opens a toolbar is identified by its
+          extension anyway, so the chrome band lays out the same either way. */}
+      <FileViewerHeader
+        filename={filename}
+        filePath={filePath}
+        onClose={onClose}
+      />
       {children}
     </div>
   );

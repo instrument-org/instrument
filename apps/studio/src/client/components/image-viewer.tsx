@@ -94,9 +94,8 @@ function ImageZoomControls({
   onZoomOut: () => void;
 }) {
   return (
-    <div className=// Solid, not a wash: these sit over an arbitrary image, and at 90% the
-      // picture shows through the controls steering it.
-      "flex items-center gap-1 rounded-xl bg-background p-1 text-foreground shadow-lg">
+    <div className=// picture shows through the controls steering it. // Solid, not a wash: these sit over an arbitrary image, and at 90% the
+    "flex items-center gap-1 rounded-xl bg-background p-1 text-foreground shadow-lg">
       <Button onClick={onZoomOut} size="icon-sm" variant="ghost">
         <MagnifyingGlassMinusIcon className="size-5" />
       </Button>

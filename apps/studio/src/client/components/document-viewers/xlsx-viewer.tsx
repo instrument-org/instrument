@@ -129,6 +129,7 @@ export function XlsxViewer({
             allowResizeInReadOnly
             className="absolute inset-0"
             controller={controller}
+            rounded={false}
             showDefaultToolbar={false}
           />
         )}

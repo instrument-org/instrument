@@ -492,11 +492,13 @@ export function FileViewer({
 
   return (
     <div className={fileViewerClassName}>
-      <div className="@container flex min-w-0 shrink-0 items-center gap-2 px-4 py-3">
+      {/* `h-10 px-2` matches `ViewerToolbar`, which some viewers render right
+          below this, so the two rows read as one band. */}
+      <div className="@container flex h-10 min-w-0 shrink-0 items-center gap-2 px-2 viewer-chrome-stroke">
         {/* The trigger is the filename, not the space it sits in: as a flex
             item it shrinks to the text it holds, so the tooltip is anchored
             under the name rather than under the middle of a header-wide box. */}
-        <div className="flex min-w-0 flex-1">
+        <div className="flex min-w-0 flex-1 pl-1.5">
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="min-w-0 truncate text-xs font-medium">

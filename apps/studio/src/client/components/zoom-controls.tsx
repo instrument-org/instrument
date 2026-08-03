@@ -48,6 +48,7 @@ export function ZoomLevelMenu({
   nested = false,
   onFit,
   onSelect,
+  showCaret = true,
   zoom,
 }: {
   compact?: boolean;
@@ -57,6 +58,7 @@ export function ZoomLevelMenu({
   nested?: boolean;
   onFit?: () => void;
   onSelect: (zoom: number) => void;
+  showCaret?: boolean;
   zoom: number;
 }) {
   const levels = (
@@ -110,14 +112,14 @@ export function ZoomLevelMenu({
     <DropdownMenu>
       <DropdownMenuTrigger
         className={cn(
-          "flex items-center gap-1 px-2 font-medium tabular-nums",
+          "flex items-center justify-center gap-1 px-2 font-medium tabular-nums",
           zoomStepperSegmentClassName,
           "data-[state=open]:bg-secondary dark:data-[state=open]:bg-gray-600",
           compact ? "min-w-10 text-xs" : "min-w-12 text-sm",
         )}
       >
         {Math.round(zoom * 100)}%
-        <CaretDownIcon className="size-3" />
+        {showCaret && <CaretDownIcon className="size-3" />}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-32">
         {levels}
@@ -184,6 +186,7 @@ export function ZoomStepper() {
 export function ZoomStepperControl({
   canZoomIn = true,
   canZoomOut = true,
+  className,
   onReset,
   onZoomIn,
   onZoomOut,
@@ -193,6 +196,7 @@ export function ZoomStepperControl({
 }: {
   canZoomIn?: boolean;
   canZoomOut?: boolean;
+  className?: string;
   onReset?: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -207,6 +211,7 @@ export function ZoomStepperControl({
       className={cn(
         "flex items-stretch divide-x divide-border overflow-hidden bg-card button-sheen text-card-foreground shadow-sm dark:bg-gray-700 dark:text-foreground dark:shadow-sm",
         compact ? "h-7 rounded-md" : "h-9 rounded-lg",
+        className,
       )}
     >
       <button

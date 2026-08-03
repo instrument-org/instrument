@@ -155,7 +155,7 @@ function CsvGrid({ filename, text }: { filename: string; text: string }) {
           already scales, so a second scale factor inside it would only be a
           way to disagree with the rest of the app. */}
       <ViewerToolbar>
-        <span className="px-1 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+        <span className="px-1.5 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
           {rows.length.toLocaleString()} {rows.length === 1 ? "row" : "rows"}
         </span>
         <ViewerToolbarSpacer />

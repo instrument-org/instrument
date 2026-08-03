@@ -21,7 +21,7 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useMemo, useState } from "react";
+import { type KeyboardEvent, useEffect, useMemo, useState } from "react";
 
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
@@ -133,12 +133,25 @@ export function DataGrid({
   const columnDefs = useMemo<ColumnDef<CellValue[]>[]>(
     () =>
       columns.map((column, index) => ({
-        accessorFn: (row) => row[index] ?? null,
+        // Blank and absent are the same thing to sort and filter, and both are
+        // reported as undefined because that is the only value `sortUndefined`
+        // recognises. What a cell displays is read off the row itself, so the
+        // difference between an empty string and NULL survives for the reader.
+        accessorFn: (row) => {
+          const value = row[index];
+          return value === null || value === undefined || value === ""
+            ? undefined
+            : value;
+        },
         filterFn: containsText,
         header: column.name,
         id: String(index),
         size: measured[index] ?? MIN_COLUMN_WIDTH,
         sortingFn: compareCells,
+        // Pins blanks to the end whichever way the column is sorted. A
+        // comparator cannot do this itself: a descending sort negates whatever
+        // it returns, so deliberate blanks-last becomes blanks-first.
+        sortUndefined: "last",
       })),
     [columns, measured],
   );
@@ -179,10 +192,10 @@ export function DataGrid({
   const pinnedColumns = table.getLeftVisibleLeafColumns();
   const centerColumns = table.getCenterVisibleLeafColumns();
 
-  const pinnedWidth = pinnedColumns.reduce(
-    (total, column) => total + column.getSize(),
-    0,
-  );
+  let pinnedWidth = 0;
+  for (const column of pinnedColumns) {
+    pinnedWidth += column.getSize();
+  }
 
    
   const rowVirtualizer = useVirtualizer({
@@ -201,10 +214,20 @@ export function DataGrid({
     overscan: 3,
   });
 
+  // The virtualizer measures each column once and caches it, and a new
+  // `estimateSize` closure is not what invalidates that cache. Without this, a
+  // resize drag changes every cell's width while leaving the offsets they are
+  // placed at describing the old ones, so the columns to the right overlap.
+  useEffect(() => {
+    columnVirtualizer.measure();
+  }, [columnSizing, columnVirtualizer]);
+
   const centerWidth = columnVirtualizer.getTotalSize();
 
+  const columnCount = pinnedColumns.length + centerColumns.length;
+
   const selectedRange = resolveRange({
-    columnCount: pinnedColumns.length + centerColumns.length,
+    columnCount,
     rowCount: visibleRows.length,
     selection,
   });
@@ -258,6 +281,73 @@ export function DataGrid({
     );
   };
 
+  /**
+   * Moves the focused cell, extending the block from its anchor when shift is
+   * held. `role="grid"` promises this, and without it there is no way to build
+   * a selection, and so no way to reach the copy shortcut, without a pointer.
+   */
+  const moveSelection = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (visibleRows.length === 0 || columnCount === 0) {
+      return;
+    }
+    const from = selection?.focus ?? { column: 0, row: 0 };
+    let to: CellPosition;
+
+    switch (event.key) {
+      case "ArrowDown": {
+        to = { column: from.column, row: from.row + 1 };
+        break;
+      }
+      case "ArrowLeft": {
+        to = { column: from.column - 1, row: from.row };
+        break;
+      }
+      case "ArrowRight": {
+        to = { column: from.column + 1, row: from.row };
+        break;
+      }
+      case "ArrowUp": {
+        to = { column: from.column, row: from.row - 1 };
+        break;
+      }
+      // Home and End run along the row on their own, and to the corners of the
+      // whole table with the platform modifier, as a spreadsheet does.
+      case "End": {
+        to = {
+          column: columnCount - 1,
+          row:
+            event.ctrlKey || event.metaKey ? visibleRows.length - 1 : from.row,
+        };
+        break;
+      }
+      case "Home": {
+        to = { column: 0, row: event.ctrlKey || event.metaKey ? 0 : from.row };
+        break;
+      }
+      default: {
+        return;
+      }
+    }
+    event.preventDefault();
+
+    // With nothing selected yet the first press lands on the first cell rather
+    // than stepping off it, since there is nothing to step from.
+    const target = selection
+      ? {
+          column: Math.min(Math.max(to.column, 0), columnCount - 1),
+          row: Math.min(Math.max(to.row, 0), visibleRows.length - 1),
+        }
+      : { column: 0, row: 0 };
+
+    extendTo(target, event.shiftKey);
+    rowVirtualizer.scrollToIndex(target.row);
+    // Pinned columns are always on screen, so only a centre column can be out
+    // of view, and its index there is its own rather than the grid's.
+    if (target.column >= pinnedColumns.length) {
+      columnVirtualizer.scrollToIndex(target.column - pinnedColumns.length);
+    }
+  };
+
   const filtered = visibleRows.length !== rows.length;
 
   return (
@@ -288,13 +378,14 @@ export function DataGrid({
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <div
-            className="min-h-0 flex-1 overflow-auto outline-none"
+            className="min-h-0 flex-1 overflow-auto outline-none focus-visible:outline-[2px] focus-visible:-outline-offset-2 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]"
+            onKeyDown={moveSelection}
             onPointerDown={() => {
               grid?.focus({ preventScroll: true });
             }}
             ref={setGrid}
             role="grid"
-            tabIndex={-1}
+            tabIndex={0}
           >
             <div
               className="relative text-[0.8125rem]"
@@ -308,16 +399,28 @@ export function DataGrid({
                 role="row"
                 style={{ height: HEADER_HEIGHT }}
               >
-                {pinnedColumns.map((column, index) => (
-                  <HeaderCell
-                    column={column}
-                    key={column.id}
-                    left={offsetOf(pinnedColumns, index)}
-                    onResize={headersById.get(column.id)?.getResizeHandler()}
-                    pinned
-                    spec={columns[Number(column.id)]}
-                  />
-                ))}
+                {pinnedColumns.length > 0 && (
+                  <div
+                    // Sticky rather than placed at a fixed offset. Every cell
+                    // here is absolutely positioned inside the scrolled
+                    // content, so a pinned column left among them would slide
+                    // away with the rest; one sticky layer holds them all
+                    // against the left edge instead.
+                    className="sticky left-0 z-10 h-full bg-card"
+                    role="presentation"
+                    style={{ width: pinnedWidth }}
+                  >
+                    {pinnedColumns.map((column, index) => (
+                      <HeaderCell
+                        column={column}
+                        key={column.id}
+                        left={offsetOf(pinnedColumns, index)}
+                        onResize={headersById.get(column.id)?.getResizeHandler()}
+                        spec={columns[Number(column.id)]}
+                      />
+                    ))}
+                  </div>
+                )}
                 {columnVirtualizer.getVirtualItems().map((virtualColumn) => {
                   const column = centerColumns[virtualColumn.index];
                   return column ? (
@@ -337,6 +440,7 @@ export function DataGrid({
                 if (!record) {
                   return null;
                 }
+                const striped = virtualRow.index % 2 === 1;
                 return (
                   <div
                     className={cn(
@@ -345,7 +449,7 @@ export function DataGrid({
                       // the header already in flow, and the header offset in
                       // the transform below is then counted a second time.
                       "absolute inset-x-0 top-0",
-                      virtualRow.index % 2 === 1 && "bg-muted/30",
+                      striped && "bg-muted/30",
                     )}
                     key={record.id}
                     role="row"
@@ -354,22 +458,36 @@ export function DataGrid({
                       transform: `translateY(${virtualRow.start + HEADER_HEIGHT}px)`,
                     }}
                   >
-                    {pinnedColumns.map((column, index) => (
-                      <BodyCell
-                        align={columns[Number(column.id)]?.align}
-                        key={column.id}
-                        left={offsetOf(pinnedColumns, index)}
-                        onSelect={extendTo}
-                        pinned
-                        position={{ column: index, row: virtualRow.index }}
-                        selected={inRange(selectedRange, {
-                          column: index,
-                          row: virtualRow.index,
-                        })}
-                        value={record.getValue(column.id)}
-                        width={column.getSize()}
-                      />
-                    ))}
+                    {pinnedColumns.length > 0 && (
+                      <div
+                        className="sticky left-0 z-10 h-full bg-card"
+                        role="presentation"
+                        style={{ width: pinnedWidth }}
+                      >
+                        {/* The stripe is drawn a second time inside the sticky
+                            layer. That layer has to be opaque to cover the
+                            columns passing beneath it, which paints over the
+                            row's own stripe. */}
+                        {striped && (
+                          <div className="absolute inset-0 bg-muted/30" />
+                        )}
+                        {pinnedColumns.map((column, index) => (
+                          <BodyCell
+                            align={columns[Number(column.id)]?.align}
+                            key={column.id}
+                            left={offsetOf(pinnedColumns, index)}
+                            onSelect={extendTo}
+                            position={{ column: index, row: virtualRow.index }}
+                            selected={inRange(selectedRange, {
+                              column: index,
+                              row: virtualRow.index,
+                            })}
+                            value={record.original[Number(column.id)] ?? null}
+                            width={column.getSize()}
+                          />
+                        ))}
+                      </div>
+                    )}
                     {columnVirtualizer
                       .getVirtualItems()
                       .map((virtualColumn) => {
@@ -389,7 +507,7 @@ export function DataGrid({
                             onSelect={extendTo}
                             position={position}
                             selected={inRange(selectedRange, position)}
-                            value={record.getValue(column.id)}
+                            value={record.original[Number(column.id)] ?? null}
                             width={column.getSize()}
                           />
                         );
@@ -438,7 +556,6 @@ function BodyCell({
   align,
   left,
   onSelect,
-  pinned = false,
   position,
   selected,
   value,
@@ -447,14 +564,11 @@ function BodyCell({
   align?: "left" | "right";
   left: number;
   onSelect: (position: CellPosition, extend: boolean) => void;
-  pinned?: boolean;
   position: CellPosition;
   selected: boolean;
-  value: unknown;
+  value: CellValue;
   width: number;
 }) {
-  const text = typeof value === "string" ? value : null;
-
   return (
     <div
       aria-selected={selected}
@@ -462,7 +576,6 @@ function BodyCell({
         "absolute top-0 h-full truncate border-r border-b border-border/40 px-2 py-1",
         align === "right" && "text-right tabular-nums",
         selected && "bg-brand-500/25",
-        pinned && "z-10 bg-card",
       )}
       onPointerDown={(event) => {
         // Right-click keeps whatever is already selected when it lands inside
@@ -482,9 +595,9 @@ function BodyCell({
       }}
       role="gridcell"
       style={{ left, width }}
-      title={text ?? undefined}
+      title={value ?? undefined}
     >
-      {text ?? <span className="text-muted-foreground/60 italic">NULL</span>}
+      {value ?? <span className="text-muted-foreground/60 italic">NULL</span>}
     </div>
   );
 }
@@ -541,9 +654,11 @@ function ColumnMenu({
 
 /**
  * Compares two cells as numbers when both read as numbers and as text
- * otherwise, so a column of counts does not sort 10 before 9. Absent values
- * sort last in either direction: they are missing data rather than the
- * smallest value.
+ * otherwise, so a column of counts does not sort 10 before 9.
+ *
+ * Blanks never reach here. The accessor reports them as undefined and
+ * `sortUndefined` keeps them at the end whichever way the column is sorted,
+ * which is not something a comparator can arrange for itself.
  */
 function compareCells(
   first: { getValue: (id: string) => unknown },
@@ -557,12 +672,6 @@ function compareCells(
 
   if (leftText === rightText) {
     return 0;
-  }
-  if (leftText === "") {
-    return 1;
-  }
-  if (rightText === "") {
-    return -1;
   }
   const leftNumber = Number(leftText);
   const rightNumber = Number(rightText);
@@ -608,13 +717,11 @@ function HeaderCell({
   column,
   left,
   onResize,
-  pinned = false,
   spec,
 }: {
   column: Column<CellValue[]>;
   left: number;
   onResize?: (event: unknown) => void;
-  pinned?: boolean;
   spec?: GridColumn;
 }) {
   "use no memo";
@@ -623,10 +730,7 @@ function HeaderCell({
 
   return (
     <div
-      className={cn(
-        "group absolute top-0 flex h-full items-center border-r border-b border-border/60 bg-card",
-        pinned && "z-10",
-      )}
+      className="group absolute top-0 flex h-full items-center border-r border-b border-border/60 bg-card"
       role="columnheader"
       style={{ left, width: column.getSize() }}
     >

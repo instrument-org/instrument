@@ -362,10 +362,7 @@ export const Markdown = memo(
       emptyRemarkPluginList,
     );
     const needsMath = useMemo(() => containsMathSyntax(markdown), [markdown]);
-    const needsMermaid = useMemo(
-      () => containsMermaidFence(markdown),
-      [markdown],
-    );
+    const needsMermaid = containsMermaidFence(markdown);
 
     const handleImageClick = useCallback(
       (event: React.MouseEvent<HTMLImageElement>) => {

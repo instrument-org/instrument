@@ -38,3 +38,21 @@ rendered transcript), `stats.json`, `errors.json`, and `assertions.json`.
 
 For choosing whether an eval is the right check at all, see the
 `validate-changes` skill.
+
+## Seeded workspaces
+
+`scripts/seed-workspace.ts` builds a throwaway app workspace from a committed
+description in `fixtures/workspaces/`, for `ELECTRON_USER_DATA_DIR`.
+`scripts/record-fixture-session.ts` captures a real task's conversation into one.
+
+```bash
+pnpm workspace:seed --list                                # from the repo root
+pnpm workspace:seed --out <dir> --fixture documents [--fresh]
+pnpm run script:record-fixture-session <task-dir-or.zip> --fixture <name> --task <key>
+```
+
+The seeder goes through `initializeTask` and `Store`, never the filesystem: task
+storage is moving, and a seeder that lays out `tasks/<id>/.instrument` itself
+would keep producing workspaces the app can no longer read.
+
+`fixtures/workspaces/README.md` covers what a fixture holds and how to add one.

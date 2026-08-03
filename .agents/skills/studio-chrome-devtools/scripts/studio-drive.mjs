@@ -32,6 +32,16 @@
 //   per checkout means they never contend in the first place.
 //
 // Pass `--port` to target a specific instance on purpose.
+//
+// `--workspace <fixture>` boots against a disposable workspace built from a
+// committed fixture (fixtures/workspaces/) instead of the shared dev
+// application-data directory, so a run does not depend on what the developer
+// happened to do last. Add `--fresh` to rebuild it first. The flag belongs on
+// every command of that run, not just `boot`: it selects both the port and the
+// instance record, so two workspaces from one checkout never collide.
+//
+//   node studio-drive.mjs boot --workspace documents
+//   node studio-drive.mjs shot task.png --workspace documents
 
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -39,11 +49,14 @@ import {
   existsSync,
   mkdirSync,
   openSync,
+  readdirSync,
   readFileSync,
   rmSync,
+  statSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -90,14 +103,47 @@ function resolveRepoRoot() {
 
 const REPO_ROOT = resolveRepoRoot();
 const STUDIO_DIR = path.join(REPO_ROOT, "apps/studio");
+const CHECKOUT_KEY = createHash("sha256")
+  .update(REPO_ROOT)
+  .digest("hex")
+  .slice(0, 16);
 
-// Keyed by checkout so two worktrees driving at once do not read each other's
-// instance, and kept out of the repo so it never shows up in a diff.
-const SESSION_FILE = path.join(
-  tmpdir(),
+// A seeded workspace is rebuilt from its fixture in seconds, so it is cache and
+// not data: never in the repo, and never in the shared application-data
+// directory where it would mix with someone's real tasks.
+const WORKSPACE_CACHE_ROOT = path.join(
+  process.env.LOCALAPPDATA ??
+    (process.platform === "darwin"
+      ? path.join(homedir(), "Library", "Caches")
+      : (process.env.XDG_CACHE_HOME ?? path.join(homedir(), ".cache"))),
   "instrument-studio-drive",
-  `${createHash("sha256").update(REPO_ROOT).digest("hex").slice(0, 16)}.json`,
+  CHECKOUT_KEY,
 );
+
+// Workspaces nobody has driven in this long are dropped at the next boot,
+// because nobody runs a clean command. Losing one costs a reseed.
+const WORKSPACE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+// Installed dependencies inside a task are the only part that grows -- to
+// hundreds of megabytes once an agent has run an install in one -- and the only
+// part deleting does not invalidate. So they go sooner than the workspace does.
+const WORK_ARTIFACT_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
+const WORK_ARTIFACT_NAMES = new Set([".venv", "node_modules"]);
+
+/**
+ * Keyed by checkout so two worktrees driving at once do not read each other's
+ * instance, and by workspace so a fixture run and a plain dev run are separate
+ * instances rather than one overwriting the other's record. Kept out of the repo
+ * so it never shows up in a diff.
+ */
+function sessionFile(workspace) {
+  const key = workspace ? `${CHECKOUT_KEY}-${workspace}` : CHECKOUT_KEY;
+  return path.join(tmpdir(), "instrument-studio-drive", `${key}.json`);
+}
+
+// Read off the raw argv rather than the parsed tail: which instance a command
+// talks to has to be settled before anything reads a session record.
+const WORKSPACE = flag(process.argv, "--workspace");
+const SESSION_FILE = sessionFile(WORKSPACE);
 
 async function connect(origin) {
   const target = await pickTarget(origin);
@@ -232,12 +278,13 @@ async function resolvePort(explicit) {
     return session.port;
   }
 
+  const target = WORKSPACE ? `workspace "${WORKSPACE}"` : "this checkout";
   const hint = (await isPortLive(CONVENTIONAL_PORT))
     ? `Something is answering on ${CONVENTIONAL_PORT}, but that is the conventional port and is probably a window someone is using. ` +
       `Pass --port ${CONVENTIONAL_PORT} if you mean to drive it anyway.`
-    : `Nothing is running for this checkout.`;
+    : `Nothing is running for ${target}.`;
   fail(
-    `${hint}\nRun \`studio-drive.mjs boot\` to start an instance of your own.`,
+    `${hint}\nRun \`studio-drive.mjs boot${WORKSPACE ? ` --workspace ${WORKSPACE}` : ""}\` to start an instance of your own.`,
   );
 }
 
@@ -298,25 +345,139 @@ const RECT_FOR = (kind, needle) => `(() => {
 })()`;
 
 /**
- * A port derived from the checkout path, so every worktree owns a different one
- * and two of them never contend. Deterministic on purpose: a scan would hand
- * out whatever happens to be free at that instant, which is how a run ends up
- * on another checkout's window.
+ * A port derived from the checkout path and the workspace, so every worktree
+ * owns a different one, two of them never contend, and one checkout can hold a
+ * fixture run and a plain dev run at once. Deterministic on purpose: a scan
+ * would hand out whatever happens to be free at that instant, which is how a run
+ * ends up on another checkout's window.
  */
-function checkoutPort() {
-  const digest = createHash("sha256").update(REPO_ROOT).digest();
+function checkoutPort(workspace) {
+  const digest = createHash("sha256")
+    .update(workspace ? `${REPO_ROOT}#${workspace}` : REPO_ROOT)
+    .digest();
   return CONVENTIONAL_PORT + 1 + (digest.readUInt16BE(0) % 200);
+}
+
+// --- seeded workspaces -------------------------------------------------
+
+/**
+ * Build (or reuse) the workspace this boot will run against, and hand back the
+ * directory to point `ELECTRON_USER_DATA_DIR` at. The seeder is idempotent and
+ * fast, so calling it on every boot is cheaper than reasoning about whether the
+ * fixture has changed since last time.
+ */
+function prepareWorkspace(name, { fresh }) {
+  reapStaleWorkspaces();
+
+  const userDataDir = path.join(WORKSPACE_CACHE_ROOT, name);
+  mkdirSync(WORKSPACE_CACHE_ROOT, { recursive: true });
+
+  let output;
+  try {
+    output = execFileSync(
+      "pnpm",
+      [
+        "workspace:seed",
+        "--out",
+        userDataDir,
+        "--fixture",
+        name,
+        ...(fresh ? ["--fresh"] : []),
+      ],
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "inherit"],
+      },
+    );
+  } catch {
+    fail(`Could not seed workspace "${name}". See the seeder output above.`);
+  }
+
+  // The seeder prints its summary last; pnpm's own banner precedes it.
+  const start = output.indexOf("{");
+  if (start === -1) {
+    fail(`The seeder printed no summary for "${name}":\n${output}`);
+  }
+  const result = JSON.parse(output.slice(start));
+
+  // Reaping goes by mtime, so record that this workspace was used even when the
+  // seeder had nothing to do and the app writes nothing before it is killed.
+  utimesSync(userDataDir, new Date(), new Date());
+
+  reapWorkArtifacts(path.join(userDataDir, "workspace", "tasks"));
+
+  return { tasks: result.tasks, userDataDir };
+}
+
+function reapStaleWorkspaces() {
+  let entries;
+  try {
+    entries = readdirSync(WORKSPACE_CACHE_ROOT, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const dir = path.join(WORKSPACE_CACHE_ROOT, entry.name);
+    if (Date.now() - statSync(dir).mtimeMs > WORKSPACE_MAX_AGE_MS) {
+      rmSync(dir, { force: true, recursive: true });
+    }
+  }
+}
+
+/**
+ * Drops installed dependencies left inside tasks by a live agent run. A replay
+ * never creates these, so a workspace only used for driving stays in the low
+ * megabytes and this finds nothing.
+ */
+function reapWorkArtifacts(tasksDir) {
+  let tasks;
+  try {
+    tasks = readdirSync(tasksDir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const task of tasks) {
+    if (!task.isDirectory()) {
+      continue;
+    }
+    for (const name of WORK_ARTIFACT_NAMES) {
+      const dir = path.join(tasksDir, task.name, "work", name);
+      try {
+        if (Date.now() - statSync(dir).mtimeMs > WORK_ARTIFACT_MAX_AGE_MS) {
+          rmSync(dir, { force: true, recursive: true });
+        }
+      } catch {
+        // Not there, which is the normal case.
+      }
+    }
+  }
 }
 
 // --- lifecycle ---------------------------------------------------------
 
-async function cmdBoot(explicitPort) {
+async function cmdBoot(explicitPort, { fresh }) {
   const existing = readSession();
   if (existing && (await isPortLive(existing.port))) {
+    if (fresh) {
+      fail(
+        `--fresh rebuilds the workspace on disk and the instance on port ${existing.port} has it open.\n` +
+          `Run \`studio-drive.mjs stop${WORKSPACE ? ` --workspace ${WORKSPACE}` : ""}\` first.`,
+      );
+    }
     return { ...existing, reused: true };
   }
 
-  const port = explicitPort ? Number(explicitPort) : checkoutPort();
+  const workspace = WORKSPACE
+    ? prepareWorkspace(WORKSPACE, { fresh })
+    : undefined;
+
+  const port = explicitPort ? Number(explicitPort) : checkoutPort(WORKSPACE);
   // Refuse rather than scanning for the next free port. Scanning is what makes
   // this dangerous: two checkouts booting at once can both see a port free,
   // both spawn, and the one that loses the bind then connects to the winner's
@@ -341,6 +502,13 @@ async function cmdBoot(explicitPort) {
       // plain Node and exit without ever opening a window.
       ELECTRON_RUN_AS_NODE: undefined,
       REMOTE_DEBUGGING_PORT: String(port),
+      // A seeded workspace has no provider credentials and must not: they
+      // cannot be committed. Without this the app opens the onboarding window
+      // and never reveals the main one, which reads as a hang.
+      ...(workspace && {
+        ELECTRON_USER_DATA_DIR: workspace.userDataDir,
+        SKIP_ONBOARDING: "true",
+      }),
     },
     stdio: ["ignore", log, log],
   });
@@ -351,6 +519,7 @@ async function cmdBoot(explicitPort) {
     pid: child.pid,
     port,
     startedAt: new Date().toISOString(),
+    ...(workspace && { tasks: workspace.tasks, workspace: WORKSPACE }),
   };
   writeSession(session);
 
@@ -616,7 +785,9 @@ try {
   }
   // Lifecycle commands manage the instance rather than talk to one.
   if (command === "boot") {
-    report(await cmdBoot(flag(argv, "--port")));
+    report(
+      await cmdBoot(flag(argv, "--port"), { fresh: argv.includes("--fresh") }),
+    );
   } else if (command === "stop") {
     report(cmdStop());
   } else {

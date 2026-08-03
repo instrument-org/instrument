@@ -5,7 +5,7 @@ import { DeveloperModeBadge } from "./tool-part/developer-mode-badge";
 
 // Shared shell for developer-mode-only regions: a dashed, muted card. Pairs with
 // DevModeCardHeader for the badge-led header used across debug peeks (injected
-// model context) and the system-prompt viewer.
+// model context).
 export function DevModeCard({
   children,
   className,

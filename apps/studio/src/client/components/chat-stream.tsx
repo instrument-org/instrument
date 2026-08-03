@@ -23,7 +23,6 @@ import {
   isVisibleAssistantPart,
   PLANNING_BOUNDARY_ID,
 } from "./chat-stream-utils";
-import { ContextMessages } from "./context-messages";
 import { MessageError } from "./message-error";
 import { ProjectContextNote } from "./project-context-note";
 import { ReasoningMessage } from "./reasoning-message";
@@ -64,20 +63,12 @@ export function ChatStream({
 }: ChatStreamProps) {
   const assetBaseUrl = getAssetBaseUrl(task.id);
 
-  const { contextMessages, regularMessages } = useMemo(() => {
-    const result = {
-      contextMessages: [] as SessionMessage.ContextWithParts[],
-      regularMessages: [] as SessionMessage.WithParts[],
-    };
-    for (const message of messages) {
-      if (message.role === "session-context") {
-        result.contextMessages.push(message);
-      } else {
-        result.regularMessages.push(message);
-      }
-    }
-    return result;
-  }, [messages]);
+  // The prompts the session was seeded with belong to the debug chat dialog,
+  // not the transcript.
+  const regularMessages = useMemo(
+    () => messages.filter((message) => message.role !== "session-context"),
+    [messages],
+  );
 
   const lastMessageId = regularMessages.at(-1)?.id;
   const lastRegularMessage = regularMessages.at(-1);
@@ -449,11 +440,6 @@ export function ChatStream({
     );
   }, [messages, isAgentRunning]);
 
-  const contextNode =
-    contextMessages.length > 0 && isDeveloperMode ? (
-      <ContextMessages messages={contextMessages} />
-    ) : null;
-
   const continueNode = shouldShowContinueButton ? (
     <Alert className="mt-4" variant="warning">
       <WarningIcon />
@@ -474,11 +460,6 @@ export function ChatStream({
   if (renderAsItems) {
     return (
       <>
-        {contextNode && (
-          <MessageScrollerItem key="context-messages">
-            {contextNode}
-          </MessageScrollerItem>
-        )}
         {chatElements}
         {continueNode && (
           <MessageScrollerItem key="continue">
@@ -496,7 +477,6 @@ export function ChatStream({
         "flex w-full flex-col gap-2",
       )}
     >
-      {contextNode}
       <div className="flex flex-col gap-2">{chatElements}</div>
       {continueNode}
     </div>

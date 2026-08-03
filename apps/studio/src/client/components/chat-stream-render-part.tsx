@@ -61,8 +61,8 @@ export function renderChatPart({
       case "user": {
         return <UserMessage key={part.metadata.id} part={part} />;
       }
-      // session-context messages are partitioned out before this loop and shown
-      // only via ContextMessages, so they never reach here.
+      // session-context messages are filtered out before this loop, so they
+      // never reach here.
       default: {
         return null;
       }

@@ -1,17 +1,9 @@
 import { logger } from "@/client/lib/logger";
 import { cn } from "@/client/lib/utils";
-import {
-  CaretDownIcon,
-  CaretUpIcon,
-  ColumnsIcon,
-  PushPinIcon,
-  PushPinSlashIcon,
-} from "@phosphor-icons/react";
+import { CaretDownIcon, CaretUpIcon, ColumnsIcon } from "@phosphor-icons/react";
 import {
   type Column,
   type ColumnDef,
-  type ColumnFiltersState,
-  type ColumnPinningState,
   type ColumnSizingState,
   getCoreRowModel,
   getFilteredRowModel,
@@ -81,6 +73,12 @@ interface CellPosition {
  * The tabular body shared by every viewer whose content is rows and columns:
  * delimited text, database tables, Parquet and line-delimited JSON.
  *
+ * This is a reader, not a data tool. It shows a table, lets someone find a row
+ * and take the values away, and stops there. Sorting, filtering and the row
+ * model come from `@tanstack/react-table`; what is written here is the part no
+ * headless table can give you, which is how the cells are drawn and how a
+ * selection is built across them.
+ *
  * It takes the whole table rather than a windowing callback. Every caller
  * already holds its rows in memory, and sorting and filtering are answered
  * across the entire set rather than the visible slice, so a paging interface
@@ -107,11 +105,7 @@ export function DataGrid({
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const [columnPinning, setColumnPinning] = useState<ColumnPinningState>({
-    left: [],
-  });
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>({});
   const [selection, setSelection] = useState<null | {
     anchor: CellPosition;
@@ -143,7 +137,6 @@ export function DataGrid({
             ? undefined
             : value;
         },
-        filterFn: containsText,
         header: column.name,
         id: String(index),
         size: measured[index] ?? MIN_COLUMN_WIDTH,
@@ -165,15 +158,11 @@ export function DataGrid({
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     globalFilterFn: containsText,
-    onColumnFiltersChange: setColumnFilters,
-    onColumnPinningChange: setColumnPinning,
     onColumnSizingChange: setColumnSizing,
     onColumnVisibilityChange: setColumnVisibility,
     onGlobalFilterChange: setGlobalFilter,
     onSortingChange: setSorting,
     state: {
-      columnFilters,
-      columnPinning,
       columnSizing,
       columnVisibility,
       globalFilter,
@@ -189,15 +178,9 @@ export function DataGrid({
   );
 
   const visibleRows = table.getRowModel().rows;
-  const pinnedColumns = table.getLeftVisibleLeafColumns();
-  const centerColumns = table.getCenterVisibleLeafColumns();
+  const visibleColumns = table.getVisibleLeafColumns();
 
-  let pinnedWidth = 0;
-  for (const column of pinnedColumns) {
-    pinnedWidth += column.getSize();
-  }
 
-   
   const rowVirtualizer = useVirtualizer({
     count: visibleRows.length,
     estimateSize: () => ROW_HEIGHT,
@@ -205,10 +188,11 @@ export function DataGrid({
     overscan: 12,
   });
 
-   
+
   const columnVirtualizer = useVirtualizer({
-    count: centerColumns.length,
-    estimateSize: (index) => centerColumns[index]?.getSize() ?? MIN_COLUMN_WIDTH,
+    count: visibleColumns.length,
+    estimateSize: (index) =>
+      visibleColumns[index]?.getSize() ?? MIN_COLUMN_WIDTH,
     getScrollElement: () => grid,
     horizontal: true,
     overscan: 3,
@@ -222,12 +206,10 @@ export function DataGrid({
     columnVirtualizer.measure();
   }, [columnSizing, columnVirtualizer]);
 
-  const centerWidth = columnVirtualizer.getTotalSize();
-
-  const columnCount = pinnedColumns.length + centerColumns.length;
+  const totalWidth = columnVirtualizer.getTotalSize();
 
   const selectedRange = resolveRange({
-    columnCount,
+    columnCount: visibleColumns.length,
     rowCount: visibleRows.length,
     selection,
   });
@@ -236,14 +218,13 @@ export function DataGrid({
     if (!selectedRange) {
       return null;
     }
-    const ordered = [...pinnedColumns, ...centerColumns];
+    const taken = visibleColumns.slice(
+      selectedRange.firstColumn,
+      selectedRange.lastColumn + 1,
+    );
     const block: string[][] = [];
     if (withHeaders) {
-      block.push(
-        ordered
-          .slice(selectedRange.firstColumn, selectedRange.lastColumn + 1)
-          .map((column) => columns[Number(column.id)]?.name ?? ""),
-      );
+      block.push(taken.map((column) => columns[Number(column.id)]?.name ?? ""));
     }
     for (
       let row = selectedRange.firstRow;
@@ -255,19 +236,18 @@ export function DataGrid({
         continue;
       }
       block.push(
-        ordered
-          .slice(selectedRange.firstColumn, selectedRange.lastColumn + 1)
-          // A copied `NULL` goes out as nothing rather than the four letters,
-          // which would paste as a string that happens to spell it.
-          .map((column) => String(record.getValue(column.id) ?? "")),
+        // A copied `NULL` goes out as nothing rather than the four letters,
+        // which would paste as a string that happens to spell it.
+        taken.map((column) => String(record.getValue(column.id) ?? "")),
       );
     }
     return block;
   };
 
-  // The grid is a stack of divs rather than a real table, so the browser has no
-  // selection to copy and its own menu would offer nothing. Both the shortcut
-  // and the menu below are what make a selection reachable at all.
+  // The grid is a stack of divs rather than a real table, and text selection is
+  // off across it, so the browser has no selection of its own to copy and its
+  // menu would offer nothing. Both the shortcut and the menu below are what
+  // make a selection reachable at all.
   useCopyShortcut({
     container: grid,
     onCopy: () => copyBlock(readSelection(false)),
@@ -287,7 +267,7 @@ export function DataGrid({
    * a selection, and so no way to reach the copy shortcut, without a pointer.
    */
   const moveSelection = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (visibleRows.length === 0 || columnCount === 0) {
+    if (visibleRows.length === 0 || visibleColumns.length === 0) {
       return;
     }
     const from = selection?.focus ?? { column: 0, row: 0 };
@@ -314,7 +294,7 @@ export function DataGrid({
       // whole table with the platform modifier, as a spreadsheet does.
       case "End": {
         to = {
-          column: columnCount - 1,
+          column: visibleColumns.length - 1,
           row:
             event.ctrlKey || event.metaKey ? visibleRows.length - 1 : from.row,
         };
@@ -334,18 +314,17 @@ export function DataGrid({
     // than stepping off it, since there is nothing to step from.
     const target = selection
       ? {
-          column: Math.min(Math.max(to.column, 0), columnCount - 1),
+          column: Math.min(
+            Math.max(to.column, 0),
+            visibleColumns.length - 1,
+          ),
           row: Math.min(Math.max(to.row, 0), visibleRows.length - 1),
         }
       : { column: 0, row: 0 };
 
     extendTo(target, event.shiftKey);
     rowVirtualizer.scrollToIndex(target.row);
-    // Pinned columns are always on screen, so only a centre column can be out
-    // of view, and its index there is its own rather than the grid's.
-    if (target.column >= pinnedColumns.length) {
-      columnVirtualizer.scrollToIndex(target.column - pinnedColumns.length);
-    }
+    columnVirtualizer.scrollToIndex(target.column);
   };
 
   const filtered = visibleRows.length !== rows.length;
@@ -378,7 +357,12 @@ export function DataGrid({
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <div
-            className="min-h-0 flex-1 overflow-auto outline-none focus-visible:outline-[2px] focus-visible:-outline-offset-2 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]"
+            // `select-none` because a drag has to mean one thing. Without it a
+            // drag across cells builds the grid's range and the browser's own
+            // text selection at the same time, and since the copy shortcut
+            // answers with the range, what the reader can see highlighted is
+            // not what lands on their clipboard.
+            className="min-h-0 flex-1 overflow-auto outline-none select-none focus-visible:outline-[2px] focus-visible:-outline-offset-2 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]"
             onKeyDown={moveSelection}
             onPointerDown={() => {
               grid?.focus({ preventScroll: true });
@@ -391,7 +375,7 @@ export function DataGrid({
               className="relative text-[0.8125rem]"
               style={{
                 height: rowVirtualizer.getTotalSize() + HEADER_HEIGHT,
-                width: pinnedWidth + centerWidth,
+                width: totalWidth,
               }}
             >
               <div
@@ -399,35 +383,13 @@ export function DataGrid({
                 role="row"
                 style={{ height: HEADER_HEIGHT }}
               >
-                {pinnedColumns.length > 0 && (
-                  <div
-                    // Sticky rather than placed at a fixed offset. Every cell
-                    // here is absolutely positioned inside the scrolled
-                    // content, so a pinned column left among them would slide
-                    // away with the rest; one sticky layer holds them all
-                    // against the left edge instead.
-                    className="sticky left-0 z-10 h-full bg-card"
-                    role="presentation"
-                    style={{ width: pinnedWidth }}
-                  >
-                    {pinnedColumns.map((column, index) => (
-                      <HeaderCell
-                        column={column}
-                        key={column.id}
-                        left={offsetOf(pinnedColumns, index)}
-                        onResize={headersById.get(column.id)?.getResizeHandler()}
-                        spec={columns[Number(column.id)]}
-                      />
-                    ))}
-                  </div>
-                )}
                 {columnVirtualizer.getVirtualItems().map((virtualColumn) => {
-                  const column = centerColumns[virtualColumn.index];
+                  const column = visibleColumns[virtualColumn.index];
                   return column ? (
                     <HeaderCell
                       column={column}
                       key={column.id}
-                      left={pinnedWidth + virtualColumn.start}
+                      left={virtualColumn.start}
                       onResize={headersById.get(column.id)?.getResizeHandler()}
                       spec={columns[Number(column.id)]}
                     />
@@ -440,7 +402,6 @@ export function DataGrid({
                 if (!record) {
                   return null;
                 }
-                const striped = virtualRow.index % 2 === 1;
                 return (
                   <div
                     className={cn(
@@ -449,7 +410,7 @@ export function DataGrid({
                       // the header already in flow, and the header offset in
                       // the transform below is then counted a second time.
                       "absolute inset-x-0 top-0",
-                      striped && "bg-muted/30",
+                      virtualRow.index % 2 === 1 && "bg-muted/30",
                     )}
                     key={record.id}
                     role="row"
@@ -458,60 +419,28 @@ export function DataGrid({
                       transform: `translateY(${virtualRow.start + HEADER_HEIGHT}px)`,
                     }}
                   >
-                    {pinnedColumns.length > 0 && (
-                      <div
-                        className="sticky left-0 z-10 h-full bg-card"
-                        role="presentation"
-                        style={{ width: pinnedWidth }}
-                      >
-                        {/* The stripe is drawn a second time inside the sticky
-                            layer. That layer has to be opaque to cover the
-                            columns passing beneath it, which paints over the
-                            row's own stripe. */}
-                        {striped && (
-                          <div className="absolute inset-0 bg-muted/30" />
-                        )}
-                        {pinnedColumns.map((column, index) => (
-                          <BodyCell
-                            align={columns[Number(column.id)]?.align}
-                            key={column.id}
-                            left={offsetOf(pinnedColumns, index)}
-                            onSelect={extendTo}
-                            position={{ column: index, row: virtualRow.index }}
-                            selected={inRange(selectedRange, {
-                              column: index,
-                              row: virtualRow.index,
-                            })}
-                            value={record.original[Number(column.id)] ?? null}
-                            width={column.getSize()}
-                          />
-                        ))}
-                      </div>
-                    )}
-                    {columnVirtualizer
-                      .getVirtualItems()
-                      .map((virtualColumn) => {
-                        const column = centerColumns[virtualColumn.index];
-                        if (!column) {
-                          return null;
-                        }
-                        const position = {
-                          column: pinnedColumns.length + virtualColumn.index,
-                          row: virtualRow.index,
-                        };
-                        return (
-                          <BodyCell
-                            align={columns[Number(column.id)]?.align}
-                            key={column.id}
-                            left={pinnedWidth + virtualColumn.start}
-                            onSelect={extendTo}
-                            position={position}
-                            selected={inRange(selectedRange, position)}
-                            value={record.original[Number(column.id)] ?? null}
-                            width={column.getSize()}
-                          />
-                        );
-                      })}
+                    {columnVirtualizer.getVirtualItems().map((virtualColumn) => {
+                      const column = visibleColumns[virtualColumn.index];
+                      if (!column) {
+                        return null;
+                      }
+                      const position = {
+                        column: virtualColumn.index,
+                        row: virtualRow.index,
+                      };
+                      return (
+                        <BodyCell
+                          align={columns[Number(column.id)]?.align}
+                          key={column.id}
+                          left={virtualColumn.start}
+                          onSelect={extendTo}
+                          position={position}
+                          selected={inRange(selectedRange, position)}
+                          value={record.original[Number(column.id)] ?? null}
+                          width={column.getSize()}
+                        />
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -540,11 +469,10 @@ export function DataGrid({
             onSelect={() => {
               setSelection(null);
               setGlobalFilter("");
-              setColumnFilters([]);
               setSorting([]);
             }}
           >
-            Reset sort and filters
+            Reset sort and filter
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
@@ -730,7 +658,7 @@ function HeaderCell({
 
   return (
     <div
-      className="group absolute top-0 flex h-full items-center border-r border-b border-border/60 bg-card"
+      className="absolute top-0 flex h-full items-center border-r border-b border-border/60 bg-card"
       role="columnheader"
       style={{ left, width: column.getSize() }}
     >
@@ -745,20 +673,6 @@ function HeaderCell({
         <span className="min-w-0 flex-1 truncate">{spec?.name}</span>
         {sorted === "asc" && <CaretUpIcon className="size-3 shrink-0" />}
         {sorted === "desc" && <CaretDownIcon className="size-3 shrink-0" />}
-      </button>
-      <button
-        className="shrink-0 px-1 text-muted-foreground/60 opacity-0 group-hover:opacity-100 hover:text-foreground"
-        onClick={() => {
-          column.pin(column.getIsPinned() === "left" ? false : "left");
-        }}
-        title={column.getIsPinned() === "left" ? "Unpin column" : "Pin column"}
-        type="button"
-      >
-        {column.getIsPinned() === "left" ? (
-          <PushPinSlashIcon className="size-3" />
-        ) : (
-          <PushPinIcon className="size-3" />
-        )}
       </button>
       {/* Dragging the edge resizes; the handle is the full height of the
           header so it can be grabbed without aiming. */}
@@ -807,14 +721,6 @@ function measureColumns({
       MAX_COLUMN_WIDTH,
     );
   });
-}
-
-function offsetOf(columns: Column<CellValue[]>[], index: number) {
-  let offset = 0;
-  for (let position = 0; position < index; position += 1) {
-    offset += columns[position]?.getSize() ?? 0;
-  }
-  return offset;
 }
 
 /**

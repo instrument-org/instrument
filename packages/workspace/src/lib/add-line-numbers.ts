@@ -2,7 +2,7 @@
 // roughly 5,000 lines.
 export const LINE_NUMBER_PAD_WIDTH = 4;
 
-// Single non-content character that separates the right-padded line number from
+// Single non-content character that separates the left-padded line number from
 // the actual file content. Exported so tool descriptions can reference it
 // directly instead of describing it in prose (which goes out of date).
 export const LINE_NUMBER_SEPARATOR = "→";

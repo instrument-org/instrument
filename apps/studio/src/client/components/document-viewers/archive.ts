@@ -1,7 +1,7 @@
 import {
-  BlobReader,
   configure,
   type FileEntry,
+  HttpRangeReader,
   ZipReader,
 } from "@zip.js/zip.js";
 
@@ -17,17 +17,18 @@ configure({ useWebWorkers: false });
 /**
  * Every member of an archive, read from its central directory.
  *
- * Nothing is decompressed. The directory is a table of contents at the end of
- * the file recording each member's name, sizes and timestamp, so listing an
- * archive costs the same whether it holds one small file or a compression
- * bomb; only {@link readArchiveMember} inflates anything.
+ * Nothing is decompressed, and nothing outside the directory is even fetched.
+ * The directory is a table of contents at the end of the file recording each
+ * member's name, sizes and timestamp, so a listing costs a few kilobytes
+ * whether the archive holds one small file or a compression bomb; only
+ * {@link readArchiveMember} inflates anything.
  *
  * Directory entries are dropped. A zip records them inconsistently -- some
  * writers emit one per folder, some none at all -- so a listing that kept them
  * would look different for two archives holding identical trees.
  */
 export async function readArchiveEntries(url: string): Promise<FileEntry[]> {
-  const reader = await openArchive(url);
+  const reader = openArchive(url);
   try {
     const entries = await reader.getEntries();
     return entries.filter(
@@ -60,7 +61,7 @@ export async function readArchiveMember({
   name: string;
   url: string;
 }): Promise<Blob | null> {
-  const reader = await openArchive(url);
+  const reader = openArchive(url);
   try {
     const entries = await reader.getEntries();
     const entry = entries.find(
@@ -86,7 +87,7 @@ export async function readArchiveMember({
  * close that throws inside a `finally` replaces whatever error sent it there,
  * and the viewer would then report the plumbing rather than the file.
  */
-async function closeQuietly(reader: Awaited<ReturnType<typeof openArchive>>) {
+async function closeQuietly(reader: ReturnType<typeof openArchive>) {
   try {
     await reader.close();
   } catch {
@@ -145,10 +146,22 @@ async function inflateBounded({
   return new Blob(chunks);
 }
 
-async function openArchive(url: string) {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to load file: ${response.statusText}`);
-  }
-  return new ZipReader(new BlobReader(await response.blob()));
+/**
+ * A reader over the archive at `url` that fetches only the bytes it is asked
+ * for, as HTTP range requests.
+ *
+ * The shape of the format is what makes this worth doing. A listing needs the
+ * central directory, a few kilobytes at the end of the file; one member needs
+ * its own extent and nothing else. Reading through a downloaded blob instead
+ * would put a copy of the whole archive in renderer memory in order to look at
+ * a fraction of it, and for a large one that is a gigabyte spent on bytes
+ * nothing is going to render.
+ *
+ * This depends on the asset server naming `Accept-Ranges` and `Content-Range`
+ * in `Access-Control-Expose-Headers`, since the renderer reads them from
+ * another origin. Without that the reader cannot see that partial reads are
+ * available and gives up on them.
+ */
+function openArchive(url: string) {
+  return new ZipReader(new HttpRangeReader(url));
 }

@@ -9,6 +9,24 @@ This skill explains how to connect Chrome DevTools tooling to the Studio Electro
 
 Use it alongside the generic `chrome-devtools` or `chrome-devtools-cli` skill for the actual commands and tool syntax.
 
+## Start here: `studio-drive.mjs`
+
+For driving the app rather than inspecting it, prefer the helper:
+
+```bash
+node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs boot
+node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs goto /release-notes
+node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs click --text "New skill"
+node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs shot out.png --selector '[role=dialog]'
+node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs stop
+```
+
+It talks to the debug port directly, so there is no CLI daemon to go stale, and it handles the things that otherwise fail quietly: real mouse and key input, visible-only element matching, browser-side screenshot cropping, and a check that something is actually mounted before it captures.
+
+**Boot your own instance; do not reach for port 48160.** That is the conventional port, so it is almost always a window a person is using: driving it means their clicks fight yours and their quit ends your run. `boot` claims a free port above it and records it per checkout, and every other command reads that record. There is no fallback to 48160 — pass `--port 48160` if you genuinely mean that instance.
+
+Route and modal commands go through `window.__studioDrive`, a dev-only handle the renderer attaches (`client/lib/studio-drive.ts`). `state` is how you find out where the app actually is; see Page Model below for why you cannot read that off the URL.
+
 ## Connection
 
 Studio exposes a remote debugging endpoint on port `48160`.
@@ -70,6 +88,13 @@ Studio is a single window / single web contents: `AppChrome` (sidebar + chrome) 
 
 Agent-browser tabs are renderer `<webview>` guests inside that same page, not separate DevTools-visible pages.
 
+The renderer does not put the current route in the window URL, and the main window restores its persisted tab session on load. Two consequences worth knowing before you debug something that is not broken:
+
+- `location.hash` is not the route. Use `studio-drive.mjs state`, which reports the active tab's real pathname, its tabs, and any open dialog's title.
+- Navigating the web contents to a route URL does not open that route: it loads, then the restored tabs paint over it. Use `goto`.
+
+In `state` output, `path` is authoritative and `tabs[].pathname` is the tab bar's mirror of it, which lands a moment later.
+
 ## How To Pick The Right Page
 
 1. Run `list_pages` and pick the Studio page (ignore any onboarding window unless that's what you're testing).
@@ -88,6 +113,15 @@ The rendered app root has `data-testid="app-page"` (`app-chrome.tsx`). Use it in
 4. Run `take_snapshot`.
 5. Verify you see the expected root marker or route content before clicking or typing.
 
+## States a dev build otherwise cannot reach
+
+Two states are gated in ways that make them invisible to a normal dev run. Both now have a dev panel entry under the `dev` badge:
+
+- **Updates > Simulate updated toast (reloads)** — the post-update toast only fires when the app launches on a version newer than the last launch. The item queues the bump and reloads, which is the same path a real update takes; the toast auto-dismisses after a few seconds, so capture promptly.
+- **Force quit guard** — dev builds skip the running-agent quit prompt so hot reload is never blocked on a dialog nobody sees. The checkbox opts back in. It is in memory only, so a relaunch clears it; while it is on, a main-process rebuild will wait on the dialog.
+
+The quit prompt is a native `showMessageBox`, so it is outside the web contents entirely. CDP cannot capture it; use an OS screen capture.
+
 ## Evaluating JavaScript
 
 Use `evaluate_script` (not `evaluate_js`) to run code in the selected page:
@@ -102,6 +136,9 @@ Important: the argument must be a named `function()` declaration string, not an 
 
 ## Interaction Notes
 
+- `element.click()` from `evaluate_script` reaches a plain `<button>` but not a handler mounted on an ancestor, which is how file cards and list rows are built. It returns normally, so the script carries on against an unchanged UI. Use real input (`studio-drive.mjs click`, or the CLI's `click <uid>`).
+- Anything driven by a real gesture needs one. `use-stick-to-bottom` releases auto-follow on `wheel`, so assigning `scrollTop` is immediately overridden and transient UI that only shows when scrolled away from the live edge stays unreachable.
+- After editing main-process code, the dev server relaunches Electron and the new instance can lose the debug port to the dying one (`bind() failed: Address already in use`). The app comes back without a debug endpoint; restart the dev server.
 - Studio enables Chromium's `allow-pre-commit-input` switch to make CDP mouse input work better with `<webview>` guests (agent-browser tabs).
 - If an interaction fails, re-run `list_pages` and `take_snapshot` before retrying.
 - For route-specific work, prefer selecting the page that already has the target route open over trying to navigate the wrong renderer into place.

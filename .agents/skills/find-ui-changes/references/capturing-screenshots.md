@@ -2,83 +2,31 @@
 
 How to drive the running Studio app and produce one cropped image per surface in the queue.
 
-Read `.agents/skills/studio-chrome-devtools/SKILL.md` first for connection details. This file covers only what is specific to screenshotting review surfaces.
+Read `.agents/skills/studio-chrome-devtools/SKILL.md` for the general picture. This file covers only what is specific to screenshotting review surfaces.
 
-## Connect
-
-Studio must already be running with a debug port. If it is not, boot it from `apps/studio`:
+## Drive it with studio-drive.mjs
 
 ```bash
-REMOTE_DEBUGGING_PORT=48160 pnpm dev
+DRIVE=".agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs"
+
+node $DRIVE boot                                     # your own instance, on its own port
+node $DRIVE goto /skills
+node $DRIVE click --text "New skill"
+node $DRIVE shot shots/skills.png --selector '[role=dialog]' --pad 8
+node $DRIVE stop
 ```
 
-Unset `ELECTRON_RUN_AS_NODE` first or Electron starts as Node and exits without a window.
+`boot` starts an instance this run owns rather than attaching to whatever is on the conventional port, which is usually a window a person is working in. Boot from the same checkout the range came from, and confirm nothing landed after your range that touches these surfaces: a worktree on a feature branch will show UI that is not in the queue.
 
-```bash
-export CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS=1
-pnpm exec chrome-devtools start --browserUrl http://127.0.0.1:48160
-pnpm exec chrome-devtools list_pages --output-format=json
-```
+`goto` and `state` go through the renderer's dev-only drive handle, so a surface is one call away instead of a click chain, and `state` tells you where you actually are. `click` matches on accessible name and dispatches real input. `shot --selector` crops browser-side at native resolution.
 
-Boot Studio from the same checkout the range came from, and confirm nothing after your range touched these surfaces. A worktree running a feature branch will show UI that is not in the queue.
+## Choosing the frame
 
-## Drive the app
+A full-window shot is right when the surface is about framing or layout. A cropped element is right for everything else — pass `--selector` or `--text`. Trim panels to the region that carries the change: a viewer body that is 60% empty reads as a bug in the screenshot rather than as a viewer.
 
-Use `take_snapshot` to get element uids, then `click <uid>`. Those dispatch real CDP input.
+Check the reported `dimensions`. A crop that silently did not apply comes back at full-window size.
 
-`element.click()` from `evaluate_script` works on plain buttons but silently does nothing on cards and other composite rows whose handler sits on an ancestor. If a click appears to succeed and the UI does not change, that is the cause.
-
-Two traps when picking a control:
-
-- **Do not guess a toolbar button by its index in the snapshot.** Unlabeled icon buttons appear as bare `button` entries, and off-by-one lands on the close button. Map them by geometry instead, then click the one at the expected position:
-
-  ```bash
-  pnpm exec chrome-devtools evaluate_script "function() {
-    const out = [];
-    document.querySelectorAll('button').forEach((b) => {
-      const r = b.getBoundingClientRect();
-      if (r.width === 0) return;
-      out.push({ x: Math.round(r.x), y: Math.round(r.y), label: (b.getAttribute('aria-label') || b.innerText || '').trim().slice(0, 20) });
-    });
-    return out.sort((a, b) => a.y - b.y || a.x - b.x);
-  }"
-  ```
-
-- **Filter to visible elements when matching by text.** Filenames and labels often appear two or more times in the DOM, and the hidden copy has a zero rect. Require `getBoundingClientRect().width > 0`.
-
-## Reaching a surface
-
-The renderer does not put the current route in the URL, and Studio restores its persisted tab session on load. So:
-
-- `location.hash` is not the route. Check `document.title` or on-screen content to confirm where you are.
-- Navigating the renderer to a route URL does not open that route. It loads, then the app restores the previous tabs over it.
-- Reach routes the way a user does: click the task in the sidebar, use the task header's Files tab, or open Settings. In developer mode the dev badge has a Pages menu that opens routes in a new tab.
-- Release notes: Settings, then General, then Release notes.
-
-Pick a task that already contains the files or state the surface needs rather than driving the agent to produce them.
-
-## Screenshot and crop
-
-`take_screenshot` writes **device pixels**; `getBoundingClientRect()` returns **CSS pixels**. Measure the element, then crop with `devicePixelRatio`. Never convert by eye.
-
-```bash
-pnpm exec chrome-devtools take_screenshot --filePath /tmp/full.png
-pnpm exec chrome-devtools evaluate_script "function() {
-  const r = document.querySelector('SELECTOR').getBoundingClientRect();
-  return { x: r.x, y: r.y, w: r.width, h: r.height, dpr: window.devicePixelRatio };
-}"
-```
-
-Crop with any image library; multiply each value by `dpr`.
-
-A full-viewport shot is right for a surface that is about framing or layout. A cropped panel is right for everything else. Trim tall panels to the region that carries the change: a viewer body that is 60% empty reads as a bug in the screenshot.
-
-`--uid` takes an element screenshot directly, which is simpler when the target is a single labelled element.
-
-## Two failure modes that waste time
-
-- **Black frames.** If the window is occluded or the app is mid-reload, the capture is a uniform dark rectangle and repeated captures are byte-identical. Check the file size against a known-good shot before trusting a frame.
-- **Dev-server reloads.** Any commit or file change in the checkout triggers an HMR sweep that resets the app to its start route mid-run. If a step suddenly acts as though nothing is open, re-navigate and retry rather than debugging the click.
+Pick a task that already holds the files or state a surface needs rather than driving the agent to produce them. For states with no ordinary path — the post-update toast, the running-agent quit prompt — see the dev panel entries listed in the studio-chrome-devtools skill.
 
 ## Attaching to Notion
 

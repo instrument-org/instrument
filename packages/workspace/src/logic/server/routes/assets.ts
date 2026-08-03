@@ -22,7 +22,14 @@ const app = new Hono<WorkspaceServerEnv>();
 // `cors()` and the handler below are typed against this app's env explicitly:
 // the handler `app.use` infers carries `any` for its input, which does not
 // typecheck as an argument to another middleware.
-const corsMiddleware: MiddlewareHandler<WorkspaceServerEnv> = cors();
+const corsMiddleware: MiddlewareHandler<WorkspaceServerEnv> = cors({
+  // A response header is invisible to `fetch` across origins unless it is named
+  // here, and the renderer is always a different origin from this server. Both
+  // of these are what a reader of part of a file needs: `Accept-Ranges` to know
+  // that partial reads are answered at all, and `Content-Range` to learn the
+  // whole file's size from a response carrying only a slice of it.
+  exposeHeaders: ["Accept-Ranges", "Content-Range"],
+});
 
 const corsOnAssetsOrigin: MiddlewareHandler<WorkspaceServerEnv> = async (
   c,

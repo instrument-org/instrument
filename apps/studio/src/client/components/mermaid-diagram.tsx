@@ -13,6 +13,11 @@ import {
 import { CopyButton } from "./copy-button";
 import { useTheme } from "./theme-provider";
 
+/** How long to wait before asking again for a diagram whose render threw, and
+ * how many times. Spaced out and few: a fetch still failing after this is not
+ * the transient blip the retry is for. */
+const RETRY_DELAYS_MS = [1000, 5000];
+
 /**
  * A ```mermaid fence, rendered as a diagram once its source parses.
  *
@@ -34,6 +39,7 @@ export const MermaidDiagram = ({
   const surfaceRef = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState<string>();
   const [showSource, setShowSource] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   // Same reason `CodeBlock` defers: the fence is rewritten on every token, and
   // a mermaid render is far too expensive to run at that rate.
   const deferredCode = useDeferredValue(code);
@@ -49,6 +55,7 @@ export const MermaidDiagram = ({
     }
 
     let isCancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     void renderMermaid({ code: source, theme: resolvedTheme })
       .then((rendered) => {
@@ -61,14 +68,27 @@ export const MermaidDiagram = ({
         }
       })
       .catch(() => {
-        // A render that throws past a successful parse gets the same
-        // treatment: keep whatever is on screen.
+        // Keep whatever is on screen, then ask again. A throw here is nearly
+        // always the chunk fetch dropping, and while `loadMermaid` will refetch
+        // for the next caller, a diagram in a finished message never becomes
+        // one: its source, theme and visibility have all settled, so nothing
+        // would re-run this effect. Without a retry of its own, this one fence
+        // stays a code block for the rest of the session while every diagram
+        // that mounts later recovers.
+        const delay = RETRY_DELAYS_MS[attempt];
+        if (isCancelled || delay === undefined) {
+          return;
+        }
+        retryTimer = setTimeout(() => {
+          setAttempt(attempt + 1);
+        }, delay);
       });
 
     return () => {
       isCancelled = true;
+      clearTimeout(retryTimer);
     };
-  }, [deferredCode, isNear, resolvedTheme]);
+  }, [attempt, deferredCode, isNear, resolvedTheme]);
 
   if (!svg) {
     // Also where a diagram waiting on the viewport sits, which is the same

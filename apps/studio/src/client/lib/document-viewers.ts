@@ -53,16 +53,14 @@ export const LazyXlsxViewer = lazy(async () => {
 // Neither of these needs a wasm source configured: zip.js is plain JavaScript.
 // They stay lazy so the archive reader loads only when a container is opened.
 export const LazyArchiveViewer = lazy(async () => {
-  const module = await import(
-    "@/client/components/document-viewers/archive-viewer"
-  );
+  const module =
+    await import("@/client/components/document-viewers/archive-viewer");
   return { default: module.ArchiveViewer };
 });
 
 export const LazyIWorkViewer = lazy(async () => {
-  const module = await import(
-    "@/client/components/document-viewers/iwork-viewer"
-  );
+  const module =
+    await import("@/client/components/document-viewers/iwork-viewer");
   return { default: module.IWorkViewer };
 });
 
@@ -78,25 +76,22 @@ export const LazyCsvViewer = lazy(async () => {
 // `JSON.parse` per line. They stay lazy so the reader and the grid load only
 // when one is opened.
 export const LazyJsonlViewer = lazy(async () => {
-  const module = await import(
-    "@/client/components/document-viewers/jsonl-viewer"
-  );
+  const module =
+    await import("@/client/components/document-viewers/jsonl-viewer");
   return { default: module.JsonlViewer };
 });
 
 export const LazyParquetViewer = lazy(async () => {
-  const module = await import(
-    "@/client/components/document-viewers/parquet-viewer"
-  );
+  const module =
+    await import("@/client/components/document-viewers/parquet-viewer");
   return { default: module.ParquetViewer };
 });
 
 // SQLite fetches its wasm through the Emscripten `locateFile` hook rather than
 // a module-level setter, so the viewer passes `SQLITE_WASM_URL` itself.
 export const LazySqliteViewer = lazy(async () => {
-  const module = await import(
-    "@/client/components/document-viewers/sqlite-viewer"
-  );
+  const module =
+    await import("@/client/components/document-viewers/sqlite-viewer");
   return { default: module.SqliteViewer };
 });
 

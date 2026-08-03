@@ -31,7 +31,9 @@ export function toTabSeparated(rows: string[][]) {
   // Tabs and newlines inside a cell would forge a column or row boundary in a
   // format that has no way to quote them, so they become spaces.
   return rows
-    .map((row) => row.map((cell) => cell.replaceAll(/[\t\n\r]/g, " ")).join("\t"))
+    .map((row) =>
+      row.map((cell) => cell.replaceAll(/[\t\n\r]/g, " ")).join("\t"),
+    )
     .join("\n");
 }
 

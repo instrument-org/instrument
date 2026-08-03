@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 //
 // A `.tsx` file with no JSX in it, because that is how a test here asks for a
 // DOM: rendering reads the app's palette off the document, so `renderMermaid`
-// cannot run in the node environment its neighbours in `mermaid.test.ts` use.
+// cannot run in the node environment its neighbors in `mermaid.test.ts` use.
 
 describe("renderMermaid chunk loading", () => {
   afterEach(() => {

@@ -102,7 +102,8 @@ export function ArchiveViewer({ url }: { url: string }) {
     <>
       <ViewerToolbar>
         <span className="px-1 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-          {shown.length.toLocaleString()} {shown.length === 1 ? "item" : "items"}
+          {shown.length.toLocaleString()}{" "}
+          {shown.length === 1 ? "item" : "items"}
           {/* Sizes are what the archive says about itself, which is exactly
               what a compression bomb overstates, so the total is labelled as a
               claim rather than presented as a measurement. */}

@@ -102,9 +102,8 @@ async function readParquet(url: string) {
   }
   const buffer = await response.arrayBuffer();
 
-  const { parquetMetadataAsync, parquetReadObjects } = await import(
-    "hyparquet"
-  );
+  const { parquetMetadataAsync, parquetReadObjects } =
+    await import("hyparquet");
   const metadata = await parquetMetadataAsync(buffer);
   const total = Number(metadata.num_rows);
 

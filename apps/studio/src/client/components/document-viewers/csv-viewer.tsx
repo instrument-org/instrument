@@ -60,8 +60,8 @@ function parseDelimited({
     skipEmptyLines: "greedy",
   });
 
-  const records = parsed.data.filter(
-    (record): record is string[] => Array.isArray(record),
+  const records = parsed.data.filter((record): record is string[] =>
+    Array.isArray(record),
   );
 
   // Ragged files are ordinary rather than broken, so every record is squared

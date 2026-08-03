@@ -31,9 +31,7 @@ export async function readArchiveEntries(url: string): Promise<FileEntry[]> {
   const reader = openArchive(url);
   try {
     const entries = await reader.getEntries();
-    return entries.filter(
-      (entry): entry is FileEntry => !entry.directory,
-    );
+    return entries.filter((entry): entry is FileEntry => !entry.directory);
   } finally {
     await closeQuietly(reader);
   }

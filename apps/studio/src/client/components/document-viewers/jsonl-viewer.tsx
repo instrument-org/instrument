@@ -102,11 +102,7 @@ function JsonlBody({ text }: { text: string }) {
   }
 
   return (
-    <DataGrid
-      columns={parsed.columns}
-      note={parsed.note}
-      rows={parsed.rows}
-    />
+    <DataGrid columns={parsed.columns} note={parsed.note} rows={parsed.rows} />
   );
 }
 
@@ -125,7 +121,11 @@ function parseLines(text: string) {
       const value: unknown = JSON.parse(line);
       // Arrays are objects too, and an array per line is a list rather than a
       // record, so it does not become a row of named columns.
-      if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+      if (
+        typeof value === "object" &&
+        value !== null &&
+        !Array.isArray(value)
+      ) {
         records.push(value as Record<string, unknown>);
       } else {
         malformed += 1;

@@ -93,6 +93,26 @@ A pleasant side effect: dev instances currently share one application-data direc
 
 Only once the above is boring. `.agents/cloud-dev.md` has the headless notes already (`NO_SANDBOX`, Xvfb). The shape is: seed, boot, drive assertions through `studio-drive`, capture a screenshot on failure as the artifact. Keep the first CI job small — one workspace, a handful of surfaces — because the value is in it running at all, and a broad suite that flakes gets muted.
 
+## Settings are per workspace, and that is a feature
+
+Redirecting `userData` moves more than the tasks. `preferences.json`, `features.json`, `app-state.json`, `tabs.json` and the provider config all live there, so a fixture can pin the settings a surface needs instead of depending on how the developer left their app: feature flags on or off, theme, developer mode, zoom, which tabs are open.
+
+Let the manifest declare only what the fixture actually depends on, and let everything else fall through to the app's own defaults. A fixture that pins every setting will break every time a default changes, which is the opposite of what it is for. A fixture for the skills UI should say "skills enabled" and nothing more.
+
+One thing does not follow this pattern. A seeded workspace has no provider credentials, and it must not: they cannot be committed. That is fine for anything replayed, which is the point of `replay-stub`. A fixture that needs a live model has to take credentials from the environment, and in CI that means a secret, which is a good reason to keep live-model fixtures out of the first pass.
+
+## Lifecycle and disk
+
+Seeded workspaces are small. The state a fixture actually needs is the task database and its output: in a representative existing task those are 200 KB and 80 KB. What makes real task directories large is `work/`, which reaches hundreds of megabytes once an agent has run `pnpm install` or built a virtualenv in it. Replay never does that, so a seeded workspace stays in the low megabytes however many tasks it holds.
+
+The bloat only appears when a fixture is used to run a live agent. That distinction should drive the cleanup design rather than a blanket policy:
+
+- Put workspaces under the OS cache directory keyed by checkout, the way `studio-drive` already keys its session file. Never in the repo, never in the shared application-data directory.
+- `--fresh` rebuilds one. That covers the common case, which is a fixture that has drifted rather than disk pressure.
+- Reap on age at boot, not by asking people to run a clean command, because nobody runs a clean command. A workspace untouched for a couple of weeks can be dropped: it costs a reseed, which is cheap by construction.
+- Reap `work/` more eagerly than the workspace around it. It is the only part that grows, it is always reproducible, and deleting it does not invalidate the fixture.
+- CI needs none of this. The runner is ephemeral, so seed, use, discard.
+
 ## Risks worth naming up front
 
 - **Both adjacent plans move task storage.** Going through app APIs rather than the filesystem is what makes this survivable. Worth a note in the seeder itself, not just here.

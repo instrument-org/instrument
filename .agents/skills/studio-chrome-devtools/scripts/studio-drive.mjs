@@ -33,7 +33,7 @@
 //
 // Pass `--port` to target a specific instance on purpose.
 
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   existsSync,
@@ -60,10 +60,35 @@ const COMMANDS = new Set([
   "wait",
 ]);
 const CONVENTIONAL_PORT = 48_160;
-const REPO_ROOT = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../../../..",
-);
+
+/**
+ * The checkout to drive is the one the caller is standing in, not the one this
+ * file happens to live in. Those differ whenever a worktree predates the commit
+ * that added this script and someone runs it by absolute path from elsewhere,
+ * and resolving it the other way round fails in the worst possible manner: it
+ * boots the *other* checkout's app, on that checkout's port, and every
+ * observation after that is confidently about the wrong code.
+ *
+ * `git rev-parse --show-toplevel` answers this correctly inside a worktree,
+ * which is exactly the case that goes wrong. Falling back to this file's own
+ * location keeps it working when run from outside any checkout.
+ */
+function resolveRepoRoot() {
+  try {
+    const top = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    if (top && existsSync(path.join(top, "apps/studio"))) {
+      return top;
+    }
+  } catch {
+    // Not in a checkout, or no git. Fall through.
+  }
+  return path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+}
+
+const REPO_ROOT = resolveRepoRoot();
 const STUDIO_DIR = path.join(REPO_ROOT, "apps/studio");
 
 // Keyed by checkout so two worktrees driving at once do not read each other's
@@ -119,8 +144,21 @@ async function drive(cdp, call) {
   return evaluate(cdp, `window.__studioDrive.${call}`);
 }
 
-/** Evaluate an expression in the page and return its JSON value. */
-async function evaluate(cdp, expression) {
+/**
+ * Evaluate an expression in the page and return its JSON value.
+ *
+ * Accepts the anonymous `function () { ... }` form too, because the
+ * chrome-devtools CLI's `evaluate_script` next door requires exactly that and
+ * the habit carries over. On its own that source is a function *statement*
+ * missing a name, so it fails to parse with an error that says nothing about
+ * the mismatch.
+ */
+async function evaluate(cdp, source) {
+  const trimmed = String(source).trim();
+  const expression = /^(?:async\s+)?function\s*\(/.test(trimmed)
+    ? `(${trimmed})()`
+    : trimmed;
+
   const { exceptionDetails, result } = await cdp.send("Runtime.evaluate", {
     awaitPromise: true,
     expression,

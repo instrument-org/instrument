@@ -23,6 +23,8 @@ node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs stop
 
 It talks to the debug port directly, so there is no CLI daemon to go stale, and it handles the things that otherwise fail quietly: real mouse and key input, visible-only element matching, browser-side screenshot cropping, and a check that something is actually mounted before it captures.
 
+**In a worktree that predates this script, run it from the worktree anyway.** The checkout it drives is the one your shell is standing in, resolved with `git rev-parse --show-toplevel`, not the one the file lives in. So invoking another checkout's copy by absolute path is fine, and `boot` still starts *your* worktree's app on *your* worktree's port. Copying the script in also works and is tidier.
+
 **Boot your own instance; do not reach for port 48160.** That is the conventional port, so it is almost always a window a person is using: driving it means their clicks fight yours and their quit ends your run. `boot` claims a free port above it and records it per checkout, and every other command reads that record. There is no fallback to 48160 — pass `--port 48160` if you genuinely mean that instance.
 
 Route and modal commands go through `window.__studioDrive`, a dev-only handle the renderer attaches (`client/lib/studio-drive.ts`). `state` is how you find out where the app actually is; see Page Model below for why you cannot read that off the URL.

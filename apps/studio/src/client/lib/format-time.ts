@@ -18,13 +18,3 @@ export function formatDuration(durationMs: number): string {
 
   return `${minutes}m ${remainingSeconds}s`;
 }
-
-export function formatDurationFromDates(
-  startTime?: Date,
-  endTime?: Date,
-): string {
-  if (!startTime || !endTime) {
-    return "";
-  }
-  return formatDuration(endTime.getTime() - startTime.getTime());
-}

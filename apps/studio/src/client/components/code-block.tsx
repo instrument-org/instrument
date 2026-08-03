@@ -5,7 +5,7 @@ import { CopyButton } from "./copy-button";
 
 /** Shared styling for the controls that float over a rendered block. */
 export const blockToolbarButtonClassName =
-  "rounded-md border border-border/50 bg-background/80 p-1 text-muted-foreground backdrop-blur-sm hover:bg-muted hover:text-foreground";
+  "rounded-md border border-border/50 bg-background p-1 text-muted-foreground hover:bg-muted hover:text-foreground";
 
 export const CodeWithCopy = ({
   children,

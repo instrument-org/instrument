@@ -16,14 +16,15 @@ const ZOOMED_IN_THRESHOLD = 1.01;
  * Wheel, pinch and drag zoom for a diagram sitting inline in a transcript.
  *
  * The transcript scrolls, which decides the one thing that differs from the
- * image viewer's panzoom: a bare wheel has to keep scrolling the page. Zoom is
- * on the modifier, which is also what a trackpad pinch arrives as, so the
- * gesture people already use works and a scroll over a diagram never traps
- * itself.
+ * image viewer's panzoom: the wheel is the page's until the reader hands it
+ * over. A diagram that swallowed the scroll of everyone whose pointer crossed
+ * it would be a trap, so taking it is deliberate — the capture toggle, or the
+ * modifier a trackpad pinch already arrives as.
  */
 export function useDiagramPanzoom({
   contentRef,
   enabled,
+  rootRef,
   viewportRef,
 }: {
   contentRef: RefObject<HTMLDivElement | null>;
@@ -32,10 +33,24 @@ export function useDiagramPanzoom({
    * mounts later (the diagram replacing its source block, or the source view
    * being toggled back) would leave this bound to an element long detached. */
   enabled: boolean;
+  /** The whole diagram block, controls included. Clicking away releases the
+   * wheel, and the zoom buttons sit outside the panning frame — testing
+   * against that frame alone would drop the capture on the way to the button
+   * that was meant to use it. */
+  rootRef: RefObject<HTMLDivElement | null>;
   viewportRef: RefObject<HTMLDivElement | null>;
 }) {
   const panzoomRef = useRef<null | PanzoomObject>(null);
   const [isZoomed, setIsZoomed] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
+  // Read by the wheel handler, which is bound once alongside the panzoom
+  // instance: re-binding it per keystroke of state would mean tearing down the
+  // instance and losing the zoom the reader had set.
+  const isCapturingRef = useRef(false);
+  const setCapturing = (next: boolean) => {
+    isCapturingRef.current = next;
+    setIsCapturing(next);
+  };
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -57,9 +72,11 @@ export function useDiagramPanzoom({
     panzoomRef.current = panzoom;
 
     const handleWheel = (event: WheelEvent) => {
-      // Bare wheel belongs to the transcript. macOS reports a trackpad pinch as
-      // ctrl+wheel, so this is also what makes pinch work.
-      if (!event.ctrlKey && !event.metaKey) {
+      // Until the reader has taken the diagram, a bare wheel belongs to the
+      // transcript — a diagram that swallowed the scroll of anyone whose
+      // pointer crossed it would be a trap. macOS reports a trackpad pinch as
+      // ctrl+wheel, which is why that works without taking anything.
+      if (!isCapturingRef.current && !event.ctrlKey && !event.metaKey) {
         return;
       }
       event.preventDefault();
@@ -82,12 +99,45 @@ export function useDiagramPanzoom({
       panzoom.resetStyle();
       panzoomRef.current = null;
       setIsZoomed(false);
+      setCapturing(false);
     };
   }, [contentRef, enabled, viewportRef]);
 
+  // Handing the wheel back has to be as easy as taking it, and neither of the
+  // two ways out involves finding the button again.
+  useEffect(() => {
+    if (!isCapturing) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setCapturing(false);
+      }
+    };
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !rootRef.current?.contains(event.target)
+      ) {
+        setCapturing(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [isCapturing, rootRef]);
+
   return {
+    isCapturing,
     isZoomed,
     reset: () => panzoomRef.current?.reset(),
+    setCapturing,
     zoomIn: () => panzoomRef.current?.zoomIn(),
     zoomOut: () => panzoomRef.current?.zoomOut(),
   };

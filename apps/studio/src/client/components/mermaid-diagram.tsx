@@ -1,8 +1,11 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
+import { cn } from "@/client/lib/utils";
 import {
   ArrowsInIcon,
   CodeIcon,
   GraphIcon,
+  HandGrabbingIcon,
+  HandIcon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
 } from "@phosphor-icons/react";
@@ -61,11 +64,13 @@ export const MermaidDiagram = ({
   // measured in tens of milliseconds. Rendering the ones far below the fold on
   // mount spends all of it before the reader has scrolled to any of them.
   const { isNear, ref: viewportRef } = useNearViewport<HTMLDivElement>();
-  const { isZoomed, reset, zoomIn, zoomOut } = useDiagramPanzoom({
-    contentRef: panContentRef,
-    enabled: Boolean(svg) && !showSource,
-    viewportRef: panViewportRef,
-  });
+  const { isCapturing, isZoomed, reset, setCapturing, zoomIn, zoomOut } =
+    useDiagramPanzoom({
+      contentRef: panContentRef,
+      enabled: Boolean(svg) && !showSource,
+      rootRef: viewportRef,
+      viewportRef: panViewportRef,
+    });
 
   useEffect(() => {
     const source = deferredCode.trim();
@@ -157,44 +162,71 @@ export const MermaidDiagram = ({
 
   return (
     <div className="group relative isolate my-4" ref={viewportRef}>
-      {/* Reveal on focus as well as hover, so tabbing to the toggle or copy
-          does not land on an invisible control. */}
-      <div className="absolute top-1 right-1 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
-        {!showSource && (
-          <>
-            <button
-              aria-label="Zoom out"
-              className={blockToolbarButtonClassName}
-              onClick={zoomOut}
-              title="Zoom out"
-              type="button"
-            >
-              <MagnifyingGlassMinusIcon size={12} />
-            </button>
-            <button
-              aria-label="Zoom in"
-              className={blockToolbarButtonClassName}
-              onClick={zoomIn}
-              title="Zoom in"
-              type="button"
-            >
-              <MagnifyingGlassPlusIcon size={12} />
-            </button>
-            {/* Only once there is something to undo, so the row stays as short
-                as it can be over the diagram it covers. */}
-            {isZoomed && (
-              <button
-                aria-label="Reset zoom"
-                className={blockToolbarButtonClassName}
-                onClick={reset}
-                title="Reset zoom"
-                type="button"
-              >
-                <ArrowsInIcon size={12} />
-              </button>
+      {/* Its own corner, so a control that comes and goes never shifts the
+          buttons opposite it out from under the pointer aiming at them.
+          Revealed on focus as well as hover, so tabbing through never lands on
+          an invisible control. */}
+      {!showSource && (
+        <div className="absolute top-1 left-1 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+          <button
+            aria-label={
+              isCapturing ? "Release the diagram" : "Zoom this diagram"
+            }
+            aria-pressed={isCapturing}
+            className={cn(
+              blockToolbarButtonClassName,
+              isCapturing && "bg-accent text-foreground",
             )}
-          </>
-        )}
+            onClick={() => {
+              setCapturing(!isCapturing);
+            }}
+            title={
+              isCapturing
+                ? "Release the diagram (Esc)"
+                : "Zoom this diagram with the wheel"
+            }
+            type="button"
+          >
+            {isCapturing ? (
+              <HandGrabbingIcon size={12} />
+            ) : (
+              <HandIcon size={12} />
+            )}
+          </button>
+          <button
+            aria-label="Zoom out"
+            className={blockToolbarButtonClassName}
+            onClick={zoomOut}
+            title="Zoom out"
+            type="button"
+          >
+            <MagnifyingGlassMinusIcon size={12} />
+          </button>
+          <button
+            aria-label="Zoom in"
+            className={blockToolbarButtonClassName}
+            onClick={zoomIn}
+            title="Zoom in"
+            type="button"
+          >
+            <MagnifyingGlassPlusIcon size={12} />
+          </button>
+          {/* Kept in place rather than mounted on demand: this row sits under
+              the pointer that is reaching for it. */}
+          <button
+            aria-label="Reset zoom"
+            className={cn(blockToolbarButtonClassName, "disabled:opacity-40")}
+            disabled={!isZoomed}
+            onClick={reset}
+            title="Reset zoom"
+            type="button"
+          >
+            <ArrowsInIcon size={12} />
+          </button>
+        </div>
+      )}
+
+      <div className="absolute top-1 right-1 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
         <button
           aria-label={showSource ? "Show diagram" : "Show source"}
           className={blockToolbarButtonClassName}
@@ -223,7 +255,12 @@ export const MermaidDiagram = ({
         // moves labels off the shapes they name, but the source view above is
         // a code block and wants exactly the styling every other one gets.
         <div
-          className="not-prose rounded-md border border-border bg-background"
+          className={cn(
+            "not-prose rounded-md border border-border bg-background",
+            // The wheel behaves differently while the diagram holds it, so it
+            // has to be visible that it does.
+            isCapturing && "ring-2 ring-ring",
+          )}
           ref={surfaceRef}
         >
           {/* A diagram wider than the chat column shrinks to fit rather than
@@ -232,7 +269,13 @@ export const MermaidDiagram = ({
               currently outside the frame. */}
           <div className="overflow-hidden p-3" ref={panViewportRef}>
             <div
-              className={isZoomed ? "cursor-grab [&_button]:cursor-grab" : ""}
+              className={cn(
+                isZoomed && "cursor-grab [&_button]:cursor-grab",
+                // Clicking through to the full-window preview is the other
+                // thing this surface does, and it would fire on every attempt
+                // to grab the diagram while it is being read in place.
+                isCapturing && "[&_button]:pointer-events-none",
+              )}
               ref={panContentRef}
             >
               <button

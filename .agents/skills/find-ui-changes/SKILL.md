@@ -54,6 +54,17 @@ Exclude:
 
 When uncertain, prefer omitting marginal items. The queue should be short enough for a designer to scan.
 
+## Screenshots
+
+Optional, and only when the user asks for them. A queue without images is still a complete answer.
+
+When asked, capture one image per surface from the running app and reference it in that surface's entry. See [references/capturing-screenshots.md](references/capturing-screenshots.md) for connecting to Studio, driving it, and cropping.
+
+Two things to settle before starting, because both can invalidate the work:
+
+- Screenshot the checkout the range came from, on a build that has nothing newer affecting those surfaces.
+- Ask where the images should end up, and get approval for that batch before uploading anything. Putting them anywhere outside this machine, Notion included, means a third-party host sees them first.
+
 ## Output
 
 Use this shape:
@@ -66,6 +77,8 @@ Use this shape:
   One short sentence describing what changed.
 
   Source changes: [abc1234](https://github.com/instrument-org/instrument/commit/abc1234), [def5678](https://github.com/instrument-org/instrument/commit/def5678)
+
+  Screenshot: <path or link, only when screenshots were requested>
 
   ```text
   Use these commits as repo context for <surface name>: abc1234 def5678

@@ -46,4 +46,4 @@ The comparison that matters has not been made. Both engines were driven over gen
 
 - [pdfium viewer](../../apps/studio/src/client/components/document-viewers/pdf-viewer.tsx)
 - [Viewer registry](../../apps/studio/src/client/components/file-viewer.tsx)
-- [Plan](../plans/active/document-viewers.md)
+- [Plan](../plans/completed/document-viewers.md)

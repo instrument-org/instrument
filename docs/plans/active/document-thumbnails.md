@@ -2,7 +2,7 @@
 
 Status: active (not started)
 
-Cover images for documents wherever Studio lists files — the message file grid and the sidebar file list — instead of the file-type icons drawn today. Split out of [document-viewers.md](document-viewers.md), which established the viewers this would reuse.
+Cover images for documents wherever Studio lists files — the message file grid and the sidebar file list — instead of the file-type icons drawn today. Split out of [document-viewers.md](../completed/document-viewers.md), which established the viewers this would reuse.
 
 ## Why cover thumbnails are their own piece of work
 

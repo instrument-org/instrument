@@ -101,7 +101,10 @@ export function ToolCallSummary({
 
       <span
         className={cn(
-          "min-w-0 truncate text-sm leading-4",
+          // No leading override: the label's own 20px line box is what holds
+          // the row at one height across every state, since the indicator
+          // beside it is 20px done and 12px while the call runs.
+          "min-w-0 truncate text-sm",
           isStreaming
             ? "brand-shiny-text"
             : "text-muted-foreground group-hover/run-row:text-foreground",

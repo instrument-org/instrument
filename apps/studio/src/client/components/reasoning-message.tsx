@@ -94,7 +94,7 @@ export const ReasoningMessage = memo(function ReasoningMessage({
           {isLoading && <PlanningDotIcon className="size-3 shrink-0" />}
           <span
             className={cn(
-              "text-sm leading-4",
+              "text-sm",
               isLoading
                 ? "brand-shiny-text"
                 : "text-muted-foreground group-hover/run-row:text-foreground",

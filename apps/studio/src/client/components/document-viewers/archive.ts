@@ -30,11 +30,11 @@ export async function readArchiveEntries(url: string): Promise<FileEntry[]> {
   const reader = await openArchive(url);
   try {
     const entries = await reader.getEntries();
-    return entries.filter((entry) => !entry.directory);
+    return entries.filter(
+      (entry): entry is FileEntry => !entry.directory,
+    );
   } finally {
-    // Releases the worker the reader may have started. Left open, every
-    // archive opened in a session keeps one alive.
-    await reader.close();
+    await closeQuietly(reader);
   }
 }
 
@@ -75,7 +75,22 @@ export async function readArchiveMember({
     }
     return await inflateBounded({ entry, maxBytes });
   } finally {
+    await closeQuietly(reader);
+  }
+}
+
+/**
+ * Releases the reader without letting the release become the failure.
+ *
+ * Left open, every archive opened in a session keeps a reader alive. But a
+ * close that throws inside a `finally` replaces whatever error sent it there,
+ * and the viewer would then report the plumbing rather than the file.
+ */
+async function closeQuietly(reader: Awaited<ReturnType<typeof openArchive>>) {
+  try {
     await reader.close();
+  } catch {
+    // The reader is being discarded either way.
   }
 }
 

@@ -145,7 +145,10 @@ export function ArchiveViewer({ url }: { url: string }) {
                   isMatch && "bg-yellow-500/25",
                   current === row.index && "bg-yellow-500/60",
                 )}
-                key={entry.filename}
+                // The virtual row rather than the member's name: a zip may list
+                // the same path twice, and two rows sharing a key leaves them
+                // drawn on top of each other.
+                key={row.key}
                 style={{
                   height: row.size,
                   transform: `translateY(${row.start}px)`,

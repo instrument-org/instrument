@@ -118,9 +118,6 @@ export function authMiddleware(
           },
           type: "tool-load_skill",
         }),
-        builder.textPart("Calling glob...", assistantMessageId),
-        builder.textPart("Calling grep...", assistantMessageId),
-
         // Partial filePath — tests FileChip appearing mid-stream
         builder.textPart(
           "Calling read_file (partial path)...",
@@ -161,6 +158,15 @@ export function authMiddleware(
         builder.toolPart(assistantMessageId, "input-streaming", {
           input: {},
           type: "tool-unavailable",
+        }),
+        // Partial url — tests the source link filling in mid-stream
+        builder.textPart("Calling web_fetch...", assistantMessageId),
+        builder.toolPart(assistantMessageId, "input-streaming", {
+          input: {
+            explanation: "Read the Vitest configuration guide",
+            url: "https://vitest.dev/config/#test",
+          },
+          type: "tool-web_fetch",
         }),
         builder.textPart("Calling web_search...", assistantMessageId),
         builder.toolPart(assistantMessageId, "input-streaming", {

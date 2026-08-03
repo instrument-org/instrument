@@ -9,7 +9,7 @@ import { session as errorModelNotFound } from "./error-model-not-found";
 import { session as errorMultiple } from "./error-multiple";
 import { session as errorNoImageModel } from "./error-no-image-model";
 import { session as errorNoModelRequested } from "./error-no-model-requested";
-import { session as errorNoWebSearchModel } from "./error-no-web-search-model";
+import { session as errorNoSearchBackend } from "./error-no-search-backend";
 import { session as errorTimeout } from "./error-timeout";
 import { session as errorUnknown } from "./error-unknown";
 import { session as expandableUserMessage } from "./expandable-user-message";
@@ -39,7 +39,7 @@ export const sessionData: PresetSessionData[] = [
   errorMultiple,
   errorNoImageModel,
   errorNoModelRequested,
-  errorNoWebSearchModel,
+  errorNoSearchBackend,
   errorTimeout,
   errorUnknown,
   expandableUserMessage,

@@ -9,6 +9,52 @@ const sessionId = builder.getSessionId();
 const userMessageId = StoreId.newMessageId();
 const assistantMessageId = StoreId.newMessageId();
 
+// Files the tools report writing don't exist, so this only has to be a stable
+// version stamp for the asset URLs the cards build.
+const MODIFIED_AT = 1_718_198_400_000;
+
+const HELPERS_TEST_CONTENT = `import { describe, expect, it } from "vitest";
+import {
+  formatDate,
+  formatDateTime,
+  parseDate,
+  parseJSON,
+  safeParseJSON,
+  slugify,
+} from "./helpers";
+
+describe("formatDate", () => {
+  it("formats with default pattern", () => {
+    const date = new Date("2024-03-15T00:00:00.000Z");
+    expect(formatDate(date)).toBe("2024-03-15");
+  });
+
+  it("formats with custom pattern", () => {
+    const date = new Date("2024-03-15T00:00:00.000Z");
+    expect(formatDate(date, "MM/dd/yyyy")).toBe("03/15/2024");
+  });
+});
+
+describe("parseJSON", () => {
+  it("parses with type inference", () => {
+    const result = parseJSON<{ name: string }>('{"name":"test"}');
+    expect(result.name).toBe("test");
+  });
+});
+
+describe("safeParseJSON", () => {
+  it("returns fallback on invalid JSON", () => {
+    const result = safeParseJSON("not json", { name: "fallback" });
+    expect(result.name).toBe("fallback");
+  });
+});
+
+describe("slugify", () => {
+  it("converts to slug", () => {
+    expect(slugify("Hello World!")).toBe("hello-world");
+  });
+});`;
+
 export const session: PresetSessionData = {
   messages: [
     {
@@ -19,7 +65,7 @@ export const session: PresetSessionData = {
       },
       parts: [
         builder.textPart(
-          "Help me explore and refactor the codebase. I need to find files, read them, search for patterns, run diagnostics, make some changes, search the web, and generate an image.",
+          "Help me explore and refactor the codebase. I need to read some files, make changes, run the tests, read a page and search the web, and generate an image.",
           userMessageId,
         ),
       ],
@@ -52,10 +98,15 @@ export const session: PresetSessionData = {
             name: "react",
           },
           output: {
+            alreadyLoaded: false,
             content:
               "# React Skill\n\nBest practices for building React applications...",
+            contentTruncated: false,
+            directory: "skills/react",
             files: ["skills/react/SKILL.md"],
             name: "react",
+            origin: "workspace",
+            skillName: "react",
             state: "success",
             truncated: false,
           },
@@ -108,6 +159,7 @@ export function slugify(str: string): string {
             displayedLines: 36,
             filePath: "./src/utils/helpers.ts",
             hasMoreLines: false,
+            modifiedAt: MODIFIED_AT,
             offset: 1,
             state: "exists",
             totalLines: 36,
@@ -196,57 +248,21 @@ export function authMiddleware(
 +  }
  }`,
             filePath: "./src/middleware/auth.ts",
+            modifiedAt: MODIFIED_AT,
           },
           type: "tool-edit_file",
         }),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
-            content: `import { describe, expect, it } from "vitest";
-import {
-  formatDate,
-  formatDateTime,
-  parseDate,
-  parseJSON,
-  safeParseJSON,
-  slugify,
-} from "./helpers";
-
-describe("formatDate", () => {
-  it("formats with default pattern", () => {
-    const date = new Date("2024-03-15T00:00:00.000Z");
-    expect(formatDate(date)).toBe("2024-03-15");
-  });
-
-  it("formats with custom pattern", () => {
-    const date = new Date("2024-03-15T00:00:00.000Z");
-    expect(formatDate(date, "MM/dd/yyyy")).toBe("03/15/2024");
-  });
-});
-
-describe("parseJSON", () => {
-  it("parses with type inference", () => {
-    const result = parseJSON<{ name: string }>('{"name":"test"}');
-    expect(result.name).toBe("test");
-  });
-});
-
-describe("safeParseJSON", () => {
-  it("returns fallback on invalid JSON", () => {
-    const result = safeParseJSON("not json", { name: "fallback" });
-    expect(result.name).toBe("fallback");
-  });
-});
-
-describe("slugify", () => {
-  it("converts to slug", () => {
-    expect(slugify("Hello World!")).toBe("hello-world");
-  });
-});`,
+            content: HELPERS_TEST_CONTENT,
             explanation: "Create comprehensive test file for helpers module",
             filePath: "./src/utils/helpers.test.ts",
           },
           output: {
+            content: HELPERS_TEST_CONTENT,
             filePath: "./src/utils/helpers.test.ts",
+            isNewFile: true,
+            modifiedAt: MODIFIED_AT,
           },
           type: "tool-write_file",
         }),
@@ -312,6 +328,37 @@ describe("slugify", () => {
         }),
         builder.toolPart(assistantMessageId, "output-available", {
           input: {
+            explanation: "Read the Vitest configuration guide",
+            url: "https://vitest.dev/config/",
+          },
+          output: {
+            contentType: "text/html",
+            format: "markdown",
+            state: "success",
+            text: `# Configuring Vitest
+
+If you are using Vite, Vitest reads your \`vite.config.ts\` by default. Add a \`test\` field to it, or keep the test options in a separate \`vitest.config.ts\` so the two never fight over the same key.
+
+## test.globals
+
+- **Type:** \`boolean\`
+- **Default:** \`false\`
+
+Register \`describe\`, \`it\` and \`expect\` globally, so test files do not import them.
+
+## test.environment
+
+- **Type:** \`'node' | 'jsdom' | 'happy-dom'\`
+- **Default:** \`'node'\`
+
+The environment each test file runs in. Override it per file with a docblock comment.`,
+            truncated: true,
+            url: "https://vitest.dev/config/",
+          },
+          type: "tool-web_fetch",
+        }),
+        builder.toolPart(assistantMessageId, "output-available", {
+          input: {
             explanation:
               "Search for the latest Vitest configuration best practices",
             query: "Vitest configuration best practices 2025",
@@ -357,10 +404,15 @@ describe("slugify", () => {
               "A minimal flat vector icon representing a code utility library. Features interlocking gear and wrench symbols in a modern blue gradient style on a transparent background.",
           },
           output: {
+            appliedParameters: {
+              background: "opaque",
+              quality: "high",
+            },
             images: [
               {
                 filePath: "./assets/helpers-icon.png",
                 height: 1024,
+                modifiedAt: MODIFIED_AT,
                 sizeBytes: 245_760,
                 width: 1024,
               },
@@ -371,6 +423,8 @@ describe("slugify", () => {
               id: OUR_MODELS.providerType,
               type: OUR_MODELS.providerType,
             },
+            renamedToAvoidOverwrite: false,
+            sourceImages: [],
             state: "success",
             usage: {
               inputTokens: 0,
@@ -394,6 +448,7 @@ describe("slugify", () => {
               {
                 filePath: "./assets/helpers-icon-dark.png",
                 height: 1024,
+                modifiedAt: MODIFIED_AT,
                 sizeBytes: 198_432,
                 width: 1024,
               },
@@ -404,6 +459,13 @@ describe("slugify", () => {
               id: "openai-default",
               type: "openai",
             },
+            renamedToAvoidOverwrite: false,
+            sourceImages: [
+              {
+                filePath: "./assets/helpers-icon.png",
+                modifiedAt: MODIFIED_AT,
+              },
+            ],
             state: "success",
             usage: {
               inputTokens: 0,
@@ -430,6 +492,7 @@ describe("slugify", () => {
               {
                 filePath: "./assets/helpers-banner.png",
                 height: 630,
+                modifiedAt: MODIFIED_AT,
                 sizeBytes: 312_144,
                 width: 1200,
               },
@@ -440,6 +503,17 @@ describe("slugify", () => {
               id: "openai-default",
               type: "openai",
             },
+            renamedToAvoidOverwrite: true,
+            sourceImages: [
+              {
+                filePath: "./assets/helpers-icon.png",
+                modifiedAt: MODIFIED_AT,
+              },
+              {
+                filePath: "./assets/helpers-icon-dark.png",
+                modifiedAt: MODIFIED_AT,
+              },
+            ],
             state: "success",
             usage: {
               inputTokens: 0,

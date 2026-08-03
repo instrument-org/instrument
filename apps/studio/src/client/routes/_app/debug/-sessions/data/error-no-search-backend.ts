@@ -46,9 +46,8 @@ export const session: PresetSessionData = {
             query: "TypeScript 6.0 release notes",
           },
           output: {
-            errorMessage:
-              "No AI provider with web search capability is available.",
-            errorType: "no-web-search-model",
+            errorMessage: "No web search backend is available.",
+            errorType: "no-search-backend",
             state: "failure",
           },
           type: "tool-web_search",
@@ -57,5 +56,5 @@ export const session: PresetSessionData = {
       role: "assistant",
     },
   ],
-  name: "Error: No Web Search Model",
+  name: "Error: No Search Backend",
 };

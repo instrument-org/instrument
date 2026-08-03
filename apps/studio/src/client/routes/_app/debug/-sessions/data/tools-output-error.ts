@@ -87,6 +87,14 @@ export const session: PresetSessionData = {
           type: "tool-unavailable",
         }),
         builder.toolPart(assistantMessageId, "output-error", {
+          errorText: "Request to https://example.com/docs timed out after 30s",
+          input: {
+            explanation: "Read the docs page",
+            url: "https://example.com/docs",
+          },
+          type: "tool-web_fetch",
+        }),
+        builder.toolPart(assistantMessageId, "output-error", {
           errorText: "Web search request failed: 429 Too Many Requests",
           input: {
             explanation: "Search for docs",

@@ -169,6 +169,13 @@ describe("slugify", () => {
         }),
         builder.toolPart(assistantMessageId, "input-available", {
           input: {
+            explanation: "Read the Vitest configuration guide",
+            url: "https://vitest.dev/config/",
+          },
+          type: "tool-web_fetch",
+        }),
+        builder.toolPart(assistantMessageId, "input-available", {
+          input: {
             explanation:
               "Search for the latest Vitest configuration best practices",
             query: "Vitest configuration best practices 2025",

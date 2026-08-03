@@ -13,6 +13,10 @@ const assistantMsg1Id = StoreId.newMessageId();
 const assistantMsg2Id = StoreId.newMessageId();
 const assistantMsg3Id = StoreId.newMessageId();
 
+// The files the tools report touching don't exist, so this only has to be a
+// stable version stamp for the asset URLs the cards build.
+const MODIFIED_AT = 1_718_198_400_000;
+
 export const session: PresetSessionData = {
   messages: [
     {
@@ -42,6 +46,7 @@ export const session: PresetSessionData = {
             displayedLines: 1,
             filePath: "./config.ts",
             hasMoreLines: false,
+            modifiedAt: MODIFIED_AT,
             offset: 1,
             state: "exists",
             totalLines: 1,
@@ -56,6 +61,7 @@ export const session: PresetSessionData = {
             displayedLines: 1,
             filePath: "./index.ts",
             hasMoreLines: false,
+            modifiedAt: MODIFIED_AT,
             offset: 1,
             state: "exists",
             totalLines: 1,
@@ -86,6 +92,7 @@ export const session: PresetSessionData = {
             displayedLines: 1,
             filePath: "./utils.ts",
             hasMoreLines: false,
+            modifiedAt: MODIFIED_AT,
             offset: 1,
             state: "exists",
             totalLines: 1,
@@ -128,7 +135,12 @@ export const session: PresetSessionData = {
             explanation: "Write summary file",
             filePath: "./SUMMARY.md",
           },
-          output: { filePath: "./SUMMARY.md" },
+          output: {
+            content: "# Summary\n\nAll files read successfully.",
+            filePath: "./SUMMARY.md",
+            isNewFile: true,
+            modifiedAt: MODIFIED_AT,
+          },
           type: "tool-write_file",
         }),
         builder.textPart(

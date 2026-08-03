@@ -14,6 +14,10 @@ const userMsgId = StoreId.newMessageId();
 const assistantMsg1Id = StoreId.newMessageId();
 const assistantMsg2Id = StoreId.newMessageId();
 
+// The file the tool reports reading doesn't exist, so this only has to be a
+// stable version stamp for the asset URL the card builds.
+const MODIFIED_AT = 1_718_198_400_000;
+
 export const session: PresetSessionData = {
   messages: [
     {
@@ -68,6 +72,7 @@ export const session: PresetSessionData = {
             displayedLines: 1,
             filePath: "./config.ts",
             hasMoreLines: false,
+            modifiedAt: MODIFIED_AT,
             offset: 1,
             state: "exists",
             totalLines: 1,

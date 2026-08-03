@@ -17,6 +17,7 @@ import {
   BugIcon,
   CopyIcon,
   DotsThreeOutlineVerticalIcon,
+  FileArchiveIcon,
   PencilSimpleLineIcon,
   PushPinIcon,
   PushPinSlashIcon,
@@ -43,8 +44,10 @@ export function TaskActionsMenu({
       <DropdownMenuTrigger asChild>
         <Button
           className={toolbarClassName({
+            // 4px around a 16px glyph: the button hugs the title it acts on
+            // rather than reading as its own toolbar slot.
             className:
-              "data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+              "size-6 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
             pressed: false,
           })}
           size="icon-sm"
@@ -53,7 +56,7 @@ export function TaskActionsMenu({
           <DotsThreeOutlineVerticalIcon className="size-4" weight="fill" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" side="bottom">
+      <DropdownMenuContent align="start" side="bottom">
         {renderMenuItems(dropdownMenuComponents)}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -68,6 +71,7 @@ export function TaskActionsMenuItems({
   menuComponents,
   onDebugClick,
   onDelete,
+  onExportZip,
   onRename,
   onReplayClick,
   projectId,
@@ -77,6 +81,7 @@ export function TaskActionsMenuItems({
   menuComponents: MenuComponents;
   onDebugClick: () => void;
   onDelete: () => void;
+  onExportZip: () => void;
   onRename: () => void;
   onReplayClick: () => void;
   projectId: null | ProjectId | undefined;
@@ -153,6 +158,10 @@ export function TaskActionsMenuItems({
         menuComponents={menuComponents}
         taskId={id}
       />
+      <Item onSelect={onExportZip}>
+        <FileArchiveIcon className="size-4" />
+        <span>Export as zip</span>
+      </Item>
 
       {isDeveloperMode && (
         <>

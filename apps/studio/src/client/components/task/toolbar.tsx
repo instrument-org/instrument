@@ -1,39 +1,39 @@
 import { openDeleteTask } from "@/client/atoms/delete-task-modal";
-import { ShareExport } from "@/client/components/icons/share-export";
+import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
 import { Button } from "@/client/components/ui/button";
-import { Toggle, toolbarClassName } from "@/client/components/ui/toggle";
+import { toolbarClassName } from "@/client/components/ui/toggle";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useInlineRename } from "@/client/hooks/use-inline-rename";
-import { rpcClient } from "@/client/rpc/client";
+import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type StoreId, type Task } from "@instrument-org/workspace/client";
-import { FileArchiveIcon, FolderIcon } from "@phosphor-icons/react";
+import { FoldersIcon } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { ReplaySessionModal } from "../debug/replay-session-modal";
 import { ExportZipModal } from "../export-zip-modal";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
 import { type MenuComponents } from "../ui/menu-components";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { TaskActionsMenu, TaskActionsMenuItems } from "./actions-menu";
 import { TaskDebugDialog } from "./debug-dialog";
 import { TaskBreadcrumb } from "./task-breadcrumb";
+import { TaskFiles } from "./task-files";
 import { TaskUsageSummary } from "./usage-summary";
 
 export function TaskToolbar({
-  onSidebarChange,
+  activeFilePath,
+  attachedFolders,
+  files,
+  onFileSelect,
   selectedSessionId,
-  sidebar,
   task,
 }: {
-  onSidebarChange: (sidebar: "chat" | "files") => void;
+  activeFilePath: null | string;
+  attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
+  files: RPCOutput["workspace"]["task"]["files"]["list"] | undefined;
+  onFileSelect: (file: TaskFileViewerFile) => void;
   selectedSessionId?: StoreId.Session;
-  sidebar: "chat" | "files";
   task: Task;
 }) {
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
@@ -44,9 +44,9 @@ export function TaskToolbar({
   const isDeveloperMode = useDeveloperMode();
 
   // Inline rename is the quick path from double-clicking the title itself. The
-  // menus (overflow and right-click) open the dialog instead: a menu item can
-  // sit far from the title, and returning focus into an inline input from there
-  // fights the trigger's own focus restore.
+  // menus open the dialog instead: swapping the title for an input as a menu
+  // closes drops the focus that was meant to land in it, and resizes the header
+  // out from under the click that asked for the rename.
   const { mutateAsync: renameTask } = useMutation(
     rpcClient.workspace.task.update.mutationOptions(),
   );
@@ -67,6 +67,9 @@ export function TaskToolbar({
       onDelete={() => {
         openDeleteTask(task);
       }}
+      onExportZip={() => {
+        setExportZipModalOpen(true);
+      }}
       onRename={() => {
         setSettingsDialogOpen(true);
       }}
@@ -80,34 +83,22 @@ export function TaskToolbar({
 
   return (
     <>
-      <div className="@container w-full bg-background p-3">
+      <div className="w-full bg-background p-3">
         <div className="flex min-w-0 items-center gap-x-2 overflow-hidden">
-          <div className="flex min-w-0 flex-1 items-center gap-x-1 overflow-hidden">
+          {/*
+            The title and its overflow menu travel together, so the menu reads
+            as acting on the task named beside it rather than on the view.
+          */}
+          <div className="flex min-w-0 flex-1 items-center gap-x-2 overflow-hidden">
             <TaskBreadcrumb
-              onChatClick={() => {
-                onSidebarChange("chat");
-              }}
               rename={rename}
               renderMenuItems={renderMenuItems}
-              sidebar={sidebar}
               task={task}
             />
 
-            <Toggle
-              aria-label="Show files"
-              className="max-w-24 min-w-8 shrink overflow-hidden px-2"
-              onPressedChange={() => {
-                onSidebarChange("files");
-              }}
-              pressed={sidebar === "files"}
-              size="sm"
-              variant="toolbar"
-            >
-              <FolderIcon className="size-4 shrink-0" />
-              <span className="hidden min-w-0 truncate @min-[380px]:inline">
-                Files
-              </span>
-            </Toggle>
+            <div className="shrink-0">
+              <TaskActionsMenu renderMenuItems={renderMenuItems} />
+            </div>
           </div>
 
           <div className="flex min-w-8 shrink items-center justify-end gap-x-2 overflow-hidden">
@@ -121,39 +112,40 @@ export function TaskToolbar({
                 />
               </div>
             )}
-            <div className="flex min-w-8 items-center justify-end gap-x-2 overflow-hidden">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    className={toolbarClassName({
-                      className:
-                        "min-w-8 shrink overflow-hidden gap-2 px-2 has-[>svg]:px-2 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
-                      pressed: false,
-                    })}
-                    size="sm"
-                    variant="ghost"
-                  >
-                    <ShareExport className="size-4 shrink-0" />
-                    <span className="hidden min-w-0 truncate @min-[380px]:inline">
-                      Share
-                    </span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setExportZipModalOpen(true);
-                    }}
-                  >
-                    <FileArchiveIcon className="size-4" />
-                    Export as zip
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <div className="shrink-0">
-                <TaskActionsMenu renderMenuItems={renderMenuItems} />
-              </div>
-            </div>
+            {/* Stays open across selections: picking a file only swaps what the
+                artifact panel shows, and browsing a few in a row is the point
+                of opening the list. Escape or a click outside dismisses it. */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  aria-label="Files"
+                  className={toolbarClassName({
+                    className:
+                      "shrink-0 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+                    pressed: false,
+                  })}
+                  size="icon-sm"
+                  variant="ghost"
+                >
+                  <FoldersIcon className="size-4" />
+                </Button>
+              </PopoverTrigger>
+              {/* The panel scrolls, not the list inside it: height is whatever
+                  the files need, capped by the space Radix measured under the
+                  trigger, divided into this content's own zoomed pixels. */}
+              <PopoverContent
+                align="end"
+                className="max-h-[min(560px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] w-100 overflow-y-auto p-0"
+              >
+                <TaskFiles
+                  activeFilePath={activeFilePath}
+                  attachedFolders={attachedFolders}
+                  files={files}
+                  onFileSelect={onFileSelect}
+                  task={task}
+                />
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
       </div>

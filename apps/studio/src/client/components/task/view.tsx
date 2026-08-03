@@ -30,7 +30,7 @@ import { type ReactNode, useState } from "react";
 
 import { FileLoading } from "../file-loading";
 import { TaskBrowserPanel } from "./browser-panel";
-import { TaskSidebar, type TaskSidebarMode } from "./sidebar";
+import { TaskSidebar } from "./sidebar";
 
 const PANEL_SIZES = {
   artifactMin: 300,
@@ -55,7 +55,6 @@ export function TaskView({
   selectedModelURI,
   selectedSessionId,
   showTutorial,
-  sidebar,
   task,
 }: {
   artifactPanel: ArtifactPanel | undefined;
@@ -65,7 +64,6 @@ export function TaskView({
   selectedModelURI: AIGatewayModelURI.Type | undefined;
   selectedSessionId?: StoreId.Session;
   showTutorial?: boolean;
-  sidebar: TaskSidebarMode;
   task: Task;
 }) {
   const navigate = useNavigate();
@@ -186,18 +184,6 @@ export function TaskView({
     });
   };
 
-  const handleSidebarChange = (nextSidebar: TaskSidebarMode) => {
-    void navigate({
-      from: "/tasks/$id/",
-      params: { id: task.id },
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        sidebar: nextSidebar === "chat" ? undefined : nextSidebar,
-      }),
-    });
-  };
-
   const chatProps = {
     isReplayActive,
     onCancelReplay: handleCancelReplay,
@@ -226,9 +212,7 @@ export function TaskView({
             chatProps={chatProps}
             files={files}
             onFileSelect={handleFileSelect}
-            onSidebarChange={handleSidebarChange}
             selectedSessionId={selectedSessionId}
-            sidebar={sidebar}
             task={task}
           />
         </ResizablePanel>

@@ -1,6 +1,5 @@
 import { releaseTaskDraft } from "@/client/atoms/prompt-value";
 import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
-import { TaskSidebarModeSchema } from "@/client/components/task/sidebar";
 import { TaskView } from "@/client/components/task/view";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useAutoOpenBrowserArtifact } from "@/client/hooks/use-auto-open-browser-artifact";
@@ -34,7 +33,6 @@ const taskSearchSchema = z.object({
   artifactPanel: artifactPanelSchema.optional(),
   selectedSessionId: StoreId.SessionSchema.optional(),
   showSettings: z.boolean().optional(),
-  sidebar: TaskSidebarModeSchema.optional(),
 });
 
 function hasActiveObservers(queryClient: QueryClient, queryKey: QueryKey) {
@@ -225,8 +223,7 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
 
 function RouteComponent() {
   const { id } = Route.useParams();
-  const { artifactPanel, selectedSessionId, showSettings, sidebar } =
-    Route.useSearch();
+  const { artifactPanel, selectedSessionId, showSettings } = Route.useSearch();
   const navigate = useNavigate();
 
   useClearTaskIndicatorOnView(id);
@@ -317,7 +314,6 @@ function RouteComponent() {
         selectedModelURI={taskState.selectedModelURI}
         selectedSessionId={selectedSessionId}
         showTutorial={taskState.showTutorial}
-        sidebar={sidebar ?? "chat"}
         task={task}
       />
 

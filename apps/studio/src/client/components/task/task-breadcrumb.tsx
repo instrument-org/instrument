@@ -9,25 +9,20 @@ import {
   contextMenuComponents,
   type MenuComponents,
 } from "@/client/components/ui/menu-components";
-import { toolbarClassName } from "@/client/components/ui/toggle";
 import { type useInlineRename } from "@/client/hooks/use-inline-rename";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task } from "@instrument-org/workspace/client";
-import { BagIcon, ChatsCircleIcon } from "@phosphor-icons/react";
+import { BagIcon } from "@phosphor-icons/react";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 
 export function TaskBreadcrumb({
-  onChatClick,
   rename,
   renderMenuItems,
-  sidebar,
   task,
 }: {
-  onChatClick: () => void;
   rename: ReturnType<typeof useInlineRename>;
   renderMenuItems: (menuComponents: MenuComponents) => ReactNode;
-  sidebar: "chat" | "files";
   task: Task;
 }) {
   const projectId = task.projectId;
@@ -36,26 +31,20 @@ export function TaskBreadcrumb({
       input: projectId ? { id: projectId } : skipToken,
     }),
   );
-  // A projectId can dangle after its project is deleted; fall back to the chat
-  // icon whenever the project chip itself does not resolve.
-  const hasProject = Boolean(projectId && project);
 
   if (rename.isEditing) {
     return (
-      <div className="flex h-8 max-w-80 min-w-0 flex-1 items-center px-1">
+      <div className="flex h-8 max-w-160 min-w-0 flex-1 items-center px-1">
         <Input className="h-7 text-sm" {...rename.inputProps} />
       </div>
     );
   }
 
+  // Nothing here is text to select: double-clicking the title is how a rename
+  // starts, and a caret plus a highlighted word under it reads as an edit that
+  // did not take.
   return (
-    <div
-      className={toolbarClassName({
-        className:
-          "h-8 min-w-0 max-w-80 shrink justify-start gap-x-1 overflow-hidden px-2",
-        pressed: sidebar === "chat",
-      })}
-    >
+    <div className="flex h-8 max-w-160 min-w-0 shrink cursor-default items-center gap-x-1 overflow-hidden text-sm font-medium select-none">
       {projectId && project && (
         <>
           {/*
@@ -63,7 +52,7 @@ export function TaskBreadcrumb({
             or overlapped, however tight the breadcrumb gets.
           */}
           <InternalLink
-            className="flex shrink-0 items-center"
+            className="flex shrink-0 items-center text-muted-foreground"
             openInCurrentTab
             params={{ id: projectId }}
             to="/projects/$id"
@@ -77,7 +66,7 @@ export function TaskBreadcrumb({
             instead. shrink-[9999] makes the name truncate before the task.
           */}
           <InternalLink
-            className="flex min-w-0 shrink-[9999] items-center"
+            className="flex min-w-0 shrink-[9999] items-center text-muted-foreground"
             openInCurrentTab
             params={{ id: projectId }}
             to="/projects/$id"
@@ -93,17 +82,18 @@ export function TaskBreadcrumb({
       )}
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <button
-            className="flex min-w-0 items-center gap-x-2 truncate text-left"
-            onClick={sidebar === "files" ? onChatClick : undefined}
+          {/*
+            No padding of its own: the 8px to the overflow button is measured
+            from the text, so a surface around it would push the button out.
+          */}
+          <div
+            className="flex h-8 min-w-0 items-center truncate"
             onDoubleClick={() => {
               rename.start();
             }}
-            type="button"
           >
-            {!hasProject && <ChatsCircleIcon className="size-4 shrink-0" />}
             <span className="min-w-0 flex-1 truncate">{task.title}</span>
-          </button>
+          </div>
         </ContextMenuTrigger>
         <ContextMenuContent className="w-56">
           {renderMenuItems(contextMenuComponents)}

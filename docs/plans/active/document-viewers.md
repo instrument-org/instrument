@@ -250,6 +250,7 @@ Module workers do still work from `file://`: the `grantFileProtocolExtraPrivileg
 The viewers take the renderer from ~5.3k to ~13k modules:
 
 - Parser worker entries code-split, which the default `iife` worker format cannot express. Set `worker.format: "es"`.
+- Rendering that many chunks with sourcemaps exceeds Node's default heap. The default is derived from the machine's memory, so a dev Mac builds fine while the macOS CI runner caps out around 2GB and dies mid-`transforming` with an allocation failure. The three `electron-vite build` scripts invoke the bin through `node --max-old-space-size=8192` rather than a `NODE_OPTIONS` prefix, which would not survive the Windows release runner. Do not take a green local build as evidence this is unnecessary.
 
 Nothing loaded during renderer startup may statically import a viewer library. Each ships as a single side-effectful entry point, so importing one symbol pulls the whole package: configuring all three wasm sources from `main.tsx` put 5.6MB of library source in the entry chunk. `lib/document-viewers.ts` reaches each library through a dynamic import and owns the `lazy()` handles that pair wasm configuration with the viewer's own import, so no host can mount a viewer that would fall back to the library's default wasm source.
 

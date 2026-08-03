@@ -153,7 +153,8 @@ export function TaskView({
   // state to every file on its way in.
   const hasFileAnswer = dataUpdatedAt > 0 || errorUpdatedAt > 0;
   const isResolvingFile =
-    !hasFileAnswer || (fileInfo !== undefined && currentModifiedAt === undefined);
+    !hasFileAnswer ||
+    (fileInfo !== undefined && currentModifiedAt === undefined);
 
   const handleArtifactPanelClose = () => {
     void navigate({

@@ -1,11 +1,11 @@
 import { StoreId } from "@instrument-org/workspace/client";
 
-import { registerSession } from "../helpers";
+import { type PresetSessionData } from "../helpers";
 
 const sessionId = StoreId.newSessionId();
 const now = new Date();
 
-registerSession({
+export const session: PresetSessionData = {
   messages: [
     {
       id: StoreId.newMessageId(),
@@ -144,4 +144,4 @@ registerSession({
     },
   ],
   name: "Multi-turn Conversation",
-});
+};

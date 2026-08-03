@@ -411,7 +411,6 @@ export const ReadFile = setupTool({
     - When using ${INPUT_PARAMS.limit}, avoid using too small of a limit (< 100), which can lead to tons of tokens being used.
     - Any lines longer than ${MAX_LINE_LENGTH} characters will be truncated.
     - Results are returned using cat -n format, with line numbers starting at the ${INPUT_PARAMS.offset} or 1.
-    - You have the capability to call multiple tools in a single response. It is always better to speculatively read multiple files as a batch that are potentially useful.
     - If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.
     - You can read images, PDFs, audio files, and video files by using this tool.
     - Reading an image tells you its pixel dimensions, and the smaller size you are shown it at when it is too large to render whole.

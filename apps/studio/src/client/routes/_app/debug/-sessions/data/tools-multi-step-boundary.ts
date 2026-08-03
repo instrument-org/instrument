@@ -1,6 +1,6 @@
 import { StoreId } from "@instrument-org/workspace/client";
 
-import { registerSession, SessionBuilder } from "../helpers";
+import { type PresetSessionData, SessionBuilder } from "../helpers";
 
 // Fixture that reproduces the cross-message tool-call boundary spacing bug:
 // sequential tool calls split across multiple assistant messages (multi-step)
@@ -13,7 +13,7 @@ const assistantMsg1Id = StoreId.newMessageId();
 const assistantMsg2Id = StoreId.newMessageId();
 const assistantMsg3Id = StoreId.newMessageId();
 
-registerSession({
+export const session: PresetSessionData = {
   messages: [
     {
       id: userMsgId,
@@ -140,4 +140,4 @@ registerSession({
     },
   ],
   name: "Tools: Multi-Step Boundary",
-});
+};

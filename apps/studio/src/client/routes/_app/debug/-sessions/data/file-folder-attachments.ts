@@ -1,6 +1,6 @@
 import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
 
-import { registerSession, SessionBuilder } from "../helpers";
+import { type PresetSessionData, SessionBuilder } from "../helpers";
 
 const builder = new SessionBuilder();
 
@@ -171,7 +171,7 @@ const assistantMessage2 = builder.assistantMessage(
   "Folders use list chips; files stay in the compact attachment grid.",
 );
 
-registerSession({
+export const session: PresetSessionData = {
   messages: [
     userMessageGridShowcase,
     assistantMessage1,
@@ -179,4 +179,4 @@ registerSession({
     assistantMessage2,
   ],
   name: "File and Folder Attachments",
-});
+};

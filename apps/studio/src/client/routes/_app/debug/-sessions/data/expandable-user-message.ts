@@ -1,4 +1,4 @@
-import { registerSession, SessionBuilder } from "../helpers";
+import { type PresetSessionData, SessionBuilder } from "../helpers";
 
 const builder = new SessionBuilder();
 
@@ -27,7 +27,7 @@ const assistantMessage2 = builder.assistantMessage(
   "I'll help you configure all of these build system requirements. Let me start by setting up the TypeScript configuration.",
 );
 
-registerSession({
+export const session: PresetSessionData = {
   messages: [userMessage, assistantMessage, userMessage2, assistantMessage2],
   name: "Expandable User Message",
-});
+};

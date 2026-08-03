@@ -6,7 +6,7 @@ import fs from "node:fs/promises";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
+import { TASK_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { executeError } from "../lib/execute-error";
 import { pathExists } from "../lib/path-exists";
 import { resolveWritableToolPath } from "../lib/resolve-agent-path";
@@ -44,16 +44,12 @@ export const WriteFile = setupTool({
   }),
 }).create({
   description: dedent`
-    Writes a file to the local filesystem.
+    Writes a file, creating parent directories as needed.
 
     Usage:
-    - The ${INPUT_PARAMS.filePath} parameter must be a relative path. E.g. ./output/report.md
-    - This tool will overwrite the existing file if there is one at the provided path.
-    - If this is an existing file, you MUST use the ${ReadFile.name} tool first to read the file's contents before writing.
-    - ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
-    - NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
-    - Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
-    - CRITICAL: never use this tool to re-emit content you already produced or read from disk, including to move a file somewhere the user can see it. That wastes tokens and corrupts bytes (line endings, whitespace, base64-ish or minified content). Copy or move it instead: \`cp work/foo.html output/foo.html\`.
+    - The ${INPUT_PARAMS.filePath} parameter must be a relative path. E.g. ./${TASK_FOLDER_NAMES.output}/report.md
+    - Writing to an existing path overwrites it, so read it with \`${ReadFile.name}\` first when you have not seen its current contents.
+    - Never use this tool to re-emit content you already produced or read from disk, including to move a file somewhere the user can see it. That wastes tokens and corrupts bytes (line endings, whitespace, base64-ish or minified content). Copy or move it instead: \`cp work/foo.html output/foo.html\`.
   `,
   execute: async ({ input, signal, taskId, taskState }) => {
     const layout = buildWorkspaceFsLayout({

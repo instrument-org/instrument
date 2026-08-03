@@ -1,7 +1,7 @@
 import { SYNTHETIC_MODEL_ID } from "@instrument-org/shared";
 import { StoreId } from "@instrument-org/workspace/client";
 
-import { registerSession, SessionBuilder } from "../helpers";
+import { type PresetSessionData, SessionBuilder } from "../helpers";
 
 const MAX_STEP_COUNT = 200;
 
@@ -16,7 +16,7 @@ const maxStepsMessageId = StoreId.newMessageId();
 // Toggle "Agent Running" off in the debug controls to see the alert; toggle
 // "Developer Mode" on to reveal the `data-maxSteps` debug card (the system note
 // injected into the model's prompt on resume).
-registerSession({
+export const session: PresetSessionData = {
   messages: [
     builder.userMessage(
       "Migrate the whole codebase from JavaScript to TypeScript and fix every type error.",
@@ -50,4 +50,4 @@ registerSession({
     },
   ],
   name: "Max Steps: Resume Prompt",
-});
+};

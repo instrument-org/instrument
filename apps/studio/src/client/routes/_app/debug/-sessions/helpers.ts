@@ -9,12 +9,10 @@ import {
   StoreId,
 } from "@instrument-org/workspace/client";
 
-interface PresetSessionData {
+export interface PresetSessionData {
   messages: SessionMessage.WithParts[];
   name: string;
 }
-
-const registeredSessions: PresetSessionData[] = [];
 
 export class SessionBuilder {
   private baseTime: Date;
@@ -183,12 +181,4 @@ export function createErrorMessage({
     statusCode,
     url: "https://example.com",
   };
-}
-
-export function getRegisteredSessions(): PresetSessionData[] {
-  return registeredSessions;
-}
-
-export function registerSession(data: PresetSessionData): void {
-  registeredSessions.push(data);
 }

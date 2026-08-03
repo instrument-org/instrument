@@ -377,6 +377,12 @@ jobs:
       - name: Remove smoke test screenshots from artifacts
         run: find artifacts -name "*.png" -delete
 
+      # Published rather than drafted, unlike the stable release below: a draft is
+      # invisible to the unauthenticated GitHub API, and the app reads these notes
+      # back to show prerelease users the changelog for the build they are running.
+      # Nothing here is private -- the body is commit subjects linking to commits
+      # in this same public repo. `prerelease: true` keeps them off the "Latest"
+      # badge and lets the app filter them for stable users.
       - name: GitHub Prerelease
         id: prerelease_release
         if: contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha')
@@ -384,7 +390,7 @@ jobs:
         env:
           FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
         with:
-          draft: true
+          draft: false
           prerelease: true
           generate_release_notes: false
           body_path: /tmp/release-body.md

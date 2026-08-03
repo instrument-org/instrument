@@ -1,6 +1,6 @@
 import { StoreId } from "@instrument-org/workspace/client";
 
-import { registerSession, SessionBuilder } from "../helpers";
+import { type PresetSessionData, SessionBuilder } from "../helpers";
 
 // Fixture for the empty-leading-assistant-message edge case. The first
 // assistant message in the consecutive group has no visible parts (only a
@@ -14,7 +14,7 @@ const userMsgId = StoreId.newMessageId();
 const assistantMsg1Id = StoreId.newMessageId();
 const assistantMsg2Id = StoreId.newMessageId();
 
-registerSession({
+export const session: PresetSessionData = {
   messages: [
     {
       id: userMsgId,
@@ -81,4 +81,4 @@ registerSession({
     },
   ],
   name: "Tools: Empty Leading Assistant Message",
-});
+};

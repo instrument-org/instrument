@@ -14,7 +14,6 @@ import {
   type ReactNode,
   useCallback,
   useContext,
-  useDeferredValue,
   useEffect,
   useMemo,
   useState,
@@ -25,13 +24,18 @@ import remarkGfm from "remark-gfm";
 import remend from "remend";
 
 import { useHashLinkScroll } from "../hooks/use-hash-link-scroll";
-import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
 import { getAssetUrl } from "../lib/get-asset-url";
+import {
+  containsMermaidFence,
+  isMermaidLanguage,
+  prefetchMermaid,
+} from "../lib/mermaid";
 import { cn } from "../lib/utils";
-import { CopyButton } from "./copy-button";
+import { CodeBlock, CodeWithCopy } from "./code-block";
 import { ExternalLink } from "./external-link";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileIcon } from "./file-icon";
+import { MermaidDiagram } from "./mermaid-diagram";
 import { useCurrentTaskFile } from "./task/current-task-files";
 import {
   ContextMenu,
@@ -74,47 +78,6 @@ function containsMathSyntax(markdown: string) {
     markdown,
   );
 }
-
-const CodeWithCopy = ({
-  children,
-  content,
-}: {
-  children: React.ReactNode;
-  content: string;
-}) => (
-  <div className="group relative isolate">
-    <div className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100">
-      <CopyButton
-        className="rounded-md border border-border/50 bg-background/80 p-1 text-muted-foreground backdrop-blur-sm hover:bg-muted hover:text-foreground"
-        iconSize={12}
-        onCopy={async () => {
-          await navigator.clipboard.writeText(content);
-        }}
-      />
-    </div>
-    {children}
-  </div>
-);
-
-const CodeBlock = ({ code, language }: { code: string; language: string }) => {
-  const deferredCode = useDeferredValue(code);
-  const { highlightedHtml } = useSyntaxHighlighting({
-    code: deferredCode,
-    language,
-  });
-
-  if (!highlightedHtml) {
-    return (
-      <pre>
-        <code>{code}</code>
-      </pre>
-    );
-  }
-
-  return (
-    <div dangerouslySetInnerHTML={{ __html: highlightedHtml.join("\n") }} />
-  );
-};
 
 const markdownPre: Components["pre"] = ({ children }) => <>{children}</>;
 
@@ -174,6 +137,10 @@ const markdownCode: Components["code"] = ({
       : Array.isArray(children)
         ? children.join("")
         : "";
+
+  if (isMermaidLanguage(language)) {
+    return <MermaidDiagram code={codeString} language={language} />;
+  }
 
   return (
     <CodeWithCopy content={codeString}>
@@ -395,6 +362,7 @@ export const Markdown = memo(
       emptyRemarkPluginList,
     );
     const needsMath = useMemo(() => containsMathSyntax(markdown), [markdown]);
+    const needsMermaid = containsMermaidFence(markdown);
 
     const handleImageClick = useCallback(
       (event: React.MouseEvent<HTMLImageElement>) => {
@@ -445,6 +413,17 @@ export const Markdown = memo(
         isCancelled = true;
       };
     }, [allowRawHtml, needsMath]);
+
+    // Mermaid is not a plugin, so it loads on its own schedule — but on the
+    // same terms as the math bundle above: multiple megabytes that only
+    // markdown carrying a diagram is allowed to pull in. Starting here rather
+    // than waiting for `MermaidDiagram` to mount overlaps the download with the
+    // rest of the fence streaming in.
+    useEffect(() => {
+      if (needsMermaid) {
+        prefetchMermaid();
+      }
+    }, [needsMermaid]);
 
     return (
       <MarkdownTaskContext value={{ assetBaseUrl, taskId }}>

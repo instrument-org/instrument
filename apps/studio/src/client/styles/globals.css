@@ -187,8 +187,9 @@ body {
   --shadow-xl: var(--elevation-xl);
   --shadow-2xl: var(--elevation-2xl);
   --shadow-3xl: var(--elevation-3xl);
-  /* xs and lg elevation minus the hairline ring. */
+  /* xs, md, and lg elevation minus the hairline ring. */
   --shadow-soft: var(--elevation-soft);
+  --shadow-md-soft: var(--elevation-md-soft);
   --shadow-lg-soft: var(--elevation-lg-soft);
 }
 
@@ -248,6 +249,8 @@ body {
     0 16px 24px -12px rgb(10 13 18 / 0.08), 0 0 0 1px rgb(10 13 18 / 0.06);
   --elevation-soft:
     0 1px 2px 0 rgb(10 13 18 / 0.04), 0 1px 1px 0 rgb(10 13 18 / 0.05);
+  --elevation-md-soft:
+    0 4px 8px -1px rgb(10 13 18 / 0.05), 0 2px 4px -2px rgb(10 13 18 / 0.06);
   --elevation-lg-soft:
     0 8px 16px -3px rgb(10 13 18 / 0.06), 0 4px 6px -4px rgb(10 13 18 / 0.06);
 
@@ -382,6 +385,7 @@ body {
     0 0 0 1px rgb(255 255 255 / 0.16), 0 32px 64px -12px rgb(0 0 0 / 0.3);
   --elevation-soft:
     0 1px 2px 0 rgb(0 0 0 / 0.24), 0 1px 1px 0 rgb(0 0 0 / 0.28);
+  --elevation-md-soft: 0 8px 16px -2px rgb(0 0 0 / 0.12);
   --elevation-lg-soft: 0 14px 28px -5px rgb(0 0 0 / 0.17);
 }
 
@@ -747,4 +751,33 @@ a.cursor-pointer {
 [data-sonner-toast] {
   /* Fixes hover for toast growing to full height of screen */
   height: auto !important;
+  /* Ring-less md elevation so it doesn't double up with Sonner's 1px border. */
+  box-shadow: var(--shadow-md-soft) !important;
+}
+
+/* Sonner's default action button is a solid, inverted (high-emphasis) button.
+   Restyle it to match our `secondary` Button variant so it reads as a subtle,
+   lower-emphasis control. The `.toaster` class raises specificity above
+   Sonner's own `[data-sonner-toast][data-styled='true'] [data-button]` rule,
+   which is injected at runtime after this stylesheet. */
+.toaster [data-sonner-toast][data-styled="true"] [data-button] {
+  height: auto;
+  padding: 4px 10px;
+  border-radius: var(--radius-md);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  box-shadow: var(--shadow-xs);
+}
+
+.toaster [data-sonner-toast][data-styled="true"] [data-button]:hover {
+  background: var(--muted);
+}
+
+.dark .toaster [data-sonner-toast][data-styled="true"] [data-button] {
+  background: var(--gray-800);
+  color: var(--foreground);
+}
+
+.dark .toaster [data-sonner-toast][data-styled="true"] [data-button]:hover {
+  background: var(--gray-700);
 }

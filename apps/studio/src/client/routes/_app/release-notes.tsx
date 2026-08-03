@@ -110,6 +110,9 @@ function RouteComponent() {
                     <div className="flex-1 space-y-0.5">
                       <CardTitle className="flex items-center gap-2 text-xl leading-tight">
                         {APP_NAME} {release.name || release.tag_name}
+                        {release.prerelease && (
+                          <Badge variant="secondary">Beta</Badge>
+                        )}
                         {currentVersion &&
                           (release.tag_name === currentVersion ||
                             release.tag_name === `v${currentVersion}`) && (

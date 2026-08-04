@@ -75,6 +75,8 @@ curl --fail --retry 10 --retry-all-errors --retry-delay 1 http://127.0.0.1:49160
 
 ## Start against a seeded workspace
 
+This target needs two things, and `status` only reports the first: `devSeeded` enrolled in the host profile, and a checkout new enough to contain the seeder and the fixtures. Pointing an older checkout at it fails in the seeder rather than in the helper, so check `fixtures/workspaces/` exists at the commit `status` reports before concluding the host is misconfigured.
+
 `start --target dev-seeded --workspace <fixture>` builds the workspace from `fixtures/workspaces/<fixture>` on the host, then starts the seeded task against it. Driving is unchanged; it is another port:
 
 ```bash
@@ -119,6 +121,15 @@ node "$DRIVE" shot /tmp/windows-installed.png --port 49161
 
 Do not use `state`, `goto`, or `modal` against the installed build. They wait for a dev-only handle that packaged builds intentionally omit.
 
+A menu or popover will not open from `element.click()` in an `eval`: Radix opens on pointer events, which only `click` dispatches. When the control has no distinguishing text, mark it in one `eval` and click the mark:
+
+```bash
+node "$DRIVE" eval --port 49161 'document.querySelectorAll("button[aria-haspopup=menu]")[3].setAttribute("data-probe","kebab")'
+node "$DRIVE" click --selector '[data-probe=kebab]' --port 49161
+```
+
+`click --text` only matches visible elements, so a control scrolled out of a long list reports as missing rather than being scrolled to.
+
 Treat screenshots as supporting evidence. Also assert the expected DOM or state, inspect relevant logs, and include the remote commit or installed version in the result.
 
 ## Stop
@@ -142,3 +153,4 @@ Stopping either dev target terminates every Studio development process whose com
 - `start --target dev-seeded` reports the running instance holds another fixture: stop that target, then start it again with the fixture you want.
 - Main-process hot reload loses CDP with `bind() failed: Address already in use`: stop the configured dev target and start it again.
 - `status` reports a dirty checkout: identify ownership of every change before updating, switching commits, or deleting generated state.
+- An external link leaves the window on the app but no browser appears: the host may have no working `http`/`https` association, which makes every `openExternal` path look broken. `Start-Process "https://example.com"` can report success and still start nothing. Run that control before blaming the app, and treat the hand-off to a browser as unverified on that host.

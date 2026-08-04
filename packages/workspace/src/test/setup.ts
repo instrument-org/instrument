@@ -31,6 +31,7 @@ setWorkspaceConfig({
   appVersion: "0.0.0-test",
   browser: {
     closeTarget: () => Promise.resolve(),
+    createArtifactTarget: rejectBrowserTarget,
     createTarget: rejectBrowserTarget,
     getTargetMeta: () => null,
     listTargets: () => Promise.resolve([]),

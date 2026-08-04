@@ -41,7 +41,8 @@ const BrowserViewDebugEntrySchema = z.object({
   pendingDownloadCount: z.number(),
   screencastActive: z.boolean(),
   screencastSessionId: z.number(),
-  sessionId: z.string(),
+  // Null for an artifact-preview entry, which has no session.
+  sessionId: z.string().nullable(),
   targetId: BrowserTargetIdSchema,
   title: z.string(),
   url: z.string(),
@@ -248,11 +249,14 @@ const openAsTab = devOnly
     }
     // Open the owning task's page for this session; the task page auto-opens the
     // browser artifact panel. The typed `to` catches route staleness at compile
-    // time; the concrete id/session ride as params/search.
+    // time; the concrete id/session ride as params/search. An artifact-preview
+    // entry has no session to select, so it just opens the task.
     sendAppCommand({
       newTab: true,
       params: { id: String(entry.id) },
-      search: { selectedSessionId: String(entry.sessionId) },
+      search: entry.sessionId
+        ? { selectedSessionId: String(entry.sessionId) }
+        : {},
       to: "/tasks/$id/",
       type: "navigate",
     });

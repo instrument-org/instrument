@@ -17,7 +17,6 @@ import { type FileType, getFileType } from "@/client/lib/get-file-type";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
-  ArrowClockwiseIcon,
   ArrowLineDownIcon,
   ArrowsOutSimpleIcon,
   CheckIcon,
@@ -40,10 +39,10 @@ import { ViewerSurface } from "./document-viewers/viewer-surface";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileLoading } from "./file-loading";
 import { FilePreviewFallback } from "./file-preview-fallback";
+import { HtmlArtifactPreview } from "./html-artifact-preview";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageViewer } from "./image-viewer";
 import { OpenTaskFileButton } from "./open-task-file-button";
-import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
 import { SessionMarkdown } from "./session-markdown";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
@@ -184,7 +183,9 @@ export const fileViewerClassName =
 interface ViewerContext {
   fallback: ReactNode;
   file: TaskFileViewerFile;
-  htmlReloadNonce: number;
+  // Bumped when the user asks to return to the start of the file they are
+  // already looking at; see TaskView.
+  goHomeNonce?: number;
   imageLoadError: boolean;
   onImageError: () => void;
   onMediaError: (fallbackExtension: string) => void;
@@ -273,11 +274,10 @@ const VIEWERS = {
       context.viewMode === "raw" ? (
         renderText(context)
       ) : (
-        <SandboxedHtmlIframe
-          className="absolute inset-0 size-full border-0"
-          key={context.htmlReloadNonce}
-          src={context.file.url}
-          title={context.file.filename}
+        <HtmlArtifactPreview
+          entryUrl={context.file.url}
+          goHomeNonce={context.goHomeNonce}
+          taskId={context.file.taskId}
         />
       ),
     scrolls: "container",
@@ -457,19 +457,18 @@ const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
 
 export function FileViewer({
   file,
+  goHomeNonce,
   onClose,
   onExpand,
 }: {
   file: TaskFileViewerFile;
+  // Passed through to a viewer that hosts a browser guest; see ViewerContext.
+  goHomeNonce?: number;
   onClose: () => void;
   onExpand?: () => void;
 }) {
   const { filename, filePath, mimeType, taskId, url } = file;
   const [viewMode, setViewMode] = useState<"preview" | "raw">("preview");
-  // Remounts the sandboxed HTML iframe back to its entry page. The iframe is a
-  // cross-origin, opaque-origin sandbox, so we can't read or drive its history;
-  // reloading `src` is the only way to escape an in-page link navigation.
-  const [htmlReloadNonce, setHtmlReloadNonce] = useState(0);
   const [mediaLoadError, setMediaLoadError] = useState(false);
   const [mediaErrorType, setMediaErrorType] = useState<string | undefined>();
   const [imageErrorUrl, setImageErrorUrl] = useState<null | string>(null);
@@ -496,13 +495,20 @@ export function FileViewer({
   const fileType = getFileType(file);
   const hasPreview = fileType === "markdown" || fileType === "html";
   const fileActions = useFileActionVisibility(file);
+  // An HTML preview is a `<webview>` guest, and there is exactly one per task.
+  // Expanding would mount a second host for it, and two hosts sharing one guest
+  // have to agree on which file is on screen, who owns Cmd+F, and which of them
+  // may paint -- none of which a viewer can answer from its own props. The panel
+  // already gives an artifact the full height of the pane, so the affordance is
+  // withheld rather than arbitrated. Every other file type keeps it.
+  const canExpand = onExpand != null && fileType !== "html";
   const hasHeaderMenuActions =
-    onExpand != null || fileActions.showDownload || fileActions.showReveal;
+    canExpand || fileActions.showDownload || fileActions.showReveal;
   const showOverflowMenu =
     fileActions.showDownload ||
     fileActions.showReveal ||
     hasPreview ||
-    Boolean(onExpand);
+    canExpand;
 
   const handleDownload = async () => {
     await downloadFile(file);
@@ -549,7 +555,7 @@ export function FileViewer({
       />
     ),
     file,
-    htmlReloadNonce,
+    goHomeNonce,
     imageLoadError,
     onImageError: () => {
       setImageErrorUrl(url);
@@ -576,24 +582,6 @@ export function FileViewer({
               size="sm"
               variant="ghost"
             />
-            {fileType === "html" && viewMode === "preview" && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    aria-label="Reload"
-                    className={fileViewerHeaderIconActionClassName}
-                    onClick={() => {
-                      setHtmlReloadNonce((nonce) => nonce + 1);
-                    }}
-                    size="icon-sm"
-                    variant="ghost"
-                  >
-                    <ArrowClockwiseIcon className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Reload</TooltipContent>
-              </Tooltip>
-            )}
             {fileActions.showCopy && !imageLoadError && (
               <Button
                 className={fileViewerHeaderActionClassName}
@@ -626,7 +614,7 @@ export function FileViewer({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {onExpand && (
+                  {canExpand && (
                     <DropdownMenuItem onClick={onExpand}>
                       <ArrowsOutSimpleIcon className="size-4" />
                       <span>Expand</span>

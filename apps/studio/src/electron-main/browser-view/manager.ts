@@ -11,6 +11,7 @@ import {
   type BrowserConfig,
   type BrowserTarget,
   type BrowserTargetId,
+  encodeArtifactTargetId,
   encodeBrowserTargetId,
   type StoreId,
   type TaskId,
@@ -38,7 +39,10 @@ import { canStealFocus, createFocusGuard } from "./focus-guard";
 import { attachGuestInteractions } from "./guest-interactions";
 import { log } from "./log";
 import { stopScreencast } from "./screencast";
-import { guestWindowOpenHandler } from "./window-open-policy";
+import {
+  guestWindowOpenHandler,
+  shouldOpenArtifactLinkExternally,
+} from "./window-open-policy";
 
 // How long createTarget waits for the renderer to mount the guest `<webview>`
 // and Electron to fire `did-attach-webview`. The main-window renderer is alive
@@ -158,11 +162,29 @@ export function createBrowserViewManager(): BrowserViewManager {
     // guest's locked-down, same-partition session (see guestWindowOpenHandler),
     // so the opener/postMessage channel that "Continue with Google" and similar
     // flows complete through stays intact instead of hanging.
-    guest.setWindowOpenHandler((details) =>
-      focusGuard.isGuarded(targetId)
+    // An artifact-preview guest opens no child window at all: the allowance
+    // below exists for sign-in popups reached by browsing, which agent-written
+    // HTML has no flow for. Its `target="_blank"` links still go to the OS
+    // browser, the way they did on the iframe this replaced.
+    const isArtifactGuest = !entry.sessionId;
+    guest.setWindowOpenHandler((details) => {
+      if (isArtifactGuest) {
+        if (shouldOpenArtifactLinkExternally(details)) {
+          // Loaded on demand rather than imported: `open-external` reaches the
+          // preferences and app-state stores through its exception capture, and
+          // pulling that whole graph in at module scope breaks node tests of
+          // unrelated modules that transitively import this one. The open is
+          // fire-and-forget, so the handler still answers synchronously.
+          void import("../lib/open-external").then(({ openExternal }) =>
+            openExternal(details.url),
+          );
+        }
+        return { action: "deny" };
+      }
+      return focusGuard.isGuarded(targetId)
         ? { action: "deny" }
-        : guestWindowOpenHandler(details),
-    );
+        : guestWindowOpenHandler(details);
+    });
     // A sign-in popup may open a further popup (multi-step / account-chooser
     // flows); keep the shape policy on the child so those don't hang either.
     guest.on("did-create-window", (child) => {
@@ -336,16 +358,48 @@ export function createBrowserViewManager(): BrowserViewManager {
     });
   }
 
+  // The task's HTML artifact-preview guest. Same mount path as createTarget,
+  // differing only in the id kind and the (separate) storage profile it is
+  // given; see BrowserTargetIdSchema for why the two ids cannot collide.
+  function createArtifactTarget(
+    id: TaskId,
+    partitionDir: AbsolutePath,
+  ): Promise<{ targetId: BrowserTargetId }> {
+    return ensureTarget({
+      id,
+      partitionDir,
+      sessionId: null,
+      targetId: encodeArtifactTargetId(id),
+    });
+  }
+
   function createTarget(
     id: TaskId,
     sessionId: StoreId.Session,
     partitionDir: AbsolutePath,
   ): Promise<{ targetId: BrowserTargetId }> {
-    const targetId = encodeBrowserTargetId(id, sessionId);
+    return ensureTarget({
+      id,
+      partitionDir,
+      sessionId,
+      targetId: encodeBrowserTargetId(id, sessionId),
+    });
+  }
 
+  function ensureTarget({
+    id,
+    partitionDir,
+    sessionId,
+    targetId,
+  }: {
+    id: TaskId;
+    partitionDir: AbsolutePath;
+    sessionId: null | StoreId.Session;
+    targetId: BrowserTargetId;
+  }): Promise<{ targetId: BrowserTargetId }> {
     const existing = entries.get(targetId);
     if (existing) {
-      // Idempotent: a single (id, sessionId) pair owns at most one guest.
+      // Idempotent: a target id owns at most one guest.
       // Already bound -> reuse it; mount still in flight -> wait on it.
       if (existing.webContents && !existing.webContents.isDestroyed()) {
         return Promise.resolve({ targetId });
@@ -395,6 +449,12 @@ export function createBrowserViewManager(): BrowserViewManager {
       if (entry.id !== id) {
         continue;
       }
+      // This list is the agent's `/json` target discovery. An artifact-preview
+      // guest is the user's, not the agent's, so it stays out of it and the
+      // agent sees exactly the targets it always has.
+      if (!entry.sessionId) {
+        continue;
+      }
 
       const wc = entry.webContents;
       // electron/electron#50249: webContents is undefined after destruction in Electron 41+
@@ -440,6 +500,7 @@ export function createBrowserViewManager(): BrowserViewManager {
         destroyEntry(entries, targetId);
         notifyEntriesChanged();
       }),
+    createArtifactTarget,
     createTarget,
     getTargetMeta: (targetId) => {
       const entry = entries.get(targetId);

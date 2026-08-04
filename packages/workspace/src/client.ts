@@ -36,5 +36,6 @@ export {
   type BrowserTargetId,
   BrowserTargetIdSchema,
   decodeBrowserTargetId,
+  encodeArtifactTargetId,
   encodeBrowserTargetId,
 } from "./types";

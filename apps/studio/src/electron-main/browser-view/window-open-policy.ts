@@ -35,6 +35,29 @@ export function guestWindowOpenHandler(
   };
 }
 
+/**
+ * Whether an artifact-preview guest's window-open should be handed to the OS
+ * browser. Such a guest never opens a child window of its own -- it browses
+ * nothing, so it has no sign-in flow to keep alive -- but a `target="_blank"`
+ * link in an agent-written report is ordinary and still has to do something.
+ * On the sandboxed iframe this surface replaced, such a click bubbled to the
+ * main window's handler and was sent to the OS browser; refusing it outright
+ * would leave the link dead, with no address bar to follow it from.
+ *
+ * A predicate rather than a handler so this module stays free of Electron
+ * runtime imports and remains unit-testable; the caller does the opening.
+ */
+export function shouldOpenArtifactLinkExternally(
+  details: HandlerDetails,
+): boolean {
+  try {
+    const { protocol } = new URL(details.url);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function clampPopupDimension(value: null | string, fallback: number): number {
   const parsed = value == null ? Number.NaN : Number.parseInt(value, 10);
   if (Number.isNaN(parsed)) {

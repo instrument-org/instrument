@@ -5,7 +5,7 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises";
 
 import { type WorkspaceActorRef } from "../machines/workspace";
 import { type TaskId } from "../schemas/task-id";
-import { type WorkspaceConfig } from "../types";
+import { encodeArtifactTargetId, type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
@@ -14,7 +14,7 @@ import {
   markStorageAsDisposing,
   unmarkStorageAsDisposing,
 } from "./session-store-storage";
-import { taskDir } from "./task-dir-utils";
+import { getArtifactPreviewSessionDir, taskDir } from "./task-dir-utils";
 
 interface RemoveTaskOptions {
   id: TaskId;
@@ -43,6 +43,12 @@ export async function trashTask({
       // 500ms sleep was already best-effort, this is a strict upper bound.
       await Promise.race([browserReaped, setTimeoutPromise(2000)]);
 
+      // Close the task's HTML artifact-preview guest, if it has one. No
+      // registry to consult: its target id is derived from the task id, and
+      // closeTarget resolves immediately for one that never existed. Awaited
+      // alongside the browser reap so Chromium has released the profile below.
+      await workspaceConfig.browser.closeTarget(encodeArtifactTargetId(id));
+
       // Mark storage as disposing to prevent recreation during deletion
       markStorageAsDisposing(id);
 
@@ -68,6 +74,18 @@ export async function trashTask({
         }
 
         await workspaceConfig.trashItem(taskDir(taskId));
+
+        // The preview's storage profile lives outside the task folder (a
+        // Chromium profile has no business in a directory the user browses), so
+        // trashing the task does not take it. Best-effort: a directory left
+        // behind is dead weight for a task that no longer exists, not worth
+        // failing the deletion the user asked for.
+        const previewProfile = getArtifactPreviewSessionDir(taskId);
+        if (await pathExists(previewProfile)) {
+          await rmrf(previewProfile).catch(() => {
+            // Nothing to do: the task itself is already gone.
+          });
+        }
 
         // In the off chance that a future task with the same id is
         // created, we remove the app being trashed.

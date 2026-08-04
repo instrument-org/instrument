@@ -40,11 +40,13 @@ export {
   WebSearchResponseSchema,
 } from "./schemas/web-search";
 export {
+  ARTIFACT_TARGET_KEY,
   type BrowserConfig,
   type BrowserTarget,
   type BrowserTargetId,
   BrowserTargetIdSchema,
   decodeBrowserTargetId,
+  encodeArtifactTargetId,
   encodeBrowserTargetId,
   type WorkspaceConfig,
 } from "./types";

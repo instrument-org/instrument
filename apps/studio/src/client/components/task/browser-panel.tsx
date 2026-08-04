@@ -1,4 +1,5 @@
 import { BrowserFindBar } from "@/client/components/task/browser-find-bar";
+import { GuestLoadErrorNotice } from "@/client/components/task/guest-load-error";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -26,7 +27,9 @@ import {
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useBrowserFind } from "@/client/hooks/use-browser-find";
 import { useBrowserSlot } from "@/client/hooks/use-browser-slot";
-import { getWebviewElement } from "@/client/lib/browser-pool";
+import { useIsGuestCovered } from "@/client/hooks/use-guest-covered";
+import { useGuestMenuState } from "@/client/hooks/use-guest-menu-state";
+import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
 import {
   EMULATED_DEVICES,
   type EmulatedDevice,
@@ -34,7 +37,6 @@ import {
 import { resolveUrlOrSearch } from "@/client/lib/resolve-url-or-search";
 import { rpcClient } from "@/client/rpc/client";
 import { BROWSER_ZOOM_MAX, BROWSER_ZOOM_MIN } from "@/shared/browser";
-import { steppedZoom } from "@/shared/zoom";
 import {
   type BrowserTargetId,
   encodeBrowserTargetId,
@@ -51,20 +53,10 @@ import {
   DeviceMobileIcon,
   DotsThreeVerticalIcon,
   MagnifyingGlassIcon,
-  WarningCircleIcon,
   XIcon,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-
-// Shape of the `<webview>` `did-fail-load` DOM event (Electron adds these
-// fields; the DOM lib types it as a plain Event).
-interface DidFailLoadEvent extends Event {
-  errorCode: number;
-  errorDescription: string;
-  isMainFrame: boolean;
-  validatedURL: string;
-}
 
 /**
  * The task's in-app browser, hosted in the artifact panel. The guest `<webview>`
@@ -91,9 +83,7 @@ export function TaskBrowserPanel({
   const inputRef = useRef<HTMLInputElement>(null);
   const isActiveTab = useIsActiveTab();
   const [draftUrl, setDraftUrl] = useState("");
-  const [nav, setNav] = useState({ back: false, forward: false });
-  const [zoomFactor, setZoomFactor] = useState(1);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useGuestMenuState();
   // null = the panel's natural size ("Actual size"). Applied via CDP device
   // emulation with a scale computed from the panel's live bounds (see
   // device-emulation.ts) rather than resizing the webview element, which
@@ -101,26 +91,38 @@ export function TaskBrowserPanel({
   const [emulatedDevice, setEmulatedDevice] = useState<EmulatedDevice | null>(
     null,
   );
-  // Set when a main-frame navigation fails (bad host, no network, ...). The
-  // guest is parked and we show a light error state over the slot instead of its
-  // blank error page. Cleared when a new load starts or succeeds.
-  const [loadError, setLoadError] = useState<null | {
-    message: string;
-    url: string;
-  }>(null);
   // While the user is editing the URL, agent-driven navigations must not
   // overwrite what they're typing.
   const editingUrlRef = useRef(false);
 
-  const find = useBrowserFind({ active, isActiveTab, targetId });
+  const guest = useGuestNavigation({
+    active,
+    isUrlEditing: () => editingUrlRef.current,
+    targetId,
+  });
+  // Read once and give both hooks the same answer: a panel that parks its guest
+  // under an overlay must also stop being the Cmd+F target, or the overlay's
+  // host claims the single find-opener slot, clears it on unmount, and this
+  // panel never re-registers.
+  const covered = useIsGuestCovered();
+  const find = useBrowserFind({ active, covered, isActiveTab, targetId });
   const slotRef = useBrowserSlot({
     active,
+    covered,
     emulatedDeviceHeight: emulatedDevice?.height,
     emulatedDeviceWidth: emulatedDevice?.width,
-    hasLoadError: Boolean(loadError),
+    hasLoadError: Boolean(guest.loadError),
     isActiveTab,
     targetId,
   });
+
+  // Mirror the guest's URL into the address bar. Held in local state (rather
+  // than read straight off the hook) because the user types into the same box.
+  useEffect(() => {
+    if (!editingUrlRef.current) {
+      setDraftUrl(guest.url);
+    }
+  }, [guest.url]);
 
   const openExternalLink = useMutation(
     rpcClient.utils.openExternalLink.mutationOptions(),
@@ -141,73 +143,6 @@ export function TaskBrowserPanel({
     openBrowser({ id: taskId, sessionId });
   }, [active, openBrowser, sessionId, targetId, taskId]);
 
-  // Mirror the guest's URL + nav availability into the controls (it navigates
-  // from agent CDP commands too, not just user input), and track main-frame
-  // load failures so we can show a light error state.
-  useEffect(() => {
-    if (!active) {
-      return;
-    }
-    const webview = getWebviewElement(targetId);
-    if (!webview) {
-      return;
-    }
-    const sync = () => {
-      // getURL/canGoBack throw if the guest hasn't attached its WebContents yet;
-      // the did-navigate events that also drive this only fire once it has.
-      try {
-        if (!editingUrlRef.current) {
-          const url = webview.getURL();
-          setDraftUrl(url === "about:blank" ? "" : url);
-        }
-        setNav({ back: webview.canGoBack(), forward: webview.canGoForward() });
-      } catch {
-        // Not attached yet; a did-navigate will re-run sync once it is.
-      }
-    };
-    const onNavigate = () => {
-      setLoadError(null);
-      sync();
-    };
-    const onStartLoading = () => {
-      setLoadError(null);
-    };
-    const onFailLoad = (event: Event) => {
-      const detail = event as DidFailLoadEvent;
-      // Ignore sub-frame failures and user-aborted navigations (ERR_ABORTED),
-      // which fire routinely when a new navigation supersedes an in-flight one.
-      if (!detail.isMainFrame || detail.errorCode === -3) {
-        return;
-      }
-      setLoadError({
-        message: detail.errorDescription || "This site can’t be reached",
-        url: detail.validatedURL,
-      });
-      if (!editingUrlRef.current && detail.validatedURL) {
-        setDraftUrl(detail.validatedURL);
-      }
-      // A committed error page makes the prior page a back entry, but
-      // did-navigate doesn't reliably fire on error-page commit, so refresh the
-      // nav buttons here instead of leaving them stale (back stuck disabled).
-      try {
-        setNav({ back: webview.canGoBack(), forward: webview.canGoForward() });
-      } catch {
-        // Guest not attached yet; a later did-navigate will sync.
-      }
-    };
-    sync();
-    webview.addEventListener("did-navigate", onNavigate);
-    webview.addEventListener("did-navigate-in-page", onNavigate);
-    webview.addEventListener("did-start-loading", onStartLoading);
-    webview.addEventListener("did-fail-load", onFailLoad);
-    return () => {
-      webview.removeEventListener("did-navigate", onNavigate);
-      webview.removeEventListener("did-navigate-in-page", onNavigate);
-      webview.removeEventListener("did-start-loading", onStartLoading);
-      webview.removeEventListener("did-fail-load", onFailLoad);
-    };
-  }, [active, targetId]);
-
   // Focus the URL bar on a blank page ONLY when this panel opened the browser
   // (autoOpenedRef), i.e. a user-initiated open, so they can type immediately.
   // For an agent-initiated open we must not steal focus: a focused bar reads as
@@ -217,7 +152,7 @@ export function TaskBrowserPanel({
       return;
     }
     try {
-      const url = getWebviewElement(targetId)?.getURL();
+      const url = guest.currentUrl();
       const activeElement = document.activeElement;
       // isContentEditable also covers contenteditable="" / "plaintext-only",
       // which an attribute selector would miss.
@@ -225,83 +160,36 @@ export function TaskBrowserPanel({
         activeElement instanceof HTMLElement &&
         (activeElement.isContentEditable ||
           activeElement.matches("input, textarea, select"));
-      if ((!url || url === "about:blank") && !hostInputFocused) {
+      if (!url && !hostInputFocused) {
         inputRef.current?.focus();
       }
     } catch {
       // Not attached yet; nothing to focus into.
     }
+    // `guest` is rebuilt every render and this is a one-shot read at the moment
+    // the guest becomes available, not something to redo as it navigates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, targetId]);
-
-  // Close the overflow menu when the host window loses focus. Clicking into the
-  // guest `<webview>` (a separate WebContents) blurs the host window but never
-  // dispatches a pointer/focus event Radix can see, so its own outside-dismiss
-  // never fires and the menu would otherwise stay stuck open over the page.
-  useEffect(() => {
-    if (!menuOpen) {
-      return;
-    }
-    const close = () => {
-      setMenuOpen(false);
-    };
-    window.addEventListener("blur", close);
-    return () => {
-      window.removeEventListener("blur", close);
-    };
-  }, [menuOpen]);
-
-  const webviewFor = () => getWebviewElement(targetId);
-
-  // loadURL rejects on a failed navigation (bad host, offline, ...); the
-  // did-fail-load listener already surfaces the error, so swallow the rejection
-  // to avoid an unhandled promise error.
-  const navigateTo = (url: string) => {
-    void webviewFor()
-      ?.loadURL(url)
-      .catch(() => {
-        // Surfaced by the did-fail-load listener; nothing to do here.
-      });
-  };
-
-  const applyZoom = (factor: number) => {
-    const webview = webviewFor();
-    if (!webview) {
-      return;
-    }
-    webview.setZoomFactor(factor);
-    setZoomFactor(factor);
-  };
-
-  const currentUrl = () => {
-    try {
-      // getURL throws until the guest's WebContents is dom-ready; `active` can
-      // lead that (it round-trips through main), so treat a throw as "no page".
-      const url = webviewFor()?.getURL();
-      return url && url !== "about:blank" ? url : undefined;
-    } catch {
-      return;
-    }
-  };
 
   // A real page is loaded (not about:blank). Zoom, copy, and open-external all
   // act on the current page, so they're only meaningful once one exists; zoom in
   // particular is per-page and doesn't carry to the next navigation.
-  const pageUrl = active ? currentUrl() : undefined;
+  const pageUrl = active ? guest.currentUrl() : undefined;
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-xl bg-card shadow-sm">
       <div className="flex items-center gap-1 border-b p-1.5">
         <Button
-          disabled={!active || !nav.back}
-          onClick={() => webviewFor()?.goBack()}
+          disabled={!active || !guest.canGoBack}
+          onClick={guest.goBack}
           size="icon-sm"
           variant="ghost"
         >
           <ArrowLeftIcon className="size-4" />
         </Button>
         <Button
-          disabled={!active || !nav.forward}
-          onClick={() => webviewFor()?.goForward()}
+          disabled={!active || !guest.canGoForward}
+          onClick={guest.goForward}
           size="icon-sm"
           variant="ghost"
         >
@@ -309,7 +197,7 @@ export function TaskBrowserPanel({
         </Button>
         <Button
           disabled={!active}
-          onClick={() => webviewFor()?.reload()}
+          onClick={guest.reload}
           size="icon-sm"
           variant="ghost"
         >
@@ -321,7 +209,7 @@ export function TaskBrowserPanel({
             event.preventDefault();
             const target = resolveUrlOrSearch(draftUrl);
             if (target) {
-              navigateTo(target);
+              guest.navigateTo(target);
               // Blur so the "editing" guard releases and the resolved final URL
               // (after normalization/redirects) syncs back into the bar once the
               // navigation commits, instead of leaving what the user typed.
@@ -379,14 +267,7 @@ export function TaskBrowserPanel({
               return;
             }
             if (open) {
-              const webview = webviewFor();
-              if (webview) {
-                try {
-                  setZoomFactor(webview.getZoomFactor());
-                } catch {
-                  // Not dom-ready yet; keep the last known zoom.
-                }
-              }
+              guest.syncZoomFactor();
             }
             setMenuOpen(open);
           }}
@@ -401,35 +282,17 @@ export function TaskBrowserPanel({
             <div className="flex items-center justify-between px-2 py-1.5">
               <span className="text-sm">Zoom</span>
               <ZoomStepperControl
-                canZoomIn={zoomFactor < BROWSER_ZOOM_MAX}
-                canZoomOut={zoomFactor > BROWSER_ZOOM_MIN}
-                onZoomIn={() => {
-                  applyZoom(
-                    steppedZoom({
-                      direction: "in",
-                      factor: zoomFactor,
-                      max: BROWSER_ZOOM_MAX,
-                      min: BROWSER_ZOOM_MIN,
-                    }),
-                  );
-                }}
-                onZoomOut={() => {
-                  applyZoom(
-                    steppedZoom({
-                      direction: "out",
-                      factor: zoomFactor,
-                      max: BROWSER_ZOOM_MAX,
-                      min: BROWSER_ZOOM_MIN,
-                    }),
-                  );
-                }}
+                canZoomIn={guest.zoomFactor < BROWSER_ZOOM_MAX}
+                canZoomOut={guest.zoomFactor > BROWSER_ZOOM_MIN}
+                onZoomIn={guest.zoomIn}
+                onZoomOut={guest.zoomOut}
                 readout={
                   <ZoomLevelMenu
                     max={BROWSER_ZOOM_MAX}
                     min={BROWSER_ZOOM_MIN}
                     nested
-                    onSelect={applyZoom}
-                    zoom={zoomFactor}
+                    onSelect={guest.applyZoom}
+                    zoom={guest.zoomFactor}
                   />
                 }
               />
@@ -479,18 +342,14 @@ export function TaskBrowserPanel({
               <MagnifyingGlassIcon className="size-4" />
               Find in page
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => {
-                webviewFor()?.reloadIgnoringCache();
-              }}
-            >
+            <DropdownMenuItem onSelect={guest.hardReload}>
               <ArrowCounterClockwiseIcon className="size-4" />
               Hard reload
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={() => {
-                const url = currentUrl();
+                const url = guest.currentUrl();
                 if (url) {
                   void navigator.clipboard.writeText(url);
                 }
@@ -517,30 +376,15 @@ export function TaskBrowserPanel({
       )}
       {active ? (
         <div className="relative flex-1" ref={slotRef}>
-          {loadError && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-card p-6 text-center">
-              <WarningCircleIcon className="size-8 text-muted-foreground" />
-              <div className="space-y-1">
-                <p className="text-sm font-medium">
-                  This site can’t be reached
-                </p>
-                <p className="max-w-xs truncate text-xs text-muted-foreground">
-                  {loadError.url}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {loadError.message}
-                </p>
-              </div>
-              <Button
-                onClick={() => {
-                  navigateTo(loadError.url);
-                }}
-                size="sm"
-                variant="outline"
-              >
-                Try again
-              </Button>
-            </div>
+          {guest.loadError && (
+            <GuestLoadErrorNotice
+              error={guest.loadError}
+              onRetry={() => {
+                if (guest.loadError) {
+                  guest.navigateTo(guest.loadError.url);
+                }
+              }}
+            />
           )}
         </div>
       ) : (

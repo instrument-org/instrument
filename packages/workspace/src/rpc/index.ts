@@ -1,3 +1,4 @@
+import { artifactPreview } from "./routes/artifact-preview";
 import { browser } from "./routes/browser";
 import { debug } from "./routes/debug";
 import { message } from "./routes/message";
@@ -12,6 +13,7 @@ import { storage } from "./routes/storage";
 import { task } from "./routes/task";
 
 export const router = {
+  artifactPreview,
   browser,
   debug,
   message,

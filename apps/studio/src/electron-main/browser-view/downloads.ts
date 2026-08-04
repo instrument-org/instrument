@@ -35,7 +35,20 @@ export function attachDownloadHandler({
 }) {
   session.on("will-download", (_event, item) => {
     const entry = entries.get(targetId);
-    if (!entry?.authorizedDownloadPath) {
+    if (!entry) {
+      item.cancel();
+      return;
+    }
+    // An artifact preview has no agent driving it, so there is no authorized
+    // path to route a download into and nothing to synthesize a CDP event for.
+    // Leave it to Electron, which prompts for a location: a "Download CSV"
+    // button in a generated report worked on the iframe this replaced (it
+    // carried `allow-downloads`), and cancelling here would make it silently
+    // dead. The user asked for the file by clicking it.
+    if (!entry.sessionId) {
+      return;
+    }
+    if (!entry.authorizedDownloadPath) {
       item.cancel();
       return;
     }

@@ -17,9 +17,33 @@ Each guest stays parented to `document.body` for its whole life so that React re
 - **paint-host** — laid out at the guest's logical size but visually hidden (`opacity: 0.001`). Chromium still paints it on screen, so `capturePage()` and CDP input keep working while nothing is showing it.
 - **visible** — positioned over a host slot (the task page's browser panel) and scaled to fit, with input enabled.
 
-Capture requires the guest to be on-screen and unoccluded, which is why "hidden" is a near-zero opacity rather than `display: none`. At most one guest is visible at a time: a task's panel shows its guest only while its tab is foreground and parks it otherwise. **Hiding or closing the panel never disposes a guest** — only the main process's desired set does that.
+Capture requires the guest to be on-screen and unoccluded, which is why "hidden" is a near-zero opacity rather than `display: none`. **Hiding or closing the panel never disposes a guest** — only the main process's desired set does that.
+
+Nothing in the pool limits how many guests are visible: `showOverSlot` and `setPaintHost` are per-target. In practice the callers keep it to one, because a task's browser panel and its artifact preview are the same slot (`artifactPanelSchema` is a discriminated union, and `TaskView` renders one or the other) and each shows its guest only while its tab is foreground.
+
+A full-window overlay is the one thing that covers a slot without looking like a tab switch. The guest is mounted on `document.body`, outside every dialog's subtree, so no overlay occludes it — it keeps painting over the dim layer as though nothing opened. A host under one passes `covered`; see [`use-guest-covered.ts`](../../apps/studio/src/client/hooks/use-guest-covered.ts), which reports all three overlay sources (studio modals, the file viewer's expand modal, the chat's image preview).
 
 [`use-browser-slot.ts`](../../apps/studio/src/client/hooks/use-browser-slot.ts) measures the slot and drives show/park; [`use-browser-targets.ts`](../../apps/studio/src/client/hooks/use-browser-targets.ts) exposes which targets have actually attached.
+
+## Two target kinds
+
+`BrowserTargetId` has two admissible forms, one per guest kind ([`types.ts`](../../packages/workspace/src/types.ts)):
+
+```
+${taskId}/${sessionId}   session guest   -- the agent-drivable browser this doc is mostly about
+${taskId}/artifact       artifact guest  -- the task's HTML artifact preview
+```
+
+`artifact` is a fixed sentinel, not an id; session ids are `ses_`-prefixed ULIDs, so the two cannot collide. `decodeBrowserTargetId` returns a discriminated `{kind}` so callers that only make sense for one kind — the CDP bridge and the agent's target list, both session-only — have to say so.
+
+The artifact guest exists so the surface the agent verifies its own work on and the surface the user reads are the same kind of thing: both a real origin, both a real webContents. See [html-artifact-iframe-navigation](../findings/html-artifact-iframe-navigation.md). It differs from a session guest in four ways:
+
+- **One per task**, navigated between files with `loadURL` rather than one webContents per HTML file. Exactly one preview is ever mounted for it — `FileViewer` withholds Expand for HTML so a second host cannot exist.
+- **Its own storage profile, per task** (`<rootDir>/<private>/artifact-preview-session/<taskId>`). Origins are not enough on their own: `localStorage` and IndexedDB are keyed by origin, but cookies are domain-scoped, so a page on `assets.<a>.localhost` could set one for `localhost` and read it from another task's preview through a shared jar.
+- **Not agent-reachable.** `listTargets` skips it, so it never appears in the agent's `/json` discovery, and the CDP bridge refuses a WS upgrade for an artifact-kind id.
+- **Opens no child window**, though `target=_blank` still reaches the OS browser, and **downloads prompt** rather than being cancelled — both restoring what the sandboxed iframe did.
+
+**No lifetime machine.** Its id is derived from the task id, so `trash-task` closes it and removes its profile with no registry to consult; nothing else reaps it. One webContents per task whose HTML artifact you opened, for the life of the task.
 
 ## Attach lifecycle
 
@@ -47,7 +71,7 @@ The wrapper rejects upstream flags and subcommands that would select another con
 
 `Emulation.setDeviceMetricsOverride` is **refused outright** for agent-browser callers in `dispatch-command.ts`, but available to the panel's "View as" menu through [`device-emulation.ts`](../../apps/studio/src/electron-main/browser-view/device-emulation.ts). The difference is `scale`: the panel computes it from the guest's live measured bounds, so the surface always shrinks to fit what is on screen. An external caller cannot know the guest's current on-screen size, and an unscaled oversized override is what corrupted the panel with dead space and cropped rendering. See also [in-app-browser-device-emulation](../findings/in-app-browser-device-emulation.md).
 
-Popups follow a shape policy in [`window-open-policy.ts`](../../apps/studio/src/electron-main/browser-view/window-open-policy.ts): real `window.open` popups to http(s) are **allowed** (denying them returns null and hangs "Continue with Google" style sign-in flows), while `target=_blank` and JS tab-opens report `foreground-tab`/`background-tab` and stay denied. Opens are additionally denied while agent CDP activity is driving the guest, so automation cannot spawn a window the user never asked for. Turning popups into real agent-drivable tabs is [a plan](../plans/active/browser-popups-as-agent-drivable-tabs.md), not current behavior.
+Popups follow a shape policy in [`window-open-policy.ts`](../../apps/studio/src/electron-main/browser-view/window-open-policy.ts): real `window.open` popups to http(s) are **allowed** (denying them returns null and hangs "Continue with Google" style sign-in flows), while `target=_blank` and JS tab-opens report `foreground-tab`/`background-tab` and stay denied. Opens are additionally denied while agent CDP activity is driving the guest, so automation cannot spawn a window the user never asked for, and an artifact guest opens no child window at all — though it hands `target=_blank` http(s) opens to `openExternal`, matching what those links did on the iframe it replaced. Turning popups into real agent-drivable tabs is [a plan](../plans/active/browser-popups-as-agent-drivable-tabs.md), not current behavior.
 
 ## Focus
 
@@ -55,11 +79,11 @@ Popups follow a shape policy in [`window-open-policy.ts`](../../apps/studio/src/
 
 ## Lifetime
 
-[`task-browser.ts`](../../packages/workspace/src/machines/task-browser.ts) supervises a task's browser as an XState machine with `Observed` / `Unobserved` / `GracePeriod` / `Stopping` / `Stopped` states, on two clocks: `AGENT_IDLE_TIMEOUT_MS` (1 hour) and `USER_PRESENCE_TIMEOUT_MS` (5 minutes). The renderer reports presence through `browser.live.presence` in the workspace RPC. Sessions are torn down through `agent-browser-cleanup.ts`; see [agent-browser-orphaned-daemons](../findings/agent-browser-orphaned-daemons.md) and [agent-browser-ref-map-idle-ttl](../findings/agent-browser-ref-map-idle-ttl.md) for the failure modes that shaped it.
+[`task-browser.ts`](../../packages/workspace/src/machines/task-browser.ts) supervises a task's **session** browser as an XState machine with `Observed` / `Unobserved` / `GracePeriod` / `Stopping` / `Stopped` states, on two clocks: `AGENT_IDLE_TIMEOUT_MS` (1 hour) and `USER_PRESENCE_TIMEOUT_MS` (5 minutes). The renderer reports presence through `browser.live.presence` in the workspace RPC. Sessions are torn down through `agent-browser-cleanup.ts`; see [agent-browser-orphaned-daemons](../findings/agent-browser-orphaned-daemons.md) and [agent-browser-ref-map-idle-ttl](../findings/agent-browser-ref-map-idle-ttl.md) for the failure modes that shaped it.
 
 ## Related
 
 - [agent-sandbox.md](agent-sandbox.md) — the `agent-browser` argv allowlist and asset-URL rewriting.
 - [asset-origin.md](asset-origin.md) — the per-task origin the guest loads when it is pointed at the task's own files.
 - [in-app-browser-full-page-screenshots](../findings/in-app-browser-full-page-screenshots.md) — why full-page capture is not just a CDP flag.
-- [html-artifact-iframe-navigation](../findings/html-artifact-iframe-navigation.md) — the artifact iframe, which is a different surface from this one.
+- [html-artifact-iframe-navigation](../findings/html-artifact-iframe-navigation.md) — why HTML artifacts moved off a sandboxed iframe onto this pool.

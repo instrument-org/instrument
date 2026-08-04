@@ -11,6 +11,28 @@ import { type TaskId } from "../schemas/task-id";
 import { absolutePathJoin } from "./absolute-path-join";
 import { getWorkspaceConfig } from "./workspace-config";
 
+/**
+ * Storage profile for one task's HTML artifact-preview guest.
+ *
+ * Per task, not one shared profile: the distinct asset origins isolate
+ * `localStorage` and IndexedDB, but cookies are scoped by domain rather than by
+ * origin, so a page served from `assets.<a>.localhost` can set one for
+ * `localhost` and any other task's preview sharing the jar would send and read
+ * it. Agent-authored HTML is untrusted, so that is a channel between two tasks.
+ *
+ * Lives beside the workspace's other private state rather than inside the task,
+ * so a Chromium profile never lands in a folder the user browses or exports;
+ * trash-task removes it along with the task.
+ */
+export function getArtifactPreviewSessionDir(id: TaskId): AbsolutePath {
+  return absolutePathJoin(
+    getWorkspaceConfig().rootDir,
+    TASK_FOLDER_NAMES.private,
+    TASK_FOLDER_NAMES.artifactPreviewSession,
+    id,
+  );
+}
+
 export function getBrowserSessionDir(): AbsolutePath {
   return absolutePathJoin(
     getWorkspaceConfig().rootDir,

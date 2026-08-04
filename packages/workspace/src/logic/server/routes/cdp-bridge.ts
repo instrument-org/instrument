@@ -11,6 +11,7 @@ import { TaskIdSchema } from "../../../schemas/task-id";
 import {
   type BrowserTargetId,
   BrowserTargetIdSchema,
+  decodeBrowserTargetId,
   type WorkspaceConfig,
 } from "../../../types";
 import { CDP_BASE_PATH, CDP_PAGE_PATH_PREFIX } from "../constants";
@@ -94,12 +95,16 @@ export function setupCdpWebSocketBridge(
     // No query parameters; everything routing-relevant is in the path so
     // the WS upgrade alone tells us which (id, sessionId) is wired.
     const rawTargetId = req.url.slice(CDP_PAGE_PATH_PREFIX.length);
-    const parsed = BrowserTargetIdSchema.safeParse(rawTargetId.split("?")[0]);
-    if (!parsed.success) {
+    const decoded = decodeBrowserTargetId(rawTargetId.split("?")[0] ?? "");
+    // Artifact-preview guests are not agent-drivable: they parse as target ids
+    // but exist only to show the user their own HTML. Refuse the upgrade so
+    // the CDP surface stays exactly the set of session guests it has always
+    // been. `listTargets` excludes them too, so nothing advertises one here.
+    if (decoded?.kind !== "session") {
       socket.destroy();
       return;
     }
-    const targetId = parsed.data;
+    const targetId = BrowserTargetIdSchema.parse(rawTargetId.split("?")[0]);
 
     wss.handleUpgrade(req, socket, head, (clientWs) => {
       handleCdpClient(clientWs, targetId, workspaceConfig, workspaceRef);
@@ -133,9 +138,11 @@ function handleCdpClient(
 
   // Surface this WS connection to the taskBrowser machine so it can fan
   // out `agent-browser close --session <id>` at reap time. Lookup is cheap
-  // and missing meta means the target was already destroyed; skip.
+  // and missing meta means the target was already destroyed; skip. A null
+  // sessionId is an artifact-preview target, which the upgrade handler already
+  // refuses -- there is no session to attach.
   const initialMeta = workspaceConfig.browser.getTargetMeta(targetId);
-  if (initialMeta) {
+  if (initialMeta?.sessionId) {
     workspaceRef.send({
       type: "workspaceServer.attachAgentSession",
       value: {
@@ -229,7 +236,7 @@ function handleCdpClient(
     // The agent is the only writer on this WS so this matches real agent
     // command rate without throttling.
     const meta = workspaceConfig.browser.getTargetMeta(targetId);
-    if (meta) {
+    if (meta?.sessionId) {
       workspaceRef.send({
         type: "workspaceServer.updateCdpHeartbeat",
         value: {

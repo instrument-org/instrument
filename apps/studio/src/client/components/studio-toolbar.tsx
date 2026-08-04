@@ -1,3 +1,4 @@
+import { InternalLink } from "@/client/components/internal-link";
 import { NavControls } from "@/client/components/nav-controls";
 import TabBar from "@/client/components/tab-bar";
 import { Button } from "@/client/components/ui/button";
@@ -8,7 +9,7 @@ import { setSidebarOpen, useSidebarOpen } from "@/client/hooks/use-sidebar";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
-import { SidebarSimpleIcon } from "@phosphor-icons/react";
+import { NotePencilIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense } from "react";
 
@@ -76,7 +77,28 @@ export function StudioToolbar() {
               )}
             </Button>
           )}
-          <NavControls />
+          <div className="flex items-center">
+            <NavControls />
+            {/* The sidebar carries its own New task button, so this only fills
+                in for it while the sidebar is hidden. */}
+            {!isSidebarOpen && (
+              <Button
+                asChild
+                className="size-6 text-foreground/80"
+                size="icon"
+                title="New task"
+                variant="ghost-toolbar"
+              >
+                <InternalLink
+                  aria-label="New task"
+                  openInCurrentTab
+                  to="/new-tab"
+                >
+                  <NotePencilIcon className="size-4" />
+                </InternalLink>
+              </Button>
+            )}
+          </div>
         </div>
       </div>
       {/* Main toolbar region: tab bar */}

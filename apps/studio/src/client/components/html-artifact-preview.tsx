@@ -22,7 +22,7 @@ import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useBrowserFind } from "@/client/hooks/use-browser-find";
 import { useBrowserSlot } from "@/client/hooks/use-browser-slot";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
-import { useIsGuestCovered } from "@/client/hooks/use-guest-covered";
+import { useGuestOverlays } from "@/client/hooks/use-guest-covered";
 import { useGuestMenuState } from "@/client/hooks/use-guest-menu-state";
 import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
 import { rpcClient } from "@/client/rpc/client";
@@ -155,14 +155,23 @@ export function HtmlArtifactPreview({
     }
   }, [active, isActiveTab, openPreview, taskId]);
 
-  // A raised preview is the one inside the overlay, so it keeps painting; an
-  // unraised one is behind it and has to park. Both are mounted at once when
-  // the expand modal opens over the panel, and they share a single guest --
-  // this is what hands it over and, on close, hands it back. Without it the
-  // modal's slot parks the guest as it unmounts and the panel, whose own
-  // inputs never changed, never re-claims it. The same signal decides which of
-  // the two owns Cmd+F.
-  const covered = useIsGuestCovered() && zIndex === undefined;
+  // A raised preview is the one inside the expand modal, so that overlay does
+  // not cover it and it keeps painting; an unraised one is behind it and has to
+  // park. Both are mounted at once when the modal opens over the panel, and
+  // they share a single guest -- this is what hands it over and, on close,
+  // hands it back. Without it the modal's slot parks the guest as it unmounts
+  // and the panel, whose own inputs never changed, never re-claims it. The same
+  // signal decides which of the two owns Cmd+F.
+  //
+  // Being raised is not blanket immunity, though: an app-wide dialog opens over
+  // the expand modal too (they are independent slots, so Cmd+, reaches one
+  // through the other) and it draws below a guest raised above it. So the
+  // raised host ignores only the overlay it lives inside.
+  const { fileViewerModalOpen, studioModalOpen } = useGuestOverlays();
+  const covered =
+    zIndex === undefined
+      ? studioModalOpen || fileViewerModalOpen
+      : studioModalOpen;
 
   const guest = useGuestNavigation({ active, targetId });
   const find = useBrowserFind({ active, covered, isActiveTab, targetId });

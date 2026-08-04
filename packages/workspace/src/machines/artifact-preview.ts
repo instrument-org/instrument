@@ -24,6 +24,10 @@ export interface ArtifactPreviewParentEvent {
 
 interface ArtifactPreviewContext {
   browser: BrowserConfig;
+  // Set when teardown was ordered rather than reached by going idle (the task
+  // is being trashed). Such a teardown is final: a lease arriving mid-flight
+  // must not revive the preview for a task on its way out.
+  forced: boolean;
   id: TaskId;
   presenceCount: number;
   // Null until an open registers the target it created. A machine spawned by a
@@ -73,6 +77,8 @@ export const artifactPreviewMachine = setup({
 
     clearTarget: assign({ targetId: null }),
 
+    markForced: assign({ forced: true }),
+
     notifyParentStopped: sendParent(({ context }) => ({
       type: "artifactPreview.stopped" as const,
       value: { id: context.id },
@@ -93,6 +99,10 @@ export const artifactPreviewMachine = setup({
 
   guards: {
     hasOnePresence: ({ context }) => context.presenceCount === 1,
+    // A viewer showed up while the old guest was being closed, and this was not
+    // a forced teardown, so there is someone to come back for.
+    shouldReviveAfterClose: ({ context }) =>
+      context.presenceCount > 0 && !context.forced,
   },
 
   types: {
@@ -103,6 +113,7 @@ export const artifactPreviewMachine = setup({
 }).createMachine({
   context: ({ input }) => ({
     browser: input.browser,
+    forced: false,
     id: input.id,
     presenceCount: 0,
     targetId: null,
@@ -110,7 +121,7 @@ export const artifactPreviewMachine = setup({
   id: "artifactPreview",
   initial: "GracePeriod",
   on: {
-    forceReap: { target: ".Stopping" },
+    forceReap: { actions: "markForced", target: ".Stopping" },
     // The guest died under us (renderer crash, window close). Forget the id so
     // teardown doesn't try to close an entry that is already gone.
     targetDestroyedExternally: {
@@ -156,15 +167,41 @@ export const artifactPreviewMachine = setup({
       entry: "notifyParentStopped",
       type: "final",
     },
+    // Closing the guest. A lease can still arrive here -- the user reopens a
+    // preview in the moment its idle teardown began -- and dropping it would
+    // strand the viewer: the machine reaches Stopped, the parent forgets it, and
+    // nothing re-leases, so the panel's open effect rebuilds a guest that is
+    // reaped again every grace period. Keep counting, and come back to Observed
+    // if someone is still watching once the close settles. The target it just
+    // closed is gone, so the id is cleared and the panel's open registers the
+    // replacement.
     Stopping: {
       invoke: {
         input: ({ context }) => ({
           browser: context.browser,
           targetId: context.targetId,
         }),
-        onDone: { target: "Stopped" },
-        onError: { target: "Stopped" },
+        onDone: [
+          {
+            actions: "clearTarget",
+            guard: "shouldReviveAfterClose",
+            target: "Observed",
+          },
+          { target: "Stopped" },
+        ],
+        onError: [
+          {
+            actions: "clearTarget",
+            guard: "shouldReviveAfterClose",
+            target: "Observed",
+          },
+          { target: "Stopped" },
+        ],
         src: "closeTargetLogic",
+      },
+      on: {
+        acquirePresence: { actions: "acquirePresence" },
+        releasePresence: { actions: "releasePresence" },
       },
     },
   },

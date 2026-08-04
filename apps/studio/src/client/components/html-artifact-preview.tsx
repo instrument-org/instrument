@@ -45,11 +45,18 @@ import {
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
-// How many previews are mounted on each guest. The artifact panel and the
-// expand modal over it are two hosts on one guest, and the second to arrive has
-// to behave differently from the first (see isSecondaryHost), which is not
-// something either can work out from its own props.
-const mountedHosts = new Map<BrowserTargetId, number>();
+// How many previews are mounted on each guest *for a given file*. The artifact
+// panel and the expand modal over it are two hosts on one guest, and the second
+// to arrive has to behave differently from the first (see isSecondaryHost),
+// which is not something either can work out from its own props.
+//
+// Keyed by file and not by target alone, because the count is read while
+// rendering the incoming host and React runs every cleanup after that: on a
+// file switch the outgoing host is still counted, so a target-keyed entry would
+// make the new file look like a second viewer of the old one and adopt the page
+// it was showing. Two hosts of the same file are the only pair that should ever
+// share a page, and that is exactly what this key admits.
+const mountedHosts = new Map<string, number>();
 
 /**
  * An HTML file artifact, rendered in the same `<webview>` guest the agent
@@ -90,27 +97,28 @@ export function HtmlArtifactPreview({
   const targetId = encodeArtifactTargetId(taskId);
   const isActiveTab = useIsActiveTab();
 
-  // Whether another preview was already mounted on this guest when this one
+  // Whether another preview of this same file was already mounted when this one
   // arrived, read once at mount. The expand modal opening over the panel is a
   // second host on a live guest, and it must adopt whatever page that guest is
   // showing rather than pulling it back to the entry page under a reader who
-  // followed a link. Switching files instead remounts a lone host, which does
-  // navigate. Registration happens in the effect below.
+  // followed a link. Switching files is a different key, so it navigates.
+  // Registration happens in the effect below.
   const [isSecondaryHost] = useState(
-    () => (mountedHosts.get(targetId) ?? 0) > 0,
+    () => (mountedHosts.get(hostKey(targetId, entryUrl)) ?? 0) > 0,
   );
 
   useEffect(() => {
-    mountedHosts.set(targetId, (mountedHosts.get(targetId) ?? 0) + 1);
+    const key = hostKey(targetId, entryUrl);
+    mountedHosts.set(key, (mountedHosts.get(key) ?? 0) + 1);
     return () => {
-      const next = (mountedHosts.get(targetId) ?? 1) - 1;
+      const next = (mountedHosts.get(key) ?? 1) - 1;
       if (next > 0) {
-        mountedHosts.set(targetId, next);
+        mountedHosts.set(key, next);
       } else {
-        mountedHosts.delete(targetId);
+        mountedHosts.delete(key);
       }
     };
-  }, [targetId]);
+  }, [entryUrl, targetId]);
 
   // Holds the guest alive while this preview is on the foreground tab. Gated the
   // same way the session browser's lease is: every task tab stays mounted when
@@ -363,4 +371,8 @@ export function HtmlArtifactPreview({
       )}
     </div>
   );
+}
+
+function hostKey(targetId: BrowserTargetId, entryUrl: string) {
+  return `${targetId}\n${entryUrl}`;
 }

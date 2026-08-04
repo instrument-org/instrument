@@ -58,9 +58,11 @@ const createArtifactTargetMock: BrowserConfig["createArtifactTarget"] = (id) =>
 const createTargetMock: BrowserConfig["createTarget"] = (id, sessionId) =>
   Promise.resolve({ targetId: encodeBrowserTargetId(id, sessionId) });
 
-function makeBrowser(): BrowserConfig {
+function makeBrowser(
+  closeTarget: BrowserConfig["closeTarget"] = vi.fn(asyncNoop),
+): BrowserConfig {
   return {
-    closeTarget: vi.fn(asyncNoop),
+    closeTarget,
     createArtifactTarget: vi.fn(createArtifactTargetMock),
     createTarget: vi.fn(createTargetMock),
     getTargetMeta: vi.fn(() => null),
@@ -69,6 +71,27 @@ function makeBrowser(): BrowserConfig {
     sendCommand: vi.fn(emptyResult),
     stopScreencast: vi.fn(noop),
     subscribeEvents: vi.fn(makeDisposer),
+  };
+}
+
+// A close that only settles when the test says so, for the teardown race: with
+// the default instant close, Stopping is entered and left inside one tick and
+// there is no window to send anything into.
+function makeDeferredClose() {
+  let release: () => void = noop;
+  const closeTarget = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        release = () => {
+          resolve();
+        };
+      }),
+  );
+  return {
+    closeTarget,
+    release: () => {
+      release();
+    },
   };
 }
 
@@ -82,8 +105,8 @@ interface Harness {
   parentRef: AnyActorRef;
 }
 
-function spawnHarness(): Harness {
-  const browser = makeBrowser();
+function spawnHarness(closeTarget?: BrowserConfig["closeTarget"]): Harness {
+  const browser = makeBrowser(closeTarget);
   const parentEvents: ArtifactPreviewParentEvent[] = [];
 
   const parentMachine = setup({
@@ -203,6 +226,57 @@ describe("artifactPreviewMachine", () => {
     expect(parentEvents).toEqual([
       { type: "artifactPreview.stopped", value: { id } },
     ]);
+  });
+
+  // A viewer reopening the preview in the moment its idle teardown began must
+  // not be dropped: the machine would reach Stopped, the parent would forget
+  // it, and nothing would re-lease, so the panel would rebuild a guest that is
+  // reaped again every grace period for as long as someone is looking at it.
+  it("comes back to Observed when presence arrives mid-teardown", async () => {
+    const { closeTarget, release } = makeDeferredClose();
+    const { actor } = spawnHarness(closeTarget);
+
+    actor.send({ type: "registerTarget", value: { targetId: TARGET } });
+    await vi.advanceTimersByTimeAsync(ARTIFACT_PREVIEW_GRACE_MS);
+    expect(actor.getSnapshot().value).toBe("Stopping");
+
+    actor.send({ type: "acquirePresence" });
+    release();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(actor.getSnapshot().value).toBe("Observed");
+    expect(actor.getSnapshot().status).toBe("active");
+    // The guest it just closed is gone; the panel's open registers a new one.
+    expect(actor.getSnapshot().context.targetId).toBeNull();
+  });
+
+  it("still reaps mid-teardown presence that never arrives", async () => {
+    const { actor, parentEvents } = spawnHarness();
+
+    actor.send({ type: "registerTarget", value: { targetId: TARGET } });
+    await vi.advanceTimersByTimeAsync(ARTIFACT_PREVIEW_GRACE_MS);
+    await waitFor(actor, (s) => s.status === "done");
+
+    expect(parentEvents).toEqual([
+      { type: "artifactPreview.stopped", value: { id } },
+    ]);
+  });
+
+  // Trashing a task orders teardown, and that is final -- a lease landing in
+  // the same tick must not revive a preview for a task on its way out.
+  it("does not revive after a forced reap even if presence arrives", async () => {
+    const { closeTarget, release } = makeDeferredClose();
+    const { actor } = spawnHarness(closeTarget);
+
+    actor.send({ type: "registerTarget", value: { targetId: TARGET } });
+    actor.send({ type: "forceReap" });
+    expect(actor.getSnapshot().value).toBe("Stopping");
+
+    actor.send({ type: "acquirePresence" });
+    release();
+    await waitFor(actor, (s) => s.status === "done");
+
+    expect(actor.getSnapshot().value).toBe("Stopped");
   });
 
   it("never runs agent-browser daemon cleanup", async () => {

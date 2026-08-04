@@ -65,6 +65,12 @@ Two things to settle before starting, because both can invalidate the work:
 - Screenshot the checkout the range came from, on a build that has nothing newer affecting those surfaces.
 - Ask where the images should end up, and get approval for that batch before uploading anything. Putting them anywhere outside this machine, Notion included, means a third-party host sees them first.
 
+## Persisting Reviews
+
+When the user asks to keep the result in this repository, create a change review under `docs/changes/YYYY-MM-DD-<scope>/README.md`, with screenshots in an adjacent `images/` directory and relative image embeds. Use the screenshot date for the folder prefix, state the exact commit range and checkout used for screenshots, and add the review to the newest-first index in `docs/changes/README.md`.
+
+The skill name describes the discovery action. A persisted change review may cover interaction behavior, workflows, copy, state visibility, and layout as well as visual styling. See `docs/changes/README.md` for the artifact contract and image-size guidance.
+
 ## Output
 
 Use this shape:

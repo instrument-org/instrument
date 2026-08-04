@@ -88,10 +88,12 @@ Multiple worktrees can run Studio at once (`pnpm dev:studio` from the root, or `
 
 Durable, versioned docs are the system of record; prefer them over chat/history. Keep them evergreen and safe to share: leave out secrets and anything tied to one machine, person, or moment.
 
+- `docs/README.md`: the knowledge-base index and provenance.
 - `docs/architecture/` — evergreen maps of a subsystem or domain and how it layers together, edited in place as the code changes. One file per subsystem.
 - `docs/findings/` — non-obvious issues, what we tried, what might resolve them later. One file per finding.
 - `docs/plans/` — execution plans for non-trivial work (`active/` vs `completed/`). One file per plan.
 - `docs/decisions/` — why we chose one approach over another, dated. One file per decision.
+- `docs/changes/`: dated, screenshot-backed summaries of user-facing changes for design follow-up and possible changelog input.
 
 ## Additional guidance
 

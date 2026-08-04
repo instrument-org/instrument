@@ -1,6 +1,6 @@
 # Browser popups as agent-drivable tabs
 
-Status: proposal / not started. Depends on the multiple-browser-tabs-per-task substrate in [lazy-browser-targets-and-multiple-tabs.md](./lazy-browser-targets-and-multiple-tabs.md).
+Status: proposal / not started. Depends on the multiple-browser-tabs-per-task substrate in [lazy-browser-targets-and-multiple-tabs.md](./lazy-browser-targets-and-multiple-tabs.md). Framed by [one-browser-many-tabs.md](./one-browser-many-tabs.md), which is the product-level plan; this one is the detail.
 
 ## Goal
 

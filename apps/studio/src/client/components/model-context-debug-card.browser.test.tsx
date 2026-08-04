@@ -24,7 +24,6 @@ async function renderCard(text: string) {
   await render(
     // Radix throws without one, and a test rendering a single component is the
     // app root it is asking for.
-    // eslint-disable-next-line no-restricted-syntax -- see above
     <TooltipProvider>
       {/* The card fills its parent, so the parent needs a width before any of
           it can be measured. */}

@@ -15,7 +15,6 @@ function renderCard(text: string) {
   renderWithProviders(
     // Radix throws without one, and a test rendering a single component is the
     // app root it is asking for.
-    // eslint-disable-next-line no-restricted-syntax -- see above
     <TooltipProvider>
       <ModelContextDebugCard text={text} />
     </TooltipProvider>,

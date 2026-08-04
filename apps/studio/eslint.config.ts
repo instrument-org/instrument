@@ -92,6 +92,16 @@ export default [
     },
   },
   {
+    // The syntax bans above describe the shape of the running app: one
+    // TooltipProvider at its root, links that know about tabs, no bare anchors.
+    // A test mounts a component without that shell and has to supply the pieces
+    // itself, so the rule only produced per-file disables there.
+    files: ["**/*.test.*"],
+    rules: {
+      "no-restricted-syntax": "off",
+    },
+  },
+  {
     files: ["src/{electron-main,electron-preload}/**/*.{js,jsx,ts,tsx}"],
     rules: {
       "no-restricted-imports": [

@@ -156,6 +156,31 @@ export const llmRequestLogic = fromPromise<
   let msToFirstChunk: number | undefined;
   let msToFinish: number | undefined;
 
+  // A provider that closes a reasoning block when text starts can still leave
+  // it open on a turn that goes straight from reasoning to a tool call, and
+  // only end it when the whole step finishes. That leaves the part streaming
+  // for the rest of the step and measures its duration against the step rather
+  // than the thinking. The first part that supersedes it is where it actually
+  // ended, so close it there.
+  const endSupersededReasoning = async () => {
+    for (const [id, reasoningPart] of Object.entries(reasoningMap)) {
+      if (reasoningPart.state !== "streaming") {
+        continue;
+      }
+      const updatedPart: SessionMessagePart.ReasoningPart = {
+        ...reasoningPart,
+        metadata: {
+          ...reasoningPart.metadata,
+          endedAt: getCurrentDate(),
+        },
+        state: "done",
+        text: reasoningPart.text.trimEnd(),
+      };
+      reasoningMap[id] = updatedPart;
+      await scopedStore.savePart(updatedPart);
+    }
+  };
+
   if (isSignalAborted()) {
     saveAbortMessage();
     return { message: assistantMessage, parts: await getCurrentParts() };
@@ -204,6 +229,13 @@ export const llmRequestLogic = fromPromise<
         break;
       }
       input.self.send({ type: "llmRequest.chunkReceived" });
+      if (
+        part.type === "text-start" ||
+        part.type === "tool-call" ||
+        part.type === "tool-input-start"
+      ) {
+        await endSupersededReasoning();
+      }
       switch (part.type) {
         case "error": {
           // This blows up the whole stream for any error, but it does not have
@@ -261,6 +293,11 @@ export const llmRequestLogic = fromPromise<
             if (part.providerMetadata !== undefined) {
               reasoningPart.providerMetadata = part.providerMetadata;
             }
+            // A block that keeps producing text after a later part closed it
+            // was not superseded after all, so it reopens and is measured to
+            // wherever it ends up ending.
+            reasoningPart.state = "streaming";
+            reasoningPart.metadata.endedAt = undefined;
             if (reasoningPart.text) {
               await scopedStore.savePart(reasoningPart);
             }
@@ -274,7 +311,9 @@ export const llmRequestLogic = fromPromise<
               ...reasoningPart,
               metadata: {
                 ...reasoningPart.metadata,
-                endedAt: getCurrentDate(),
+                // A superseded block already recorded where it ended; this
+                // event can arrive a whole step later.
+                endedAt: reasoningPart.metadata.endedAt ?? getCurrentDate(),
               },
               ...(part.providerMetadata !== undefined && {
                 providerMetadata: part.providerMetadata,

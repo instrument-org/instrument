@@ -2347,4 +2347,106 @@ describe("llmRequestLogic", () => {
       testMachine.mockLanguageModel.doStreamCalls[0]?.maxOutputTokens,
     ).toBe(DEFAULT_MAX_OUTPUT_TOKENS);
   });
+
+  it("should end reasoning where a tool call supersedes it", async () => {
+    const { messages } = await createAndRunTestMachine({
+      chunks: [
+        { id: "1", type: "reasoning-start" },
+        { delta: "I should read the file", id: "1", type: "reasoning-delta" },
+        {
+          id: "test-call-1",
+          toolName: "read_file",
+          type: "tool-input-start",
+        },
+        {
+          input: JSON.stringify({ filePath: "test-file.txt" }),
+          toolCallId: "test-call-1",
+          toolName: "read_file",
+          type: "tool-call",
+        },
+        // Providers can hold this back until the step finishes, long after the
+        // tool call started.
+        { id: "1", type: "reasoning-end" },
+        {
+          finishReason: { raw: "stop", unified: "stop" },
+          type: "finish",
+          usage: mockUsage,
+        },
+      ],
+    });
+    expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
+      [
+        {
+          "id": "msg_00000000018888888888888889",
+          "metadata": {
+            "agentName": "main",
+            "createdAt": 2013-08-31T12:00:00.000Z,
+            "realRole": "assistant",
+            "sessionId": "ses_00000000018888888888888888",
+          },
+          "parts": [
+            {
+              "metadata": {
+                "createdAt": 2013-08-31T12:00:00.000Z,
+                "id": "prt_0000000001888888888888888A",
+                "messageId": "msg_00000000018888888888888889",
+                "sessionId": "ses_00000000018888888888888888",
+              },
+              "text": "You are a helpful assistant.",
+              "type": "text",
+            },
+          ],
+          "role": "session-context",
+        },
+        {
+          "id": "msg_00000000ZV888888888888888H",
+          "metadata": {
+            "completionTokensPerSecond": 1.6666666666666667,
+            "finishReason": "stop",
+            "sessionId": "ses_00000000018888888888888888",
+          },
+          "parts": [
+            {
+              "metadata": {
+                "createdAt": 2013-08-31T12:00:02.000Z,
+                "id": "prt_00000000ZV888888888888888J",
+                "messageId": "msg_00000000ZV888888888888888H",
+                "sessionId": "ses_00000000018888888888888888",
+                "stepCount": 1,
+              },
+              "type": "step-start",
+            },
+            {
+              "metadata": {
+                "createdAt": 2013-08-31T12:00:04.000Z,
+                "endedAt": 2013-08-31T12:00:05.000Z,
+                "id": "prt_00000000ZV888888888888888K",
+                "messageId": "msg_00000000ZV888888888888888H",
+                "sessionId": "ses_00000000018888888888888888",
+              },
+              "state": "done",
+              "text": "I should read the file",
+              "type": "reasoning",
+            },
+            {
+              "input": {
+                "filePath": "test-file.txt",
+              },
+              "metadata": {
+                "createdAt": 2013-08-31T12:00:06.000Z,
+                "id": "prt_00000000ZV888888888888888M",
+                "messageId": "msg_00000000ZV888888888888888H",
+                "sessionId": "ses_00000000018888888888888888",
+              },
+              "providerExecuted": undefined,
+              "state": "input-available",
+              "toolCallId": "test-call-1",
+              "type": "tool-read_file",
+            },
+          ],
+          "role": "assistant",
+        },
+      ]
+    `);
+  });
 });

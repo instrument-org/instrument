@@ -2,10 +2,12 @@ description: >-
   A task that produced a document, for the surfaces that render one: the file
   link in a message, the files grid, and the document viewer.
 
-# Developer mode is what the drive handle and the debug routes are gated on, so
-# a workspace meant to be driven has to have it. Nothing else is pinned: every
-# other preference and every feature flag falls through to the app's defaults,
-# which is what keeps this fixture from breaking each time one of them moves.
+# Developer mode gates `window.__studioDebug.rpc`, so a fixture meant to be
+# driven through the debug routes pins it rather than relying on the dev build's
+# default. (The `__studioDrive` handle is not gated on it -- that one ships only
+# in a dev build.) Nothing else is pinned: every other preference and every
+# feature flag falls through to the app's defaults, which is what keeps this
+# fixture from breaking each time one of them moves.
 settings:
   preferences:
     developerMode: true
@@ -14,9 +16,12 @@ tasks:
   - key: generated-pdf
     name: Red and blue squares PDF
     agedMinutes: 12
+    # Written by the run this transcript was recorded from, and committed rather
+    # than regenerated: every file the transcript reports has to be one the
+    # seeded task actually holds, or the Files view offers a card that opens
+    # nothing.
     files:
-      # Written by the run this transcript was recorded from, and committed
-      # rather than regenerated: what the transcript says the agent produced
-      # has to be the file the seeded task actually holds.
       - from: red-and-blue-squares.pdf
         to: output/red-and-blue-squares.pdf
+      - from: make_squares_pdf.py
+        to: work/make_squares_pdf.py

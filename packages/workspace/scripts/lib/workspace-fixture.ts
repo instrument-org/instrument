@@ -54,8 +54,15 @@ const FixtureTaskSchema = z.object({
 // setting breaks every time a default moves. Values are written verbatim and
 // validated by the app's own store schemas at load, which is the only place
 // that knows them.
+//
+// The key becomes a file name in the target directory, so it is constrained to
+// one here rather than trusted to be one.
+const StoreNameSchema = z
+  .string()
+  .regex(/^[a-z][\da-z-]*$/, "Store name must be a lowercase file name stem");
+
 const FixtureSettingsSchema = z
-  .record(z.string(), z.record(z.string(), z.unknown()))
+  .record(StoreNameSchema, z.record(z.string(), z.unknown()))
   .default({});
 
 const FixtureManifestSchema = z.object({

@@ -126,25 +126,20 @@ async function main() {
   await removeSeededWorkspace(userDataDir);
   await fs.mkdir(userDataDir, { recursive: true });
 
+  // Claim the directory before filling it. A seed interrupted part-way would
+  // otherwise leave tasks behind with no marker, and every later run --
+  // including the `--fresh` that is supposed to be the recovery -- would refuse
+  // to clear a directory it could no longer tell it had created. The claim
+  // carries no digest, so it never reads as a finished seed.
+  await writeMarker(userDataDir, { fixtures: fixtureNames, tasks: [] });
+
   const tasks = [];
   for (const fixture of fixtures) {
     process.stderr.write(`Seeding ${fixture.name}...\n`);
     tasks.push(...(await seedWorkspace({ fixture, userDataDir })));
   }
 
-  await fs.writeFile(
-    path.join(userDataDir, MARKER_FILE_NAME),
-    `${JSON.stringify(
-      {
-        digest,
-        fixtures: fixtureNames,
-        seededAt: new Date().toISOString(),
-        tasks,
-      },
-      undefined,
-      2,
-    )}\n`,
-  );
+  await writeMarker(userDataDir, { digest, fixtures: fixtureNames, tasks });
 
   report({ reused: false, tasks, userDataDir });
 }
@@ -153,7 +148,9 @@ async function readMarker(dir: string) {
   try {
     const raw = await fs.readFile(path.join(dir, MARKER_FILE_NAME), "utf8");
     return JSON.parse(raw) as {
-      digest: string;
+      // Absent while a seed is in flight, so an interrupted run never reads as
+      // a finished one.
+      digest?: string;
       tasks: { id: string; key: string; name: string }[];
     };
   } catch {
@@ -189,4 +186,18 @@ function report(result: {
   userDataDir: string;
 }) {
   process.stdout.write(`${JSON.stringify(result, undefined, 2)}\n`);
+}
+
+async function writeMarker(
+  dir: string,
+  marker: {
+    digest?: string;
+    fixtures: string[];
+    tasks: { id: string; key: string; name: string }[];
+  },
+) {
+  await fs.writeFile(
+    path.join(dir, MARKER_FILE_NAME),
+    `${JSON.stringify({ ...marker, seededAt: new Date().toISOString() }, undefined, 2)}\n`,
+  );
 }

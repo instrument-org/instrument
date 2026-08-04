@@ -434,8 +434,13 @@ function reapStaleWorkspaces() {
       continue;
     }
     const dir = path.join(WORKSPACE_CACHE_ROOT, entry.name);
-    if (Date.now() - statSync(dir).mtimeMs > WORKSPACE_MAX_AGE_MS) {
-      rmSync(dir, { force: true, recursive: true });
+    try {
+      if (Date.now() - statSync(dir).mtimeMs > WORKSPACE_MAX_AGE_MS) {
+        rmSync(dir, { force: true, recursive: true });
+      }
+    } catch {
+      // Another boot in this checkout reaped it between the listing and the
+      // stat. Housekeeping must never be what ends a run.
     }
   }
 }

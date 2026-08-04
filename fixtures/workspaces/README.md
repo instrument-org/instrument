@@ -50,12 +50,12 @@ Three kinds of thing, and they want opposite treatment.
 
    ```bash
    cd packages/workspace
-   pnpm run script:record-fixture-session <task-dir-or.zip> --fixture <name> --task <key>
+   pnpm run script:record-fixture-session <task-dir-or.zip> --fixture <name> --task <key> [--session <id>]
    ```
 
-   Takes a task directory or the `.zip` an export produces. It drops the persisted system-prompt snapshot, and refuses to write a transcript containing machine-local paths.
+   Takes a task directory or the `.zip` an export produces. It drops the persisted system-prompt snapshot, and refuses to write a transcript containing machine-local paths. `--session` picks one from a task with several; without it you get the most recent.
 
-3. Copy the files the transcript refers to into `tasks/<key>/files/`.
+3. Copy the files the transcript refers to into `tasks/<key>/files/`, and declare each in the manifest. Every file the transcript reports as changed has to be one the seeded task really holds, or the Files view shows a card that opens nothing.
 4. Write `manifest.yaml`:
 
    ```yaml

@@ -7,6 +7,7 @@ import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage
 import { Store } from "../../src/lib/store";
 import { taskDir } from "../../src/lib/task-dir-utils";
 import { getTaskSettings } from "../../src/lib/task-settings";
+import { SubdomainPartSchema } from "../../src/schemas/subdomain-part";
 import { type TaskId } from "../../src/schemas/task-id";
 import { seedWorkspace } from "./seed-workspace";
 import { listFixtureNames, loadWorkspaceFixture } from "./workspace-fixture";
@@ -116,6 +117,51 @@ describe("seedWorkspace", () => {
     await expect(
       fs.access(path.join(userDataDir, "workspace", "tasks")),
     ).resolves.toBeUndefined();
+  });
+
+  // Seeding several fixtures into one workspace runs writeSettings once per
+  // fixture. Replacing the file each time would leave only the last one's keys.
+  it("merges settings into a store another fixture already wrote", async () => {
+    const { first, fixture, userDataDir } = await seedIntoTempDir();
+
+    const second = {
+      ...fixture,
+      settings: { preferences: { theme: "dark" } },
+      tasks: [
+        {
+          ...first,
+          task: {
+            ...first.task,
+            key: SubdomainPartSchema.parse("second-fixture-task"),
+          },
+        },
+      ],
+    };
+    const seeded = await seedWorkspace({ fixture: second, userDataDir });
+    opened.push(...seeded.map((task) => task.id));
+
+    expect(
+      JSON.parse(
+        await fs.readFile(path.join(userDataDir, "preferences.json"), "utf8"),
+      ),
+    ).toEqual({ developerMode: true, theme: "dark" });
+  });
+
+  it("copies every file the transcript reports as changed", async () => {
+    const { first, tasks } = await seedIntoTempDir();
+    const dir = taskDir(at(tasks, 0).id);
+
+    const reported = first.session.messages
+      .flatMap((message) => message.parts)
+      .filter((part) => part.type === "data-fileChanges")
+      .flatMap((part) => part.data.files.map((file) => file.filePath));
+    expect(reported.length).toBeGreaterThan(0);
+
+    for (const filePath of reported) {
+      await expect(
+        fs.access(path.join(dir, filePath)),
+      ).resolves.toBeUndefined();
+    }
   });
 
   it("copies the fixture's input files to the paths it declares", async () => {

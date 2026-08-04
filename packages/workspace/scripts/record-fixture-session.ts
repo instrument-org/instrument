@@ -90,7 +90,16 @@ function assertNoLocalPaths(session: Session.WithMessagesAndParts) {
 
   const needles = [os.homedir(), path.resolve(import.meta.dirname, "../../..")];
   const serialized = superjson.stringify(session);
-  const found = needles.filter((needle) => serialized.includes(needle));
+  // Searched in both raw and JSON-escaped form. superjson goes through
+  // JSON.stringify, so a Windows path arrives in the text with its separators
+  // doubled and a raw search for `C:\Users\someone` finds nothing -- the guard
+  // would pass on exactly the platform where the paths look least like the
+  // POSIX ones it was written against.
+  const found = needles.filter(
+    (needle) =>
+      serialized.includes(needle) ||
+      serialized.includes(JSON.stringify(needle).slice(1, -1)),
+  );
 
   if (found.length > 0) {
     throw new Error(

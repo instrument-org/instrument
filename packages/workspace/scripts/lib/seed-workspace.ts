@@ -309,9 +309,23 @@ async function writeSettings({
   userDataDir: string;
 }) {
   for (const [store, values] of Object.entries(settings)) {
+    const file = path.join(userDataDir, `${store}.json`);
+    // Merged rather than replaced: seeding several fixtures into one workspace
+    // runs this once per fixture, and writing the whole file each time would
+    // leave only the last fixture's keys.
+    let existing: Record<string, unknown> = {};
+    try {
+      existing = JSON.parse(await fs.readFile(file, "utf8")) as Record<
+        string,
+        unknown
+      >;
+    } catch {
+      // First fixture to pin this store.
+    }
+
     await fs.writeFile(
-      path.join(userDataDir, `${store}.json`),
-      `${JSON.stringify(values, undefined, 2)}\n`,
+      file,
+      `${JSON.stringify({ ...existing, ...values }, undefined, 2)}\n`,
     );
   }
 }

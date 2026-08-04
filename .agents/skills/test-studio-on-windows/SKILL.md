@@ -13,6 +13,8 @@ WINDOWS_HOST=.agents/skills/test-studio-on-windows/scripts/windows-studio-host.m
 DRIVE=.agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs
 ```
 
+`studio-chrome-devtools` owns that driver and carries what holds wherever Studio is driven: the page model, the traps, and why real input is not `element.click()`. Read it too; this skill adds only what the remote Windows host changes.
+
 The SSH alias must already work noninteractively. The Windows user must remain logged in because Task Scheduler launches Electron into that interactive desktop. The host must have `%USERPROFILE%\.instrument\studio-host.json`; `status` explains when it is missing.
 
 If the profile or either scheduled task is missing, read [references/host-enrollment.md](references/host-enrollment.md) before changing the host.
@@ -120,15 +122,6 @@ node "$DRIVE" shot /tmp/windows-installed.png --port 49161
 ```
 
 Do not use `state`, `goto`, or `modal` against the installed build. They wait for a dev-only handle that packaged builds intentionally omit.
-
-A menu or popover will not open from `element.click()` in an `eval`: Radix opens on pointer events, which only `click` dispatches. When the control has no distinguishing text, mark it in one `eval` and click the mark:
-
-```bash
-node "$DRIVE" eval --port 49161 'document.querySelectorAll("button[aria-haspopup=menu]")[3].setAttribute("data-probe","kebab")'
-node "$DRIVE" click --selector '[data-probe=kebab]' --port 49161
-```
-
-`click --text` only matches visible elements, so a control scrolled out of a long list reports as missing rather than being scrolled to.
 
 Treat screenshots as supporting evidence. Also assert the expected DOM or state, inspect relevant logs, and include the remote commit or installed version in the result.
 

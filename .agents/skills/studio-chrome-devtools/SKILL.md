@@ -22,6 +22,13 @@ node $DRIVE stop
 
 Also `press`, `wait`, `modal`, `eval`. It speaks CDP directly, so there is no daemon to go stale and no reconnect to invalidate page ids, and it handles the things that otherwise fail quietly: real input, visible-only element matching, browser-side screenshot cropping, and a check that something is mounted before capturing.
 
+For a control with no distinguishing text, mark it in one `eval` and click the mark, which keeps the real input path rather than falling back to `element.click()`:
+
+```bash
+node $DRIVE eval 'document.querySelectorAll("button[aria-haspopup=menu]")[3].setAttribute("data-probe", "kebab")'
+node $DRIVE click --selector '[data-probe=kebab]'
+```
+
 `boot` starts an instance on a port derived from the checkout you are standing in. It will not fall back to 48160 — that is the conventional port and almost always a window a person is using, so driving it means their clicks fight yours and their quit ends your run. Pass `--port` to target one deliberately.
 
 Route and modal commands go through `window.__studioDrive`, a dev-only handle the renderer attaches (`client/lib/studio-drive.ts`). A packaged build, and any checkout without that file, will not have it.
@@ -54,7 +61,8 @@ The quit prompt is a native `showMessageBox`, outside the web contents. CDP cann
 
 ## Traps
 
-- `element.click()` from an evaluated script reaches a plain `<button>` but not a handler mounted on an ancestor, which is how file cards and list rows are built. It returns normally, so the run carries on against an unchanged UI. Use real input.
+- `element.click()` from an evaluated script dispatches a bare `click`, so it misses a handler mounted on an ancestor (how file cards and list rows are built) and every menu, popover and select, whose Radix triggers open on `pointerdown` and carry no click handler at all. It returns normally either way, so the run carries on against an unchanged UI. Use real input.
+- `click --text` matches only what is visible, so a control scrolled out of a long list reports as missing rather than being scrolled to. Bring it into view first, or address it by selector.
 - `use-stick-to-bottom` releases auto-follow on `wheel`, so assigning `scrollTop` is overridden immediately, and UI that only appears when scrolled off the live edge stays unreachable.
 - `?` opens the shortcut guide only when focus is outside an editable and nothing is blocking. Pressing it while the composer has focus does nothing and reads as the tool failing.
 - After a main-process edit, the relaunched Electron can lose the debug port to the dying instance (`bind() failed: Address already in use`) and come back with no endpoint. Restart the dev server.

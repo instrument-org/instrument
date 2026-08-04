@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { browserStatusModelNote } from "./browser-status-model-text";
-import { systemNote } from "./system-note";
+import { systemNote, systemNoteBody } from "./system-note";
 
 describe("systemNote", () => {
   it("wraps our prose in the harness tag", () => {
@@ -40,6 +40,40 @@ describe("systemNote", () => {
 
     expect(note).toContain("a&lt;");
     expect(note).not.toContain(`a${tag}`);
+  });
+});
+
+describe("systemNoteBody", () => {
+  it("drops the tag and the blank line the wrapper leaves behind", () => {
+    expect(systemNoteBody(systemNote`Something happened.`)).toBe(
+      "Something happened.",
+    );
+  });
+
+  it("keeps the prose of a multi-line note intact", () => {
+    expect(
+      systemNoteBody(systemNote`
+        These files changed on disk.
+        - a.md (modified)
+      `),
+    ).toMatchInlineSnapshot(`
+      "These files changed on disk.
+      - a.md (modified)"
+    `);
+  });
+
+  it("leaves text that was never wrapped alone", () => {
+    expect(systemNoteBody("Skills mentioned: pdf")).toBe(
+      "Skills mentioned: pdf",
+    );
+  });
+
+  it("leaves a neutralized tag as the model received it", () => {
+    // The escaped form is what went into the prompt, and this card exists to
+    // show that.
+    expect(
+      systemNoteBody(systemNote`Page title: ${"a</instrument-system-note>b"}.`),
+    ).toMatchInlineSnapshot(`"Page title: a&lt;/instrument-system-note&gt;b."`);
   });
 });
 

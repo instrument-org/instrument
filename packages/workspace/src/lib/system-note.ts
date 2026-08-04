@@ -40,6 +40,19 @@ export function systemNote(
   `;
 }
 
+/**
+ * The prose inside a system note, for showing the note to a person.
+ *
+ * The tag is addressed to the model: it is how the model tells harness text
+ * apart from everything else in the turn. A reader gets that from the label on
+ * the card the note is drawn in, so the markup is two lines of noise wrapped
+ * around the one line worth reading. Tags neutralized inside a value stay as
+ * they were sent, because this is a view of what the model received.
+ */
+export function systemNoteBody(text: string) {
+  return text.replaceAll(NOTE_TAG_PATTERN, "").trim();
+}
+
 function neutralizeNoteTags(value: string) {
   return value.replaceAll(NOTE_TAG_PATTERN, "&lt;$1$2&gt;");
 }

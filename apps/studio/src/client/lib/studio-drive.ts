@@ -86,12 +86,13 @@ export function initStudioDrive() {
         return;
       }
       const router = getTabRouter(store.get(tabsAtom).selectedId);
+      const destination = parseStudioDrivePath(path);
       // `path` arrives as a plain string from a driving script, where the
       // router's typed route union is not available. Same shape the app-command
       // bus uses for navigation coming over IPC.
-      void router?.navigate({ to: path } as Parameters<
-        typeof router.navigate
-      >[0]);
+      void router?.navigate(
+        destination as Parameters<typeof router.navigate>[0],
+      );
     },
 
     modals: () => Object.keys(MODAL_OPENERS) as StudioModalName[],
@@ -112,6 +113,21 @@ export function initStudioDrive() {
         })),
       };
     },
+  };
+}
+
+export function parseStudioDrivePath(path: string): {
+  search?: Record<string, string>;
+  to: string;
+} {
+  const queryStart = path.indexOf("?");
+  if (queryStart === -1) {
+    return { to: path };
+  }
+
+  return {
+    search: Object.fromEntries(new URLSearchParams(path.slice(queryStart + 1))),
+    to: path.slice(0, queryStart),
   };
 }
 

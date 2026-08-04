@@ -112,9 +112,14 @@ export function renderChatPart({
       <ReasoningMessage
         createdAt={part.metadata.createdAt}
         endedAt={part.metadata.endedAt}
+        // Anything after it means the model has moved on, whatever the part's
+        // own state says: a provider can hold a reasoning block's end event
+        // until the step finishes, and a row that counts up next to a running
+        // tool call reads as two things happening at once.
         isLoading={
           ctx.isAgentRunning &&
           ctx.lastMessageId === message.id &&
+          partIndex === message.parts.length - 1 &&
           part.state === "streaming"
         }
         key={part.metadata.id}

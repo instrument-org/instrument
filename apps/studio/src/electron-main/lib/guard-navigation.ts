@@ -40,8 +40,8 @@ export function isStudioURL(target: string): boolean {
   try {
     const app = new URL(studioURL("/"));
     const url = new URL(target);
-    // `file:` URLs report an origin of "null", so the pathname is what
-    // separates the packaged renderer from any other file on disk.
+    // Every `file:` URL shares the one `file://` origin, so in a packaged build
+    // the pathname is what separates the renderer from any other file on disk.
     return url.origin === app.origin && url.pathname === app.pathname;
   } catch {
     return false;

@@ -1,6 +1,6 @@
 # Plan: seeded, disposable workspaces for driving and testing Studio
 
-Status: proposal, not started. Owner: TBD.
+Status: corpus, seeder and `studio-drive` wiring landed. CI is the remaining step.
 
 Context for why this is wanted: [driving-studio-for-ui-capture.md](../../findings/driving-studio-for-ui-capture.md) lists ambient workspace state as the last unaddressed source of flakiness in scripted runs. Adjacent and worth reading before starting, because both move where task data lives: [user-chosen-working-folder.md](./user-chosen-working-folder.md) and [conversation-storage.md](./conversation-storage.md).
 
@@ -20,41 +20,30 @@ Most of the plumbing is there. This is mostly a corpus and a seeder, not new app
 | Point the app at an arbitrary workspace | `ELECTRON_USER_DATA_DIR`, handled in `electron-main/setup-environment.ts` | Redirects `userData` wholesale, and the workspace lives at `userData/workspace`. Everything follows: tasks, preferences, tabs, providers, browser session |
 | Skip the provider-setup gate | `SKIP_ONBOARDING=true`, checked in `shouldShowOnboarding` in `electron-main/index.ts` | Without this a fresh workspace opens the onboarding window and the main window never reveals, which in CI reads as a hang |
 | Whole-task round trip | `task.exportZip` and `task.importTask` (`packages/workspace/src/rpc/routes/task/index.ts`, `lib/export-task-zip.ts`) | Import takes base64 zip data, so a seeder can drive it without the file picker |
-| Deterministic conversations | `workspace.debug.replaySession` (`packages/workspace/src/rpc/routes/debug.ts`) | Replays a recorded session into a new task or session against a `replay-stub` model. No provider, no network, no spend |
+| Deterministic conversations | `workspace.debug.replaySession` (`packages/workspace/src/rpc/routes/debug.ts`) | Replays a recorded session into a new task or session against a `replay-stub` model. Reads its source from a task already in the workspace, and re-executes each tool call, so the seeder does not use it — see §2 |
 | Call any route from a script | `window.__studioDebug.rpc(path, input)` | Gated on the Developer Mode preference at call time |
 | Drive the app | `.agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs` | Already spawns Studio with a controlled environment |
 
 ## The shape, concretely
 
-What is committed, and what gets built from it:
+What is committed and what gets built from it is drawn in [fixtures/workspaces/README.md](../../../fixtures/workspaces/README.md), which is the accurate copy and the one to keep current. In outline: a manifest and a recorded transcript per task, plus a `files/` directory of committed inputs; the task database and the app's store files are built from those.
 
-```
-committed to the repo                    built on demand, gitignored
-─────────────────────────                ──────────────────────────
-fixtures/documents/
-  manifest.yaml       ── the tasks   ─┐
-  session.json        ── the messages ├─▶  <workspace>/
-  files/                              │      workspace/tasks/<id>/
-    attention.pdf     ── real inputs ─┘        .instrument/task.db
-    weird.pdf                                  output/attention.pdf
-    crazy-chart-zoo.xlsx                     preferences.json
-                                             tabs.json
-```
-
-Then:
+Driving it:
 
 ```
 studio-drive.mjs boot --workspace documents
   │
-  ├─ workspace missing?  seed it:  create the tasks, replay the messages,
-  │                                copy files/ into place
+  ├─ seed if the fixture has changed since last time (or is absent):
+  │     create the tasks, write the recorded messages, copy files/ into place
   ├─ spawn Studio with ELECTRON_USER_DATA_DIR=<workspace> SKIP_ONBOARDING=true
   └─ wait until drivable, then hand back the port
 ```
 
-No model is involved at any point. `replaySession` writes recorded messages against a `replay-stub` model, so seeding costs nothing and produces the same transcript every time.
+No model is involved at any point, and no network: seeding writes the recorded messages straight to the store, so it costs nothing and produces the same transcript every time.
 
 ## Proposed shape
+
+Why it is built the way it is, and what is left.
 
 ### 1. Separate what rots from what does not
 
@@ -71,12 +60,22 @@ So the corpus is: text describing the state, plus a `files/` directory of ordina
 ### 2. A seeder that builds a workspace from the description
 
 ```
-pnpm workspace:seed --out <dir> [--fixture <name>...]
+pnpm workspace:seed --out <dir> --fixture <name>...
 ```
 
-Idempotent, and fast enough to run before every CI job. It should build the workspace by calling the same routes the app does rather than writing task directories itself. That is the single most important constraint here: both of the adjacent plans above change where task data lives, and a seeder that writes files directly will break when either lands, silently and at a distance.
+Idempotent, and fast enough to run before every CI job: it holds a content hash of the fixtures it built from and does nothing when they have not moved. It builds the workspace through the app's own libraries rather than writing task directories itself, which is the single most important constraint here — both of the adjacent plans above change where task data lives, and a seeder that writes files directly would break when either lands, silently and at a distance.
 
-Open question for the implementer: the seeder needs a running app to reach those routes, or the workspace package needs a headless entry point that can construct a workspace config outside Electron. The second is cleaner and probably more useful, but check whether `workspaceConfig` can be built without the Electron main process before committing to it.
+The open question was whether a `workspaceConfig` can be built outside the Electron main process. It can: `evals/harness.ts` and `scripts/run-workspace.ts` already start the real workspace machine headlessly, and the seeder needs less than either — a config installed with `setWorkspaceConfig`, and `initializeTask` plus `Store`. No Electron, no running app, no server.
+
+One deviation from the sketch above. `workspace.debug.replaySession` re-executes every recorded tool call, which needs the whole runtime: bash sandbox, browser, a model. Seeding has to work in CI with no provider credentials and finish in seconds, so it writes the recorded messages and their recorded tool outputs, and the artifacts a tool would have produced come from the fixture's `files/`. The cost is that a change to what a tool *stores* wants the transcript re-recorded; the check that catches it is a test that parses every committed fixture through the real session schema.
+
+Recording is the other half, and the corpus cannot grow without it:
+
+```
+pnpm --filter @instrument-org/workspace run script:record-fixture-session <task-dir-or.zip> --fixture <name> --task <key>
+```
+
+It takes a task directory or an export zip, drops the persisted system-prompt snapshot (committing one would pin a copy of the prompt into the corpus), and refuses to write a transcript containing machine-local paths.
 
 ### 3. Wire it into studio-drive
 
@@ -85,23 +84,23 @@ studio-drive.mjs boot --workspace <name>   # seeds if absent, then boots against
 studio-drive.mjs boot --workspace <name> --fresh   # rebuild from the description first
 ```
 
-`boot` already controls the child environment, so this is setting `ELECTRON_USER_DATA_DIR` and `SKIP_ONBOARDING` and nothing more. Note the port is currently derived from the checkout path; if CI ever runs two workspaces at once from one checkout, that derivation needs a workspace component too.
+`boot` already controls the child environment, so this is setting `ELECTRON_USER_DATA_DIR` and `SKIP_ONBOARDING` and nothing more. The port and the instance record are both keyed by workspace as well as by checkout, so a fixture run and a plain dev run can be up at once; `--workspace` therefore belongs on every command of a run, not only `boot`.
 
 A pleasant side effect: dev instances currently share one application-data directory, so two Studio windows fight over the same tabs and preferences. A per-workspace directory removes that for anything booted this way.
 
 ### 4. Then CI
 
-Only once the above is boring. `.agents/cloud-dev.md` has the headless notes already (`NO_SANDBOX`, Xvfb). The shape is: seed, boot, drive assertions through `studio-drive`, capture a screenshot on failure as the artifact. Keep the first CI job small — one workspace, a handful of surfaces — because the value is in it running at all, and a broad suite that flakes gets muted.
+Not done, and deliberately last: only once the above is boring. `.agents/cloud-dev.md` has the headless notes already (`NO_SANDBOX`, Xvfb). The shape is: seed, boot, drive assertions through `studio-drive`, capture a screenshot on failure as the artifact. Keep the first CI job small — one workspace, a handful of surfaces — because the value is in it running at all, and a broad suite that flakes gets muted.
 
 ## Settings are per workspace, and that is a feature
 
-Redirecting `userData` moves more than the tasks. `preferences.json`, `features.json`, `app-state.json` and the provider config all live there, so a fixture can pin the settings a surface needs instead of depending on how the developer left their app: feature flags on or off, theme, developer mode, zoom.
+Redirecting `userData` moves more than the tasks. `preferences.json`, `features.json`, `app-state.json`, `window-state.json` and `providers.json` all live there, so a fixture can pin the settings a surface needs instead of depending on how the developer left their app: feature flags on or off, theme, developer mode, window size. Zoom is not among them; like the open tabs below, it is renderer state in `localStorage`.
 
-Let the manifest declare only what the fixture actually depends on, and let everything else fall through to the app's own defaults. A fixture that pins every setting will break every time a default changes, which is the opposite of what it is for. A fixture for the skills UI should say "skills enabled" and nothing more.
+The manifest declares only what the fixture actually depends on, and everything else falls through to the app's own defaults. A fixture that pins every setting will break every time a default changes, which is the opposite of what it is for. A fixture for the skills UI should say "skills enabled" and nothing more. The keys themselves are written verbatim and validated by the app's own store schemas on load, since those schemas live in Studio and the seeder does not: a typo silently does nothing rather than failing the seed.
 
-Open tabs are the exception, and worth checking early because it is the one most people would expect to pin. The tab model is a renderer atom persisted to `localStorage`, so it lives in the Chromium profile's leveldb rather than a file the seeder can write. There is a stale `tabs.json` in the application-data directory from an earlier implementation; nothing reads it. Either seed tabs by driving the app once after boot and letting it persist, or treat "which tabs are open" as something a run sets with `goto` rather than something the fixture owns. The second is simpler and probably right.
+Open tabs are the exception, and worth checking early because it is the one most people would expect to pin. The tab model is a renderer atom persisted to `localStorage`, so it lives in the Chromium profile's leveldb rather than a file the seeder can write. There is a stale `tabs.json` in the application-data directory from an earlier implementation; nothing reads it. Either seed tabs by driving the app once after boot and letting it persist, or treat "which tabs are open" as something a run sets with `goto` rather than something the fixture owns. The second is simpler and probably right, and is what the wiring assumes: a seeded workspace starts with no persisted tabs, so nothing paints over the first `goto`.
 
-One thing does not follow this pattern. A seeded workspace has no provider credentials, and it must not: they cannot be committed. That is fine for anything replayed, which is the point of `replay-stub`. A fixture that needs a live model has to take credentials from the environment, and in CI that means a secret, which is a good reason to keep live-model fixtures out of the first pass.
+One thing does not follow this pattern. A seeded workspace has no provider credentials, and it must not: they cannot be committed. That is fine for a replayed transcript, which never calls a model. A fixture that needs a live model has to take credentials from the environment, and in CI that means a secret, which is a good reason to keep live-model fixtures out of the first pass.
 
 ## Lifecycle and disk
 
@@ -109,18 +108,20 @@ Seeded workspaces are small. The state a fixture actually needs is the task data
 
 The bloat only appears when a fixture is used to run a live agent. That distinction should drive the cleanup design rather than a blanket policy:
 
-- Put workspaces under the OS cache directory keyed by checkout, the way `studio-drive` already keys its session file. Never in the repo, never in the shared application-data directory.
-- `--fresh` rebuilds one. That covers the common case, which is a fixture that has drifted rather than disk pressure.
-- Reap on age at boot, not by asking people to run a clean command, because nobody runs a clean command. A workspace untouched for a couple of weeks can be dropped: it costs a reseed, which is cheap by construction.
-- Reap `work/` more eagerly than the workspace around it. It is the only part that grows, it is always reproducible, and deleting it does not invalidate the fixture.
+- Workspaces go under the OS cache directory keyed by checkout, the way `studio-drive` already keys its session file. Never in the repo, never in the shared application-data directory.
+- `--fresh` rebuilds one. That covers the common case, which is a fixture that has drifted rather than disk pressure. It refuses to clear a directory that has contents but no seeder marker, because the obvious typo in `--out` is a real application-data directory holding someone's actual tasks.
+- Reaping happens on age at boot, not by asking people to run a clean command, because nobody runs a clean command. A workspace untouched for two weeks is dropped: it costs a reseed, which is cheap by construction.
+- Installed dependencies inside a task (`work/node_modules`, `work/.venv`) go after three days. They are the only part that grows, always reproducible, and deleting them does not invalidate the fixture. Only a live agent run creates them, so a workspace used for driving never has any.
 - CI needs none of this. The runner is ephemeral, so seed, use, discard.
+
+The measured numbers back the estimate: the `documents` workspace is 188 KB seeded, against the 20 MB `work/` the live run that produced its transcript left behind.
 
 ## Risks worth naming up front
 
-- **Both adjacent plans move task storage.** Going through app APIs rather than the filesystem is what makes this survivable. Worth a note in the seeder itself, not just here.
+- **Both adjacent plans move task storage.** Going through app libraries rather than the filesystem is what makes this survivable. The seeder says so at the top of the file, not only here.
 - **A fixture corpus becomes a second product to maintain.** Prefer a few fixtures that cover distinct surface families over one per surface. If a fixture only exists to make one screenshot reproducible, it is probably not worth the upkeep.
-- **`replaySession` covers conversations, not everything.** A live browser guest, a running agent, a mid-stream transcript are all states a replay does not reproduce. Some surfaces will still need a live run; that is fine, they just should not be the first ones in CI.
-- **Determinism is more than the workspace.** Model output, timestamps, and relative dates ("just now") all move. Anything asserting on pixels will need those pinned or masked.
+- **A replayed transcript covers conversations, not everything.** A live browser guest, a running agent, a mid-stream transcript are all states a replay does not reproduce. Some surfaces will still need a live run; that is fine, they just should not be the first ones in CI.
+- **Determinism is more than the workspace.** Model output, timestamps, and relative dates ("just now") all move. Seeding anchors a transcript to seed time rather than replaying its recorded dates, which keeps relative dates reading the way they did when captured, but anything asserting on pixels still needs them masked.
 
 ## Not doing
 

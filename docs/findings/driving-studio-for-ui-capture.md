@@ -59,7 +59,7 @@ The dev panel's Updates submenu simulates download, error, and no-updates, but n
 
 ### Capture runs depend on ambient state
 
-Finding a task containing a PDF meant grepping the shared dev userData directory. There is no catalog of fixture tasks, so what a run can capture depends on what that developer happened to do last.
+Finding a task containing a PDF meant grepping the shared dev userData directory. With no catalog of fixture tasks, what a run could capture depended on what that developer happened to do last.
 
 ## What was done about it
 
@@ -71,7 +71,9 @@ Most of the list below has landed. `.agents/skills/studio-chrome-devtools/script
 - `boot` claims a port of its own rather than attaching to the conventional one, so an agent and a person are never driving the same window.
 - The dev panel can simulate the post-update toast and force the quit guard.
 
-What is still open: an HMR freeze for scripted runs, and a set of seeded fixture tasks. The native quit dialog remains uncapturable by CDP by construction.
+- `boot --workspace <fixture>` runs against a workspace built from a committed description (`fixtures/workspaces/`) rather than the shared dev application-data directory, so a run no longer depends on what that machine did last.
+
+What is still open: an HMR freeze for scripted runs. The native quit dialog remains uncapturable by CDP by construction.
 
 ## What would help, in leverage order
 
@@ -89,7 +91,7 @@ What is still open: an HMR freeze for scripted runs, and a set of seeded fixture
 
 **7. An HMR freeze for scripted runs.** An env var or dev-panel toggle that suppresses renderer reloads while a capture is in flight, so an unrelated commit does not silently reset the run.
 
-**8. Seeded fixture tasks with a script to recreate them.** A small set covering documents, a browser session, and a long transcript, so a capture run is reproducible instead of depending on the state of one machine's dev workspace.
+**8. More seeded fixtures.** The corpus and the seeder exist (`fixtures/workspaces/`, `docs/plans/active/seeded-test-workspaces.md`); what it holds is one documents fixture. A browser session and a long transcript are the next two worth recording.
 
 **9. Teach `connect-cli.sh` to distinguish a dead app from a stale daemon** and restart the daemon on its own, rather than surfacing a Chrome error for a Studio problem.
 

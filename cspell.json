@@ -5,7 +5,9 @@
     "pnpm-lock.yaml",
     "registry/",
     "docs/",
-    "apps/studio/resources/tailwind-browser.js"
+    "apps/studio/resources/tailwind-browser.js",
+    "fixtures/workspaces/*/tasks/*/session.json",
+    "fixtures/workspaces/*/tasks/*/files/**"
   ],
   "useGitignore": true,
   "words": [

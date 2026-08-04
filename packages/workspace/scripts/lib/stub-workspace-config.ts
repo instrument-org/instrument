@@ -10,9 +10,14 @@ import { createStubBrowserConfig } from "../../src/test/helpers/mock-task-config
 import { type WorkspaceConfig } from "../../src/types";
 
 export function createStubWorkspaceConfig({
+  overrides,
   tasksDir,
   rootDir = path.dirname(tasksDir),
 }: {
+  // For the parts a script actually exercises. The defaults below point at
+  // paths that need only be well-formed, not real; a script that creates tasks
+  // has to supply a real `defaultTaskTemplateDir`, for one.
+  overrides?: Partial<WorkspaceConfig>;
   rootDir?: string;
   tasksDir: string;
 }): WorkspaceConfig {
@@ -53,5 +58,6 @@ export function createStubWorkspaceConfig({
     uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
     uvDataDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "uv-data")),
     webSearch: unavailableWebSearchClient,
+    ...overrides,
   };
 }

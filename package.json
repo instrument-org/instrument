@@ -37,7 +37,8 @@
     "test": "vitest",
     "turbo:check:lint:ci": "cross-env CI=true turbo check:lint",
     "turbo:fix:lint": "turbo run fix:lint",
-    "update:actions": "actions-up"
+    "update:actions": "actions-up",
+    "workspace:seed": "pnpm --filter @instrument-org/workspace run script:seed-workspace"
   },
   "devDependencies": {
     "@cspell/dict-bash": "^4.2.1",

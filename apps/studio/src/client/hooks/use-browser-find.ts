@@ -17,10 +17,18 @@ interface FoundInPageEvent extends Event {
  */
 export function useBrowserFind({
   active,
+  covered = false,
   isActiveTab,
   targetId,
 }: {
   active: boolean;
+  // This host is behind an overlay, so it is not the one Cmd+F should reach.
+  // The find opener is a single slot: without this, a second host over the same
+  // guest (the expand modal over the artifact panel) claims the slot, then
+  // clears it on unmount, and the host behind it -- whose own inputs never
+  // changed -- never re-registers, leaving Cmd+F dead. Re-registration on the
+  // way back out is why this is an input rather than a mount-order rule.
+  covered?: boolean;
   isActiveTab: boolean;
   targetId: BrowserTargetId;
 }) {
@@ -71,7 +79,7 @@ export function useBrowserFind({
   // the Cmd+F app command opens (and re-focuses) its find bar. See
   // browser-find-registry for why Cmd+F can't be a renderer keydown.
   useEffect(() => {
-    if (!active || !isActiveTab) {
+    if (!active || !isActiveTab || covered) {
       return;
     }
     return setBrowserFindOpener(() => {
@@ -79,7 +87,7 @@ export function useBrowserFind({
       findInputRef.current?.focus();
       findInputRef.current?.select();
     });
-  }, [active, isActiveTab]);
+  }, [active, covered, isActiveTab]);
 
   // Focus the find input when the bar opens (its first render, when the opener
   // above couldn't focus it yet). Deferred a frame so it wins over Radix

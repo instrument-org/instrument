@@ -28,6 +28,7 @@ import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useBrowserFind } from "@/client/hooks/use-browser-find";
 import { useBrowserSlot } from "@/client/hooks/use-browser-slot";
 import { useIsGuestCovered } from "@/client/hooks/use-guest-covered";
+import { useGuestMenuState } from "@/client/hooks/use-guest-menu-state";
 import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
 import {
   EMULATED_DEVICES,
@@ -82,7 +83,7 @@ export function TaskBrowserPanel({
   const inputRef = useRef<HTMLInputElement>(null);
   const isActiveTab = useIsActiveTab();
   const [draftUrl, setDraftUrl] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useGuestMenuState();
   // null = the panel's natural size ("Actual size"). Applied via CDP device
   // emulation with a scale computed from the panel's live bounds (see
   // device-emulation.ts) rather than resizing the webview element, which
@@ -164,23 +165,6 @@ export function TaskBrowserPanel({
     // the guest becomes available, not something to redo as it navigates.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, targetId]);
-
-  // Close the overflow menu when the host window loses focus. Clicking into the
-  // guest `<webview>` (a separate WebContents) blurs the host window but never
-  // dispatches a pointer/focus event Radix can see, so its own outside-dismiss
-  // never fires and the menu would otherwise stay stuck open over the page.
-  useEffect(() => {
-    if (!menuOpen) {
-      return;
-    }
-    const close = () => {
-      setMenuOpen(false);
-    };
-    window.addEventListener("blur", close);
-    return () => {
-      window.removeEventListener("blur", close);
-    };
-  }, [menuOpen]);
 
   // A real page is loaded (not about:blank). Zoom, copy, and open-external all
   // act on the current page, so they're only meaningful once one exists; zoom in

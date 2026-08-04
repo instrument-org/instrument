@@ -23,10 +23,12 @@ import { useBrowserFind } from "@/client/hooks/use-browser-find";
 import { useBrowserSlot } from "@/client/hooks/use-browser-slot";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { useIsGuestCovered } from "@/client/hooks/use-guest-covered";
+import { useGuestMenuState } from "@/client/hooks/use-guest-menu-state";
 import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
 import { rpcClient } from "@/client/rpc/client";
 import { BROWSER_ZOOM_MAX, BROWSER_ZOOM_MIN } from "@/shared/browser";
 import {
+  type BrowserTargetId,
   encodeArtifactTargetId,
   type TaskId,
 } from "@instrument-org/workspace/client";
@@ -40,8 +42,14 @@ import {
   HouseIcon,
   MagnifyingGlassIcon,
 } from "@phosphor-icons/react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+
+// How many previews are mounted on each guest. The artifact panel and the
+// expand modal over it are two hosts on one guest, and the second to arrive has
+// to behave differently from the first (see isSecondaryHost), which is not
+// something either can work out from its own props.
+const mountedHosts = new Map<BrowserTargetId, number>();
 
 /**
  * An HTML file artifact, rendered in the same `<webview>` guest the agent
@@ -82,12 +90,35 @@ export function HtmlArtifactPreview({
   const targetId = encodeArtifactTargetId(taskId);
   const isActiveTab = useIsActiveTab();
 
-  // Holds the guest alive while this preview is mounted. A subscription, so an
-  // unmount (or a dead renderer) releases the lease without anything having to
-  // send a close; the machine's own grace period reaps from there.
+  // Whether another preview was already mounted on this guest when this one
+  // arrived, read once at mount. The expand modal opening over the panel is a
+  // second host on a live guest, and it must adopt whatever page that guest is
+  // showing rather than pulling it back to the entry page under a reader who
+  // followed a link. Switching files instead remounts a lone host, which does
+  // navigate. Registration happens in the effect below.
+  const [isSecondaryHost] = useState(
+    () => (mountedHosts.get(targetId) ?? 0) > 0,
+  );
+
+  useEffect(() => {
+    mountedHosts.set(targetId, (mountedHosts.get(targetId) ?? 0) + 1);
+    return () => {
+      const next = (mountedHosts.get(targetId) ?? 1) - 1;
+      if (next > 0) {
+        mountedHosts.set(targetId, next);
+      } else {
+        mountedHosts.delete(targetId);
+      }
+    };
+  }, [targetId]);
+
+  // Holds the guest alive while this preview is on the foreground tab. Gated the
+  // same way the session browser's lease is: every task tab stays mounted when
+  // backgrounded, so leasing on mount alone would pin a webContents per tab that
+  // once showed an HTML file and the grace period would never run.
   useQuery(
     rpcClient.workspace.artifactPreview.live.presence.experimental_liveOptions({
-      input: { id: taskId },
+      input: isActiveTab ? { id: taskId } : skipToken,
     }),
   );
 
@@ -103,25 +134,30 @@ export function HtmlArtifactPreview({
   // query -- one that has already resolved would replay its old answer and
   // leave the preview waiting on a guest nobody asked for a second time.
   //
+  // Gated on the foreground tab for the same reason the lease is, and not only
+  // to save work: a background tab holds no lease, so re-creating a guest there
+  // would just feed the reaper a fresh target every grace period.
+  //
   // It cannot spin: the effect is keyed on `active`, so a create that fails, or
   // succeeds without the guest attaching, leaves the deps untouched and fires
-  // nothing further. Reaps only happen once every lease is released, i.e. while
-  // no preview is mounted, so a mounted one never races its own teardown.
+  // nothing further.
   useEffect(() => {
-    if (!active) {
+    if (!active && isActiveTab) {
       openPreview({ id: taskId });
     }
-  }, [active, openPreview, taskId]);
+  }, [active, isActiveTab, openPreview, taskId]);
 
-  const guest = useGuestNavigation({ active, targetId });
-  const find = useBrowserFind({ active, isActiveTab, targetId });
   // A raised preview is the one inside the overlay, so it keeps painting; an
   // unraised one is behind it and has to park. Both are mounted at once when
   // the expand modal opens over the panel, and they share a single guest --
   // this is what hands it over and, on close, hands it back. Without it the
   // modal's slot parks the guest as it unmounts and the panel, whose own
-  // inputs never changed, never re-claims it.
+  // inputs never changed, never re-claims it. The same signal decides which of
+  // the two owns Cmd+F.
   const covered = useIsGuestCovered() && zIndex === undefined;
+
+  const guest = useGuestNavigation({ active, targetId });
+  const find = useBrowserFind({ active, covered, isActiveTab, targetId });
   const slotRef = useBrowserSlot({
     active,
     covered,
@@ -134,20 +170,36 @@ export function HtmlArtifactPreview({
   const openExternalLink = useMutation(
     rpcClient.utils.openExternalLink.mutationOptions(),
   );
+  const [menuOpen, setMenuOpen] = useGuestMenuState();
 
-  // Point the guest at this artifact whenever the selected file changes. Not a
-  // remount: the guest is pooled and shared, so switching files is a navigation
-  // and re-selecting the open file is how the user gets back to its entry page
-  // after following a link inside it.
+  // Point the guest at this artifact when the selected file changes, when the
+  // user asks to go home, and when a guest first becomes available. Not a
+  // remount: the guest is pooled and shared, so switching files is a navigation.
+  //
+  // The exception is the first run of a host that mounted over a guest another
+  // preview is already showing -- the expand modal opening over the panel. That
+  // is not a request to go anywhere, so it adopts the page on screen; navigating
+  // would throw a reader who had followed a link back to the entry page. Every
+  // later run navigates normally, which is what keeps go-home working from the
+  // modal too.
+  const hasNavigatedRef = useRef(false);
   useEffect(() => {
-    if (active) {
+    if (!active) {
+      return;
+    }
+    const isAdoptingLivePage =
+      !hasNavigatedRef.current &&
+      isSecondaryHost &&
+      Boolean(guest.currentUrl());
+    hasNavigatedRef.current = true;
+    if (!isAdoptingLivePage) {
       guest.navigateTo(entryUrl);
     }
     // `guest` is rebuilt every render; navigating is keyed on the file, on the
     // guest becoming available, and on the go-home gesture, not on that
     // identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, entryUrl, goHomeNonce, targetId]);
+  }, [active, entryUrl, goHomeNonce, isSecondaryHost, targetId]);
 
   const atEntry = guest.currentUrl() === entryUrl;
 
@@ -155,6 +207,7 @@ export function HtmlArtifactPreview({
     <div className="absolute inset-0 flex flex-col">
       <div className="flex items-center gap-1 border-b px-1.5 py-1">
         <Button
+          aria-label="Back"
           disabled={!active || !guest.canGoBack}
           onClick={guest.goBack}
           size="icon-sm"
@@ -163,6 +216,7 @@ export function HtmlArtifactPreview({
           <ArrowLeftIcon className="size-4" />
         </Button>
         <Button
+          aria-label="Forward"
           disabled={!active || !guest.canGoForward}
           onClick={guest.goForward}
           size="icon-sm"
@@ -173,6 +227,7 @@ export function HtmlArtifactPreview({
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
+              aria-label="Reload"
               disabled={!active}
               onClick={guest.reload}
               size="icon-sm"
@@ -186,6 +241,7 @@ export function HtmlArtifactPreview({
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
+              aria-label="Back to the start of this file"
               disabled={!active || atEntry}
               onClick={() => {
                 guest.navigateTo(entryUrl);
@@ -205,16 +261,25 @@ export function HtmlArtifactPreview({
         </div>
         <DropdownMenu
           // Non-modal so clicking into the guest `<webview>` (a separate
-          // WebContents) isn't blocked by the modal body `pointer-events: none`.
+          // WebContents) isn't blocked by the modal body `pointer-events: none`;
+          // useGuestMenuState is what then dismisses it, since that click gives
+          // Radix nothing its own outside-dismiss can see.
           modal={false}
           onOpenChange={(open) => {
             if (open) {
               guest.syncZoomFactor();
             }
+            setMenuOpen(open);
           }}
+          open={menuOpen}
         >
           <DropdownMenuTrigger asChild>
-            <Button disabled={!active} size="icon-sm" variant="ghost">
+            <Button
+              aria-label="Preview options"
+              disabled={!active}
+              size="icon-sm"
+              variant="ghost"
+            >
               <DotsThreeVerticalIcon className="size-4" />
             </Button>
           </DropdownMenuTrigger>

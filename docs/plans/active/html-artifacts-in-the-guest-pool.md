@@ -375,6 +375,43 @@ Two defects were found this way and fixed, neither visible from reading:
    cached query, which replayed its old answer instead of asking for a new guest.
    Fixed by driving it from a mutation keyed on there being no live guest.
 
+### Two hosts, one guest: the shape the rest of the bugs shared
+
+Code review found four more, and three were the same mistake in different
+clothes. The artifact panel and the expand modal are two mounted hosts of one
+pooled guest, and anything that is *singular* — the visible slot, the Cmd+F
+opener, the current page — needs to say which host owns it. Nothing about a
+host's own props answers that, which is why each needed an explicit input:
+
+- **Expanding threw the reader back to the entry page.** The modal's mount ran
+  the same navigate-on-mount effect the panel does, so following a link and then
+  enlarging discarded the sub-page. A host that mounts over a guest another
+  preview is already showing now adopts the page on screen; every later run
+  navigates as before, so go-home still works from the modal.
+- **Cmd+F died after closing the modal.** The find opener is a single slot: the
+  modal claimed it, cleared it on unmount, and the panel — inputs unchanged —
+  never re-registered. `useBrowserFind` takes the same `covered` signal the slot
+  does, so only the front-most host registers and it re-registers on the way
+  back out.
+- **Every backgrounded tab pinned a webContents.** Presence was leased on mount
+  rather than on being the foreground tab, so the machine never left `Observed`
+  and the grace period never ran. Gated on `isActiveTab`, matching the session
+  browser. The open effect had to be gated too, or a reaped background tab would
+  immediately re-create the guest and feed the reaper forever.
+
+The fourth was unrelated: the preview's overflow menu had no window-blur
+dismiss, so clicking into the guest left it stuck open — the browser panel had
+already solved this, and the logic is now a shared `useGuestMenuState`.
+
+All four verified in a running Studio: the sub-page survives an
+expand/collapse round trip, Home still works from inside the modal, a
+backgrounded tab's guest is reaped after its grace period and is *not*
+re-created, and returning to the tab brings a fresh guest back.
+
+A repo test also caught that the new toolbar's icon-only buttons carried tooltips
+but no accessible name — a real gap, since the scripts that drive Studio pick
+controls by name.
+
 ### What is still unverified
 
 - **App zoom at 0.5x and 2x**, and a splitter drag at each. The slot measurement

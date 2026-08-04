@@ -210,6 +210,18 @@ export function HtmlArtifactPreview({
   const navigationTrigger = `${entryUrl}\n${goHomeNonce ?? 0}`;
   const navigatedForRef = useRef<null | string>(null);
 
+  // A guest that goes away takes the page with it, and a replacement arrives on
+  // `about:blank`. Forget what was pointed where, so the effect below treats the
+  // next one as somewhere to navigate rather than a page already in place --
+  // otherwise backgrounding a tab past the grace period, or a guest crashing,
+  // leaves this host showing a blank guest it believes is already correct.
+  useEffect(() => {
+    if (!active) {
+      navigatedForRef.current = null;
+      lastPointedAt.delete(targetId);
+    }
+  }, [active, targetId]);
+
   // Point the guest at this artifact, but only when something asked for it.
   //
   // Three things share one guest here and the difference between them is the
@@ -226,7 +238,7 @@ export function HtmlArtifactPreview({
   // those, and deliberately does nothing at all -- that is what preserves a
   // sub-page across expand and collapse.
   useEffect(() => {
-    if (!active || covered) {
+    if (!active || covered || !isActiveTab) {
       return;
     }
     const isRequest = navigatedForRef.current !== navigationTrigger;
@@ -248,9 +260,25 @@ export function HtmlArtifactPreview({
     // go-home gesture, and the guest becoming available or visible again, not
     // on that identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, covered, entryUrl, isSecondaryHost, navigationTrigger, targetId]);
+  }, [
+    active,
+    covered,
+    entryUrl,
+    isActiveTab,
+    isSecondaryHost,
+    navigationTrigger,
+    targetId,
+  ]);
 
   const atEntry = guest.currentUrl() === entryUrl;
+
+  // This toolbar's own menu and tooltips portal to the body at `z-50`, and a
+  // raised guest sits above that -- so inside the expand modal they would open
+  // underneath the page they belong to, invisible and unclickable. They cannot
+  // be lifted from inside their host (its content is a stacking context the
+  // guest is not in), so they are raised to the same layer the guest is.
+  const floatingStyle =
+    zIndex === undefined ? undefined : { zIndex: zIndex + 1 };
 
   return (
     <div className="absolute inset-0 flex flex-col">
@@ -285,7 +313,7 @@ export function HtmlArtifactPreview({
               <ArrowClockwiseIcon className="size-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Reload</TooltipContent>
+          <TooltipContent style={floatingStyle}>Reload</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -301,7 +329,9 @@ export function HtmlArtifactPreview({
               <HouseIcon className="size-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Back to the start of this file</TooltipContent>
+          <TooltipContent style={floatingStyle}>
+            Back to the start of this file
+          </TooltipContent>
         </Tooltip>
         {/* Read-only: says where a followed link landed, and is not a way to
             navigate somewhere else. */}
@@ -332,7 +362,7 @@ export function HtmlArtifactPreview({
               <DotsThreeVerticalIcon className="size-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-56" style={floatingStyle}>
             <div className="flex items-center justify-between px-2 py-1.5">
               <span className="text-sm">Zoom</span>
               <ZoomStepperControl

@@ -2,6 +2,8 @@ import ms from "ms";
 import {
   type ActorRefFrom,
   assign,
+  enqueueActions,
+  fromCallback,
   fromPromise,
   sendParent,
   setup,
@@ -36,6 +38,9 @@ interface ArtifactPreviewContext {
   // Null until an open registers the target it created. A machine spawned by a
   // presence lease that never got that far has nothing to close.
   targetId: BrowserTargetId | null;
+  // Targets already given a destruction watcher, so a re-registration of the
+  // same id does not stack a second one.
+  watchedTargets: Set<BrowserTargetId>;
 }
 
 type ArtifactPreviewEvent =
@@ -44,6 +49,19 @@ type ArtifactPreviewEvent =
   | { type: "registerTarget"; value: { targetId: BrowserTargetId } }
   | { type: "releasePresence" }
   | { type: "targetDestroyedExternally" };
+
+// Bridges BrowserConfig.onTargetDestroyed into an event, so a guest that dies
+// under us -- a render-process crash in untrusted artifact HTML, the window
+// closing, a debugger detach -- is noticed now rather than at grace expiry.
+// Without it the machine would keep a dead target id and try to close it later.
+const watchTargetDestructionLogic = fromCallback<
+  ArtifactPreviewEvent,
+  { browser: BrowserConfig; targetId: BrowserTargetId }
+>(({ input, sendBack }) =>
+  input.browser.onTargetDestroyed(input.targetId, () => {
+    sendBack({ type: "targetDestroyedExternally" });
+  }),
+);
 
 // Unlike taskBrowser's teardown this closes the one target and stops. There is
 // no agent-browser daemon fan-out to do: an artifact guest is never a CDP
@@ -95,12 +113,27 @@ export const artifactPreviewMachine = setup({
       presenceCount: ({ context }) => Math.max(0, context.presenceCount - 1),
     }),
 
-    setTargetId: assign({
-      targetId: (_, { targetId }: { targetId: BrowserTargetId }) => targetId,
-    }),
+    setTargetId: enqueueActions(
+      ({ enqueue }, params: { targetId: BrowserTargetId }) => {
+        enqueue.assign(({ context, spawn }) => {
+          if (context.watchedTargets.has(params.targetId)) {
+            return { targetId: params.targetId };
+          }
+          spawn("watchTargetDestructionLogic", {
+            input: { browser: context.browser, targetId: params.targetId },
+          });
+          return {
+            targetId: params.targetId,
+            watchedTargets: new Set(context.watchedTargets).add(
+              params.targetId,
+            ),
+          };
+        });
+      },
+    ),
   },
 
-  actors: { closeTargetLogic },
+  actors: { closeTargetLogic, watchTargetDestructionLogic },
 
   delays: { ARTIFACT_PREVIEW_GRACE_MS },
 
@@ -131,6 +164,7 @@ export const artifactPreviewMachine = setup({
     lateRegistration: false,
     presenceCount: 0,
     targetId: null,
+    watchedTargets: new Set<BrowserTargetId>(),
   }),
   id: "artifactPreview",
   initial: "GracePeriod",

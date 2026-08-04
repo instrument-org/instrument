@@ -350,6 +350,29 @@ describe("artifactPreviewMachine", () => {
     expect(browser.closeTarget).not.toHaveBeenCalled();
   });
 
+  // The event above only means anything if something sends it. Registering a
+  // target has to subscribe to that target's destruction, or a guest that dies
+  // on its own goes unnoticed until the grace timer.
+  it("watches a registered target for external destruction", async () => {
+    const { actor, browser } = spawnHarness();
+
+    actor.send({ type: "registerTarget", value: { targetId: TARGET } });
+    expect(browser.onTargetDestroyed).toHaveBeenCalledWith(
+      TARGET,
+      expect.any(Function),
+    );
+
+    // Fire what the real manager fires when the guest goes away.
+    const call = vi.mocked(browser.onTargetDestroyed).mock.calls[0];
+    if (!call) {
+      throw new Error("expected a destruction subscription");
+    }
+    call[1]();
+    await waitFor(actor, (s) => s.status === "done");
+
+    expect(browser.closeTarget).not.toHaveBeenCalled();
+  });
+
   // A lease can arrive before the open RPC registers what it created, so the
   // teardown path has to tolerate having no target at all.
   it("stops cleanly when no target was ever registered", async () => {

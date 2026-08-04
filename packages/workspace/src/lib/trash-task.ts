@@ -71,10 +71,13 @@ export async function trashTask({
 
         // The artifact preview's storage profile lives outside the task folder
         // (a Chromium profile has no business in a directory the user browses),
-        // so trashing the task does not take it. Best-effort: a profile left
-        // behind is dead weight, not a correctness problem, and it must not
-        // fail the deletion the user asked for. The guest that owned it is
-        // already reaped by the time we get here.
+        // so trashing the task does not take it.
+        //
+        // Best-effort, and deliberately not waited on: only the session browser
+        // gates the delete above, so the preview's own force-reap may still be
+        // in flight and Chromium may still hold the profile. A directory left
+        // behind is dead weight for a task that no longer exists, which is not
+        // worth failing the deletion the user asked for.
         const previewProfile = getArtifactPreviewSessionDir(taskId);
         if (await pathExists(previewProfile)) {
           await rmrf(previewProfile).catch(() => {

@@ -1,3 +1,4 @@
+import { filePreviewAtom } from "@/client/atoms/file-preview";
 import { isStudioModalOpenAtom } from "@/client/atoms/studio-modal";
 import { taskFileViewerAtom } from "@/client/atoms/task-file-viewer";
 import { useAtomValue } from "jotai";
@@ -24,7 +25,15 @@ export function useGuestOverlays(): {
 } {
   const studioModalOpen = useAtomValue(isStudioModalOpenAtom);
   const fileViewerModalOpen = useAtomValue(taskFileViewerAtom).isModalOpen;
-  return { fileViewerModalOpen, studioModalOpen };
+  // The chat's own image/diagram preview is a third full-window dialog, and it
+  // is reachable with a guest on screen (clicking an image in the chat of a task
+  // whose artifact panel is open). It is grouped with the studio modals because
+  // no guest host lives inside it, so every one of them wants to park for it.
+  const filePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
+  return {
+    fileViewerModalOpen,
+    studioModalOpen: studioModalOpen || filePreviewOpen,
+  };
 }
 
 /**

@@ -5,6 +5,7 @@ import { WebSearch } from "./web-search";
 function render(
   text: string,
   sources: { title?: string; url: string }[] = [],
+  toolCallId = "test",
 ): string {
   return textValue(
     WebSearch.toModelOutput({
@@ -20,7 +21,7 @@ function render(
         },
         state: "success",
       },
-      toolCallId: "test",
+      toolCallId,
     }),
   );
 }
@@ -139,12 +140,16 @@ describe("WebSearch model output", () => {
     expect(value.split(`nonce=${nonce}`)).toHaveLength(4);
   });
 
-  it("draws a new nonce per call", () => {
+  it("reuses the nonce when a stored result is replayed", () => {
     const first = /nonce=([0-9a-f]{32})/.exec(render("a"))?.[1];
-    const second = /nonce=([0-9a-f]{32})/.exec(render("a"))?.[1];
+    const replay = /nonce=([0-9a-f]{32})/.exec(render("a"))?.[1];
+    const otherCall = /nonce=([0-9a-f]{32})/.exec(
+      render("a", [], "other-call"),
+    )?.[1];
 
     expect(first).toBeDefined();
-    expect(first).not.toBe(second);
+    expect(replay).toBe(first);
+    expect(otherCall).not.toBe(first);
   });
 
   // Rebuilding a turn runs every stored part back through toModelOutput, and

@@ -32,11 +32,7 @@ function modelText(result: ReturnType<typeof LoadSkill.toModelOutput>) {
   return result.value;
 }
 
-/**
- * Pin the boundary nonce so output that is otherwise fixed can be snapshotted.
- * The nonce is drawn fresh per call by design, and the tests that care about
- * that assert it directly in `content-boundary.test.ts`.
- */
+/** Pin the boundary nonce so output that is otherwise fixed can be snapshotted. */
 function stableNonce(value: string) {
   return value.replaceAll(/nonce=[0-9a-f]{32}/g, "nonce=<nonce>");
 }
@@ -681,6 +677,32 @@ describe("LoadSkill", () => {
     );
     expect(inside).toBe(result.content);
     expect(inside).toContain("</skill_content>");
+  });
+
+  it("reuses the nonce when a stored result is replayed", () => {
+    const output = {
+      alreadyLoaded: false,
+      content: "# Body",
+      contentTruncated: false,
+      directory: "instrument/docx",
+      files: [],
+      name: "instrument:docx",
+      origin: "instrument" as const,
+      skillName: "docx",
+      state: "success" as const,
+      truncated: false,
+    };
+    const render = (toolCallId: string) =>
+      modelText(
+        LoadSkill.toModelOutput({
+          input: { name: "instrument:docx" },
+          output,
+          toolCallId,
+        }),
+      );
+
+    expect(render("call-1")).toBe(render("call-1"));
+    expect(render("call-2")).not.toBe(render("call-1"));
   });
 
   it("tells the model where a skill came from and whether it can edit it", () => {

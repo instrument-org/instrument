@@ -142,7 +142,7 @@ export const WebSearch = setupTool({
   },
   readOnly: true,
   timeoutMs: ms("2 minutes"),
-  toModelOutput: ({ output }) => {
+  toModelOutput: ({ output, toolCallId }) => {
     if (output.state === "failure") {
       return {
         type: "error-text",
@@ -173,6 +173,7 @@ export const WebSearch = setupTool({
     const { block, nonce } = boundContent({
       content: `${results.kind === "excerpts" ? formatExcerpts(results.sources) : results.text}${sourcesText}`,
       label: BOUNDARY_LABEL,
+      nonceSeed: toolCallId,
     });
 
     return {

@@ -254,7 +254,7 @@ export const LoadSkill = setupTool({
   // Keeping the maximum removes a second, synchronous skill resolver that can
   // drift from execution and under-budget an alias or stable ID.
   timeoutMs: ms("7 minutes") + ms("10 seconds"),
-  toModelOutput: ({ output }) => {
+  toModelOutput: ({ output, toolCallId }) => {
     if (output.state === "not-found") {
       const listing =
         output.available.length === 0
@@ -363,6 +363,7 @@ export const LoadSkill = setupTool({
       attributes: { name: output.name, origin: output.origin },
       content: output.content,
       label: BOUNDARY_LABEL,
+      nonceSeed: toolCallId,
     });
 
     return {

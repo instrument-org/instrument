@@ -21,10 +21,12 @@ const taskId = createMockTaskConfig(TaskIdSchema.parse("web-fetch-test"), {
 function render({
   spillFilePath,
   text,
+  toolCallId = "test",
   truncated = false,
 }: {
   spillFilePath?: string;
   text: string;
+  toolCallId?: string;
   truncated?: boolean;
 }) {
   const result = WebFetch.toModelOutput({
@@ -41,7 +43,7 @@ function render({
       truncated,
       url: "https://example.com/article",
     },
-    toolCallId: "test",
+    toolCallId,
   });
   if (result.type !== "text" || typeof result.value !== "string") {
     throw new TypeError(`Expected text output, got ${result.type}`);
@@ -69,6 +71,19 @@ describe("WebFetch model output", () => {
       value.trimEnd().endsWith(`--- END_WEB_FETCH_CONTENT nonce=${nonce} ---`),
     ).toBe(true);
     expect(value.split(`nonce=${nonce}`)).toHaveLength(4);
+  });
+
+  it("reuses the nonce when a stored result is replayed", () => {
+    const nonce = (value: string) => /nonce=([0-9a-f]{32})/.exec(value)?.[1];
+    const first = nonce(render({ text: "article" }));
+    const replay = nonce(render({ text: "article" }));
+    const otherCall = nonce(
+      render({ text: "article", toolCallId: "other-call" }),
+    );
+
+    expect(first).toBeDefined();
+    expect(replay).toBe(first);
+    expect(otherCall).not.toBe(first);
   });
 
   it("points truncated output at its spill file", () => {

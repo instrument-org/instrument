@@ -223,6 +223,71 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
+  it("replays persisted bounded tool output byte for byte", async () => {
+    const { sessionId } = baseMetadata();
+    const messageId = StoreId.newMessageId();
+    const toolCallId = StoreId.ToolCallSchema.parse("call_search_replay");
+    const messages: SessionMessage.WithParts[] = [
+      {
+        id: messageId,
+        metadata: {
+          aiGatewayModel: undefined,
+          createdAt: mockDate,
+          finishReason: "tool-calls",
+          modelId: "gpt-4o",
+          providerId: "openai",
+          sessionId,
+        },
+        parts: [
+          {
+            callProviderMetadata: undefined,
+            input: { query: "cache stability" },
+            metadata: {
+              createdAt: mockDate,
+              endedAt: mockDate,
+              id: StoreId.newPartId(),
+              messageId,
+              sessionId,
+              toolName: "web_search",
+            },
+            output: {
+              results: {
+                kind: "summary",
+                modelId: "test-model",
+                provider: {
+                  displayName: "Test",
+                  id: "instrument",
+                  type: "openai",
+                },
+                sources: [],
+                text: "Stable result",
+                usage: {},
+              },
+              state: "success",
+            },
+            providerExecuted: true,
+            state: "output-available",
+            toolCallId,
+            type: "tool-web_search",
+          },
+        ],
+        role: "assistant",
+      },
+    ];
+
+    const first = await SessionMessage.toModelMessages(
+      messages,
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+    const replay = await SessionMessage.toModelMessages(
+      messages,
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    expect(replay).toEqual(first);
+    expect(JSON.stringify(first)).toMatch(/nonce=[0-9a-f]{32}/);
+  });
+
   it("injects a system note for external file changes on a user message", async () => {
     const { messageId, messageMetadata, partMetadata } = baseMetadata();
 

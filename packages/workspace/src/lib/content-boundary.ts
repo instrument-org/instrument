@@ -1,5 +1,5 @@
 import { APP_NAME } from "@instrument-org/shared";
-import { randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 
 /**
  * 128 bits, hex-encoded. The number an attacker has to guess to end the block
@@ -61,12 +61,14 @@ export function boundContent({
   attributes = {},
   content,
   label,
+  nonceSeed,
 }: {
   attributes?: Record<string, string | undefined>;
   content: string;
   label: string;
+  nonceSeed: string;
 }): BoundedContent {
-  const nonce = drawNonce(content);
+  const nonce = drawStableNonce({ content, label, seed: nonceSeed });
   const header = Object.entries(attributes)
     .filter((entry): entry is [string, string] => typeof entry[1] === "string")
     .map(([key, value]) => ` ${key}=${JSON.stringify(value)}`)
@@ -85,18 +87,14 @@ export function boundContent({
 /**
  * A nonce the content does not already contain.
  *
- * The content is fixed on disk before the draw, so a collision is chance rather
- * than choice and redrawing settles it. Checking at all is what makes "only a
- * line carrying this nonce ends the block" true of every input rather than of
- * every input we expect.
+ * Checking the candidate is what makes "only a line carrying this nonce ends
+ * the block" true of every input rather than of every input we expect.
  *
- * `generate` is a seam: a real 128-bit draw never collides, so the redraw and
- * its bound are only reachable from a test that forces one.
+ * `generate` supplies a stable candidate sequence for production and lets tests
+ * force collisions. The attempt bound prevents either implementation from
+ * looping indefinitely.
  */
-export function drawNonce(
-  content: string,
-  generate = () => randomBytes(NONCE_BYTES).toString("hex"),
-): string {
+export function drawNonce(content: string, generate: () => string): string {
   for (let attempt = 0; attempt < NONCE_ATTEMPTS; attempt += 1) {
     const nonce = generate();
     if (!content.includes(nonce)) {
@@ -104,4 +102,38 @@ export function drawNonce(
     }
   }
   throw new Error("Could not draw a content boundary nonce");
+}
+
+/**
+ * A replay-stable nonce for persisted tool output.
+ *
+ * The persisted tool call or part id is unique to the result, while hashing the
+ * content makes a forged closing marker a 128-bit fixed-point problem even if
+ * its author could choose or predict that id. The attempt number keeps the
+ * collision check in `drawNonce` deterministic too.
+ */
+export function drawStableNonce({
+  content,
+  label,
+  seed,
+}: {
+  content: string;
+  label: string;
+  seed: string;
+}): string {
+  let attempt = 0;
+  return drawNonce(content, () => {
+    const nonce = createHash("sha256")
+      .update(label)
+      .update("\0")
+      .update(seed)
+      .update("\0")
+      .update(content)
+      .update("\0")
+      .update(String(attempt))
+      .digest("hex")
+      .slice(0, NONCE_BYTES * 2);
+    attempt += 1;
+    return nonce;
+  });
 }

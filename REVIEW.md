@@ -32,7 +32,7 @@ Report at most five Nits per review. If you found more, say "plus N similar item
 - **Studio privilege boundaries.** Renderer code must not import Electron, Node built-ins, or platform API modules directly. Privileged operations use the narrow preload API or main-process oRPC, and remote Instrument API calls go through main-process routes. Fetching task files from validated localhost workspace URLs is expected.
 - **Workspace error handling.** Do not discard neverthrow `Result` errors. Expected tool failures stay typed through the tool boundary, and RPC handlers map known failures with `toORPCError`; internal invariant failures may still throw.
 - **Persisted shapes.** Changed Zod schemas, database columns, and state keys must remain backward compatible or include a migration.
-- **Session-context freshness.** Values derived from `agent.getMessages` can be 60 minutes stale. Values required in the next turn must be attached per turn.
+- **Session-context freshness.** Values derived from `agent.getMessages` are a startup snapshot fixed for the life of the session. Values required in a later turn must be attached to that turn as a persisted `data-*` part, and rendering one must be deterministic from what is stored.
 - **Test observability.** jsdom cannot verify browser-owned layout, scrolling, caret, or selection behavior. Those assertions belong in `*.browser.test.tsx`; every added regression test should fail against the unfixed behavior.
 
 ## Verification bar

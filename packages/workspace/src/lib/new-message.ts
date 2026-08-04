@@ -16,6 +16,7 @@ import { detectAttachedFolderChanges } from "./attached-folder-changes";
 import { allowBrowserReveal } from "./browser-state";
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createPaneTabsPart } from "./create-pane-tabs-part";
+import { detectDateChange } from "./date-change";
 import { detectProjectChanges } from "./detect-project-changes";
 import { taskDir } from "./task-dir-utils";
 import { setTaskState } from "./task-record";
@@ -134,6 +135,16 @@ export async function newMessage({
   });
   if (browserStatusPart) {
     parts.push(browserStatusPart);
+  }
+
+  // The session context states the date the session started and is never
+  // rewritten, so a session that ran overnight is corrected here instead.
+  const dateChange = await detectDateChange({ messageId, sessionId, taskId });
+  if (dateChange.isErr()) {
+    // Awareness of the date is best-effort; never block sending.
+    getWorkspaceConfig().captureException(dateChange.error);
+  } else if (dateChange.value) {
+    parts.push(dateChange.value);
   }
 
   const paneTabsPart = await createPaneTabsPart({

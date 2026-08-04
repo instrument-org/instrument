@@ -41,7 +41,7 @@ Three of the four independently converged on retaining user messages verbatim: c
 
 Compaction is, in the critique's words, "a leaky abstraction that tries to make a finite context window look like an infinite one." Rewriting the head of the transcript invalidates the cached prefix by construction, so every compaction is followed by a full prefill of the new prefix. That is inherent, not an implementation flaw, and the honest response is to make compaction rarer and less load-bearing rather than to pretend the cost is not there. Two things follow, and both are in the phasing below: warn the agent early enough that it can write its own handoff notes, and offer a rollover mode that starts a clean window instead of paying for a summary.
 
-The related point about cache invalidation is worth recording even though it is out of scope here: [prepare-model-messages.ts](../../../packages/workspace/src/lib/prepare-model-messages.ts) rebuilds the `session-context` message once it is more than `STALE_MESSAGE_THRESHOLD_MINUTES` old, which moves the cached prefix on a timer for reasons unrelated to whether anything changed. Worth measuring separately.
+The related point about cache invalidation is settled outside this plan: [prepare-model-messages.ts](../../../packages/workspace/src/lib/prepare-model-messages.ts) writes the `session-context` message once and never rebuilds it, so the only thing that moves the cached prefix is compaction itself. That raises the bar here rather than lowering it -- compaction must not silently rewrite the prefix of an active session (see [immutable-session-context.md](immutable-session-context.md)).
 
 ### The codex shape, which this plan now recommends
 

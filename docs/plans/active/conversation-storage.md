@@ -1,0 +1,127 @@
+# Plan: conversation storage the agent can read across
+
+Status: proposal, not started. Owner: TBD. Split out from [user-chosen-working-folder.md](user-chosen-working-folder.md) because it is a separate axis: that plan decides where the user's _files_ live, this one decides where the app's _conversation data_ lives. Neither blocks the other.
+
+## Problem
+
+Each task's conversation lives in its own SQLite file at `tasks/<id>/.instrument/task.db`. That makes any cross-task question expensive and any agent-driven one impractical: "when did we discuss X", "find the task where I set up the deploy script", "rename this project everywhere" all require opening every database in turn.
+
+This is about to matter more than it does today. The near-term goal is for the agent to have meta control over the app: search its own history, discover old conversations, reorganize projects. With per-task databases, every one of those capabilities needs a bespoke fan-out tool.
+
+Two repo skills are the current cost, already paid: `task-database-query` exists to run safe read-only SQL against a task database, and `session-transcript` exists to convert one into readable markdown. Both are workarounds for our own data being unreadable by the tools we ship.
+
+## The finding that changes the estimate
+
+**There is no relational schema to migrate.** The task database is a key-value store, not a modeled one:
+
+- [session-store-storage.ts](../../../packages/workspace/src/lib/session-store-storage.ts) builds an [unstorage](https://unstorage.unjs.io) instance over a `db0` connector over `node:sqlite`, writing to a single table named `sessions`.
+- [store.ts](../../../packages/workspace/src/lib/store.ts) accesses it purely through hierarchical string keys and prefix scans: `storage.getKeys(StorageKey.MESSAGES_KEY)`, `getItemRaw`, `setItemRaw`. Keys are built in [storage-key.ts](../../../packages/workspace/src/lib/storage-key.ts) by joining segments (`messages:<sessionId>:<messageId>`, `sessions:<sessionId>`, and so on).
+- Values are Zod-validated on the way in and out ([set-parsed-storage-item.ts](../../../packages/workspace/src/lib/set-parsed-storage-item.ts), [get-parsed-storage-item.ts](../../../packages/workspace/src/lib/get-parsed-storage-item.ts)), so the schema lives in TypeScript, not in the database.
+- Everything funnels through one function, `getSessionsStoreStorage(taskId)`, with a per-task cache and disposal bookkeeping.
+
+So SQLite here is an implementation detail of a KV store whose interface is prefix scans over string keys, behind a single chokepoint. Changing the backing store is a driver swap plus key namespacing, not a schema rewrite.
+
+## Prior art
+
+Three agent products were examined in depth. They disagree about where conversation bodies live and agree completely about everything else.
+
+### Reference A: a Rust CLI agent
+
+**Append-only JSONL files are the source of truth; SQLite is a rebuildable projection.**
+
+- Each thread is a JSONL rollout file. The SQLite side stores `thread_turns` and `thread_items` rows carrying `item_json` plus a `rollout_ordinal`, a `rollout_byte_offset`, and an end offset per turn. The offsets mean the reader **seeks into the file** rather than replaying it, which is the answer to the obvious "folding a long log gets expensive" objection.
+- A backfill subsystem rebuilds the projection from the rollout files, so the database is disposable by construction rather than by policy.
+- **Full-text search over history shells out to ripgrep.** There is no FTS table. It greps the rollout directory, then joins the matching files against the SQLite index for ordering, filtering, and pagination. An in-process scan is the fallback when ripgrep is unavailable, so the binary is an optimization and not a hard dependency.
+- Two non-obvious costs they had to pay: the search term is **JSON-escaped before grepping**, because the file contains JSON-encoded strings rather than raw text; and a background worker **compresses old rollouts**, with search made compression-aware through a logical-path indirection. Append-only logs grow, and somebody eventually pays for that.
+- Cross-process writes are serialized with lockfiles in a dedicated lock directory.
+- The projection schema shows the pattern for evolving JSON-in-a-column: an `item_type` column was added later and backfilled with `json_extract(item_json, '$.type')`, then indexed with a partial index for user messages. Store the blob, promote fields to columns when a query needs them.
+
+### Reference B: a TypeScript agent monorepo
+
+**Event sourcing inside SQLite.** Append-only `session_entries` (`entry_seq` monotonic per session, `parent_id` on each entry), a `session_sequences` counter table, and `branch_entries` mapping branches to entries. Conversation branching is a first-class part of the data model, not a feature bolted on later.
+
+The fold problem is solved with explicit rollup tables: `session_materialized` (one row per session: name, message count, token counts, cost total, current model) and `entry_materialized` (derived per-entry data keyed by session, sequence, and type). They never recompute a session summary by scanning entries.
+
+### Reference C: a TypeScript coding agent
+
+**Fully relational SQLite via Drizzle**, with `session`, `message`, and `part` tables. Payloads that are only ever read whole live in JSON-mode columns (`metadata`, `revert`, `permission`, `model`, `summary_diffs`); anything queried, sorted, or aggregated is a flat column (`cost`, `tokens_input`, `tokens_output`, `time_archived`, `project_id`, `parent_id`, `slug`, `directory`). Deletion integrity comes from a foreign key with `onDelete: "cascade"` from session to project.
+
+**They migrated to this from one-JSON-file-per-key storage.** The legacy layer is still in the tree: a `read`/`write`/`update`/`list`/`remove` interface over a `string[]` key joined into a path with `.json` appended. That is the same shape as unstorage's filesystem driver, and it is the design that lost.
+
+### What this changes
+
+The score is not "files versus databases." Two of three keep bodies in SQLite; one keeps them in files. But the one that abandoned files abandoned **one file per key**, which is the pathological variant: thousands of tiny files, no atomic multi-key write, directory enumeration as a hot path. The one that kept files uses **one append-only file per conversation**, which has none of those properties. That distinction is the whole ballgame, and it was previously a caveat in this document rather than a finding.
+
+The unanimous agreement is more actionable than the disagreement:
+
+1. **All three separate list-view data from conversation bodies.** A `threads` table, a `session_materialized` rollup, flat columns on `session`. Nobody computes a task list by reading conversations. We should treat "what the sidebar needs" as its own store no matter which option wins.
+2. **All three store bodies as opaque JSON with promoted columns.** Nobody models message parts relationally. Our Zod-validated blobs are already the right shape.
+3. **Two of three are explicitly append-only** with derived rollups, and the third supports branching through parent pointers. Given [edit-user-message-in-place.md](edit-user-message-in-place.md) is already planned, an append-only model with parent pointers gets conversation branching nearly for free, where mutable rows make it a migration.
+
+## Options
+
+| Option                                                        | Cross-task search       | Agent can read it directly | Delete removes the data | Cost   |
+| ------------------------------------------------------------- | ----------------------- | -------------------------- | ----------------------- | ------ |
+| **A.** Per-task SQLite (today)                                | Fan-out over N files    | No                         | Yes, per folder         | Zero   |
+| **B.** One central SQLite                                     | Single query            | No, still a blob           | Needs cascade rules     | Low    |
+| **C.** Per-task SQLite plus a central metadata index          | Fast                    | No, still a blob           | Yes                     | Medium |
+| **D.** JSONL per conversation as truth, plus a metadata index | Fast, and ripgrep works | Yes                        | Yes, per file           | Medium |
+
+D is cheaper than this document previously claimed, for one specific reason: **the index does not need to index content.** Content search is ripgrep over the JSONL. The index only carries what a list view needs (title, timestamps, counts, cost, sort keys) plus offsets for seeking. That removes FTS, content indexing, and content staleness from the design entirely.
+
+**The cost column deliberately excludes migration.** We are in private beta with a handful of users, so conversion effort and the risk of losing old conversations are close to free right now, and they are the main thing that would otherwise make B look cheap and D look expensive. Judge these on the end state they produce, not on how hard they are to reach from here. See [Timing](#timing).
+
+We already ship the required binary. Studio bundles and verifies ripgrep at package time ([verify-ripgrep.ts](../../../apps/studio/electron-builder/verify-ripgrep.ts)), and the agent already has a `Grep` tool.
+
+## Recommendation
+
+**Pursue D, structured as Reference A structures it**, with C as the fallback if the prototype's write path disappoints.
+
+Specifically:
+
+- One append-only JSONL per conversation, in application data, as the source of truth.
+- A single central SQLite index holding list-view metadata plus `(ordinal, byte offset)` per item, so readers seek instead of replaying.
+- The index is rebuildable from the files, and a rebuild path exists and is tested from day one. Not "we could rebuild it," but a function that does.
+- Content search is ripgrep against the JSONL directory, joined to the index for ordering and pagination, with an in-process scan fallback.
+- Entries are append-only with parent pointers, so message editing and branching are natural rather than destructive.
+
+The property worth preserving is the one the current design gets right: no orphaned hidden state, and deleting the thing deletes the data. D preserves it by changing the unit from "one folder per task" to "one file per conversation." The index self-heals because it is derived.
+
+If the prototype shows the write path cannot take it, C is the honest fallback: it keeps every current property, adds the central metadata index (which is needed under D anyway), and gives up only the agent's direct read access. Note that C should win on measurements or not at all. Much of its appeal is that it disturbs less, and right now disturbing less is worth very little.
+
+## Timing
+
+This is the cheapest this change will ever be, and the cost curve only goes one way. A handful of beta users means a botched conversion costs an apology, not an incident. Every month of growth adds conversations we are obliged to carry forward, and the obligation is permanent once it exists.
+
+That is a scheduling argument, not just a reassurance. This plan is separable from the folder work, which makes it easy to defer indefinitely. It should not be deferred past the point where a breaking storage change stops being free. If the direction is right, the window to take it cheaply is now.
+
+The corollary is that we should not build compatibility scaffolding we would only need for users we do not have. No dual-write period, no long-lived reader for the old format, no fallback path that lives in the codebase for a year. A one-shot converter that runs once and is then deleted is the correct shape, consistent with the repo's existing preference for structural changes over compatibility shims before general availability.
+
+## Risks, and what to prototype
+
+- **Write amplification during streaming.** Message parts are written and rewritten continuously through a turn. Appending updates and folding on read is the standard answer, and byte offsets keep the read cheap, but this needs measuring against a real long session before anything is committed. **This is phase 1 and nothing else starts until it has a number.**
+- **Unbounded growth.** Append-only logs only grow. Reference A added a background compression worker and then had to make search compression-aware. Assume this cost rather than discovering it.
+- **JSON escaping for search.** Grepping a JSONL file for user-visible text means escaping the search term to match JSON encoding. Easy to get wrong, and wrong in a way that silently returns nothing.
+- **Atomicity.** SQLite gives crash-safe writes for free. Appends need a reader that tolerates a torn trailing line rather than treating it as corruption.
+- **Concurrent writers.** Multiple app instances (and multiple dev worktrees) can target one store. Reference A uses lockfiles per thread. Our single-instance lock covers packaged builds but is explicitly skipped in dev.
+- **Windows path length.** Few, shallow files rather than a deep tree. See [windows-long-paths.md](../../findings/windows-long-paths.md).
+- **Migration.** One-time, forward-only, from N task databases to N conversation files plus one index. Follow the pattern in [migrate-workspace-layout.ts](../../../packages/workspace/src/lib/migrate-workspace-layout.ts): idempotent, sentinel-guarded, never clobbering, non-fatal on failure. Safe at boot, because it is a read-and-rewrite within application data. **Deliberately best-effort:** a conversation that fails to convert should be logged and skipped, not repaired. Given the user count, the effort of making conversion bulletproof exceeds the value of what it protects, and the converter is deleted after one release either way.
+
+## Phases
+
+1. **Prototype the write path.** Append-and-fold with byte offsets, against a real long session. Measure turn latency, file size, and time to open a conversation. Decide D versus C on the numbers.
+2. **Introduce the storage seam.** Make `getSessionsStoreStorage` return an interface rather than an unstorage instance. Worth doing regardless of the outcome.
+3. **The metadata index.** Central, rebuildable, with the rebuild tested. This is needed under both D and C, so it is not a bet.
+4. **New backing store** behind the seam. Swap outright rather than running both; there is no population to keep on the old path.
+5. **One-shot converter**, sentinel-guarded, best-effort, deleted a release later.
+6. **Agent capability.** Search over history via the existing grep tooling, then reorganization.
+
+Phases 2 and 3 pay off under either option, so the irreversible choice happens at phase 4, after the prototype has produced numbers. That is the only gate worth having. The usual second gate, "can we bring everyone across safely," does not apply at this size and should not be allowed to add phases.
+
+## Open questions
+
+- Does the file format target readability by a person, or only by tools? JSONL greps well and reads poorly. Markdown reads well and loses structure. Pragmatic answer: JSONL as truth, markdown export on demand, which is roughly what `session-transcript` already produces.
+- Do conversation files live in application data, or in the visible folder the folder plan may introduce? Application data is the safer default; putting them in a synced folder reintroduces the whole hazard set that rules out a user-visible workspace root: sync conflicts over SQLite and its WAL sidecars, file counts that make the folder unbrowsable, and a macOS consent prompt on a directory the app needs at boot. All three references keep them in application data.
+- Does the agent get raw file access to its own history, or a search tool over it? Raw access is the point, but it means the agent can read every past conversation. That is a privacy posture decision, not a technical one, and it should be made deliberately rather than inherited from a storage choice.
+- Should the index be one database or several? Reference A splits by concern into separate migration sets and databases, which limits the blast radius of any single schema and keeps hot tables small.
+- What happens to `task-database-query` and `session-transcript` once the data is readable? Both likely collapse into ordinary file reads, which is the clearest signal that the direction is right.

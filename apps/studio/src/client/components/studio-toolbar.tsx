@@ -6,11 +6,10 @@ import { Button } from "@/client/components/ui/button";
 import { UpdateStatusIndicator } from "@/client/components/update-status-indicator";
 import { WindowControls } from "@/client/components/window-controls";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import { setSidebarOpen, useSidebarOpen } from "@/client/hooks/use-sidebar";
+import { toggleSidebar, useSidebarOpen } from "@/client/hooks/use-sidebar";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
-import { SHORTCUTS } from "@/shared/shortcuts";
 import { NotePencilIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -74,44 +73,23 @@ export function StudioToolbar() {
             box adds on each side: 8px here reads as 20px between icons, and the
             -4px trailing offset lands the last icon 14px from the tab bar. */}
         <div className="-mr-1 flex items-center gap-2 [-webkit-app-region:no-drag]">
-          {isSidebarOpen ? (
-            <ToolbarTooltip
-              accelerator={SHORTCUTS.toggleSidebar.accelerator}
-              label="Hide sidebar"
+          <ToolbarTooltip shortcut="toggleSidebar">
+            <Button
+              className="relative size-7 shrink-0 text-foreground/80"
+              onClick={() => {
+                toggleSidebar();
+              }}
+              size="icon"
+              variant="ghost-toolbar"
             >
-              <Button
-                aria-label="Hide sidebar"
-                className="size-7 text-foreground/80"
-                onClick={() => {
-                  setSidebarOpen(false);
-                }}
-                size="icon"
-                variant="ghost-toolbar"
-              >
-                <SidebarSimpleIcon />
-              </Button>
-            </ToolbarTooltip>
-          ) : (
-            <ToolbarTooltip
-              accelerator={SHORTCUTS.toggleSidebar.accelerator}
-              label="Show sidebar"
-            >
-              <Button
-                aria-label="Show sidebar"
-                className="relative size-7 shrink-0 text-foreground/80"
-                onClick={() => {
-                  setSidebarOpen(true);
-                }}
-                size="icon"
-                variant="ghost-toolbar"
-              >
-                <SidebarSimpleIcon />
-                {hasExceptions && (
-                  <span className="absolute top-1 right-1 size-2 rounded-full bg-destructive" />
-                )}
-              </Button>
-            </ToolbarTooltip>
-          )}
+              <SidebarSimpleIcon />
+              {/* An open sidebar shows the exceptions alert itself, so the badge
+                  is only its closed-state stand-in. */}
+              {!isSidebarOpen && hasExceptions && (
+                <span className="absolute top-1 right-1 size-2 rounded-full bg-destructive" />
+              )}
+            </Button>
+          </ToolbarTooltip>
           <div className="flex items-center">
             <NavControls />
             {/* The sidebar carries its own New task button, so this only fills in
@@ -126,21 +104,14 @@ export function StudioToolbar() {
                   initial={{ marginLeft: 0, opacity: 0, scale: 0.8, width: 0 }}
                   transition={revealTransition}
                 >
-                  <ToolbarTooltip
-                    accelerator={SHORTCUTS.newTask.accelerator}
-                    label="New task"
-                  >
+                  <ToolbarTooltip shortcut="newTask">
                     <Button
                       asChild
                       className="size-7 text-foreground/80"
                       size="icon"
                       variant="ghost-toolbar"
                     >
-                      <InternalLink
-                        aria-label="New task"
-                        openInCurrentTab
-                        to="/new-tab"
-                      >
+                      <InternalLink openInCurrentTab to="/new-tab">
                         <NotePencilIcon />
                       </InternalLink>
                     </Button>

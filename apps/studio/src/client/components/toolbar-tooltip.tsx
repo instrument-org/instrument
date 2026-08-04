@@ -5,26 +5,31 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { formatAccelerator } from "@/client/lib/format-accelerator";
-import { type ShortcutAccelerator } from "@/shared/shortcuts";
+import { type ShortcutId, SHORTCUTS } from "@/shared/shortcuts";
 
 /**
- * Label-and-shortcut tooltip for the toolbar's icon controls, so chrome that
- * reads as one row of buttons also reads as one tooltip style. Opens faster
- * than the app default: these are unlabelled icons, and the whole row is on the
- * path to everything else.
+ * Tooltip for the toolbar's icon controls: the shortcut table's own label and
+ * chord, so a control reads the same here as it does in the native menu, the
+ * command menu, and the shortcut guide. The label doubles as the button's
+ * accessible name, since these are unlabelled icons.
+ *
+ * Opens faster than the app default; the whole row is on the path to everything
+ * else.
  */
 export function ToolbarTooltip({
-  accelerator,
   children,
-  label,
+  shortcut,
 }: {
-  accelerator: ShortcutAccelerator;
   children: React.ReactNode;
-  label: string;
+  shortcut: ShortcutId;
 }) {
+  const { accelerator, label } = SHORTCUTS[shortcut];
+
   return (
     <Tooltip delayDuration={300}>
-      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipTrigger aria-label={label} asChild>
+        {children}
+      </TooltipTrigger>
       <TooltipContent className="flex items-center gap-2" side="bottom">
         {label}
         <KbdGroup>

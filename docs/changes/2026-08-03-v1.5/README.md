@@ -1,8 +1,8 @@
 # v1.5 changes
 
-Range: `v1.4.4..v1.5.0-beta.4`, covering `v1.5.0-beta.1` through `v1.5.0-beta.4`.
+Range: `v1.4.4..v1.5.0`, covering `v1.5.0-beta.1` through `v1.5.0-beta.4` and the stable release.
 
-These are review-worthy product surfaces rather than a chronological changelog. Commits authored by or co-authored with Neil Renicker are excluded. Screenshots were captured from the `v1.5.0-beta.4` checkout.
+These are review-worthy product surfaces rather than a chronological changelog. Commits authored by or co-authored with Neil Renicker are excluded, as are developer-mode-only surfaces. Screenshots were captured from the `v1.5.0-beta.4` checkout, except the toolbar control row, which is from `v1.5.0`.
 
 - **Paged document viewers**
 
@@ -74,6 +74,24 @@ These are review-worthy product surfaces rather than a chronological changelog. 
   Use these commits as repo context for the simplified task header: 5f262ca83 84b185a7e e3c67e0a1
 
   Location: Studio task page, header.
+  ```
+
+- **Toolbar control row**
+
+  Location: Main Studio toolbar.
+
+  The sidebar, back, forward, and new-task controls sit in larger hit boxes on an even rhythm, the new-task button slides into the row whenever the sidebar is hidden, and each control now has a tooltip naming it and its keyboard shortcut.
+
+  Source changes: [826f239ad](https://github.com/instrument-org/instrument/commit/826f239ad), [71e35c2e3](https://github.com/instrument-org/instrument/commit/71e35c2e3), [ce360cc53](https://github.com/instrument-org/instrument/commit/ce360cc53)
+
+  Screenshot:
+
+  ![Toolbar control row with the sidebar hidden, showing the new-task button and its shortcut tooltip](images/toolbar-control-row.png)
+
+  ```text
+  Use these commits as repo context for the toolbar control row: 826f239ad 71e35c2e3 ce360cc53
+
+  Location: Main Studio toolbar.
   ```
 
 - **Readable transcript run rows**

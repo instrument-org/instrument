@@ -48,6 +48,7 @@ Include:
 Exclude:
 
 - Commits authored by or co-authored with Neil Renicker, unless the user asks to include designer-owned work.
+- Surfaces only a developer sees: developer-mode cards, the dev panel, debug pages, and anything else behind the developer-mode setting. A debug page is still the right place to capture a shipping surface from; it just isn't one itself.
 - Internal-only changes, tests, telemetry, diagnostics, release commits, dependency churn, spelling, or docs-only commits.
 - Small spacing, border, token, and polish changes unless they create a reusable visual pattern.
 - Architecture changes where the intended UI stayed the same.
@@ -78,7 +79,7 @@ Use this shape:
 ````markdown
 - **Concrete surface name**
 
-  Location: where a designer can find it in the app, described as a page, modal, panel, toolbar, debug page, or workflow. Do not show internal route paths unless the user asks for technical routing details.
+  Location: where a designer can find it in the app, described as a page, modal, panel, toolbar, or workflow. Do not show internal route paths unless the user asks for technical routing details.
 
   One short sentence describing what changed.
 
@@ -114,7 +115,6 @@ Use product language like:
 - Main Studio toolbar
 - Settings modal
 - Welcome or onboarding flow
-- Debug page
 - Provider/model picker
 - File viewer
 - Project page

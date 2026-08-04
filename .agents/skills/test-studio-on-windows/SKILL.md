@@ -20,8 +20,9 @@ If the profile or either scheduled task is missing, read [references/host-enroll
 ## Choose the target
 
 - Use `dev` to validate the source in the configured remote checkout. Electron Vite hot reloads renderer, preload, and main-process changes. `state`, `goto`, and `modal` work because this build exposes `window.__studioDrive`.
+- Use `dev-seeded` for that same build against a disposable workspace built from a committed fixture, so what the app shows is the fixture rather than whatever that machine did last. It has its own scheduled task, CDP port, and user data directory; everything downstream works unchanged.
 - Use `installed` to validate the installed packaged product. It uses the production user data and can mutate real local application state. Route helpers do not exist, so use generic `eval`, `click`, `press`, `wait`, and `shot` operations.
-- The installed target validates the installed application version, not the remote checkout. The dev target validates the remote checkout's exact Git state, not uncommitted changes on the primary machine.
+- The installed target validates the installed application version, not the remote checkout. The dev targets validate the remote checkout's exact Git state, not uncommitted changes on the primary machine.
 
 ## Establish source identity
 
@@ -72,6 +73,28 @@ The tunnel command can print its forwarding message before SSH has finished bind
 curl --fail --retry 10 --retry-all-errors --retry-delay 1 http://127.0.0.1:49160/json/version
 ```
 
+## Start against a seeded workspace
+
+`start --target dev-seeded --workspace <fixture>` builds the workspace from `fixtures/workspaces/<fixture>` on the host, then starts the seeded task against it. Driving is unchanged; it is another port:
+
+```bash
+node "$WINDOWS_HOST" start --host "$HOST" --target dev-seeded --workspace documents
+node "$WINDOWS_HOST" tunnel --host "$HOST" --target dev-seeded --local-port 49162
+node "$DRIVE" goto /tasks/generated-pdf --port 49162
+```
+
+Seeding is idempotent, so starting the same fixture again reuses what is on disk. Pass `--fresh` to rebuild a workspace the app has written to since. Neither seeds a workspace a running instance has open: stop that target first.
+
+`seed` does the seeding on its own, which is what to reach for when enrolling a host or working out why a fixture will not build:
+
+```bash
+node "$WINDOWS_HOST" seed --host "$HOST" --workspace documents
+```
+
+The directory holds one fixture at a time, so naming a different one rebuilds it. `status` reports which fixture is in it, and the task ids it seeded, under `devSeeded.workspace`.
+
+A seeded workspace has no provider credentials and must not have any, so the composer reads "No models available". That is the tell that the workspace is the seeded one and not the developer's.
+
 ## Drive and collect evidence
 
 Against a development build:
@@ -102,10 +125,11 @@ Treat screenshots as supporting evidence. Also assert the expected DOM or state,
 
 ```bash
 node "$WINDOWS_HOST" stop --host "$HOST" --target dev
+node "$WINDOWS_HOST" stop --host "$HOST" --target dev-seeded
 node "$WINDOWS_HOST" stop --host "$HOST" --target installed
 ```
 
-Stopping `dev` terminates every Studio development process whose command line belongs to the configured checkout. Do not use it when another person or agent is intentionally using that same checkout.
+Stopping either dev target terminates every Studio development process whose command line belongs to the configured checkout, and stops both dev tasks: they run the same command from the same checkout, and a process does not carry which workspace it was pointed at. Do not use it when another person or agent is intentionally using that same checkout.
 
 ## Troubleshooting
 
@@ -113,5 +137,8 @@ Stopping `dev` terminates every Studio development process whose command line be
 - Remote CDP works but the local driver cannot connect: keep the tunnel alive and permit the Node driver to access localhost if the agent sandbox restricts network calls.
 - `curl` reaches the forwarded endpoint but `studio-drive` reports no debug endpoint: the command runner is blocking Node's localhost access; rerun the driver with local-network permission.
 - Dev starts with the wrong Node or pnpm: the scheduled task must prepend the configured Node installation to `PATH` and run `pnpm.cmd run dev` from `apps/studio`, bypassing the root Turbo/Corepack re-entry.
+- The seeded target starts but only an onboarding window appears: its task is missing `SKIP_ONBOARDING=true`. `status` reports it as `devSeeded.validation.onboardingSkipped`.
+- Seeding fails: the seeder's own message comes back on the remote command's stderr. Run `seed` alone to read it without a start timeout in the way.
+- `start --target dev-seeded` reports the running instance holds another fixture: stop that target, then start it again with the fixture you want.
 - Main-process hot reload loses CDP with `bind() failed: Address already in use`: stop the configured dev target and start it again.
 - `status` reports a dirty checkout: identify ownership of every change before updating, switching commits, or deleting generated state.

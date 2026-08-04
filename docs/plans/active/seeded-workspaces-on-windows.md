@@ -1,6 +1,6 @@
 # Plan: seeded workspaces on the Windows test host
 
-Status: not started. Depends on the seeder ([seeded-test-workspaces.md](./seeded-test-workspaces.md)) and the Windows host helper, both of which have landed.
+Status: the helper side has landed; enrolling and verifying a host has not. `windows-studio-host.mjs` grew a `dev-seeded` target and a `seed` command, and the skill documents both. What remains is machine state and evidence: add the `devSeeded` block to a host profile, create the seeded scheduled task, and run steps 1 and 5 there. Nothing in the repo is waiting on that.
 
 Owner: whoever owns `.agents/skills/test-studio-on-windows/`. The seeder side is done and needs nothing from this work.
 
@@ -8,7 +8,7 @@ Owner: whoever owns `.agents/skills/test-studio-on-windows/`. The seeder side is
 
 `studio-drive.mjs boot --workspace <fixture>` builds a disposable workspace from a committed description and boots Studio against it, so a scripted run stops depending on what the machine happened to do last. That works on macOS and Linux. On Windows it is unreachable, and the reason is structural rather than a bug.
 
-The goal: `windows-studio-host.mjs start --host <ssh-host> --target dev --workspace documents` brings up the Windows dev build against a seeded workspace, and everything downstream (`goto`, `click`, `shot` through the tunnel) works unchanged.
+The goal: `windows-studio-host.mjs start --host <ssh-host> --target dev-seeded --workspace documents` brings up the Windows dev build against a seeded workspace, and everything downstream (`goto`, `click`, `shot` through the tunnel) works unchanged.
 
 ## Why it does not work today
 
@@ -47,28 +47,30 @@ Two things to watch, both cheap to fix in the seeder if they bite:
 - The workspace digest hashes `path.relative` output, which is backslash-separated on Windows. Harmless, because the digest is only ever compared against a marker written on the same machine, but it means the marker is not portable between hosts.
 - The repo has no `.gitattributes`. `session.json` is single-line superjson so CRLF conversion is close to a non-event, and git detects the PDF as binary, but if a checkout ever mangles a transcript this is where to look.
 
-### 2. Decide where the seeded workspace lives
+### 2. Where the seeded workspace lives
 
-Under `LOCALAPPDATA`, keyed so two fixtures do not collide, and never inside the checkout. The host profile (`%USERPROFILE%\.instrument\studio-host.json`) is the right place to record the root, alongside the existing machine-specific values, so no path is embedded in a repo file.
+`devSeeded.userDataDir` in the host profile (`%USERPROFILE%\.instrument\studio-host.json`), so no path is embedded in a repo file. One directory, not one per fixture: the scheduled task's environment is fixed at enrollment, so the path cannot vary per run without either rewriting the task or pointing it at a junction the helper repoints. Neither is worth the moving part when switching fixtures costs a reseed of a few seconds, and the seeder already rebuilds a directory whose fixture digest no longer matches. Which fixture is in there comes from the seeder's own marker, so `status` reports it without the helper recording anything.
 
-### 3. Teach the scheduled task to take a workspace
+The helper refuses a `userDataDir` that is relative or inside the checkout, before anything is written. The seeder covers the other direction by refusing to clear a directory it did not create, which is what stands between a typo and someone's real tasks.
 
-This is the real work, and the shape depends on a choice the owner should make:
+### 3. The seeded scheduled task
 
-- **Rewrite the task action per start.** `start --workspace <name>` seeds, then updates the dev task's environment to carry `ELECTRON_USER_DATA_DIR` and `SKIP_ONBOARDING=true` before `Start-ScheduledTask`. Most flexible, but it mutates enrolled state on every run, so `status` should report which workspace the task currently points at, and a plain `start` with no `--workspace` must put it back.
-- **A second scheduled task.** Enroll a `dev-seeded` target whose action already sets both variables and reads the workspace root from the profile. Nothing is rewritten at run time and `status` stays honest, at the cost of another enrolled task and a third `--target` value.
+Landed as the second option: a `dev-seeded` target with its own task, CDP port and user data directory, whose action already sets `ELECTRON_USER_DATA_DIR` and `SKIP_ONBOARDING=true`. Nothing is rewritten at run time, a plain `start --target dev` is untouched, and `status` reports each task's real action. `start` validates both variables against the profile before it starts anything.
 
-The second is more in keeping with how the host contract works now: enrollment is where machine state is established, and the helper only starts, stops and reports. Prefer it unless per-run flexibility turns out to matter.
+Two consequences worth knowing:
 
-Either way `SKIP_ONBOARDING=true` is required. A seeded workspace has no provider credentials and must not have any, so without it the app opens the onboarding window and never reveals the main one, which reads as a hang.
+- Both dev targets run `pnpm dev` from the same checkout, and a process carries the checkout path on its command line but not which workspace it was pointed at. So `stop` on either one stops both, and stops both tasks: a task left `Running` with nothing behind it makes the next `Start-ScheduledTask` a silent no-op.
+- Seeding rewrites the directory the app has open, so it only runs when that target's CDP port is dead. A live instance already holding the requested fixture is reused; one holding another fixture, or a `--fresh` against a live one, fails and says to stop it first.
 
 ### 4. Reap on the host
 
-`studio-drive` drops workspaces untouched for two weeks and installed dependencies inside a task after three days. The Windows host needs the same or it accumulates. It can be a step inside `start`, mirroring `reapStaleWorkspaces` / `reapWorkArtifacts`.
+Only the work artifacts, matching `reapWorkArtifacts`: installed dependencies inside a task, after three days. `reapStaleWorkspaces` has no counterpart, because there is one workspace directory rather than a growing set of them, and dropping it would only buy a reseed.
 
 ### 5. Document and verify
 
-Add the flag to the skill's start/stop sections, and note in `host-enrollment.md` whichever contract change step 3 lands on. Verify the whole path end to end: seed, start, tunnel, then `goto /tasks/generated-pdf` and a screenshot showing the fixture's task, with the composer reading "No models available" — which is the tell that the workspace is genuinely the seeded one and not the developer's.
+Documented: the `dev-seeded` target and the `seed` command in the skill, the profile block and the task contract in `host-enrollment.md`.
+
+Not verified on a host. The generated PowerShell is parse-checked and its helper functions were driven against a real seeded workspace on macOS, which covers the marker reader, the reaper, the seeder invocation and the profile guards, but not `Get-ScheduledTask`, `Start-ScheduledTask` or the seeder running on Windows at all. Remaining, in order: step 1 above, then enroll the task, then the whole path end to end -- seed, start, tunnel, `goto /tasks/generated-pdf`, and a screenshot showing the fixture's task with the composer reading "No models available", which is the tell that the workspace is genuinely the seeded one and not the developer's.
 
 ## Not in scope
 

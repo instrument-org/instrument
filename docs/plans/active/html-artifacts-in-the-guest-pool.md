@@ -240,7 +240,7 @@ assumed:
 | Storage / cookies | none | own partition, isolated from the browsing profile |
 | Camera, mic, geolocation, USB | **granted via `allow`** | denied by the session handler |
 | Scripts, forms, modals | granted | granted |
-| Popups | granted | **denied** |
+| Popups | granted | **denied** (`target=_blank` still opens in the OS browser) |
 | Cross-task isolation | n/a | by origin *and* by a storage profile per task |
 
 What is genuinely new: agent HTML can persist storage across reloads and set

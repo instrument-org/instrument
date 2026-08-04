@@ -1,7 +1,10 @@
 import { type HandlerDetails } from "electron";
 import { describe, expect, it } from "vitest";
 
-import { guestWindowOpenHandler } from "./window-open-policy";
+import {
+  guestWindowOpenHandler,
+  shouldOpenArtifactLinkExternally,
+} from "./window-open-policy";
 
 function details(overrides: Partial<HandlerDetails>): HandlerDetails {
   return {
@@ -83,4 +86,32 @@ describe("guestWindowOpenHandler", () => {
         .action,
     ).toBe("allow");
   });
+});
+
+describe("shouldOpenArtifactLinkExternally", () => {
+  // The artifact guest opens no window of its own; these are the opens it
+  // hands to the OS browser instead, which is what a `target="_blank"` link in
+  // an agent-written report did on the iframe this surface replaced.
+  it.each([
+    { name: "https new tab", overrides: { disposition: "foreground-tab" } },
+    { name: "http new tab", overrides: { url: "http://example.test/docs" } },
+    { name: "background tab", overrides: { disposition: "background-tab" } },
+    { name: "new-window popup", overrides: { disposition: "new-window" } },
+  ] satisfies { name: string; overrides: Partial<HandlerDetails> }[])(
+    "hands $name to the OS browser",
+    ({ overrides }) => {
+      expect(shouldOpenArtifactLinkExternally(details(overrides))).toBe(true);
+    },
+  );
+
+  it.each([
+    { name: "file URL", overrides: { url: "file:///etc/passwd" } },
+    { name: "javascript URL", overrides: { url: "javascript:alert(1)" } },
+    { name: "malformed URL", overrides: { url: "not a url" } },
+  ] satisfies { name: string; overrides: Partial<HandlerDetails> }[])(
+    "refuses $name",
+    ({ overrides }) => {
+      expect(shouldOpenArtifactLinkExternally(details(overrides))).toBe(false);
+    },
+  );
 });

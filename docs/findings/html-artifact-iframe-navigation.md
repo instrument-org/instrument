@@ -30,7 +30,7 @@ The concern recorded here was that a guest "drops the deliberate opaque-sandbox 
 | Origin | opaque | real (`assets.<taskId>.localhost`) |
 | Storage / cookies | none | own profile, isolated from the browsing profile |
 | Camera, mic, geolocation, USB | **granted via `allow`** | denied by the session permission handler |
-| Popups | granted | **denied** |
+| Popups | granted | **denied** (`target=_blank` still opens in the OS browser) |
 | Cross-task isolation | n/a | by origin *and* by a storage profile per task |
 
 The iframe's `sandbox` already granted scripts, forms, modals, popups and pointer-lock, and its `allow` list granted camera, microphone, geolocation, clipboard, display-capture, MIDI, payment and USB. What is genuinely new is that agent HTML can persist storage and set cookies, scoped to a per-task asset origin holding nothing but that task's own files, in a profile (`<rootDir>/<private>/artifact-preview-session/<taskId>`) separate both from the agent's browsing profile and from every other task's preview. Verified against a running Studio: the asset origin's `localStorage` is written only into that profile and is absent from `browser-session`.
@@ -42,6 +42,13 @@ The profile is per task rather than one shared directory because origin is not e
 The agent and the user load the same URL. Rendering them on different primitives meant everything origin-scoped behaved differently between the surface the agent screenshots to check its own work and the surface the user reads: `localStorage`, cookies, IndexedDB, and same-origin `fetch` of a sibling file. Agent-authored HTML that persists a filter selection, or reads its own `data.json`, could pass the agent's check and fail in front of the user. Both now render as a real origin through the identical Chromium path.
 
 Sibling fetches are now **same-origin** and need no CORS. The `cors()` on the assets origin remains for other consumers.
+
+### What the guest had to keep doing
+
+Two things a report can ordinarily do worked on the iframe by inheriting the host page's behavior, and had to be restored explicitly rather than falling out of the guest's stricter defaults:
+
+- **`target="_blank"` links.** In the iframe these bubbled to the main window's `setWindowOpenHandler`, which sends them to the OS browser. An artifact guest opens no child window, but it hands http(s) opens to `openExternal` instead of refusing them, or an ordinary external link in a generated report would be silently dead — there is no address bar to follow it from.
+- **Downloads.** The iframe carried `allow-downloads`. The guest session cancels any download without an agent-authorized path, which is right for an agent-driven guest and wrong for a preview, so an artifact guest lets Electron prompt for a location. A "Download CSV" button in a report keeps working.
 
 ## Rejected alternative
 

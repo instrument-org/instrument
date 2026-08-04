@@ -1,5 +1,6 @@
 import {
   browserStatusModelNote,
+  dateChangeModelNote,
   isAddressableTaskFilePath,
   maxStepsModelNote,
   paneTabsModelNote,
@@ -29,6 +30,7 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-attachedFolderChanges": "always",
   "data-attachments": "hidden",
   "data-browserStatus": "dev",
+  "data-dateChange": "dev",
   // Retired, and shown to everyone rather than to developers, which is the
   // opposite of where it ended up before it was deleted. It was demoted to
   // "dev" because it was a live change card nobody wanted; what it is now is
@@ -100,6 +102,15 @@ export function renderDataPart({
           className="mt-2"
           key={part.metadata.id}
           text={browserStatusModelNote(part.data)}
+        />
+      );
+    }
+    case "data-dateChange": {
+      return (
+        <ModelContextDebugCard
+          className="mt-2"
+          key={part.metadata.id}
+          text={dateChangeModelNote(part.data)}
         />
       );
     }

@@ -441,7 +441,7 @@ describe("prepareModelMessages", () => {
   });
 
   describe("session context", () => {
-    it("reuses a fresh context message instead of rebuilding it", async () => {
+    it("reuses a stored context message instead of rebuilding it", async () => {
       const stored = contextMessage(new Date(), "The standing instructions.");
       await save(stored);
 
@@ -460,27 +460,58 @@ describe("prepareModelMessages", () => {
       });
     });
 
-    it("rebuilds a stale context message and removes the old one", async () => {
-      const stale = contextMessage(
+    it("keeps a baseline older than the former staleness threshold", async () => {
+      const stored = contextMessage(
         subMinutes(new Date(), 61),
-        "The stale instructions.",
+        "The standing instructions.",
       );
-      await save(stale);
-      contextMessages = [contextMessage(new Date(), "The fresh instructions.")];
+      await save(stored);
+      contextMessages = [contextMessage(new Date(), "The rebuilt instructions.")];
 
       const messages = await prepare();
 
-      expect(getMessages).toHaveBeenCalledOnce();
-      expect(JSON.stringify(messages)).not.toContain("The stale instructions.");
-      expect(JSON.stringify(messages)).toContain("The fresh instructions.");
-      // Rebuilt on disk too, or the next turn pays for it again.
+      // Age is not a reason to rewrite it. Replacing the message would move the
+      // front of every later request, which is the prefix a provider cache is
+      // keyed on, to restate facts that mostly did not change.
+      expect(getMessages).not.toHaveBeenCalled();
+      expect(JSON.stringify(messages)).toContain("The standing instructions.");
+      expect(JSON.stringify(messages)).not.toContain(
+        "The rebuilt instructions.",
+      );
       const storedResult = await Store.getMessagesWithParts({
         sessionId,
         taskId,
       });
-      const stored = storedResult._unsafeUnwrap();
-      expect(stored.map((message) => message.id)).not.toContain(stale.id);
-      expect(stored).toHaveLength(1);
+      expect(
+        storedResult._unsafeUnwrap().map((message) => message.id),
+      ).toEqual([stored.id]);
+    });
+
+    it("builds the baseline once and never rewrites it as history grows", async () => {
+      let build = 0;
+      getMessages.mockImplementation(() =>
+        Promise.resolve([
+          contextMessage(new Date(), `The standing instructions, build ${++build}.`),
+        ]),
+      );
+
+      await save(userMessage("first"));
+      const first = await prepare();
+      await save(assistantMessage("Done."));
+      const second = await prepare();
+
+      expect(getMessages).toHaveBeenCalledOnce();
+      expect(second[0]?.content).toEqual(first[0]?.content);
+      expect(JSON.stringify(second)).not.toContain("build 2");
+    });
+
+    it("reconstructs an unchanged session identically", async () => {
+      await save(userMessage("first"));
+      await save(assistantMessage("Done."));
+
+      // Nothing in the assembly reads a clock or rescans the machine, so a
+      // request rebuilt from the same stored session is the same bytes.
+      expect(await prepare()).toEqual(await prepare());
     });
   });
 });

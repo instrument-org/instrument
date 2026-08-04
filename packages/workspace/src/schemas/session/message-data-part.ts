@@ -32,6 +32,7 @@ export namespace SessionMessageDataPart {
     "attachedFolderChanges",
     "attachments",
     "browserStatus",
+    "dateChange",
     "fileChanges",
     "intent",
     "skillChanges",
@@ -49,8 +50,8 @@ export namespace SessionMessageDataPart {
   // saw them -- attached to the user message that triggers the next turn so the
   // model stops relying on stale names, removed folders, or an access level the
   // user has since changed. The standing folder list lives in the session
-  // context, which is rebuilt at most hourly, so this is what makes a change
-  // reach the model in the turn it happens.
+  // context, which is written once and never rewritten, so this is the only
+  // thing that gets a change to the model at all.
   const AttachedFolderChangesDataPartSchema = z.object({
     accessChanged: z
       .array(
@@ -165,8 +166,8 @@ export namespace SessionMessageDataPart {
    * What the task's pane already has open, at the start of a turn.
    *
    * Attached per turn rather than written into the session context, which is
-   * rebuilt at most hourly: what is on screen changes several times inside one
-   * turn, and standing context that lags an hour would have the agent reasoning
+   * written once and never rewritten: what is on screen changes several times
+   * inside one turn, and a startup snapshot would have the agent reasoning
    * about a pane the user closed long ago.
    */
   const PaneTabsDataPartSchema = z.object({
@@ -226,6 +227,20 @@ export namespace SessionMessageDataPart {
   });
 
   export type MaxStepsDataPart = z.output<typeof MaxStepsDataPartSchema>;
+
+  /**
+   * The local calendar date a session moved onto, as `yyyy-MM-dd`, written to
+   * the first user message sent on a later day than the one the session context
+   * records. The session context is a startup snapshot and is never rewritten,
+   * so this is how a session that runs past midnight learns what day it is
+   * without invalidating everything cached behind that snapshot. Recorded at
+   * send time from a single clock read; no timer watches for the rollover.
+   */
+  const DateChangeDataPartSchema = z.object({
+    date: z.string(),
+  });
+
+  export type DateChangeDataPart = z.output<typeof DateChangeDataPartSchema>;
 
   /**
    * Retired, and read anyway.
@@ -298,6 +313,7 @@ export namespace SessionMessageDataPart {
       AttachedFolderChangesDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
+    [NameSchema.enum.dateChange]: DateChangeDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,

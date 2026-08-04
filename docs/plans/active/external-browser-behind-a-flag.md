@@ -24,7 +24,7 @@ The other way out is to stop touching the user's installed Chrome at all: launch
 
 It reaches the workspace as `WorkspaceConfig.isExternalBrowserEnabled`, a function rather than a boolean: the config is built once at boot, and the flag is a live store the user can toggle without restarting.
 
-A toggle therefore takes effect on the next command, which required deciding where availability may be claimed. The session-context message is rebuilt on a timer (`STALE_MESSAGE_THRESHOLD_MINUTES`, 60 minutes), so anything the system prompt asserts can outlive a toggle by an hour, while tool descriptions are rebuilt every request. Only the always-fresh surfaces state what exists: the bash tool description and the wrapper's refusal. The prompt carries policy for choosing between browsers, and the skill defers to `agent-browser --help`. The rule generalizes: a cached artifact should not assert what a live flag decides.
+A toggle therefore takes effect on the next command, which required deciding where availability may be claimed. The session-context message is written once per session and never rebuilt, so anything the system prompt asserts outlives a toggle for the rest of that session, while tool descriptions are rebuilt every request. Only the always-fresh surfaces state what exists: the bash tool description and the wrapper's refusal. The prompt carries policy for choosing between browsers, and the skill defers to `agent-browser --help`. The rule generalizes: a cached artifact should not assert what a live flag decides.
 
 ## What the flag gates
 

@@ -491,6 +491,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
+        <session-context main realRole="system" />
+        <session-context main realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="write_file" state="output-available" callId="test-call-2">
@@ -513,8 +515,6 @@ describe("sessionMachine", () => {
           <step-start step="3" />
           <text state="done">I'm done.</text>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
       </session>"
     `,
     );
@@ -569,12 +569,12 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
+        <session-context main realRole="system" />
+        <session-context main realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <text state="done">I'm done.</text>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
       </session>"
     `);
   });
@@ -664,12 +664,12 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
+        <session-context main realRole="system" />
+        <session-context main realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <text state="done">I'm done.</text>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
       </session>"
     `);
   });
@@ -746,12 +746,12 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
+        <session-context main realRole="system" />
+        <session-context main realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <text state="done">I'm done.</text>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
       </session>"
     `);
   });
@@ -879,6 +879,8 @@ describe("sessionMachine", () => {
             <error>Model tried to call unavailable tool 'invalid_tool_name'. Available tools: edit_file, generate_image, load_skill, read_file, start_activity, bash, web_fetch, web_search, write_file.</error>
           </tool>
         </assistant>
+        <session-context main realRole="system" />
+        <session-context main realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
@@ -905,8 +907,6 @@ describe("sessionMachine", () => {
           <step-start step="3" />
           <text state="done">I'm done.</text>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
       </session>"
     `);
   });
@@ -951,6 +951,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
+        <session-context main realRole="system" />
+        <session-context main realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
@@ -977,8 +979,6 @@ describe("sessionMachine", () => {
           <step-start step="3" />
           <text state="done">I'm done.</text>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
       </session>"
     `);
   });
@@ -1031,6 +1031,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
+        <session-context main realRole="system" />
+        <session-context main realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
@@ -1057,8 +1059,6 @@ describe("sessionMachine", () => {
           <step-start step="3" />
           <text state="done">I'm done.</text>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
       </session>"
     `);
   });
@@ -1207,12 +1207,12 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
+        <session-context main realRole="system" />
+        <session-context main realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <text state="done">I'm done.</text>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
       </session>"
     `);
   });
@@ -1234,6 +1234,8 @@ describe("sessionMachine", () => {
         <assistant finishReason="aborted" model="mock-model-id" provider="instrument" errorKind="aborted" errorMessage="Aborted">
           <step-start step="1" />
         </assistant>
+        <session-context main realRole="system" />
+        <session-context main realRole="user" />
         <assistant finishReason="aborted" model="mock-model-id" provider="instrument" errorKind="aborted" errorMessage="Aborted">
           <step-start step="1" />
         </assistant>
@@ -1263,8 +1265,6 @@ describe("sessionMachine", () => {
           <step-start step="2" />
           <text state="done">I'm done.</text>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
       </session>"
     `);
   });
@@ -1394,6 +1394,8 @@ describe("sessionMachine", () => {
           <step-start step="1" />
           <tool tool="read_file" state="input-streaming" callId="test-call-1"></tool>
         </assistant>
+        <session-context main realRole="system" />
+        <session-context main realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="1" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
@@ -1420,8 +1422,6 @@ describe("sessionMachine", () => {
           <step-start step="2" />
           <text state="done">I'm done.</text>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
       </session>"
     `);
   }, 30_000);
@@ -1637,6 +1637,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
+        <session-context main realRole="system" />
+        <session-context main realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
@@ -1659,8 +1661,6 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
         <assistant finishReason="max-steps" model="instrument-synthetic" provider="system">
           <data-maxSteps maxStepCount="2" />
         </assistant>

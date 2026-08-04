@@ -41,7 +41,7 @@ A directory per task is also a poor fit now that most tasks are not projects. It
 
 The third layer is the only new user-visible directory and it is optional. It holds finished files and never the working mess, which is what makes the documents directory the right home rather than the hazard it would otherwise be. See [Where the visible output folder goes](#where-the-visible-output-folder-goes).
 
-## The five structural changes
+## The six structural changes
 
 ### 1. The working directory becomes stored state
 
@@ -143,6 +143,40 @@ Also: task creation stops materializing a directory tree. A conversation that ne
 
 Note the ordering constraint: the private directory currently also holds `task.db`, so "no directory until needed" is only fully reachable once conversation data stops living in a per-task file. That is [conversation-storage.md](conversation-storage.md), and it is why the two plans are related but separable. Until it lands, a fileless task still creates its private directory, which is invisible and cheap.
 
+### 6. The asset origin follows the layout, not the task directory
+
+Serving files is the part of this plan that looks like it needs redesigning and mostly does not. The reason is worth stating before the changes, because it decides how much work this is: **the asset origin is already a task's virtual filesystem over HTTP, not a task's folder over HTTP.** [assets.ts](../../../packages/workspace/src/logic/server/routes/assets.ts) builds the same `WorkspaceFsLayout` the file tools and bash sandbox build and resolves the request through the same `resolveHostPath`. It already serves a mount that is nowhere near the task directory — `/mnt/Photos/cat.png` is a real, tested, symlink-contained asset URL today, and the agent prompt already teaches the model that an attached folder is reachable from agent-authored HTML by its absolute `/mnt/...` path *because* that is what the static origin resolves. See [asset-origin.md](../../architecture/asset-origin.md) for the full map of what exists.
+
+So the answer to "can we already serve mounted files" is yes, and the answer to "does the subdomain approach still make sense" is also yes, for a reason that is easy to miss: **the subdomain identifies a layout, not a directory.** `assets.<taskId>` means "the set of mounts this task can see", which is exactly the thing that survives a task having no directory of its own. A folderless task still has a layout; it just has fewer mounts in it.
+
+The alternative — keying the origin on the *folder* so two tasks sharing a working folder share an origin — should be rejected. Agent-authored HTML runs as a real origin, so a shared origin merges two tasks' `localStorage`, IndexedDB, and service workers. That is the same channel the artifact-preview work closed at the storage-partition level by giving each task its own profile directory; opening it back up at the origin level would undo that for no gain. The cost of keeping it per-task is that the same file opened from two tasks is two URLs with independent storage, which is correct rather than merely tolerable.
+
+What actually has to change is four things.
+
+**The root rewrite generalizes to a reserved-prefix rule.** Today the route maps `/` to the task mount and carves `/mnt` out of it. Under the new layout there are two more roots (`/work`, `/scratch`) and the same question for each. Keep the shape: **the origin root is the working mount, and every other mount keeps its virtual path as a reserved prefix.** Root-relative references inside agent HTML (`<link href="/style.css">`) keep working, every stored transcript path keeps resolving, and `getAssetUrl` stays the single virtual-path-to-URL mapper with `assets.ts` as its inverse. The pair to keep in step gains a third member: `assetPathForVirtualPath` in [agent-browser-asset-url.ts](../../../packages/workspace/src/lib/shell-commands/agent-browser-asset-url.ts) performs the same translation for the agent's browser and must learn the same roots, or the agent and the human stop loading the same URL.
+
+The hazard this brings forward is real and currently theoretical: a reserved prefix shadows a real directory of the same name. Today a task containing `mnt/` would be unreachable there, and nobody has hit it because we own the directory and never make one. A folder the user picked is a different proposition — `scratch/` is an ordinary directory name in a real repository. Options are to accept and document the shadowing (longest mount wins, which is at least consistent with the bash sandbox), or to make the reserved roots collision-proof. Do not solve it by renaming `/mnt`: that string is in the agent prompt, in stored `MountedWorkspacePath` values inside message parts, and in the file tools' path grammar.
+
+**Cache policy must key on ownership, not on "is it a mount."** The rule today is `!isMountedFile && versionMatches` for a year of `immutable`, with everything else `no-store`. That reads as "task files are ours, mounts are theirs", and the folder plan breaks the equation: `/work` may be a directory the user edits in another application while the task is closed and our watcher is not running. Restate it as **immutable only for mounts we own** — `/scratch`, and `/work` when it is backed by a private directory — and `no-store` for anything user-owned, which is what `/mnt` already gets. One condition, and it avoids serving a year-stale artifact from a folder that changed under us.
+
+**Existence stops being guaranteed.** `taskDir(id)` is a pure join and the route calls it unconditionally, then reads `state.json` beside it. A task that never materializes a directory (change 5) has neither. The route needs to tolerate a layout with no working mount and answer 404 rather than throw, and `buildWorkspaceFsLayout` needs to be able to express that absence rather than requiring a `TaskDir`. This is small but it is on the critical path: it is the same signature change as the `WorkingDir` brand in change 1.
+
+**Agent-facing byproducts have to stay servable, and some of them are not scratch.** `getScreenshotsDir`, `getTaskTmpDir`, and the tool-output spill logs live under `work/` today specifically so the agent can read back paths it is handed — and screenshots in particular are read back through this origin. Moving them to `/scratch` means `/scratch` becomes a served root, which it is not today under any name. Whatever the scratch layout ends up being, the constraint is that the private dir must not be inside it: today the route protects `task.db` with an explicit `.instrument` deny rule, and a scratch directory that structurally cannot contain the private dir retires that rule instead of duplicating it for a second root.
+
+But scratch is the wrong home for half of that list. A generated image or a screenshot the transcript renders belongs to the **conversation**, and scratch is disposable by definition — a six-month-old transcript still has to render its images. That is a category we have never had to name because the task directory absorbed it, and it is planned in [conversation-storage.md](conversation-storage.md#conversation-scoped-assets). For this plan the consequence is a fourth root on the origin, one that is neither the user's folder nor a mount the agent has today.
+
+Whatever the roots end up being, the invariant to hold is the one that makes any of this safe: **the origin serves exactly what the agent can read, at the agent's own paths, and never more.** Attaching a folder is the grant; the origin inherits it rather than having a policy of its own, so there is no second consent to reason about and no way for the served set to drift wider than the mounted set. Read-only, and narrower than the agent where it can be, is fine; wider is a bug by construction.
+
+**The task id stops being able to do all of its jobs.** It is currently the primary key, the folder name, this origin's DNS label, and the human-readable title at once — a prompt-derived slug from [generate-task-folder-name.ts](../../../packages/workspace/src/lib/generate-task-folder-name.ts). Every one of those jobs pulls a different way here: the origin wants it unguessable, the folder name stops existing, and a title the user can rename cannot be a key. Splitting it into a generated id plus a stored title is phase 0 of [conversation-storage.md](conversation-storage.md#phases) and a prerequisite for this work too.
+
+#### The security consequence, which is the part that is not mechanical
+
+The asset origin is unauthenticated, wildcard-CORS, on a fixed port, keyed by a human-readable task id derived from the user's first prompt. Any local process, and any web page that can reach loopback, can read a task's files today by guessing an id. That is bounded now because what it reads is our scratch plus folders the user explicitly attached. Pointing the origin's root at a folder the user picked removes the bound: the same request reads a source repository's `.env`, or a documents directory.
+
+Compounding it, agent-authored HTML runs on this origin as a *real* origin under the guest-pool work, which makes `fetch("/.env")` same-origin and CORS-irrelevant, executed at a moment when no agent is running and no one is watching. Neither plan causes this alone.
+
+Full shape and the ranked fixes are in [asset-origin-is-open-to-any-local-reader](../../findings/asset-origin-is-open-to-any-local-reader.md). The short version, and the position this plan takes: **an unguessable per-boot label in the origin (`assets.<token>.<taskId>`) plus a non-wildcard CORS origin are prerequisites for pointing `/work` at a user's folder**, not follow-ups. Both are small and confined to `buildAssetBaseUrl` / `uriDetailsForHost` / the route's middleware, and both are cheap now and expensive to retrofit once artifacts are shareable.
+
 ## Where the visible output folder goes
 
 Earlier drafts put a visible folder at `~/Instrument/` rather than `~/Documents/Instrument/`. The justification:
@@ -217,6 +251,8 @@ It should reuse the same prompt component as user-initiated folder attachment, s
 - **Two folder concepts need two names.** Sources (read-only, many) and the working folder (writable, singular) are deliberately distinct, so the risk is not blurred semantics but two affordances that look alike. This is a vocabulary problem before it is a code problem. Flagged for design.
 - **Concurrency: accepted, with a narrower residual risk.** Two tasks sharing a working folder is allowed. Scratch is per-task and created on demand, so the tooling never collides; what remains is two agents editing the same file, which is the same hazard as a person editing alongside an agent and wants the same answer (a visible change record) rather than a lock. Not worth serializing tasks over.
 - **Tool-output spill logs** live under `work/` so the agent can read back paths it was handed. If `work/` is no longer guaranteed to exist, that path needs a private home.
+- **Symlink containment gets stricter than a real repository expects.** `hostPathEscapesMount` fails a path whose realpath leaves its own mount, and both the asset route and `resolveReadOnlyHostPath` depend on it. Inside a directory we created that is invisible; inside a checkout the user picked it is not, because a pnpm `node_modules` is a tree of links into a store outside the folder. Serving those over the asset origin is nobody's use case, but the same check gates grep and the read-only native bridge, so decide deliberately whether a working mount trusts links that leave it.
+- **The asset origin's reach**, covered in [change 6](#6-the-asset-origin-follows-the-layout-not-the-task-directory). Two blocking prerequisites, not follow-ups.
 
 ## What does not change
 
@@ -229,9 +265,9 @@ It should reuse the same prompt component as user-initiated folder attachment, s
 ## Phases
 
 1. **Split the concept.** Introduce the `WorkingDir` brand, make the working directory stored rather than derived, and set it to today's task dir for every task. No behavior change, no UI. This is the refactor that makes the rest small.
-2. **Mount rename and the bridge rule.** `/work` and `/scratch` replace `/task`; the layout supports a second writable mount; `resolveNativeHostPath` bridges writable mounts and keeps quarantining read-only ones; `TMPDIR` moves to `/scratch`; tests pin both halves.
+2. **Mount rename and the bridge rule.** `/work` and `/scratch` replace `/task`; the layout supports a second writable mount; `resolveNativeHostPath` bridges writable mounts and keeps quarantining read-only ones; `TMPDIR` moves to `/scratch`; tests pin both halves. The asset origin moves with them in the same phase, not after: the route, `getAssetUrl`, and `assetPathForVirtualPath` are three renderings of one mapping, and letting them drift is how the agent and the human stop loading the same URL.
 3. **Presentation.** Extend the existing link mechanism to folders and file sets, add the artifact-panel tool, and delete the automatic `output/` preview rule. Independent of the folder work and shippable on its own.
-4. **Safety.** Write containment, the change record, restore story. Depends on the bash-attribution decision.
+4. **Safety.** Write containment, the change record, restore story. Depends on the bash-attribution decision. The asset origin's unguessable label and non-wildcard CORS belong here, and gate phase 5 rather than following it.
 5. **The picker.** Folder connection, recent folders, project grouping, persistence.
 6. **Folderless by default.** On-demand scratch, `~/Documents/Instrument/` for deliverables, and agent-requested folder access with the in-chat permission prompt.
 7. **The file tree.** Watcher-backed live browsing of the working folder, with a cap strategy for large trees.
@@ -245,12 +281,15 @@ Phases 1 through 3 are invisible to the user and are most of the work. That is t
 - **`/mnt` stays a single read-only concept.** No writable variant, no second mount root that differs only by permission.
 - **Concurrency is allowed**, per the reasoning above.
 - **No `~/Instrument/`.** Output goes to `~/Documents/Instrument/`, scratch goes to application data.
+- **The asset origin stays per task.** It identifies a layout, not a directory, so it survives a task owning no directory; keying it on the folder instead would merge two tasks' web storage for agent-authored HTML.
 
 ## Open questions
 
 - How does the change record handle bash? See change 4; this is the one open question that constrains what the product can honestly claim.
 - Does a task connected to a folder but not to a project exist as a durable state, or does connecting always create the project grouping immediately? The second is simpler to explain and harder to undo.
 - Does the artifact-presentation tool replace markdown links for grouped results, or sit alongside them? Two ways to show a file is tolerable; two ways with different capabilities is not.
+- When a reserved URL prefix collides with a real directory in the user's folder, does the mount win silently or does the collision get surfaced? Silent shadowing is consistent with the bash sandbox and invisible to the person whose `scratch/` stopped loading.
+- Does a working mount trust symlinks that leave it? A checkout the user picked routinely contains them; a directory we created never did.
 
 ## Why moving the workspace is unnecessary
 

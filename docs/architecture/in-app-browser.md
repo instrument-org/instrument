@@ -60,5 +60,6 @@ Popups follow a shape policy in [`window-open-policy.ts`](../../apps/studio/src/
 ## Related
 
 - [agent-sandbox.md](agent-sandbox.md) — the `agent-browser` argv allowlist and asset-URL rewriting.
+- [asset-origin.md](asset-origin.md) — the per-task origin the guest loads when it is pointed at the task's own files.
 - [in-app-browser-full-page-screenshots](../findings/in-app-browser-full-page-screenshots.md) — why full-page capture is not just a CDP flag.
 - [html-artifact-iframe-navigation](../findings/html-artifact-iframe-navigation.md) — the artifact iframe, which is a different surface from this one.

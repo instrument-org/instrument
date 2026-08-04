@@ -1,4 +1,4 @@
-# v1.5 beta changes
+# v1.5 changes
 
 Range: `v1.4.4..v1.5.0-beta.4`, covering `v1.5.0-beta.1` through `v1.5.0-beta.4`.
 

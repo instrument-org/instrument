@@ -78,19 +78,29 @@ function makeBrowser(
 // the default instant close, Stopping is entered and left inside one tick and
 // there is no window to send anything into.
 function makeDeferredClose() {
-  let release: () => void = noop;
+  let released = false;
+  const pending: (() => void)[] = [];
   const closeTarget = vi.fn(
     () =>
       new Promise<void>((resolve) => {
-        release = () => {
+        if (released) {
           resolve();
-        };
+          return;
+        }
+        pending.push(() => {
+          resolve();
+        });
       }),
   );
   return {
     closeTarget,
+    // Latches, so a teardown that runs a second pass to close a late target
+    // does not hang waiting for a release the test already gave.
     release: () => {
-      release();
+      released = true;
+      for (const resolve of pending.splice(0)) {
+        resolve();
+      }
     },
   };
 }
@@ -277,6 +287,46 @@ describe("artifactPreviewMachine", () => {
     await waitFor(actor, (s) => s.status === "done");
 
     expect(actor.getSnapshot().value).toBe("Stopped");
+  });
+
+  // An open already in flight can resolve after teardown started. The close
+  // captured the id it was given on entry, so a target registered afterwards is
+  // one nobody would ever close -- a leaked webContents for the life of the app.
+  it("closes a target registered after teardown began", async () => {
+    const { closeTarget, release } = makeDeferredClose();
+    const { actor, browser } = spawnHarness(closeTarget);
+
+    actor.send({ type: "registerTarget", value: { targetId: TARGET } });
+    await vi.advanceTimersByTimeAsync(ARTIFACT_PREVIEW_GRACE_MS);
+    expect(actor.getSnapshot().value).toBe("Stopping");
+
+    const late = encodeArtifactTargetId(TaskIdSchema.parse("late-task"));
+    actor.send({ type: "registerTarget", value: { targetId: late } });
+    release();
+    await waitFor(actor, (s) => s.status === "done");
+
+    expect(browser.closeTarget).toHaveBeenCalledTimes(2);
+    expect(browser.closeTarget).toHaveBeenLastCalledWith(late);
+  });
+
+  // Same race, but someone is watching again: the late target is the live one,
+  // so it is kept rather than closed.
+  it("adopts a late target when presence is held", async () => {
+    const { closeTarget, release } = makeDeferredClose();
+    const { actor, browser } = spawnHarness(closeTarget);
+
+    actor.send({ type: "registerTarget", value: { targetId: TARGET } });
+    await vi.advanceTimersByTimeAsync(ARTIFACT_PREVIEW_GRACE_MS);
+
+    const late = encodeArtifactTargetId(TaskIdSchema.parse("late-task"));
+    actor.send({ type: "acquirePresence" });
+    actor.send({ type: "registerTarget", value: { targetId: late } });
+    release();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(actor.getSnapshot().value).toBe("Observed");
+    expect(actor.getSnapshot().context.targetId).toBe(late);
+    expect(browser.closeTarget).toHaveBeenCalledExactlyOnceWith(TARGET);
   });
 
   it("never runs agent-browser daemon cleanup", async () => {

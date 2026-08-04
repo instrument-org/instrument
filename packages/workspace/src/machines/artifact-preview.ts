@@ -29,6 +29,9 @@ interface ArtifactPreviewContext {
   // must not revive the preview for a task on its way out.
   forced: boolean;
   id: TaskId;
+  // Set when a target was registered while teardown was already running, i.e.
+  // by an open that resolved too late for the close to have covered it.
+  lateRegistration: boolean;
   presenceCount: number;
   // Null until an open registers the target it created. A machine spawned by a
   // presence lease that never got that far has nothing to close.
@@ -75,9 +78,13 @@ export const artifactPreviewMachine = setup({
       presenceCount: ({ context }) => context.presenceCount + 1,
     }),
 
+    clearLateRegistration: assign({ lateRegistration: false }),
+
     clearTarget: assign({ targetId: null }),
 
     markForced: assign({ forced: true }),
+
+    markLateRegistration: assign({ lateRegistration: true }),
 
     notifyParentStopped: sendParent(({ context }) => ({
       type: "artifactPreview.stopped" as const,
@@ -98,7 +105,13 @@ export const artifactPreviewMachine = setup({
   delays: { ARTIFACT_PREVIEW_GRACE_MS },
 
   guards: {
+    // An open that was already in flight registered a guest after teardown
+    // began, so the close that just ran was not about that one.
+    hasLateRegistration: ({ context }) => context.lateRegistration,
     hasOnePresence: ({ context }) => context.presenceCount === 1,
+    // Someone is watching again and a live guest arrived late: keep both.
+    shouldAdoptLateTarget: ({ context }) =>
+      context.presenceCount > 0 && !context.forced && context.lateRegistration,
     // A viewer showed up while the old guest was being closed, and this was not
     // a forced teardown, so there is someone to come back for.
     shouldReviveAfterClose: ({ context }) =>
@@ -115,6 +128,7 @@ export const artifactPreviewMachine = setup({
     browser: input.browser,
     forced: false,
     id: input.id,
+    lateRegistration: false,
     presenceCount: 0,
     targetId: null,
   }),
@@ -167,40 +181,57 @@ export const artifactPreviewMachine = setup({
       entry: "notifyParentStopped",
       type: "final",
     },
-    // Closing the guest. A lease can still arrive here -- the user reopens a
-    // preview in the moment its idle teardown began -- and dropping it would
-    // strand the viewer: the machine reaches Stopped, the parent forgets it, and
-    // nothing re-leases, so the panel's open effect rebuilds a guest that is
-    // reaped again every grace period. Keep counting, and come back to Observed
-    // if someone is still watching once the close settles. The target it just
-    // closed is gone, so the id is cleared and the panel's open registers the
-    // replacement.
+    // Closing the guest. Two things can still arrive here, and dropping either
+    // one is a real fault rather than a lost message.
+    //
+    // A lease: the user reopens a preview in the moment its idle teardown
+    // began. Dropping it strands the viewer -- the machine reaches Stopped, the
+    // parent forgets it, and nothing re-leases, so the panel's open effect
+    // rebuilds a guest that is reaped again every grace period. So keep
+    // counting and come back to Observed if someone is still watching once the
+    // close settles.
+    //
+    // A target id: an open that was already in flight resolves after teardown
+    // started. `closeTargetLogic` captured the id it was given on entry, so a
+    // late one is a guest nobody would ever close. Record it, and close it on a
+    // second pass unless the lease means it is now the live one.
     Stopping: {
+      entry: "clearLateRegistration",
       invoke: {
         input: ({ context }) => ({
           browser: context.browser,
           targetId: context.targetId,
         }),
         onDone: [
+          { guard: "shouldAdoptLateTarget", target: "Observed" },
           {
             actions: "clearTarget",
             guard: "shouldReviveAfterClose",
             target: "Observed",
           },
-          { target: "Stopped" },
+          { guard: "hasLateRegistration", reenter: true, target: "Stopping" },
+          { actions: "clearTarget", target: "Stopped" },
         ],
         onError: [
+          { guard: "shouldAdoptLateTarget", target: "Observed" },
           {
             actions: "clearTarget",
             guard: "shouldReviveAfterClose",
             target: "Observed",
           },
-          { target: "Stopped" },
+          { guard: "hasLateRegistration", reenter: true, target: "Stopping" },
+          { actions: "clearTarget", target: "Stopped" },
         ],
         src: "closeTargetLogic",
       },
       on: {
         acquirePresence: { actions: "acquirePresence" },
+        registerTarget: {
+          actions: [
+            { params: ({ event }) => event.value, type: "setTargetId" },
+            "markLateRegistration",
+          ],
+        },
         releasePresence: { actions: "releasePresence" },
       },
     },

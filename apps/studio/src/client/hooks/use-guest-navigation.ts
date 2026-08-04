@@ -46,7 +46,19 @@ export function useGuestNavigation({
   // Set when a main-frame navigation fails (bad host, no network, ...). The
   // guest is parked and the host shows its own error state over the slot
   // instead of the guest's blank error page.
-  const [loadError, setLoadError] = useState<GuestLoadError | null>(null);
+  //
+  // Stamped with the guest it happened on, and read back only for that one. The
+  // browser panel swaps `targetId` in place when the selected session changes,
+  // without a remount, so a bare error would survive into the next guest and
+  // both park it behind a notice and name the previous session's URL. Filtering
+  // on read rather than clearing in an effect keeps that out of a second render
+  // pass, so no failed page is ever briefly shown as fine.
+  const [failure, setFailure] = useState<null | {
+    error: GuestLoadError;
+    targetId: BrowserTargetId;
+  }>(null);
+  const loadError =
+    active && failure?.targetId === targetId ? failure.error : null;
 
   // Reads the host's latest editing state without making it a dependency, so
   // the sync effect doesn't tear down and re-subscribe as the user focuses and
@@ -75,11 +87,11 @@ export function useGuestNavigation({
       }
     };
     const onNavigate = () => {
-      setLoadError(null);
+      setFailure(null);
       sync();
     };
     const onStartLoading = () => {
-      setLoadError(null);
+      setFailure(null);
     };
     const onFailLoad = (event: Event) => {
       const detail = event as DidFailLoadEvent;
@@ -88,9 +100,12 @@ export function useGuestNavigation({
       if (!detail.isMainFrame || detail.errorCode === -3) {
         return;
       }
-      setLoadError({
-        message: detail.errorDescription || "This site can’t be reached",
-        url: detail.validatedURL,
+      setFailure({
+        error: {
+          message: detail.errorDescription || "This site can’t be reached",
+          url: detail.validatedURL,
+        },
+        targetId,
       });
       if (!isEditing() && detail.validatedURL) {
         setUrl(detail.validatedURL);

@@ -186,6 +186,9 @@ interface ViewerContext {
   // Bumped when the user asks to return to the start of the file they are
   // already looking at; see TaskView.
   goHomeNonce?: number;
+  // Horizontal room to leave on each side of a browser guest, for a host with
+  // controls floating over the viewer area; see HtmlArtifactPreview.
+  guestSideGutter?: number;
   // Stacking level for a viewer that mounts a browser guest, set only when this
   // viewer is inside an overlay the body-mounted guest would paint behind.
   guestZIndex?: number;
@@ -280,6 +283,7 @@ const VIEWERS = {
         <HtmlArtifactPreview
           entryUrl={context.file.url}
           goHomeNonce={context.goHomeNonce}
+          sideGutter={context.guestSideGutter}
           taskId={context.file.taskId}
           zIndex={context.guestZIndex}
         />
@@ -462,6 +466,7 @@ const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
 export function FileViewer({
   file,
   goHomeNonce,
+  guestSideGutter,
   guestZIndex,
   onClose,
   onExpand,
@@ -470,6 +475,7 @@ export function FileViewer({
   // Both passed through to a viewer that mounts a browser guest; see
   // ViewerContext.
   goHomeNonce?: number;
+  guestSideGutter?: number;
   guestZIndex?: number;
   onClose: () => void;
   onExpand?: () => void;
@@ -556,6 +562,7 @@ export function FileViewer({
     ),
     file,
     goHomeNonce,
+    guestSideGutter,
     guestZIndex,
     imageLoadError,
     onImageError: () => {

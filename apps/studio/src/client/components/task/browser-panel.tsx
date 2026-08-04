@@ -100,10 +100,15 @@ export function TaskBrowserPanel({
     isUrlEditing: () => editingUrlRef.current,
     targetId,
   });
-  const find = useBrowserFind({ active, isActiveTab, targetId });
+  // Read once and give both hooks the same answer: a panel that parks its guest
+  // under an overlay must also stop being the Cmd+F target, or the overlay's
+  // host claims the single find-opener slot, clears it on unmount, and this
+  // panel never re-registers.
+  const covered = useIsGuestCovered();
+  const find = useBrowserFind({ active, covered, isActiveTab, targetId });
   const slotRef = useBrowserSlot({
     active,
-    covered: useIsGuestCovered(),
+    covered,
     emulatedDeviceHeight: emulatedDevice?.height,
     emulatedDeviceWidth: emulatedDevice?.width,
     hasLoadError: Boolean(guest.loadError),

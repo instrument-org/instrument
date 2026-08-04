@@ -25,6 +25,15 @@ const GUTTER = 12;
 // earned rather than inherited, per docs/findings/leaking-z-index-stacks.md.
 const GUEST_Z_INDEX = 51;
 
+// Room the carousel arrows need on each side of a browser guest. They float
+// over the viewer area at `left-3`/`right-3`, and a guest raised above this
+// dialog would otherwise cover them: they cannot be lifted over it, because
+// their own `z-50` content is a stacking context the guest sits outside.
+// Keeping the guest clear of them is the version of this that actually works.
+// Only paid when the arrows exist, so the ordinary single-file expand is full
+// width. Their `size="icon"` button plus the `left-3` offset, rounded up.
+const GUEST_SIDE_GUTTER = 60;
+
 export function TaskFileViewerModal() {
   const state = useAtomValue(taskFileViewerAtom);
   const collapseViewer = useSetAtom(closeFileViewerAtom);
@@ -184,6 +193,7 @@ export function TaskFileViewerModal() {
               <div className="flex min-h-0 flex-1" key={currentFile.url}>
                 <FileViewer
                   file={currentFile}
+                  guestSideGutter={hasMultipleFiles ? GUEST_SIDE_GUTTER : 0}
                   guestZIndex={GUEST_Z_INDEX}
                   onClose={collapseViewer}
                 />

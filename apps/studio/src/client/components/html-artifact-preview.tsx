@@ -58,6 +58,14 @@ import { useEffect, useRef, useState } from "react";
 // share a page, and that is exactly what this key admits.
 const mountedHosts = new Map<string, number>();
 
+// The file each guest was last pointed at, by whichever host did the pointing.
+// Hosts of the same guest can disagree about which file is on screen -- the
+// expand modal's carousel moves it while the panel behind still owns the route
+// naming a different one -- and this is how the one that becomes visible again
+// notices. Sub-page navigation inside a file does not touch it, so following a
+// link and coming back from the modal preserves the page.
+const lastPointedAt = new Map<BrowserTargetId, string>();
+
 /**
  * An HTML file artifact, rendered in the same `<webview>` guest the agent
  * browses in rather than a sandboxed `<iframe>`.
@@ -80,6 +88,7 @@ const mountedHosts = new Map<string, number>();
 export function HtmlArtifactPreview({
   entryUrl,
   goHomeNonce,
+  sideGutter = 0,
   taskId,
   zIndex,
 }: {
@@ -89,6 +98,13 @@ export function HtmlArtifactPreview({
   // Bumped when the user re-selects the file already on screen, which asks for
   // the entry page back; see TaskView.
   goHomeNonce?: number;
+  // Horizontal room to leave on each side of the guest, for a host with
+  // controls floating over the viewer area. The guest is composited above the
+  // page, so anything drawn under it is unreachable however it is stacked --
+  // its own host's controls included, since they cannot escape that host's
+  // stacking context. Keeping the guest out of their way is geometry rather
+  // than a z-index argument, and it is the only one of the two that holds.
+  sideGutter?: number;
   taskId: TaskId;
   // Set only when this preview is inside an overlay the body-mounted guest
   // would otherwise paint behind; see showOverSlot.
@@ -189,34 +205,50 @@ export function HtmlArtifactPreview({
   );
   const [menuOpen, setMenuOpen] = useGuestMenuState();
 
-  // Point the guest at this artifact when the selected file changes, when the
-  // user asks to go home, and when a guest first becomes available. Not a
-  // remount: the guest is pooled and shared, so switching files is a navigation.
+  // What actually asks the guest to go somewhere: the selected file, and the
+  // go-home gesture on a file that is already open.
+  const navigationTrigger = `${entryUrl}\n${goHomeNonce ?? 0}`;
+  const navigatedForRef = useRef<null | string>(null);
+
+  // Point the guest at this artifact, but only when something asked for it.
   //
-  // The exception is the first run of a host that mounted over a guest another
-  // preview is already showing -- the expand modal opening over the panel. That
-  // is not a request to go anywhere, so it adopts the page on screen; navigating
-  // would throw a reader who had followed a link back to the entry page. Every
-  // later run navigates normally, which is what keeps go-home working from the
-  // modal too.
-  const hasNavigatedRef = useRef(false);
+  // Three things share one guest here and the difference between them is the
+  // whole of this effect. A *request* (first mount, a different file, go-home)
+  // navigates. A host that merely mounted over a guest another preview is
+  // already showing -- the expand modal opening over the panel -- adopts the
+  // page on screen instead, because navigating would throw a reader who had
+  // followed a link back to the entry page. And a host that becomes visible
+  // again finding the guest on a different *file* re-asserts its own: the
+  // modal's carousel can move the shared guest to another file, and the panel
+  // behind it still owns the route that says which file it is showing.
+  //
+  // Coming back from an overlay with the guest still on this file is none of
+  // those, and deliberately does nothing at all -- that is what preserves a
+  // sub-page across expand and collapse.
   useEffect(() => {
-    if (!active) {
+    if (!active || covered) {
+      return;
+    }
+    const isRequest = navigatedForRef.current !== navigationTrigger;
+    const guestOnAnotherFile = lastPointedAt.get(targetId) !== entryUrl;
+    if (!isRequest && !guestOnAnotherFile) {
       return;
     }
     const isAdoptingLivePage =
-      !hasNavigatedRef.current &&
+      navigatedForRef.current === null &&
       isSecondaryHost &&
+      !guestOnAnotherFile &&
       Boolean(guest.currentUrl());
-    hasNavigatedRef.current = true;
+    navigatedForRef.current = navigationTrigger;
     if (!isAdoptingLivePage) {
+      lastPointedAt.set(targetId, entryUrl);
       guest.navigateTo(entryUrl);
     }
-    // `guest` is rebuilt every render; navigating is keyed on the file, on the
-    // guest becoming available, and on the go-home gesture, not on that
-    // identity.
+    // `guest` is rebuilt every render; navigating is keyed on the file, the
+    // go-home gesture, and the guest becoming available or visible again, not
+    // on that identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, entryUrl, goHomeNonce, isSecondaryHost, targetId]);
+  }, [active, covered, entryUrl, isSecondaryHost, navigationTrigger, targetId]);
 
   const atEntry = guest.currentUrl() === entryUrl;
 
@@ -356,12 +388,21 @@ export function HtmlArtifactPreview({
         />
       )}
       {active ? (
-        <div className="relative flex-1" ref={slotRef}>
+        <div className="relative flex-1">
+          {/* The measured slot, inset from the host's own floating controls.
+              The error notice sits outside it so it still fills the area. */}
+          <div
+            className="absolute inset-y-0"
+            ref={slotRef}
+            style={{ left: sideGutter, right: sideGutter }}
+          />
           {guest.loadError && (
             <GuestLoadErrorNotice
               error={guest.loadError}
               onRetry={() => {
-                guest.navigateTo(entryUrl);
+                // Retry what failed -- which is the URL the notice names, and
+                // after a followed link is not this artifact's entry page.
+                guest.navigateTo(guest.loadError?.url ?? entryUrl);
               }}
             />
           )}
@@ -369,7 +410,21 @@ export function HtmlArtifactPreview({
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
           {openFailed ? (
-            <span>Couldn’t open the preview.</span>
+            <>
+              <span>Couldn’t open the preview.</span>
+              {/* The open effect deliberately fires once per (active, tab)
+                  combination so a failure cannot spin, which also means it will
+                  not retry on its own. This is the way back. */}
+              <Button
+                onClick={() => {
+                  openPreview({ id: taskId });
+                }}
+                size="sm"
+                variant="outline"
+              >
+                Try again
+              </Button>
+            </>
           ) : (
             <>
               <Spinner className="size-5" />

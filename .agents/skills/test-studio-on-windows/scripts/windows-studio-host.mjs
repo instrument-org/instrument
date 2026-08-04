@@ -18,6 +18,14 @@ try {
   process.exitCode = 1;
 }
 
+function assertNoArguments() {
+  if (argv.length > 0) {
+    fail(
+      `Unexpected argument${argv.length === 1 ? "" : "s"}: ${argv.join(" ")}`,
+    );
+  }
+}
+
 function assertPortAvailable(port) {
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
     fail(`Invalid local port ${JSON.stringify(port)}.`);
@@ -49,6 +57,8 @@ function cdpFunction() {
   try {
     $version = Invoke-RestMethod -Uri "http://127.0.0.1:$port/json/version" -TimeoutSec 2
     $targets = Invoke-RestMethod -Uri "http://127.0.0.1:$port/json/list" -TimeoutSec 2
+    $listener = Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction Stop | Select-Object -First 1
+    $owner = Get-CimInstance Win32_Process -Filter "ProcessId = $($listener.OwningProcess)"
     $targetSummaries = @()
     foreach ($target in $targets) {
       $targetSummaries += [ordered]@{ title = $target.title; type = $target.type; url = $target.url }
@@ -56,6 +66,13 @@ function cdpFunction() {
     return [ordered]@{
       browser = $version.Browser
       live = $true
+      owner = [ordered]@{
+        commandLine = $owner.CommandLine
+        executablePath = $owner.ExecutablePath
+        localAddress = $listener.LocalAddress
+        name = $owner.Name
+        processId = $owner.ProcessId
+      }
       targets = $targetSummaries
       userAgent = $version.'User-Agent'
     }
@@ -83,6 +100,7 @@ async function main() {
 
   switch (command) {
     case "profile": {
+      assertNoArguments();
       report(readProfile(host));
       break;
     }
@@ -90,14 +108,20 @@ async function main() {
       const timeout = Number(
         takeFlag("--timeout", target === "dev" ? "180" : "45"),
       );
+      if (!Number.isFinite(timeout) || timeout <= 0) {
+        fail("--timeout must be a positive number of seconds.");
+      }
+      assertNoArguments();
       report(runPowerShellJson(host, startScript(target, timeout)));
       break;
     }
     case "status": {
+      assertNoArguments();
       report(runPowerShellJson(host, statusScript()));
       break;
     }
     case "stop": {
+      assertNoArguments();
       report(runPowerShellJson(host, stopScript(target)));
       break;
     }
@@ -107,6 +131,7 @@ async function main() {
       const localPort = Number(
         takeFlag("--local-port", String(remotePort + 1000)),
       );
+      assertNoArguments();
       await assertPortAvailable(localPort);
       console.error(
         `Forwarding http://127.0.0.1:${localPort} to ${host} ${target} CDP port ${remotePort}. Press Ctrl-C to stop.`,
@@ -128,9 +153,10 @@ async function main() {
       for (const signal of ["SIGINT", "SIGTERM"]) {
         process.on(signal, () => child.kill(signal));
       }
-      const exitCode = await new Promise((resolve) =>
-        child.on("exit", resolve),
-      );
+      const exitCode = await new Promise((resolve, reject) => {
+        child.once("error", reject);
+        child.once("exit", resolve);
+      });
       process.exitCode = exitCode ?? 1;
       break;
     }
@@ -215,14 +241,57 @@ function startScript(selectedTarget, timeoutSeconds) {
   const identityFunction =
     selectedTarget === "dev"
       ? `function Assert-TargetCdp($cdp) {
-  if ($cdp.live -and $cdp.userAgent -notlike '*Instrument(Dev)/*') {
+  if (-not $cdp.live) { return }
+  if ($cdp.userAgent -notlike '*Instrument(Dev)/*') {
     throw "CDP port $($target.cdpPort) belongs to an unexpected application: $($cdp.userAgent)"
   }
+  if (-not $cdp.owner.executablePath) {
+    throw "CDP port $($target.cdpPort) has no inspectable owning executable"
+  }
+  $expectedPrefix = [IO.Path]::GetFullPath($profile.repo).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+  $ownerPath = [IO.Path]::GetFullPath($cdp.owner.executablePath)
+  if (-not $ownerPath.StartsWith($expectedPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "CDP port $($target.cdpPort) is owned by $ownerPath, outside the configured checkout"
+  }
+  if ($cdp.owner.localAddress -notin @('127.0.0.1', '::1')) {
+    throw "CDP port $($target.cdpPort) is not bound to loopback: $($cdp.owner.localAddress)"
+  }
+}
+function Test-TargetReady($cdp) {
+  return @($cdp.targets | Where-Object { $_.type -eq 'page' -and $_.url -like 'http://localhost:*/renderer/*' }).Count -gt 0
 }`
       : `function Assert-TargetCdp($cdp) {
-  if ($cdp.live -and ($cdp.userAgent -notlike '*Instrument/*' -or $cdp.userAgent -like '*Instrument(Dev)/*')) {
+  if (-not $cdp.live) { return }
+  if ($cdp.userAgent -notlike '*Instrument/*' -or $cdp.userAgent -like '*Instrument(Dev)/*') {
     throw "CDP port $($target.cdpPort) belongs to an unexpected application: $($cdp.userAgent)"
   }
+  if (-not [string]::Equals($cdp.owner.executablePath, $profile.installed.executable, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "CDP port $($target.cdpPort) is owned by $($cdp.owner.executablePath), not the configured installed executable"
+  }
+  if ($cdp.owner.localAddress -notin @('127.0.0.1', '::1')) {
+    throw "CDP port $($target.cdpPort) is not bound to loopback: $($cdp.owner.localAddress)"
+  }
+}
+function Test-TargetReady($cdp) {
+  return @($cdp.targets | Where-Object { $_.type -eq 'page' -and $_.url -like 'file:///*/resources/app.asar/out/renderer/*' }).Count -gt 0
+}`;
+  const taskContract =
+    selectedTarget === "dev"
+      ? `$taskAction = @($task.Actions)[0]
+$expectedWorkingDirectory = [IO.Path]::Combine($profile.repo, 'apps', 'studio')
+if (-not [string]::Equals($taskAction.WorkingDirectory, $expectedWorkingDirectory, [StringComparison]::OrdinalIgnoreCase)) {
+  throw "The development task working directory is $($taskAction.WorkingDirectory), expected $expectedWorkingDirectory"
+}
+if ($taskArguments.IndexOf($profile.nodeHome, [StringComparison]::OrdinalIgnoreCase) -lt 0 -or $taskArguments.IndexOf('pnpm.cmd run dev', [StringComparison]::OrdinalIgnoreCase) -lt 0 -or $taskArguments -notmatch "REMOTE_DEBUGGING_PORT=$($target.cdpPort)") {
+  throw 'The development task must use the configured Node installation, CDP port, and direct Studio command.'
+}`
+      : `$taskAction = @($task.Actions)[0]
+$expectedWorkingDirectory = Split-Path -Parent $profile.installed.executable
+if (-not [string]::Equals($taskAction.WorkingDirectory, $expectedWorkingDirectory, [StringComparison]::OrdinalIgnoreCase)) {
+  throw "The installed task working directory is $($taskAction.WorkingDirectory), expected $expectedWorkingDirectory"
+}
+if ($taskArguments.IndexOf($profile.installed.executable, [StringComparison]::OrdinalIgnoreCase) -lt 0 -or $taskArguments -notmatch 'DISABLE_AUTO_UPDATE_POLLING=true' -or $taskArguments -notmatch "--remote-debugging-port=$($target.cdpPort)") {
+  throw 'The installed task must use the configured executable, disable updater polling, and pass its configured CDP port.'
 }`;
   return `${baseScript()}
 ${cdpFunction()}
@@ -233,15 +302,7 @@ if (-not $task) {
   throw "Missing scheduled task: $($target.taskName)"
 }
 $taskArguments = [string]::Join(' ', @($task.Actions | ForEach-Object { $_.Arguments }))
-${
-  selectedTarget === "installed"
-    ? `if ($taskArguments -notmatch 'DISABLE_AUTO_UPDATE_POLLING=true' -or $taskArguments -notmatch "--remote-debugging-port=$($target.cdpPort)") {
-  throw 'The installed task must disable updater polling and pass its configured CDP port.'
-}`
-    : `if ($taskArguments -notmatch "REMOTE_DEBUGGING_PORT=$($target.cdpPort)") {
-  throw 'The development task does not set its configured CDP port.'
-}`
-}
+${taskContract}
 ${installedGuard}
 $existing = Get-CdpStatus -port $target.cdpPort
 Assert-TargetCdp $existing
@@ -253,8 +314,10 @@ do {
   $cdp = Get-CdpStatus -port $target.cdpPort
   if ($cdp.live) {
     Assert-TargetCdp $cdp
-    [ordered]@{ cdp = $cdp; port = $target.cdpPort; reused = $existing.live; target = '${selectedTarget}'; taskName = $target.taskName } | ConvertTo-Json -Depth 8 -Compress
-    exit 0
+    if (Test-TargetReady $cdp) {
+      [ordered]@{ cdp = $cdp; port = $target.cdpPort; reused = $existing.live; target = '${selectedTarget}'; taskName = $target.taskName } | ConvertTo-Json -Depth 8 -Compress
+      exit 0
+    }
   }
   Start-Sleep -Milliseconds 500
 } while ((Get-Date) -lt $deadline)
@@ -264,16 +327,33 @@ throw "${selectedTarget} CDP did not become ready on port $($target.cdpPort) wit
 function statusScript() {
   return `${baseScript()}
 ${cdpFunction()}
-function Get-TaskStatus($target) {
+function Get-TaskStatus($target, [string] $kind) {
   $task = Get-ScheduledTask -TaskName $target.taskName -ErrorAction SilentlyContinue
   if (-not $task) {
     return [ordered]@{ exists = $false; taskName = $target.taskName }
   }
   $info = Get-ScheduledTaskInfo -TaskName $target.taskName
+  $action = @($task.Actions)[0]
   $arguments = [string]::Join(' ', @($task.Actions | ForEach-Object { $_.Arguments }))
+  $cdp = Get-CdpStatus -port $target.cdpPort
+  $loopback = $cdp.live -and $cdp.owner.localAddress -in @('127.0.0.1', '::1')
+  if ($kind -eq 'dev') {
+    $expectedWorkingDirectory = [IO.Path]::Combine($profile.repo, 'apps', 'studio')
+    $expectedPrefix = [IO.Path]::GetFullPath($profile.repo).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+    $ownerMatches = $cdp.live -and $cdp.owner.executablePath -and [IO.Path]::GetFullPath($cdp.owner.executablePath).StartsWith($expectedPrefix, [StringComparison]::OrdinalIgnoreCase)
+    $rendererReady = @($cdp.targets | Where-Object { $_.type -eq 'page' -and $_.url -like 'http://localhost:*/renderer/*' }).Count -gt 0
+    $userAgentMatches = $cdp.live -and $cdp.userAgent -like '*Instrument(Dev)/*'
+    $commandConfigured = $arguments.IndexOf($profile.nodeHome, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and $arguments.IndexOf('pnpm.cmd run dev', [StringComparison]::OrdinalIgnoreCase) -ge 0
+  } else {
+    $expectedWorkingDirectory = Split-Path -Parent $profile.installed.executable
+    $ownerMatches = $cdp.live -and [string]::Equals($cdp.owner.executablePath, $profile.installed.executable, [StringComparison]::OrdinalIgnoreCase)
+    $rendererReady = @($cdp.targets | Where-Object { $_.type -eq 'page' -and $_.url -like 'file:///*/resources/app.asar/out/renderer/*' }).Count -gt 0
+    $userAgentMatches = $cdp.live -and $cdp.userAgent -like '*Instrument/*' -and $cdp.userAgent -notlike '*Instrument(Dev)/*'
+    $commandConfigured = $arguments.IndexOf($profile.installed.executable, [StringComparison]::OrdinalIgnoreCase) -ge 0
+  }
   return [ordered]@{
     action = @($task.Actions | ForEach-Object { [ordered]@{ arguments = $_.Arguments; execute = $_.Execute; workingDirectory = $_.WorkingDirectory } })
-    cdp = Get-CdpStatus -port $target.cdpPort
+    cdp = $cdp
     exists = $true
     lastTaskResult = $info.LastTaskResult
     port = $target.cdpPort
@@ -281,21 +361,32 @@ function Get-TaskStatus($target) {
     taskName = $target.taskName
     validation = [ordered]@{
       cdpConfigured = $arguments -match "(?:REMOTE_DEBUGGING_PORT=|--remote-debugging-port=)$($target.cdpPort)"
+      commandConfigured = $commandConfigured
+      loopback = $loopback
+      ownerMatches = $ownerMatches
+      rendererReady = $rendererReady
       updaterPollingDisabled = $arguments -match 'DISABLE_AUTO_UPDATE_POLLING=true'
+      userAgentMatches = $userAgentMatches
+      workingDirectoryMatches = [string]::Equals($action.WorkingDirectory, $expectedWorkingDirectory, [StringComparison]::OrdinalIgnoreCase)
     }
   }
 }
 Set-Location -LiteralPath $profile.repo
 $gitStatus = @(git -c core.fsmonitor=false status --short)
+if ($LASTEXITCODE -ne 0) { throw 'git status failed in the configured checkout' }
+$gitBranch = git branch --show-current
+if ($LASTEXITCODE -ne 0) { throw 'git branch failed in the configured checkout' }
+$gitHead = git rev-parse HEAD
+if ($LASTEXITCODE -ne 0) { throw 'git rev-parse failed in the configured checkout' }
 $result = [ordered]@{
-  dev = Get-TaskStatus $profile.dev
+  dev = Get-TaskStatus $profile.dev 'dev'
   git = [ordered]@{
-    branch = git branch --show-current
+    branch = $gitBranch
     dirty = $gitStatus.Count -gt 0
-    head = git rev-parse HEAD
+    head = $gitHead
     status = $gitStatus
   }
-  installed = Get-TaskStatus $profile.installed
+  installed = Get-TaskStatus $profile.installed 'installed'
   installedExecutable = [ordered]@{
     exists = Test-Path -LiteralPath $profile.installed.executable
     path = $profile.installed.executable
@@ -314,7 +405,7 @@ function stopScript(selectedTarget) {
     selectedTarget === "dev"
       ? `$needle = $profile.repo
 $processes = @(Get-CimInstance Win32_Process | Where-Object {
-  $_.CommandLine -like "*$needle*" -and $_.Name -in @('cmd.exe', 'electron.exe', 'node.exe', 'pnpm.exe', 'turbo.exe')
+  $_.CommandLine -and $_.CommandLine.IndexOf($needle, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and $_.Name -in @('cmd.exe', 'electron.exe', 'node.exe', 'pnpm.exe', 'turbo.exe')
 })
 $ids = @($processes.ProcessId)
 $roots = @($processes | Where-Object { $ids -notcontains $_.ParentProcessId })`
@@ -354,12 +445,17 @@ function targetConfig(profile, selectedTarget) {
   const config = profile[selectedTarget];
   if (
     !config ||
-    typeof config.cdpPort !== "number" ||
+    !Number.isInteger(config.cdpPort) ||
+    config.cdpPort < 1 ||
+    config.cdpPort > 65_535 ||
     typeof config.taskName !== "string"
   ) {
     fail(
       `The host profile must define ${selectedTarget}.cdpPort and ${selectedTarget}.taskName.`,
     );
+  }
+  if (selectedTarget === "installed" && typeof config.executable !== "string") {
+    fail("The host profile must define installed.executable.");
   }
   return config;
 }

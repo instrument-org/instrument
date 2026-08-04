@@ -48,7 +48,7 @@ Record `git rev-parse HEAD` after updating. A branch name alone is not evidence 
 
 ## Start and connect
 
-Start waits until the selected CDP endpoint answers:
+Start waits until the expected executable owns the loopback CDP listener and the expected Studio renderer target appears:
 
 ```bash
 node "$WINDOWS_HOST" start --host "$HOST" --target dev

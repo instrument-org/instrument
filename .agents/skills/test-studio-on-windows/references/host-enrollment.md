@@ -58,4 +58,4 @@ node .agents/skills/test-studio-on-windows/scripts/windows-studio-host.mjs start
 node .agents/skills/test-studio-on-windows/scripts/windows-studio-host.mjs start --host <ssh-host> --target installed
 ```
 
-Confirm `status` reports the expected checkout SHA, both task actions, `cdpConfigured: true`, and `updaterPollingDisabled: true` for the installed target.
+Confirm `status` reports the expected checkout SHA, both task actions, and `cdpConfigured`, `commandConfigured`, `loopback`, `ownerMatches`, `rendererReady`, `userAgentMatches`, and `workingDirectoryMatches` as `true`. The installed target must also report `updaterPollingDisabled: true`.

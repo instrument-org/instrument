@@ -26,6 +26,7 @@ import {
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useBrowserFind } from "@/client/hooks/use-browser-find";
 import { useBrowserSlot } from "@/client/hooks/use-browser-slot";
+import { useIsGuestCovered } from "@/client/hooks/use-guest-covered";
 import { getWebviewElement } from "@/client/lib/browser-pool";
 import {
   EMULATED_DEVICES,
@@ -104,17 +105,32 @@ export function TaskBrowserPanel({
   // Set when a main-frame navigation fails (bad host, no network, ...). The
   // guest is parked and we show a light error state over the slot instead of its
   // blank error page. Cleared when a new load starts or succeeds.
-  const [loadError, setLoadError] = useState<null | {
+  //
+  // Stamped with the guest it happened on, and read back only for that one:
+  // `targetId` changes in place when the selected session changes, with no
+  // remount, so a bare error would survive into the next session's guest and
+  // both park it behind a notice and name the previous session's URL. Filtered
+  // on read rather than cleared in an effect, so it costs no extra render and
+  // no failed page is briefly shown as fine.
+  const [failure, setFailure] = useState<null | {
     message: string;
+    targetId: BrowserTargetId;
     url: string;
   }>(null);
+  const loadError = failure?.targetId === targetId ? failure : null;
   // While the user is editing the URL, agent-driven navigations must not
   // overwrite what they're typing.
   const editingUrlRef = useRef(false);
 
-  const find = useBrowserFind({ active, isActiveTab, targetId });
+  // Read once and give both hooks the same answer: a panel that parks its guest
+  // under an overlay must also stop being the Cmd+F target, or the overlay's
+  // own host claims the single find-opener slot, clears it on unmount, and this
+  // panel never re-registers.
+  const covered = useIsGuestCovered();
+  const find = useBrowserFind({ active, covered, isActiveTab, targetId });
   const slotRef = useBrowserSlot({
     active,
+    covered,
     emulatedDeviceHeight: emulatedDevice?.height,
     emulatedDeviceWidth: emulatedDevice?.width,
     hasLoadError: Boolean(loadError),
@@ -166,11 +182,11 @@ export function TaskBrowserPanel({
       }
     };
     const onNavigate = () => {
-      setLoadError(null);
+      setFailure(null);
       sync();
     };
     const onStartLoading = () => {
-      setLoadError(null);
+      setFailure(null);
     };
     const onFailLoad = (event: Event) => {
       const detail = event as DidFailLoadEvent;
@@ -179,8 +195,9 @@ export function TaskBrowserPanel({
       if (!detail.isMainFrame || detail.errorCode === -3) {
         return;
       }
-      setLoadError({
+      setFailure({
         message: detail.errorDescription || "This site can’t be reached",
+        targetId,
         url: detail.validatedURL,
       });
       if (!editingUrlRef.current && detail.validatedURL) {

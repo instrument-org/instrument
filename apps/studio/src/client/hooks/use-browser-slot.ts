@@ -18,6 +18,7 @@ interface DeviceEmulation {
  */
 export function useBrowserSlot({
   active,
+  covered = false,
   emulatedDeviceHeight,
   emulatedDeviceWidth,
   hasLoadError,
@@ -25,6 +26,12 @@ export function useBrowserSlot({
   targetId,
 }: {
   active: boolean;
+  // A full-window overlay is drawn over this slot. The guest is body-mounted,
+  // outside every dialog's subtree, so no overlay occludes it -- it keeps
+  // painting over the dim layer as though nothing opened. Opening a dialog is
+  // also not a tab switch, which is the only park signal this hook otherwise
+  // gets, so a covered host has to say so itself.
+  covered?: boolean;
   // Device size to emulate (see emulated-devices.ts presets), or
   // null/undefined for the panel's natural size. Passed as separate
   // primitives rather than an object so a new object identity per render
@@ -64,7 +71,7 @@ export function useBrowserSlot({
 
     // On a load error, park the guest so its blank error page doesn't cover our
     // own error state rendered in the slot.
-    if (!isActiveTab || hasLoadError) {
+    if (!isActiveTab || hasLoadError || covered) {
       setPaintHost(targetId, slotOwner);
       syncEmulation(null);
       return;
@@ -139,6 +146,7 @@ export function useBrowserSlot({
     };
   }, [
     active,
+    covered,
     isActiveTab,
     hasLoadError,
     slotOwner,

@@ -153,6 +153,7 @@ describe("Studio Smoke Test", () => {
       args: platform === "linux" ? ["--no-sandbox", "--disable-gpu"] : [],
       env: {
         ...(process.env as Record<string, string>),
+        DISABLE_AUTO_UPDATE_POLLING: "true",
         ELECTRON_ENABLE_CONSOLE_LOGGING: "true",
         ELECTRON_USER_DATA_DIR: tempUserDataDir,
         SKIP_MOVE_TO_APPLICATIONS: "true",

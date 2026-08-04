@@ -193,7 +193,9 @@ async function bootstrapPrimaryInstance() {
     confirmQuit: confirmQuitWithRunningAgents,
   });
   appUpdater = updater;
-  updater.pollForUpdates();
+  if (process.env.DISABLE_AUTO_UPDATE_POLLING !== "true") {
+    updater.pollForUpdates();
+  }
 
   await timeBootStep("initializeRPC", () => {
     initializeRPC({

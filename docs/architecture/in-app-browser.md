@@ -44,7 +44,7 @@ ${taskId}/artifact       artifact guest  -- the task's HTML artifact preview
 The artifact guest exists so that the surface the agent verifies its own work on and the surface the user reads are the same kind of thing — both a real origin, both a real webContents. See [html-artifact-iframe-navigation](../findings/html-artifact-iframe-navigation.md). It differs from a session guest in four ways:
 
 - **One per task**, navigated between files with `loadURL` rather than one webContents per HTML file.
-- **Its own storage profile** (`<rootDir>/<private>/artifact-preview-session`), so agent-authored pages get their own cookie jar and storage rather than sharing the browsing profile. Per-task isolation already comes from the distinct asset origins.
+- **Its own storage profile, per task** (`<rootDir>/<private>/artifact-preview-session/<taskId>`), so agent-authored pages get their own cookie jar and storage rather than sharing the browsing profile — and rather than sharing one with each other. The distinct asset origins are not enough on their own: `localStorage` and IndexedDB are keyed by origin, but cookies are scoped by domain, so a page on `assets.<a>.localhost` could set one for `localhost` and read it from another task's preview through a shared jar. `trash-task` removes the profile with the task.
 - **Not agent-reachable.** `listTargets` skips it, so it never appears in the agent's `/json` discovery, and the CDP bridge refuses a WS upgrade for an artifact-kind id.
 - **Denies every window open**, where a session guest allows real sign-in popups.
 

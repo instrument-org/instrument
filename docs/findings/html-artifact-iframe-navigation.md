@@ -31,9 +31,11 @@ The concern recorded here was that a guest "drops the deliberate opaque-sandbox 
 | Storage / cookies | none | own profile, isolated from the browsing profile |
 | Camera, mic, geolocation, USB | **granted via `allow`** | denied by the session permission handler |
 | Popups | granted | **denied** |
-| Cross-task isolation | n/a | by origin — each task is its own asset host |
+| Cross-task isolation | n/a | by origin *and* by a storage profile per task |
 
-The iframe's `sandbox` already granted scripts, forms, modals, popups and pointer-lock, and its `allow` list granted camera, microphone, geolocation, clipboard, display-capture, MIDI, payment and USB. What is genuinely new is that agent HTML can persist storage and set cookies, scoped to a per-task asset origin holding nothing but that task's own files, in a profile (`<rootDir>/<private>/artifact-preview-session`) separate from the agent's browsing profile. Verified against a running Studio: the asset origin's `localStorage` is written only into that profile and is absent from `browser-session`.
+The iframe's `sandbox` already granted scripts, forms, modals, popups and pointer-lock, and its `allow` list granted camera, microphone, geolocation, clipboard, display-capture, MIDI, payment and USB. What is genuinely new is that agent HTML can persist storage and set cookies, scoped to a per-task asset origin holding nothing but that task's own files, in a profile (`<rootDir>/<private>/artifact-preview-session/<taskId>`) separate both from the agent's browsing profile and from every other task's preview. Verified against a running Studio: the asset origin's `localStorage` is written only into that profile and is absent from `browser-session`.
+
+The profile is per task rather than one shared directory because origin is not enough on its own: `localStorage` and IndexedDB are keyed by origin, but cookies are scoped by domain, so a page on `assets.<a>.localhost` could set one for `localhost` and reach another task's preview through a shared jar.
 
 ### Why this was worth doing beyond the chrome
 

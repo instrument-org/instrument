@@ -29,7 +29,7 @@ const open = base
     const { id } = input;
 
     const target = await context.workspaceConfig.browser
-      .createArtifactTarget(id, getArtifactPreviewSessionDir())
+      .createArtifactTarget(id, getArtifactPreviewSessionDir(id))
       .catch((error: unknown) => {
         throw errors.ARTIFACT_PREVIEW_OPEN_FAILED({
           message: error instanceof Error ? error.message : "Unknown error",

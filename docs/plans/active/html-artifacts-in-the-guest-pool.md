@@ -241,7 +241,7 @@ assumed:
 | Camera, mic, geolocation, USB | **granted via `allow`** | denied by the session handler |
 | Scripts, forms, modals | granted | granted |
 | Popups | granted | **denied** |
-| Cross-task isolation | n/a | by origin — each task is its own asset host |
+| Cross-task isolation | n/a | by origin *and* by a storage profile per task |
 
 What is genuinely new: agent HTML can persist storage across reloads and set
 cookies, both scoped to a per-task asset origin holding nothing but the task's own
@@ -250,9 +250,19 @@ balance this is a tightening, and the one-line summary in the finding ("dropping
 the deliberate opaque-sandbox isolation") is true only if the partition is not
 used. Use it.
 
-The partition directory is a single shared one for all artifact guests —
-`<rootDir>/<private>/artifact-preview-session` — because per-task isolation is
-already supplied by the distinct asset origins.
+The partition directory is **per task** —
+`<rootDir>/<private>/artifact-preview-session/<taskId>`.
+
+This started as one shared directory, on the reasoning that the distinct asset
+origins already isolate the tasks from each other. That reasoning is wrong, and
+it is worth recording why rather than just the conclusion: it holds for
+`localStorage` and IndexedDB, which are keyed by origin, but **cookies are scoped
+by domain, not origin**. A page served from `assets.<a>.localhost` can set one
+for `localhost`, and every preview sharing a jar would then send and read it —
+a channel between two pieces of untrusted agent-authored content. A directory
+per task closes it. The profile lives beside the workspace's other private state
+rather than inside the task, so a Chromium profile never lands in a folder the
+user browses or exports; `trash-task` removes it with the task.
 
 ### The modal is the only real two-guest case
 

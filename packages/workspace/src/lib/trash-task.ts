@@ -14,7 +14,7 @@ import {
   markStorageAsDisposing,
   unmarkStorageAsDisposing,
 } from "./session-store-storage";
-import { taskDir } from "./task-dir-utils";
+import { getArtifactPreviewSessionDir, taskDir } from "./task-dir-utils";
 
 interface RemoveTaskOptions {
   id: TaskId;
@@ -68,6 +68,19 @@ export async function trashTask({
         }
 
         await workspaceConfig.trashItem(taskDir(taskId));
+
+        // The artifact preview's storage profile lives outside the task folder
+        // (a Chromium profile has no business in a directory the user browses),
+        // so trashing the task does not take it. Best-effort: a profile left
+        // behind is dead weight, not a correctness problem, and it must not
+        // fail the deletion the user asked for. The guest that owned it is
+        // already reaped by the time we get here.
+        const previewProfile = getArtifactPreviewSessionDir(taskId);
+        if (await pathExists(previewProfile)) {
+          await rmrf(previewProfile).catch(() => {
+            // Nothing to do: the task itself is gone.
+          });
+        }
 
         // In the off chance that a future task with the same id is
         // created, we remove the app being trashed.

@@ -4,6 +4,7 @@ import {
   ZOOM_CONTENT_MAX_HEIGHT,
   ZOOM_CONTENT_MAX_WIDTH,
 } from "@/client/hooks/use-app-zoom";
+import { useCoversGuests } from "@/client/hooks/use-covers-guests";
 import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
 import { XIcon } from "@phosphor-icons/react";
@@ -128,6 +129,8 @@ function DialogOverlay({
   className,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+  useCoversGuests();
+
   return (
     <DialogPrimitive.Overlay
       className={cn(

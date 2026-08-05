@@ -14,6 +14,7 @@ import { FileIcon } from "./file-icon";
 import { FilePreviewFallback } from "./file-preview-fallback";
 import { ImageViewer } from "./image-viewer";
 import { Button } from "./ui/button";
+import { DialogOverlay } from "./ui/dialog";
 
 export function FilePreviewModal() {
   const state = useAtomValue(filePreviewAtom);
@@ -56,7 +57,7 @@ export function FilePreviewModal() {
       open={state.isOpen}
     >
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/80 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+        <DialogOverlay className="bg-black/80" />
         <DialogPrimitive.Content className="fixed inset-0 z-50 flex items-center justify-center data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0">
           <DialogPrimitive.Title className="sr-only">
             {file.filename}

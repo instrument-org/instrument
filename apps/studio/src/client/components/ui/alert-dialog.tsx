@@ -4,6 +4,7 @@ import {
   useAppZoomStyle,
   ZOOM_CONTENT_MAX_WIDTH,
 } from "@/client/hooks/use-app-zoom";
+import { useCoversGuests } from "@/client/hooks/use-covers-guests";
 import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
@@ -128,6 +129,8 @@ function AlertDialogOverlay({
   className,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Overlay>) {
+  useCoversGuests();
+
   return (
     <AlertDialogPrimitive.Overlay
       className={cn(

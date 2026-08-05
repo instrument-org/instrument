@@ -9,14 +9,6 @@ const openModalAtom = atom<null | {
   state: unknown;
 }>(null);
 
-/**
- * Whether any app-wide studio modal holds the slot. Read by hosts of a
- * body-mounted browser guest, which is not inside the dialog's subtree and so
- * would otherwise keep painting straight through its overlay (see
- * use-guest-covered).
- */
-export const isStudioModalOpenAtom = atom((get) => get(openModalAtom) !== null);
-
 type StudioModalAtom<T> = WritableAtom<null | T, [null | T], void>;
 
 /**

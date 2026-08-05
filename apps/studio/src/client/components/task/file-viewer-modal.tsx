@@ -14,6 +14,7 @@ import { useCallback, useEffect } from "react";
 import { FilePreviewListItem } from "../file-preview-list-item";
 import { FileViewer } from "../file-viewer";
 import { Button } from "../ui/button";
+import { DialogOverlay } from "../ui/dialog";
 
 // Left, right and bottom breathing room. Small enough that the viewer still
 // reads as filling the window, big enough to show the shell behind it.
@@ -119,7 +120,7 @@ export function TaskFileViewerModal() {
       open={state.isModalOpen}
     >
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/90 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+        <DialogOverlay className="bg-black/90" />
         {/*
           `inset-0` is zero on all four sides, and zero is zero at any scale
           factor, so the self-applied zoom leaves this box covering exactly the

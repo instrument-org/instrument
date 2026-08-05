@@ -120,17 +120,24 @@ function MessageScrollerProvider(
   return <MessageScrollerPrimitive.Provider {...props} />;
 }
 
+// The transcript is not a tab stop and never draws a focus ring. It is a
+// reading surface, and a stop that shows nothing on arrival is worse than no
+// stop at all. Clicking still focuses it, so the arrow keys scroll it as soon
+// as a reader is in it; the ring that would otherwise follow that click is
+// what `outline-none` drops.
 function MessageScrollerViewport({
   className,
+  tabIndex = -1,
   ...props
 }: React.ComponentProps<typeof MessageScrollerPrimitive.Viewport>) {
   return (
     <MessageScrollerPrimitive.Viewport
       className={cn(
-        "size-full min-h-0 min-w-0 scrollbar-thin scrollbar-color overflow-y-auto overscroll-contain",
+        "size-full min-h-0 min-w-0 scrollbar-thin scrollbar-color overflow-y-auto overscroll-contain outline-none",
         className,
       )}
       data-slot="message-scroller-viewport"
+      tabIndex={tabIndex}
       {...props}
     />
   );

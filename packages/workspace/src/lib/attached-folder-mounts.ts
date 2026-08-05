@@ -5,7 +5,7 @@ import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../schemas/paths";
  * Mount points for every attached folder, in iteration order.
  *
  * Folder names are unique per task -- every attachedFolders writer routes the
- * whole set through assignFolderNames (see assign-folder-names.ts) on each
+ * whole set through assignMountNames (see assign-mount-names.ts) on each
  * attach, and the record is keyed by name -- so mount points normally never
  * collide and {@link attachedFolderMountPoint} is safe to derive from a name
  * anywhere. The "(n)" suffix here is a backstop for state that violated the
@@ -37,7 +37,7 @@ export function assignAttachedMounts(
  * "/mnt/Family Photos".
  *
  * Names are derived from the folder's path and unique per task (see
- * assignFolderNames, assignAttachedMounts), so this is a stable one-to-one
+ * assignMountNames, assignAttachedMounts), so this is a stable one-to-one
  * mapping; path separators are flattened and degenerate names fall back to a
  * placeholder purely defensively.
  */

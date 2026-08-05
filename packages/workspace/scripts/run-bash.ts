@@ -28,7 +28,7 @@ import readline from "node:readline";
 import { ulid } from "ulid";
 
 import { TASK_FOLDER_NAMES } from "../src/constants";
-import { assignFolderNames } from "../src/lib/assign-folder-names";
+import { assignMountNames } from "../src/lib/assign-mount-names";
 import { createBashEnv } from "../src/lib/create-bash-env";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { FolderAttachment } from "../src/schemas/folder-attachment";
@@ -162,7 +162,7 @@ const draftFolders = args.attach.map((folder) => ({
   id: FolderAttachment.IdSchema.parse(ulid()),
   path: AbsolutePathSchema.parse(folder.path),
 }));
-const folderNames = assignFolderNames(draftFolders);
+const folderNames = assignMountNames(draftFolders);
 const attachedFolders: Record<string, FolderAttachment.Type> = {};
 for (const folder of draftFolders) {
   const name = folderNames.get(folder.id) ?? folder.path;

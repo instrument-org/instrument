@@ -1,9 +1,9 @@
+import { folderNameFromPath } from "@instrument-org/shared";
 import { dedent } from "radashi";
 
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { TOOL_NAMES } from "../tools/name";
-import { folderParentLabel } from "./assign-folder-names";
-import { folderDisplayName } from "./folder-display-name";
+import { folderParentLabel } from "./folder-parent-label";
 
 /**
  * The attached-folder list the model reads.
@@ -30,7 +30,7 @@ export function buildAttachedFoldersText({
   }[];
   intro: string;
 }) {
-  const displayNames = folders.map((folder) => folderDisplayName(folder.path));
+  const displayNames = folders.map((folder) => folderNameFromPath(folder.path));
   const nameCounts = new Map<string, number>();
   for (const name of displayNames) {
     nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);

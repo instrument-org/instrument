@@ -17,7 +17,7 @@ import { type SessionMessageDataPart } from "../schemas/session/message-data-par
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { absolutePathJoin } from "./absolute-path-join";
-import { assignFolderNames } from "./assign-folder-names";
+import { assignMountNames } from "./assign-mount-names";
 import { TypedError } from "./errors";
 import { findAvailableName } from "./find-available-name";
 import { getCurrentDate } from "./get-current-date";
@@ -156,7 +156,7 @@ export async function writeUploadedAttachments({
         }),
         ...newFolders,
       ].sort((a, b) => a.createdAt - b.createdAt);
-      const names = assignFolderNames(allFolders);
+      const names = assignMountNames(allFolders);
 
       const nextFolders: Record<string, FolderAttachment.Type> = {};
       for (const folder of allFolders) {

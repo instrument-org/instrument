@@ -1,6 +1,7 @@
+import { folderNameFromPath } from "@instrument-org/shared";
+
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { attachedFolderMountPoint } from "./attached-folder-mounts";
-import { folderDisplayName } from "./folder-display-name";
 import { systemNote } from "./system-note";
 
 /**
@@ -20,7 +21,7 @@ export function attachedFolderChangesModelNote(
     const removed = data.removed
       .map(
         (folder) =>
-          `- "${folderDisplayName(folder.path)}" (was mounted at \`${attachedFolderMountPoint(folder.name)}\`)`,
+          `- "${folderNameFromPath(folder.path)}" (was mounted at \`${attachedFolderMountPoint(folder.name)}\`)`,
       )
       .join("\n");
     lines.push(
@@ -32,7 +33,7 @@ export function attachedFolderChangesModelNote(
     const renamed = data.renamed
       .map(
         (folder) =>
-          `- "${folderDisplayName(folder.path)}": now \`${attachedFolderMountPoint(folder.newName)}\`, was \`${attachedFolderMountPoint(folder.oldName)}\``,
+          `- "${folderNameFromPath(folder.path)}": now \`${attachedFolderMountPoint(folder.newName)}\`, was \`${attachedFolderMountPoint(folder.oldName)}\``,
       )
       .join("\n");
     lines.push(
@@ -44,7 +45,7 @@ export function attachedFolderChangesModelNote(
     const changed = data.accessChanged
       .map(
         (folder) =>
-          `- "${folderDisplayName(folder.path)}" (\`${attachedFolderMountPoint(folder.name)}\`): now ${folder.access === "read-write" ? "read and write" : "read-only"}`,
+          `- "${folderNameFromPath(folder.path)}" (\`${attachedFolderMountPoint(folder.name)}\`): now ${folder.access === "read-write" ? "read and write" : "read-only"}`,
       )
       .join("\n");
     lines.push(

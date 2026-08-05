@@ -6,7 +6,7 @@ import { AbsolutePathSchema } from "../schemas/paths";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
-import { assignFolderNames } from "./assign-folder-names";
+import { assignMountNames } from "./assign-mount-names";
 import { getEffectiveProjectContext } from "./effective-project-context";
 import { getCurrentDate } from "./get-current-date";
 import { getProject } from "./project";
@@ -29,7 +29,7 @@ import { effectiveFolderAccess } from "./workspace-fs-layout";
  * already-reported change won't re-announce on the next message. Names for the whole surviving+new folder set are
  * recomputed on every run, even with nothing added/removed -- cheap and
  * idempotent, so it also corrects any folder named under an earlier version of
- * assignFolderNames without a separate migration. Returns undefined for
+ * assignMountNames without a separate migration. Returns undefined for
  * non-project tasks, the first message (snapshot not yet persisted), a deleted
  * project, or no change.
  */
@@ -128,7 +128,7 @@ export function detectProjectChanges({
       const allFolders = [...survivingFolders, ...newFolders].sort(
         (a, b) => a.createdAt - b.createdAt,
       );
-      const names = assignFolderNames(allFolders);
+      const names = assignMountNames(allFolders);
 
       const nextFolders: Record<string, FolderAttachment.Type> = {};
       let stateChanged = foldersRemoved.length > 0 || accessChanged;

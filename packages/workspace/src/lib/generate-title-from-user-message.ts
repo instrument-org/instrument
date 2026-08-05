@@ -2,6 +2,7 @@ import {
   type AIGatewayModel,
   fetchAISDKModel,
 } from "@instrument-org/ai-gateway";
+import { shortenHomePath } from "@instrument-org/shared";
 import { generateText } from "ai";
 import { ResultAsync } from "neverthrow";
 import os from "node:os";
@@ -174,43 +175,6 @@ function buildSystemPrompt(templateTitle?: string): string {
   `.trim();
 }
 
-/** A path with the user's home directory spelled `~`, separators as given. */
-function homeRelativePath(filePath: string): string {
-  const home = os.homedir().replaceAll("\\", "/").replace(/\/+$/, "");
-  const normalized = filePath.replaceAll("\\", "/");
-  if (!home) {
-    return filePath;
-  }
-  if (normalized === home) {
-    return "~";
-  }
-  // Stops at a separator, so `/Users/samantha` is not read as a child of
-  // `/Users/sam`.
-  return normalized.startsWith(`${home}/`)
-    ? `~${filePath.slice(home.length)}`
-    : filePath;
-}
-
-/**
- * What title generation reads: the user's words, plus the names of what they
- * attached.
- *
- * Folders arrive as their path rather than their name, because where a folder
- * lives is often what identifies it -- `~/Downloads` and an iCloud Drive
- * `Downloads` are the same word and different folders. Two things it is
- * deliberately not:
- *
- * - Not the folder's stored `name`. That is the mount name assigned for the
- *   agent (`Home-Downloads`), a string the user has never seen.
- * - Not the real host path. The home directory is spelled `~`, because the
- *   segment it replaces is the OS username, and a title is stored, listed, and
- *   carried into exported transcripts.
- *
- * This lives here rather than beside {@link textForMessage} so that reaching
- * for a message's text elsewhere cannot pick up attachment locations by
- * accident: the model running the task knows attached folders only by their
- * `/mnt/<name>` mount, and would act on a host path if it were given one.
- */
 function titleSourceText(message: SessionMessage.UserWithParts): string {
   const text = textForMessage(message);
 
@@ -225,7 +189,7 @@ function titleSourceText(message: SessionMessage.UserWithParts): string {
     .map((file) => file.filename)
     .join(", ");
   const folderPaths = (attachments.data.folders ?? [])
-    .map((folder) => homeRelativePath(folder.path))
+    .map((folder) => shortenHomePath(folder.path, os.homedir()))
     .join(", ");
 
   const sections = [text];

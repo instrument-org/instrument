@@ -1,6 +1,26 @@
+import { folderNameFromPath, shortenHomePath } from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
-import { shortenHomePath } from "./path-utils";
+describe("folderNameFromPath", () => {
+  it.each([
+    { expected: "test", label: "a posix path", path: "/Users/sam/Docs/test" },
+    {
+      expected: "test",
+      label: "a Windows path",
+      path: String.raw`C:\Users\sam\test`,
+    },
+    // The two implementations this replaced disagreed here: one answered with
+    // the whole path, having found an empty last segment.
+    {
+      expected: "test",
+      label: "a path with a trailing separator",
+      path: "/Users/sam/Docs/test/",
+    },
+    { expected: "/", label: "the filesystem root", path: "/" },
+  ])("names $label", ({ expected, path }) => {
+    expect(folderNameFromPath(path)).toBe(expected);
+  });
+});
 
 describe("shortenHomePath", () => {
   it.each([

@@ -92,6 +92,16 @@ describe("code block spacing in prose", () => {
   const PROSE_CLASS =
     "prose prose-custom max-w-none text-sm/relaxed dark:prose-invert prose-pre:text-sm";
 
+  const codeBlocksIn = (root: Element) => {
+    const blocks = [...root.querySelectorAll("pre")];
+    const first = blocks.at(0);
+    const last = blocks.at(-1);
+    if (!first || !last) {
+      throw new Error("no code block rendered");
+    }
+    return { first, last };
+  };
+
   const marginsOf = (element: Element) => {
     const style = globalThis.getComputedStyle(element);
     return { bottom: style.marginBottom, top: style.marginTop };
@@ -103,13 +113,11 @@ describe("code block spacing in prose", () => {
   // escapes the blob as well, and every edge reads as 0 whether or not the
   // reset is doing anything.
   const edgeGaps = (root: Element) => {
-    const blocks = [...root.querySelectorAll("pre")];
+    const { first, last } = codeBlocksIn(root);
     const rootRect = root.getBoundingClientRect();
     return {
-      bottom: Math.round(
-        rootRect.bottom - blocks.at(-1)!.getBoundingClientRect().bottom,
-      ),
-      top: Math.round(blocks[0]!.getBoundingClientRect().top - rootRect.top),
+      bottom: Math.round(rootRect.bottom - last.getBoundingClientRect().bottom),
+      top: Math.round(first.getBoundingClientRect().top - rootRect.top),
     };
   };
 
@@ -158,7 +166,7 @@ describe("code block spacing in prose", () => {
       </div>,
     );
 
-    const { bottom, top } = marginsOf(screen.container.querySelector("pre")!);
+    const { bottom, top } = marginsOf(codeBlocksIn(screen.container).first);
     expect(Number.parseFloat(top)).toBeGreaterThan(0);
     expect(Number.parseFloat(bottom)).toBeGreaterThan(0);
   });
@@ -181,7 +189,7 @@ describe("code block spacing in prose", () => {
       </div>,
     );
 
-    const { top } = marginsOf(screen.container.querySelector("pre")!);
+    const { top } = marginsOf(codeBlocksIn(screen.container).first);
     expect(Number.parseFloat(top)).toBeGreaterThan(0);
   });
 });

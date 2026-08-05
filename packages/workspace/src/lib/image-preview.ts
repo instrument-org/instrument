@@ -54,6 +54,12 @@ export type RegionInput = z.output<typeof RegionSchema>;
  * ones that survived the downscale the model was shown. And it is scaled up to
  * fill the whole image budget, so what was a handful of pixels gets spread over
  * as many of the provider's patches as the region's shape allows.
+ *
+ * Not every rectangle that arrives is a zoom. Two shapes come back `ignored`,
+ * for the caller to answer with the ordinary whole-image read: one that names no
+ * place, and one that names the whole picture. Measured across a corpus of real
+ * reads, those two are the overwhelming majority of the rectangles models send,
+ * and neither can be honored -- there is nothing in them to magnify.
  */
 export async function cropRegion({
   fileData,
@@ -70,10 +76,36 @@ export async function cropRegion({
   size: ImageSize;
   view: ImageSize;
 }) {
-  const left = clamp(Math.min(region.x1, region.x2), 0, view.width);
-  const right = clamp(Math.max(region.x1, region.x2), 0, view.width);
-  const top = clamp(Math.min(region.y1, region.y2), 0, view.height);
-  const bottom = clamp(Math.max(region.y1, region.y2), 0, view.height);
+  const asked = {
+    x1: Math.min(region.x1, region.x2),
+    x2: Math.max(region.x1, region.x2),
+    y1: Math.min(region.y1, region.y2),
+    y2: Math.max(region.y1, region.y2),
+  };
+  const left = clamp(asked.x1, 0, view.width);
+  const right = clamp(asked.x2, 0, view.width);
+  const top = clamp(asked.y1, 0, view.height);
+  const bottom = clamp(asked.y2, 0, view.height);
+
+  // A rectangle anchored at the top-left corner and too small to hold a picture
+  // is the shape of an object whose fields were populated with defaults, not a
+  // place on the image. Observed shapes include (0,0)-(0,0), (0,0)-(1,1), and
+  // (-1,-1)-(0,0), all on the first read of an image the model has not seen
+  // yet, which is why the test is on the clamped corners rather than the ones
+  // that arrived. (0,0)-(1,1) is also what the whole image looks like to a
+  // model guessing at fractional coordinates. Every reading of these points at
+  // the same answer, so give that answer.
+  //
+  // Only at the origin. The same rectangle anywhere else does express a
+  // location, and the errors below are what recover a model that meant
+  // somewhere and got the coordinate space wrong.
+  if (left === 0 && top === 0 && right <= 1 && bottom <= 1) {
+    return ok({
+      asked,
+      reason: "no-place" as const,
+      state: "ignored" as const,
+    });
+  }
 
   if (right - left < 1 || bottom - top < 1) {
     return executeError(
@@ -83,6 +115,19 @@ export async function cropRegion({
         "Give two corners in that pixel space, with the origin at the top-left.",
       ].join(" "),
     );
+  }
+
+  // A rectangle covering everything asks for the picture that was already sent.
+  // The crop would come back at the same budget the preview was rendered to, so
+  // there is no detail in it that the first read did not carry -- only a second
+  // full-budget image in the transcript, and, for a file already inside the
+  // budget, the same pixels interpolated larger.
+  if (left === 0 && top === 0 && right >= view.width && bottom >= view.height) {
+    return ok({
+      asked,
+      reason: "whole-image" as const,
+      state: "ignored" as const,
+    });
   }
 
   // Both corners are mapped, each on its own axis, rather than mapping the
@@ -113,7 +158,19 @@ export async function cropRegion({
   // blank. Measured: a model opened a read with a 1x1 rectangle and reported
   // back that the screenshot was a solid dark-green screen. Refusing costs a
   // round trip; answering costs the model's belief about what it was shown.
+  //
+  // At the origin this is the defaults-shaped rectangle again, arriving on a
+  // large enough image that a few view pixels still map to fewer than
+  // `MIN_SOURCE_EDGE` source ones. Same answer as above.
   if (source.width < MIN_SOURCE_EDGE || source.height < MIN_SOURCE_EDGE) {
+    if (left === 0 && top === 0) {
+      return ok({
+        asked,
+        reason: "no-place" as const,
+        state: "ignored" as const,
+      });
+    }
+
     return executeError(
       [
         `Region (${region.x1},${region.y1})-(${region.x2},${region.y2}) covers`,
@@ -151,9 +208,24 @@ export async function cropRegion({
     );
   }
 
+  const used = { x1: left, x2: right, y1: top, y2: bottom };
+
   return ok({
-    region: { x1: left, x2: right, y1: top, y2: bottom },
+    // Carried only when clamping moved a corner, so the result can lead with
+    // the correction rather than echo the rectangle it settled on. A model
+    // working in the file's pixel space instead of the view's gets back a real
+    // picture of somewhere it did not ask about, and an echo of the rectangle
+    // used reads as agreement rather than as the disagreement it is.
+    asked:
+      asked.x1 === left &&
+      asked.x2 === right &&
+      asked.y1 === top &&
+      asked.y2 === bottom
+        ? undefined
+        : asked,
+    region: used,
     rendered: rendered.image,
+    state: "cropped" as const,
   });
 }
 
@@ -169,8 +241,10 @@ export async function cropRegion({
 export function describeImageSize(output: {
   height?: number;
   region?: RegionInput;
+  regionIgnored?: "no-place" | "whole-image";
   renderedHeight?: number;
   renderedWidth?: number;
+  requestedRegion?: RegionInput;
   viewHeight?: number;
   viewWidth?: number;
   width?: number;
@@ -178,8 +252,10 @@ export function describeImageSize(output: {
   const {
     height,
     region,
+    regionIgnored,
     renderedHeight,
     renderedWidth,
+    requestedRegion,
     viewHeight,
     viewWidth,
     width,
@@ -191,6 +267,27 @@ export function describeImageSize(output: {
     viewWidth !== undefined &&
     viewHeight !== undefined &&
     (viewWidth !== width || viewHeight !== height);
+  const space = downscaled
+    ? `${viewWidth}x${viewHeight}`
+    : `${width}x${height}`;
+  const size = downscaled
+    ? ` (${width}x${height} px, shown to you at ${viewWidth}x${viewHeight})`
+    : ` (${width}x${height} px)`;
+
+  // A rectangle that could not be honored. Said at the moment it arrives, and
+  // said as a correction, because the alternative is a whole image returned
+  // with nothing to distinguish it from the crop that was asked for.
+  if (regionIgnored && requestedRegion) {
+    const asked = describeRegion(requestedRegion);
+    return [
+      size,
+      ` -- the region ${asked} you asked for `,
+      regionIgnored === "whole-image"
+        ? "covers the whole image, so there is nothing in it to magnify"
+        : "is too small to be a place on the image",
+      `. This is the whole image; to magnify part of it, give a smaller rectangle in that ${space} space`,
+    ].join("");
+  }
 
   if (
     region &&
@@ -199,18 +296,20 @@ export function describeImageSize(output: {
     renderedHeight !== undefined
   ) {
     return [
-      ` -- region (${region.x1},${region.y1})-(${region.x2},${region.y2})`,
+      ` -- region ${describeRegion(region)}`,
       ` of the ${viewWidth}x${viewHeight} view,`,
       ` cropped from the ${width}x${height} original`,
       ` and magnified to ${renderedWidth}x${renderedHeight}`,
+      describeClamp({ requestedRegion, space }),
     ].join("");
   }
 
   if (region && renderedWidth !== undefined && renderedHeight !== undefined) {
     return [
-      ` -- region (${region.x1},${region.y1})-(${region.x2},${region.y2})`,
+      ` -- region ${describeRegion(region)}`,
       ` of the ${width}x${height} image,`,
       ` magnified to ${renderedWidth}x${renderedHeight}`,
+      describeClamp({ requestedRegion, space }),
     ].join("");
   }
 
@@ -218,9 +317,7 @@ export function describeImageSize(output: {
     ? ". Small text and closely spaced lines may not survive at that size; read it again with a `region` to magnify part of it"
     : "";
 
-  return downscaled
-    ? ` (${width}x${height} px, shown to you at ${viewWidth}x${viewHeight})${detailNote}`
-    : ` (${width}x${height} px)`;
+  return `${size}${detailNote}`;
 }
 
 // SVG is markup, so it reads as text rather than as pixels.
@@ -332,4 +429,35 @@ export async function previewImage({
 
 function clamp(value: number, low: number, high: number) {
   return Math.min(high, Math.max(low, value));
+}
+
+/**
+ * Say that the picture is not the one that was asked for.
+ *
+ * Trimming a rectangle to the edges of the image is right for the corner it
+ * overhangs by a pixel and wrong to pass over in silence for the rest: a model
+ * working in the file's pixel space rather than the view's asks for the left
+ * half and is handed the full width, which is a different picture of the same
+ * image and reads as a confirmed answer. Naming the space it overran is what
+ * recovers the coordinates on the next attempt.
+ */
+function describeClamp({
+  requestedRegion,
+  space,
+}: {
+  requestedRegion?: RegionInput;
+  space: string;
+}) {
+  if (!requestedRegion) {
+    return "";
+  }
+  return [
+    `. This is not the rectangle you asked for: ${describeRegion(requestedRegion)}`,
+    ` runs outside the ${space} space the image was shown to you in,`,
+    " so it was trimmed to fit",
+  ].join("");
+}
+
+function describeRegion(region: RegionInput) {
+  return `(${region.x1},${region.y1})-(${region.x2},${region.y2})`;
 }

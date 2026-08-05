@@ -570,8 +570,15 @@ describe("ReadFile", () => {
         expect(value.state).toBe("image");
         if (value.state === "image") {
           // Corners come back ordered and inside the image, so the model can
-          // see what its request was actually taken to mean.
+          // see what its request was actually taken to mean, alongside the
+          // rectangle it asked for, which is a different area of the picture.
           expect(value.region).toEqual({ x1: 0, x2: 320, y1: 50, y2: 100 });
+          expect(value.requestedRegion).toEqual({
+            x1: -50,
+            x2: 9000,
+            y1: 50,
+            y2: 100,
+          });
         }
       } finally {
         await fs.rm(imagePath, { force: true });
@@ -613,13 +620,16 @@ describe("ReadFile", () => {
             return;
           }
 
+          // Touches both far edges without covering the whole view, which is
+          // read as no zoom at all and would never reach the mapping this
+          // covers.
           const zoomed = (
             await runTool(TOOLS.ReadFile, {
               ...baseInput,
               input: {
                 explanation: "zoom",
                 filePath: `./${name}`,
-                region: { x1: 0, x2: viewWidth, y1: 0, y2: viewHeight },
+                region: { x1: 1, x2: viewWidth, y1: 1, y2: viewHeight },
               },
             })
           )._unsafeUnwrap();
@@ -627,9 +637,9 @@ describe("ReadFile", () => {
           expect(zoomed.state).toBe("image");
           if (zoomed.state === "image") {
             expect(zoomed.region).toEqual({
-              x1: 0,
+              x1: 1,
               x2: viewWidth,
-              y1: 0,
+              y1: 1,
               y2: viewHeight,
             });
           }
@@ -672,43 +682,104 @@ describe("ReadFile", () => {
           input: {
             explanation: "zoom",
             filePath: "./region-tiny-probe.png",
-            region: { x1: 0, x2: 1, y1: 0, y2: 1 },
+            region: { x1: 100, x2: 101, y1: 100, y2: 101 },
           },
         });
 
         // Answering this returns a flat expanse of interpolated color, which
         // reads as "the picture is blank" rather than as "you asked for one
-        // pixel". The refusal has to name the size to be actionable.
+        // pixel". The refusal has to name the size to be actionable, and it is
+        // worth making because this rectangle does name a place.
         expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(
-          `"Region (0,0)-(1,1) covers 1x1 pixels of the source image, too few to magnify into anything readable. Give a rectangle covering at least 8x8 pixels, in the 320x240 space the image was shown to you in."`,
+          `"Region (100,100)-(101,101) covers 1x1 pixels of the source image, too few to magnify into anything readable. Give a rectangle covering at least 8x8 pixels, in the 320x240 space the image was shown to you in."`,
         );
       } finally {
         await fs.rm(imagePath, { force: true });
       }
     }, 60_000);
 
-    it("reads the whole image when the region is all zeros", async () => {
-      const imagePath = path.join(fixturesPath, "region-zero-probe.png");
+    it.each([
+      { name: "all zeros", region: { x1: 0, x2: 0, y1: 0, y2: 0 } },
+      { name: "the unit square", region: { x1: 0, x2: 1, y1: 0, y2: 1 } },
+      {
+        name: "a corner too small to hold a picture",
+        region: { x1: 0, x2: 4, y1: 0, y2: 4 },
+      },
+    ])(
+      "reads the whole image when the region is $name",
+      async ({ region }) => {
+        const imagePath = path.join(fixturesPath, "region-zero-probe.png");
+        await drawPngFixture(imagePath, "320x240");
+
+        try {
+          const result = await runTool(TOOLS.ReadFile, {
+            ...baseInput,
+            input: {
+              explanation: "read",
+              filePath: "./region-zero-probe.png",
+              region,
+            },
+          });
+
+          // No crop comes back, because none of these name a place to crop. What
+          // does come back is the rectangle that was asked for, so the result can
+          // say the parameter did nothing rather than leaving it to be inferred.
+          const value = result._unsafeUnwrap();
+          expect(value.state).toBe("image");
+          if (value.state === "image") {
+            expect(value.region).toBeUndefined();
+            expect(value.regionIgnored).toBe("no-place");
+            expect(value.requestedRegion).toEqual(region);
+          }
+        } finally {
+          await fs.rm(imagePath, { force: true });
+        }
+      },
+      60_000,
+    );
+
+    it("reads the whole image when the region covers all of it", async () => {
+      const imagePath = path.join(fixturesPath, "region-whole-probe.png");
       await drawPngFixture(imagePath, "320x240");
 
       try {
         const result = await runTool(TOOLS.ReadFile, {
           ...baseInput,
           input: {
-            explanation: "read",
-            filePath: "./region-zero-probe.png",
-            region: { x1: 0, x2: 0, y1: 0, y2: 0 },
+            explanation: "zoom",
+            filePath: "./region-whole-probe.png",
+            region: { x1: 0, x2: 320, y1: 0, y2: 240 },
           },
         });
 
-        // No rectangle comes back, because none was asked for. The empty-region
-        // error above still fires for a rectangle that names a place and misses.
+        // Cropping this would re-render the picture the model already has, at
+        // the same budget, as a second full-budget image in the transcript.
         const value = result._unsafeUnwrap();
         expect(value.state).toBe("image");
-        expect(value).not.toHaveProperty("region");
+        if (value.state === "image") {
+          expect(value.region).toBeUndefined();
+          expect(value.regionIgnored).toBe("whole-image");
+          expect(value.renderedWidth).toBeUndefined();
+        }
       } finally {
         await fs.rm(imagePath, { force: true });
       }
+    }, 60_000);
+
+    it("reads a text file whose region was filled in rather than aimed", async () => {
+      const result = await runTool(TOOLS.ReadFile, {
+        ...baseInput,
+        input: {
+          explanation: "read",
+          filePath: "./grep-test.txt",
+          region: { x1: 0, x2: 0, y1: 0, y2: 0 },
+        },
+      });
+
+      // A model that fills the parameter in on every call reaches text files
+      // too, and failing the read over a rectangle it did not mean costs more
+      // than the rectangle is worth.
+      expect(result._unsafeUnwrap().state).toBe("exists");
     }, 60_000);
 
     it("refuses a region on something that is not an image", async () => {
@@ -1092,6 +1163,88 @@ describe("toModelOutput", () => {
     expect(result.type === "content" && result.value[0]).toMatchInlineSnapshot(`
       {
         "text": "Image file: ./scan.png -- region (100,100)-(500,400) of the 1456x819 view, cropped from the 3840x2160 original and magnified to 1270x952.",
+        "type": "text",
+      }
+    `);
+  });
+
+  it("leads with the correction when a region was trimmed to fit", () => {
+    const result = ReadFile.toModelOutput({
+      input: {
+        explanation: "zoom",
+        filePath: "./scan.png",
+        region: { x1: 0, x2: 1440, y1: 0, y2: 630 },
+      },
+      output: {
+        base64Data: "abc123",
+        filePath: "./scan.png",
+        height: 2530,
+        mimeType: "image/png",
+        modifiedAt: expect.any(Number),
+        region: { x1: 0, x2: 1176, y1: 0, y2: 630 },
+        renderedHeight: 810,
+        renderedWidth: 1512,
+        requestedRegion: { x1: 0, x2: 1440, y1: 0, y2: 630 },
+        state: "image",
+        viewHeight: 1033,
+        viewWidth: 1176,
+        width: 2880,
+      },
+      toolCallId: "123",
+    });
+    // Asked for the left half in the file's pixel space, handed the full width.
+    // Without the second sentence the first reads as a confirmation.
+    expect(result.type === "content" && result.value[0]).toMatchInlineSnapshot(`
+      {
+        "text": "Image file: ./scan.png -- region (0,0)-(1176,630) of the 1176x1033 view, cropped from the 2880x2530 original and magnified to 1512x810. This is not the rectangle you asked for: (0,0)-(1440,630) runs outside the 1176x1033 space the image was shown to you in, so it was trimmed to fit.",
+        "type": "text",
+      }
+    `);
+  });
+
+  const ignoredRegionText = (
+    region: { x1: number; x2: number; y1: number; y2: number },
+    regionIgnored: "no-place" | "whole-image",
+  ) => {
+    const result = ReadFile.toModelOutput({
+      input: { explanation: "read", filePath: "./scan.png", region },
+      output: {
+        base64Data: "abc123",
+        filePath: "./scan.png",
+        height: 2160,
+        mimeType: "image/png",
+        modifiedAt: expect.any(Number),
+        regionIgnored,
+        requestedRegion: region,
+        state: "image",
+        viewHeight: 819,
+        viewWidth: 1456,
+        width: 3840,
+      },
+      toolCallId: "123",
+    });
+    return result.type === "content" && result.value[0];
+  };
+
+  it("says the whole image is back when the region named no place", () => {
+    // The read that follows a filled-in parameter. Degrading silently leaves
+    // the model no way to tell the rectangle did nothing, and the ones measured
+    // in the wild went on to ask for the whole image as a rectangle instead.
+    expect(ignoredRegionText({ x1: 0, x2: 1, y1: 0, y2: 1 }, "no-place"))
+      .toMatchInlineSnapshot(`
+        {
+          "text": "Image file: ./scan.png (3840x2160 px, shown to you at 1456x819) -- the region (0,0)-(1,1) you asked for is too small to be a place on the image. This is the whole image; to magnify part of it, give a smaller rectangle in that 1456x819 space.",
+          "type": "text",
+        }
+      `);
+  });
+
+  it("says the whole image is back when the region covered all of it", () => {
+    expect(
+      ignoredRegionText({ x1: 0, x2: 1456, y1: 0, y2: 819 }, "whole-image"),
+    ).toMatchInlineSnapshot(`
+      {
+        "text": "Image file: ./scan.png (3840x2160 px, shown to you at 1456x819) -- the region (0,0)-(1456,819) you asked for covers the whole image, so there is nothing in it to magnify. This is the whole image; to magnify part of it, give a smaller rectangle in that 1456x819 space.",
         "type": "text",
       }
     `);

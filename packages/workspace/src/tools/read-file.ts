@@ -63,29 +63,21 @@ const INPUT_PARAMS = {
 type MediaFileState = "audio" | "image" | "pdf" | "video";
 
 /**
- * Tell a region the model asked for from one it merely filled in.
+ * Whether a rectangle names a place, judged without knowing the image.
  *
- * An all-zero rectangle is the shape of an object whose fields were populated
- * with defaults, not a place on the picture: it names no location and no area,
- * so there is nothing in it to honor or to correct. Measured across models, one
- * family sends it on the first read of every image, which cost a round trip and
- * an error that taught it nothing.
- *
- * Only all four corners at zero. Any other empty or out-of-bounds rectangle
- * still fails loudly, because that one does express a location -- the model
- * meant somewhere and got the coordinate space wrong, and the error naming the
- * space it should have used is what recovers it.
+ * The full judgement needs the pixel space the model was shown and so belongs
+ * in `cropRegion`. This is the part of it available before a file has been read
+ * at all, and it exists for one case: a model that fills the parameter in on
+ * every `read_file` call reaches text files too, and failing that read over a
+ * rectangle it did not mean would cost more than the rectangle is worth.
  */
-function requestedRegion(region?: RegionInput) {
-  if (
-    region?.x1 === 0 &&
-    region.x2 === 0 &&
+function aimsSomewhere(region: RegionInput) {
+  return !(
+    region.x1 === 0 &&
     region.y1 === 0 &&
-    region.y2 === 0
-  ) {
-    return;
-  }
-  return region;
+    region.x2 <= 1 &&
+    region.y2 <= 1
+  );
 }
 
 const MEDIA_CONFIG: Record<MediaFileState, { label: string; maxSize: number }> =
@@ -286,6 +278,23 @@ async function handleMediaFile({
     return err(cropped.error);
   }
 
+  if (cropped.value.state === "ignored") {
+    // The whole image, which is what a rectangle naming no place and one naming
+    // the entire picture both amount to. It goes back with the rectangle that
+    // was asked for, so the answer says which read this was rather than looking
+    // like a read that never mentioned a region.
+    return ok({
+      base64Data: previewBytes.toString("base64"),
+      filePath: fixedPath,
+      mimeType: previewMediaType,
+      modifiedAt: stats.mtimeMs,
+      regionIgnored: cropped.value.reason,
+      requestedRegion: cropped.value.asked,
+      state,
+      ...dimensions,
+    });
+  }
+
   return ok({
     ...dimensions,
     base64Data: cropped.value.rendered.bytes.toString("base64"),
@@ -295,6 +304,7 @@ async function handleMediaFile({
     region: cropped.value.region,
     renderedHeight: cropped.value.rendered.height,
     renderedWidth: cropped.value.rendered.width,
+    requestedRegion: cropped.value.asked,
     state,
   });
 }
@@ -343,8 +353,14 @@ export const ReadFile = setupTool({
       // Set when a region was requested: the rectangle as interpreted, after
       // clamping, in the view's pixel space.
       region: RegionSchema.optional(),
+      // Set when a requested rectangle could not be honored and the whole image
+      // was returned instead.
+      regionIgnored: z.enum(["no-place", "whole-image"]).optional(),
       renderedHeight: z.number().optional(),
       renderedWidth: z.number().optional(),
+      // Set when the rectangle asked for is not the one the result shows,
+      // either because clamping trimmed it or because it was not honored.
+      requestedRegion: RegionSchema.optional(),
       state: z.literal("image"),
       // The size this model renders the image at, which is smaller than the
       // file whenever the file is over the provider's budget.
@@ -417,7 +433,7 @@ export const ReadFile = setupTool({
     - Seeing an image is not the same as reading it: small text, closely spaced lines, and dense chart or table values are unreliable at whole-image scale, and a confident first impression of one is often simply wrong. So when an answer turns on a detail that small -- a chart label, a value in a dense table, which of two lines sits higher, text in a screenshot -- read the image again with ${INPUT_PARAMS.region} set to the corners of the area in question. It comes back cropped from the full-resolution file and magnified, so what was a few pixels becomes legible. Coordinates are always pixels in the whole image as you were first shown it, never pixels in a magnified crop you got back. To narrow further, give a smaller rectangle in those same whole-image coordinates; each response repeats the rectangle it used, so subdivide that. Trust what you read magnified over your first impression of the whole image.
   `,
   execute: async ({ input, signal, taskId, taskState }) => {
-    const region = requestedRegion(input.region);
+    const region = input.region;
     const layout = buildWorkspaceFsLayout({
       attachedFolders: taskState.attachedFolders,
       taskHostRoot: taskDir(taskId),
@@ -471,7 +487,11 @@ export const ReadFile = setupTool({
       });
     }
 
-    if (region && !isReadableImage(getMimeType(absolutePath))) {
+    if (
+      region &&
+      aimsSomewhere(region) &&
+      !isReadableImage(getMimeType(absolutePath))
+    ) {
       return executeError(
         `${INPUT_PARAMS.region} only applies to images, and ${displayPath} is not one.`,
       );

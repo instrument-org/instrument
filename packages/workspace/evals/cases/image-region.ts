@@ -30,22 +30,25 @@ const Q3_NORTHEAST = "5,318";
 /**
  * A zoom the model meant, matching how the tool reads the same input.
  *
- * `read_file` treats an all-zero rectangle as no rectangle, because it names
- * no place and one model family sends it on the first read of every image.
- * Counting it here anyway made the negative case fail a model whose read the
- * tool had already handled as a plain one -- the eval and the tool disagreeing
- * about what a region read even is.
+ * `read_file` answers some rectangles with the plain whole image: ones naming
+ * no place, which a model family sends on the first read of every image, and
+ * ones covering the entire picture, which have nothing in them to magnify. The
+ * tool is the authority on which those were, and it marks them. Judging the
+ * input here instead made the negative case fail a model whose read the tool
+ * had already handled as a plain one -- the eval and the tool disagreeing about
+ * what a region read even is.
  */
 function isRegionRead(part: SessionMessagePart.Type) {
   if (part.type !== "tool-read_file") {
     return false;
   }
-  const region = part.input?.region;
-  if (!region) {
+  if (!part.input?.region) {
     return false;
   }
   return (
-    region.x1 !== 0 || region.x2 !== 0 || region.y1 !== 0 || region.y2 !== 0
+    part.state !== "output-available" ||
+    part.output.state !== "image" ||
+    part.output.regionIgnored === undefined
   );
 }
 

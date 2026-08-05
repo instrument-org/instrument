@@ -5,31 +5,42 @@ import { describe, expect, it } from "vitest";
 import { assignFolderNames } from "./assign-folder-names";
 
 describe("assignFolderNames", () => {
-  it("qualifies with the parent dir name even with no collision", () => {
+  // The name is the mount path, and the agent quotes mount paths back to the
+  // user, so an unnecessary qualifier reaches them as a folder they never named.
+  it("keeps the folder's own name when nothing collides", () => {
     const names = assignFolderNames([
       { id: "a", path: "/base/project/Downloads" },
     ]);
-    expect(names.get("a")).toMatchInlineSnapshot(`"project-Downloads"`);
+    expect(names.get("a")).toMatchInlineSnapshot(`"Downloads"`);
   });
 
-  it("qualifies every folder in the set, not just colliding ones", () => {
+  it("leaves distinct names alone in a set", () => {
+    const names = assignFolderNames([
+      { id: "a", path: "/base/project-a/Downloads" },
+      { id: "b", path: "/base/other/Documents" },
+    ]);
+    expect(names.get("a")).toMatchInlineSnapshot(`"Downloads"`);
+    expect(names.get("b")).toMatchInlineSnapshot(`"Documents"`);
+  });
+
+  it("qualifies only the namesake, keeping the first attachment bare", () => {
     const names = assignFolderNames([
       { id: "a", path: "/base/project-a/Downloads" },
       { id: "b", path: "/base/project-b/Downloads" },
-      { id: "c", path: "/base/other/Documents" },
     ]);
-    expect(names.get("a")).toMatchInlineSnapshot(`"project-a-Downloads"`);
+    expect(names.get("a")).toMatchInlineSnapshot(`"Downloads"`);
     expect(names.get("b")).toMatchInlineSnapshot(`"project-b-Downloads"`);
-    expect(names.get("c")).toMatchInlineSnapshot(`"other-Documents"`);
   });
 
   it("walks up further ancestors if the immediate parent also collides", () => {
     const names = assignFolderNames([
       { id: "a", path: "/base/x/project/Downloads" },
       { id: "b", path: "/base/y/project/Downloads" },
+      { id: "c", path: "/base/z/project/Downloads" },
     ]);
-    expect(names.get("a")).toMatchInlineSnapshot(`"project-Downloads"`);
-    expect(names.get("b")).toMatchInlineSnapshot(`"y-project-Downloads"`);
+    expect(names.get("a")).toMatchInlineSnapshot(`"Downloads"`);
+    expect(names.get("b")).toMatchInlineSnapshot(`"project-Downloads"`);
+    expect(names.get("c")).toMatchInlineSnapshot(`"z-project-Downloads"`);
   });
 
   it("falls back to a numeric suffix once ancestors run out", () => {
@@ -38,9 +49,11 @@ describe("assignFolderNames", () => {
       { id: "b", path: "/base/nested/project/Downloads" },
       { id: "c", path: "/base/nested/project/Downloads" },
       { id: "d", path: "/base/nested/project/Downloads" },
+      { id: "e", path: "/base/nested/project/Downloads" },
     ]);
     expect([...names.values()]).toMatchInlineSnapshot(`
       [
+        "Downloads",
         "project-Downloads",
         "nested-project-Downloads",
         "base-nested-project-Downloads",
@@ -52,11 +65,11 @@ describe("assignFolderNames", () => {
   it("substitutes the home directory's real name with a generic label", () => {
     const home = os.homedir();
     const names = assignFolderNames([
-      { id: "a", path: path.join(home, "Downloads") },
-      { id: "b", path: "/base/other/Downloads" },
+      { id: "a", path: "/base/other/Downloads" },
+      { id: "b", path: path.join(home, "Downloads") },
     ]);
-    expect(names.get("a")).toMatchInlineSnapshot(`"Home-Downloads"`);
-    expect(names.get("b")).toMatchInlineSnapshot(`"other-Downloads"`);
+    expect(names.get("a")).toMatchInlineSnapshot(`"Downloads"`);
+    expect(names.get("b")).toMatchInlineSnapshot(`"Home-Downloads"`);
   });
 
   it("falls back to the bare basename when there's no ancestor to qualify with", () => {

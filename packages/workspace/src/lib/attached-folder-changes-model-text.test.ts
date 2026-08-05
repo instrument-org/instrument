@@ -24,7 +24,7 @@ describe("attachedFolderChangesModelNote", () => {
       "
       <instrument-system-note>
       The user removed these attached folders from this task since your last activity. Their /mnt mounts are gone, so do not attempt to read or search them:
-      - Downloads
+      - "Downloads" (was mounted at \`/mnt/Downloads\`)
       </instrument-system-note>"
     `);
   });
@@ -45,8 +45,8 @@ describe("attachedFolderChangesModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      These attached folders were renamed because another attached folder now shares their old name. Use the new name and its /mnt path instead of any old one you referenced earlier:
-      - Downloads -> CloudDocs-Downloads
+      These folders are mounted at a new path, because another attachment now shares the name theirs was derived from. Use the new path instead of any old one you referenced earlier. The user's folders were not renamed and are still called what they were called, so do not report a rename:
+      - "Downloads": now \`/mnt/CloudDocs-Downloads\`, was \`/mnt/Downloads\`
       </instrument-system-note>"
     `);
   });
@@ -68,10 +68,10 @@ describe("attachedFolderChangesModelNote", () => {
       "
       <instrument-system-note>
       The user removed these attached folders from this task since your last activity. Their /mnt mounts are gone, so do not attempt to read or search them:
-      - Old
+      - "Old" (was mounted at \`/mnt/Old\`)
 
-      These attached folders were renamed because another attached folder now shares their old name. Use the new name and its /mnt path instead of any old one you referenced earlier:
-      - Downloads -> Local-Downloads
+      These folders are mounted at a new path, because another attachment now shares the name theirs was derived from. Use the new path instead of any old one you referenced earlier. The user's folders were not renamed and are still called what they were called, so do not report a rename:
+      - "Downloads": now \`/mnt/Local-Downloads\`, was \`/mnt/Downloads\`
       </instrument-system-note>"
     `);
   });
@@ -90,8 +90,8 @@ describe("attachedFolderChangesModelNote", () => {
       "
       <instrument-system-note>
       The user changed what you may do with these attached folders. This supersedes the access level listed in your attached-folders context, which may be older than this message:
-      - Photos: now read and write
-      - Docs: now read-only
+      - "Photos" (\`/mnt/Photos\`): now read and write
+      - "Docs" (\`/mnt/Docs\`): now read-only
       </instrument-system-note>"
     `);
   });

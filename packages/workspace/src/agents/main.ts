@@ -98,8 +98,9 @@ async function buildAttachedFolderContext({
         // The layout's rule, not the stored value, so the list the model reads
         // cannot promise a write the filesystem refuses.
         access: effectiveFolderAccess(folder),
+        missing: !exists,
         mountPoint,
-        name: exists ? folder.name : `${folder.name} (no longer exists)`,
+        path: folder.path,
       };
     }),
   );

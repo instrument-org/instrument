@@ -992,7 +992,9 @@ function renderProjectContext(
       }
     }
   }
-  const projectFolders = [...projectFoldersByPath.values()];
+  const projectFolders = [...projectFoldersByPath.entries()].map(
+    ([path, folder]) => ({ ...folder, path }),
+  );
 
   const blocks: string[] = [];
 
@@ -1010,10 +1012,10 @@ function renderProjectContext(
   if (projectFolders.length > 0) {
     blocks.push(
       buildAttachedFoldersText({
-        folders: projectFolders.map(({ access, name }) => ({
+        folders: projectFolders.map(({ access, name, path }) => ({
           access,
           mountPoint: attachedFolderMountPoint(name),
-          name,
+          path,
         })),
         intro: projectFoldersIntro(projectPart.data.projectName),
       }),

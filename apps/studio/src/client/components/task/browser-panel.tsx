@@ -181,12 +181,20 @@ export function TaskBrowserPanel({
         // Not attached yet; a did-navigate will re-run sync once it is.
       }
     };
-    const onNavigate = () => {
-      setFailure(null);
-      sync();
+    // Clear only a failure stamped with this listener's own guest. These
+    // listeners outlive `targetId` changing in place by the frame between the
+    // render and the effect teardown, and a bare clear arriving from the
+    // previous guest in that window would drop the current guest's error
+    // notice and unpark it over the slot. The other state these handlers write
+    // needs no such guard: the re-run's own `sync()` follows the teardown.
+    const clearFailure = () => {
+      setFailure((current) =>
+        current?.targetId === targetId ? null : current,
+      );
     };
-    const onStartLoading = () => {
-      setFailure(null);
+    const onNavigate = () => {
+      clearFailure();
+      sync();
     };
     const onFailLoad = (event: Event) => {
       const detail = event as DidFailLoadEvent;
@@ -215,12 +223,12 @@ export function TaskBrowserPanel({
     sync();
     webview.addEventListener("did-navigate", onNavigate);
     webview.addEventListener("did-navigate-in-page", onNavigate);
-    webview.addEventListener("did-start-loading", onStartLoading);
+    webview.addEventListener("did-start-loading", clearFailure);
     webview.addEventListener("did-fail-load", onFailLoad);
     return () => {
       webview.removeEventListener("did-navigate", onNavigate);
       webview.removeEventListener("did-navigate-in-page", onNavigate);
-      webview.removeEventListener("did-start-loading", onStartLoading);
+      webview.removeEventListener("did-start-loading", clearFailure);
       webview.removeEventListener("did-fail-load", onFailLoad);
     };
   }, [active, targetId]);

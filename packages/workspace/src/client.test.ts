@@ -15,6 +15,8 @@ const CLIENT_ENTRY = path.join(import.meta.dirname, "client.ts");
 
 const FROM_SPECIFIER = /\bfrom\s*["']([^"']+)["']/g;
 const SIDE_EFFECT_IMPORT = /(?:^|\n)\s*import\s*["'](\.[^"']+)["']/g;
+// A builtin pulled in lazily is in the bundle exactly like an eager one.
+const DYNAMIC_IMPORT = /\bimport\s*\(\s*["']([^"']+)["']/g;
 const NODE_BUILTIN =
   /^(?:node:|fs$|os$|path$|child_process$|crypto$|worker_threads$)/;
 
@@ -65,6 +67,20 @@ async function findNodeBuiltins(entry: string): Promise<string[]> {
 
     for (const [, specifier] of source.matchAll(SIDE_EFFECT_IMPORT)) {
       if (specifier !== undefined) {
+        queue.push({
+          chain,
+          file: path.resolve(path.dirname(current.file), specifier),
+        });
+      }
+    }
+
+    for (const [, specifier] of source.matchAll(DYNAMIC_IMPORT)) {
+      if (specifier === undefined) {
+        continue;
+      }
+      if (NODE_BUILTIN.test(specifier)) {
+        offenders.push(`${chain.join(" -> ")} imports ${specifier}`);
+      } else if (specifier.startsWith(".")) {
         queue.push({
           chain,
           file: path.resolve(path.dirname(current.file), specifier),

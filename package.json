@@ -26,6 +26,7 @@
     "check:spelling": "cspell --no-progress --gitignore-root . \"**\" \".github/**/*\" \".vscode/**/*\"",
     "check:types": "tsgo --noEmit",
     "check:unused": "knip",
+    "check:unused:production": "knip --production --exclude binaries",
     "check:unused-words": "cspell-check-unused-words",
     "dev:studio": "turbo run dev --filter=@instrument-org/studio --ui tui",
     "fix:format": "oxfmt .",

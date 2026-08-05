@@ -182,11 +182,17 @@ function RouteComponent() {
         collapsed by default and keeps the composer near the top; wide, the same
         rule that gives it its own column forces it open and drops the toggle.
 
-        `items-start` because the panel spans column one's three rows: a panel
-        taller than what sits beside it grows those rows, and a stretched
-        composer would then paint an empty band under its own controls.
+        The panel spans column one's three rows, which takes two rules to keep
+        from deforming that column. `items-start` stops a short item from
+        stretching to a tall row. The explicit row tracks stop the rows from
+        growing at all: grid distributes a spanning item's excess height across
+        the tracks it crosses, so every folder added to the panel pushed the
+        heading, composer and task list further apart. An item crossing a
+        flexible track is excluded from intrinsic track sizing, so the `1fr`
+        sends that excess to the last row, below the task list, where nothing
+        moves.
       */}
-      <div className="mx-auto grid max-w-2xl grid-cols-1 items-start gap-y-6 px-6 py-10 @6xl/app-content:max-w-none @6xl/app-content:grid-cols-[minmax(0,42rem)_30rem] @6xl/app-content:justify-center @6xl/app-content:gap-x-8">
+      <div className="mx-auto grid max-w-2xl grid-cols-1 items-start gap-y-6 px-6 py-10 @6xl/app-content:max-w-none @6xl/app-content:grid-cols-[minmax(0,42rem)_30rem] @6xl/app-content:grid-rows-[auto_auto_1fr] @6xl/app-content:justify-center @6xl/app-content:gap-x-8">
         <div className="flex items-start justify-between gap-x-4">
           <div className="flex min-w-0 flex-col gap-y-1">
             <h1 className="font-serif text-2xl font-medium">

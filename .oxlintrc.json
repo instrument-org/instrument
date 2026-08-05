@@ -33,6 +33,17 @@
       }
     },
     {
+      // Every module here is reachable from the renderer, where `node:`
+      // builtins do not exist, so the rule holds for the whole package rather
+      // than for a set of files someone has to keep listing. Elsewhere the
+      // property is per-module and a reachability check is what says which
+      // (packages/workspace/src/client.test.ts).
+      "files": ["packages/shared/src/**"],
+      "rules": {
+        "import/no-nodejs-modules": ["error"]
+      }
+    },
+    {
       "files": ["**/machines/session.test.ts"],
       "rules": {
         "typescript/no-unnecessary-type-assertion": "off"

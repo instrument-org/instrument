@@ -1,12 +1,19 @@
 import { APICallError } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
+import os from "node:os";
 import { describe, expect, it, vi } from "vitest";
 
+import { FolderAttachment } from "../schemas/folder-attachment";
+import { AbsolutePathSchema } from "../schemas/paths";
+import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
-import { generateTitleFromUserMessage } from "./generate-title-from-user-message";
+import {
+  generateTitleFromUserMessage,
+  MAX_TITLE_WORDS,
+} from "./generate-title-from-user-message";
 import { TASK_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -84,7 +91,7 @@ function setupTest(
     : getWorkspaceConfig();
 
   return {
-    generate: (message = mockMessage) =>
+    generate: (message: SessionMessage.UserWithParts = mockMessage) =>
       generateTitleFromUserMessage({
         message,
         model,
@@ -112,7 +119,7 @@ function setupTestWithModel(
     : getWorkspaceConfig();
 
   return {
-    generate: (message = mockMessage) =>
+    generate: (message: SessionMessage.UserWithParts = mockMessage) =>
       generateTitleFromUserMessage({
         message,
         model,
@@ -122,19 +129,19 @@ function setupTestWithModel(
 }
 
 describe("generateTitleFromUserMessage", () => {
-  it("should limit generated title to 5 words maximum", async () => {
+  it("should limit a generated title to the word cap", async () => {
     const { generate } = setupTest(
-      "Very Long Task Title That Exceeds The Five Word Limit",
+      "Very Long Task Title That Exceeds The Word Limit By Some Margin",
     );
 
     const result = await generate();
     const title = result._unsafeUnwrap();
 
-    expect(title.split(" ")).toHaveLength(5);
-    expect(title).toBe("Very Long Task Title That");
+    expect(title.split(" ")).toHaveLength(MAX_TITLE_WORDS);
+    expect(title).toBe("Very Long Task Title That Exceeds The Word");
   });
 
-  it("should preserve titles with 5 words or fewer", async () => {
+  it("should preserve titles within the word cap", async () => {
     const { generate } = setupTest("Todo List Manager");
 
     const result = await generate();
@@ -144,14 +151,16 @@ describe("generateTitleFromUserMessage", () => {
     expect(title).toBe("Todo List Manager");
   });
 
-  it("should handle exactly 5 words", async () => {
-    const { generate } = setupTest("Chat With File Upload System");
+  it("should handle exactly the word cap", async () => {
+    const { generate } = setupTest(
+      "Chat With File Upload System For Everyone Here",
+    );
 
     const result = await generate();
     const title = result._unsafeUnwrap();
 
-    expect(title.split(" ")).toHaveLength(5);
-    expect(title).toBe("Chat With File Upload System");
+    expect(title.split(" ")).toHaveLength(MAX_TITLE_WORDS);
+    expect(title).toBe("Chat With File Upload System For Everyone Here");
   });
 
   it("should handle single word titles", async () => {
@@ -188,6 +197,81 @@ describe("generateTitleFromUserMessage", () => {
     );
   });
 
+  // The model is told to answer nothing for a message with no subject ("hey",
+  // "test"). Failing here is what leaves the placeholder standing, so a task
+  // keeps the user's own words instead of an invented title.
+  it("fails rather than inventing a title for an unnameable message", async () => {
+    const { generate } = setupTest("");
+
+    const result = await generate(createMockMessage("hey"));
+
+    expect(result.isErr()).toBe(true);
+    expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(
+      `"Failed to generate title: No title generated"`,
+    );
+  });
+
+  describe("what the model is shown", () => {
+    function messageWithFolder() {
+      const message = createMockMessage("wat images are in here");
+      return {
+        ...message,
+        parts: [
+          ...message.parts,
+          {
+            data: {
+              files: [],
+              folders: [
+                {
+                  access: "read-write" as const,
+                  createdAt: 0,
+                  id: FolderAttachment.IdSchema.parse("Home-Downloads"),
+                  name: "Home-Downloads",
+                  path: AbsolutePathSchema.parse(
+                    `${os.homedir()}/Downloads/Screenshots`,
+                  ),
+                  source: "user" as const,
+                },
+              ],
+            },
+            metadata: {
+              createdAt: new Date(),
+              id: StoreId.newPartId(),
+              messageId: StoreId.newMessageId(),
+              sessionId: StoreId.newSessionId(),
+            },
+            type: "data-attachments" as const,
+          },
+        ],
+      };
+    }
+
+    async function promptFor(message: SessionMessage.UserWithParts) {
+      const { generate, mockLanguageModel } = setupTest("Screenshots");
+      await generate(message);
+      return JSON.stringify(mockLanguageModel.doGenerateCalls[0]?.prompt);
+    }
+
+    // Where a folder lives is what tells two folders of the same name apart, so
+    // the path is the useful signal here.
+    it("locates an attached folder under a bare home directory", async () => {
+      const prompt = await promptFor(messageWithFolder());
+
+      expect(prompt).toContain(
+        "Folders attached by user: ~/Downloads/Screenshots",
+      );
+    });
+
+    // The mount name is the agent's handle for the folder and the real path
+    // names the machine's user; a title is stored, listed, and exported.
+    it("shows neither the mount name nor the host path", async () => {
+      const prompt = await promptFor(messageWithFolder());
+
+      expect(prompt).not.toContain("Home-Downloads");
+      expect(prompt).not.toContain(os.homedir());
+    });
+  });
+
   it("should trim whitespace from generated title", async () => {
     const { generate } = setupTest("  Todo Manager  ");
 
@@ -207,16 +291,18 @@ describe("generateTitleFromUserMessage", () => {
     expect(title).toBe("تطبيق المهام اليومية");
   });
 
-  it("should limit non-English titles to 5 words", async () => {
+  it("should limit non-English titles to the word cap", async () => {
     const { generate } = setupTest(
-      "システム 管理 アプリケーション データベース 設定 追加",
+      "システム 管理 アプリケーション データベース 設定 追加 画面 一覧 更新",
     );
 
     const result = await generate();
     const title = result._unsafeUnwrap();
 
-    expect(title.split(" ")).toHaveLength(5);
-    expect(title).toBe("システム 管理 アプリケーション データベース 設定");
+    expect(title.split(" ")).toHaveLength(MAX_TITLE_WORDS);
+    expect(title).toBe(
+      "システム 管理 アプリケーション データベース 設定 追加 画面 一覧",
+    );
   });
 
   it("should handle mixed language titles", async () => {

@@ -4,6 +4,7 @@ import {
 } from "@instrument-org/ai-gateway";
 import { generateText } from "ai";
 import { ResultAsync } from "neverthrow";
+import os from "node:os";
 import { dedent } from "radashi";
 
 import { getWorkspaceServerURL } from "../logic/server/url";
@@ -14,7 +15,12 @@ import { isNonRetryableGatewayError } from "./gateway-response-body";
 import { TASK_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
 import { textForMessage } from "./text-for-message";
 
-const MAX_TITLE_WORDS = 5;
+// A ceiling, not a target. Short titles are the failure mode this backs off
+// from: at five words the only way to fit was to drop the distinguishing
+// detail, and a list of "Wikipedia link navigation" and "Documents folder
+// contents" tells the reader nothing about which one theirs was. The sidebar is
+// 250px, so a title much past this truncates on sight rather than in memory.
+export const MAX_TITLE_WORDS = 8;
 
 export function generateTitleFromUserMessage({
   message,
@@ -29,7 +35,7 @@ export function generateTitleFromUserMessage({
 }) {
   return ResultAsync.fromPromise(
     (async () => {
-      const userMessage = textForMessage(message, { includeFileNames: true });
+      const userMessage = titleSourceText(message);
       if (!userMessage.trim()) {
         throw new Error("No user message");
       }
@@ -81,7 +87,14 @@ export function generateTitleFromUserMessage({
       const words = cleanedTitle.split(/\s+/).filter(Boolean);
       const limitedTitle = words.slice(0, MAX_TITLE_WORDS).join(" ");
 
-      return limitedTitle || `${getTimeContext()} task`;
+      // Nothing nameable in the message. Failing here leaves the placeholder
+      // standing, which is the user's own opening words -- a truer name for
+      // "hey" than any sentence invented around it.
+      if (!limitedTitle) {
+        throw new Error("No title generated");
+      }
+
+      return limitedTitle;
     })(),
     (error: unknown) => ({
       message: `Failed to generate title: ${error instanceof Error ? error.message : String(error)}`,
@@ -95,58 +108,63 @@ export function generateTitleFromUserMessage({
 }
 
 function buildSystemPrompt(templateTitle?: string): string {
-  const timeContext = getTimeContext();
-
   const contextSection = templateTitle
     ? `The task is based on the "${templateTitle}" template.`
     : "";
 
-  const baseExamples = dedent`
-    "What is the weather like today in San Francisco?" → Weather inquiry
-    "Help me debug this Python code that's throwing an error" → Python debugging help
-    "Explain how React hooks work" → React hooks explanation
-    "What did I upload?" → File upload inquiry
-    "Can you help me with something?" → ${timeContext} task
-    "Analyze this data\n\nFiles attached by user: sales_data.xlsx" → Sales data analysis
-    "Help me visualize this\n\nFiles attached by user: chart.csv, metrics.json" → Data visualization
-    "Process these images\n\nFiles attached by user: photo1.jpg, photo2.png" → Image processing
-    "Review this document\n\nFiles attached by user: report.pdf" → Document review`;
-
-  const taskExamples = dedent`
-    "Build me a calculator app" → Calculator app
-    "Create a todo list with drag and drop" → Todo list
-    "Make a kanban board for task management" → Kanban board`;
-
+  // What the examples teach is specificity, not grammar: name the thing, keep
+  // whatever tells it apart. A noun phrase suits a subject and an action phrase
+  // suits a job, and forcing one on the other is how "Weather inquiry" and
+  // "Deleted skill" happen. The second set is the correction that matters most,
+  // since the old five-word ceiling made the vague half of each pair the only
+  // answer that fit.
   const examples = dedent`
-  <examples>
-  ${taskExamples}
-  ${baseExamples}
-  </examples>`;
+    <examples>
+    "Build me a calculator app" → Calculator app
+    "Create a todo list with drag and drop" → Todo list with drag and drop
+    "What is the weather like today in San Francisco?" → San Francisco weather today
+    "Help me debug this Python code that's throwing an error" → Fix the error this Python code throws
+    "Explain how React hooks work" → How React hooks work
+    "Can you write a test.txt file into the folder" → Write test.txt into the attached folder
+    "Analyze this data\n\nFiles attached by user: sales_data.xlsx" → Sales data spreadsheet analysis
+    "Help me visualize this\n\nFiles attached by user: chart.csv, metrics.json" → Chart and metrics visualization
+    "wat images are in here\n\nFolders attached by user: ~/Downloads" → Images in the Downloads folder
+    "what is in here\n\nFolders attached by user: ~/Library/Mobile Documents/com~apple~CloudDocs/Downloads" → Contents of iCloud Drive Downloads
+    "Review this document\n\nFiles attached by user: q3-report.pdf" → Q3 report review
+    "hey" →
+    "test" →
+    </examples>
+
+    <too_short>
+    Each of these drops the detail that would tell it apart from its neighbors in a list. The longer one is the better title.
+    "Wikipedia link navigation" → "Navigate five linked Wikipedia pages"
+    "Documents folder contents" → "Images and PDFs in Documents"
+    "Edit skill" → "Rename the md-handoff skill"
+    "Create a skill" → "New skill for Excel exports"
+    "Video" → "Rotating red square video"
+    </too_short>`;
 
   return dedent`
     <task>
-    Generate a short task title from the user's message.
+    Name the work the user's message starts, in a short phrase someone would recognize months later in a list.
     ${contextSection}
     </task>
 
-    <context>
-    Current time: ${timeContext}
-    </context>
-
     <important>
-    You are ONLY extracting a title from the user's message. Do NOT answer questions, perform tasks, or provide information.
-    The user's message is input to summarize - not a request for you to respond to.
-    The user may be asking a question, requesting help, or wanting to build an app. Name the task based on what they're asking for.
-    If the user has attached files, use the file types and names to inform the title (e.g., .xlsx → Spreadsheet, .pdf → Document, .csv → Data, .jpg/.png → Image).
-    If you cannot determine a meaningful title from the content, create a friendly fallback using the current time (${timeContext}), e.g. "${timeContext} task".
+    You are ONLY naming the message. Do NOT answer questions, perform tasks, or provide information. The user's message is input to name, not a request for you to respond to.
+    Name what the work is about -- its subject, its outcome, the thing being made or asked about. A noun phrase suits a subject and a short action phrase suits a job; pick whichever a reader would recognize faster. Never name the act of messaging.
+    Attached files and folders are strong evidence of the subject; use them, spelled as they are given. A folder arrives as its path: name it by its own name, and reach for an ancestor only where that is what tells it apart from an identically named folder somewhere else. Never put a whole path in a title.
+    If the message carries nothing to name -- a greeting, a single word, a test -- return nothing at all. An empty answer is correct and expected; the user's own words are kept instead. Never invent a subject, and never fall back to naming the day, the time, or the kind of message it is.
     </important>
 
     <rules>
-    - Maximum ${MAX_TITLE_WORDS} words
+    - Specific over short. Prefer concrete nouns and the distinguishing detail -- the file, the folder, the site, the format, the number -- over a vague label that would fit a hundred other messages
+    - Maximum ${MAX_TITLE_WORDS} words. It is a ceiling, not a target, but do not drop the distinguishing detail to come in under it
+    - Rarely one word, and never a bare category noun ("Video", "Skill", "Data")
+    - Every word earns its place: no filler, no throat-clearing
     - Single line only
-    - Use sentence case (capitalize only the first word, except for proper nouns)
-    - Avoid using words like "task", "chat", or "conversation" in the title
-    - If files are attached, incorporate the file type or purpose into the title
+    - Use sentence case. Never Start Case or Title Case
+    - No words like "task", "chat", "conversation", "inquiry", "request", or "help"
     - Return ONLY the title text in plain text format
     - No markdown, quotes, code fences, or formatting
     - No prefixes or labels like "Title:" or "Name:"
@@ -156,21 +174,67 @@ function buildSystemPrompt(templateTitle?: string): string {
   `.trim();
 }
 
-function getTimeContext(): string {
-  const now = new Date();
-  const dayName = now.toLocaleDateString("en-US", { weekday: "long" });
-  const hour = now.getHours();
+/** A path with the user's home directory spelled `~`, separators as given. */
+function homeRelativePath(filePath: string): string {
+  const home = os.homedir().replaceAll("\\", "/").replace(/\/+$/, "");
+  const normalized = filePath.replaceAll("\\", "/");
+  if (!home) {
+    return filePath;
+  }
+  if (normalized === home) {
+    return "~";
+  }
+  // Stops at a separator, so `/Users/samantha` is not read as a child of
+  // `/Users/sam`.
+  return normalized.startsWith(`${home}/`)
+    ? `~${filePath.slice(home.length)}`
+    : filePath;
+}
 
-  let timeOfDay: string;
-  if (hour < 12) {
-    timeOfDay = "morning";
-  } else if (hour < 17) {
-    timeOfDay = "afternoon";
-  } else if (hour < 21) {
-    timeOfDay = "evening";
-  } else {
-    timeOfDay = "night";
+/**
+ * What title generation reads: the user's words, plus the names of what they
+ * attached.
+ *
+ * Folders arrive as their path rather than their name, because where a folder
+ * lives is often what identifies it -- `~/Downloads` and an iCloud Drive
+ * `Downloads` are the same word and different folders. Two things it is
+ * deliberately not:
+ *
+ * - Not the folder's stored `name`. That is the mount name assigned for the
+ *   agent (`Home-Downloads`), a string the user has never seen.
+ * - Not the real host path. The home directory is spelled `~`, because the
+ *   segment it replaces is the OS username, and a title is stored, listed, and
+ *   carried into exported transcripts.
+ *
+ * This lives here rather than beside {@link textForMessage} so that reaching
+ * for a message's text elsewhere cannot pick up attachment locations by
+ * accident: the model running the task knows attached folders only by their
+ * `/mnt/<name>` mount, and would act on a host path if it were given one.
+ */
+function titleSourceText(message: SessionMessage.UserWithParts): string {
+  const text = textForMessage(message);
+
+  const attachments = message.parts.find(
+    (part) => part.type === "data-attachments",
+  );
+  if (!attachments) {
+    return text;
   }
 
-  return `${dayName} ${timeOfDay}`;
+  const fileNames = attachments.data.files
+    .map((file) => file.filename)
+    .join(", ");
+  const folderPaths = (attachments.data.folders ?? [])
+    .map((folder) => homeRelativePath(folder.path))
+    .join(", ");
+
+  const sections = [text];
+  if (fileNames) {
+    sections.push(`Files attached by user: ${fileNames}`);
+  }
+  if (folderPaths) {
+    sections.push(`Folders attached by user: ${folderPaths}`);
+  }
+
+  return sections.join("\n\n");
 }

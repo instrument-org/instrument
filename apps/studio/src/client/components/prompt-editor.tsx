@@ -121,10 +121,8 @@ const preventDefault = (event: Event) => {
 
 export function PromptEditor({
   autoFocus,
-  className,
   defaultValue,
   disabled,
-  maxHeight,
   onChange,
   onPaste,
   onSubmit,
@@ -133,11 +131,9 @@ export function PromptEditor({
   skills,
 }: {
   autoFocus: boolean;
-  className?: string;
   /** Read once, when the document is built. Later changes are ignored. */
   defaultValue: string;
   disabled: boolean;
-  maxHeight: number;
   onChange: (value: string) => void;
   onPaste: (event: ClipboardEvent) => boolean;
   onSubmit: (openInNewTab: boolean) => void;
@@ -494,15 +490,20 @@ export function PromptEditor({
 
   return (
     <Popover open={menu !== null && matches.length > 0}>
+      {/* Fills the column it is placed in rather than carrying a height of its
+          own: what there is room for is the composer's question to answer, and
+          the scroller below takes whatever that turns out to be. */}
       <PopoverAnchor asChild>
-        <div className={className}>
+        <div className="flex min-h-0 flex-1 flex-col">
           {/* The fade masks the text only: the composer's background sits on
               the container around this, so the faded edge dissolves into it
               whichever theme is on. */}
           <div
-            className={cn("overflow-y-auto", overflowing && "scroll-fade-y")}
+            className={cn(
+              "min-h-0 flex-1 overflow-y-auto",
+              overflowing && "scroll-fade-y",
+            )}
             ref={mountRef}
-            style={{ maxHeight }}
           />
           {chips.map((chip) =>
             createPortal(

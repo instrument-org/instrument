@@ -33,7 +33,6 @@ function Host() {
         autoFocus={false}
         defaultValue=""
         disabled={false}
-        maxHeight={200}
         onChange={noop}
         onPaste={() => false}
         onSubmit={noop}

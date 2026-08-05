@@ -1,6 +1,7 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { openLogin } from "@/client/atoms/login-modal";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
+import { ComposerFrame } from "@/client/components/composer-frame";
 import {
   DEFAULT_FOLDER_ACCESS,
   type FolderAccess,
@@ -14,7 +15,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { TextareaContainer } from "@/client/components/ui/textarea-container";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { folderNameFromPath } from "@/client/lib/path-utils";
@@ -170,7 +170,6 @@ export const PromptInput = ({
     null,
   );
   const openFilePreview = useSetAtom(openFilePreviewAtom);
-  const textareaRef = useRef<HTMLDivElement>(null);
   const promptEditorRef = useRef<PromptEditorRef>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useAtom(promptDraftAtom(draftKey));
@@ -641,63 +640,150 @@ export const PromptInput = ({
         </div>
       )}
 
-      <TextareaContainer
-        className={cn(
-          // isolate: the drag-and-drop overlay covers the composer and nothing
-          // beyond it. relative also lifts it over the folder tray tucked
-          // beneath its top edge.
-          "relative isolate overflow-visible rounded-[20px] p-4",
-          "bg-white shadow-xs dark:bg-gray-800",
-        )}
-        ref={textareaRef}
-        style={{ maxHeight: `${autoResizeMaxHeight}px` }}
-      >
-        {isDragging && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-[20px] border border-dashed border-foreground/20 bg-background/70">
-            <UploadSimpleIcon className="size-8 text-primary" />
-            <span className="text-sm font-medium text-primary">
-              Drop files or folders to add them
-            </span>
-          </div>
-        )}
+      <ComposerFrame
+        actions={
+          <>
+            <div className="flex min-w-0 flex-1 items-end gap-2">
+              <div className="min-w-0 flex-1">
+                <ModelPicker
+                  disabled={disabled || isLoading}
+                  errors={modelsErrors}
+                  isError={modelsIsError}
+                  isInvalidOurModel={isInvalidSelectedModel}
+                  isLoading={modelsIsLoading}
+                  models={models}
+                  modelURI={modelURI}
+                  onAddProvider={() => {
+                    openLogin(
+                      hasToken ? { reason: "provider-required" } : undefined,
+                    );
+                  }}
+                  onClose={() => {
+                    if (modelURI) {
+                      promptEditorRef.current?.focus();
+                    }
+                  }}
+                  onOpenChange={(open) => {
+                    if (open && modelsErrors && modelsErrors.length > 0) {
+                      void modelsRefetch();
+                    }
+                  }}
+                  onValueChange={onModelChange}
+                  selectedModel={selectedModel}
+                />
+              </div>
+            </div>
 
-        {attachedFiles.length > 0 && (
-          <div className="-m-2 mb-2 flex max-h-32 flex-wrap items-start gap-2 overflow-y-auto p-2">
-            {attachedFiles.map((item) => (
-              <AttachedFilePreview
-                filename={item.name}
-                key={item.id}
-                mimeType={item.mimeType}
-                onClick={() => {
-                  if (item.url) {
-                    openFilePreview({
-                      filename: item.name,
-                      mimeType: item.mimeType,
-                      size: item.size,
-                      url: item.url,
-                    });
-                  }
-                }}
-                onRemove={() => {
-                  removeAttachedItem(item.id);
-                }}
-                size={item.size}
-                url={item.url}
+            {features.context_ring && id && selectedSessionId && (
+              <SessionContextRing
+                id={id}
+                model={selectedModel}
+                selectedSessionId={selectedSessionId}
               />
-            ))}
-          </div>
-        )}
+            )}
 
+            {showProjectSelector && (
+              <PromptProjectSelector
+                disabled={disabled || isLoading}
+                onChange={setSelectedProjectId}
+                value={selectedProjectId}
+              />
+            )}
+
+            {browserToggle}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  className="size-8 p-0"
+                  disabled={disabled || isLoading}
+                  size="sm"
+                  variant="ghost"
+                >
+                  <PaperclipIcon className="size-5" weight="regular" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                  <FileIcon />
+                  Add files
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => void handleFolderPick()}>
+                  <FolderIcon />
+                  Add folder
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button
+              className="size-10 rounded-full p-0 disabled:opacity-100"
+              disabled={isStoppable ? false : !canSubmit}
+              onClick={(e) => {
+                if (isStoppable) {
+                  handleStop();
+                } else {
+                  const openInNewTab =
+                    allowOpenInNewTab && (isMacOS() ? e.metaKey : e.ctrlKey);
+                  handleSubmit(openInNewTab);
+                }
+              }}
+              variant="brand"
+            >
+              {isStoppable ? (
+                <StopIcon className="size-5" weight="fill" />
+              ) : isLoading ? (
+                <Spinner className="size-5" />
+              ) : (
+                <ArrowUpIcon className="size-5" />
+              )}
+            </Button>
+          </>
+        }
+        attachments={
+          attachedFiles.length > 0 &&
+          attachedFiles.map((item) => (
+            <AttachedFilePreview
+              filename={item.name}
+              key={item.id}
+              mimeType={item.mimeType}
+              onClick={() => {
+                if (item.url) {
+                  openFilePreview({
+                    filename: item.name,
+                    mimeType: item.mimeType,
+                    size: item.size,
+                    url: item.url,
+                  });
+                }
+              }}
+              onRemove={() => {
+                removeAttachedItem(item.id);
+              }}
+              size={item.size}
+              url={item.url}
+            />
+          ))
+        }
+        maxHeight={autoResizeMaxHeight}
+        overlay={
+          isDragging && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-[20px] border border-dashed border-foreground/20 bg-background/70">
+              <UploadSimpleIcon className="size-8 text-primary" />
+              <span className="text-sm font-medium text-primary">
+                Drop files or folders to add them
+              </span>
+            </div>
+          )
+        }
+      >
         {/* Keyed by draft: the editor reads its text once, at mount, so a
             surface that swaps which draft it is composing (one skill page to
             the next) needs a new editor rather than a new prop. */}
         <PromptEditor
           autoFocus={autoFocus}
-          className="min-h-12"
           defaultValue={value}
           disabled={disabled || isLoading}
           key={draftKeyString(draftKey)}
-          maxHeight={Math.max(autoResizeMaxHeight - 72, 48)}
           onChange={setValue}
           onPaste={handlePaste}
           onSubmit={(modifierPressed) => {
@@ -707,111 +793,15 @@ export const PromptInput = ({
           ref={promptEditorRef}
           skills={userInvocableSkills}
         />
+      </ComposerFrame>
 
-        <input
-          className="hidden"
-          multiple
-          onChange={handleFileSelect}
-          ref={fileInputRef}
-          type="file"
-        />
-        <div className="flex items-end justify-between gap-2 pt-2">
-          <div className="flex min-w-0 flex-1 items-end gap-2">
-            <div className="min-w-0 flex-1">
-              <ModelPicker
-                disabled={disabled || isLoading}
-                errors={modelsErrors}
-                isError={modelsIsError}
-                isInvalidOurModel={isInvalidSelectedModel}
-                isLoading={modelsIsLoading}
-                models={models}
-                modelURI={modelURI}
-                onAddProvider={() => {
-                  openLogin(
-                    hasToken ? { reason: "provider-required" } : undefined,
-                  );
-                }}
-                onClose={() => {
-                  if (modelURI) {
-                    promptEditorRef.current?.focus();
-                  }
-                }}
-                onOpenChange={(open) => {
-                  if (open && modelsErrors && modelsErrors.length > 0) {
-                    void modelsRefetch();
-                  }
-                }}
-                onValueChange={onModelChange}
-                selectedModel={selectedModel}
-              />
-            </div>
-          </div>
-
-          {features.context_ring && id && selectedSessionId && (
-            <SessionContextRing
-              id={id}
-              model={selectedModel}
-              selectedSessionId={selectedSessionId}
-            />
-          )}
-
-          {showProjectSelector && (
-            <PromptProjectSelector
-              disabled={disabled || isLoading}
-              onChange={setSelectedProjectId}
-              value={selectedProjectId}
-            />
-          )}
-
-          {browserToggle}
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                className="size-8 p-0"
-                disabled={disabled || isLoading}
-                size="sm"
-                variant="ghost"
-              >
-                <PaperclipIcon className="size-5" weight="regular" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                <FileIcon />
-                Add files
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void handleFolderPick()}>
-                <FolderIcon />
-                Add folder
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <Button
-            className="size-10 rounded-full p-0 disabled:opacity-100"
-            disabled={isStoppable ? false : !canSubmit}
-            onClick={(e) => {
-              if (isStoppable) {
-                handleStop();
-              } else {
-                const openInNewTab =
-                  allowOpenInNewTab && (isMacOS() ? e.metaKey : e.ctrlKey);
-                handleSubmit(openInNewTab);
-              }
-            }}
-            variant="brand"
-          >
-            {isStoppable ? (
-              <StopIcon className="size-5" weight="fill" />
-            ) : isLoading ? (
-              <Spinner className="size-5" />
-            ) : (
-              <ArrowUpIcon className="size-5" />
-            )}
-          </Button>
-        </div>
-      </TextareaContainer>
+      <input
+        className="hidden"
+        multiple
+        onChange={handleFileSelect}
+        ref={fileInputRef}
+        type="file"
+      />
     </div>
   );
 };

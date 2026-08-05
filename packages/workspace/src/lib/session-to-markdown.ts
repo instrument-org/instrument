@@ -8,6 +8,7 @@ import {
 } from "ai";
 import { alphabetical } from "radashi";
 
+import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type Session } from "../schemas/session";
 import { SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
@@ -945,13 +946,20 @@ function renderProjectContext(
   // `data-projectChanges` additions/removals and `data-attachedFolderChanges`
   // renames so the list matches what the agent currently sees, keyed by path
   // so removals/renames touch the right entry.
-  const folderNamesByPath = new Map<string, string>();
+  const projectFoldersByPath = new Map<
+    string,
+    { access: FolderAttachment.Access; name: string }
+  >();
   for (const part of allParts) {
     switch (part.type) {
       case "data-attachedFolderChanges": {
         for (const folder of part.data.renamed) {
-          if (folderNamesByPath.has(folder.path)) {
-            folderNamesByPath.set(folder.path, folder.newName);
+          const current = projectFoldersByPath.get(folder.path);
+          if (current) {
+            projectFoldersByPath.set(folder.path, {
+              ...current,
+              name: folder.newName,
+            });
           }
         }
         break;
@@ -959,17 +967,23 @@ function renderProjectContext(
       case "data-attachments": {
         for (const folder of part.data.folders ?? []) {
           if (folder.source === "project") {
-            folderNamesByPath.set(folder.path, folder.name);
+            projectFoldersByPath.set(folder.path, {
+              access: folder.access,
+              name: folder.name,
+            });
           }
         }
         break;
       }
       case "data-projectChanges": {
         for (const folder of part.data.foldersRemoved) {
-          folderNamesByPath.delete(folder.path);
+          projectFoldersByPath.delete(folder.path);
         }
         for (const folder of part.data.foldersAdded) {
-          folderNamesByPath.set(folder.path, folder.name);
+          projectFoldersByPath.set(folder.path, {
+            access: folder.access,
+            name: folder.name,
+          });
         }
         break;
       }
@@ -978,7 +992,7 @@ function renderProjectContext(
       }
     }
   }
-  const projectFolderNames = [...folderNamesByPath.values()];
+  const projectFolders = [...projectFoldersByPath.values()];
 
   const blocks: string[] = [];
 
@@ -993,10 +1007,11 @@ function renderProjectContext(
     );
   }
 
-  if (projectFolderNames.length > 0) {
+  if (projectFolders.length > 0) {
     blocks.push(
       buildAttachedFoldersText({
-        folders: projectFolderNames.map((name) => ({
+        folders: projectFolders.map(({ access, name }) => ({
+          access,
           mountPoint: attachedFolderMountPoint(name),
           name,
         })),

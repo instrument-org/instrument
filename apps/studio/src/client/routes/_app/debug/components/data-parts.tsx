@@ -96,7 +96,9 @@ const messages: SessionMessage.WithParts[] = [
       },
       {
         data: {
-          foldersAdded: [{ name: "assets", path: "/Users/me/assets" }],
+          foldersAdded: [
+            { access: "read-only", name: "assets", path: "/Users/me/assets" },
+          ],
           foldersRemoved: [],
           instructions: "Prefer Tailwind utilities. Keep copy concise.",
           instructionsChanged: true,
@@ -192,6 +194,9 @@ const messages: SessionMessage.WithParts[] = [
       },
       {
         data: {
+          accessChanged: [
+            { access: "read-only", name: "Photos", path: "/Users/me/Photos" },
+          ],
           removed: [{ name: "designs", path: "/Users/me/designs" }],
           renamed: [
             {

@@ -1,7 +1,10 @@
+import { FolderAccessLabel } from "@/client/components/folder-access-list";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
+import { displayPath, folderNameFromPath } from "@/client/lib/path-utils";
 import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { type FolderAttachment } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { DotsThreeOutlineVerticalIcon, TrashIcon } from "@phosphor-icons/react";
 import { toast } from "sonner";
@@ -22,22 +25,15 @@ import {
   type MenuComponents,
 } from "./ui/menu-components";
 
-interface ExtraItem {
-  icon: React.ReactNode;
-  label: string;
-  onSelect: () => void;
-}
-
 export function FolderAttachmentRow({
-  additionalMenuItems,
-  name,
+  access,
   onRemove,
   path,
   removeLabel = "Remove",
 }: {
-  additionalMenuItems?: ExtraItem[];
-  name: string;
-  onRemove: () => void;
+  access: FolderAttachment.Access;
+  /** Omitted for a folder this row is not the owner of, leaving reveal alone. */
+  onRemove?: () => void;
   path: string;
   removeLabel?: string;
 }) {
@@ -58,26 +54,19 @@ export function FolderAttachmentRow({
     const { Item, Separator } = menuComponents;
     return (
       <>
-        {additionalMenuItems && additionalMenuItems.length > 0 && (
-          <>
-            {additionalMenuItems.map((item) => (
-              <Item key={item.label} onSelect={item.onSelect}>
-                {item.icon}
-                <span>{item.label}</span>
-              </Item>
-            ))}
-            <Separator />
-          </>
-        )}
         <Item onSelect={() => void handleReveal()}>
           <RevealInFolderIcon className="size-4" />
           <span>{revealLabel}</span>
         </Item>
-        <Separator />
-        <Item onSelect={onRemove} variant="destructive">
-          <TrashIcon className="size-4" />
-          <span>{removeLabel}</span>
-        </Item>
+        {onRemove && (
+          <>
+            <Separator />
+            <Item onSelect={onRemove} variant="destructive">
+              <TrashIcon className="size-4" />
+              <span>{removeLabel}</span>
+            </Item>
+          </>
+        )}
       </>
     );
   };
@@ -88,11 +77,20 @@ export function FolderAttachmentRow({
         <div className="group flex items-center gap-x-2.5 px-3 py-2 hover:bg-muted/50">
           <MacFolderIcon className="size-8 shrink-0" />
           <div className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-xs font-medium">{name}</span>
-            <span className="truncate text-xs text-muted-foreground/70">
-              {path}
+            {/* The stored name is the mount name the agent works through
+                (`Home-Downloads`), which is not what the user picked; the
+                folder's own name and where it lives are. */}
+            <span className="truncate text-xs font-medium">
+              {folderNameFromPath(path)}
+            </span>
+            <span
+              className="truncate text-xs text-muted-foreground/70"
+              title={path}
+            >
+              {displayPath(path)}
             </span>
           </div>
+          <FolderAccessLabel access={access} />
           <DropdownMenu>
             <DropdownMenuTrigger className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground data-[state=open]:opacity-100">
               <DotsThreeOutlineVerticalIcon className="size-4" weight="fill" />

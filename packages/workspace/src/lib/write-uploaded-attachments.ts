@@ -45,7 +45,11 @@ export async function writeUploadedAttachments({
 }: {
   dir: TaskDir;
   files?: FileUpload.Type[];
-  folders?: { path: string; source?: FolderAttachment.Source }[];
+  folders?: {
+    access?: FolderAttachment.Access;
+    path: string;
+    source?: FolderAttachment.Source;
+  }[];
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
 }) {
@@ -115,17 +119,43 @@ export async function writeUploadedAttachments({
       const taskState = await getTaskState(dir);
       const existingFolders = Object.values(taskState.attachedFolders ?? {});
 
-      const newFolders: FolderAttachment.Type[] = folders.map((folder) => ({
-        createdAt: getCurrentDate().getTime(),
-        id: FolderAttachment.IdSchema.parse(ulid()),
-        name: "",
-        path: AbsolutePathSchema.parse(folder.path),
-        source: folder.source ?? "user",
-      }));
-
-      const allFolders = [...existingFolders, ...newFolders].sort(
-        (a, b) => a.createdAt - b.createdAt,
+      // A path already attached is not attached twice: two mounts over one
+      // directory get two names and can disagree about access, and the agent
+      // would be free to write through the permissive one. Re-attaching can
+      // still tighten access -- an explicit read-only attach is the user
+      // narrowing the grant -- but never widen it silently.
+      const existingByPath = new Map(
+        existingFolders.map((folder) => [folder.path, folder]),
       );
+      const newFolders: FolderAttachment.Type[] = [];
+      const tightened = new Map<string, FolderAttachment.Access>();
+      for (const folder of folders) {
+        const folderPath = AbsolutePathSchema.parse(folder.path);
+        const access = folder.access ?? "read-only";
+        const existing = existingByPath.get(folderPath);
+        if (existing) {
+          if (existing.access === "read-write" && access === "read-only") {
+            tightened.set(folderPath, access);
+          }
+          continue;
+        }
+        newFolders.push({
+          access,
+          createdAt: getCurrentDate().getTime(),
+          id: FolderAttachment.IdSchema.parse(ulid()),
+          name: "",
+          path: folderPath,
+          source: folder.source ?? "user",
+        });
+      }
+
+      const allFolders = [
+        ...existingFolders.map((folder) => {
+          const access = tightened.get(folder.path);
+          return access ? { ...folder, access } : folder;
+        }),
+        ...newFolders,
+      ].sort((a, b) => a.createdAt - b.createdAt);
       const names = assignFolderNames(allFolders);
 
       const nextFolders: Record<string, FolderAttachment.Type> = {};

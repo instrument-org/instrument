@@ -122,7 +122,7 @@ const projects = [
   {
     createdAt: new Date("2026-06-02T10:00:00Z"),
     description: "Marketing site and docs",
-    folders: ["/workspace/acme-web"],
+    folders: [{ access: "read-write", path: "/workspace/acme-web" }],
     id: ProjectIdSchema.parse("prj_N1FZH5VKD9779DKV5HZF1NB3XS"),
     instructions: "",
     name: "Acme Web",
@@ -130,7 +130,7 @@ const projects = [
   {
     createdAt: new Date("2026-07-14T09:30:00Z"),
     description: "iOS and Android clients",
-    folders: ["/workspace/acme-mobile"],
+    folders: [{ access: "read-only", path: "/workspace/acme-mobile" }],
     id: ProjectIdSchema.parse("prj_Q3H1K7XNFB99BFNX7K1H3QD5ZV"),
     instructions: "",
     name: "Mobile App",

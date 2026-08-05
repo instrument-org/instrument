@@ -31,7 +31,10 @@ import {
 } from "../lib/task-file-watcher";
 import { getTaskState } from "../lib/task-state-store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
-import { SKILLS_MOUNT_POINT } from "../lib/workspace-fs-layout";
+import {
+  effectiveFolderAccess,
+  SKILLS_MOUNT_POINT,
+} from "../lib/workspace-fs-layout";
 import {
   beginSkillChangeTracking,
   consumeSkillChanges,
@@ -92,6 +95,9 @@ async function buildAttachedFolderContext({
     folders.map(async ({ folder, mountPoint }) => {
       const exists = await pathExists(folder.path);
       return {
+        // The layout's rule, not the stored value, so the list the model reads
+        // cannot promise a write the filesystem refuses.
+        access: effectiveFolderAccess(folder),
         mountPoint,
         name: exists ? folder.name : `${folder.name} (no longer exists)`,
       };
@@ -198,7 +204,7 @@ export const mainAgent = setupAgent({
     - \`${F.downloads}/\` -- files you download (e.g. via the browser) land here; visible to the user. Move one to \`${F.output}/\` when it's a finished deliverable.
 
     Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`, everything else in \`${F.work}/\`. Your working directory is the task root (\`/task\`); use relative paths for task files (\`${F.work}/...\`, \`${F.output}/...\`). The only absolute paths you use are virtual mount paths: \`/mnt/...\` for attached folders and \`${SKILLS_MOUNT_POINT}/...\` for the workspace's own skills. Never use host paths like \`/Users/...\`.
-    - Folders the user attaches are mounted read-only under \`/mnt/\` and reflect the user's real files. They are NOT under the task root, so reach them by their \`/mnt/...\` path and never a relative one -- including from agent-authored HTML or CSS, where that absolute path is what lets the static asset origin resolve them.
+    - Folders the user attaches are mounted under \`/mnt/\` and reflect the user's real files, each either read-only or read-and-write; the attached-folders list says which. They are NOT under the task root, so reach them by their \`/mnt/...\` path and never a relative one -- including from agent-authored HTML or CSS, where that absolute path is what lets the static asset origin resolve them.
     - If needed files aren't available, tell the user they can upload them or attach the containing folder.
     - \`${SKILLS_MOUNT_POINT}/\` is the workspace's own skills folder, mounted writable.
       Each skill is a directory holding \`SKILL.md\` plus optional \`scripts/\`,
@@ -308,7 +314,7 @@ export const mainAgent = setupAgent({
         await buildAttachedFolderContext({
           folders: userAttachedFolders,
           intro:
-            "The user has attached these folders to this task. They are mounted read-only for direct access:",
+            "The user has attached these folders to this task, mounted for direct access:",
         }),
         taskLayout,
       ],

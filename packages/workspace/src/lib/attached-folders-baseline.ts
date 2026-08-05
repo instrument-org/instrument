@@ -1,6 +1,7 @@
 import { ok, safeTry } from "neverthrow";
 import { z } from "zod";
 
+import { FolderAttachment } from "../schemas/folder-attachment";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
@@ -10,6 +11,10 @@ import { StorageKey } from "./storage-key";
 
 const AttachedFoldersBaselineSchema = z.array(
   z.object({
+    // Defaulted so a baseline written before access was tracked still parses;
+    // the first diff against it then reports any folder that is now writable,
+    // which is the safe direction to be wrong in.
+    access: FolderAttachment.AccessSchema,
     name: z.string(),
     path: z.string(),
   }),

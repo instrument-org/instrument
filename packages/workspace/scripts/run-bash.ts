@@ -10,6 +10,7 @@
  *   pnpm script:run-bash -- --task <id> "ls work/"     # one-shot against existing task dir
  *   pnpm script:run-bash -- --tasks-dir /path/to/tasks # REPL with custom tasks root
  *   pnpm script:run-bash -- --attach /some/dir "ls /mnt" # mount a folder read-only under /mnt
+ *   pnpm script:run-bash -- --attach-writable /some/dir "..." # mount it read-write instead
  *
  * Header/metadata always go to stderr so stdout stays clean for agent use.
  */
@@ -38,7 +39,7 @@ import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
 
 function parseArgs(argv: string[]) {
-  const attach: string[] = [];
+  const attach: { access: FolderAttachment.Access; path: string }[] = [];
   let bail = false;
   const commands: string[] = [];
   let taskId: string | undefined;
@@ -51,7 +52,15 @@ function parseArgs(argv: string[]) {
       case "--attach": {
         const dir = remaining.shift();
         if (dir) {
-          attach.push(path.resolve(dir));
+          attach.push({ access: "read-only", path: path.resolve(dir) });
+        }
+
+        break;
+      }
+      case "--attach-writable": {
+        const dir = remaining.shift();
+        if (dir) {
+          attach.push({ access: "read-write", path: path.resolve(dir) });
         }
 
         break;
@@ -147,10 +156,11 @@ for (const dirName of [
 
 const sessionId = StoreId.newSessionId();
 
-const draftFolders = args.attach.map((folderPath) => ({
+const draftFolders = args.attach.map((folder) => ({
+  access: folder.access,
   createdAt: Date.now(),
   id: FolderAttachment.IdSchema.parse(ulid()),
-  path: AbsolutePathSchema.parse(folderPath),
+  path: AbsolutePathSchema.parse(folder.path),
 }));
 const folderNames = assignFolderNames(draftFolders);
 const attachedFolders: Record<string, FolderAttachment.Type> = {};

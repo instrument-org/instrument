@@ -209,11 +209,14 @@ export function resolveToolPath(layout: WorkspaceFsLayout, inputPath: string) {
 
 /**
  * Resolve a write-path input against the workspace layout. Task-relative paths,
- * the task's own virtual paths (/task/...), and the writable skills mount
- * (/skills/...) resolve normally; read-only mounts are rejected with
- * copy-into-task guidance instead of silently landing somewhere else. Whether a
- * non-task mount is writable is decided by its readOnly flag, never by a
- * per-mount special case here.
+ * the task's own virtual paths (/task/...), and writable mounts (/skills/...,
+ * a folder the user granted write access) resolve normally; read-only mounts
+ * are rejected with copy-into-task guidance instead of silently landing
+ * somewhere else. Whether a non-task mount is writable is decided by its
+ * readOnly flag, never by a per-mount special case here.
+ *
+ * `mount` in the result is the mount that owns the path, or null for a path
+ * inside the task.
  */
 export function resolveWritableToolPath(options: {
   inputPath: string;
@@ -223,7 +226,10 @@ export function resolveWritableToolPath(options: {
   const trimmedPath = inputPath.trim();
 
   if (!path.isAbsolute(trimmedPath)) {
-    return resolveToolPath(layout, trimmedPath);
+    return resolveToolPath(layout, trimmedPath).map((resolved) => ({
+      ...resolved,
+      mount: null,
+    }));
   }
 
   const result = resolveVirtualAbsolutePath(layout, trimmedPath);
@@ -237,7 +243,10 @@ export function resolveWritableToolPath(options: {
         `Copy the file into the task first (e.g. cp '${displayPath}' attachments/) and work on the copy.`,
     );
   }
-  return ok({ absolutePath, displayPath });
+  // The owning mount rides along so a caller whose output contract is
+  // task-relative can refuse a mount path rather than silently resolving it
+  // against the task directory.
+  return ok({ absolutePath, displayPath, mount });
 }
 
 function fileExistsSync(filePath: string): boolean {

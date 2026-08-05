@@ -5,13 +5,18 @@ import { attachedFolderChangesModelNote } from "./attached-folder-changes-model-
 describe("attachedFolderChangesModelNote", () => {
   it("returns null when nothing changed", () => {
     expect(
-      attachedFolderChangesModelNote({ removed: [], renamed: [] }),
+      attachedFolderChangesModelNote({
+        accessChanged: [],
+        removed: [],
+        renamed: [],
+      }),
     ).toBeNull();
   });
 
   it("describes removed folders", () => {
     expect(
       attachedFolderChangesModelNote({
+        accessChanged: [],
         removed: [{ name: "Downloads", path: "/base/Downloads" }],
         renamed: [],
       }),
@@ -27,6 +32,7 @@ describe("attachedFolderChangesModelNote", () => {
   it("describes renamed folders", () => {
     expect(
       attachedFolderChangesModelNote({
+        accessChanged: [],
         removed: [],
         renamed: [
           {
@@ -48,6 +54,7 @@ describe("attachedFolderChangesModelNote", () => {
   it("describes both in one note", () => {
     expect(
       attachedFolderChangesModelNote({
+        accessChanged: [],
         removed: [{ name: "Old", path: "/base/Old" }],
         renamed: [
           {
@@ -65,6 +72,26 @@ describe("attachedFolderChangesModelNote", () => {
 
       These attached folders were renamed because another attached folder now shares their old name. Use the new name and its /mnt path instead of any old one you referenced earlier:
       - Downloads -> Local-Downloads
+      </instrument-system-note>"
+    `);
+  });
+
+  it("describes an access change", () => {
+    expect(
+      attachedFolderChangesModelNote({
+        accessChanged: [
+          { access: "read-write", name: "Photos", path: "/base/Photos" },
+          { access: "read-only", name: "Docs", path: "/base/Docs" },
+        ],
+        removed: [],
+        renamed: [],
+      }),
+    ).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      The user changed what you may do with these attached folders. This supersedes the access level listed in your attached-folders context, which may be older than this message:
+      - Photos: now read and write
+      - Docs: now read-only
       </instrument-system-note>"
     `);
   });

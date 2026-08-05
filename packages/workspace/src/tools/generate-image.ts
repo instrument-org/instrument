@@ -8,7 +8,7 @@ import path from "node:path";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
+import { TASK_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
 import { executeError } from "../lib/execute-error";
 import { findAvailableName } from "../lib/find-available-name";
@@ -51,8 +51,8 @@ const GeneratedImageFileSchema = z.object({
 const PARTIAL_THROTTLE_MS = 400;
 
 const SourceImageFileSchema = z.object({
-  // Task-relative, or a read-only mount path (/mnt/<name>/...); mount paths
-  // cannot be served by the task asset server, so the UI falls back to a
+  // Task-relative, or an attached folder's mount path (/mnt/<name>/...); mount
+  // paths cannot be served by the task asset server, so the UI falls back to a
   // name-only chip for them.
   filePath: z.string(),
   modifiedAt: z.number(),
@@ -81,7 +81,7 @@ export const GenerateImage = setupTool({
     }),
     [INPUT_PARAMS.sourceImages]: z.array(z.string()).optional().meta({
       description:
-        "Paths to images used for image-to-image (img2img) conditioning: task-relative, or an attached folder's read-only mount path (/mnt/<name>/...). Use when the user wants to edit, transform, or use an existing image as a visual reference or style source.",
+        "Paths to images used for image-to-image (img2img) conditioning: task-relative, or an attached folder's mount path (/mnt/<name>/...). Use when the user wants to edit, transform, or use an existing image as a visual reference or style source.",
     }),
   }),
   name: "generate_image",
@@ -151,6 +151,17 @@ export const GenerateImage = setupTool({
       yield err(filePathResult.error);
       return;
     }
+    // Everything below resolves against the task directory and the tool's
+    // output contract is a task-relative path, so a mount path would land in a
+    // shadow tree inside the task rather than in the user's folder. Generate
+    // into the task and move the result instead.
+    if (filePathResult.value.mount) {
+      yield executeError(
+        `Images cannot be generated directly into "${filePathResult.value.displayPath}". ` +
+          `Generate into the task (e.g. ${TASK_FOLDER_NAMES.output}/image.png), then move it there with the bash tool if it belongs in the folder.`,
+      );
+      return;
+    }
     const { displayPath: fixedPath } = filePathResult.value;
 
     // Strip extension if mistakenly provided
@@ -182,7 +193,7 @@ export const GenerateImage = setupTool({
       const resolvedSourcePaths = [];
       for (const inputPath of input.sourceImages) {
         // Sources are reads in our own process (not a native subprocess), so
-        // they resolve like read_file: task paths or read-only mounts, with
+        // they resolve like read_file: task paths or attached mounts, with
         // the same symlink containment.
         const pathResult = resolveExistingFilePath({ inputPath, layout });
         if (pathResult.isErr()) {

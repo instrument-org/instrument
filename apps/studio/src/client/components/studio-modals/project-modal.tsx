@@ -1,4 +1,10 @@
 import { projectModalAtom } from "@/client/atoms/project-modal";
+import {
+  DEFAULT_FOLDER_ACCESS,
+  type FolderAccess,
+  FolderAccessSelect,
+  FolderAccessWarning,
+} from "@/client/components/folder-access-list";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -17,7 +23,7 @@ import { Textarea } from "@/client/components/ui/textarea";
 import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
-import { folderNameFromPath } from "@/client/lib/path-utils";
+import { displayPath, folderNameFromPath } from "@/client/lib/path-utils";
 import { useWindowFileDrop } from "@/client/lib/use-window-file-drop";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -157,7 +163,7 @@ function ProjectModalForm({
   taskId?: TaskId;
 }) {
   const isEditing = editProject !== undefined;
-  const [folders, setFolders] = useState<string[]>([]);
+  const [folders, setFolders] = useState<FolderAccess[]>([]);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Name validation runs server-side (rules vary per OS); attribute those
@@ -173,7 +179,11 @@ function ProjectModalForm({
   };
 
   const addFolderPath = (path: string) => {
-    setFolders((prev) => (prev.includes(path) ? prev : [...prev, path]));
+    setFolders((prev) =>
+      prev.some((folder) => folder.path === path)
+        ? prev
+        : [...prev, { access: DEFAULT_FOLDER_ACCESS, path }],
+    );
   };
 
   const { isDragging } = useWindowFileDrop({
@@ -377,6 +387,71 @@ function ProjectModalForm({
 
           {!isEditing && (
             <div className="flex flex-col gap-2">
+              {folders.some((folder) => folder.access === "read-write") && (
+                <FolderAccessWarning
+                  folderCount={
+                    folders.filter((folder) => folder.access === "read-write")
+                      .length
+                  }
+                  onUseReadOnly={() => {
+                    setFolders((prev) =>
+                      prev.map((folder) => ({
+                        ...folder,
+                        access: "read-only",
+                      })),
+                    );
+                  }}
+                />
+              )}
+              {/* One rounded block with rules between the folders rather than
+                  a card each: at this size a stack of separate cards reads as
+                  several controls instead of one list. */}
+              <div className="divide-y overflow-hidden rounded-md border empty:hidden">
+                {folders.map((folder) => (
+                  <div
+                    className="flex min-w-0 items-center gap-x-2 px-4 py-2"
+                    key={folder.path}
+                  >
+                    <MacFolderIcon className="size-7 shrink-0" />
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-sm font-medium">
+                        {folderNameFromPath(folder.path)}
+                      </span>
+                      <span
+                        className="truncate text-xs text-muted-foreground"
+                        title={folder.path}
+                      >
+                        {displayPath(folder.path)}
+                      </span>
+                    </div>
+                    <FolderAccessSelect
+                      access={folder.access}
+                      folderName={folderNameFromPath(folder.path)}
+                      onChange={(access) => {
+                        setFolders((prev) =>
+                          prev.map((f) =>
+                            f.path === folder.path ? { ...f, access } : f,
+                          ),
+                        );
+                      }}
+                    />
+                    <button
+                      aria-label="Remove folder"
+                      className="-mr-1 shrink-0 rounded-sm p-1 text-muted-foreground opacity-50 hover:bg-muted/50 hover:opacity-100"
+                      onClick={() => {
+                        setFolders((prev) =>
+                          prev.filter((f) => f.path !== folder.path),
+                        );
+                      }}
+                      type="button"
+                    >
+                      <XIcon className="size-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {/* Below the list: attaching a folder appends to what is already
+                  there, so the button sits where the next row will appear. */}
               <Button
                 className={cn(
                   "w-full justify-between",
@@ -391,32 +466,6 @@ function ProjectModalForm({
                 </span>
                 <PlusIcon className="size-4" />
               </Button>
-              {folders.map((path) => (
-                <div
-                  className="flex min-w-0 items-center gap-x-2 overflow-hidden rounded-md border px-4 py-2"
-                  key={path}
-                >
-                  <MacFolderIcon className="size-7 shrink-0" />
-                  <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-sm font-medium">
-                      {folderNameFromPath(path)}
-                    </span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {path}
-                    </span>
-                  </div>
-                  <button
-                    aria-label="Remove folder"
-                    className="-mr-1 shrink-0 rounded-sm p-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                    onClick={() => {
-                      setFolders((prev) => prev.filter((f) => f !== path));
-                    }}
-                    type="button"
-                  >
-                    <XIcon className="size-4" />
-                  </button>
-                </div>
-              ))}
             </div>
           )}
         </div>

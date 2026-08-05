@@ -36,7 +36,7 @@ import {
   UsageSummarySchema,
 } from "../../../lib/usage-summary";
 import { FileUpload } from "../../../schemas/file-upload";
-import { type FolderAttachment } from "../../../schemas/folder-attachment";
+import { FolderAttachment } from "../../../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../../../schemas/paths";
 import { type Project } from "../../../schemas/project";
 import { ProjectIdSchema } from "../../../schemas/project-id";
@@ -138,7 +138,14 @@ const create = base
   .input(
     z.object({
       files: z.array(FileUpload.Schema).optional(),
-      folders: z.array(z.object({ path: z.string() })).optional(),
+      folders: z
+        .array(
+          z.object({
+            access: FolderAttachment.AccessSchema,
+            path: z.string(),
+          }),
+        )
+        .optional(),
       intent: SessionMessageDataPart.IntentDataPartSchema.shape.text.optional(),
       modelURI: AIGatewayModelURI.Schema,
       name: z.string().trim().min(1).optional(),
@@ -223,10 +230,12 @@ const create = base
       // the user attached). Each folder carries its source so later consumers
       // tell project from user folders without re-deriving from paths.
       const userFolders = (folders ?? []).map((folder) => ({
+        access: folder.access,
         path: folder.path,
         source: "user" as const,
       }));
       let mergedFolders: {
+        access: FolderAttachment.Access;
         path: string;
         source: FolderAttachment.Source;
       }[] = userFolders;
@@ -235,8 +244,12 @@ const create = base
         mergedFolders = [
           ...userFolders,
           ...project.folders
-            .filter((path) => !seen.has(path))
-            .map((path) => ({ path, source: "project" as const })),
+            .filter((folder) => !seen.has(folder.path))
+            .map((folder) => ({
+              access: folder.access,
+              path: folder.path,
+              source: "project" as const,
+            })),
         ];
       }
 

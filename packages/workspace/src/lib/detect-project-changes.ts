@@ -19,11 +19,13 @@ import { getTaskState, setTaskState } from "./task-state-store";
  * with any earlier changes) when a user message is sent, and reports drift in
  * instructions or attached folders. No watcher: a single read at send time.
  *
- * Folder additions/removals are applied to the task's attached folders here so
- * they become standing context; the returned `data-projectChanges` part is the
- * one-time announcement. Because instructions are read from the latest change
- * part and folders from task state, an already-reported change won't re-announce
- * on the next message. Names for the whole surviving+new folder set are
+ * Folder additions, removals, and access changes are applied to the task's
+ * attached folders here so they become standing context; the returned
+ * `data-projectChanges` part announces the additions and removals. An access
+ * change is announced by detectAttachedFolderChanges instead, which diffs task
+ * state and so reports one however it was made. Because instructions
+ * are read from the latest change part and folders from task state, an
+ * already-reported change won't re-announce on the next message. Names for the whole surviving+new folder set are
  * recomputed on every run, even with nothing added/removed -- cheap and
  * idempotent, so it also corrects any folder named under an earlier version of
  * assignFolderNames without a separate migration. Returns undefined for
@@ -73,26 +75,37 @@ export function detectProjectChanges({
       const taskState = await getTaskState(dir);
       const attachedFolders = taskState.attachedFolders ?? {};
 
-      const liveFolderPaths = new Set(project.folders);
-      const currentProjectPaths = new Set<string>(
-        Object.values(attachedFolders)
-          .filter((folder) => folder.source === "project")
-          .map((folder) => folder.path),
+      const liveFolderAccess = new Map(
+        project.folders.map((folder) => [folder.path, folder.access]),
+      );
+      const attachedPaths = new Set<string>(
+        Object.values(attachedFolders).map((folder) => folder.path),
       );
 
       const foldersRemoved: { name: string; path: string }[] = [];
       const survivingFolders: FolderAttachment.Type[] = [];
+      let accessChanged = false;
       for (const folder of Object.values(attachedFolders)) {
-        if (folder.source === "project" && !liveFolderPaths.has(folder.path)) {
-          foldersRemoved.push({ name: folder.name, path: folder.path });
-        } else {
+        if (folder.source !== "project") {
           survivingFolders.push(folder);
+          continue;
         }
+        const liveAccess = liveFolderAccess.get(folder.path);
+        if (liveAccess === undefined) {
+          foldersRemoved.push({ name: folder.name, path: folder.path });
+          continue;
+        }
+        // The project owns the access level of the folders it contributes, so
+        // a change there reaches every task that carries them.
+        if (liveAccess !== folder.access) {
+          accessChanged = true;
+        }
+        survivingFolders.push({ ...folder, access: liveAccess });
       }
 
       const newFolders: FolderAttachment.Type[] = [];
-      for (const folderPath of project.folders) {
-        if (currentProjectPaths.has(folderPath)) {
+      for (const { access, path: folderPath } of project.folders) {
+        if (attachedPaths.has(folderPath)) {
           continue;
         }
         const parsedPath = AbsolutePathSchema.safeParse(folderPath);
@@ -100,6 +113,7 @@ export function detectProjectChanges({
           continue;
         }
         newFolders.push({
+          access,
           createdAt: getCurrentDate().getTime(),
           id: FolderAttachment.IdSchema.parse(ulid()),
           name: "",
@@ -116,7 +130,7 @@ export function detectProjectChanges({
       const names = assignFolderNames(allFolders);
 
       const nextFolders: Record<string, FolderAttachment.Type> = {};
-      let stateChanged = foldersRemoved.length > 0;
+      let stateChanged = foldersRemoved.length > 0 || accessChanged;
       for (const folder of allFolders) {
         const name = names.get(folder.id) ?? folder.name;
         if (name !== folder.name) {
@@ -133,12 +147,11 @@ export function detectProjectChanges({
         await setTaskState(dir, { attachedFolders: nextFolders });
       }
 
-      const foldersAdded: { name: string; path: string }[] = newFolders.map(
-        (folder) => ({
-          name: names.get(folder.id) ?? folder.path,
-          path: folder.path,
-        }),
-      );
+      const foldersAdded = newFolders.map((folder) => ({
+        access: folder.access,
+        name: names.get(folder.id) ?? folder.path,
+        path: folder.path,
+      }));
 
       return ok({
         data: {

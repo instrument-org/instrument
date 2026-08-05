@@ -303,6 +303,7 @@ function SkillPage() {
             placeholder="Describe the task"
             ref={promptInputRef}
             showProjectSelector
+            showWorkInFolder
           />
         </div>
         <p className="mt-4 max-h-24 overflow-y-auto pr-2 text-sm/relaxed text-muted-foreground">

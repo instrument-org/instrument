@@ -303,7 +303,7 @@ export const ReadFile = setupTool({
   inputSchema: BaseInputSchema.extend({
     [INPUT_PARAMS.filePath]: z.string().meta({
       description:
-        "Relative path to the file to read, or a read-only attached-folder mount path (/mnt/<name>/...)",
+        "Relative path to the file to read, or an attached-folder mount path (/mnt/<name>/...)",
     }),
     [INPUT_PARAMS.limit]: z
       .number()
@@ -402,10 +402,10 @@ export const ReadFile = setupTool({
   ]),
 }).create({
   description: dedent`
-    Reads a file from the task, including read-only folders the user attached (mounted under /mnt/<name>/). You can access any file directly by using this tool.
+    Reads a file from the task, including folders the user attached (mounted under /mnt/<name>/). You can access any file directly by using this tool.
 
     Usage:
-    - The ${INPUT_PARAMS.filePath} parameter must be a relative path to a file in the task, or an attached folder's read-only mount path (/mnt/<name>/...). E.g. ./${TASK_FOLDER_NAMES.attachments}/upload.txt
+    - The ${INPUT_PARAMS.filePath} parameter must be a relative path to a file in the task, or an attached folder's mount path (/mnt/<name>/...). E.g. ./${TASK_FOLDER_NAMES.attachments}/upload.txt
     - By default, it reads up to ${DEFAULT_READ_LIMIT} lines starting from the beginning of the file, and at most ${formatBytes(MAX_BYTES)} of content -- whichever limit is reached first. A long file therefore often stops well before ${DEFAULT_READ_LIMIT} lines; the output says where it stopped and which limit applied.
     - You can optionally specify a line ${INPUT_PARAMS.offset} and ${INPUT_PARAMS.limit} (especially handy for long files), but it's recommended to read the whole file by not providing these parameters.
     - When using ${INPUT_PARAMS.limit}, avoid using too small of a limit (< 100), which can lead to tons of tokens being used.

@@ -1,5 +1,6 @@
 import { type ImageModelV3 } from "@ai-sdk/provider";
 import mockFs from "mock-fs";
+import fs from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FolderAttachment } from "../schemas/folder-attachment";
@@ -38,6 +39,7 @@ const taskId = createMockTaskConfig(TaskIdSchema.parse("test"), {
 
 const attachedFolders: Record<string, FolderAttachment.Type> = {
   Photos: {
+    access: "read-only",
     createdAt: 0,
     id: FolderAttachment.IdSchema.parse("photos-id"),
     name: "Photos",
@@ -129,5 +131,38 @@ describe("GenerateImage source images", () => {
     );
 
     expect(result._unsafeUnwrapErr().message).toContain('"/mnt/Photos/..."');
+  });
+
+  // Everything below the path resolve assumes a task-relative path, so a mount
+  // path has to be refused rather than joined onto the task directory.
+  it("refuses to generate into a mount path, whatever its access", async () => {
+    mockFs({
+      "/ext/Photos": {},
+      [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} },
+    });
+
+    const result = await runTool(GenerateImage, {
+      ...makeExecuteArgs({
+        explanation: "write into the folder",
+        filePath: "/mnt/Photos/generated",
+        prompt: "A cat",
+      }),
+      taskState: {
+        attachedFolders: {
+          Photos: {
+            access: "read-write",
+            createdAt: 0,
+            id: FolderAttachment.IdSchema.parse("photos-id"),
+            name: "Photos",
+            path: AbsolutePathSchema.parse("/ext/Photos"),
+            source: "user",
+          },
+        },
+      },
+    });
+
+    const error = result._unsafeUnwrapErr();
+    expect(error.message).toContain("cannot be generated directly into");
+    await expect(fs.readdir("/ext/Photos")).resolves.toEqual([]);
   });
 });

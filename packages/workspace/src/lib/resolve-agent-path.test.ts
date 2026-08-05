@@ -18,8 +18,14 @@ function abs(filePath: string) {
   return AbsolutePathSchema.parse(filePath);
 }
 
-function attachment(id: string, name: string, folderPath: string) {
+function attachment(
+  id: string,
+  name: string,
+  folderPath: string,
+  access: FolderAttachment.Access = "read-only",
+) {
   return {
+    access,
     createdAt: 0,
     id: FolderAttachment.IdSchema.parse(id),
     name,
@@ -316,5 +322,74 @@ describe("resolveWritableToolPath", () => {
       layout,
     });
     expect(result.isErr()).toBe(true);
+  });
+});
+
+describe("symlink containment on a read-write mount", () => {
+  let tmpDir: string;
+  let layout: ReturnType<typeof buildWorkspaceFsLayout>;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), `${APP_NAME_SLUG}-mount-`),
+    );
+    await fs.mkdir(path.join(tmpDir, "task"));
+    await fs.mkdir(path.join(tmpDir, "Docs"));
+    await fs.mkdir(path.join(tmpDir, "outside"));
+    await fs.writeFile(path.join(tmpDir, "outside", "existing.txt"), "secret");
+    await fs.symlink(
+      path.join(tmpDir, "outside"),
+      path.join(tmpDir, "Docs", "escape"),
+    );
+    layout = buildWorkspaceFsLayout({
+      attachedFolders: {
+        Docs: attachment(
+          "docs",
+          "Docs",
+          path.join(tmpDir, "Docs"),
+          "read-write",
+        ),
+      },
+      taskHostRoot: TaskDirSchema.parse(path.join(tmpDir, "task")),
+    });
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { force: true, recursive: true });
+  });
+
+  it("resolves a plain path inside the mount", () => {
+    const result = resolveWritableToolPath({
+      inputPath: "/mnt/Docs/notes.md",
+      layout,
+    });
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value.absolutePath).toBe(
+        path.join(tmpDir, "Docs", "notes.md"),
+      );
+    }
+  });
+
+  // A read-only mount only ever had to contain reads, so containment could rely
+  // on the target existing. A writable mount is a write primitive: the path a
+  // write creates does not exist yet, and the directories leading to it may not
+  // either.
+  it.each([
+    { input: "/mnt/Docs/escape/existing.txt", label: "an existing file" },
+    {
+      input: "/mnt/Docs/escape/new-file.txt",
+      label: "a file yet to be created",
+    },
+    {
+      input: "/mnt/Docs/escape/deeper/new-file.txt",
+      label: "a file under directories yet to be created",
+    },
+  ])("refuses $label behind a symlink out of the mount", ({ input }) => {
+    const result = resolveWritableToolPath({ inputPath: input, layout });
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.message).toMatch(/resolves outside its mount/);
+    }
   });
 });

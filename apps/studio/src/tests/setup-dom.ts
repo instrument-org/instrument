@@ -41,3 +41,14 @@ Object.defineProperty(window, "electron", {
   configurable: true,
   value: { process: { platform: "darwin" } },
 });
+
+// The other half of that bridge. `homeDir` is pinned for the same reason as the
+// platform: anything shortening a path to `~` has to read the same wherever the
+// suite runs, rather than following the machine's own home directory.
+Object.defineProperty(window, "api", {
+  configurable: true,
+  value: {
+    getFilePath: (file: File) => file.name,
+    homeDir: "/Users/sam",
+  },
+});

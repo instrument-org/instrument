@@ -24,7 +24,7 @@ The task id doubles as the DNS label, which is what forces [`TaskIdSchema`](../.
 | URL path        | Virtual path      | Backed by                        |
 | --------------- | ----------------- | -------------------------------- |
 | `/output/a.png` | `/task/output/a.png` | The task directory            |
-| `/mnt/Photos/cat.png` | `/mnt/Photos/cat.png` | An attached folder, read-only |
+| `/mnt/Photos/cat.png` | `/mnt/Photos/cat.png` | An attached folder |
 | `/skills/...`   | `/task/skills/...` | Not the `/skills` mount — the workspace skills mount is not served |
 
 So the origin root is the task mount, and `/mnt` is carved out of it as a reserved prefix. That is a deliberate shape rather than an accident: it keeps root-relative references inside agent-authored HTML (`<link href="/style.css">`) working, and it is what the agent prompt teaches — attached folders are reachable "including from agent-authored HTML or CSS, where that absolute path is what lets the static asset origin resolve them" ([`main.ts`](../../packages/workspace/src/agents/main.ts)).

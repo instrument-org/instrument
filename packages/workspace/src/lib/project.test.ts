@@ -20,6 +20,7 @@ import {
   listInvalidProjectFolders,
   listProjects,
   removeFolderFromProject,
+  setProjectFolderAccess,
   trashInvalidProjectFolder,
   updateProject,
 } from "./project";
@@ -138,21 +139,70 @@ describe("project lib", () => {
     const created = createResult._unsafeUnwrap();
     expect(created.folders).toEqual([]);
 
-    const added = await addFolderToProject(created.id, "/tmp/a");
-    expect(added._unsafeUnwrap().folders).toEqual(["/tmp/a"]);
+    const added = await addFolderToProject(created.id, "/tmp/a", "read-write");
+    expect(added._unsafeUnwrap().folders).toEqual([
+      { access: "read-write", path: "/tmp/a" },
+    ]);
 
-    // Adding the same path again is a no-op (deduped).
-    const again = await addFolderToProject(created.id, "/tmp/a");
-    expect(again._unsafeUnwrap().folders).toEqual(["/tmp/a"]);
+    // Adding the same path again is a no-op (deduped), and does not change the
+    // access the folder was added with.
+    const again = await addFolderToProject(created.id, "/tmp/a", "read-only");
+    expect(again._unsafeUnwrap().folders).toEqual([
+      { access: "read-write", path: "/tmp/a" },
+    ]);
 
-    const more = await addFolderToProject(created.id, "/tmp/b");
-    expect(more._unsafeUnwrap().folders).toEqual(["/tmp/a", "/tmp/b"]);
+    const more = await addFolderToProject(created.id, "/tmp/b", "read-only");
+    expect(more._unsafeUnwrap().folders).toEqual([
+      { access: "read-write", path: "/tmp/a" },
+      { access: "read-only", path: "/tmp/b" },
+    ]);
+
+    const switched = await setProjectFolderAccess(
+      created.id,
+      "/tmp/b",
+      "read-write",
+    );
+    expect(switched._unsafeUnwrap().folders).toEqual([
+      { access: "read-write", path: "/tmp/a" },
+      { access: "read-write", path: "/tmp/b" },
+    ]);
 
     const removed = await removeFolderFromProject(created.id, "/tmp/a");
-    expect(removed._unsafeUnwrap().folders).toEqual(["/tmp/b"]);
+    expect(removed._unsafeUnwrap().folders).toEqual([
+      { access: "read-write", path: "/tmp/b" },
+    ]);
 
     const fetched = await getProject(created.id);
-    expect(fetched._unsafeUnwrap().folders).toEqual(["/tmp/b"]);
+    expect(fetched._unsafeUnwrap().folders).toEqual([
+      { access: "read-write", path: "/tmp/b" },
+    ]);
+  });
+
+  // Folders were stored as bare path strings before access was a choice; they
+  // still load, as read-only.
+  it("reads folders written as plain paths", async () => {
+    const createResult = await createProject({ name: "Legacy Folders" });
+    const created = createResult._unsafeUnwrap();
+
+    const settingsPath = path.join(
+      root,
+      PROJECTS_DIR_NAME,
+      "Legacy Folders",
+      ".instrument",
+      "settings.json",
+    );
+    const settings = JSON.parse(await fs.readFile(settingsPath, "utf8")) as {
+      folders: unknown;
+    };
+    await fs.writeFile(
+      settingsPath,
+      JSON.stringify({ ...settings, folders: ["/tmp/legacy"] }),
+    );
+
+    const fetched = await getProject(created.id);
+    expect(fetched._unsafeUnwrap().folders).toEqual([
+      { access: "read-only", path: "/tmp/legacy" },
+    ]);
   });
 
   it("updates instructions in place", async () => {

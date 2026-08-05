@@ -28,6 +28,7 @@ async function run(command: string, attach = false) {
     attachedFolders: attach
       ? {
           docs: {
+            access: "read-only",
             createdAt: Date.now(),
             id: FolderAttachment.IdSchema.parse("docs-id"),
             name: "Docs",
@@ -162,6 +163,7 @@ describe("virtualizeOutput", () => {
     return buildWorkspaceFsLayout({
       attachedFolders: {
         docs: {
+          access: "read-only",
           createdAt: 0,
           id: FolderAttachment.IdSchema.parse("docs-id"),
           name: "Docs",

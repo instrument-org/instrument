@@ -8,8 +8,10 @@ import nodePath from "node:path";
 import { parallel } from "radashi";
 
 import { PROJECT_INSTRUCTIONS_FILE_NAME } from "../constants";
+import { type FolderAttachment } from "../schemas/folder-attachment";
 import {
   type Project,
+  type ProjectFolder,
   type ProjectSettings,
   ProjectSettingsSchema,
 } from "../schemas/project";
@@ -30,6 +32,7 @@ interface InvalidProjectFolder {
 export async function addFolderToProject(
   id: ProjectId,
   path: string,
+  access: FolderAttachment.Access,
 ): Promise<
   Result<
     Project,
@@ -43,9 +46,9 @@ export async function addFolderToProject(
   if (project.isErr()) {
     return err(project.error);
   }
-  const folders = project.value.folders.includes(path)
+  const folders = project.value.folders.some((folder) => folder.path === path)
     ? project.value.folders
-    : [...project.value.folders, path];
+    : [...project.value.folders, { access, path }];
   return updateProject(id, { folders });
 }
 
@@ -83,7 +86,7 @@ export async function createProject({
   name,
 }: {
   description?: string;
-  folders?: string[];
+  folders?: ProjectFolder[];
   instructions?: string;
   name: string;
 }): Promise<
@@ -259,7 +262,7 @@ export async function removeFolderFromProject(
     return err(project.error);
   }
   return updateProject(id, {
-    folders: project.value.folders.filter((folder) => folder !== path),
+    folders: project.value.folders.filter((folder) => folder.path !== path),
   });
 }
 
@@ -268,6 +271,30 @@ export async function resolveProjectDir(
 ): Promise<string | undefined> {
   const folder = await resolveProjectFolder(id);
   return folder ? projectDir(folder) : undefined;
+}
+
+export async function setProjectFolderAccess(
+  id: ProjectId,
+  path: string,
+  access: FolderAttachment.Access,
+): Promise<
+  Result<
+    Project,
+    | TypedError.Conflict
+    | TypedError.FileSystem
+    | TypedError.NotFound
+    | TypedError.Parse
+  >
+> {
+  const project = await getProject(id);
+  if (project.isErr()) {
+    return err(project.error);
+  }
+  return updateProject(id, {
+    folders: project.value.folders.map((folder) =>
+      folder.path === path ? { ...folder, access } : folder,
+    ),
+  });
 }
 
 // Sends an unloadable project folder to the OS trash. Refuses any folder that
@@ -313,7 +340,7 @@ export async function updateProject(
     name,
   }: {
     description?: string;
-    folders?: string[];
+    folders?: ProjectFolder[];
     instructions?: string;
     name?: string;
   },

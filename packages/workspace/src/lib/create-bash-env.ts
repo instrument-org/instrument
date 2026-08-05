@@ -321,7 +321,7 @@ export function createBashDescription() {
   return dedent`
     Execute bash commands in the task directory.
 
-    IMPORTANT: Folders the user attaches appear as read-only mounts under \`/mnt/\`. Any write into one, including a script or command that outputs there, fails with EROFS; copy the file into the task first (e.g. \`cp '/mnt/<folder>/file' attachments/\`) and work on the copy.
+    IMPORTANT: Folders the user attaches appear as mounts under \`/mnt/\`, each read-only or read-and-write; the attached-folders list in your context says which. A write into a read-only one fails with EROFS. A write into a read-and-write one lands on the user's real files immediately, so treat \`rm\` there as permanent. \`rg\` searches mount paths directly, but the interpreter hatches (python, node, ffmpeg, pnpm) cannot resolve one: copy the file into the task first (e.g. \`cp '/mnt/<folder>/file' attachments/\`), work on the copy, and \`mv\` the result back if it belongs in the folder.
 
     IMPORTANT: Python is available via the specialized \`${PYTHON_COMMAND.name}\`/\`${PYTHON3_COMMAND.name}\`/\`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` commands below (backed by a per-task virtualenv in work/.venv), TypeScript/JavaScript via \`${TS_COMMAND.name}\`, and package management via \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside script code run by these commands, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`${TASK_MOUNT_POINT}/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`/mnt/...\` never is (copy attached files into the task first) and paths inside script FILES on disk are never translated.
 
@@ -362,7 +362,7 @@ export async function createBashEnv({
 }) {
   // The layout is the single source of truth for what the agent can see: the
   // writable task directory mounted at /task (the working directory) plus any
-  // read-only user-attached folders under /mnt. The bash interpreter, the
+  // user-attached folders under /mnt, each read-only or writable. The bash
   // native-binary path bridge, and the dedicated file tools all route through
   // it so they agree on virtual<->real mapping.
   const layout = buildWorkspaceFsLayout({

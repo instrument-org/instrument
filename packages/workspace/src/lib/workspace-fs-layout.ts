@@ -7,6 +7,7 @@ import {
 } from "just-bash";
 import { realpathSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
+import nodePath from "node:path";
 
 import { TASK_FOLDER_NAMES } from "../constants";
 import { type FolderAttachment } from "../schemas/folder-attachment";
@@ -19,6 +20,7 @@ import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { ReadOnlyBaseFs } from "./read-only-base-fs";
 import { skillWriteTrackingFs } from "./skill-write-tracking-fs";
+import { getWorkspaceConfig } from "./workspace-config";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
 export { getWorkspaceSkillsDir } from "./workspace-skills-dir";
@@ -55,10 +57,11 @@ export const SKILLS_MOUNT_POINT = "/skills";
 
 /**
  * The complete virtual filesystem layout for a task: the writable task mount,
- * the writable workspace skills mount, and any read-only user-attached folders.
- * This is the single source of truth shared by the bash sandbox (just-bash
- * filesystem), the native-binary path bridge, and the dedicated file tools, so
- * all three agree on what the agent can see and where.
+ * the writable workspace skills mount, and any user-attached folders, each
+ * read-only or writable according to the access the user granted it. This is
+ * the single source of truth shared by the bash sandbox (just-bash filesystem),
+ * the native-binary path bridge, and the dedicated file tools, so all three
+ * agree on what the agent can see and where.
  */
 export interface WorkspaceFsLayout {
   attached: WorkspaceFsMount[];
@@ -73,10 +76,12 @@ export interface WorkspaceFsMount {
   /** Absolute, normalized virtual path where the directory appears. */
   mountPoint: string;
   /**
-   * When true the mount is read-only: writes throw EROFS in the virtual FS, and
-   * the host path is never handed to a real native binary (which could write to
-   * the user's real files). Read-only mounts must be copied into the task before
-   * native tools can process them.
+   * When true the mount is read-only: writes throw EROFS in the virtual FS.
+   * Attached folders are read-only unless the user granted the task read-write
+   * access to them.
+   *
+   * Independently of this flag, no attached folder's host path is handed to a
+   * real native binary; see {@link resolveNativeHostPath}.
    */
   readOnly: boolean;
 }
@@ -85,8 +90,8 @@ export interface WorkspaceFsMount {
  * Build the just-bash filesystem the bash interpreter runs against, from the
  * layout: an empty read-only base holds the virtual root (so stray writes like
  * /tmp/x fail loudly instead of evaporating with the per-call filesystem), the
- * task mounts writable at its mount point, and attached folders mount
- * read-only.
+ * task mounts writable at its mount point, and attached folders mount with the
+ * access the user granted them.
  */
 export async function buildBashFs(
   layout: WorkspaceFsLayout,
@@ -125,19 +130,26 @@ export async function buildBashFs(
   );
 
   for (const mount of layout.attached) {
-    // Folders can be detached or deleted on disk between turns; OverlayFs throws
-    // if its root is missing, so skip any that no longer exist.
+    // Folders can be detached or deleted on disk between turns; both filesystems
+    // throw if their root is missing, so skip any that no longer exist.
     if (!(await pathExists(mount.hostRoot))) {
       continue;
     }
+    // A writable folder has to mount through ReadWriteFs, the same filesystem
+    // the task mount uses, because it is the only one that writes to disk.
+    // OverlayFs is copy-on-write into memory, and the filesystem is rebuilt per
+    // bash call, so mounting a writable folder there would report every `mv`
+    // and `cp` as succeeding and leave the user's files untouched.
     fs.mount(
       mount.mountPoint,
-      new OverlayFs({
-        maxFileReadSize,
-        mountPoint: "/",
-        readOnly: mount.readOnly,
-        root: mount.hostRoot,
-      }),
+      mount.readOnly
+        ? new OverlayFs({
+            maxFileReadSize,
+            mountPoint: "/",
+            readOnly: true,
+            root: mount.hostRoot,
+          })
+        : new ReadWriteFs({ maxFileReadSize, root: mount.hostRoot }),
     );
   }
 
@@ -173,7 +185,7 @@ export function buildWorkspaceFsLayout({
   ).map(({ folder, mountPoint }) => ({
     hostRoot: folder.path,
     mountPoint,
-    readOnly: true,
+    readOnly: effectiveFolderAccess(folder) !== "read-write",
   }));
 
   return {
@@ -192,10 +204,42 @@ export function buildWorkspaceFsLayout({
 }
 
 /**
- * True when an existing host path escapes its owning mount through a symlink.
- * A missing path or root is not an escape (nothing to read; normal not-found
- * handling applies). Any other resolution failure (permission error, symlink
- * loop, ...) means containment cannot be verified, so it fails closed.
+ * The access a folder actually gets: what the user granted, unless the folder
+ * overlaps the workspace's own directory in either direction.
+ *
+ * Every task's database and state, every project's settings, and the skills
+ * the agent loads as instructions live under the workspace root. A folder that
+ * contains it, or sits inside it, would turn one task's write grant into write
+ * access to every other task and a way to persist instructions across all of
+ * them. Reading those files was already possible for anyone who attached such
+ * a folder; writing them is refused.
+ *
+ * Applied here rather than at the UI so it holds for a hand-edited state.json,
+ * and shared with the agent's folder list so what the model is told matches
+ * what the filesystem enforces.
+ */
+export function effectiveFolderAccess(
+  folder: FolderAttachment.Type,
+): FolderAttachment.Access {
+  if (folder.access !== "read-write") {
+    return "read-only";
+  }
+  const workspaceRoot = getWorkspaceConfig().rootDir;
+  const overlapsWorkspace =
+    pathIsWithin(folder.path, workspaceRoot) ||
+    pathIsWithin(workspaceRoot, folder.path);
+  return overlapsWorkspace ? "read-only" : "read-write";
+}
+
+/**
+ * True when a host path escapes its owning mount through a symlink.
+ *
+ * The path need not exist: a write creates its target, and often the
+ * directories above it, so a check that only contained existing paths would let
+ * a new file under a symlinked directory land outside the mount. A missing
+ * mount root is not an escape (nothing to reach; normal not-found handling
+ * applies). Any other resolution failure (permission error, symlink loop, ...)
+ * means containment cannot be verified, so it fails closed.
  */
 export function hostPathEscapesMount(
   hostPath: string,
@@ -208,11 +252,9 @@ export function hostPathEscapesMount(
     return !isEnoent(error);
   }
 
-  let canonicalPath: string;
-  try {
-    canonicalPath = realpathSync(hostPath);
-  } catch (error) {
-    return !isEnoent(error);
+  const canonicalPath = canonicalizeThroughMissing(hostPath);
+  if (canonicalPath === null) {
+    return true;
   }
 
   return !pathIsWithin(canonicalPath, canonicalRoot);
@@ -270,11 +312,17 @@ export function resolveHostPath(
  *
  * Native binaries (ffmpeg, python, node, ...) run against the real filesystem,
  * so this is the sandbox's outer boundary and it deliberately bridges ONLY the
- * task mount. Every other virtual path -- read-only /mnt mounts especially,
- * whose host paths must never reach a subprocess that could write to the
- * user's real files -- quarantines to a path inside the task dir that does not
- * exist, so the binary fails with a not-found error instead of touching the
- * host. Do not "fix" this by resolving against the full layout.
+ * task mount. Every other virtual path quarantines to a path inside the task
+ * dir that does not exist, so the binary fails with a not-found error instead
+ * of touching the host. Do not "fix" this by resolving against the full layout.
+ *
+ * This holds for /mnt mounts the user granted write access to, not just the
+ * read-only ones. A real host path is read AND write to the operating system,
+ * so handing one to a subprocess would put the user's folder outside every
+ * containment the sandbox has: no symlink check, no path masking, and no way
+ * to tell what a build step touched. The agent copies a file into the task and
+ * works on the copy instead. Writes back into the folder go through the virtual
+ * filesystem, where they stay contained and observable.
  */
 export function resolveNativeHostPath(
   taskHostRoot: TaskDir,
@@ -299,7 +347,7 @@ export function resolveNativeHostPath(
  * Map a virtual path to a host path for a native binary that can only READ.
  *
  * Unlike `resolveNativeHostPath` this resolves the whole layout, including the
- * read-only `/mnt` mounts and `/skills`. That is the point: a search command
+ * `/mnt` mounts and `/skills`. That is the point: a search command
  * the user cannot point at their attached folders is not worth having, and the
  * dedicated grep tool already hands real ripgrep those same host paths.
  *
@@ -346,6 +394,35 @@ export function resolveReadOnlyHostPath(
 /** All mounts, task first. */
 function allMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
   return [layout.task, ...nonTaskMounts(layout)];
+}
+
+/**
+ * Canonical form of a path whose tail may not exist yet: resolve the deepest
+ * ancestor that does, then re-attach the segments below it. Every symlink on
+ * the existing part is followed, which is what makes the result safe to compare
+ * against a mount root. Returns null when resolution fails for any reason other
+ * than absence, so the caller can fail closed.
+ */
+function canonicalizeThroughMissing(hostPath: string): null | string {
+  const missing: string[] = [];
+  let current = hostPath;
+
+  for (;;) {
+    try {
+      return nodePath.join(realpathSync(current), ...missing.toReversed());
+    } catch (error) {
+      if (!isEnoent(error)) {
+        return null;
+      }
+    }
+
+    const parent = nodePath.dirname(current);
+    if (parent === current) {
+      return null;
+    }
+    missing.push(nodePath.basename(current));
+    current = parent;
+  }
 }
 
 function isEnoent(error: unknown): boolean {

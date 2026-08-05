@@ -22,6 +22,18 @@ export function attachedFolderChangesModelNote(
     );
   }
 
+  if (data.accessChanged.length > 0) {
+    const changed = data.accessChanged
+      .map(
+        (folder) =>
+          `- ${folder.name}: now ${folder.access === "read-write" ? "read and write" : "read-only"}`,
+      )
+      .join("\n");
+    lines.push(
+      `The user changed what you may do with these attached folders. This supersedes the access level listed in your attached-folders context, which may be older than this message:\n${changed}`,
+    );
+  }
+
   if (lines.length === 0) {
     return null;
   }

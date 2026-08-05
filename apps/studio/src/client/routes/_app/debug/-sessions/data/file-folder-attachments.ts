@@ -132,7 +132,7 @@ const assistantMessage1 = builder.assistantMessage(
 );
 
 const userMessageWithFolders = builder.userMessage(
-  "Folder chips render beside compact file list items.",
+  "Folder rows sit above the compact file attachments.",
   {
     parts: [
       {
@@ -146,16 +146,20 @@ const userMessageWithFolders = builder.userMessage(
           ],
           folders: [
             {
+              access: "read-write",
               createdAt: 1_718_198_400_000,
               id: "components" as never,
-              name: "components",
+              // Mount names are qualified with an ancestor directory, so they
+              // never match what the row displays.
+              name: "workspace-components",
               path: "/tmp/workspace/components" as never,
               source: "user",
             },
             {
+              access: "read-only",
               createdAt: 1_718_198_401_000,
               id: "research" as never,
-              name: "research",
+              name: "workspace-research",
               path: "/tmp/workspace/research" as never,
               source: "user",
             },
@@ -168,7 +172,7 @@ const userMessageWithFolders = builder.userMessage(
 );
 
 const assistantMessage2 = builder.assistantMessage(
-  "Folders use list chips; files stay in the compact attachment grid.",
+  "Folders stack into one bordered block; files stay in the compact attachment grid.",
 );
 
 export const session: PresetSessionData = {

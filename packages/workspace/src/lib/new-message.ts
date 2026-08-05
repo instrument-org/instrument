@@ -33,7 +33,11 @@ export async function newMessage({
   taskId,
 }: {
   files?: FileUpload.Type[];
-  folders?: { path: string; source?: FolderAttachment.Source }[];
+  folders?: {
+    access?: FolderAttachment.Access;
+    path: string;
+    source?: FolderAttachment.Source;
+  }[];
   intent?: string;
   model: AIGatewayModel.Type;
   modelURI: AIGatewayModelURI.Type;

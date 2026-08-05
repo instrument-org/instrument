@@ -52,10 +52,22 @@ export namespace SessionMessageDataPart {
     typeof ExternalFileChangesDataPartSchema
   >;
 
-  // Attached folders removed or renamed since the model last saw them --
-  // attached to the user message that triggers the next turn so the model
-  // stops relying on stale names/removed folders.
+  // Attached folders removed, renamed, or re-permissioned since the model last
+  // saw them -- attached to the user message that triggers the next turn so the
+  // model stops relying on stale names, removed folders, or an access level the
+  // user has since changed. The standing folder list lives in the session
+  // context, which is rebuilt at most hourly, so this is what makes a change
+  // reach the model in the turn it happens.
   const AttachedFolderChangesDataPartSchema = z.object({
+    accessChanged: z
+      .array(
+        z.object({
+          access: FolderAttachment.AccessSchema,
+          name: z.string(),
+          path: z.string(),
+        }),
+      )
+      .default([]),
     removed: z.array(z.object({ name: z.string(), path: z.string() })),
     renamed: z.array(
       z.object({ newName: z.string(), oldName: z.string(), path: z.string() }),
@@ -110,7 +122,13 @@ export namespace SessionMessageDataPart {
   // the new value when `instructionsChanged` is true (omitted when it was
   // cleared), so the latest such part is the effective project instructions.
   const ProjectChangesDataPartSchema = z.object({
-    foldersAdded: z.array(z.object({ name: z.string(), path: z.string() })),
+    foldersAdded: z.array(
+      z.object({
+        access: FolderAttachment.AccessSchema,
+        name: z.string(),
+        path: z.string(),
+      }),
+    ),
     foldersRemoved: z.array(z.object({ name: z.string(), path: z.string() })),
     instructions: z.string().optional(),
     instructionsChanged: z.boolean(),

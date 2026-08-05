@@ -60,6 +60,7 @@ describe("assetsRoute", () => {
     await setTaskState(TaskDirSchema.parse(taskRoot), {
       attachedFolders: {
         photos: {
+          access: "read-only",
           createdAt: 0,
           id: FolderAttachment.IdSchema.parse("photos-id"),
           name: "Photos",

@@ -757,7 +757,7 @@ export const EditFile = setupTool({
   name: "edit_file",
   outputSchema: z.object({
     diff: z.string().optional(),
-    // Task-relative today; a writable mount path once those exist.
+    // Task-relative, or the mount path of a writable attached folder.
     filePath: z.string(),
     modifiedAt: z.number(),
   }),
@@ -766,7 +766,7 @@ export const EditFile = setupTool({
     Performs exact string replacements in files. 
 
     Usage:
-    - The ${INPUT_PARAMS.filePath} parameter must be a relative path. E.g. ./${TASK_FOLDER_NAMES.output}/report.md
+    - The ${INPUT_PARAMS.filePath} parameter is a path relative to the task (e.g. ./${TASK_FOLDER_NAMES.output}/report.md), or the mount path of an attached folder you have read-and-write access to (/mnt/<name>/report.md). The attached-folders list in your context says which folders those are.
     - Read the file with \`${ReadFile.name}\` before editing it, so \`${INPUT_PARAMS.oldString}\` matches what is actually on disk.
     - When editing text from \`${ReadFile.name}\` tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: the line number left-padded with spaces to ${LINE_NUMBER_PAD_WIDTH} characters, followed by the \`${LINE_NUMBER_SEPARATOR}\` separator character. Everything after that separator is the actual file content to match. Never include any part of the line number prefix in the \`${INPUT_PARAMS.oldString}\` or \`${INPUT_PARAMS.newString}\`.
     - The edit fails if \`${INPUT_PARAMS.oldString}\` is not unique in the file. Either provide a larger string with more surrounding context to make it unique, or use \`${INPUT_PARAMS.replaceAll}\` to change every instance. \`${INPUT_PARAMS.replaceAll}\` matches literal text, not symbols, so a rename also hits the name inside comments, strings, and longer identifiers -- check the returned diff.

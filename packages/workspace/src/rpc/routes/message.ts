@@ -11,6 +11,7 @@ import { newMessage } from "../../lib/new-message";
 import { Store } from "../../lib/store";
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
+import { FolderAttachment } from "../../schemas/folder-attachment";
 import { SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
@@ -44,7 +45,14 @@ const create = base
   .input(
     z.object({
       files: z.array(FileUpload.Schema).optional(),
-      folders: z.array(z.object({ path: z.string() })).optional(),
+      folders: z
+        .array(
+          z.object({
+            access: FolderAttachment.AccessSchema,
+            path: z.string(),
+          }),
+        )
+        .optional(),
       id: TaskIdSchema,
       modelURI: AIGatewayModelURI.Schema,
       prompt: z.string(),

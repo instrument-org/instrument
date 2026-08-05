@@ -19,7 +19,6 @@ import {
 } from "@instrument-org/workspace/client";
 import {
   CaretRightIcon,
-  ChatTextIcon,
   DotsThreeOutlineVerticalIcon,
   FolderSimpleIcon,
 } from "@phosphor-icons/react";
@@ -201,8 +200,6 @@ function AttachedFolderRow({
   folder: AttachedFolder;
   taskId: TaskId;
 }) {
-  const appendToPrompt = useSetAtom(appendToPromptAtom);
-
   const { mutate: removeFolder } = useMutation(
     rpcClient.workspace.task.state.removeFolder.mutationOptions({
       onError: (error) => {
@@ -211,25 +208,23 @@ function AttachedFolderRow({
     }),
   );
 
+  // The project owns the folders it contributes: they are re-synced onto every
+  // one of its tasks when a message is sent, so removing one here would undo
+  // itself. Detaching it belongs in the project, and only a folder attached to
+  // this task can be detached from it.
+  const canRemove = folder.source !== "project";
+
   return (
     <SidebarMenuItem>
       <FolderAttachmentRow
-        additionalMenuItems={[
-          {
-            icon: <ChatTextIcon className="size-4" />,
-            label: "Add to chat",
-            onSelect: () => {
-              appendToPrompt({
-                key: { scope: "task", taskId },
-                update: `the attached folder "${folder.name}"`,
-              });
-            },
-          },
-        ]}
-        name={folder.name}
-        onRemove={() => {
-          removeFolder({ folderId: folder.id, id: taskId });
-        }}
+        access={folder.access}
+        onRemove={
+          canRemove
+            ? () => {
+                removeFolder({ folderId: folder.id, id: taskId });
+              }
+            : undefined
+        }
         path={folder.path}
         removeLabel="Remove from task"
       />

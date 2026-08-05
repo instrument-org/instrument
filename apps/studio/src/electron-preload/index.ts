@@ -1,6 +1,7 @@
 import { RESOLVE_THEME_CHANNEL } from "@/shared/constants";
 import { electronAPI } from "@electron-toolkit/preload";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
+import os from "node:os";
 
 /**
  * Put the theme class on <html> before the document is parsed.
@@ -50,6 +51,7 @@ applyInitialTheme();
 
 const api: Window["api"] = {
   getFilePath: (file: File) => webUtils.getPathForFile(file),
+  homeDir: os.homedir(),
   // One-way bridge for forwarding renderer errors to the main-process dev log.
   // The main side only listens in development, so this is a no-op in production.
   rendererLog: (entry) => {

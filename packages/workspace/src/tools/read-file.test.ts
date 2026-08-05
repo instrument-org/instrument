@@ -48,6 +48,7 @@ const taskId = createMockTaskConfigForDir(fixturesPath, { model });
 
 const attachedFolders: Record<string, FolderAttachment.Type> = {
   "test-folder": {
+    access: "read-only",
     createdAt: Date.now(),
     id: FolderAttachment.IdSchema.parse("test-folder-id"),
     name: "Test Folder",

@@ -1,7 +1,11 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { openLogin } from "@/client/atoms/login-modal";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
-import { AttachedFolderPreview } from "@/client/components/attached-folder-preview";
+import {
+  DEFAULT_FOLDER_ACCESS,
+  type FolderAccess,
+  FolderAccessList,
+} from "@/client/components/folder-access-list";
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -24,6 +28,7 @@ import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { OUR_MODELS } from "@instrument-org/shared";
 import {
   type FileUpload,
+  type FolderAttachment,
   type ProjectId,
   type StoreId,
   type TaskId,
@@ -34,6 +39,7 @@ import {
   FileIcon,
   FolderIcon,
   PaperclipIcon,
+  PlusIcon,
   StopIcon,
   UploadSimpleIcon,
 } from "@phosphor-icons/react";
@@ -66,6 +72,12 @@ import { Spinner } from "./ui/spinner";
 
 type AttachedItem =
   | {
+      access: FolderAttachment.Access;
+      id: string;
+      path: string;
+      type: "folder";
+    }
+  | {
       content: string;
       id: string;
       mimeType: string;
@@ -82,11 +94,6 @@ type AttachedItem =
       size: number;
       type: "file";
       url?: string;
-    }
-  | {
-      id: string;
-      path: string;
-      type: "folder";
     };
 
 const MAX_PASTE_TEXT_LENGTH = 5000;
@@ -111,7 +118,7 @@ interface PromptInputProps {
   onStop?: () => void;
   onSubmit: (value: {
     files?: FileUpload.Input[];
-    folders?: { path: string }[];
+    folders?: { access: FolderAttachment.Access; path: string }[];
     modelURI: AIGatewayModelURI.Type;
     openInNewTab?: boolean;
     projectId?: null | ProjectId;
@@ -121,6 +128,11 @@ interface PromptInputProps {
   ref?: React.Ref<PromptInputRef>;
   selectedSessionId?: StoreId.Session;
   showProjectSelector?: boolean;
+  // Whether the work-in-folder drawer offers its own entry point. Off, the
+  // drawer still appears once folders are attached -- otherwise a folder added
+  // from the attach menu would be invisible and impossible to remove -- it just
+  // does not advertise itself on surfaces that have their own folder controls.
+  showWorkInFolder?: boolean;
 }
 
 interface PromptInputRef {
@@ -148,6 +160,7 @@ export const PromptInput = ({
   ref,
   selectedSessionId,
   showProjectSelector = false,
+  showWorkInFolder = false,
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
@@ -304,7 +317,12 @@ export const PromptInput = ({
         if (existingPaths.has(folder.path)) {
           duplicates.push(folderNameFromPath(folder.path));
         } else {
-          newFolders.push({ id: ulid(), path: folder.path, type: "folder" });
+          newFolders.push({
+            access: DEFAULT_FOLDER_ACCESS,
+            id: ulid(),
+            path: folder.path,
+            type: "folder",
+          });
         }
       }
 
@@ -340,8 +358,10 @@ export const PromptInput = ({
     },
   });
 
-  const removeAttachedItem = (index: number) => {
-    setAttachedItems((prev) => prev.filter((_, i) => i !== index));
+  const removeAttachedItem = (attachedItemId: string) => {
+    setAttachedItems((prev) =>
+      prev.filter((item) => item.id !== attachedItemId),
+    );
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -385,12 +405,45 @@ export const PromptInput = ({
     setAttachedItems((prev) =>
       prev.some((i) => i.type === "folder" && i.path === folderPath)
         ? prev
-        : [...prev, { id: ulid(), path: folderPath, type: "folder" }],
+        : [
+            ...prev,
+            {
+              access: DEFAULT_FOLDER_ACCESS,
+              id: ulid(),
+              path: folderPath,
+              type: "folder",
+            },
+          ],
+    );
+  };
+
+  const setFolderAccess = (
+    folderPath: string,
+    access: FolderAttachment.Access,
+  ) => {
+    setAttachedItems((prev) =>
+      prev.map((item) =>
+        item.type === "folder" && item.path === folderPath
+          ? { ...item, access }
+          : item,
+      ),
+    );
+  };
+
+  const removeFolder = (folderPath: string) => {
+    setAttachedItems((prev) =>
+      prev.filter(
+        (item) => !(item.type === "folder" && item.path === folderPath),
+      ),
     );
   };
 
   const attachedFiles = attachedItems.filter((i) => i.type === "file");
   const attachedFolders = attachedItems.filter((i) => i.type === "folder");
+  const folderAccessList: FolderAccess[] = attachedFolders.map((folder) => ({
+    access: folder.access,
+    path: folder.path,
+  }));
 
   const canSubmit =
     !disabled &&
@@ -472,7 +525,13 @@ export const PromptInput = ({
                 : { content: f.content }),
             }))
           : undefined,
-      folders: attachedFolders.length > 0 ? attachedFolders : undefined,
+      folders:
+        attachedFolders.length > 0
+          ? attachedFolders.map((folder) => ({
+              access: folder.access,
+              path: folder.path,
+            }))
+          : undefined,
       modelURI,
       openInNewTab,
       projectId: selectedProjectId,
@@ -545,14 +604,50 @@ export const PromptInput = ({
   };
 
   return (
-    <>
+    <div className={cn("flex flex-col", className)}>
+      {(showWorkInFolder || folderAccessList.length > 0) && (
+        // A tray behind the composer: inset on both sides and tucked under its
+        // top edge, so the folders read as attached to the prompt rather than
+        // as one more block of chrome stacked above it.
+        <div className="mx-2 -mb-4 flex flex-col items-start rounded-t-2xl bg-muted px-2 pt-1.5 pb-6">
+          {folderAccessList.length > 0 && (
+            <FolderAccessList
+              className="w-full"
+              compact
+              folders={folderAccessList}
+              onAccessChange={setFolderAccess}
+              onRemove={removeFolder}
+            />
+          )}
+          {/* Doubles as the empty state: with nothing attached it is the only
+              thing in the tray, and once folders are listed it is the line that
+              says the list can grow. */}
+          <Button
+            className="h-7 gap-1.5 px-1.5 text-xs text-muted-foreground"
+            disabled={disabled || isLoading}
+            onClick={() => void handleFolderPick()}
+            size="sm"
+            variant="ghost"
+          >
+            {folderAccessList.length > 0 ? (
+              <PlusIcon className="size-4" />
+            ) : (
+              <FolderIcon className="size-4" />
+            )}
+            {folderAccessList.length > 0
+              ? "Add another folder"
+              : "Work in folder"}
+          </Button>
+        </div>
+      )}
+
       <TextareaContainer
         className={cn(
           // isolate: the drag-and-drop overlay covers the composer and nothing
-          // beyond it.
+          // beyond it. relative also lifts it over the folder tray tucked
+          // beneath its top edge.
           "relative isolate overflow-visible rounded-[20px] p-4",
           "bg-white shadow-xs dark:bg-gray-800",
-          className,
         )}
         ref={textareaRef}
         style={{ maxHeight: `${autoResizeMaxHeight}px` }}
@@ -566,40 +661,30 @@ export const PromptInput = ({
           </div>
         )}
 
-        {attachedItems.length > 0 && (
+        {attachedFiles.length > 0 && (
           <div className="-m-2 mb-2 flex max-h-32 flex-wrap items-start gap-2 overflow-y-auto p-2">
-            {attachedItems.map((item, index) =>
-              item.type === "folder" ? (
-                <AttachedFolderPreview
-                  folderPath={item.path}
-                  key={item.id}
-                  onRemove={() => {
-                    removeAttachedItem(index);
-                  }}
-                />
-              ) : (
-                <AttachedFilePreview
-                  filename={item.name}
-                  key={item.id}
-                  mimeType={item.mimeType}
-                  onClick={() => {
-                    if (item.url) {
-                      openFilePreview({
-                        filename: item.name,
-                        mimeType: item.mimeType,
-                        size: item.size,
-                        url: item.url,
-                      });
-                    }
-                  }}
-                  onRemove={() => {
-                    removeAttachedItem(index);
-                  }}
-                  size={item.size}
-                  url={item.url}
-                />
-              ),
-            )}
+            {attachedFiles.map((item) => (
+              <AttachedFilePreview
+                filename={item.name}
+                key={item.id}
+                mimeType={item.mimeType}
+                onClick={() => {
+                  if (item.url) {
+                    openFilePreview({
+                      filename: item.name,
+                      mimeType: item.mimeType,
+                      size: item.size,
+                      url: item.url,
+                    });
+                  }
+                }}
+                onRemove={() => {
+                  removeAttachedItem(item.id);
+                }}
+                size={item.size}
+                url={item.url}
+              />
+            ))}
           </div>
         )}
 
@@ -727,6 +812,6 @@ export const PromptInput = ({
           </Button>
         </div>
       </TextareaContainer>
-    </>
+    </div>
   );
 };

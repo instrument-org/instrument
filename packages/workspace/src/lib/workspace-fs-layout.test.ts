@@ -43,10 +43,11 @@ describe("buildBashFs", () => {
     await fs.rm(tmpDir, { force: true, recursive: true });
   });
 
-  async function makeBash() {
+  async function makeBash(access: FolderAttachment.Access = "read-only") {
     const layout = buildWorkspaceFsLayout({
       attachedFolders: {
         docs: {
+          access,
           createdAt: 0,
           id: FolderAttachment.IdSchema.parse("docs-id"),
           name: "Docs",
@@ -101,6 +102,49 @@ describe("buildBashFs", () => {
     await expect(
       fs.access(path.join(tmpDir, "Docs", "new.txt")),
     ).rejects.toThrow();
+  });
+
+  // A read-write mount has to reach the real disk. OverlayFs would accept every
+  // one of these writes into an in-memory layer that is dropped when the bash
+  // call ends, so each case asserts against the host filesystem rather than the
+  // command's exit code.
+  it("writes into a read-write mount through to the real folder", async () => {
+    const bash = await makeBash("read-write");
+    const result = await bash.exec("echo made > '/mnt/Docs/new.txt'");
+    expect(result.exitCode).toBe(0);
+    await expect(
+      fs.readFile(path.join(tmpDir, "Docs", "new.txt"), "utf8"),
+    ).resolves.toBe("made\n");
+  });
+
+  it("moves and deletes inside a read-write mount through to the real folder", async () => {
+    const bash = await makeBash("read-write");
+
+    const moved = await bash.exec(
+      "mkdir -p '/mnt/Docs/sorted' && mv '/mnt/Docs/readme.txt' '/mnt/Docs/sorted/readme.txt'",
+    );
+    expect(moved.exitCode).toBe(0);
+    await expect(
+      fs.readFile(path.join(tmpDir, "Docs", "sorted", "readme.txt"), "utf8"),
+    ).resolves.toBe("hello docs");
+    await expect(
+      fs.access(path.join(tmpDir, "Docs", "readme.txt")),
+    ).rejects.toThrow();
+
+    const removed = await bash.exec("rm '/mnt/Docs/sorted/readme.txt'");
+    expect(removed.exitCode).toBe(0);
+    await expect(
+      fs.access(path.join(tmpDir, "Docs", "sorted", "readme.txt")),
+    ).rejects.toThrow();
+  });
+
+  it("copies a file from a read-write mount into the task", async () => {
+    const bash = await makeBash("read-write");
+    const result = await bash.exec("cp '/mnt/Docs/readme.txt' copy.txt");
+    expect(result.exitCode).toBe(0);
+    await expect(
+      fs.readFile(path.join(tmpDir, "task", "copy.txt"), "utf8"),
+    ).resolves.toBe("hello docs");
   });
 
   it("masks the private dir so the agent shell can't read task internals", async () => {

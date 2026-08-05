@@ -56,6 +56,13 @@ export async function generateReport({
       return found ? [[run.taskId, found] as const] : [];
     }),
   );
+  // A task records the model URI it was asked for, which for a moving alias is
+  // not a build anyone can identify later. The run knows what it stood for.
+  const resolvedModelByTaskId = new Map(
+    runs.flatMap((run) =>
+      run.resolvedModelId ? [[run.taskId, run.resolvedModelId] as const] : [],
+    ),
+  );
   const absoluteWorkspaceDir = path.resolve(workspaceRootDir);
   const workspaceConfig = buildReportWorkspaceConfig(absoluteWorkspaceDir);
   // `taskDir()` and friends read the config from its module singleton, which the
@@ -193,7 +200,15 @@ export async function generateReport({
     }
     await fs.writeFile(
       path.join(taskOutputDir, "eval-case.json"),
-      JSON.stringify({ modelURI: taskModelURI, name: task.id }, null, 2),
+      JSON.stringify(
+        {
+          modelURI: taskModelURI,
+          name: task.id,
+          resolvedModelId: resolvedModelByTaskId.get(taskId),
+        },
+        null,
+        2,
+      ),
       "utf8",
     );
 

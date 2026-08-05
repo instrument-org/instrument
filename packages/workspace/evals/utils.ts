@@ -8,6 +8,7 @@ import {
   APP_NAME_SLUG,
 } from "@instrument-org/shared";
 import path from "node:path";
+import { z } from "zod";
 
 import { env } from "../scripts/lib/env";
 import { PROJECTS_DIR_NAME, TASKS_DIR_NAME } from "../src/constants";
@@ -106,6 +107,15 @@ export const modelURI = {
     ),
 };
 
+const OpenRouterAliasListSchema = z.object({
+  data: z.array(
+    z.object({
+      alias_target: z.object({ slug: z.string() }).nullish(),
+      id: z.string(),
+    }),
+  ),
+});
+
 export function buildProviderConfigs(): AIGatewayProviderConfig.Type[] {
   const cacheIdentifier = `${APP_NAME_SLUG}-evals`;
   const configs: AIGatewayProviderConfig.Type[] = [
@@ -131,4 +141,44 @@ export function buildProviderConfigs(): AIGatewayProviderConfig.Type[] {
   }
 
   return configs;
+}
+
+/**
+ * OpenRouter's moving aliases (`~anthropic/claude-sonnet-latest`) are what keep
+ * the eval model set current without anyone editing it, and they are also why a
+ * result on its own no longer says what it was produced against. Its public
+ * model list carries the target of each alias, so the answer costs one
+ * unauthenticated GET and never has to reach the provider being tested.
+ *
+ * Returns an empty map on any failure: knowing which build answered is worth
+ * printing, never worth failing a run over.
+ */
+export async function resolveOpenRouterAliases(
+  modelURIs: string[],
+): Promise<Map<string, string>> {
+  const aliases = modelURIs
+    .map((uri) => uri.split("?")[0] ?? uri)
+    .filter((slug) => slug.startsWith("~"));
+  if (aliases.length === 0) {
+    return new Map();
+  }
+
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/models");
+    const body: unknown = await response.json();
+    const parsed = OpenRouterAliasListSchema.parse(body);
+    const targets = new Map(
+      parsed.data.flatMap((model) =>
+        model.alias_target ? [[model.id, model.alias_target.slug]] : [],
+      ),
+    );
+    return new Map(
+      aliases.flatMap((slug) => {
+        const target = targets.get(slug);
+        return target ? [[slug, target] as const] : [];
+      }),
+    );
+  } catch {
+    return new Map();
+  }
 }

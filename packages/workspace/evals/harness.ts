@@ -32,6 +32,7 @@ import {
   c,
   formatNumber,
   modelURI,
+  resolveOpenRouterAliases,
   resolveRegistryDir,
 } from "./utils";
 
@@ -50,12 +51,23 @@ function evalPrefix(name: string): string {
   return `${c.dim}[${name}]${c.reset} `;
 }
 
+/**
+ * What a change is validated against by default: the current frontier model
+ * from each closed provider, plus the strongest open-weights one, because a
+ * harness affordance that only one family finds is not built yet.
+ *
+ * OpenRouter's `~author/<name>-latest` aliases move as new builds ship, so this list
+ * does not need editing to stay representative -- and `runEvals` prints what
+ * each one resolved to, since a result against "latest" is otherwise
+ * unattributable a month later. OpenAI is the exception and stays pinned:
+ * `~openai/gpt-latest` resolves to the reasoning line, not the model the app's
+ * auto setting actually sends users to.
+ */
 export const MODELS = [
-  modelURI.openRouter("anthropic/claude-haiku-4.5"),
-  // modelURI.openRouter("openai/gpt-oss-120b"),
-  // modelURI.openRouter("moonshotai/kimi-k2.5"),
-  // modelURI.openRouter("openai/gpt-5.4-mini"),
-  // modelURI.openRouter("openai/gpt-5.4-nano"),
+  modelURI.openRouter("~anthropic/claude-sonnet-latest"),
+  modelURI.openRouter("~google/gemini-pro-latest"),
+  modelURI.openRouter("openai/gpt-5.6-luna"),
+  modelURI.openRouter("~moonshotai/kimi-latest"),
 ];
 
 export interface CompletedRun {
@@ -65,6 +77,11 @@ export interface CompletedRun {
   name: string;
   /** Tokens at the moment the cap stopped this run; absent if it finished. */
   overBudget?: number;
+  /**
+   * The build a `~<name>-latest` alias stood for when this ran. Absent for a pinned
+   * model, where `modelURI` already says it.
+   */
+  resolvedModelId?: string;
   taskId: TaskId;
 }
 
@@ -122,6 +139,13 @@ export async function runEvals(
 
   process.stdout.write(`${c.dim}Workspace :${c.reset} ${workspaceRootDir}\n`);
   process.stdout.write(`${c.dim}Registry  :${c.reset} ${registryDir}\n`);
+
+  const aliasTargets = await resolveOpenRouterAliases(models);
+  for (const [alias, target] of aliasTargets) {
+    process.stdout.write(
+      `${c.dim}Alias     :${c.reset} ${alias} ${c.dim}->${c.reset} ${target}\n`,
+    );
+  }
 
   if (dryRun) {
     return { runs: [], workspaceRootDir };
@@ -294,6 +318,7 @@ export async function runEvals(
         modelURI: uri,
         name: evalCase.name,
         overBudget,
+        resolvedModelId: aliasTargets.get(uri.split("?")[0] ?? uri),
         taskId: id,
       };
     },

@@ -33,6 +33,14 @@ pnpm eval report <workspace-dir>    # re-report a past run
 Flags: `--model` (repeatable; bare slug means OpenRouter, full model URI pins any
 configured provider), `--name`, `--concurrency`, `--dry-run`, `--include-context`.
 
+With no `--model`, a case runs against `MODELS` in `harness.ts`: the current
+frontier model from each closed provider plus the strongest open-weights one, so
+an affordance only one family finds shows up as a failure. Those are OpenRouter
+`~author/<name>-latest` aliases, which move as new builds ship and therefore need
+no edit here. The harness prints what each resolved to and records it as
+`resolvedModelId` in the run's `eval-case.json`, since "latest" is not a build
+anyone can identify a month later.
+
 Results land in `eval-results.local/<timestamp>/<task>/` as `session.md` (the
 rendered transcript), `stats.json`, `errors.json`, and `assertions.json`.
 

@@ -189,16 +189,6 @@ export async function getProject(
   return readProject(folder);
 }
 
-export async function getProjectInstructions(
-  id: ProjectId,
-): Promise<string | undefined> {
-  const project = await getProject(id);
-  if (project.isErr()) {
-    return undefined;
-  }
-  return normalizeProjectInstructions(project.value.instructions);
-}
-
 // Folders under projects/ that can't be loaded as a project because their
 // .instrument/settings.json is missing or unreadable. listProjects skips these
 // silently; we surface them here so the user can discover and clean them up

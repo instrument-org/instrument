@@ -258,8 +258,8 @@ const create = base
       // agent and UI read this instead of the live project.
       const projectContext = project
         ? {
-            // project already carries instructions from getProject above; reuse
-            // them instead of getProjectInstructions, which re-scans projects/.
+            // project already carries instructions from getProject above, so
+            // normalize those rather than re-reading them from projects/.
             instructions: normalizeProjectInstructions(project.instructions),
             projectId: project.id,
             projectName: project.name,

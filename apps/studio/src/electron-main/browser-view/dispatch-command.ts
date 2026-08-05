@@ -139,7 +139,7 @@ export async function sendCommand({
 
     // Pass-through: BrowserConfig.sendCommand is a string-keyed bridge from
     // an out-of-process Rust client (agent-browser), so we cannot type the
-    // method here. Typed call sites use sendCdpCommand directly above.
+    // method here.
     //
     // 5s covers all normal commands on a live renderer; stuck renderers fail
     // fast so agent-browser gets a real error instead of a 30s silent hang.

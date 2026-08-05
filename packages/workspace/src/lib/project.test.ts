@@ -16,7 +16,6 @@ import {
   createProject,
   deleteProject,
   getProject,
-  getProjectInstructions,
   listInvalidProjectFolders,
   listProjects,
   removeFolderFromProject,
@@ -209,7 +208,8 @@ describe("project lib", () => {
     const createResult = await createProject({ name: "Docs" });
     const created = createResult._unsafeUnwrap();
     await updateProject(created.id, { instructions: "New rules." });
-    expect(await getProjectInstructions(created.id)).toBe("New rules.");
+    const fetched = await getProject(created.id);
+    expect(fetched._unsafeUnwrap().instructions).toBe("New rules.");
   });
 
   it("clears task refs to projects deleted from disk, keeps live ones", async () => {

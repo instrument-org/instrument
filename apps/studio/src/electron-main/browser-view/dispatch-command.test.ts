@@ -9,7 +9,7 @@ import {
   StoreId,
   TaskIdSchema,
 } from "@instrument-org/workspace/electron";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { sendCommand } from "./dispatch-command";
 import { type BrowserEntry, createEntry } from "./entry";
@@ -17,13 +17,6 @@ import { type BrowserEntry, createEntry } from "./entry";
 const SUBDOMAIN = TaskIdSchema.parse("agent-browser-test");
 const SESSION_ID = StoreId.newSessionId();
 const TARGET_ID = encodeBrowserTargetId(SUBDOMAIN, SESSION_ID);
-
-vi.mock("../lib/cdp", () => ({
-  sendCdpCommand: vi.fn(),
-}));
-
-const { sendCdpCommand } = await import("../lib/cdp");
-const sendCdpCommandMock = vi.mocked(sendCdpCommand);
 
 interface FakeDebugger {
   isAttached: () => boolean;
@@ -76,10 +69,6 @@ function makeEntry({
   entry.webContents = wc as unknown as null | WebContents;
   return entry;
 }
-
-beforeEach(() => {
-  sendCdpCommandMock.mockReset();
-});
 
 describe("sendCommand", () => {
   it("throws when target is not registered", async () => {
@@ -225,7 +214,6 @@ describe("sendCommand", () => {
 
       expect(capturePage).toHaveBeenCalledWith();
       expect(wcSendCommand).not.toHaveBeenCalled();
-      expect(sendCdpCommandMock).not.toHaveBeenCalled();
       expect(result).toEqual({ data: Buffer.from("PNG").toString("base64") });
     });
 

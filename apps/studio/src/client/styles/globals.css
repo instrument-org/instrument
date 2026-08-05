@@ -413,6 +413,20 @@ body {
   --tw-prose-invert-bullets: var(--muted-foreground);
   --tw-prose-invert-counters: var(--muted-foreground);
 
+  /* A code block renders inside a wrapper that positions its hover controls,
+     so Typography's own first/last-child margin reset lands on the wrapper
+     while the block's margin collapses straight through it and out of the
+     blob. Anything that opens or closes with code carries a band of dead space
+     at that edge on top of whatever spacing its container already provides, so
+     reset the block itself at the edges too. */
+  > div:first-child:has(pre) pre {
+    margin-top: 0;
+  }
+
+  > div:last-child:has(pre) pre {
+    margin-bottom: 0;
+  }
+
   h1,
   h2,
   h3,

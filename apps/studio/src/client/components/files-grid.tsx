@@ -7,7 +7,6 @@ import {
 import { cn } from "@/client/lib/utils";
 import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
 import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
-import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { fork } from "radashi";
@@ -15,13 +14,11 @@ import { useState } from "react";
 
 import { FilePreviewCard } from "./file-preview-card";
 import { FilePreviewListItem } from "./file-preview-list-item";
-import { FolderPreviewListItem } from "./folder-preview-list-item";
 
 interface FilesGridProps {
   alignEnd?: boolean;
   compact?: boolean;
   files: TaskFileViewerFile[];
-  folders?: SessionMessageDataPart.FolderAttachmentDataPart[];
   initialVisibleCount?: number;
   prioritizeUserFiles?: boolean;
 }
@@ -34,13 +31,11 @@ const MEDIA_COLLAPSED_COUNT = 6;
 // Extra list files rendered past the visible count when collapsed; their bottoms
 // dissolve under the fade mask to hint at more without a hard cutoff.
 const PEEK_COUNT = 2;
-const EMPTY_FOLDERS: SessionMessageDataPart.FolderAttachmentDataPart[] = [];
 
 export function FilesGrid({
   alignEnd = false,
   compact = false,
   files,
-  folders = EMPTY_FOLDERS,
   initialVisibleCount = DEFAULT_INITIAL_VISIBLE_COUNT,
   prioritizeUserFiles = false,
 }: FilesGridProps) {
@@ -140,8 +135,7 @@ export function FilesGrid({
   const bottomSectionIsMedia =
     mediaPreviewFiles.length > 0 &&
     rowCardFiles.length === 0 &&
-    otherFiles.length === 0 &&
-    folders.length === 0;
+    otherFiles.length === 0;
 
   const gridSections = (
     <>
@@ -204,18 +198,13 @@ export function FilesGrid({
         </div>
       )}
 
-      {(otherFiles.length > 0 || folders.length > 0) && (
+      {otherFiles.length > 0 && (
         <div
           className={cn(
             "flex flex-wrap items-start gap-2",
             alignEnd && "justify-end",
           )}
         >
-          {folders.map((folder) => (
-            <div className="h-12 max-w-48 min-w-0" key={folder.id}>
-              <FolderPreviewListItem folder={folder} />
-            </div>
-          ))}
           {otherFiles.map((file) => (
             <div className="h-12 max-w-48 min-w-0" key={file.filePath}>
               <FilePreviewListItem
@@ -237,7 +226,7 @@ export function FilesGrid({
 
   // Every path was filtered out above, so the grid has nothing to draw. Render
   // nothing rather than an empty box, which a flex parent still gives a gap.
-  if (mainFiles.length === 0 && folders.length === 0) {
+  if (mainFiles.length === 0) {
     return null;
   }
 

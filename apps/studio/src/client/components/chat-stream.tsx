@@ -23,6 +23,7 @@ import {
   isVisibleAssistantPart,
   PLANNING_BOUNDARY_ID,
 } from "./chat-stream-utils";
+import { FolderAttachmentsCard } from "./folder-attachments-card";
 import { MessageError } from "./message-error";
 import { ProjectContextNote } from "./project-context-note";
 import { ReasoningMessage } from "./reasoning-message";
@@ -326,14 +327,24 @@ export function ChatStream({
         );
         const files = attachmentsData?.files ?? [];
 
-        if (files.length > 0 || userFolders.length > 0) {
+        if (files.length > 0) {
           messageElements.unshift(
             <AttachmentsCard
               assetBaseUrl={assetBaseUrl}
               files={files}
-              folders={userFolders}
               key={`attachments-${message.id}`}
               taskId={task.id}
+            />,
+          );
+        }
+
+        // Above the files, matching the composer, where the folder tray sits
+        // over the prompt and its attachments.
+        if (userFolders.length > 0) {
+          messageElements.unshift(
+            <FolderAttachmentsCard
+              folders={userFolders}
+              key={`folders-${message.id}`}
             />,
           );
         }

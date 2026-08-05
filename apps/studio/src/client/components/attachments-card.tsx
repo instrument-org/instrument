@@ -18,14 +18,12 @@ const LEGACY_ATTACHMENT_DIR_PREFIXES = ["user-provided/", "agent-retrieved/"];
 interface FileAttachmentsCardProps {
   assetBaseUrl: string;
   files: SessionMessageDataPart.FileAttachmentDataPart[];
-  folders?: SessionMessageDataPart.FolderAttachmentDataPart[];
   taskId: TaskId;
 }
 
 export function AttachmentsCard({
   assetBaseUrl,
   files,
-  folders,
   taskId,
 }: FileAttachmentsCardProps) {
   const fileItems = files.map((file) => {
@@ -50,15 +48,7 @@ export function AttachmentsCard({
     };
   });
 
-  return (
-    <FilesGrid
-      alignEnd
-      compact
-      files={fileItems}
-      folders={folders}
-      prioritizeUserFiles
-    />
-  );
+  return <FilesGrid alignEnd compact files={fileItems} prioritizeUserFiles />;
 }
 
 function normalizeAttachmentFilePath(filePath: string): string {

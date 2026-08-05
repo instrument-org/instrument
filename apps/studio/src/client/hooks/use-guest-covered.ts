@@ -1,3 +1,4 @@
+import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
 import { filePreviewAtom } from "@/client/atoms/file-preview";
 import { isStudioModalOpenAtom } from "@/client/atoms/studio-modal";
 import { taskFileViewerAtom } from "@/client/atoms/task-file-viewer";
@@ -13,13 +14,18 @@ import { useAtomValue } from "jotai";
  * tab switch, which is the only park signal `useBrowserSlot` otherwise receives,
  * so a covered host has to say so itself.
  *
- * All three sources, because they are independent slots and a menu accelerator
+ * All four sources, because they are independent slots and a menu accelerator
  * can open one over another: the app-wide studio modals (settings, sign-in,
- * ...), the file viewer's expand modal, and the chat's image/diagram preview.
+ * ...), the command palette (a dialog of the same shape, but on its own atom
+ * rather than the studio-modal slot), the file viewer's expand modal, and the
+ * chat's image/diagram preview.
  */
 export function useIsGuestCovered(): boolean {
   const studioModalOpen = useAtomValue(isStudioModalOpenAtom);
+  const commandMenuOpen = useAtomValue(commandMenuOpenAtom);
   const fileViewerModalOpen = useAtomValue(taskFileViewerAtom).isModalOpen;
   const filePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
-  return studioModalOpen || fileViewerModalOpen || filePreviewOpen;
+  return (
+    studioModalOpen || commandMenuOpen || fileViewerModalOpen || filePreviewOpen
+  );
 }

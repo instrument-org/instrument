@@ -47,9 +47,10 @@ const DEV_MOUNT_POINT = "/dev";
 /**
  * Virtual mount point of the workspace's own `skills/` directory.
  *
- * Writable, unlike the read-only attached folders: authoring a skill is editing
- * a plain package of files, so the agent does it with the ordinary file tools
- * rather than a dedicated tool. Only the workspace's skills live here -- skills
+ * Always writable, whatever access the attached folders have: authoring a skill
+ * is editing a plain package of files, so the agent does it with the ordinary
+ * file tools rather than a dedicated tool. Only the workspace's skills live
+ * here -- skills
  * discovered in a co-installed agent's home directory stay readable through
  * `load_skill` and are never exposed for writing.
  */
@@ -169,9 +170,13 @@ export async function buildBashFs(
 }
 
 /**
- * Build the layout for a task. Pure and synchronous so the dedicated file tools
- * can resolve paths without disk I/O; bash's buildBashFs skips any attached
- * folder that is missing on disk at mount time.
+ * Build the layout for a task. Synchronous so the dedicated file tools can
+ * resolve a path inline; bash's buildBashFs skips any attached folder that is
+ * missing on disk at mount time.
+ *
+ * Not pure: a read-write folder is checked against the workspace root, which
+ * reads the workspace config and canonicalizes both paths. A caller with no
+ * config set can only build a layout whose folders are all read-only.
  */
 export function buildWorkspaceFsLayout({
   attachedFolders,
@@ -217,6 +222,12 @@ export function buildWorkspaceFsLayout({
  * Applied here rather than at the UI so it holds for a hand-edited state.json,
  * and shared with the agent's folder list so what the model is told matches
  * what the filesystem enforces.
+ *
+ * Both paths are canonicalized before they are compared, because the overlap
+ * is a fact about the directory rather than about how it was spelled: `..`
+ * segments and a symlink pointing at the workspace both name it without
+ * matching it as a prefix. Only a read-write grant pays for that, so the usual
+ * read-only folder costs nothing.
  */
 export function effectiveFolderAccess(
   folder: FolderAttachment.Type,
@@ -224,10 +235,18 @@ export function effectiveFolderAccess(
   if (folder.access !== "read-write") {
     return "read-only";
   }
-  const workspaceRoot = getWorkspaceConfig().rootDir;
+  const folderPath = canonicalizeThroughMissing(folder.path);
+  const workspaceRoot = canonicalizeThroughMissing(
+    getWorkspaceConfig().rootDir,
+  );
+  // Either path failing to resolve means the overlap cannot be ruled out, so
+  // the grant is refused rather than assumed safe.
+  if (folderPath === null || workspaceRoot === null) {
+    return "read-only";
+  }
   const overlapsWorkspace =
-    pathIsWithin(folder.path, workspaceRoot) ||
-    pathIsWithin(workspaceRoot, folder.path);
+    pathIsWithin(folderPath, workspaceRoot) ||
+    pathIsWithin(workspaceRoot, folderPath);
   return overlapsWorkspace ? "read-only" : "read-write";
 }
 
@@ -322,7 +341,7 @@ export function resolveHostPath(
  * containment the sandbox has: no symlink check, no path masking, and no way
  * to tell what a build step touched. The agent copies a file into the task and
  * works on the copy instead. Writes back into the folder go through the virtual
- * filesystem, where they stay contained and observable.
+ * filesystem, where the symlink check and the mount's access level still apply.
  */
 export function resolveNativeHostPath(
   taskHostRoot: TaskDir,

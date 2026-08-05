@@ -9,6 +9,7 @@ import {
 } from "./attached-folders-baseline";
 import { taskDir } from "./task-dir-utils";
 import { getTaskState } from "./task-state-store";
+import { effectiveFolderAccess } from "./workspace-fs-layout";
 
 /**
  * Diffs the task's current attached folders against the session's persisted
@@ -42,7 +43,10 @@ export function detectAttachedFolderChanges({
       const taskState = await getTaskState(taskDir(taskId));
       const current = Object.values(taskState.attachedFolders ?? {}).map(
         (folder) => ({
-          access: folder.access,
+          // The access the mount ended up with, not the grant on record, so a
+          // folder the workspace-overlap guard downgrades is never announced as
+          // writable while the filesystem refuses the writes.
+          access: effectiveFolderAccess(folder),
           name: folder.name,
           path: folder.path,
         }),

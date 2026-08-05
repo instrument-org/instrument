@@ -29,6 +29,11 @@ export interface FolderAccess {
 // Adding a folder is the user asking the agent to work in it, so it starts with
 // the access that allows that. The warning and the per-folder control are what
 // make the choice reversible.
+//
+// Deliberately the opposite of the schema's default, which is what an
+// attachment carrying no access at all resolves to: that one is about folders
+// stored before the choice existed, and has to preserve the posture they were
+// attached under. Anything picked here states its access explicitly.
 export const DEFAULT_FOLDER_ACCESS: FolderAttachment.Access = "read-write";
 
 const ACCESS_LABELS: Record<FolderAttachment.Access, string> = {
@@ -229,30 +234,11 @@ function FolderAccessRow({
               {displayPath(path)}
             </span>
           </div>
-          <Select
-            onValueChange={(value) => {
-              onAccessChange(value as FolderAttachment.Access);
-            }}
-            value={access}
-          >
-            {/* The chevron ships at size-4, which overpowers the 12px label it
-                sits beside; the direct-child selector is what beats the utility
-                class the primitive puts on it. */}
-            <SelectTrigger
-              className="h-auto shrink-0 gap-1 border-0 bg-none px-1.5 py-0.5 text-xs shadow-none dark:border-0 dark:bg-transparent dark:hover:bg-muted [&>svg]:size-3.5"
-              size="sm"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent align="end">
-              <SelectItem value="read-write">
-                {ACCESS_LABELS["read-write"]}
-              </SelectItem>
-              <SelectItem value="read-only">
-                {ACCESS_LABELS["read-only"]}
-              </SelectItem>
-            </SelectContent>
-          </Select>
+          <FolderAccessSelect
+            access={access}
+            folderName={folderNameFromPath(path)}
+            onChange={onAccessChange}
+          />
           {/* Matched to the select's chevron in size and weight: side by side
               at different weights they read as two competing icons. */}
           <button

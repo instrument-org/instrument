@@ -19,6 +19,7 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import {
   buildBashFs,
   buildWorkspaceFsLayout,
+  effectiveFolderAccess,
   SKILLS_MOUNT_POINT,
   TASK_MOUNT_POINT,
 } from "./workspace-fs-layout";
@@ -349,5 +350,64 @@ describe("buildBashFs skills mount", () => {
     await expect(
       fs.readFile(path.join(tmpDir, "skills", "first", "SKILL.md"), "utf8"),
     ).resolves.toBe("body\n");
+  });
+});
+
+describe("effectiveFolderAccess", () => {
+  let tmpDir: string;
+  let previousConfig: ReturnType<typeof getWorkspaceConfig>;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), `${APP_NAME_SLUG}-folder-access-test-`),
+    );
+    await fs.mkdir(path.join(tmpDir, "workspace"));
+    await fs.mkdir(path.join(tmpDir, "elsewhere"));
+    previousConfig = getWorkspaceConfig();
+    setWorkspaceConfig({
+      ...previousConfig,
+      rootDir: WorkspaceDirSchema.parse(path.join(tmpDir, "workspace")),
+    });
+  });
+
+  afterEach(async () => {
+    setWorkspaceConfig(previousConfig);
+    await fs.rm(tmpDir, { force: true, recursive: true });
+  });
+
+  function accessFor(folderPath: string) {
+    return effectiveFolderAccess({
+      access: "read-write",
+      createdAt: 0,
+      id: FolderAttachment.IdSchema.parse("folder-id"),
+      name: "Folder",
+      path: AbsolutePathSchema.parse(folderPath),
+      source: "user",
+    });
+  }
+
+  it("grants read-write to a folder clear of the workspace", () => {
+    expect(accessFor(path.join(tmpDir, "elsewhere"))).toBe("read-write");
+  });
+
+  // Built by hand rather than with path.join, which would normalize the
+  // segments away before the code under test ever sees them. A hand-edited
+  // state.json is exactly where an unnormalized path comes from.
+  it("refuses a folder that spells the workspace through .. segments", () => {
+    expect(accessFor(`${tmpDir}/elsewhere/../workspace`)).toBe("read-only");
+  });
+
+  it("refuses a folder that reaches the workspace through a symlink", async () => {
+    const link = path.join(tmpDir, "link-to-workspace");
+    await fs.symlink(path.join(tmpDir, "workspace"), link);
+    expect(accessFor(link)).toBe("read-only");
+  });
+
+  it("refuses a folder whose symlinked parent contains the workspace", async () => {
+    const link = path.join(tmpDir, "link-to-root");
+    await fs.symlink(tmpDir, link);
+    expect(accessFor(path.join(link, "workspace", "projects"))).toBe(
+      "read-only",
+    );
   });
 });

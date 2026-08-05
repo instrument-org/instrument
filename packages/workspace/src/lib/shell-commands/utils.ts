@@ -59,7 +59,7 @@ export function bridgeFlagValuePath(
  * backslashes never corrupt string escapes. The quote prefix is what
  * distinguishes a string literal from lookalikes such as JS regex literals
  * (`split(/task/)`), which must not be rewritten. Quoted `/mnt/...` literals
- * have no host path a subprocess may receive (read-only mounts), so they fail
+ * have no host path a subprocess may receive, at any access level, so they fail
  * fast with the copy-first guidance instead of dereferencing the host root.
  */
 export function bridgeInlineCodePaths(

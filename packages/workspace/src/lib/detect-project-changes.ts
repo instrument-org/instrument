@@ -13,6 +13,7 @@ import { getProject } from "./project";
 import { Store } from "./store";
 import { taskDir } from "./task-dir-utils";
 import { getTaskState, setTaskState } from "./task-state-store";
+import { effectiveFolderAccess } from "./workspace-fs-layout";
 
 /**
  * Compares the live project against the task's frozen project snapshot (folded
@@ -148,7 +149,9 @@ export function detectProjectChanges({
       }
 
       const foldersAdded = newFolders.map((folder) => ({
-        access: folder.access,
+        // As with the folder list itself: what the mount ended up allowing,
+        // which the workspace-overlap guard can narrow.
+        access: effectiveFolderAccess(folder),
         name: names.get(folder.id) ?? folder.path,
         path: folder.path,
       }));

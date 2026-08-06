@@ -68,61 +68,8 @@ import { contextMenuComponents } from "./ui/menu-components";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
-function MarkdownPreview({ url }: { url: string }) {
-  const { data, error, isLoading } = useQuery({
-    queryFn: async () => {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch file: ${response.statusText}`);
-      }
-      return response.text();
-    },
-    queryKey: ["markdown-file", url],
-    retry: false,
-  });
-
-  if (isLoading) {
-    return <FileLoading />;
-  }
-
-  if (error) {
-    return (
-      <div className="flex size-full items-center justify-center p-8">
-        <Alert className="max-w-2xl" variant="destructive">
-          <AlertTitle>Failed to load file</AlertTitle>
-          <AlertDescription>
-            {error instanceof Error
-              ? error.message
-              : "An unknown error occurred"}
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
-  return <SessionMarkdown className="p-8" markdown={data ?? ""} />;
-}
-
-function TextView({
-  children,
-  filename,
-  url,
-}: {
-  children: (text: string) => ReactNode;
-  filename: string;
-  url: string;
-}) {
-  const { data, error, isLoading } = useQuery({
-    queryFn: async () => {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch file: ${response.statusText}`);
-      }
-      return response.text();
-    },
-    queryKey: ["text-file", url],
-    retry: false, // Ensures fast failure
-  });
+function CodeView({ filename, url }: { filename: string; url: string }) {
+  const { data, error, isLoading } = useFileText(url);
 
   const language = getLanguageFromFilePath(filename);
   const { highlightedHtml, isHighlightable } = useSyntaxHighlighting({
@@ -135,18 +82,7 @@ function TextView({
   }
 
   if (error) {
-    return (
-      <div className="flex size-full items-center justify-center p-8">
-        <Alert className="max-w-2xl" variant="destructive">
-          <AlertTitle>Failed to load file</AlertTitle>
-          <AlertDescription>
-            {error instanceof Error
-              ? error.message
-              : "An unknown error occurred"}
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
+    return <FileTextError error={error} />;
   }
 
   if (highlightedHtml) {
@@ -158,6 +94,8 @@ function TextView({
     );
   }
 
+  const plain = <pre className="p-4 text-sm text-foreground">{data}</pre>;
+
   if (isHighlightable) {
     // Delay showing plain text fallback to give syntax highlighting time to load
     return (
@@ -166,12 +104,82 @@ function TextView({
         initial={{ opacity: 0 }}
         transition={{ delay: 0.3, duration: 0 }}
       >
-        {children(data ?? "")}
+        {plain}
       </motion.div>
     );
   }
 
-  return <>{children(data ?? "")}</>;
+  return plain;
+}
+
+function FileTextError({ error }: { error: unknown }) {
+  return (
+    <div className="flex size-full items-center justify-center p-8">
+      <Alert className="max-w-2xl" variant="destructive">
+        <AlertTitle>Failed to load file</AlertTitle>
+        <AlertDescription>
+          {error instanceof Error ? error.message : "An unknown error occurred"}
+        </AlertDescription>
+      </Alert>
+    </div>
+  );
+}
+
+function MarkdownPreview({ url }: { url: string }) {
+  const { data, error, isLoading } = useFileText(url);
+
+  if (isLoading) {
+    return <FileLoading />;
+  }
+
+  if (error) {
+    return <FileTextError error={error} />;
+  }
+
+  return <SessionMarkdown className="p-8" markdown={data ?? ""} />;
+}
+
+/**
+ * A `.txt` is as likely to be a letter as a log, so it is read rather than
+ * inspected: the reading typeface and the markdown preview's measure, wrapped
+ * at the viewer's width instead of running off the right edge on one line.
+ *
+ * `pre-wrap` is what keeps that honest. The file's own line breaks, blank lines
+ * and indentation are content -- a hard-wrapped paragraph, an indented list, a
+ * signature block -- and reflowing them, as a markdown pass would, changes the
+ * document rather than presenting it. Wrapping only happens where a line is too
+ * long for the width on offer.
+ */
+function PlainTextView({ url }: { url: string }) {
+  const { data, error, isLoading } = useFileText(url);
+
+  if (isLoading) {
+    return <FileLoading />;
+  }
+
+  if (error) {
+    return <FileTextError error={error} />;
+  }
+
+  return (
+    <div className="p-8 text-sm/relaxed wrap-break-word whitespace-pre-wrap text-foreground">
+      {data}
+    </div>
+  );
+}
+
+function useFileText(url: string) {
+  return useQuery({
+    queryFn: async () => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.statusText}`);
+      }
+      return response.text();
+    },
+    queryKey: ["file-text", url],
+    retry: false, // Ensures fast failure
+  });
 }
 
 // Both hosts (the artifact panel and the expand modal) give the viewer the
@@ -248,7 +256,7 @@ const VIEWERS = {
     ),
     scrolls: "container",
   },
-  code: { hasToolbar: false, render: renderText, scrolls: "container" },
+  code: { hasToolbar: false, render: renderCode, scrolls: "container" },
   csv: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
@@ -271,7 +279,7 @@ const VIEWERS = {
     hasToolbar: false,
     render: (context) =>
       context.viewMode === "raw" ? (
-        renderText(context)
+        renderCode(context)
       ) : (
         <SandboxedHtmlIframe
           className="absolute inset-0 size-full border-0"
@@ -331,7 +339,7 @@ const VIEWERS = {
     hasToolbar: false,
     render: (context) =>
       context.viewMode === "raw" ? (
-        renderText(context)
+        renderCode(context)
       ) : (
         <MarkdownPreview url={context.file.url} />
       ),
@@ -365,7 +373,11 @@ const VIEWERS = {
     ),
     scrolls: "self",
   },
-  text: { hasToolbar: false, render: renderText, scrolls: "container" },
+  text: {
+    hasToolbar: false,
+    render: ({ file }) => <PlainTextView url={file.url} />,
+    scrolls: "container",
+  },
   unknown: {
     hasToolbar: false,
     render: ({ fallback }) => (
@@ -417,19 +429,15 @@ const VIEWERS = {
   },
 } satisfies Record<FileType, ViewerEntry>;
 
+function renderCode({ file }: ViewerContext) {
+  return <CodeView filename={file.filename} url={file.url} />;
+}
+
 function renderPdf({ fallback, file }: ViewerContext) {
   return (
     <ViewerSurface fallback={fallback} resetKey={file.url}>
       <LazyPdfViewer filename={file.filename} url={file.url} />
     </ViewerSurface>
-  );
-}
-
-function renderText({ file }: ViewerContext) {
-  return (
-    <TextView filename={file.filename} url={file.url}>
-      {(text) => <pre className="p-4 text-sm text-foreground">{text}</pre>}
-    </TextView>
   );
 }
 

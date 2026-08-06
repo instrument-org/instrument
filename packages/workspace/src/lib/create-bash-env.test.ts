@@ -36,6 +36,7 @@ describe("createBashDescription", () => {
       Specialized commands:
         jq - Parse and manipulate JSON
         rg - Search file contents and list files with ripgrep. Pipe and redirect its output like any other command (e.g. \`rg -l TODO | head\`).
+        sqlite3 - Query SQLite database files. Dot commands (\`.tables\`, \`.schema\`) are NOT implemented -- list tables with \`select name from sqlite_master where type='table'\`. Pass \`-bail\` or a SQL error still exits 0. \`-box\`/\`-json\`/\`-csv -header\` control output
         xan - Fast CSV processing, filtering, aggregation, and visualization
         yq - Parse and manipulate YAML (like jq but for YAML; e.g. \`yq '.key' file.yaml\`)
         agent-browser - Control a browser to navigate the web, interact with pages, and extract content.

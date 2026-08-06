@@ -68,7 +68,7 @@ import {
 
 // cspell:ignore mixmark
 
-/** FS reads, HTTP bodies, maxStringLength/maxOutputSize; maxHeredocSize unchanged (10 MiB). */
+/** FS reads, HTTP bodies, maxStringLength/maxOutputSize; maxHeredocSize unchanged (64 MiB). */
 const SANDBOX_MAX_BYTES = 256 * 1024 * 1024;
 
 function stubCommand(
@@ -88,7 +88,6 @@ function stubCommand(
 // the situation to the agent. Each entry explains why.
 const BROKEN_COMMANDS = new Set<CommandName>([
   "html-to-markdown", // depends on `turndown`, which requires `@mixmark-io/domino` as an undeclared peer dependency
-  "sqlite3", // resolves its worker via import.meta.url on disk; incompatible with asar bundling
   "which", // always errors in this environment; replaced with a stub below
 ]);
 
@@ -97,7 +96,6 @@ const STATIC_STUB_COMMANDS = [
     "npm",
     "npm is not available in this environment. Use 'pnpm' instead (e.g. 'pnpm add <package>').",
   ),
-  stubCommand("sqlite3", "SQLite is not available in this environment"),
 ];
 
 const commandOrderPlugin: TransformPlugin<{ commands: string[] }> = {
@@ -180,6 +178,8 @@ const DESCRIBED_COMMANDS: Record<string, string> = {
   curl: "Download files or fetch HTTP responses (use `-L -o <path> <url>` to download a file)",
   jq: "Parse and manipulate JSON",
   rg: RG_COMMAND.description,
+  sqlite3:
+    "Query SQLite database files. Dot commands (`.tables`, `.schema`) are NOT implemented -- list tables with `select name from sqlite_master where type='table'`. Pass `-bail` or a SQL error still exits 0. `-box`/`-json`/`-csv -header` control output",
   xan: "Fast CSV processing, filtering, aggregation, and visualization",
   yq: "Parse and manipulate YAML (like jq but for YAML; e.g. `yq '.key' file.yaml`)",
 };

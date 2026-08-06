@@ -104,7 +104,10 @@ const config: Configuration = {
     "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
     "!**/node_modules/*.d.ts",
     "!**/node_modules/.bin",
-    "!**/node_modules/sql.js/**", // just-bash peer dep for sqlite3 command; non-functional in asar (worker.js missing), stubbed out -- saves ~18MB
+    // sql.js backs just-bash's `sqlite3`. Only the wasm build's loader and its
+    // .wasm are reachable from Node; the asm.js, browser, and debug variants are
+    // ~17MB of the package's 18MB and nothing loads them.
+    "!**/node_modules/sql.js/dist/{sql-asm*,worker.sql-*,*-debug.*,sql-wasm-browser.*}",
     "!**/*.map", // someday we may want to keep these for debugging
     /* cspell:disable */
     "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",

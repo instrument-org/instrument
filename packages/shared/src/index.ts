@@ -1,5 +1,6 @@
 export * from "./add-ref";
 export * from "./constants";
+export * from "./file-extensions";
 export * from "./folder-paths";
 export * from "./schemas";
 export type * from "./types/provider-error";

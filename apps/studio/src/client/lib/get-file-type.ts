@@ -1,3 +1,5 @@
+import { CODE_EXTENSION_MIME_TYPES } from "@instrument-org/shared";
+
 import { isTextMimeType } from "./is-text-mime-type";
 
 export type FileType =
@@ -272,6 +274,43 @@ const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
   zip: "archive",
 };
 
+// The media a browser can decode, by extension, so a card drawn from a path
+// alone still knows to reach for a thumbnail.
+//
+// `ts` is deliberately absent. It is a registered video extension (MPEG
+// transport stream) and a TypeScript file everywhere it actually turns up here,
+// so it belongs to the code table instead.
+// cspell:ignore avif, heic, heif
+const MEDIA_EXTENSIONS: Record<string, FileType> = {
+  aac: "audio",
+  aiff: "audio",
+  avif: "image",
+  bmp: "image",
+  flac: "audio",
+  gif: "image",
+  heic: "image",
+  heif: "image",
+  ico: "image",
+  jpeg: "image",
+  jpg: "image",
+  m4a: "audio",
+  m4v: "video",
+  mov: "video",
+  mp3: "audio",
+  mp4: "video",
+  oga: "audio",
+  ogg: "audio",
+  ogv: "video",
+  opus: "audio",
+  png: "image",
+  svg: "image",
+  tif: "image",
+  tiff: "image",
+  wav: "audio",
+  webm: "video",
+  webp: "image",
+};
+
 export function getFileType({
   filename,
   mimeType,
@@ -282,37 +321,49 @@ export function getFileType({
   const lowerFilename = filename.toLowerCase();
 
   const extensionStart = lowerFilename.lastIndexOf(".");
-  const documentType =
-    extensionStart === -1
-      ? undefined
-      : DOCUMENT_EXTENSIONS[lowerFilename.slice(extensionStart + 1)];
+  const extension =
+    extensionStart === -1 ? undefined : lowerFilename.slice(extensionStart + 1);
+
+  const documentType = extension ? DOCUMENT_EXTENSIONS[extension] : undefined;
   if (documentType) {
     return documentType;
   }
 
-  if (mimeType) {
-    if (mimeType.startsWith("image/")) {
+  const mediaType = extension ? MEDIA_EXTENSIONS[extension] : undefined;
+  if (mediaType) {
+    return mediaType;
+  }
+
+  // A file reference drawn from a path alone carries no mime type, which is
+  // every reference in the transcript: nothing resolves a file over the network
+  // to draw it. Source files are the ones that need this -- without a mime type
+  // they reach none of the branches below and land on the fallback card.
+  const effectiveMimeType =
+    mimeType ?? (extension ? CODE_EXTENSION_MIME_TYPES[extension] : undefined);
+
+  if (effectiveMimeType) {
+    if (effectiveMimeType.startsWith("image/")) {
       return "image";
     }
 
-    if (mimeType.startsWith("video/")) {
+    if (effectiveMimeType.startsWith("video/")) {
       return "video";
     }
 
-    if (mimeType.startsWith("audio/")) {
+    if (effectiveMimeType.startsWith("audio/")) {
       return "audio";
     }
 
-    if (mimeType === "application/pdf") {
+    if (effectiveMimeType === "application/pdf") {
       return "pdf";
     }
 
-    if (mimeType === "text/html") {
+    if (effectiveMimeType === "text/html") {
       return "html";
     }
   }
 
-  if (isMarkdown({ filename, mimeType })) {
+  if (isMarkdown({ filename, mimeType: effectiveMimeType })) {
     return "markdown";
   }
 
@@ -320,14 +371,14 @@ export function getFileType({
     return "html";
   }
 
-  if (isTextMimeType(mimeType)) {
-    if (isReadableText({ filename, mimeType })) {
+  if (isTextMimeType(effectiveMimeType)) {
+    if (isReadableText({ filename, mimeType: effectiveMimeType })) {
       return "text";
     }
     return "code";
   }
 
-  if (isReadableText({ filename, mimeType })) {
+  if (isReadableText({ filename, mimeType: effectiveMimeType })) {
     return "text";
   }
 

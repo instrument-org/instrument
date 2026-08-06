@@ -55,12 +55,63 @@ describe("getFileType", () => {
       "image",
     );
     expect(getFileType({ filename: "README.md" })).toBe("markdown");
-    // Source files are only recognized through their mime type; there is no
-    // extension list for them.
     expect(getFileType({ filename: "main.ts", mimeType: "text/plain" })).toBe(
       "code",
     );
   });
+});
+
+// Nothing resolves a file over the network to draw a reference to it, so a
+// filename is all these have. Every case here would reach the fallback card if
+// the extension did not answer on its own.
+describe("resolving from the extension alone", () => {
+  it.each([
+    ["chart.png", "image"],
+    ["photo.JPG", "image"],
+    ["logo.svg", "image"],
+    ["clip.mp4", "video"],
+    ["clip.mov", "video"],
+    ["theme.mp3", "audio"],
+    ["voice.m4a", "audio"],
+    ["main.ts", "code"],
+    ["main.tsx", "code"],
+    ["script.py", "code"],
+    ["styles.css", "code"],
+    ["config.yaml", "code"],
+    ["notes.md", "markdown"],
+    ["index.html", "html"],
+    ["notes.txt", "text"],
+  ] as const)("resolves %s to %s", (filename, expected) => {
+    expect(getFileType({ filename })).toBe(expected);
+  });
+
+  // `.ts` is a registered video extension (MPEG transport stream) and a
+  // TypeScript file everywhere it turns up here.
+  it("reads .ts as TypeScript rather than a transport stream", () => {
+    expect(getFileType({ filename: "main.ts" })).toBe("code");
+  });
+
+  // The server labels a response's Content-Type from the same table, so a file
+  // has to read the same way whether or not that label reached the client.
+  it.each([
+    ["chart.png", "image/png"],
+    ["clip.mp4", "video/mp4"],
+    ["main.ts", "text/typescript"],
+    ["script.py", "text/plain"],
+    ["notes.md", "text/markdown"],
+    ["index.html", "text/html"],
+  ] as const)("resolves %s the same way with %s", (filename, mimeType) => {
+    expect(getFileType({ filename })).toBe(getFileType({ filename, mimeType }));
+  });
+
+  // A binary with no extension entry has nothing to go on and belongs on the
+  // fallback card rather than being guessed into a viewer.
+  it.each(["program.exe", "data.bin", "font.woff2"] as const)(
+    "leaves %s unknown",
+    (filename) => {
+      expect(getFileType({ filename })).toBe("unknown");
+    },
+  );
 });
 
 // Extension alone has to be enough for the formats with a viewer: these files

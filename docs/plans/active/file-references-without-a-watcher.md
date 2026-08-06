@@ -1,6 +1,6 @@
 # Plan: file references resolve at click, and the folder watcher goes
 
-Status: **designed, not started.** Owner: TBD.
+Status: **step 1 landed; steps 2-5 designed, not started.** Owner: TBD.
 
 Three mechanisms currently infer, from disk, what the user should see and how fresh it is: a recursive watcher over the task directory, a per-turn diff of that watcher into a change card, and a per-reference existence query at render. All three exist because the app had to guess what a turn produced. It no longer has to guess: a ` ```files ` fence says what the reply hands over ([presentation-syntax.md](presentation-syntax.md)) and `show` says what goes on screen ([pane-tabs-and-the-show-command.md](pane-tabs-and-the-show-command.md)). This deletes the guessing.
 
@@ -18,8 +18,7 @@ Everything below follows from those.
 - **`data-fileChanges`** end to end, and not compatibly: the schema member, `FileChangesCard`, its `chat-stream-data-parts` entry, and the `consumeTurnChanges` call that produces it. Old messages carrying the part render nothing. The fence replaces it, and the agent is answerable for naming what it wants shown.
 - **`task-file-watcher.ts`** and the `@parcel/watcher` dependency of this feature, with `files.live.list` and its `seedLiveQuery`. `files.list` stays as a one-shot walk.
 - **`CurrentTaskFilesProvider`** and its four hooks, which exist only to answer questions nothing asks anymore.
-- **The render-time `fileInfo` queries** in `TaskFileLink` and `AgentFilesBlock`. One is a round trip per link, the other N per fence; both decide something at render that is stale by the time anyone acts on it.
-- **`?version=`** on transcript asset URLs.
+- ~~**The render-time `fileInfo` queries** in `TaskFileLink` and `AgentFilesBlock`~~ and ~~**`?version=`** on transcript asset URLs~~ — done in step 1.
 
 Already on the `show` plan's list and not repeated here: both auto-open hooks, the `artifactPanel` search param, `external-file-changes.ts`, `file-index-baseline.ts`.
 
@@ -37,14 +36,17 @@ From the path, with no lookup:
 | Thumbnail URL | `assetBase + path` |
 | Label | The basename |
 
+Nothing is lost in giving up the mime type the server used to supply, because **the server never inspected the file to produce it**: `getMimeType` takes a filename and reads an extension table. So the client asking the same question of the same extension gets the same answer, and the table itself is now shared ([file-extensions.ts](../../../packages/shared/src/file-extensions.ts)) so the two cannot drift. The one place in the product that does look at bytes is `copyFileToClipboard`, which sniffs the buffer it just read — the right shape, and untouched: code that inspects content is code that already has the content.
+
 For an image, **the asset request is the existence check**: the origin is a static file server, so an `<img>` either loads or 404s and `ImageWithFallback` already draws the failure. That is free, correct at the moment it matters, and needs no new machinery.
 
 For everything else, the card draws optimistically and the click resolves. A file that is gone reports itself then — a toast for a chip, an inline state for a card — which is both the honest moment and the only one that can be accurate about a file deleted a minute ago.
 
-Two consequences to take deliberately:
+Three consequences, all taken in step 1:
 
-- **A hallucinated path becomes clickable.** Today it degrades to plain text, which hides that the reply claimed a file at all. Click-then-report makes the claim visible, which is the better failure.
-- **The render-time missing state goes**, including the one already built for the fence. It is replaced by the 404 fallback for images and by click for everything else. What survives from that work is the streaming gate, for a new reason: a fence still arriving has a half-typed last line, and an optimistic renderer would draw a card for `output/ch` and then for `output/cha`. **Draw only lines the fence has finished.**
+- **A hallucinated path becomes clickable.** It used to degrade to plain text, which hid that the reply claimed a file at all. Click-then-report makes the claim visible, which is the better failure.
+- **The render-time missing state goes**, including the one built for the fence. It is replaced by the 404 fallback for images and by click for everything else. What survives from that work is the streaming gate, for a new reason: a fence still arriving has a half-typed last line, and an optimistic renderer would draw a card for `output/ch` and then for `output/cha`. **Draw only lines the fence has finished.**
+- **Addressability replaces existence as the gate.** Dropping the existence check took away the thing that kept a host path in model output from rendering as an affordance, so a structural check on the string took its place: task-relative or under the mount root, never traversing ([task-file-path.ts](../../../apps/studio/src/client/lib/task-file-path.ts)). It asks nothing of disk, and it is the one path grammar both the chip and the fence use. `show` should use it too.
 
 ## How the open file stays fresh
 
@@ -62,17 +64,19 @@ What we cannot do is the fully correct thing — show each card the bytes that e
 
 ### The mechanism
 
-`@parcel/watcher` cannot do this: its API is `subscribe(dir, fn, opts)`, directory-only and recursive-only. The on-demand tier is `fs.watch`, and the portable unit is **the parent directory, non-recursively** — not the file. Per-file is a Linux luxury (one inotify descriptor) and not expressible at all on Windows, where `ReadDirectoryChangesW` is handle-per-directory, or meaningfully on macOS, where FSEvents is subtree-oriented. Parent-directory watching is cheap on all three and collapses several displayed files into one handle.
+`@parcel/watcher` cannot do this: its API is `subscribe(dir, fn, opts)`, directory-only and recursive-only.
 
-VS Code runs exactly this shape and the parts worth copying are the failure paths, which are easy to underestimate:
+**Use `fs.watchFile`, not `fs.watch`.** The pane needs one number — has the mtime changed — not event semantics, and `fs.watchFile` is a `stat` on an interval, which answers exactly that. What that buys, all of it otherwise something to build:
 
-- **A watch that fails is suspended and polled, not dropped.** `fs.watchFile(path, { persistent: false, interval: 5007 })` until the path appears, then the real watch resumes. This is not an edge case for us: the pane will be pointed at a file that was just deleted, or one the agent is about to create.
-- **Check whether an existing watch already covers the path** before opening a handle.
-- **Throttle the request diff, not the watch.** Tab switches and task switches are diffs, so teardown and stand-up land in the same throttle for free.
-- **Correlate requests to their requester**, needed as soon as two windows show the same file.
-- **Refuse `fs.watch` on suspected network shares.** New exposure: a user-chosen folder can be a network mount or a cloud-sync root in a way our own directory never was.
+- **No rename semantics, no duplicate events, no network-share problem.** These are the reasons `fs.watch` needs care, and every one of them is about interpreting events. A `stat` has nothing to interpret.
+- **It works on a path that does not exist yet** and fires when it appears. The pane will be pointed at a file the agent is about to create, and at one that was just deleted; both are the normal case here, not an edge.
+- **Deletion arrives as a zeroed stat**, so the missing state needs no separate signal.
 
-References: `nodejsWatcher.ts`, `baseWatcher.ts`, `common/watcher.ts` in VS Code's `platform/files`.
+Cost is one `stat` per interval per open file, and there is one open file. The teardown is the ref-counted `eventIterator` pattern `files.live.list` already uses: the client subscribes, the server stands the watch up, and it goes when the last subscriber does.
+
+**Watch the pane; poll the popover.** The toolbar's file list is a browsing surface where the user is already looking, so a `staleTime` read on open with a refresh on turn end is both simpler and cheaper than a subscription. A poll's cost scales with list size times frequency, a watch's with distinct paths, and these two surfaces sit on opposite sides of that. The split is deliberate rather than an inconsistency to tidy up later.
+
+Prior art worth knowing: a comparable desktop agent app runs precisely this pair — a five-second polled query for its directory tree, and one `fs.watch` per open editor file. It reaches for a watcher only where something is being stared at.
 
 ### What replaces each freshness consumer
 
@@ -84,15 +88,15 @@ References: `nodejsWatcher.ts`, `baseWatcher.ts`, `common/watcher.ts` in VS Code
 
 [pane-tabs-and-the-show-command.md](pane-tabs-and-the-show-command.md) says "The live file index stays. It is what the sidebar list, the fence's fast path, and the chip's existence check all read." Two of those three readers are deleted here and the third does not need it to be live, so that line should go when this lands. Nothing else in that plan depends on it.
 
-Both plans should also share one path-normalization function rather than two that agree today: `show` and the fence deliberately use the same path grammar, and a `file:` URL is already normalized on the link path but not the fence path.
+`show` should reject what `isAddressableTaskFilePath` rejects, so the one path grammar the chip and the fence now share covers the command too.
 
 ## Order, and who does it
 
 Interleaved with [pane-tabs-and-the-show-command.md](pane-tabs-and-the-show-command.md), because both rewrite the same three files — `markdown.tsx`'s chip, `files-grid.tsx`'s cards, and `view.tsx` — and both rewrite the same function, the one that opens a file into the pane.
 
-1. **Stateless rendering** (here). Delete the render-time `fileInfo` queries and `?version=` from transcript references; draw from the path; resolve on click. The standing index is still there and simply stops being read by these surfaces. **First**, because it removes two index readers before the other plan has to migrate them.
+1. ~~**Stateless rendering** (here).~~ **Landed.** The render-time `fileInfo` queries and `?version=` are gone from transcript references, cards and chips draw from the path, and the standing index is still there and simply no longer read by these surfaces. It went first because it removes two index readers before the other plan has to migrate them.
 2. **The whole pane landing** (there). Tabs, `state.json`, `show`, and its deletions. Not divisible; its own plan says so.
-3. **The pane subscription** (here). Non-recursive on-demand watch with suspend/poll/resume, owned by the file tab, which step 2 is what creates.
+3. **The pane subscription** (here). `fs.watchFile` on the open path, owned by the file tab, which step 2 is what creates.
 4. **Delete `data-fileChanges`** (here). Product call, taken: the fence is the record. Re-measure adherence first — see Risks.
 5. **The file-list popover to a one-shot read**, then delete the watcher, `files.live.list`, and `CurrentTaskFilesProvider`.
 
@@ -109,5 +113,6 @@ Interleaved with [pane-tabs-and-the-show-command.md](pane-tabs-and-the-show-comm
   That shape is the normal one for real work — write a script, run it, inspect, edit, re-run. The file tools are how the agent writes its own tooling; bash is how that tooling produces the result. Any trigger keyed to a file-producing tool has it backwards, which is the same reason inferring deliverables from disk never worked.
 
   The reassuring half of the same measurement: both of those runs emitted a correct fence anyway, naming four files produced entirely through bash. The model reaches for it from what it accomplished rather than from which tool it called, which is a better signal than any trigger could supply.
-- **`fs.watch` is less reliable than the recursive backends** — duplicate events, rename semantics, network shares. It is watching one directory instead of a tree, so the blast radius is one open tab rather than the whole index.
+- **`fs.watchFile` reports on an interval, so a change is seen late** by up to that interval, and a change that reverts within one is not seen at all. For "the file on screen just changed" both are fine; nothing here needs an exact event log.
 - **Reading the popover on open loses live file appearance** during a run. Refreshing on turn end covers the common case; if it reads as broken, that surface is a candidate for its own on-demand watch rather than a reason to keep a standing one.
+- **Mtime stops being displayable where it is not subscribed.** It is optional on a file reference now and absent in the transcript, which is right — nothing there should imply a freshness it is not tracking — but a surface that wants to show a modified time has to be one that watches or reads, not one that draws from a path.

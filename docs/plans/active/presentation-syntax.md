@@ -47,7 +47,7 @@ I updated [the revenue chart](output/revenue.png) with Q3 numbers.
 
 A link in prose renders as a chip that opens a preview. This is the default, and it needs no new syntax.
 
-One gap: `TaskFileLink` gates on the live file index, so a link to `/mnt/...` falls through to plain text where the fence would show it. Since the prompt no longer teaches file links at all, this is now latent rather than reachable.
+The chip and the fence resolve identically now: both draw from the path and share one rule for which paths they will draw at all, so the same file cannot read as a chip in one half of a reply and as prose in the other.
 
 **The better version of this is worth building.** Models name a file in prose as inline code — "the launch date is in `travel.md`" — and that is the natural place for a link, but a basename alone is ambiguous across a large tree and matching it against the whole index invites false positives. The fence removes the ambiguity: **link an inline-code mention when it resolves against the files this message's own fence declared.** The fence is the declaration; prose mentions of what was declared become chips. Nothing to add to the syntax, no per-link query, no way to link a file the reply was not already showing, and it means "show each file once" costs the user nothing.
 
@@ -175,28 +175,22 @@ Syntax is the surface. What is built parses to a list of paths, and the shape it
 
 ## Resolution
 
-**Superseded as built. The model is now in [file-references-without-a-watcher.md](file-references-without-a-watcher.md):** nothing resolves over the network while rendering, a card draws from its path alone, an image's own asset request is its existence check, and the click establishes truth. What is described below is what ships today and what that plan replaces.
+**Nothing resolves over the network while rendering.** A card draws from its path: the basename is the label, the extension gives the type and icon, and `assetBase + path` is the URL. Truth is established when someone clicks. The reasoning is in [file-references-without-a-watcher.md](file-references-without-a-watcher.md), whose first step this is; what remains here is what the fence itself does with a path.
 
-Resolution is per path, in the renderer. A task-relative path comes from the live file index; anything else goes through `workspace.task.files.fileInfo`, which resolves against the task's mounts and is the same route the artifact panel takes. That second path is what makes a shared folder's file showable at all, since the index only ever walks the task directory. It is one round trip per unresolved path, decided at render, for a file the user may never click — and a fence naming seven files makes seven of them.
+A line is drawn only if it is **addressable** — task-relative or under the attached-folder mount root, never traversing — because the lines come from model output and a host path among them has to read as prose rather than as an affordance that cannot work ([task-file-path.ts](../../../apps/studio/src/client/lib/task-file-path.ts), shared with the chip so one path grammar covers both).
 
 Not built: globs and directories, and an item cap.
 
 ## States
 
-**Streaming** falls out of the syntax: `remend` closes the unterminated fence, a partial last line resolves to nothing, and cards appear as their lines complete, so raw syntax never reaches the screen.
+**Streaming** falls out of the syntax: `remend` closes the unterminated fence, and only lines the fence has finished are drawn, so raw syntax never reaches the screen. A line is finished when a newline follows it — mid-stream the last one is a path still being typed, and drawing it would put up a card for `output/ch` and replace it on every keystroke. `part.state === "streaming"` is threaded down to the renderer for this; nothing else in the pipeline can tell a half-typed path from a complete one.
 
-**Missing** is built, and moves to the click under [file-references-without-a-watcher.md](file-references-without-a-watcher.md) — an image reports itself by failing to load, everything else reports when someone asks for it. As built: a path that resolves to nothing renders as a dimmed card naming the file rather than being dropped, because a fence records what the reply said it was handing over and a file the user later moved should read as gone rather than as never mentioned. Three things make it safe to draw:
+**Missing** is not a render-time state. An image reports itself by failing to load, since the asset origin is a static file server and `ImageWithFallback` already draws the failure; everything else reports when someone asks for it. This replaced a dimmed "not found" card gated on a per-path lookup, and the trade is deliberate: whether a file is there has a different answer every minute, so the honest moment to ask is the one where it matters.
 
-- **It waits for the text part to finish.** `part.state === "streaming"` is threaded down to the renderer, because mid-stream the last line is a path still being typed and every keystroke of it would otherwise draw and discard a card. Nothing else in the pipeline can tell a half-typed path from a deleted one.
-- **It waits for the lookup.** A path whose `fileInfo` query is still in flight is undecided, not missing.
-- **It ignores a line that was never a path.** A stray sentence inside a fence is skipped rather than drawn as a broken card naming it. No model in the evals has put one there; this keeps the first one that does from reading as a bug in the file.
-
-It is named by filename alone, with the full path on hover: what the agent wrote is a sandbox path, and `/mnt/<folder>/...` is our prefix rather than anything the user has seen.
+**A line that was never a path** is still skipped rather than drawn as a card naming it. A fence is a block of lines, unlike a link, so a stray sentence can land in one. No model in the evals has put one there; this keeps the first one that does from reading as a bug in the file.
 
 Still to build:
 
-- **Loading.** A skeleton while a lookup is in flight. Currently that slot draws nothing, which is right during streaming and merely unremarkable after it.
-- **Ordering.** Missing cards render in a row under the grid rather than in the position the fence gave them, because the grid takes resolved files only.
 - **Unavailable.** A connector record whose service is disconnected renders with a reconnect path.
 
 ## What the spike measured

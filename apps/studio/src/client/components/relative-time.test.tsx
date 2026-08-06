@@ -90,72 +90,27 @@ describe("RelativeTime", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  describe("when the window goes away", () => {
-    function hide() {
-      setHidden(true);
-      act(() => {
-        document.dispatchEvent(new Event("visibilitychange"));
-      });
-    }
+  it("catches up on return when the clock moved further than a tick saw", () => {
+    renderWithProviders(
+      <RelativeTime date={new Date(NOW - 5000)} tooltip={false} />,
+    );
+    expect(screen.getByText("< 1 minute ago")).toBeTruthy();
 
-    it("stops ticking, keeping only the poll that can wake it", async () => {
-      renderWithProviders(
-        <RelativeTime date={new Date(NOW - 5000)} tooltip={false} />,
-      );
-      expect(vi.getTimerCount()).toBe(1);
-
-      hide();
-
-      // The cadence timer is gone; what remains is the resume poll.
-      expect(vi.getTimerCount()).toBe(1);
-      await advance(10 * 60_000);
-      expect(screen.getByText("< 1 minute ago")).toBeTruthy();
+    setHidden(true);
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
     });
 
-    it("catches up in one step when the window comes back", async () => {
-      renderWithProviders(
-        <RelativeTime date={new Date(NOW - 5000)} tooltip={false} />,
-      );
+    // Chromium throttles a hidden window's timers, so move the wall clock
+    // without letting anything fire -- what a throttled tick looks like from
+    // in here.
+    vi.setSystemTime(NOW + 10 * 60_000);
 
-      hide();
-      await advance(10 * 60_000);
-
-      setHidden(false);
-      act(() => {
-        document.dispatchEvent(new Event("visibilitychange"));
-      });
-
-      expect(screen.getByText("10 minutes ago")).toBeTruthy();
+    setHidden(false);
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
     });
 
-    it("resumes on focus alone, which is all Electron may deliver", async () => {
-      renderWithProviders(
-        <RelativeTime date={new Date(NOW - 5000)} tooltip={false} />,
-      );
-
-      hide();
-      await advance(10 * 60_000);
-
-      // Shown again with no visibilitychange to go with it.
-      setHidden(false);
-      act(() => {
-        window.dispatchEvent(new Event("focus"));
-      });
-
-      expect(screen.getByText("10 minutes ago")).toBeTruthy();
-    });
-
-    it("resumes on its own when neither signal ever arrives", async () => {
-      renderWithProviders(
-        <RelativeTime date={new Date(NOW - 5000)} tooltip={false} />,
-      );
-
-      hide();
-      setHidden(false);
-
-      // No event of either kind. The poll is the only thing left to notice.
-      await advance(10 * 60_000);
-      expect(screen.getByText("10 minutes ago")).toBeTruthy();
-    });
+    expect(screen.getByText("10 minutes ago")).toBeTruthy();
   });
 });

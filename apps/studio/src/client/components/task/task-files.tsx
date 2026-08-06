@@ -29,6 +29,7 @@ import { toast } from "sonner";
 
 import { FileActionsMenuItems } from "../file-actions-menu";
 import { FileThumbnail } from "../file-thumbnail";
+import { RelativeTime } from "../relative-time";
 import {
   Collapsible,
   CollapsibleContent,
@@ -273,10 +274,6 @@ function directorySectionLabel(dirName: string) {
   return dirName;
 }
 
-function explorerStubRelativeDate() {
-  return "just now";
-}
-
 function FileRow({
   file,
   isActive,
@@ -320,7 +317,8 @@ function FileRow({
                     : "text-muted-foreground",
                 )}
               >
-                {getFileKindLabel(file)} · {explorerStubRelativeDate()}
+                {getFileKindLabel(file)} ·{" "}
+                <RelativeTime date={new Date(file.modifiedAt)} />
               </span>
             </div>
           </SidebarMenuButton>

@@ -1,11 +1,14 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { rpcClient } from "@/client/rpc/client";
 import {
+  ATTACHED_FOLDERS_MOUNT_ROOT,
   normalizeTaskFilePath,
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { ImageIcon } from "@phosphor-icons/react";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import {
@@ -18,7 +21,11 @@ import {
   useMemo,
   useState,
 } from "react";
-import ReactMarkdown, { type Components, type Options } from "react-markdown";
+import ReactMarkdown, {
+  type Components,
+  defaultUrlTransform,
+  type Options,
+} from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remend from "remend";
@@ -168,10 +175,17 @@ const taskFilePathFromHref = (href: string): string => {
   return normalizeTaskFilePath(path);
 };
 
+// A file the agent reached through a mount rather than the task directory, so
+// the task-file index has nothing to say about it and the server has to resolve
+// it. Every other absolute path is a host path no link may reach.
+const isMountPath = (path: string): boolean =>
+  path.startsWith(`${ATTACHED_FOLDERS_MOUNT_ROOT}/`) &&
+  !path.split("/").includes("..");
+
 // Renders a link to a file the agent produced as an interactive chip that opens
-// the file in the artifact panel. Existence is gated by the live task-file
-// index (`useCurrentTaskFile`): a path that isn't a real task file renders as
-// plain text rather than a broken action, so hallucinated paths degrade safely.
+// the file in the artifact panel. Existence is gated: a path that resolves to no
+// real file renders as plain text rather than a broken action, so hallucinated
+// paths degrade safely.
 const TaskFileLink = ({
   children,
   className,
@@ -182,7 +196,20 @@ const TaskFileLink = ({
   href: string;
 }) => {
   const { assetBaseUrl, taskId } = useContext(MarkdownTaskContext);
-  const file = useCurrentTaskFile(taskFilePathFromHref(href));
+  const filePath = taskFilePathFromHref(href);
+  const indexedFile = useCurrentTaskFile(filePath);
+  // The live index covers the task directory only, so a file in a folder the
+  // user shared is resolved one path at a time against the task's mounts
+  // instead. Same route the artifact panel and a ```files fence take.
+  const { data: mountedFile } = useQuery(
+    rpcClient.workspace.task.files.fileInfo.queryOptions({
+      input:
+        taskId !== undefined && !indexedFile && isMountPath(filePath)
+          ? { filePath, taskId }
+          : skipToken,
+    }),
+  );
+  const file = indexedFile ?? mountedFile;
   const navigate = useNavigate({ from: "/tasks/$id/" });
   const appendToPrompt = useSetAtom(appendToPromptAtom);
 
@@ -270,7 +297,14 @@ const MarkdownLink: Components["a"] = ({
 }) => {
   const handleHashLinkClick = useHashLinkScroll();
 
-  if (href?.startsWith("#")) {
+  // Whatever `urlTransform` refused arrives with its href emptied: a `file:` URL
+  // that does not parse, a `javascript:` one. There is nothing left to open, and
+  // an anchor with an empty href reads as a live link and does nothing.
+  if (!href) {
+    return <span className={className}>{children}</span>;
+  }
+
+  if (href.startsWith("#")) {
     return (
       // eslint-disable-next-line no-restricted-syntax
       <a
@@ -284,7 +318,7 @@ const MarkdownLink: Components["a"] = ({
     );
   }
 
-  if (href && isTaskFileHref(href)) {
+  if (isTaskFileHref(href)) {
     return (
       <TaskFileLink className={className} href={href}>
         {children}
@@ -297,6 +331,23 @@ const MarkdownLink: Components["a"] = ({
       {children}
     </ExternalLink>
   );
+};
+
+// `file:` is how a model spells a link to a file it just wrote, and the default
+// transform drops the href whole rather than pass a scheme it does not know.
+// Reduce such a URL to its path so it reaches `TaskFileLink` on the same terms
+// as any other file reference. Passing it through instead only ever reaches
+// `ExternalLink`, where the protocol allowlist refuses it: a blocked-link toast
+// and a captured exception, never an opened file.
+const markdownUrlTransform = (url: string): string => {
+  if (!/^file:/i.test(url)) {
+    return defaultUrlTransform(url);
+  }
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return "";
+  }
 };
 
 const ALLOWED_IMAGE_PATTERNS = [
@@ -463,6 +514,7 @@ export const Markdown = memo(
           }}
           rehypePlugins={rehypePlugins}
           remarkPlugins={[remarkGfm, remarkBreaks, ...remarkPlugins]}
+          urlTransform={markdownUrlTransform}
         >
           {remend(markdown)}
         </ReactMarkdown>

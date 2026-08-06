@@ -1,8 +1,8 @@
 import { BrandIcon } from "@/client/components/brand-icon";
 import { type TabIconName } from "@instrument-org/shared/icons";
 import {
-  BagIcon,
   BugIcon,
+  CardsThreeIcon,
   CreditCardIcon,
   FileTextIcon,
   FlaskIcon,
@@ -21,7 +21,7 @@ export const IconMap: Record<TabIconName, Icon | typeof BrandIcon> = {
   globe: GlobeIcon,
   "graduation-cap": GraduationCapIcon,
   "our-app": BrandIcon,
-  project: BagIcon,
+  project: CardsThreeIcon,
   "table-properties": TableIcon,
   terminal: TerminalIcon,
 } as const;

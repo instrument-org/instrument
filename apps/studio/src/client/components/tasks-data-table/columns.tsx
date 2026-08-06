@@ -6,7 +6,11 @@ import { RelativeTime } from "@/client/components/relative-time";
 import { TaskStatusIcon } from "@/client/components/session-status-icon";
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
-import { ArrowsDownUpIcon, BagIcon, PushPinIcon } from "@phosphor-icons/react";
+import {
+  ArrowsDownUpIcon,
+  CardsThreeIcon,
+  PushPinIcon,
+} from "@phosphor-icons/react";
 import { format } from "date-fns";
 
 import { TaskActionsCell } from "./actions";
@@ -139,7 +143,7 @@ export function createColumns({
               params={{ id: project.id }}
               to="/projects/$id"
             >
-              <BagIcon className="size-4 shrink-0" />
+              <CardsThreeIcon className="size-4 shrink-0" />
               {project.name}
             </InternalLink>
           </Button>

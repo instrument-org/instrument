@@ -12,7 +12,7 @@ import {
 import { type useInlineRename } from "@/client/hooks/use-inline-rename";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task } from "@instrument-org/workspace/client";
-import { BagIcon } from "@phosphor-icons/react";
+import { CardsThreeIcon } from "@phosphor-icons/react";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useRef, useState } from "react";
 
@@ -85,7 +85,7 @@ export function TaskBreadcrumb({
             params={{ id: projectId }}
             to="/projects/$id"
           >
-            <BagIcon className="size-4" />
+            <CardsThreeIcon className="size-4" />
           </InternalLink>
           {/*
             Project name. min-w-0 must be on the link itself, not just the inner

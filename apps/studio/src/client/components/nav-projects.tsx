@@ -35,7 +35,7 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Project } from "@instrument-org/workspace/client";
 import {
-  BagIcon,
+  CardsThreeIcon,
   CaretRightIcon,
   DotsThreeOutlineVerticalIcon,
   PencilSimpleLineIcon,
@@ -114,7 +114,7 @@ export function NavProjects({
                 openCreateProject();
               }}
             >
-              <BagIcon className="size-4 shrink-0" />
+              <CardsThreeIcon className="size-4 shrink-0" />
               <span className="flex-1 font-medium">Add a project</span>
               <PlusIcon className="size-3! shrink-0 group-hover/add:text-sidebar-foreground" />
             </SidebarMenuButton>
@@ -202,7 +202,7 @@ function NavProjectItem({
               params={{ id: project.id }}
               to="/projects/$id"
             >
-              <BagIcon className="size-4 shrink-0 text-gray-400 [[data-active=true]_&]:text-sidebar-foreground" />
+              <CardsThreeIcon className="size-4 shrink-0 text-gray-400 [[data-active=true]_&]:text-sidebar-foreground" />
               <span className="truncate" data-project-title>
                 {project.name}
               </span>

@@ -10,7 +10,12 @@ import {
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectId } from "@instrument-org/workspace/client";
-import { BagIcon, CheckIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
+import {
+  CardsThreeIcon,
+  CheckIcon,
+  PlusIcon,
+  XIcon,
+} from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 
 export function PromptProjectSelector({
@@ -45,7 +50,7 @@ export function PromptProjectSelector({
             size="sm"
             variant="ghost"
           >
-            <BagIcon className="size-5" weight="regular" />
+            <CardsThreeIcon className="size-5" weight="regular" />
           </Button>
         </DropdownMenuTrigger>
       )}
@@ -64,7 +69,7 @@ export function PromptProjectSelector({
                 onChange(isCurrent ? null : project.id);
               }}
             >
-              <BagIcon className="size-4 text-muted-foreground" />
+              <CardsThreeIcon className="size-4 text-muted-foreground" />
               <span
                 className={cn("flex-1 truncate", isCurrent && "font-medium")}
               >
@@ -99,7 +104,7 @@ function SelectedChip({
     <div className="group/chip flex h-8 items-center gap-1.5 rounded-md bg-muted px-2 text-sm text-muted-foreground select-none hover:text-foreground">
       <DropdownMenuTrigger asChild>
         <button className="flex min-w-0 items-center gap-1.5" type="button">
-          <BagIcon className="size-4 shrink-0" />
+          <CardsThreeIcon className="size-4 shrink-0" />
           <span className="max-w-32 truncate">{name}</span>
         </button>
       </DropdownMenuTrigger>

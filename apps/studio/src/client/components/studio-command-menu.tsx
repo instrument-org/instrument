@@ -22,8 +22,8 @@ import {
 import uFuzzy from "@leeoniya/ufuzzy";
 import {
   ArrowsClockwiseIcon,
-  BagIcon,
   BugIcon,
+  CardsThreeIcon,
   ChatCircleIcon,
   PlusIcon,
   SidebarSimpleIcon,
@@ -543,7 +543,7 @@ function CommandResultsList({
                   }}
                   value={`project:${row.matched.project.id}`}
                 >
-                  <BagIcon className="size-4 shrink-0 opacity-50" />
+                  <CardsThreeIcon className="size-4 shrink-0 opacity-50" />
                   <span className="flex-1 truncate text-sm">
                     <FuzzyHighlight
                       ranges={row.matched.nameRanges}

@@ -1,6 +1,6 @@
 import { GIT_AGENT_EMAIL, GIT_AGENT_NAME } from "@instrument-org/shared";
 import {
-  type CommandContext,
+  createCommandContext,
   EMPTY_BYTES,
   encodeUtf8ToBytes,
   InMemoryFs,
@@ -19,12 +19,12 @@ import { collapseProgress, createGitCommand } from "./git";
 
 // cspell:ignore ccore fsmonitor
 
-const mockCtx: CommandContext = {
+const mockCtx = createCommandContext({
   cwd: "/task",
   env: new Map<string, string>(),
   fs: new InMemoryFs(),
   stdin: EMPTY_BYTES,
-};
+});
 
 describe("createGitCommand arg policy", () => {
   const taskId = createMockTaskConfigForDir(
@@ -166,7 +166,7 @@ describe("createGitCommand", () => {
   });
 
   it("drops GIT_* vars the agent exported into the shell", async () => {
-    const hostileCtx: CommandContext = {
+    const hostileCtx = {
       ...mockCtx,
       env: new Map([
         ["GIT_ALLOW_PROTOCOL", "ssh:http:https"],

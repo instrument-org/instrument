@@ -1,4 +1,4 @@
-import { type CommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
+import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import os from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,12 +22,12 @@ import {
 
 vi.mock("execa");
 
-const mockCtx: CommandContext = {
+const mockCtx = createCommandContext({
   cwd: "/",
   env: new Map<string, string>(),
   fs: new InMemoryFs(),
   stdin: EMPTY_BYTES,
-};
+});
 
 describe("createAgentBrowserCommand", () => {
   const taskId = TaskIdSchema.parse("test");

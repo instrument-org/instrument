@@ -1050,8 +1050,8 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
       just-bash:
-        specifier: ^3.1.0
-        version: 3.1.0
+        specifier: ^3.2.0
+        version: 3.2.0
       mime-types:
         specifier: ^3.0.2
         version: 3.0.2
@@ -8086,8 +8086,9 @@ packages:
     resolution: {integrity: sha512-ZZow9HBI5O6EPgSJLUb8n2NKgmVWTwCvHGwFuJlMjvLFqlGG6pjirPhtdsseaLZjSibD8eegzmYpUZwoIlj2cQ==}
     engines: {node: '>=4.0'}
 
-  just-bash@3.1.0:
-    resolution: {integrity: sha512-/t28X8EH3+j/zvELGkNhlFV2g6hc3oHBzy6zPBnNq2nqUN0DGS9PsD889JfQ7F6ll08gqFoutiS+VJHK30wZpg==}
+  just-bash@3.2.0:
+    resolution: {integrity: sha512-hRTLLWBXCKuosjaNFJR7uPYBza+T2vjG3NdPBz4wxlctlnxwrbLjtLQf6RtSKmy/jzNJ6/URCtvxrXjy6yFGeQ==}
+    engines: {node: '>=20.18.1'}
     hasBin: true
 
   katex@0.16.47:
@@ -18080,7 +18081,7 @@ snapshots:
       object.assign: 4.1.7
       object.values: 1.2.1
 
-  just-bash@3.1.0:
+  just-bash@3.2.0:
     dependencies:
       diff: 8.0.3
       fast-xml-parser: 5.8.0
@@ -18096,6 +18097,7 @@ snapshots:
       sprintf-js: 1.1.3
       sql.js: 1.14.1
       turndown: 7.2.4
+      undici: 7.27.2
       yaml: 2.9.0
     transitivePeerDependencies:
       - supports-color

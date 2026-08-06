@@ -1,5 +1,5 @@
 import {
-  type CommandContext,
+  createCommandContext,
   EMPTY_BYTES,
   encodeUtf8ToBytes,
   InMemoryFs,
@@ -20,12 +20,12 @@ vi.mock("./uv", () => ({
 
 const realFs = new InMemoryFs();
 
-const mockCtx: CommandContext = {
+const mockCtx = createCommandContext({
   cwd: "/task",
   env: new Map<string, string>(),
   fs: realFs,
   stdin: EMPTY_BYTES,
-};
+});
 
 describe("pythonCommand", () => {
   const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));

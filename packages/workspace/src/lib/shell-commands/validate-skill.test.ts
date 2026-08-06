@@ -1,4 +1,4 @@
-import { type CommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
+import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { mkdtempSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -32,12 +32,12 @@ setWorkspaceConfig({
   rootDir: WorkspaceDirSchema.parse(rootDir),
 });
 
-const mockCtx: CommandContext = {
+const mockCtx = createCommandContext({
   cwd: "/",
   env: new Map<string, string>(),
   fs: new InMemoryFs(),
   stdin: EMPTY_BYTES,
-};
+});
 
 const run = (...args: string[]) =>
   createValidateSkillCommand().execute(args, mockCtx);

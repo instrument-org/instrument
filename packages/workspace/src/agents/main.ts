@@ -4,6 +4,7 @@ import { dedent, pick } from "radashi";
 
 import {
   TASK_FOLDER_NAMES as F,
+  PROJECT_MOUNT_POINT,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "../constants";
 import { assignAttachedMounts } from "../lib/attached-folder-mounts";
@@ -205,7 +206,7 @@ export const mainAgent = setupAgent({
     - \`${F.output}/\` -- finished deliverables, shown to the user inline with previews. Write final results here.
     - \`${F.downloads}/\` -- files you download (e.g. via the browser) land here; visible to the user. Move one to \`${F.output}/\` when it's a finished deliverable.
 
-    Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`, everything else in \`${F.work}/\`. Your working directory is the task root (\`/task\`); use relative paths for task files (\`${F.work}/...\`, \`${F.output}/...\`). The only absolute paths you use are virtual mount paths: \`/mnt/...\` for attached folders and \`${SKILLS_MOUNT_POINT}/...\` for the workspace's own skills. Never use host paths like \`/Users/...\`.
+    Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`, everything else in \`${F.work}/\`. Your working directory is the task root (\`/task\`); use relative paths for task files (\`${F.work}/...\`, \`${F.output}/...\`). The only absolute paths you use are virtual mount paths: \`/mnt/...\` for attached folders, \`${SKILLS_MOUNT_POINT}/...\` for the workspace's own skills, and \`${PROJECT_MOUNT_POINT}/...\` for the folder of the project a task belongs to. Never use host paths like \`/Users/...\`.
     - Folders the user attaches are mounted under \`/mnt/\` and reflect the user's real files, each either read-only or read-and-write; the attached-folders list says which. They are NOT under the task root, so reach them by their \`/mnt/...\` path and never a relative one -- including from agent-authored HTML or CSS, where that absolute path is what lets the static asset origin resolve them.
     - If needed files aren't available, tell the user they can upload them or attach the containing folder.
     - \`${SKILLS_MOUNT_POINT}/\` is the workspace's own skills folder, mounted writable.

@@ -202,7 +202,7 @@ export async function runEvals(
     const canonicalId = parsed.ok ? parsed.value.canonicalId : uri;
     const modelPrefix = sanitizeCanonicalId(canonicalId);
     return evals.map((evalCase) => ({ evalCase, modelPrefix, uri }));
-  });
+  }).map((run, index) => ({ ...run, index }));
 
   // A task id is slugified from the prompt, and the name is claimed by creating
   // the directory. Running one case against several models means several runs
@@ -215,7 +215,7 @@ export async function runEvals(
   const completed = await _.parallel(
     concurrency,
     runs,
-    async ({ evalCase, modelPrefix, uri }) => {
+    async ({ evalCase, index, modelPrefix, uri }) => {
       const label =
         models.length > 1 ? `${evalCase.name}/${modelPrefix}` : evalCase.name;
 
@@ -228,14 +228,16 @@ export async function runEvals(
         workspaceRef: actor,
       };
 
-      // One project per run, named for it, so concurrent runs of the same case
-      // across models do not collide on the project folder name.
+      // One project per run. Disambiguated by the run's index rather than by the
+      // case name, because the project name reaches the agent as "this task
+      // belongs to the X project" -- a case named for what it is checking would
+      // be telling the model the answer.
       const created = creating.then(async () => {
         let projectId: ProjectId | undefined;
         if (evalCase.project) {
           const project = await createProject({
             instructions: evalCase.project.instructions,
-            name: `${evalCase.project.name} ${modelPrefix}`,
+            name: `${evalCase.project.name} ${modelPrefix} ${index}`,
           });
           if (project.isErr()) {
             throw project.error;

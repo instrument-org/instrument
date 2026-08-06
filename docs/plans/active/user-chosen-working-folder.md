@@ -205,30 +205,16 @@ A comparable desktop agent deliberately invents **no syntax at all**. It stays i
 
 That approach has a real advantage we should not give up lightly: **it degrades perfectly.** A link is a link in any renderer, at any point in a stream, in any copied-out transcript. Its limit is exactly our requirement, though. It cannot group. Six links in a list are six chips, not one gallery.
 
-### Options
+### What was chosen, and on what evidence
 
-| Approach                                          | Groups | Named options         | Degrades to    | Model reliability             |
-| ------------------------------------------------- | ------ | --------------------- | -------------- | ----------------------------- |
-| Href-encoded, no new grammar                      | No     | Query-ish, awkward    | A working link | Highest                       |
-| Wiki-style embeds, `![[path\|opts]]`              | No     | Positional only       | Literal text   | High, common in training data |
-| Directives, `:file[path]{size=lg}` and `:::files` | Yes    | Yes                   | Literal text   | Unknown, needs testing        |
-| Fenced block with a typed payload                 | Yes    | Yes, schema-validated | A code block   | High for JSON emission        |
+A fenced block with `files` as its info string and one path per line. The full comparison and the measured results are in [presentation-syntax.md](presentation-syntax.md); the two findings that decided it:
 
-### Recommendation
+- **Every fence a model emitted was well formed** — bare paths, one per line, one fence per reply — across two models and three prompt revisions. The syntax is not what models get wrong.
+- **What they get wrong is when to reach for it**, and only wording fixes that. Neither model showed a file it had merely _found_ until the rule was stated as "any reply that names a file ends with the fence, a one-line answer included."
 
-Layer by job rather than picking one winner:
+The link in prose is untouched and remains how a single file is mentioned. Directives lost on cost rather than on capability: remark parses a fence already, so the fence needs no plugin, no grammar of ours, and no hand-written mid-stream handling.
 
-- **One file, referenced in prose:** the existing markdown link. Do not touch it. It degrades perfectly and the model already emits it correctly.
-- **One file, embedded with display options, or a group:** a single mechanism that offers both inline and block forms with one attribute grammar. Directives are the strongest candidate for this reason: `:file[report.pdf]{size=large}` inline and `:::files{layout=grid}` as a container come from one plugin, so we do not end up maintaining three parsers with three escaping rules. Our pipeline is already plain remark ([markdown.tsx:465](../../../apps/studio/src/client/components/markdown.tsx#L465) composes `remarkGfm` and `remarkBreaks`), so a directive plugin is a drop-in.
-- **Fallback if directives prove unreliable to emit:** a fenced block with a Zod-validated payload. Verbose and it interrupts prose, but models emit JSON in fenced blocks extremely reliably, and validation failure has an obvious rendering (a code block) rather than a broken one.
-
-Whatever wins, parse everything into one schema so the renderer has a single component family and one validation path.
-
-### Two constraints that should decide this
-
-**Choose it empirically, not aesthetically.** The binding constraint is not what the renderer can parse, it is what models reliably emit unprompted. Prototype two candidates, run them across models with the eval CLI, and read the transcripts. This is exactly the case the `validate-changes` guidance exists for: whether a model finds and correctly uses an affordance is not something unit tests can tell you.
-
-**It has to survive streaming.** Responses render incrementally, so the parser sees `:::files{lay` before it sees anything closeable. Any custom syntax needs a defined mid-stream appearance, or the transcript flickers raw syntax while the model types. This favors constructs with a distinctive opening token that the renderer can recognize and suppress until complete, and it is a strike against anything whose opening is indistinguishable from ordinary prose. Coordinate with [incremental-live-transcript-updates.md](incremental-live-transcript-updates.md).
+Coordinate the streaming behavior with [incremental-live-transcript-updates.md](incremental-live-transcript-updates.md).
 
 ### One consequence elsewhere
 

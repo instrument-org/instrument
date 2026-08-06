@@ -82,8 +82,12 @@ const subscribers = new Map<number, Set<() => void>>();
 const timers = new Map<number, ReturnType<typeof setTimeout>>();
 const subscribeFns = new Map<number, (onChange: () => void) => () => void>();
 
+const RESUME_POLL_MS = 60 * SECOND_MS;
+
 let sharedNow = Date.now();
 let watchingVisibility = false;
+let paused = false;
+let resumePoll: ReturnType<typeof setInterval> | undefined;
 
 /**
  * The `subscribe` half of a `useSyncExternalStore` pair, stable per cadence so
@@ -109,7 +113,10 @@ export function clockSubscriber(intervalMs: number) {
     subscribers.set(intervalMs, forInterval);
     forInterval.add(onChange);
 
-    if (!timers.has(intervalMs)) {
+    // While paused, `resume` is what stands the timers back up, so a cadence
+    // first subscribed to in a hidden window waits for it rather than starting
+    // the one timer the pause was meant to stop.
+    if (!paused && !timers.has(intervalMs)) {
       schedule(intervalMs);
     }
 
@@ -145,6 +152,56 @@ function notify(intervalMs: number) {
 }
 
 /**
+ * A hidden window has nothing to update, and its timers would otherwise wake it
+ * for every cadence forever.
+ *
+ * Electron's visibility events are not a reliable pair. The window is never
+ * marked hidden when it merely loses OS focus, so `visibilitychange` alone does
+ * not tell us the user came back, and the app already listens for `focus`
+ * alongside it elsewhere for that reason. Resuming on the wrong signal is
+ * harmless; failing to resume freezes every timestamp on screen until something
+ * remounts, so this takes the event, the focus, and a slow poll, and lets
+ * whichever arrives first win.
+ */
+function pause() {
+  if (paused) {
+    return;
+  }
+  paused = true;
+
+  for (const intervalMs of timers.keys()) {
+    clearTimer(intervalMs);
+  }
+
+  // The backstop for a `visible` that never arrives. It costs one wake a minute
+  // in a window nobody is looking at, and bounds a missed event at a minute of
+  // staleness rather than forever.
+  resumePoll ??= setInterval(resume, RESUME_POLL_MS);
+}
+
+function resume() {
+  if (!paused || document.hidden) {
+    return;
+  }
+  paused = false;
+
+  if (resumePoll !== undefined) {
+    clearInterval(resumePoll);
+    resumePoll = undefined;
+  }
+
+  // Re-read the clock and notify before rescheduling, so the first painted
+  // frame is current rather than however stale the window got.
+  sharedNow = Date.now();
+  for (const intervalMs of subscribers.keys()) {
+    notify(intervalMs);
+    if (!timers.has(intervalMs)) {
+      schedule(intervalMs);
+    }
+  }
+}
+
+/**
  * Aligned to the wall-clock boundary of its own cadence rather than to whenever
  * the first subscriber mounted, so a minute-scale timestamp flips when the
  * minute flips. Unaligned, "1 minute ago" can sit on screen for nearly two.
@@ -161,12 +218,6 @@ function schedule(intervalMs: number) {
   );
 }
 
-/**
- * A hidden window has nothing to update, and its timers would otherwise wake it
- * for every cadence forever. Coming back re-reads the clock and notifies before
- * rescheduling, so the first painted frame is current rather than however stale
- * the window got.
- */
 function watchVisibility() {
   if (watchingVisibility || typeof document === "undefined") {
     return;
@@ -175,18 +226,10 @@ function watchVisibility() {
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
-      for (const intervalMs of timers.keys()) {
-        clearTimer(intervalMs);
-      }
-      return;
-    }
-
-    sharedNow = Date.now();
-    for (const intervalMs of subscribers.keys()) {
-      notify(intervalMs);
-      if (!timers.has(intervalMs)) {
-        schedule(intervalMs);
-      }
+      pause();
+    } else {
+      resume();
     }
   });
+  window.addEventListener("focus", resume);
 }

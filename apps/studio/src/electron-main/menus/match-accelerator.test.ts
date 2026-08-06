@@ -5,11 +5,17 @@ import { matchesAccelerator, parseAccelerator } from "./match-accelerator";
 
 type Modifier = "alt" | "control" | "meta" | "shift";
 
-function keyInput(code: string, ...held: Modifier[]) {
+/**
+ * A key event as `before-input-event` reports it: `key` is what the layout
+ * typed, `code` where the key physically sits. The two only agree on QWERTY,
+ * which is the whole point of several cases below.
+ */
+function keyInput(key: string, code: string, ...held: Modifier[]) {
   return {
     alt: held.includes("alt"),
     code,
     control: held.includes("control"),
+    key,
     meta: held.includes("meta"),
     shift: held.includes("shift"),
   };
@@ -20,130 +26,152 @@ describe("matchesAccelerator", () => {
     // The chord the menu never gets to see, and the one next to it.
     {
       accelerator: "CmdOrCtrl+R",
-      input: keyInput("KeyR", "meta"),
+      input: keyInput("r", "KeyR", "meta"),
       match: true,
     },
     {
       accelerator: "CmdOrCtrl+Shift+R",
-      input: keyInput("KeyR", "meta", "shift"),
+      input: keyInput("R", "KeyR", "meta", "shift"),
       match: true,
     },
     {
       accelerator: "CmdOrCtrl+R",
-      input: keyInput("KeyR", "meta", "shift"),
+      input: keyInput("R", "KeyR", "meta", "shift"),
       match: false,
     },
     {
       accelerator: "CmdOrCtrl+Shift+R",
-      input: keyInput("KeyR", "meta"),
+      input: keyInput("r", "KeyR", "meta"),
       match: false,
     },
     // CmdOrCtrl is Command here, so Control alone is a different chord.
     {
       accelerator: "CmdOrCtrl+R",
-      input: keyInput("KeyR", "control"),
+      input: keyInput("r", "KeyR", "control"),
       match: false,
     },
     {
       accelerator: "CmdOrCtrl+R",
-      input: keyInput("KeyR", "meta", "alt"),
+      input: keyInput("r", "KeyR", "meta", "alt"),
       match: false,
     },
     {
       accelerator: "CmdOrCtrl+R",
-      input: keyInput("KeyT", "meta"),
+      input: keyInput("t", "KeyT", "meta"),
       match: false,
     },
-    // Control chords, which the old CmdOrCtrl-only matcher couldn't express.
-    { accelerator: "Ctrl+Tab", input: keyInput("Tab", "control"), match: true },
+    // Named keys, which carry no character to be decided by.
     {
       accelerator: "Ctrl+Tab",
-      input: keyInput("Tab", "control", "shift"),
+      input: keyInput("Tab", "Tab", "control"),
+      match: true,
+    },
+    {
+      accelerator: "Ctrl+Tab",
+      input: keyInput("Tab", "Tab", "control", "shift"),
       match: false,
     },
     {
       accelerator: "Ctrl+Shift+Tab",
-      input: keyInput("Tab", "control", "shift"),
+      input: keyInput("Tab", "Tab", "control", "shift"),
       match: true,
     },
     {
       accelerator: "Control+Command+F",
-      input: keyInput("KeyF", "control", "meta"),
+      input: keyInput("f", "KeyF", "control", "meta"),
       match: true,
     },
-    // Punctuation, digits, and the two faces of the `=` key.
+    { accelerator: "F5", input: keyInput("F5", "F5"), match: true },
+    // Punctuation and digits.
     {
       accelerator: "CmdOrCtrl+[",
-      input: keyInput("BracketLeft", "meta"),
+      input: keyInput("[", "BracketLeft", "meta"),
       match: true,
     },
     {
       accelerator: "CmdOrCtrl+,",
-      input: keyInput("Comma", "meta"),
+      input: keyInput(",", "Comma", "meta"),
       match: true,
     },
     {
       accelerator: "CmdOrCtrl+-",
-      input: keyInput("Minus", "meta"),
+      input: keyInput("-", "Minus", "meta"),
       match: true,
     },
     {
       accelerator: "CmdOrCtrl+0",
-      input: keyInput("Digit0", "meta"),
+      input: keyInput("0", "Digit0", "meta"),
+      match: true,
+    },
+    // Spelling Shift out asks for the character the key makes with it held.
+    {
+      accelerator: "CmdOrCtrl+Shift+[",
+      input: keyInput("{", "BracketLeft", "meta", "shift"),
+      match: true,
+    },
+    {
+      accelerator: "CmdOrCtrl+Shift+[",
+      input: keyInput("[", "BracketLeft", "meta"),
+      match: false,
+    },
+    // A token that already names a shifted character doesn't compare Shift:
+    // whether it takes Shift to type is the layout's business.
+    {
+      accelerator: "CmdOrCtrl+Plus",
+      input: keyInput("+", "Equal", "meta", "shift"),
       match: true,
     },
     {
       accelerator: "CmdOrCtrl+Plus",
-      input: keyInput("Equal", "meta", "shift"),
-      match: true,
-    },
-    {
-      accelerator: "CmdOrCtrl+Plus",
-      input: keyInput("Equal", "meta"),
+      input: keyInput("=", "Equal", "meta"),
       match: false,
     },
     {
       accelerator: "CmdOrCtrl+=",
-      input: keyInput("Equal", "meta"),
+      input: keyInput("=", "Equal", "meta"),
       match: true,
     },
-    {
-      accelerator: "CmdOrCtrl+numadd",
-      input: keyInput("NumpadAdd", "meta"),
-      match: true,
-    },
-    {
-      accelerator: "CmdOrCtrl+num5",
-      input: keyInput("Numpad5", "meta"),
-      match: true,
-    },
-    // Punctuation named by its shifted face carries the Shift it doesn't spell.
     {
       accelerator: "CmdOrCtrl+?",
-      input: keyInput("Slash", "meta", "shift"),
+      input: keyInput("?", "Slash", "meta", "shift"),
       match: true,
     },
     {
       accelerator: "CmdOrCtrl+/",
-      input: keyInput("Slash", "meta"),
+      input: keyInput("/", "Slash", "meta"),
+      match: true,
+    },
+    // The numpad is why `code` is kept: its `+` types the same character as a
+    // shifted `=`, so only the physical key tells them apart.
+    {
+      accelerator: "CmdOrCtrl+numadd",
+      input: keyInput("+", "NumpadAdd", "meta"),
       match: true,
     },
     {
-      accelerator: "CmdOrCtrl+?",
-      input: keyInput("Slash", "meta"),
+      accelerator: "CmdOrCtrl+numadd",
+      input: keyInput("+", "Equal", "meta", "shift"),
       match: false,
     },
-    { accelerator: "F5", input: keyInput("F5"), match: true },
+    {
+      accelerator: "CmdOrCtrl+num5",
+      input: keyInput("5", "Numpad5", "meta"),
+      match: true,
+    },
     // An accelerator this can't read matches nothing rather than something near.
     {
       accelerator: "CmdOrCtrl+1…8",
-      input: keyInput("Digit1", "meta"),
+      input: keyInput("1", "Digit1", "meta"),
       match: false,
     },
-    { accelerator: "Hyper+R", input: keyInput("KeyR", "meta"), match: false },
-    { accelerator: "", input: keyInput("KeyR", "meta"), match: false },
+    {
+      accelerator: "Hyper+R",
+      input: keyInput("r", "KeyR", "meta"),
+      match: false,
+    },
+    { accelerator: "", input: keyInput("r", "KeyR", "meta"), match: false },
   ])(
-    "$accelerator matches $input.code -> $match",
+    "$accelerator matches $input.key -> $match",
     ({ accelerator, input, match }) => {
       expect(matchesAccelerator(input, accelerator, { isMac: true })).toBe(
         match,
@@ -151,14 +179,56 @@ describe("matchesAccelerator", () => {
     },
   );
 
+  // A chord means the key that types its character, the way the native menu
+  // means it. Deciding on the physical position instead puts the app's chords
+  // on top of the user's editing keys everywhere but QWERTY.
+  describe("on a layout that isn't QWERTY", () => {
+    it("does not take Cmd+Z for Close Tab on AZERTY", () => {
+      // AZERTY keeps Z where QWERTY keeps W, so undo arrives as `KeyW`.
+      const undo = keyInput("z", "KeyW", "meta");
+      expect(matchesAccelerator(undo, "CmdOrCtrl+W", { isMac: true })).toBe(
+        false,
+      );
+      expect(matchesAccelerator(undo, "CmdOrCtrl+Z", { isMac: true })).toBe(
+        true,
+      );
+    });
+
+    it("takes the key that types w for Close Tab on AZERTY", () => {
+      const close = keyInput("w", "KeyZ", "meta");
+      expect(matchesAccelerator(close, "CmdOrCtrl+W", { isMac: true })).toBe(
+        true,
+      );
+    });
+
+    it("keeps Cmd+comma off Close Tab on Dvorak", () => {
+      // Dvorak types "," where QWERTY types w, and w where QWERTY types comma.
+      expect(
+        matchesAccelerator(keyInput(",", "KeyW", "meta"), "CmdOrCtrl+W", {
+          isMac: true,
+        }),
+      ).toBe(false);
+      expect(
+        matchesAccelerator(keyInput(",", "KeyW", "meta"), "CmdOrCtrl+,", {
+          isMac: true,
+        }),
+      ).toBe(true);
+      expect(
+        matchesAccelerator(keyInput("w", "Comma", "meta"), "CmdOrCtrl+W", {
+          isMac: true,
+        }),
+      ).toBe(true);
+    });
+  });
+
   it("resolves CmdOrCtrl to Control off macOS", () => {
     expect(
-      matchesAccelerator(keyInput("KeyR", "control"), "CmdOrCtrl+R", {
+      matchesAccelerator(keyInput("r", "KeyR", "control"), "CmdOrCtrl+R", {
         isMac: false,
       }),
     ).toBe(true);
     expect(
-      matchesAccelerator(keyInput("KeyR", "meta"), "CmdOrCtrl+R", {
+      matchesAccelerator(keyInput("r", "KeyR", "meta"), "CmdOrCtrl+R", {
         isMac: false,
       }),
     ).toBe(false);

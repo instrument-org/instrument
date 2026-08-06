@@ -2,113 +2,125 @@
  * Matches an Electron-shaped accelerator against a raw key event, so the main
  * process can run the app's own chords before the focused page sees them.
  *
- * Matching is on `code` -- the physical key -- rather than `key`, because the
- * character a key produces depends on what is held down with it: `CmdOrCtrl+Plus`
- * is the `=` key with Shift on a US layout, and a letter reports uppercase the
- * moment Shift joins the chord. Electron resolves menu accelerators to physical
- * keys too, so both consumers of an entry mean the same key by it.
+ * A character key is decided on `key`, the character the layout produced, not on
+ * `code`, the physical position. The native menu decides on the character too --
+ * an accelerator becomes an `NSMenuItem` key equivalent that Cocoa matches
+ * against what the key types, and a layout-mapped VKEY elsewhere -- so anything
+ * position-based disagrees with the menu on every non-QWERTY layout. On AZERTY
+ * the Z key sits where QWERTY keeps W, so a position-based `CmdOrCtrl+W` would
+ * fire on Cmd+Z and swallow the user's undo.
+ *
+ * `code` is kept for the keys whose character can't decide them: the numpad,
+ * whose `+` reports the same character as a shifted `=`, and the named keys that
+ * produce no character at all.
+ *
+ * The gap this leaves is Alt: on macOS `key` is the composed character, so
+ * Option+A arrives as `å`. No chord in the table takes Alt; one that did would
+ * need matching on `code` and a note about which layouts it holds for.
  */
 
 import { type Input } from "electron";
 
-/** An accelerator as the modifiers and physical key it stands for. */
+/** An accelerator as the modifiers and the key event it stands for. */
 export interface Chord {
   alt: boolean;
-  code: string;
+  /** Whether Shift is compared -- see `ignoresShift` on `KeyDefinition`. */
+  comparesShift: boolean;
   control: boolean;
   meta: boolean;
+  /** Which part of the event `value` is matched against. */
+  on: "code" | "key";
   shift: boolean;
+  /** The expected `code`, or the expected `key` in lower case. */
+  value: string;
 }
 
-/** A key code from an accelerator, as the key event it stands for. */
+/** What one key code from an accelerator expects of a key event. */
 interface KeyDefinition {
-  code: string;
   /**
-   * Set for a key named by its shifted face. `Plus` and `?` are the `=` and `/`
-   * keys with Shift held, so they carry a modifier the accelerator never spells
-   * out. Positions are the US layout, which is the layout Electron resolves
-   * accelerators against for the native menu.
+   * The token already names a character that Shift produces (`Plus`, `?`), so
+   * Shift is not compared: whether it takes Shift to type is the layout's
+   * business. Electron leaves Shift off those accelerators for the same reason.
    */
-  shift?: boolean;
+  ignoresShift?: boolean;
+  on: "code" | "key";
+  /** The character the same key produces with Shift, where it differs. */
+  shifted?: string;
+  value: string;
 }
 
 /** The parts of a key event a chord is decided by. */
-type KeyInput = Pick<Input, "alt" | "code" | "control" | "meta" | "shift">;
+type KeyInput = Pick<
+  Input,
+  "alt" | "code" | "control" | "key" | "meta" | "shift"
+>;
 
-// Every key code Electron's accelerator vocabulary names, as the key event it
-// arrives as (docs/tutorial/keyboard-shortcuts.md). Letters, digits, function
-// keys, and numpad digits are derived in `keyDefinition` rather than listed.
-const KEYS: Record<string, KeyDefinition> = {
-  "!": { code: "Digit1", shift: true },
-  '"': { code: "Quote", shift: true },
-  "#": { code: "Digit3", shift: true },
-  $: { code: "Digit4", shift: true },
-  "%": { code: "Digit5", shift: true },
-  "&": { code: "Digit7", shift: true },
-  "'": { code: "Quote" },
-  "(": { code: "Digit9", shift: true },
-  ")": { code: "Digit0", shift: true },
-  "*": { code: "Digit8", shift: true },
-  "+": { code: "Equal", shift: true },
-  ",": { code: "Comma" },
-  "-": { code: "Minus" },
-  ".": { code: "Period" },
-  "/": { code: "Slash" },
-  ":": { code: "Semicolon", shift: true },
-  ";": { code: "Semicolon" },
-  "<": { code: "Comma", shift: true },
-  "=": { code: "Equal" },
-  ">": { code: "Period", shift: true },
-  "?": { code: "Slash", shift: true },
-  "@": { code: "Digit2", shift: true },
-  "[": { code: "BracketLeft" },
-  "\\": { code: "Backslash" },
-  "]": { code: "BracketRight" },
-  "^": { code: "Digit6", shift: true },
-  _: { code: "Minus", shift: true },
-  "`": { code: "Backquote" },
-  backspace: { code: "Backspace" },
-  capslock: { code: "CapsLock" },
-  delete: { code: "Delete" },
-  down: { code: "ArrowDown" },
-  end: { code: "End" },
-  enter: { code: "Enter" },
-  esc: { code: "Escape" },
-  escape: { code: "Escape" },
-  home: { code: "Home" },
-  insert: { code: "Insert" },
-  left: { code: "ArrowLeft" },
-  "{": { code: "BracketLeft", shift: true },
-  "|": { code: "Backslash", shift: true },
-  "}": { code: "BracketRight", shift: true },
-  "~": { code: "Backquote", shift: true },
+// The characters the digit row produces with Shift held, indexed by digit.
+const DIGIT_SHIFTED = [")", "!", "@", "#", "$", "%", "^", "&", "*", "("];
+
+// Every key code that names no character, as the `code` it arrives as. Function
+// keys and numpad digits are derived in `keyDefinition` rather than listed.
+const NAMED_CODES: Record<string, string> = {
+  backspace: "Backspace",
+  capslock: "CapsLock",
+  delete: "Delete",
+  down: "ArrowDown",
+  end: "End",
+  enter: "Enter",
+  esc: "Escape",
+  escape: "Escape",
+  home: "Home",
+  insert: "Insert",
+  left: "ArrowLeft",
   // cspell:ignore medianexttrack mediaplaypause mediaprevioustrack mediastop
-  medianexttrack: { code: "MediaTrackNext" },
-  mediaplaypause: { code: "MediaPlayPause" },
-  mediaprevioustrack: { code: "MediaTrackPrevious" },
-  mediastop: { code: "MediaStop" },
+  medianexttrack: "MediaTrackNext",
+  mediaplaypause: "MediaPlayPause",
+  mediaprevioustrack: "MediaTrackPrevious",
+  mediastop: "MediaStop",
   // cspell:ignore numadd numdec numdiv numlock nummult numsub
-  numadd: { code: "NumpadAdd" },
-  numdec: { code: "NumpadDecimal" },
-  numdiv: { code: "NumpadDivide" },
-  numlock: { code: "NumLock" },
-  nummult: { code: "NumpadMultiply" },
-  numsub: { code: "NumpadSubtract" },
-  pagedown: { code: "PageDown" },
-  pageup: { code: "PageUp" },
-  plus: { code: "Equal", shift: true },
-  printscreen: { code: "PrintScreen" },
-  return: { code: "Enter" },
-  right: { code: "ArrowRight" },
+  numadd: "NumpadAdd",
+  numdec: "NumpadDecimal",
+  numdiv: "NumpadDivide",
+  numlock: "NumLock",
+  nummult: "NumpadMultiply",
+  numsub: "NumpadSubtract",
+  pagedown: "PageDown",
+  pageup: "PageUp",
+  printscreen: "PrintScreen",
+  return: "Enter",
+  right: "ArrowRight",
   // cspell:ignore scrolllock
-  scrolllock: { code: "ScrollLock" },
-  space: { code: "Space" },
-  tab: { code: "Tab" },
-  up: { code: "ArrowUp" },
-  volumedown: { code: "AudioVolumeDown" },
-  volumemute: { code: "AudioVolumeMute" },
-  volumeup: { code: "AudioVolumeUp" },
+  scrolllock: "ScrollLock",
+  space: "Space",
+  tab: "Tab",
+  up: "ArrowUp",
+  volumedown: "AudioVolumeDown",
+  volumemute: "AudioVolumeMute",
+  volumeup: "AudioVolumeUp",
 };
+
+// Punctuation, as the character its key makes and the one it makes with Shift.
+// US positions, which is the layout Electron's own accelerator table assumes.
+const PUNCTUATION: Record<string, string> = {
+  "'": '"',
+  ",": "<",
+  "-": "_",
+  ".": ">",
+  "/": "?",
+  ";": ":",
+  "=": "+",
+  "[": "{",
+  "\\": "|",
+  "]": "}",
+  "`": "~",
+};
+
+// The shifted faces of the keys above, plus the digit row's. A token naming one
+// of these is asking for that character however the layout types it.
+const SHIFTED_CHARACTERS = new Set([
+  ...DIGIT_SHIFTED,
+  ...Object.values(PUNCTUATION),
+]);
 
 export function matchesAccelerator(
   input: KeyInput,
@@ -119,13 +131,19 @@ export function matchesAccelerator(
   if (!chord) {
     return false;
   }
-  return (
-    input.alt === chord.alt &&
-    input.code === chord.code &&
-    input.control === chord.control &&
-    input.meta === chord.meta &&
-    input.shift === chord.shift
-  );
+  if (
+    input.alt !== chord.alt ||
+    input.control !== chord.control ||
+    input.meta !== chord.meta
+  ) {
+    return false;
+  }
+  if (chord.comparesShift && input.shift !== chord.shift) {
+    return false;
+  }
+  return chord.on === "code"
+    ? input.code === chord.value
+    : input.key.toLowerCase() === chord.value;
 }
 
 /**
@@ -143,45 +161,42 @@ export function parseAccelerator(
     return null;
   }
 
-  const chord: Chord = {
-    alt: false,
-    code: "",
-    control: false,
-    meta: false,
-    shift: false,
-  };
+  let alt = false;
+  let control = false;
+  let meta = false;
+  let shift = false;
 
   for (const part of parts) {
     switch (part.toLowerCase()) {
       case "alt":
       case "option": {
-        chord.alt = true;
+        alt = true;
         break;
       }
       case "cmd":
       case "command":
       case "meta":
       case "super": {
-        chord.meta = true;
+        meta = true;
         break;
       }
       // cspell:ignore cmdorctrl commandorcontrol
       case "cmdorctrl":
       case "commandorcontrol": {
         if (isMac) {
-          chord.meta = true;
+          meta = true;
         } else {
-          chord.control = true;
+          control = true;
         }
         break;
       }
       case "control":
       case "ctrl": {
-        chord.control = true;
+        control = true;
         break;
       }
       case "shift": {
-        chord.shift = true;
+        shift = true;
         break;
       }
       default: {
@@ -194,24 +209,44 @@ export function parseAccelerator(
   if (!definition) {
     return null;
   }
-  chord.code = definition.code;
-  chord.shift ||= definition.shift ?? false;
-  return chord;
+  return {
+    alt,
+    comparesShift: !definition.ignoresShift,
+    control,
+    meta,
+    on: definition.on,
+    shift,
+    // Spelling Shift out asks for the character the key makes with it held:
+    // `Shift+[` is typed, and reported, as `{`.
+    value: shift && definition.shifted ? definition.shifted : definition.value,
+  };
 }
 
 function keyDefinition(key: string): KeyDefinition | null {
   const token = key.toLowerCase();
+  // A letter's shifted face is its upper case, which the comparison folds away.
   if (/^[a-z]$/.test(token)) {
-    return { code: `Key${token.toUpperCase()}` };
+    return { on: "key", value: token };
   }
   if (/^\d$/.test(token)) {
-    return { code: `Digit${token}` };
+    return { on: "key", shifted: DIGIT_SHIFTED[Number(token)], value: token };
+  }
+  if (token === "plus") {
+    return { ignoresShift: true, on: "key", value: "+" };
+  }
+  const shifted = PUNCTUATION[token];
+  if (shifted) {
+    return { on: "key", shifted, value: token };
+  }
+  if (SHIFTED_CHARACTERS.has(token)) {
+    return { ignoresShift: true, on: "key", value: token };
   }
   if (/^f(?:[1-9]|1\d|2[0-4])$/.test(token)) {
-    return { code: token.toUpperCase() };
+    return { on: "code", value: token.toUpperCase() };
   }
   if (/^num\d$/.test(token)) {
-    return { code: `Numpad${token.slice(3)}` };
+    return { on: "code", value: `Numpad${token.slice(3)}` };
   }
-  return KEYS[token] ?? null;
+  const code = NAMED_CODES[token];
+  return code ? { on: "code", value: code } : null;
 }

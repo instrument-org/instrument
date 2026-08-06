@@ -165,22 +165,11 @@ describe("store migrations", () => {
     expect(await openAndReadStoredPart()).toEqual(afterFirst);
   });
 
-  it("drops a gitCommit part whose commit is gone", async () => {
-    await seedStoredPart({
-      data: { ref: "0000000000000000000000000000000000000000" },
-      type: "data-gitCommit",
-    });
-
-    const parts = unwrap(await Store.getParts(sessionId, messageId, taskId));
-
-    expect(parts).toEqual([]);
-  });
-
   it("records the version so a migrated task does not scan again", async () => {
     await seedStoredPart({ text: "hello", type: "text" });
 
     const storage = unwrap(await getSessionsStoreStorage(taskId));
 
-    expect(unwrap(await storage.getItemRaw<number>(VERSION_KEY))).toBe(2);
+    expect(unwrap(await storage.getItemRaw<number>(VERSION_KEY))).toBe(1);
   });
 });

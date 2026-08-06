@@ -98,10 +98,9 @@ export function getSessionsStoreStorage(taskId: TaskId) {
           // Before the storage is cached, so nothing can read through it until
           // its data matches what this build expects. Caching after also means
           // this runs once per task per process rather than per read.
-          return runStoreMigrations({
-            storage: wrappedStorage,
-            taskDir: taskDir(taskId),
-          }).map(() => wrappedStorage);
+          return runStoreMigrations({ storage: wrappedStorage }).map(
+            () => wrappedStorage,
+          );
         })
         .mapErr((error) =>
           error instanceof TypedError.Storage

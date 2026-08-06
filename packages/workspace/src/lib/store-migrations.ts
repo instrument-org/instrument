@@ -1,9 +1,6 @@
 import { ResultAsync } from "neverthrow";
 import superjson from "superjson";
 
-import { type TaskDir } from "../schemas/paths";
-import { type SessionMessageRelaxedPart } from "../schemas/session/message-relaxed-part";
-import { migrateGitCommitPart } from "./migrate-git-commit-part";
 import { type WrappedStorage } from "./wrap-storage";
 
 /**
@@ -42,14 +39,10 @@ type PartChange =
   | { kind: "unchanged" };
 
 const UNCHANGED: PartChange = { kind: "unchanged" };
-const REMOVE: PartChange = { kind: "remove" };
 
 interface StoreMigration {
   name: string;
-  run: (context: {
-    storage: WrappedStorage;
-    taskDir: TaskDir;
-  }) => Promise<void>;
+  run: (context: { storage: WrappedStorage }) => Promise<void>;
 }
 
 function replaceWith(part: unknown): PartChange {
@@ -93,27 +86,6 @@ const MIGRATIONS: StoreMigration[] = [
       });
     },
   },
-  {
-    // `gitCommit` parts predate the file-changes part that replaced them. The
-    // rendering of them was a read-time translation that reached for git on
-    // every read of an old session; done once, it can be stored instead.
-    name: "gitCommit parts become fileChanges parts",
-    run: async ({ storage, taskDir }) => {
-      await eachStoredPart(storage, async (part) => {
-        if (part.type !== "data-gitCommit") {
-          return UNCHANGED;
-        }
-        // Cast: a stored part arrives as an unknown payload, and this reads the
-        // shape it checked for above. `migrateGitCommitPart` validates `data`
-        // itself and answers null when it does not recognize it.
-        const dataPart = part as unknown as SessionMessageRelaxedPart.DataPart;
-        // Null also covers a commit no longer in git history, where there is
-        // nothing left to show and the part goes.
-        const migrated = await migrateGitCommitPart(dataPart, taskDir);
-        return migrated === null ? REMOVE : replaceWith(migrated);
-      });
-    },
-  },
 ];
 
 /**
@@ -124,10 +96,8 @@ const MIGRATIONS: StoreMigration[] = [
  */
 export function runStoreMigrations({
   storage,
-  taskDir,
 }: {
   storage: WrappedStorage;
-  taskDir: TaskDir;
 }): ResultAsync<void, Error> {
   return storage
     .getItemRaw<number>(VERSION_KEY)
@@ -141,7 +111,7 @@ export function runStoreMigrations({
       return ResultAsync.fromPromise(
         (async () => {
           for (const migration of pending) {
-            await migration.run({ storage, taskDir });
+            await migration.run({ storage });
           }
         })(),
         (error: unknown) =>

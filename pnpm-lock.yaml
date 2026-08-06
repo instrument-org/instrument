@@ -76,6 +76,7 @@ patchedDependencies:
   '@parcel/watcher@2.6.0': 70710158e60b08547967e90663191ecfdf5f5e02082b07253a8bdff11303ce2b
   app-builder-lib@26.15.7: c30615a9a3396ac72fd40f8b21782e0824090bd8d35989d568731abb8ffb95f4
   conf@14.0.0: 56254a98f20461a96d6b30db95d31a459ca15443a73844e166da79dcb6392d02
+  just-bash@3.2.0: f8b0cc950cadc9a80f11fa237c6710b0d57fd297d3c24d461a75a2e1043e81a2
   sonner@2.0.7: 22b16004d10f44d3ea7fef7bc84bfb401b07f878993d914696c7b0a1586bcb29
 
 importers:
@@ -1051,7 +1052,7 @@ importers:
         version: 6.0.0
       just-bash:
         specifier: ^3.2.0
-        version: 3.2.0
+        version: 3.2.0(patch_hash=f8b0cc950cadc9a80f11fa237c6710b0d57fd297d3c24d461a75a2e1043e81a2)
       mime-types:
         specifier: ^3.0.2
         version: 3.0.2
@@ -18081,7 +18082,7 @@ snapshots:
       object.assign: 4.1.7
       object.values: 1.2.1
 
-  just-bash@3.2.0:
+  just-bash@3.2.0(patch_hash=f8b0cc950cadc9a80f11fa237c6710b0d57fd297d3c24d461a75a2e1043e81a2):
     dependencies:
       diff: 8.0.3
       fast-xml-parser: 5.8.0

@@ -5,6 +5,7 @@
     "pnpm-lock.yaml",
     "registry/",
     "docs/",
+    "patches/",
     "apps/studio/resources/tailwind-browser.js",
     "fixtures/workspaces/*/tasks/*/session.json",
     "fixtures/workspaces/*/tasks/*/files/**"

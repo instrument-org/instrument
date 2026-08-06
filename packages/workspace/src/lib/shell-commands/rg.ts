@@ -41,9 +41,11 @@ const DENIED_SHORT_FLAG = "z";
 
 export function createRgCommand({
   attachedFolders,
+  projectFolderName,
   taskId,
 }: {
   attachedFolders?: Record<string, FolderAttachment.Type>;
+  projectFolderName?: string;
   taskId: TaskId;
 }) {
   return defineCommand(RG_COMMAND.name, async (args, ctx) => {
@@ -58,6 +60,7 @@ export function createRgCommand({
 
     const layout = buildWorkspaceFsLayout({
       attachedFolders,
+      projectFolderName,
       taskHostRoot: taskDir(taskId),
     });
 

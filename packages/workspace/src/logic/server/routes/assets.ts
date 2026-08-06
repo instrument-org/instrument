@@ -1,7 +1,9 @@
 import { Hono, type MiddlewareHandler } from "hono";
 import { cors } from "hono/cors";
 
+import { PROJECT_MOUNT_POINT, TASK_FOLDER_NAMES } from "../../../constants";
 import { taskDir } from "../../../lib/task-dir-utils";
+import { resolveTaskProjectFolder } from "../../../lib/task-project-folder";
 import { getTaskState } from "../../../lib/task-state-store";
 import {
   buildWorkspaceFsLayout,
@@ -16,6 +18,12 @@ import { uriDetailsForHost } from "../uri-details-for-host";
 
 // Blocks `.`/`..` segments, consecutive slashes, and backslashes (hono/node-server's traversal check).
 const UNSAFE_PATH_SEGMENT_REGEX = /(?:^|[/\\])\.{1,2}(?:$|[/\\])|[/\\]{2,}|\\/;
+
+/** The private dir as a whole segment, anywhere in the path. */
+const PRIVATE_DIR_SEGMENT_REGEX = new RegExp(
+  `(?:^|/)${TASK_FOLDER_NAMES.private.replace(".", "\\.")}(?:/|$)`,
+  "i",
+);
 
 const app = new Hono<WorkspaceServerEnv>();
 
@@ -77,15 +85,18 @@ app.all("/*", async (c, next) => {
     return c.notFound();
   }
 
-  // The task mount root also holds private per-task metadata under
-  // `.instrument/` (task.db, state.json); never serve it over the asset origin.
-  // Matched case-insensitively: the app runs on case-insensitive filesystems
-  // (macOS, Windows) where `/.INSTRUMENT/...` resolves to the same private file.
-  const lowerAssetPath = assetPath.toLowerCase();
-  if (
-    lowerAssetPath === "/.instrument" ||
-    lowerAssetPath.startsWith("/.instrument/")
-  ) {
+  // The task mount root holds private per-task metadata under `.instrument/`
+  // (task.db, state.json), and the project mount holds the settings naming the
+  // project's folders and the access granted to each; never serve either over
+  // the asset origin. Matched as a segment anywhere in the path rather than only
+  // at the root, because more than one mount has such a directory now, and
+  // case-insensitively, because the app runs on case-insensitive filesystems
+  // (macOS, Windows) where `/.INSTRUMENT/...` names the same private file.
+  //
+  // This route resolves host paths itself rather than going through the virtual
+  // filesystem, so `maskPrivateDirFs` does not cover it and this is the only
+  // thing standing in front of those files here.
+  if (PRIVATE_DIR_SEGMENT_REGEX.test(assetPath)) {
     return c.notFound();
   }
 
@@ -93,13 +104,19 @@ app.all("/*", async (c, next) => {
   const taskState = await getTaskState(taskHostRoot);
   const layout = buildWorkspaceFsLayout({
     attachedFolders: taskState.attachedFolders,
+      projectFolderName: await resolveTaskProjectFolder(id),
     taskHostRoot,
   });
-  const virtualPath =
-    assetPath === ATTACHED_FOLDERS_MOUNT_ROOT ||
-    assetPath.startsWith(`${ATTACHED_FOLDERS_MOUNT_ROOT}/`)
-      ? assetPath
-      : `${TASK_MOUNT_POINT}${assetPath}`;
+  // A path under a mount root is already a virtual path; anything else is
+  // relative to the task and gets the task mount prefixed. Both mounts outside
+  // the task have to be listed, or an agent-authored page linking to one gets
+  // the path resolved inside the task folder and a 404 that looks like a missing
+  // file rather than an unserved mount.
+  const virtualPath = [ATTACHED_FOLDERS_MOUNT_ROOT, PROJECT_MOUNT_POINT].some(
+    (root) => assetPath === root || assetPath.startsWith(`${root}/`),
+  )
+    ? assetPath
+    : `${TASK_MOUNT_POINT}${assetPath}`;
   const resolved = resolveHostPath(layout, virtualPath);
 
   if (resolved === null) {

@@ -23,6 +23,7 @@ import {
 } from "./build-project-context-text";
 import { getEffectiveProjectContext } from "./effective-project-context";
 import { isToolPart } from "./is-tool-part";
+import { normalizeProjectInstructions } from "./project-instructions";
 import { Store } from "./store";
 import { getUsageSummaryFromMessages } from "./usage-summary-compute";
 
@@ -999,15 +1000,17 @@ function renderProjectContext(
   const blocks: string[] = [];
 
   const effective = getEffectiveProjectContext(allParts);
-  const instructions = effective?.instructions?.trim();
-  if (instructions) {
-    blocks.push(
-      buildProjectContextText({
-        instructions,
-        name: projectPart.data.projectName,
-      }),
-    );
-  }
+  // Capped the same way the session context is, so the transcript reproduces
+  // what the agent was given rather than the whole file behind it.
+  const instructions = normalizeProjectInstructions(
+    effective?.instructions ?? "",
+  );
+  blocks.push(
+    buildProjectContextText({
+      instructions,
+      name: projectPart.data.projectName,
+    }),
+  );
 
   if (projectFolders.length > 0) {
     blocks.push(

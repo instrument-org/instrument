@@ -25,9 +25,10 @@ The task id doubles as the DNS label, which is what forces [`TaskIdSchema`](../.
 | --------------- | ----------------- | -------------------------------- |
 | `/output/a.png` | `/task/output/a.png` | The task directory            |
 | `/mnt/Photos/cat.png` | `/mnt/Photos/cat.png` | An attached folder |
+| `/project/logo.png` | `/project/logo.png` | The folder of the task's project |
 | `/skills/...`   | `/task/skills/...` | Not the `/skills` mount — the workspace skills mount is not served |
 
-So the origin root is the task mount, and `/mnt` is carved out of it as a reserved prefix. That is a deliberate shape rather than an accident: it keeps root-relative references inside agent-authored HTML (`<link href="/style.css">`) working, and it is what the agent prompt teaches — attached folders are reachable "including from agent-authored HTML or CSS, where that absolute path is what lets the static asset origin resolve them" ([`main.ts`](../../packages/workspace/src/agents/main.ts)).
+So the origin root is the task mount, and every mount point outside it is carved out as a reserved prefix. Each such mount has to be listed here as well as in the layout: resolving the layout is not enough on its own, because a prefix this route does not recognize is read as task-relative and looked for inside the task folder, which 404s as if the file were missing rather than as if the mount were unserved. That is a deliberate shape rather than an accident: it keeps root-relative references inside agent-authored HTML (`<link href="/style.css">`) working, and it is what the agent prompt teaches — attached folders are reachable "including from agent-authored HTML or CSS, where that absolute path is what lets the static asset origin resolve them" ([`main.ts`](../../packages/workspace/src/agents/main.ts)).
 
 The reserved prefix has a shadowing hazard that has not bitten yet only because we own the directory: a real `mnt/` inside the task root is unreachable, since the longer mount point wins in `resolveHostPath`.
 
@@ -68,7 +69,7 @@ The origin is deliberately narrower in two places, and narrower is fine:
 Four layers, each covering something the others do not:
 
 1. **Traversal.** `.`/`..` segments, doubled slashes, and backslashes are rejected before anything resolves.
-2. **The private dir.** `/.instrument` and everything under it is refused, case-insensitively, because the app runs on case-insensitive filesystems where `/.INSTRUMENT/task.db` names the same file. The rule is the exact directory, not a prefix glob, so a sibling like `.instrument-notes/` is a normal task file.
+2. **The private dir.** `.instrument` is refused as a path segment anywhere, case-insensitively, because the app runs on case-insensitive filesystems where `/.INSTRUMENT/task.db` names the same file. The rule is the exact directory name, not a prefix glob, so a sibling like `.instrument-notes/` is a normal task file. Matched anywhere rather than only at the root because more than one served mount has such a directory: the task's holds its database and state, and the project's holds the folders the project contributes and the access granted to each, which is worth more to an attacker than either. This route resolves host paths itself instead of going through the virtual filesystem, so [`maskPrivateDirFs`](../../packages/workspace/src/lib/mask-private-dir-fs.ts) — the mask that hides the same directories from the agent's shell — does not cover it, and this rule is the only thing in front of those files here. Any new mount inherits it; nothing else does it for you.
 3. **Mount ownership.** A path no mount owns is a 404; there is no fallback root.
 4. **Symlinks.** `hostPathEscapesMount` re-checks the resolved host path against its own mount's root after index resolution, and fails closed on anything other than a clean not-found.
 

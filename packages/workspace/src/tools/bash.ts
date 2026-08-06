@@ -10,6 +10,7 @@ import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { systemNote } from "../lib/system-note";
 import { taskDir } from "../lib/task-dir-utils";
+import { resolveTaskProjectFolder } from "../lib/task-project-folder";
 import { getTaskState } from "../lib/task-state-store";
 import {
   TRUNCATE_HEAD_BYTES,
@@ -63,6 +64,7 @@ export const BashTool = setupTool({
     const taskState = await getTaskState(taskDir(taskId));
     const bash = await createBashEnv({
       attachedFolders: taskState.attachedFolders,
+      projectFolderName: await resolveTaskProjectFolder(taskId),
       sessionId,
       taskId,
     });

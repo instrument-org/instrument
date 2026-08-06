@@ -9,7 +9,7 @@ import { realpathSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import nodePath from "node:path";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { PROJECT_MOUNT_POINT, TASK_FOLDER_NAMES } from "../constants";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
@@ -66,6 +66,8 @@ export const SKILLS_MOUNT_POINT = "/skills";
  */
 export interface WorkspaceFsLayout {
   attached: WorkspaceFsMount[];
+  /** Absent for a task that does not belong to a project. */
+  project?: WorkspaceFsMount & { readOnly: false };
   skills: WorkspaceFsMount;
   task: WorkspaceFsMount & { hostRoot: TaskDir; readOnly: false };
 }
@@ -154,6 +156,21 @@ export async function buildBashFs(
     );
   }
 
+  // The project folder, writable so the agent can edit the project's own
+  // AGENTS.md when the user asks it to, with the private dir masked the way the
+  // task mount's is: it holds the project's folder list and the access granted
+  // to each, so a writable one would let the agent widen its own reach. Skipped
+  // when the directory is gone (project deleted or renamed mid-turn), same as an
+  // attached folder that no longer exists.
+  if (layout.project && (await pathExists(layout.project.hostRoot))) {
+    fs.mount(
+      layout.project.mountPoint,
+      maskPrivateDirFs(
+        new ReadWriteFs({ maxFileReadSize, root: layout.project.hostRoot }),
+      ),
+    );
+  }
+
   // The workspace's own directory, always meant to be there, so create it if a
   // fresh workspace has not yet. Skipping the mount instead would leave the
   // agent writing to a `/skills` the prompt advertises but that does not exist.
@@ -180,9 +197,16 @@ export async function buildBashFs(
  */
 export function buildWorkspaceFsLayout({
   attachedFolders,
+  projectFolderName,
   taskHostRoot,
 }: {
   attachedFolders?: Record<string, FolderAttachment.Type>;
+  /**
+   * Folder under `projects/` holding the task's project, resolved to a host path
+   * against this machine's workspace. A name rather than a path because the task
+   * state it comes from travels between machines.
+   */
+  projectFolderName?: string;
   taskHostRoot: TaskDir;
 }): WorkspaceFsLayout {
   const attached: WorkspaceFsMount[] = assignAttachedMounts(
@@ -195,6 +219,25 @@ export function buildWorkspaceFsLayout({
 
   return {
     attached,
+    // Writable, unlike an attached folder that overlaps the workspace (see
+    // effectiveFolderAccess): this is the one directory inside the workspace the
+    // user means the agent to edit, so it is granted deliberately and narrowly
+    // rather than falling out of where the folder happens to sit. What that
+    // guard is actually protecting -- the settings that name the project's
+    // folders and the access granted to each -- stays unreachable, because
+    // buildBashFs masks the private dir inside this mount.
+    ...(projectFolderName
+      ? {
+          project: {
+            hostRoot: absolutePathJoin(
+              getWorkspaceConfig().projectsDir,
+              projectFolderName,
+            ),
+            mountPoint: PROJECT_MOUNT_POINT,
+            readOnly: false as const,
+          },
+        }
+      : {}),
     skills: {
       hostRoot: getWorkspaceSkillsDir(),
       mountPoint: SKILLS_MOUNT_POINT,
@@ -281,7 +324,11 @@ export function hostPathEscapesMount(
 
 /** Every mount other than the task, in the order they are advertised. */
 export function nonTaskMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
-  return [...layout.attached, layout.skills];
+  return [
+    ...layout.attached,
+    ...(layout.project ? [layout.project] : []),
+    layout.skills,
+  ];
 }
 
 /** Virtual mount point of the masked-off private dir under the task mount. */

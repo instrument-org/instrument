@@ -1,4 +1,5 @@
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
+import { normalizeProjectInstructions } from "./project-instructions";
 import { systemNote } from "./system-note";
 
 export function projectChangesModelNote(
@@ -7,9 +8,12 @@ export function projectChangesModelNote(
   const lines: string[] = [];
 
   if (data.instructionsChanged) {
+    // Capped again on the way out: parts written before the cap existed hold the
+    // whole file, and this note carries the instructions in full.
+    const instructions = normalizeProjectInstructions(data.instructions ?? "");
     lines.push(
-      data.instructions
-        ? `The instructions for the "${data.projectName}" project were updated. This is the current version; follow it going forward, and disregard the earlier project instructions:\n\n${data.instructions}`
+      instructions
+        ? `The instructions for the "${data.projectName}" project were updated. This is the current version; follow it going forward, and disregard the earlier project instructions:\n\n${instructions}`
         : `The instructions for the "${data.projectName}" project were cleared. Disregard the earlier project instructions.`,
     );
   }

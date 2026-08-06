@@ -44,6 +44,7 @@ import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
 import { FFPROBE_COMMAND } from "../lib/shell-commands/ffprobe";
 import { systemNote } from "../lib/system-note";
 import { taskDir } from "../lib/task-dir-utils";
+import { resolveTaskProjectFolder } from "../lib/task-project-folder";
 import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
@@ -436,6 +437,7 @@ export const ReadFile = setupTool({
     const region = input.region;
     const layout = buildWorkspaceFsLayout({
       attachedFolders: taskState.attachedFolders,
+      projectFolderName: await resolveTaskProjectFolder(taskId),
       taskHostRoot: taskDir(taskId),
     });
     const pathResult = resolveExistingFilePath({

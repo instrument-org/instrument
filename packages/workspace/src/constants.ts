@@ -35,6 +35,20 @@ export const PROJECTS_DIR_NAME = "projects";
 // A project's instructions live in a visible, hand-editable AGENTS.md at the
 // project folder root; identity lives in `.instrument/settings.json`.
 export const PROJECT_INSTRUCTIONS_FILE_NAME = "AGENTS.md";
+/**
+ * Virtual mount point of the folder of the project a task belongs to.
+ *
+ * Top-level and singular rather than a name under `/mnt`, because a task belongs
+ * to at most one project: `/mnt` entries need names to tell several folders
+ * apart, and this one has nothing to be told apart from. A fixed path also
+ * survives a project rename, which moves the real directory (`updateProject`)
+ * and would otherwise change the path mid-task.
+ *
+ * Here rather than beside the other mount points in `workspace-fs-layout` so the
+ * truncation notice can name it without dragging that module's `just-bash` and
+ * `node:fs` imports into the renderer.
+ */
+export const PROJECT_MOUNT_POINT = "/project";
 // Per-task SQLite store in the task's `.instrument/` private dir.
 export const TASK_DB_FILE_NAME = "task.db";
 export const TASK_STATE_FILE_NAME = "state.json";
@@ -56,6 +70,22 @@ export const TASK_STATUSES = [
  * language the renderer does not know renders as a code block.
  */
 export const AGENT_FILES_LANGUAGE = "files";
+
+/**
+ * Character budget for the project instructions inlined into a task's standing
+ * context.
+ *
+ * The instructions are an `AGENTS.md` the user can paste anything into, and they
+ * ride in the session-context message on every turn, so an unbounded one eats
+ * the context window before the task starts. Characters rather than tokens for
+ * the same reason as the skill catalog's budget: no tokenizer is right for every
+ * provider we run against, and roughly four characters to the token (fewer for
+ * CJK) is close enough to size a budget by.
+ *
+ * Nothing is lost to the cap. The project folder mounts at PROJECT_MOUNT_POINT,
+ * so what does not fit stays one read away and the truncated block says where.
+ */
+export const MAX_PROJECT_INSTRUCTIONS_LENGTH = 20_000;
 
 // Limit prompt storage to 50KB to avoid blowing up the JSON file
 export const MAX_PROMPT_STORAGE_LENGTH = 50_000;

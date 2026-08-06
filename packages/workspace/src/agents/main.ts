@@ -19,6 +19,7 @@ import { getCurrentDate } from "../lib/get-current-date";
 import { outputArtifactsFromChanges } from "../lib/get-task-files";
 import { isToolPart } from "../lib/is-tool-part";
 import { pathExists } from "../lib/path-exists";
+import { normalizeProjectInstructions } from "../lib/project-instructions";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { TS_COMMAND } from "../lib/shell-commands/ts";
@@ -280,7 +281,11 @@ export const mainAgent = setupAgent({
       taskId,
     });
     const projectName = projectContext?.projectName;
-    const projectInstructions = projectContext?.instructions?.trim();
+    // Capped here as well as where the snapshot was written, because a task
+    // created before the cap existed carries an uncapped snapshot.
+    const projectInstructions = normalizeProjectInstructions(
+      projectContext?.instructions ?? "",
+    );
 
     // Project folders are stored in task state alongside user-attached folders.
     // Split them by their source so each set is framed accordingly: project
@@ -302,7 +307,7 @@ export const mainAgent = setupAgent({
       sessionId,
       textParts: [
         getSystemInfoText(),
-        projectInstructions && projectName
+        projectName
           ? buildProjectContextText({
               instructions: projectInstructions,
               name: projectName,

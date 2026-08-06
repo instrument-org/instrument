@@ -17,11 +17,13 @@ import type { Session } from "../src/schemas/session";
 
 import { workspaceMachine } from "../src/electron";
 import { isToolPart } from "../src/lib/is-tool-part";
+import { createProject } from "../src/lib/project";
 import { getTaskUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
 import { session as sessionRoute } from "../src/rpc/routes/session";
 import { task as taskRoute } from "../src/rpc/routes/task";
 import { type FileUpload } from "../src/schemas/file-upload";
+import { type ProjectId } from "../src/schemas/project-id";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { type StoreId } from "../src/schemas/store-id";
 import { type TaskId } from "../src/schemas/task-id";
@@ -100,6 +102,12 @@ export interface EvalCase {
   files?: FileUpload.Type[];
   folders?: { path: string }[];
   name: string;
+  /**
+   * Run the task inside a project created for it. The only way to exercise the
+   * standing project context and the `/project` mount: both hang off the task's
+   * project, so a task created without one has neither.
+   */
+  project?: { instructions?: string; name: string };
   prompt: string;
   shouldStop?: (
     part: SessionMessagePart.Type,
@@ -220,19 +228,33 @@ export async function runEvals(
         workspaceRef: actor,
       };
 
-      const created = creating.then(() =>
-        call(
+      // One project per run, named for it, so concurrent runs of the same case
+      // across models do not collide on the project folder name.
+      const created = creating.then(async () => {
+        let projectId: ProjectId | undefined;
+        if (evalCase.project) {
+          const project = await createProject({
+            instructions: evalCase.project.instructions,
+            name: `${evalCase.project.name} ${modelPrefix}`,
+          });
+          if (project.isErr()) {
+            throw project.error;
+          }
+          projectId = project.value.id;
+        }
+        return call(
           taskRoute.create,
           {
             files: evalCase.files,
             folders: evalCase.folders,
             modelURI: uri,
             name: evalCase.name,
+            projectId,
             prompt: evalCase.prompt,
           },
           { context },
-        ),
-      );
+        );
+      });
       // Chained off the settled result so one failed creation does not strand
       // every run behind it.
       creating = created.then(_.noop, _.noop);

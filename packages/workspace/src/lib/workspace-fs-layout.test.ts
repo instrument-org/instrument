@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { PROJECT_MOUNT_POINT } from "../constants";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import {
   AbsolutePathSchema,
@@ -216,6 +217,89 @@ describe("buildBashFs", () => {
     const list = await bash.exec("ls -a");
     expect(list.stdout).toContain("notes.txt");
     expect(list.stdout).not.toContain(".instrument");
+  });
+
+  // The project folder mounts writable so the agent can edit the project's own
+  // AGENTS.md when asked, which makes the mask over its private dir the thing
+  // standing between the agent and the settings naming its attached folders and
+  // the access granted to each.
+  describe("project mount", () => {
+    async function makeProjectBash() {
+      await fs.mkdir(path.join(tmpDir, "Proj", ".instrument"), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        path.join(tmpDir, "Proj", "AGENTS.md"),
+        "Use British spelling.",
+      );
+      await fs.writeFile(
+        path.join(tmpDir, "Proj", ".instrument", "settings.json"),
+        `{"folders":[{"access":"read-only","path":"/secret"}]}`,
+      );
+      // The mount resolves the folder name against the workspace, so the
+      // projects dir has to be where this test built the folder.
+      setWorkspaceConfig({
+        ...getWorkspaceConfig(),
+        projectsDir: AbsolutePathSchema.parse(tmpDir),
+      });
+      const layout = buildWorkspaceFsLayout({
+        projectFolderName: "Proj",
+        taskHostRoot: TaskDirSchema.parse(path.join(tmpDir, "task")),
+      });
+      const bashFs = await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 });
+      return new Bash({ cwd: TASK_MOUNT_POINT, fs: bashFs });
+    }
+
+    it("reads the project's instructions at its mount point", async () => {
+      const bash = await makeProjectBash();
+      const result = await bash.exec(`cat ${PROJECT_MOUNT_POINT}/AGENTS.md`);
+      expect(result.stdout).toBe("Use British spelling.");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("writes through to the real project folder", async () => {
+      const bash = await makeProjectBash();
+      const result = await bash.exec(
+        `echo 'Prefer pnpm.' >> ${PROJECT_MOUNT_POINT}/AGENTS.md`,
+      );
+      expect(result.exitCode).toBe(0);
+      await expect(
+        fs.readFile(path.join(tmpDir, "Proj", "AGENTS.md"), "utf8"),
+      ).resolves.toBe("Use British spelling.Prefer pnpm.\n");
+    });
+
+    it("masks the project's private dir against reads", async () => {
+      const bash = await makeProjectBash();
+      expect(
+        await stdoutOf(
+          bash,
+          `cat ${PROJECT_MOUNT_POINT}/.instrument/settings.json`,
+        ),
+      ).not.toContain("secret");
+      expect(
+        await stdoutOf(bash, `ls -a ${PROJECT_MOUNT_POINT}`),
+      ).not.toContain(".instrument");
+    });
+
+    it("refuses writes into the project's private dir", async () => {
+      const bash = await makeProjectBash();
+      await stdoutOf(
+        bash,
+        `echo '{"folders":[{"access":"read-write","path":"/"}]}' > ${PROJECT_MOUNT_POINT}/.instrument/settings.json`,
+      );
+      await expect(
+        fs.readFile(
+          path.join(tmpDir, "Proj", ".instrument", "settings.json"),
+          "utf8",
+        ),
+      ).resolves.toContain(`"read-only"`);
+    });
+
+    it("has no project mount for a task outside a project", async () => {
+      const bash = await makeBash();
+      const result = await bash.exec("ls /");
+      expect(result.stdout).not.toContain("project");
+    });
   });
 
   it("rejects writes outside every mount with EROFS instead of losing them", async () => {

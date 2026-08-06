@@ -8,15 +8,32 @@ import { type AbsolutePath, type TaskDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import { getTaskPrivateDir } from "./task-dir-utils";
 
+// `projectFolderName` names the folder under `projects/` belonging to the
+// project this task is in, kept here beside the attached folders because every
+// caller that builds the filesystem layout already reads this state and needs
+// both. Denormalized rather than resolved from the project id per call, because
+// the file tools build a layout on every read and write and every asset request,
+// synchronously, while resolving an id means reading every project's settings to
+// find the match.
+//
+// The folder name and not its absolute path, so that nothing here is true only
+// of the machine that wrote it: this file ships inside an exported task, and a
+// host path from someone else's disk names nothing on the machine that imports
+// it. `syncTaskProjectRoot` owns keeping it current; nothing else should write
+// it.
 const StoredTaskStateSchema = z
   .object({
     attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
+    projectFolderName: z.string().optional(),
     promptDraft: z.string().optional(),
     selectedModelURI: z.string().optional(),
     showTutorial: z.boolean().optional(),
   })
   .default(() => ({}));
 
+// The RPC-facing shape. Deliberately without `projectFolderName`: the renderer
+// has no use for it, and it selects the directory of a writable agent mount, so
+// it is not something a client should be able to set.
 export const TaskStateSchema = z.object({
   attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
   promptDraft: z.string().optional(),

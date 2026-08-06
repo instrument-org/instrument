@@ -10,6 +10,7 @@ import { assignMountNames } from "./assign-mount-names";
 import { getEffectiveProjectContext } from "./effective-project-context";
 import { getCurrentDate } from "./get-current-date";
 import { getProject } from "./project";
+import { normalizeProjectInstructions } from "./project-instructions";
 import { Store } from "./store";
 import { taskDir } from "./task-dir-utils";
 import { getTaskState, setTaskState } from "./task-state-store";
@@ -68,8 +69,16 @@ export function detectProjectChanges({
       }
       const project = projectResult.value;
 
-      const liveInstructions = project.instructions.trim() || undefined;
-      const effectiveInstructions = effective.instructions?.trim() || undefined;
+      // Both sides capped, so the comparison is between the two versions of what
+      // the agent actually receives. An edit only the truncated tail saw leaves
+      // the standing context identical and has nothing to announce; the agent
+      // reads the current file from the project mount either way.
+      const liveInstructions = normalizeProjectInstructions(
+        project.instructions,
+      );
+      const effectiveInstructions = normalizeProjectInstructions(
+        effective.instructions ?? "",
+      );
       const instructionsChanged = liveInstructions !== effectiveInstructions;
 
       const dir = taskDir(taskId);

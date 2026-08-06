@@ -2,8 +2,8 @@
 // https://github.com/sst/opencode/blob/dev/packages/opencode/src/tool/edit.ts
 // Kept as a single file for now so we can easily merge changes from upstream.
 import { createTwoFilesPatch } from "diff";
-/* eslint-disable unicorn/prefer-string-slice */
 import ms from "ms";
+/* eslint-disable unicorn/prefer-string-slice */
 import { err, ok } from "neverthrow";
 import fs from "node:fs/promises";
 import { dedent } from "radashi";
@@ -21,6 +21,7 @@ import {
   resolveWritableToolPath,
 } from "../lib/resolve-agent-path";
 import { taskDir } from "../lib/task-dir-utils";
+import { resolveTaskProjectFolder } from "../lib/task-project-folder";
 import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { BaseInputSchema } from "./base";
@@ -779,6 +780,7 @@ export const EditFile = setupTool({
 
     const layout = buildWorkspaceFsLayout({
       attachedFolders: taskState.attachedFolders,
+      projectFolderName: await resolveTaskProjectFolder(taskId),
       taskHostRoot: taskDir(taskId),
     });
     const pathResult = resolveWritableToolPath({

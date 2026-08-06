@@ -11,6 +11,7 @@ import { executeError } from "../lib/execute-error";
 import { pathExists } from "../lib/path-exists";
 import { resolveWritableToolPath } from "../lib/resolve-agent-path";
 import { taskDir } from "../lib/task-dir-utils";
+import { resolveTaskProjectFolder } from "../lib/task-project-folder";
 import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { BaseInputSchema } from "./base";
@@ -54,6 +55,7 @@ export const WriteFile = setupTool({
   execute: async ({ input, signal, taskId, taskState }) => {
     const layout = buildWorkspaceFsLayout({
       attachedFolders: taskState.attachedFolders,
+      projectFolderName: await resolveTaskProjectFolder(taskId),
       taskHostRoot: taskDir(taskId),
     });
     const pathResult = resolveWritableToolPath({

@@ -9,6 +9,7 @@ import { TypedError } from "./errors";
 import { getMimeType } from "./get-mime-type";
 import { resolveExistingFilePath } from "./resolve-agent-path";
 import { taskDir } from "./task-dir-utils";
+import { resolveTaskProjectFolder } from "./task-project-folder";
 import { getTaskState } from "./task-state-store";
 import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
 
@@ -39,6 +40,7 @@ export async function getCurrentFileInfo({
     inputPath: filePath,
     layout: buildWorkspaceFsLayout({
       attachedFolders: taskState.attachedFolders,
+      projectFolderName: await resolveTaskProjectFolder(taskId),
       taskHostRoot,
     }),
   });

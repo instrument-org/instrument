@@ -353,20 +353,24 @@ export function createBashDescription() {
 
 export async function createBashEnv({
   attachedFolders,
+  projectFolderName,
   sessionId,
   taskId,
 }: {
   attachedFolders?: Record<string, FolderAttachment.Type>;
+  projectFolderName?: string;
   sessionId: StoreId.Session;
   taskId: TaskId;
 }) {
   // The layout is the single source of truth for what the agent can see: the
-  // writable task directory mounted at /task (the working directory) plus any
+  // writable task directory mounted at /task (the working directory), the
+  // project folder at /project when the task belongs to one, plus any
   // user-attached folders under /mnt, each read-only or writable. The bash
   // native-binary path bridge, and the dedicated file tools all route through
   // it so they agree on virtual<->real mapping.
   const layout = buildWorkspaceFsLayout({
     attachedFolders,
+    projectFolderName,
     taskHostRoot: taskDir(taskId),
   });
   const fs = await buildBashFs(layout, { maxFileReadSize: SANDBOX_MAX_BYTES });
@@ -389,7 +393,7 @@ export async function createBashEnv({
       // just-bash's own `rg`. The built-in is a TypeScript reimplementation;
       // the real binary is orders of magnitude faster on a large tree and does
       // not carry its `(?i)` and root-level-glob bugs.
-      createRgCommand({ attachedFolders, taskId }),
+      createRgCommand({ attachedFolders, projectFolderName, taskId }),
       ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(taskId)),
       createWhichCommand(
         new Set([

@@ -17,11 +17,14 @@ export function isPrivateRelative(relativeWithinTask: string): boolean {
 }
 
 /**
- * Wrap the task filesystem so the private dir is invisible to the agent shell.
+ * Wrap a filesystem so the `.instrument` dir at its root is invisible to the
+ * agent shell. Used for the task mount, whose private dir holds the task db and
+ * state, and for the project mount, whose private dir holds the project's folder
+ * list and the access granted to each.
  *
- * The mask is a decorator on the task mount rather than an empty filesystem
- * mounted over `/task/.instrument`, because `MountableFs` refuses to mount
- * inside an existing mount, and the task has to stay mounted at its root.
+ * The mask is a decorator on the mount rather than an empty filesystem mounted
+ * over `/task/.instrument`, because `MountableFs` refuses to mount inside an
+ * existing mount, and the mount has to stay mounted at its root.
  *
  * Filtering by path spelling is only safe because of where this sits: every
  * path arrives already resolved (`MountableFs` normalizes before routing, and
@@ -189,7 +192,7 @@ function erofs(op: string, filePath: string) {
   return Object.assign(
     new Error(
       `EROFS: read-only file system, ${op} '${filePath}' -- the ` +
-        `${TASK_FOLDER_NAMES.private} directory holds task internals and is ` +
+        `${TASK_FOLDER_NAMES.private} directory holds internals and is ` +
         `not writable`,
     ),
     { code: "EROFS" },

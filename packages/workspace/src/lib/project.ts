@@ -9,6 +9,7 @@ import { parallel } from "radashi";
 
 import { PROJECT_INSTRUCTIONS_FILE_NAME } from "../constants";
 import { type FolderAttachment } from "../schemas/folder-attachment";
+import { type AbsolutePath } from "../schemas/paths";
 import {
   type Project,
   type ProjectFolder,
@@ -245,15 +246,6 @@ export async function listProjects(): Promise<Project[]> {
   );
 }
 
-// Trims project instructions and treats whitespace-only as absent. Exposed so
-// callers holding a loaded Project can normalize without a second disk scan.
-export function normalizeProjectInstructions(
-  instructions: string,
-): string | undefined {
-  const trimmed = instructions.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
 export async function removeFolderFromProject(
   id: ProjectId,
   path: string,
@@ -277,9 +269,42 @@ export async function removeFolderFromProject(
 
 export async function resolveProjectDir(
   id: ProjectId,
-): Promise<string | undefined> {
-  const folder = await resolveProjectFolder(id);
+  options?: { hint?: string },
+): Promise<AbsolutePath | undefined> {
+  const folder = await resolveProjectFolder(id, options);
   return folder ? projectDir(folder) : undefined;
+}
+
+/**
+ * The folder under `projects/` currently holding a project.
+ *
+ * The folder plus its settings is the source of truth, so the id stays stable
+ * across a rename made inside or outside the app. Finding it means reading every
+ * project's settings until one matches, which is why `hint` exists: a caller
+ * that already believes it knows the folder gets that one read first, and only
+ * pays for the scan when the belief turns out to be wrong. A hint naming a
+ * folder that has been renamed, deleted, or taken over by a different project
+ * all fail the same id check and fall through.
+ */
+export async function resolveProjectFolder(
+  id: ProjectId,
+  { hint }: { hint?: string } = {},
+): Promise<string | undefined> {
+  if (hint) {
+    const hinted = await readProjectSettings(hint);
+    if (hinted.isOk() && hinted.value.id === id) {
+      return hint;
+    }
+  }
+
+  const folders = await listProjectFolders();
+  for (const folder of folders) {
+    const settings = await readProjectSettings(folder);
+    if (settings.isOk() && settings.value.id === id) {
+      return folder;
+    }
+  }
+  return undefined;
 }
 
 export async function setProjectFolderAccess(
@@ -464,7 +489,7 @@ async function listProjectFolders(): Promise<string[]> {
   }
 }
 
-function projectDir(folderName: string) {
+function projectDir(folderName: string): AbsolutePath {
   return absolutePathJoin(getWorkspaceConfig().projectsDir, folderName);
 }
 
@@ -475,7 +500,7 @@ function projectInstructionsPath(folderName: string) {
   );
 }
 
-function projectSettingsPath(folderName: string) {
+function projectSettingsPath(folderName: string): AbsolutePath {
   return absolutePathJoin(
     projectDir(folderName),
     TASK_PRIVATE_FOLDER_NAME,
@@ -546,20 +571,4 @@ async function readProjectSettings(
   }
 
   return ok(settings.data);
-}
-
-// Resolves a ProjectId to its current folder name by scanning `projects/`.
-// The folder + settings.json is the source of truth, so the id stays stable
-// even when the folder is renamed (inside or outside the app).
-async function resolveProjectFolder(
-  id: ProjectId,
-): Promise<string | undefined> {
-  const folders = await listProjectFolders();
-  for (const folder of folders) {
-    const settings = await readProjectSettings(folder);
-    if (settings.isOk() && settings.value.id === id) {
-      return folder;
-    }
-  }
-  return undefined;
 }

@@ -226,7 +226,7 @@ describe("generateTitleFromUserMessage", () => {
                   access: "read-write" as const,
                   createdAt: 0,
                   id: FolderAttachment.IdSchema.parse("Home-Downloads"),
-                  name: "Home-Downloads",
+                  mountName: "Home-Downloads",
                   path: AbsolutePathSchema.parse(
                     `${os.homedir()}/Downloads/Screenshots`,
                   ),

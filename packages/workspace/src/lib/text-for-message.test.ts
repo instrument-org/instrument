@@ -28,7 +28,7 @@ function messageWith(text: string): SessionMessage.WithParts {
               access: "read-write",
               createdAt: 0,
               id: FolderAttachment.IdSchema.parse("Home-Downloads"),
-              name: "Home-Downloads",
+              mountName: "Home-Downloads",
               path: AbsolutePathSchema.parse("/Users/sam/Downloads"),
               source: "user",
             },

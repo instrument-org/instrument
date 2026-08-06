@@ -20,7 +20,7 @@ function abs(filePath: string) {
 
 function attachment(
   id: string,
-  name: string,
+  mountName: string,
   folderPath: string,
   access: FolderAttachment.Access = "read-only",
 ) {
@@ -28,7 +28,7 @@ function attachment(
     access,
     createdAt: 0,
     id: FolderAttachment.IdSchema.parse(id),
-    name,
+    mountName,
     path: abs(folderPath),
     source: "user" as const,
   };

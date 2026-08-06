@@ -20,7 +20,7 @@ export function assignAttachedMounts(
   const assigned: { folder: FolderAttachment.Type; mountPoint: string }[] = [];
 
   for (const folder of Object.values(attachedFolders)) {
-    const base = attachedFolderMountPoint(folder.name);
+    const base = attachedFolderMountPoint(folder.mountName);
     let mountPoint = base;
     for (let n = 2; used.has(mountPoint); n++) {
       mountPoint = `${base} (${n})`;

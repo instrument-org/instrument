@@ -94,7 +94,7 @@ export namespace SessionMessageDataPart {
 
   export const FileAttachmentsDataPartSchema = z.object({
     files: z.array(FileAttachmentDataPartSchema),
-    folders: z.array(FolderAttachment.Schema).optional(),
+    folders: z.array(FolderAttachment.StoredSchema).optional(),
   });
 
   export type FileAttachmentsDataPart = z.output<

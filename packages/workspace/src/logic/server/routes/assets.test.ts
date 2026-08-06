@@ -63,7 +63,7 @@ describe("assetsRoute", () => {
           access: "read-only",
           createdAt: 0,
           id: FolderAttachment.IdSchema.parse("photos-id"),
-          name: "Photos",
+          mountName: "Photos",
           path: AbsolutePathSchema.parse(photosRoot),
           source: "user",
         },

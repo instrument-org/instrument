@@ -47,7 +47,7 @@ export function detectAttachedFolderChanges({
           // folder the workspace-overlap guard downgrades is never announced as
           // writable while the filesystem refuses the writes.
           access: effectiveFolderAccess(folder),
-          name: folder.name,
+          name: folder.mountName,
           path: folder.path,
         }),
       );

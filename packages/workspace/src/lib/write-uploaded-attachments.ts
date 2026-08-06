@@ -143,7 +143,7 @@ export async function writeUploadedAttachments({
           access,
           createdAt: getCurrentDate().getTime(),
           id: FolderAttachment.IdSchema.parse(ulid()),
-          name: "",
+          mountName: "",
           path: folderPath,
           source: folder.source ?? "user",
         });
@@ -160,14 +160,14 @@ export async function writeUploadedAttachments({
 
       const nextFolders: Record<string, FolderAttachment.Type> = {};
       for (const folder of allFolders) {
-        const name = names.get(folder.id) ?? folder.name;
-        nextFolders[name] = { ...folder, name };
+        const mountName = names.get(folder.id) ?? folder.mountName;
+        nextFolders[mountName] = { ...folder, mountName };
       }
       await setTaskState(dir, { attachedFolders: nextFolders });
 
       for (const folder of newFolders) {
-        const name = names.get(folder.id) ?? folder.name;
-        folderAttachments.push({ ...folder, name });
+        const mountName = names.get(folder.id) ?? folder.mountName;
+        folderAttachments.push({ ...folder, mountName });
       }
     }
 

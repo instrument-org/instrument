@@ -51,7 +51,7 @@ const attachedFolders: Record<string, FolderAttachment.Type> = {
     access: "read-only",
     createdAt: Date.now(),
     id: FolderAttachment.IdSchema.parse("test-folder-id"),
-    name: "Test Folder",
+    mountName: "Test Folder",
     path: TaskDirSchema.parse(fixturesPath),
     source: "user",
   },

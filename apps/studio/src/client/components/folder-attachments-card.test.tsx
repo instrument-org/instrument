@@ -17,14 +17,14 @@ function folder(
   path: string,
   {
     access = "read-only",
-    name = "Home-Downloads",
-  }: Partial<Pick<FolderAttachment.Type, "access" | "name">> = {},
+    mountName = "Home-Downloads",
+  }: Partial<Pick<FolderAttachment.Type, "access" | "mountName">> = {},
 ): SessionMessageDataPart.FolderAttachmentDataPart {
   return {
     access,
     createdAt: 0,
     id: path as never,
-    name,
+    mountName,
     path: path as never,
     source: "user",
   };

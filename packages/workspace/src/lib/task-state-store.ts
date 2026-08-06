@@ -10,7 +10,7 @@ import { getTaskPrivateDir } from "./task-dir-utils";
 
 const StoredTaskStateSchema = z
   .object({
-    attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
+    attachedFolders: z.record(z.string(), FolderAttachment.StoredSchema).optional(),
     promptDraft: z.string().optional(),
     selectedModelURI: z.string().optional(),
     showTutorial: z.boolean().optional(),
@@ -18,7 +18,7 @@ const StoredTaskStateSchema = z
   .default(() => ({}));
 
 export const TaskStateSchema = z.object({
-  attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
+  attachedFolders: z.record(z.string(), FolderAttachment.StoredSchema).optional(),
   promptDraft: z.string().optional(),
   selectedModelURI: AIGatewayModelURI.Schema.optional(),
   showTutorial: z.boolean().optional(),

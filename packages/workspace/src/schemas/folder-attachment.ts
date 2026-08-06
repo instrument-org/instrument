@@ -19,11 +19,10 @@ export namespace FolderAttachment {
 
   export type Source = z.output<typeof SourceSchema>;
 
-  export const Schema = z.object({
+  const BaseSchema = z.object({
     access: AccessSchema,
     createdAt: z.int().min(0),
     id: IdSchema,
-    name: z.string(),
     path: AbsolutePathSchema,
     // Where the attachment came from: "project" if auto-included from the
     // task's project, "user" if attached directly. Lets every consumer tell
@@ -32,5 +31,32 @@ export namespace FolderAttachment {
     source: SourceSchema,
   });
 
+  /**
+   * The name this folder is mounted under, at `/mnt/<mountName>`. Unique within
+   * a task and assigned by us (see assign-mount-names.ts), so it is the agent's
+   * handle for the folder and not the user's word for it -- that comes from the
+   * path. Reading one as the other is what put "the documents-test folder" in
+   * front of a user who has no such folder.
+   */
+  const MountNameSchema = z.string();
+
+  export const Schema = BaseSchema.extend({ mountName: MountNameSchema });
+
   export type Type = z.output<typeof Schema>;
+
+  /**
+   * What a folder can look like on the way in. `name` is what the mount name
+   * was called before it said so, and `state.json` and stored message parts are
+   * full of it.
+   *
+   * Only the read is tolerant, matching how a project's folders carry their own
+   * older shape: everything written from here on is {@link Schema}, and nothing
+   * that hands a folder to an RPC caller or a tool has any legacy to carry.
+   */
+  export const StoredSchema = z.union([
+    Schema,
+    BaseSchema.extend({ name: MountNameSchema }).transform(
+      ({ name, ...rest }): Type => ({ ...rest, mountName: name }),
+    ),
+  ]);
 }

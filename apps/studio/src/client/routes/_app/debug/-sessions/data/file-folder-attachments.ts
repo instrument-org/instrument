@@ -151,7 +151,7 @@ const userMessageWithFolders = builder.userMessage(
               id: "components" as never,
               // Mount names are qualified with an ancestor directory, so they
               // never match what the row displays.
-              name: "workspace-components",
+              mountName: "workspace-components",
               path: "/tmp/workspace/components" as never,
               source: "user",
             },
@@ -159,7 +159,7 @@ const userMessageWithFolders = builder.userMessage(
               access: "read-only",
               createdAt: 1_718_198_401_000,
               id: "research" as never,
-              name: "workspace-research",
+              mountName: "workspace-research",
               path: "/tmp/workspace/research" as never,
               source: "user",
             },

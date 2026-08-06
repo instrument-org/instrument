@@ -969,7 +969,7 @@ function renderProjectContext(
           if (folder.source === "project") {
             projectFoldersByPath.set(folder.path, {
               access: folder.access,
-              name: folder.name,
+              name: folder.mountName,
             });
           }
         }

@@ -289,7 +289,7 @@ export namespace SessionMessage {
             const folderAttachmentText = buildAttachedFoldersText({
               folders: userAttachedFolders.map((folder) => ({
                 access: folder.access,
-                mountPoint: attachedFolderMountPoint(folder.name),
+                mountPoint: attachedFolderMountPoint(folder.mountName),
                 path: folder.path,
               })),
               intro: `The user attached these external folders with this message. They are mounted in the task and reachable with the bash tool. Assume they are directly relevant to the user's request.`,

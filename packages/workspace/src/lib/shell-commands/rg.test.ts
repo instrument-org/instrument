@@ -31,7 +31,7 @@ async function run(command: string, attach = false) {
             access: "read-only",
             createdAt: Date.now(),
             id: FolderAttachment.IdSchema.parse("docs-id"),
-            name: "Docs",
+            mountName: "Docs",
             path: TaskDirSchema.parse(attachedDir),
             source: "user",
           },
@@ -166,7 +166,7 @@ describe("virtualizeOutput", () => {
           access: "read-only",
           createdAt: 0,
           id: FolderAttachment.IdSchema.parse("docs-id"),
-          name: "Docs",
+          mountName: "Docs",
           // Cast: AbsolutePathSchema rejects win32 absolute paths when the test
           // runs on a posix host, but a Windows build stores exactly this shape.
           path: hostRoot as AbsolutePath,

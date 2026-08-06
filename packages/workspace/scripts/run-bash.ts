@@ -162,11 +162,11 @@ const draftFolders = args.attach.map((folder) => ({
   id: FolderAttachment.IdSchema.parse(ulid()),
   path: AbsolutePathSchema.parse(folder.path),
 }));
-const folderNames = assignMountNames(draftFolders);
+const mountNames = assignMountNames(draftFolders);
 const attachedFolders: Record<string, FolderAttachment.Type> = {};
 for (const folder of draftFolders) {
-  const name = folderNames.get(folder.id) ?? folder.path;
-  attachedFolders[name] = { ...folder, name, source: "user" };
+  const mountName = mountNames.get(folder.id) ?? folder.path;
+  attachedFolders[mountName] = { ...folder, mountName, source: "user" };
 }
 
 const bash = await createBashEnv({

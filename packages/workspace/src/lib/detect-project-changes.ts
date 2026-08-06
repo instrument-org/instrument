@@ -93,7 +93,7 @@ export function detectProjectChanges({
         }
         const liveAccess = liveFolderAccess.get(folder.path);
         if (liveAccess === undefined) {
-          foldersRemoved.push({ name: folder.name, path: folder.path });
+          foldersRemoved.push({ name: folder.mountName, path: folder.path });
           continue;
         }
         // The project owns the access level of the folders it contributes, so
@@ -117,7 +117,7 @@ export function detectProjectChanges({
           access,
           createdAt: getCurrentDate().getTime(),
           id: FolderAttachment.IdSchema.parse(ulid()),
-          name: "",
+          mountName: "",
           path: parsedPath.data,
           source: "project",
         });
@@ -133,11 +133,11 @@ export function detectProjectChanges({
       const nextFolders: Record<string, FolderAttachment.Type> = {};
       let stateChanged = foldersRemoved.length > 0 || accessChanged;
       for (const folder of allFolders) {
-        const name = names.get(folder.id) ?? folder.name;
-        if (name !== folder.name) {
+        const mountName = names.get(folder.id) ?? folder.mountName;
+        if (mountName !== folder.mountName) {
           stateChanged = true;
         }
-        nextFolders[name] = { ...folder, name };
+        nextFolders[mountName] = { ...folder, mountName };
       }
 
       if (!instructionsChanged && !stateChanged) {

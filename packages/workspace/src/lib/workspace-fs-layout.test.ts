@@ -51,7 +51,7 @@ describe("buildBashFs", () => {
           access,
           createdAt: 0,
           id: FolderAttachment.IdSchema.parse("docs-id"),
-          name: "Docs",
+          mountName: "Docs",
           path: AbsolutePathSchema.parse(path.join(tmpDir, "Docs")),
           source: "user",
         },
@@ -380,7 +380,7 @@ describe("effectiveFolderAccess", () => {
       access: "read-write",
       createdAt: 0,
       id: FolderAttachment.IdSchema.parse("folder-id"),
-      name: "Folder",
+      mountName: "Folder",
       path: AbsolutePathSchema.parse(folderPath),
       source: "user",
     });

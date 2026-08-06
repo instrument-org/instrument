@@ -31,12 +31,12 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMatch, useNavigate } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { formatDistanceToNow } from "date-fns";
 import { useAtom, useAtomValue } from "jotai";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { FuzzyHighlight } from "./fuzzy-highlight";
+import { RelativeTime } from "./relative-time";
 
 interface DebugItem {
   key: string;
@@ -530,11 +530,11 @@ function CommandResultsList({
                       text={row.matched.task.title}
                     />
                   </span>
-                  <span className="text-xs text-muted-foreground/60">
-                    {formatDistanceToNow(new Date(row.matched.task.updatedAt), {
-                      addSuffix: true,
-                    }).replace(/^about /, "")}
-                  </span>
+                  <RelativeTime
+                    className="text-xs text-muted-foreground/60"
+                    date={new Date(row.matched.task.updatedAt)}
+                    tooltip={false}
+                  />
                 </CommandItem>
               ) : row.type === "project" ? (
                 <CommandItem

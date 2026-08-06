@@ -1,5 +1,6 @@
 import { InlineRenameInput } from "@/client/components/inline-rename-input";
 import { InternalLink } from "@/client/components/internal-link";
+import { RelativeTime } from "@/client/components/relative-time";
 import { TaskStatusIcon } from "@/client/components/session-status-icon";
 import { TaskMenuItems } from "@/client/components/task-menu-items";
 import {
@@ -27,7 +28,6 @@ import {
   XCircleIcon,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
-import { format, formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -129,9 +129,11 @@ export function ProjectTaskRow({
             {task.title}
           </InternalLink>
           <div className="group/meta -mr-6 flex shrink-0 items-center gap-x-1">
-            <span className="text-xs text-muted-foreground">
-              {formatUpdated(task.updatedAt)}
-            </span>
+            <RelativeTime
+              className="text-xs text-muted-foreground"
+              date={task.updatedAt}
+              tooltip={false}
+            />
             <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
               <DropdownMenuTrigger
                 className={cn(
@@ -157,14 +159,4 @@ export function ProjectTaskRow({
       </ContextMenuContent>
     </ContextMenu>
   );
-}
-
-function formatUpdated(date: Date) {
-  const diff = Date.now() - date.getTime();
-  if (diff < 7 * 24 * 60 * 60 * 1000) {
-    return formatDistanceToNow(date, { addSuffix: true })
-      .replace("less than ", "")
-      .replace("about ", "");
-  }
-  return format(date, "MMM d");
 }

@@ -2,11 +2,12 @@ import type { Project, Task, TaskId } from "@instrument-org/workspace/client";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { InternalLink } from "@/client/components/internal-link";
+import { RelativeTime } from "@/client/components/relative-time";
 import { TaskStatusIcon } from "@/client/components/session-status-icon";
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
 import { ArrowsDownUpIcon, BagIcon, PushPinIcon } from "@phosphor-icons/react";
-import { format, formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 
 import { TaskActionsCell } from "./actions";
 import { ModelPreview } from "./model-preview";
@@ -171,13 +172,10 @@ export function createColumns({
       cell: ({ row }) => {
         const task = row.original;
         return (
-          <span className="text-sm text-muted-foreground">
-            {formatDistanceToNow(task.updatedAt, {
-              addSuffix: true,
-            })
-              .replace("less than ", "")
-              .replace("about ", "")}
-          </span>
+          <RelativeTime
+            className="text-sm text-muted-foreground"
+            date={task.updatedAt}
+          />
         );
       },
       header: ({ column }) => {

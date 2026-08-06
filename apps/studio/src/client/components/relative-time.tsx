@@ -1,11 +1,5 @@
-import {
-  clockSubscriber,
-  formatAbsoluteTime,
-  formatRelativeTime,
-  getSharedNow,
-  relativeTickMs,
-} from "@/client/lib/relative-time";
-import { useSyncExternalStore } from "react";
+import { useRelativeTime } from "@/client/hooks/use-relative-time";
+import { formatAbsoluteTime } from "@/client/lib/relative-time";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
@@ -23,8 +17,7 @@ export function RelativeTime({
    */
   tooltip?: boolean;
 }) {
-  const now = useRelativeNow(date);
-  const text = formatRelativeTime(date, now);
+  const text = useRelativeTime(date);
 
   if (!tooltip) {
     return <span className={className}>{text}</span>;
@@ -37,26 +30,5 @@ export function RelativeTime({
       </TooltipTrigger>
       <TooltipContent>{formatAbsoluteTime(date)}</TooltipContent>
     </Tooltip>
-  );
-}
-
-function noopSubscribe() {
-  return unsubscribeNothing;
-}
-
-function unsubscribeNothing() {
-  // A snapshot that can never change has no timer behind it to tear down.
-}
-
-/**
- * Re-renders only when this instant's own rendering can have changed. An
- * instance old enough to render as a date subscribes to nothing.
- */
-function useRelativeNow(date: Date) {
-  const intervalMs = relativeTickMs(getSharedNow() - date.getTime());
-
-  return useSyncExternalStore(
-    intervalMs === null ? noopSubscribe : clockSubscriber(intervalMs),
-    getSharedNow,
   );
 }

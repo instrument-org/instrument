@@ -1,4 +1,6 @@
 import { sendAppCommand } from "@/electron-main/app-command";
+import { matchesAccelerator } from "@/electron-main/menus/match-accelerator";
+import { isDeveloperMode } from "@/electron-main/stores/preferences";
 import {
   focusMainContents,
   goBack,
@@ -19,10 +21,11 @@ import {
 import {
   type BaseWindow,
   BrowserWindow,
-  type Input,
   type MenuItemConstructorOptions,
   type WebContents,
 } from "electron";
+
+const IS_MAC = process.platform === "darwin";
 
 // The window the chord fired against, which the native menu hands us as the
 // `BaseWindow` it might be (a menu accelerator can reach any window, not just
@@ -116,21 +119,39 @@ const SHORTCUT_ACTIONS: Record<ShortcutId, null | ShortcutAction> = {
 };
 
 /**
- * Runs the reserved shortcuts ahead of the page's own key handling.
- * `preventDefault` here also suppresses the matching menu accelerator, so each
- * chord still fires exactly once.
+ * Runs the app's own chords from the raw key event, ahead of the page.
+ *
+ * A menu accelerator is a fallback, not a binding: Electron offers the native
+ * menu only the key events web content left unhandled, so a chord that reaches
+ * the app solely through its menu item is at the mercy of whatever has focus --
+ * and in Studio that is the prompt editor almost all of the time. Every
+ * menu-owned entry is bound here so the chord fires on the key rather than on
+ * the page declining it, and `preventDefault` suppresses the matching menu
+ * accelerator so it still fires exactly once.
+ *
+ * The menu item keeps its accelerator for display, and for the one case this
+ * can't see: a focused browser guest is its own webContents, whose unhandled
+ * keys reach the native menu without passing through here.
  */
-export function bindReservedShortcuts(webContents: WebContents) {
-  const reserved = SHORTCUT_ENTRIES.flatMap(({ descriptor, id }) => {
+export function bindShortcutAccelerators(webContents: WebContents) {
+  const bound = SHORTCUT_ENTRIES.flatMap(({ descriptor, id }) => {
     const run = SHORTCUT_ACTIONS[id];
-    return descriptor.reserved && run ? [{ descriptor, run }] : [];
+    return descriptor.owner === "menu" && run ? [{ descriptor, run }] : [];
   });
   webContents.on("before-input-event", (event, input) => {
     if (input.type !== "keyDown") {
       return;
     }
-    const shortcut = reserved.find(({ descriptor }) =>
-      matchesAccelerator(input, resolveMenuAccelerator(descriptor.accelerator)),
+    const shortcut = bound.find(
+      ({ descriptor }) =>
+        // The Developer group only appears in the menu in developer mode, so
+        // its chords are only bound there.
+        (descriptor.group !== "Developer" || isDeveloperMode()) &&
+        matchesAccelerator(
+          input,
+          resolveMenuAccelerator(descriptor.accelerator),
+          { isMac: IS_MAC },
+        ),
     );
     if (!shortcut) {
       return;
@@ -160,29 +181,6 @@ export function shortcutMenuItem(id: ShortcutId): MenuItemConstructorOptions {
   };
 }
 
-// Reserving a chord means matching it against a raw key event, which only
-// `CmdOrCtrl+<key>` accelerators do here. Anything richer never matches rather
-// than matching loosely, so a shortcut that outgrows the shape fails loudly the
-// first time it's pressed instead of firing on the wrong chord.
-function matchesAccelerator(input: Input, accelerator: string) {
-  const [modifier, key, ...rest] = accelerator.split("+");
-  if (modifier !== "CmdOrCtrl" || !key || rest.length > 0) {
-    return false;
-  }
-  if (
-    input.alt ||
-    input.shift ||
-    input.key.toLowerCase() !== key.toLowerCase()
-  ) {
-    return false;
-  }
-  return process.platform === "darwin"
-    ? input.meta && !input.control
-    : input.control && !input.meta;
-}
-
 function resolveMenuAccelerator(accelerator: ShortcutAccelerator) {
-  return resolveAccelerator(accelerator, {
-    isMac: process.platform === "darwin",
-  });
+  return resolveAccelerator(accelerator, { isMac: IS_MAC });
 }

@@ -1,8 +1,8 @@
 /**
  * Every keyboard shortcut the app declares, as data. One entry feeds the native
- * menu (which projects it into a menu item), the reserved-chord binder in the
- * main process, and the in-app shortcut guide, so adding a chord is one edit and
- * no surface can drift from another.
+ * menu (which projects it into a menu item), the accelerator binder in the main
+ * process, and the in-app shortcut guide, so adding a chord is one edit and no
+ * surface can drift from another.
  *
  * Descriptors are serializable on purpose: the renderer needs `label`,
  * `accelerator` and `group` to draw the guide, and none of that can travel with
@@ -21,24 +21,20 @@ export interface ShortcutDescriptor {
   /**
    * Who binds the chord:
    *
-   * - `menu` -- the native menu item this entry is projected into.
+   * - `menu` -- the app owns it outright. The main process runs it from the raw
+   *   key event ahead of the focused page, and projects it into a native menu
+   *   item carrying the same accelerator.
    * - `renderer` -- a renderer keydown, for a chord that is layout-dependent or
    *   has to yield to a focused editor. The menu can still offer the item, just
    *   without an accelerator.
    * - `external` -- something outside the table already handles it: an Electron
    *   role, or a hidden accelerator-only menu item. Listed so the guide can show
    *   it, never projected into a menu item.
+   *
+   * Chords an editor legitimately uses (Mod-Z to undo) are not the app's to
+   * take: they stay Electron roles on the Edit menu and out of this table.
    */
   owner: "external" | "menu" | "renderer";
-  /**
-   * Whether the chord has to beat the focused page. Electron offers the native
-   * menu only the key events web content left unhandled, and Chromium keeps the
-   * editing chords for itself whenever a contenteditable has focus, so an
-   * unreserved chord stops working the moment the caret enters the prompt
-   * editor. Reserve only what the app owns outright: anything an editor
-   * legitimately uses (Mod-Z to undo) belongs to the page.
-   */
-  reserved?: boolean;
 }
 
 export type ShortcutGroup =
@@ -193,7 +189,6 @@ export const SHORTCUTS = {
     group: "View",
     label: "Toggle Sidebar",
     owner: "menu",
-    reserved: true,
   },
   zoomIn: {
     accelerator: "CmdOrCtrl+Plus",

@@ -9,7 +9,7 @@ const EDITABLE_SELECTOR =
 
 /**
  * Opens the shortcut guide on `?`. The chord lives here rather than in the
- * native menu (or the reserved set) because it carries no modifier and is
+ * native menu (or the main-process binder) because it carries no modifier and is
  * layout-dependent: it is a character before it is a shortcut, so it has to
  * yield to whatever the user is typing into.
  *

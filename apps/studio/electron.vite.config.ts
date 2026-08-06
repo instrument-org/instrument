@@ -181,16 +181,14 @@ function createValidateProductionEnv(
 
 export default defineConfig(({ command }) => {
   const require = createRequire(import.meta.url);
-  // In dev, ffmpeg-static/ffprobe-static are external but node_modules isn't
-  // next to the output, so we resolve and bake in the absolute path. In prod,
-  // the packaged app has node_modules alongside the bundle, so a bare specifier
+  // In dev, ffmpeg-ffprobe-static is external but node_modules isn't next to
+  // the output, so we resolve and bake in the absolute path. In prod, the
+  // packaged app has node_modules alongside the bundle, so a bare specifier
   // resolves correctly.
-  const ffmpegStaticValue =
-    command === "serve" ? require.resolve("ffmpeg-static") : "ffmpeg-static";
-  const ffprobeStaticValue =
+  const ffmpegFfprobeStaticValue =
     command === "serve"
-      ? require.resolve("@derhuerst/ffprobe-static")
-      : "@derhuerst/ffprobe-static";
+      ? require.resolve("ffmpeg-ffprobe-static")
+      : "ffmpeg-ffprobe-static";
   const agentBrowserBinDir =
     command === "serve"
       ? path.dirname(require.resolve("agent-browser/bin/agent-browser.js"))
@@ -270,8 +268,9 @@ const require = __cjs_mod__.createRequire(import.meta.url);
       },
       define: {
         __AGENT_BROWSER_BIN_DIR__: JSON.stringify(agentBrowserBinDir),
-        __FFMPEG_STATIC_PATH__: JSON.stringify(ffmpegStaticValue),
-        __FFPROBE_STATIC_PATH__: JSON.stringify(ffprobeStaticValue),
+        __FFMPEG_FFPROBE_STATIC_PATH__: JSON.stringify(
+          ffmpegFfprobeStaticValue,
+        ),
       },
       plugins: [
         copyVendorAssets(),

@@ -3,7 +3,6 @@ packages:
   - apps/*
 
 allowBuilds:
-  "@derhuerst/ffprobe-static": true
   "@parcel/watcher": false
   "@posthog/cli": true
   "@swc/core": true
@@ -15,7 +14,7 @@ allowBuilds:
   electron: true
   electron-winstaller: true
   esbuild: true
-  ffmpeg-static: true
+  ffmpeg-ffprobe-static: true
   msw: true
   protobufjs: true
   sharp: true

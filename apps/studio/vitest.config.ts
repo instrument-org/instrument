@@ -14,7 +14,7 @@ const require = createRequire(import.meta.url);
 // (e.g. `@instrument-org/workspace/electron`) blows up at module init in
 // the test runner.
 //
-// `agent-browser`, `ffmpeg-static`, and `@derhuerst/ffprobe-static` live in
+// `agent-browser` and `ffmpeg-ffprobe-static` live in
 // `@instrument-org/workspace`'s deps (not studio's), so resolve them relative
 // to that package's `package.json` instead of `apps/studio`.
 const workspacePkgRequire = createRequire(
@@ -25,9 +25,8 @@ const GLOBAL_DEFINES = {
   __AGENT_BROWSER_BIN_DIR__: path.dirname(
     workspacePkgRequire.resolve("agent-browser/bin/agent-browser.js"),
   ),
-  __FFMPEG_STATIC_PATH__: workspacePkgRequire.resolve("ffmpeg-static"),
-  __FFPROBE_STATIC_PATH__: workspacePkgRequire.resolve(
-    "@derhuerst/ffprobe-static",
+  __FFMPEG_FFPROBE_STATIC_PATH__: workspacePkgRequire.resolve(
+    "ffmpeg-ffprobe-static",
   ),
 } as const;
 

@@ -759,9 +759,9 @@ export function createAgentBrowserCommand({
     const spawnEnv = {
       ...baseEnv,
       // `agent-browser record` spawns a real `ffmpeg` process by bare name,
-      // resolved against PATH. The bundled ffmpeg-static binary isn't on the
-      // sandbox PATH, so prepend its dir (the in-bash `ffmpeg` command is a
-      // just-bash intercept that a separate subprocess can't see).
+      // resolved against PATH. The bundled ffmpeg binary isn't on the sandbox
+      // PATH, so prepend its dir (the in-bash `ffmpeg` command is a just-bash
+      // intercept that a separate subprocess can't see).
       ...ffmpegSubprocessEnv(baseEnv.PATH),
       // Wins over whichever temp dir the base env carries.
       ...(externalTmpDir

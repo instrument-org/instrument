@@ -57,8 +57,7 @@ const config: KnipConfig = {
         "xdg-open",
       ],
       ignoreDependencies: [
-        "@derhuerst/ffprobe-static", // Imported in Vite build to fix import issues
-        "ffmpeg-static", // Imported in Vite build to fix import issues
+        "ffmpeg-ffprobe-static", // Imported in Vite build to fix import issues
         "dugite", // Needed to ensure the git binary is available
         "agent-browser", // Imported in Vite build to resolve the binary path
         "@parcel/watcher", // Needed for electron.vite.config.ts to build

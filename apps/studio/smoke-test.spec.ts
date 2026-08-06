@@ -237,13 +237,14 @@ describe("Studio Smoke Test", () => {
       const { createRequire } = require("node:module");
       try {
         const req = createRequire(path.join(${JSON.stringify(nodeModules)}, "probe.js"));
-        // ffmpeg-static and ffprobe-static export a path into the archive;
-        // the app rewrites it the same way to reach the executable copy.
+        // ffmpeg-ffprobe-static exports paths into the archive; the app
+        // rewrites them the same way to reach the executable copies.
         const unpack = (binary) =>
           binary.replace(/[\\\\/]app\\.asar[\\\\/]/, path.sep + "app.asar.unpacked" + path.sep);
+        const ffmpeg = req("ffmpeg-ffprobe-static");
         const probes = [
-          ["ffmpeg", unpack(req("ffmpeg-static")), "-version"],
-          ["ffprobe", unpack(req("@derhuerst/ffprobe-static")), "-version"],
+          ["ffmpeg", unpack(ffmpeg.ffmpegPath), "-version"],
+          ["ffprobe", unpack(ffmpeg.ffprobePath), "-version"],
           ["git", req("dugite").resolveGitBinary(), "--version"],
         ];
         const report = {};

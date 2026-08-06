@@ -42,7 +42,7 @@ Corollary: a skill-only solution does not work. `load_skill` requires the agent 
 
 Nothing here needs a new dependency.
 
-- **ffmpeg** is a direct dependency of `packages/workspace` (`ffmpeg-static`, resolved in [lib/ffmpeg.ts](../../../packages/workspace/src/lib/ffmpeg.ts)) and already exposed to the agent as a bash command ([shell-commands/ffmpeg.ts](../../../packages/workspace/src/lib/shell-commands/ffmpeg.ts)). `crop=w:h:x:y,scale=W:H:flags=lanczos` is the whole operation.
+- **ffmpeg** is a direct dependency of `packages/workspace` (`ffmpeg-ffprobe-static`, resolved in [lib/ffmpeg.ts](../../../packages/workspace/src/lib/ffmpeg.ts)) and already exposed to the agent as a bash command ([shell-commands/ffmpeg.ts](../../../packages/workspace/src/lib/shell-commands/ffmpeg.ts)). `crop=w:h:x:y,scale=W:H:flags=lanczos` is the whole operation.
 - **image-size** is a direct dependency, already used in `read_file`.
 - **sharp-images** skill in the registry ships `crop.ts` (sharp `extract`), `resize.ts`, and `annotate.ts`. Registry is a read-only submodule; edits go in the sibling skills repo.
 - Tool `execute` receives the resolved `model` ([tools/types.ts:34-46](../../../packages/workspace/src/tools/types.ts#L34-L46)), so per-provider limits are available at read time.

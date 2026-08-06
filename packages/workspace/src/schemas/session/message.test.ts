@@ -4,6 +4,7 @@ import { TOOLS_FOR_MODEL_OUTPUT } from "../../tools/all";
 import { RelativePathSchema } from "../paths";
 import { StoreId } from "../store-id";
 import { SessionMessage } from "./message";
+import { SessionMessagePart } from "./message-part";
 
 const mockDate = new Date("2024-01-01T10:00:00Z");
 
@@ -739,5 +740,49 @@ describe("SessionMessage.toModelMessages", () => {
         },
       ]
     `);
+  });
+
+  // The crash this guards: a folder attached before the mount-name rename is
+  // stored with `name`, stored parts are never validated on the way back in,
+  // and assembling model messages reads the field to build the /mnt path. It
+  // fires on the next turn of an existing task, not on a new attachment.
+  it("replays a turn whose folder was attached before the mount-name rename", async () => {
+    const { messageMetadata, partMetadata } = baseMetadata();
+    const legacyStoredPart = SessionMessagePart.coerce({
+      data: {
+        files: [],
+        folders: [
+          {
+            access: "read-write",
+            createdAt: 1_718_198_400_000,
+            id: "01KZ9NPNZZPQF80Z7A7DG4Z5BN",
+            name: "Home-Downloads",
+            path: "/Users/sam/Downloads",
+            source: "user",
+          },
+        ],
+      },
+      metadata: partMetadata,
+      type: "data-attachments",
+    });
+
+    const result = await SessionMessage.toModelMessages(
+      [
+        {
+          id: StoreId.newMessageId(),
+          metadata: messageMetadata,
+          parts: [
+            legacyStoredPart,
+            { metadata: partMetadata, text: "what is in here", type: "text" },
+          ],
+          role: "user",
+        },
+      ],
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    const text = JSON.stringify(result);
+    expect(text).toContain("/mnt/Home-Downloads");
+    expect(text).not.toContain("/mnt/undefined");
   });
 });

@@ -117,7 +117,7 @@ export namespace SessionMessagePart {
 
   // Coercion from relaxed schema to strongly typed parts
   export const CoercedSchema = SessionMessageRelaxedPart.Schema.transform(
-    (data) => data as Type,
+    (data) => renameStoredFolderMountName(data) as Type,
   );
 
   export function coerce(part: SessionMessageRelaxedPart.Type): Type {
@@ -131,5 +131,47 @@ export namespace SessionMessagePart {
     return {
       ...part,
     };
+  }
+
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+
+  /**
+   * A folder attached before the mount name said what it was carries `name`.
+   *
+   * This has to happen here because a stored part is never validated: the
+   * relaxed schema types `data` as `unknown` and the coercion is a cast, so the
+   * tolerance built into `FolderAttachment.StoredSchema` never runs on history.
+   * Without it the field is `undefined` at runtime while the types promise a
+   * string, and the next turn of any task with an attached folder throws while
+   * assembling its model messages.
+   *
+   * Every read of a stored part passes through here, so this is the one place
+   * that covers the transcript, the model messages, and the exported markdown
+   * alike.
+   */
+  function renameStoredFolderMountName(
+    part: SessionMessageRelaxedPart.Type,
+  ): SessionMessageRelaxedPart.Type {
+    if (part.type !== "data-attachments" || !isRecord(part.data)) {
+      return part;
+    }
+    if (!Array.isArray(part.data.folders)) {
+      return part;
+    }
+
+    const stored: unknown[] = part.data.folders;
+    const renamed = stored.map((folder): unknown => {
+      if (!isRecord(folder) || !("name" in folder) || "mountName" in folder) {
+        return folder;
+      }
+      const { name, ...rest } = folder;
+      return { ...rest, mountName: name };
+    });
+
+    return renamed.some((folder, index) => folder !== stored[index])
+      ? { ...part, data: { ...part.data, folders: renamed } }
+      : part;
   }
 }

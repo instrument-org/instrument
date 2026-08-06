@@ -212,7 +212,25 @@ describe("generateTitleFromUserMessage", () => {
   });
 
   describe("what the model is shown", () => {
-    function messageWithFolder() {
+    function folderAttachment(
+      name: string,
+      source: FolderAttachment.Source,
+    ): FolderAttachment.Type {
+      return {
+        access: "read-write",
+        createdAt: 0,
+        id: FolderAttachment.IdSchema.parse(name),
+        mountName: `Home-${name}`,
+        path: AbsolutePathSchema.parse(`${os.homedir()}/Downloads/${name}`),
+        source,
+      };
+    }
+
+    function messageWithFolders(
+      folders: FolderAttachment.Type[] = [
+        folderAttachment("Screenshots", "user"),
+      ],
+    ) {
       const message = createMockMessage("wat images are in here");
       return {
         ...message,
@@ -221,18 +239,7 @@ describe("generateTitleFromUserMessage", () => {
           {
             data: {
               files: [],
-              folders: [
-                {
-                  access: "read-write" as const,
-                  createdAt: 0,
-                  id: FolderAttachment.IdSchema.parse("Home-Downloads"),
-                  mountName: "Home-Downloads",
-                  path: AbsolutePathSchema.parse(
-                    `${os.homedir()}/Downloads/Screenshots`,
-                  ),
-                  source: "user" as const,
-                },
-              ],
+              folders,
             },
             metadata: {
               createdAt: new Date(),
@@ -246,16 +253,22 @@ describe("generateTitleFromUserMessage", () => {
       };
     }
 
+    // The message the model is asked to name, without the system prompt, whose
+    // examples are written in the very format these assertions look for.
     async function promptFor(message: SessionMessage.UserWithParts) {
       const { generate, mockLanguageModel } = setupTest("Screenshots");
       await generate(message);
-      return JSON.stringify(mockLanguageModel.doGenerateCalls[0]?.prompt);
+      return JSON.stringify(
+        mockLanguageModel.doGenerateCalls[0]?.prompt.filter(
+          (entry) => entry.role === "user",
+        ),
+      );
     }
 
     // Where a folder lives is what tells two folders of the same name apart, so
     // the path is the useful signal here.
     it("locates an attached folder under a bare home directory", async () => {
-      const prompt = await promptFor(messageWithFolder());
+      const prompt = await promptFor(messageWithFolders());
 
       expect(prompt).toContain(
         "Folders attached by user: ~/Downloads/Screenshots",
@@ -265,10 +278,36 @@ describe("generateTitleFromUserMessage", () => {
     // The mount name is the agent's handle for the folder and the real path
     // names the machine's user; a title is stored, listed, and exported.
     it("shows neither the mount name nor the host path", async () => {
-      const prompt = await promptFor(messageWithFolder());
+      const prompt = await promptFor(messageWithFolders());
 
-      expect(prompt).not.toContain("Home-Downloads");
+      expect(prompt).not.toContain("Home-Screenshots");
       expect(prompt).not.toContain(os.homedir());
+    });
+
+    // A project's folders arrive on the first message of every task in the
+    // project, so they name the neighbors rather than this one.
+    it("shows the user's folders and not the project's", async () => {
+      const prompt = await promptFor(
+        messageWithFolders([
+          folderAttachment("Screenshots", "user"),
+          folderAttachment("Brand Assets", "project"),
+        ]),
+      );
+
+      expect(prompt).toContain(
+        "Folders attached by user: ~/Downloads/Screenshots",
+      );
+      expect(prompt).not.toContain("Brand Assets");
+    });
+
+    // Every folder on the message can be the project's, leaving a heading with
+    // nothing under it.
+    it("omits the folder line when only the project's folders are attached", async () => {
+      const prompt = await promptFor(
+        messageWithFolders([folderAttachment("Brand Assets", "project")]),
+      );
+
+      expect(prompt).not.toContain("Folders attached by user");
     });
   });
 

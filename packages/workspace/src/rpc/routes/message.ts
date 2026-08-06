@@ -8,6 +8,7 @@ import { createSession } from "../../lib/create-session";
 import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
+import { getTaskProjectName } from "../../lib/project";
 import { Store } from "../../lib/store";
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
@@ -129,6 +130,7 @@ const create = base
         generateTitleFromUserMessage({
           message,
           model,
+          projectName: await getTaskProjectName(taskId),
           workspaceConfig: context.workspaceConfig,
         }).then(async (title) => {
           if (title.isOk()) {

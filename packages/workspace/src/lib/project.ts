@@ -21,7 +21,8 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
 import { getTasks } from "./get-tasks";
 import { validateProjectName } from "./project-folder-name";
-import { updateTaskSettings } from "./task-settings";
+import { taskDir } from "./task-dir-utils";
+import { getTaskSettings, updateTaskSettings } from "./task-settings";
 import { getWorkspaceConfig } from "./workspace-config";
 
 interface InvalidProjectFolder {
@@ -187,6 +188,24 @@ export async function getProject(
     return err(new TypedError.NotFound(`Project ${id} not found`));
   }
   return readProject(folder);
+}
+
+/**
+ * The name of the project a task belongs to, if it belongs to one.
+ *
+ * Reads the live project rather than the snapshot frozen onto the task's first
+ * message, because that snapshot belongs to the session it was written in and
+ * this answers for whichever session is asking.
+ */
+export async function getTaskProjectName(
+  taskId: TaskId,
+): Promise<string | undefined> {
+  const settings = await getTaskSettings(taskDir(taskId));
+  if (!settings?.projectId) {
+    return undefined;
+  }
+  const project = await getProject(settings.projectId);
+  return project.isOk() ? project.value.name : undefined;
 }
 
 // Folders under projects/ that can't be loaded as a project because their

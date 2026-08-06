@@ -26,10 +26,12 @@ export const MAX_TITLE_WORDS = 8;
 export function generateTitleFromUserMessage({
   message,
   model,
+  projectName,
   workspaceConfig,
 }: {
   message: SessionMessage.UserWithParts;
   model: AIGatewayModel.Type;
+  projectName?: string;
   workspaceConfig: WorkspaceConfig;
 }) {
   return ResultAsync.fromPromise(
@@ -59,7 +61,7 @@ export function generateTitleFromUserMessage({
         maxOutputTokens: TASK_NAME_MAX_OUTPUT_TOKENS,
         model: aiSDKModel,
         prompt: userMessage,
-        system: buildSystemPrompt(),
+        system: buildSystemPrompt(projectName),
       });
 
       if (!title.text.trim()) {
@@ -106,7 +108,21 @@ export function generateTitleFromUserMessage({
   });
 }
 
-function buildSystemPrompt(): string {
+function buildSystemPrompt(projectName?: string): string {
+  // The project name is what every task in the project has in common, which
+  // makes it the one thing a title cannot spend words on and the one thing that
+  // fills in what a short message leaves out. Given both ways round, with the
+  // same message titled well and badly, since the pull towards writing it into
+  // the title is the stronger instinct.
+  const projectSection = projectName
+    ? `${dedent`
+        <project>
+        This task belongs to the "${projectName}" project, and so does every task it will sit beside in the list.
+        Read the message through it. It supplies what a short message leaves unsaid: in a project about a store, "lower my prices for black friday" is about that store's prices, and the title is "Black Friday price cuts".
+        Never write the project's name into the title. What every neighbor shares cannot tell them apart, and the app shows the project beside the title already, so "${projectName} Black Friday prices" wastes the words that would have said which task this is.
+        </project>`}\n\n`
+    : "";
+
   // What the examples teach is specificity, not grammar: name the thing, keep
   // whatever tells it apart. A noun phrase suits a subject and an action phrase
   // suits a job, and forcing one on the other is how "Weather inquiry" and
@@ -155,7 +171,7 @@ function buildSystemPrompt(): string {
     If the message carries nothing to name -- a greeting, a single word, a test -- return nothing at all. An empty answer is correct and expected; the user's own words are kept instead. Never invent a subject, and never fall back to naming the day, the time, or the kind of message it is.
     </important>
 
-    <rules>
+    ${projectSection}<rules>
     - Specific over short. Prefer concrete nouns and the distinguishing detail -- the file, the folder, the site, the format, the number -- over a vague label that would fit a hundred other messages
     - Maximum ${MAX_TITLE_WORDS} words. It is a ceiling, not a target, but do not drop the distinguishing detail to come in under it
     - Rarely one word, and never a bare category noun ("Video", "Skill", "Data")

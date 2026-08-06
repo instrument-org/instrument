@@ -91,10 +91,14 @@ function setupTest(
     : getWorkspaceConfig();
 
   return {
-    generate: (message: SessionMessage.UserWithParts = mockMessage) =>
+    generate: (
+      message: SessionMessage.UserWithParts = mockMessage,
+      projectName?: string,
+    ) =>
       generateTitleFromUserMessage({
         message,
         model,
+        projectName,
         workspaceConfig,
       }),
     mockLanguageModel,
@@ -282,6 +286,30 @@ describe("generateTitleFromUserMessage", () => {
 
       expect(prompt).not.toContain("Home-Screenshots");
       expect(prompt).not.toContain(os.homedir());
+    });
+
+    async function systemPromptFor(projectName?: string) {
+      const { generate, mockLanguageModel } = setupTest("Screenshots");
+      await generate(mockMessage, projectName);
+      const system = mockLanguageModel.doGenerateCalls[0]?.prompt.find(
+        (entry) => entry.role === "system",
+      );
+      return system?.role === "system" ? system.content : "";
+    }
+
+    // The project name is background for reading a short message, and the one
+    // thing every task in the project would say if it were allowed into titles.
+    it("names the project and forbids putting it in the title", async () => {
+      const system = await systemPromptFor("Shopify Store");
+
+      expect(system).toContain(`belongs to the "Shopify Store" project`);
+      expect(system).toContain("Never write the project's name into the title");
+    });
+
+    it("says nothing about projects for a task outside one", async () => {
+      const system = await systemPromptFor();
+
+      expect(system).not.toContain("<project>");
     });
 
     // A project's folders arrive on the first message of every task in the

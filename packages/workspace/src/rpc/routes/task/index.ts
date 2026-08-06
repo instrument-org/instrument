@@ -310,6 +310,7 @@ const create = base
         generateTitleFromUserMessage({
           message,
           model,
+          projectName: project?.name,
           workspaceConfig: context.workspaceConfig,
         }).then(async (title) => {
           if (title.isOk()) {

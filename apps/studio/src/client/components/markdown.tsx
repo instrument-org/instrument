@@ -3,6 +3,7 @@ import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { rpcClient } from "@/client/rpc/client";
 import {
+  AGENT_FILES_LANGUAGE,
   ATTACHED_FOLDERS_MOUNT_ROOT,
   normalizeTaskFilePath,
   type TaskId,
@@ -12,7 +13,6 @@ import { skipToken, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import {
-  createContext,
   memo,
   type ReactNode,
   useCallback,
@@ -38,10 +38,12 @@ import {
   prefetchMermaid,
 } from "../lib/mermaid";
 import { cn } from "../lib/utils";
+import { AgentFilesBlock } from "./agent-files-block";
 import { CodeBlock, CodeWithCopy } from "./code-block";
 import { ExternalLink } from "./external-link";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileIcon } from "./file-icon";
+import { MarkdownTaskContext } from "./markdown-task-context";
 import { MermaidDiagram } from "./mermaid-diagram";
 import { useCurrentTaskFile } from "./task/current-task-files";
 import {
@@ -60,19 +62,15 @@ interface MarkdownProps {
   // permanent, and being block-level each one interrupts the prose it sits in
   // to name a picture the reader will never see.
   hideImages?: boolean;
+  // Passed through to the constructs that resolve their own contents; see
+  // `MarkdownTaskContext`.
+  isStreaming?: boolean;
   markdown: string;
   // Present only when rendered inside a task chat. Enables the task-file
   // right-click menu (Open in {App} / Save as… / Reveal / …); left-click
   // open-in-panel works without it.
   taskId?: TaskId;
 }
-
-// Carries the ambient task context down to the module-scope link renderer so a
-// task-file reference can build its asset URL and file-action menu.
-const MarkdownTaskContext = createContext<{
-  assetBaseUrl?: string;
-  taskId?: TaskId;
-}>({});
 
 type PluginList = NonNullable<Options["rehypePlugins"]>;
 type RemarkPluginList = NonNullable<Options["remarkPlugins"]>;
@@ -144,6 +142,10 @@ const markdownCode: Components["code"] = ({
       : Array.isArray(children)
         ? children.join("")
         : "";
+
+  if (language === AGENT_FILES_LANGUAGE) {
+    return <AgentFilesBlock content={codeString} />;
+  }
 
   if (isMermaidLanguage(language)) {
     return <MermaidDiagram code={codeString} language={language} />;
@@ -403,6 +405,7 @@ export const Markdown = memo(
     allowRawHtml,
     assetBaseUrl,
     hideImages,
+    isStreaming,
     markdown,
     taskId,
   }: MarkdownProps) => {
@@ -477,7 +480,7 @@ export const Markdown = memo(
     }, [needsMermaid]);
 
     return (
-      <MarkdownTaskContext value={{ assetBaseUrl, taskId }}>
+      <MarkdownTaskContext value={{ assetBaseUrl, isStreaming, taskId }}>
         <ReactMarkdown
           components={{
             a: MarkdownLink,

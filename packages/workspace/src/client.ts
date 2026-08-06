@@ -1,5 +1,6 @@
 export type { AgentName } from "./agents/types";
 export {
+  AGENT_FILES_LANGUAGE,
   MAX_PROMPT_STORAGE_LENGTH,
   TASK_FOLDER_NAMES,
   TOOL_EXPLANATION_PARAM_NAME,
@@ -23,6 +24,7 @@ export {
 export { readWebSearchResults } from "./lib/web-search-results";
 export { FileUpload } from "./schemas/file-upload";
 export { type FolderAttachment } from "./schemas/folder-attachment";
+export { ATTACHED_FOLDERS_MOUNT_ROOT } from "./schemas/paths";
 export type { Project, ProjectFolder } from "./schemas/project";
 export { type ProjectId, ProjectIdSchema } from "./schemas/project-id";
 export { type SessionMessage } from "./schemas/session/message";

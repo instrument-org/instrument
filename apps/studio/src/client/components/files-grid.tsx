@@ -20,6 +20,11 @@ interface FilesGridProps {
   compact?: boolean;
   files: TaskFileViewerFile[];
   initialVisibleCount?: number;
+  // Takes the list as given instead of bucketing it by task folder. For a set
+  // an agent chose and ordered: the buckets exist to find the deliverables in
+  // everything a turn touched, which is a judgment already made here, and they
+  // drop anything outside the task folder -- including a shared folder's files.
+  preserveOrder?: boolean;
   prioritizeUserFiles?: boolean;
 }
 
@@ -37,6 +42,7 @@ export function FilesGrid({
   compact = false,
   files,
   initialVisibleCount = DEFAULT_INITIAL_VISIBLE_COUNT,
+  preserveOrder = false,
   prioritizeUserFiles = false,
 }: FilesGridProps) {
   const navigate = useNavigate({ from: "/tasks/$id/" });
@@ -65,39 +71,9 @@ export function FilesGrid({
 
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Root files cover a deliverable an agent saved to the task root instead of
-  // `output/`; see `isSurfacedTaskFile` for which paths reach the user at all.
-  const [outputFiles, nonOutputFiles] = fork(files, (file) =>
-    isFileInTaskFolder(file.filePath, TASK_FOLDER_NAMES.output),
-  );
-  const [attachmentFiles, nonAttachmentFiles] = fork(nonOutputFiles, (file) =>
-    isFileInTaskFolder(file.filePath, TASK_FOLDER_NAMES.attachments),
-  );
-  const [downloadFiles, nonDownloadFiles] = fork(nonAttachmentFiles, (file) =>
-    isFileInTaskFolder(file.filePath, TASK_FOLDER_NAMES.downloads),
-  );
-  const [rootFiles] = fork(nonDownloadFiles, (file) =>
-    isRootTaskFile(file.filePath),
-  );
-
-  const sortedOutputFiles = sortByRichPreview(outputFiles);
-  const sortedAttachmentFiles = sortByRichPreview(attachmentFiles);
-  const sortedDownloadFiles = sortByRichPreview(downloadFiles);
-  const sortedRootFiles = sortByRichPreview(rootFiles);
-
-  const mainFiles = prioritizeUserFiles
-    ? [
-        ...sortedAttachmentFiles,
-        ...sortedOutputFiles,
-        ...sortedRootFiles,
-        ...sortedDownloadFiles,
-      ]
-    : [
-        ...sortedOutputFiles,
-        ...sortedRootFiles,
-        ...sortedAttachmentFiles,
-        ...sortedDownloadFiles,
-      ];
+  const mainFiles = preserveOrder
+    ? files
+    : bucketByTaskFolder(files, prioritizeUserFiles);
 
   const listCollapsedCount = initialVisibleCount + PEEK_COUNT;
 
@@ -274,6 +250,47 @@ export function FilesGrid({
       )}
     </div>
   );
+}
+
+// Groups a turn's changed files into the folders that reach the user, richest
+// preview first within each. Root files cover a deliverable an agent saved to
+// the task root instead of `output/`; see `isSurfacedTaskFile` for which paths
+// reach the user at all.
+function bucketByTaskFolder(
+  files: TaskFileViewerFile[],
+  prioritizeUserFiles: boolean,
+) {
+  const [outputFiles, nonOutputFiles] = fork(files, (file) =>
+    isFileInTaskFolder(file.filePath, TASK_FOLDER_NAMES.output),
+  );
+  const [attachmentFiles, nonAttachmentFiles] = fork(nonOutputFiles, (file) =>
+    isFileInTaskFolder(file.filePath, TASK_FOLDER_NAMES.attachments),
+  );
+  const [downloadFiles, nonDownloadFiles] = fork(nonAttachmentFiles, (file) =>
+    isFileInTaskFolder(file.filePath, TASK_FOLDER_NAMES.downloads),
+  );
+  const [rootFiles] = fork(nonDownloadFiles, (file) =>
+    isRootTaskFile(file.filePath),
+  );
+
+  const sortedOutputFiles = sortByRichPreview(outputFiles);
+  const sortedAttachmentFiles = sortByRichPreview(attachmentFiles);
+  const sortedDownloadFiles = sortByRichPreview(downloadFiles);
+  const sortedRootFiles = sortByRichPreview(rootFiles);
+
+  return prioritizeUserFiles
+    ? [
+        ...sortedAttachmentFiles,
+        ...sortedOutputFiles,
+        ...sortedRootFiles,
+        ...sortedDownloadFiles,
+      ]
+    : [
+        ...sortedOutputFiles,
+        ...sortedRootFiles,
+        ...sortedAttachmentFiles,
+        ...sortedDownloadFiles,
+      ];
 }
 
 function hasMediaPreview(file: TaskFileViewerFile) {

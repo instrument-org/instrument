@@ -49,6 +49,14 @@ export const TASK_STATUSES = [
   "unknown",
 ] as const;
 
+/**
+ * Info string of the fenced block an agent writes to show the user a set of
+ * files: one workspace path per line. Shared because it is a contract between
+ * the prompt that teaches it and the renderer that draws it, and a fence
+ * language the renderer does not know renders as a code block.
+ */
+export const AGENT_FILES_LANGUAGE = "files";
+
 // Limit prompt storage to 50KB to avoid blowing up the JSON file
 export const MAX_PROMPT_STORAGE_LENGTH = 50_000;
 export const TOOL_EXPLANATION_PARAM_NAME = "explanation";

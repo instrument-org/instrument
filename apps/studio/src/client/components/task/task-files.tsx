@@ -317,8 +317,13 @@ function FileRow({
                     : "text-muted-foreground",
                 )}
               >
-                {getFileKindLabel(file)} ·{" "}
-                <RelativeTime date={new Date(file.modifiedAt)} />
+                {getFileKindLabel(file)}
+                {file.modifiedAt !== undefined && (
+                  <>
+                    {" · "}
+                    <RelativeTime date={new Date(file.modifiedAt)} />
+                  </>
+                )}
               </span>
             </div>
           </SidebarMenuButton>

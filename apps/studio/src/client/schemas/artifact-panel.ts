@@ -21,7 +21,10 @@ const filePathSchema = z
 export const artifactPanelSchema = z.discriminatedUnion("type", [
   z.object({
     filePath: filePathSchema,
-    modifiedAt: z.number(),
+    // Only writers that already hold an mtime supply one -- a tool output, a
+    // file the index listed. A reference in the transcript is a path and
+    // nothing else, and the panel resolves the file on open regardless.
+    modifiedAt: z.number().optional(),
     type: z.literal("file"),
   }),
   // The agent browser, hosted in the artifact panel area. The target is derived

@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { type TaskFileViewerFile } from "../atoms/task-file-viewer";
 import { rpcClient } from "../rpc/client";
 import { downloadTaskFile } from "./download-task-file";
-import { isTextMimeType } from "./is-text-mime-type";
 
 export async function copyFileToClipboard({
   filePath,
@@ -60,13 +59,6 @@ export async function downloadFile(file: TaskFileViewerFile) {
     });
     throw error;
   }
-}
-
-export function isFileCopyable(mimeType: string, url: string) {
-  return (
-    isFileDownloadable(url) &&
-    (isTextMimeType(mimeType) || mimeType.startsWith("image/"))
-  );
 }
 
 export function isFileDownloadable(url: string) {

@@ -1,6 +1,5 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import { useTaskFileReferenceStatus } from "@/client/components/task/current-task-files";
-import { isFileCopyable, isFileDownloadable } from "@/client/lib/file-actions";
+import { isFileDownloadable } from "@/client/lib/file-actions";
 import { type FileType, getFileType } from "@/client/lib/get-file-type";
 
 // Whether the file's bytes are text a user could paste somewhere, which is what
@@ -31,22 +30,19 @@ const IS_TEXT_LIKE: Record<FileType, boolean> = {
   xlsx: false,
 };
 
+// Which actions a file's menu offers. Answered from the file's own type and
+// URL, not from whether it is on disk: an action that turns out to have no file
+// behind it says so when it runs, which is both accurate and later than any
+// check made while drawing the menu could be.
 export function useFileActionVisibility(file: TaskFileViewerFile) {
-  const referenceStatus = useTaskFileReferenceStatus(file);
-  if (referenceStatus === "missing") {
-    return {
-      showCopy: false,
-      showDownload: false,
-      showReveal: false,
-    };
-  }
-
+  const fileType = getFileType(file);
   const isDownloadable = isFileDownloadable(file.url);
-  const isCopyableByMime = isFileCopyable(file.mimeType, file.url);
-  const isTextLike = IS_TEXT_LIKE[getFileType(file)];
+  // The clipboard takes an image natively and text as a paste. Nothing else has
+  // a representation worth offering.
+  const isCopyable = fileType === "image" || IS_TEXT_LIKE[fileType];
 
   return {
-    showCopy: isCopyableByMime || (isTextLike && isDownloadable),
+    showCopy: isCopyable && isDownloadable,
     showDownload: isDownloadable,
     showOpen: true,
     showReveal: true,

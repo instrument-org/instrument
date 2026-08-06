@@ -580,7 +580,7 @@ export function FileViewer({
       await copyFileToClipboard({
         filePath,
         id: taskId,
-        isImage: mimeType.startsWith("image/"),
+        isImage: fileType === "image",
       });
       triggerCopied();
     } catch {

@@ -1,11 +1,9 @@
-import { type RPCOutput } from "@/client/rpc/client";
 import { renderWithProviders } from "@/tests/render";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
-import { screen, waitFor } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Markdown } from "./markdown";
-import { CurrentTaskFilesProvider } from "./task/current-task-files";
 
 // The chip navigates on click; the route tree it navigates within is not what
 // these tests are about.
@@ -13,39 +11,16 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
 }));
 
-const MOUNTED_PATH = "/mnt/Documents-Test 2/August.md";
-
-// Only a mounted file needs the server, since the live index cannot answer for
-// a path outside the task directory. The path is spelled out rather than read
-// from the constant above, which the hoisted factory cannot see.
+// A chip is drawn from its path, so nothing under `workspace` may be reached
+// while rendering one. `utils` stays real enough for the external-link path,
+// which is a different question and still needs the main process.
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
     utils: {
       openExternalLink: { mutationOptions: () => ({ mutationFn: vi.fn() }) },
     },
-    workspace: {
-      task: {
-        files: {
-          fileInfo: {
-            queryOptions: ({
-              input,
-            }: {
-              input: { filePath: string; taskId: string };
-            }) => ({
-              queryFn: () =>
-                input.filePath === "/mnt/Documents-Test 2/August.md"
-                  ? Promise.resolve({
-                      filename: "August.md",
-                      filePath: "/mnt/Documents-Test 2/August.md",
-                      mimeType: "text/markdown",
-                      modifiedAt: 300,
-                    })
-                  : Promise.reject(new Error("File not found")),
-              queryKey: ["fileInfo", input.taskId, input.filePath],
-            }),
-          },
-        },
-      },
+    get workspace(): never {
+      throw new Error("a rendering file link resolved a file over the network");
     },
   },
 }));
@@ -53,51 +28,50 @@ vi.mock("@/client/rpc/client", () => ({
 const TASK_ID = TaskIdSchema.parse("a-task");
 const ASSET_BASE = "http://assets.a-task.localhost:1234";
 
-// The index brands `filePath` to force real paths through the path schema;
-// these are literals standing in for entries that already went through it.
-const INDEXED = [
-  {
-    filename: "notes.md",
-    filePath: "output/notes.md",
-    mimeType: "text/markdown",
-    modifiedAt: 200,
-    size: 20,
-  },
-] as RPCOutput["workspace"]["task"]["files"]["list"];
-
 function renderMarkdown(markdown: string) {
   return renderWithProviders(
-    <CurrentTaskFilesProvider files={INDEXED}>
-      <Markdown
-        assetBaseUrl={ASSET_BASE}
-        markdown={markdown}
-        taskId={TASK_ID}
-      />
-    </CurrentTaskFilesProvider>,
+    <Markdown assetBaseUrl={ASSET_BASE} markdown={markdown} taskId={TASK_ID} />,
   );
 }
 
 describe("Markdown links", () => {
-  it("opens a file: link to a shared folder, which the task file index never holds", async () => {
+  it("opens a file: link to a shared folder, which the task file index never holds", () => {
     renderMarkdown(
       "Created [`August.md`](file:///mnt/Documents-Test%202/August.md) in Test 2.",
     );
 
-    const chip = await screen.findByRole("button", { name: "August.md" });
-    expect(chip.title).toBe(MOUNTED_PATH);
+    expect(screen.getByRole("button", { name: "August.md" }).title).toBe(
+      "/mnt/Documents-Test 2/August.md",
+    );
+  });
+
+  it("opens a task-relative link", () => {
+    renderMarkdown("Wrote [`notes.md`](output/notes.md).");
+
+    expect(screen.getByRole("button", { name: "notes.md" }).title).toBe(
+      "output/notes.md",
+    );
+  });
+
+  // Nothing checks whether the file is there, so this is a chip like any other
+  // and the click is what reports the miss. Worth its own case because the
+  // behavior it replaced was the opposite: a path matching no file rendered as
+  // prose, which hid the fact that the reply had claimed a file at all.
+  it("opens a link to a file that is not there", () => {
+    renderMarkdown("Wrote [`gone.md`](output/gone.md).");
+
+    expect(screen.getByRole("button", { name: "gone.md" })).toBeDefined();
   });
 
   // Asserted as the absence of an anchor rather than of a link role, which an
   // `<a>` carrying the empty href the default transform leaves behind does not
   // have either: the dead anchor is the whole bug, so a test that cannot see
   // one passes whether the href reaches the shell or not.
-  it("leaves a file: link to a path outside the mounts as plain text", async () => {
-    const { container, queryClient } = renderMarkdown(
-      "Saved [your key](file:///Users/someone/.ssh/id_rsa).",
-    );
-    await waitFor(() => {
-      expect(queryClient.isFetching()).toBe(0);
-    });
+  it.each([
+    ["a path outside the mounts", "file:///Users/someone/.ssh/id_rsa"],
+    ["a traversal", "../../etc/passwd"],
+  ])("leaves a link to %s as plain text", (_case, href) => {
+    const { container } = renderMarkdown(`Saved [your key](${href}).`);
 
     expect(container.querySelector("a")).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
@@ -109,14 +83,6 @@ describe("Markdown links", () => {
 
     expect(container.querySelector("a")).toBeNull();
     expect(container.textContent).toContain("the doc");
-  });
-
-  it("still opens a task-relative link the index holds", () => {
-    renderMarkdown("Wrote [`notes.md`](output/notes.md).");
-
-    expect(screen.getByRole("button", { name: "notes.md" }).title).toBe(
-      "output/notes.md",
-    );
   });
 
   it("still hands an http link to the browser", () => {

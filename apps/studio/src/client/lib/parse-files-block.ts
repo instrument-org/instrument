@@ -20,8 +20,7 @@ const WRAPPERS = [
  * line is the path: a name with spaces in it needs no quoting or escaping.
  * What is tolerated past that is the small set of near-misses Markdown habits
  * produce, because each one otherwise costs the user a file they were shown.
- * Anything else falls out here, and a path that survives still has to resolve
- * to a real file before it renders.
+ * Anything else falls out here.
  */
 export function parseFilesBlock(content: string): string[] {
   const paths: string[] = [];

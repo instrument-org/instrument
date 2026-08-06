@@ -1,15 +1,12 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import { rpcClient } from "@/client/rpc/client";
 import {
   AGENT_FILES_LANGUAGE,
-  ATTACHED_FOLDERS_MOUNT_ROOT,
   normalizeTaskFilePath,
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { ImageIcon } from "@phosphor-icons/react";
-import { skipToken, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import {
@@ -37,6 +34,7 @@ import {
   isMermaidLanguage,
   prefetchMermaid,
 } from "../lib/mermaid";
+import { isAddressableTaskFilePath } from "../lib/task-file-path";
 import { cn } from "../lib/utils";
 import { AgentFilesBlock } from "./agent-files-block";
 import { CodeBlock, CodeWithCopy } from "./code-block";
@@ -45,7 +43,6 @@ import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileIcon } from "./file-icon";
 import { MarkdownTaskContext } from "./markdown-task-context";
 import { MermaidDiagram } from "./mermaid-diagram";
-import { useCurrentTaskFile } from "./task/current-task-files";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -177,17 +174,16 @@ const taskFilePathFromHref = (href: string): string => {
   return normalizeTaskFilePath(path);
 };
 
-// A file the agent reached through a mount rather than the task directory, so
-// the task-file index has nothing to say about it and the server has to resolve
-// it. Every other absolute path is a host path no link may reach.
-const isMountPath = (path: string): boolean =>
-  path.startsWith(`${ATTACHED_FOLDERS_MOUNT_ROOT}/`) &&
-  !path.split("/").includes("..");
-
 // Renders a link to a file the agent produced as an interactive chip that opens
-// the file in the artifact panel. Existence is gated: a path that resolves to no
-// real file renders as plain text rather than a broken action, so hallucinated
-// paths degrade safely.
+// the file in the artifact panel.
+//
+// Drawn from the path, with nothing asked of the server. What that trades away
+// is the old behavior where a path matching no real file rendered as plain
+// text: a hallucinated path is now a chip like any other. That is the better
+// failure. Degrading to prose hid the fact that the reply claimed a file at
+// all, while a chip that reports itself missing when clicked says what
+// happened -- and is the only answer that can be right about a file deleted a
+// minute after the message was written.
 const TaskFileLink = ({
   children,
   className,
@@ -199,23 +195,11 @@ const TaskFileLink = ({
 }) => {
   const { assetBaseUrl, taskId } = useContext(MarkdownTaskContext);
   const filePath = taskFilePathFromHref(href);
-  const indexedFile = useCurrentTaskFile(filePath);
-  // The live index covers the task directory only, so a file in a folder the
-  // user shared is resolved one path at a time against the task's mounts
-  // instead. Same route the artifact panel and a ```files fence take.
-  const { data: mountedFile } = useQuery(
-    rpcClient.workspace.task.files.fileInfo.queryOptions({
-      input:
-        taskId !== undefined && !indexedFile && isMountPath(filePath)
-          ? { filePath, taskId }
-          : skipToken,
-    }),
-  );
-  const file = indexedFile ?? mountedFile;
+  const filename = filePath.split("/").at(-1) ?? filePath;
   const navigate = useNavigate({ from: "/tasks/$id/" });
   const appendToPrompt = useSetAtom(appendToPromptAtom);
 
-  if (!file) {
+  if (!isAddressableTaskFilePath(filePath)) {
     return <span className={className}>{children}</span>;
   }
 
@@ -225,8 +209,7 @@ const TaskFileLink = ({
       search: (prev) => ({
         ...prev,
         artifactPanel: {
-          filePath: file.filePath,
-          modifiedAt: file.modifiedAt,
+          filePath,
           type: "file" as const,
         },
       }),
@@ -240,12 +223,12 @@ const TaskFileLink = ({
         className,
       )}
       onClick={openInPanel}
-      title={file.filePath}
+      title={filePath}
       type="button"
     >
       <FileIcon
         className="size-3.5 shrink-0 text-muted-foreground"
-        filename={file.filename}
+        filename={filename}
       />
       <span className="truncate">{children}</span>
     </button>
@@ -259,16 +242,10 @@ const TaskFileLink = ({
   }
 
   const viewerFile: TaskFileViewerFile = {
-    filename: file.filename,
-    filePath: file.filePath,
-    mimeType: file.mimeType,
-    modifiedAt: file.modifiedAt,
+    filename,
+    filePath,
     taskId,
-    url: getAssetUrl({
-      assetBase: assetBaseUrl,
-      filePath: file.filePath,
-      version: file.modifiedAt,
-    }),
+    url: getAssetUrl({ assetBase: assetBaseUrl, filePath }),
   };
 
   return (
@@ -281,7 +258,7 @@ const TaskFileLink = ({
           onAddToChat={() => {
             appendToPrompt({
               key: { scope: "task", taskId },
-              update: file.filePath,
+              update: filePath,
             });
           }}
         />

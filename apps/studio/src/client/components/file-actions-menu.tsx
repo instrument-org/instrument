@@ -1,6 +1,7 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
+import { getFileType } from "@/client/lib/get-file-type";
 import { rpcClient } from "@/client/rpc/client";
 import {
   ArrowLineDownIcon,
@@ -109,7 +110,10 @@ export function FileActionsMenuItems({
       await copyFileToClipboard({
         filePath: file.filePath,
         id: file.taskId,
-        isImage: file.mimeType.startsWith("image/"),
+        // A hint only: the main process sniffs the bytes it just read and
+        // treats this as the answer to "image or text" for a file that really
+        // is binary.
+        isImage: getFileType(file) === "image",
       });
       triggerCopied();
     } catch {

@@ -330,14 +330,15 @@ function hasRowCardPreview(file: TaskFileViewerFile) {
   return ROW_CARD_PREVIEW[getFileType(file)];
 }
 
+// Which card the panel is showing. The path decides it: an mtime in the
+// comparison meant a card lost its own highlight the moment the file it points
+// at changed underneath it.
 function isArtifactPanelFileSelected(
   file: TaskFileViewerFile,
   artifactPanel: ArtifactPanel | null,
 ) {
   return (
-    artifactPanel?.type === "file" &&
-    file.filePath === artifactPanel.filePath &&
-    file.modifiedAt === artifactPanel.modifiedAt
+    artifactPanel?.type === "file" && file.filePath === artifactPanel.filePath
   );
 }
 

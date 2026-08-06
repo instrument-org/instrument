@@ -31,13 +31,6 @@ export function useCurrentTaskFile(filePath: string) {
   return useContext(CurrentTaskFilesContext)?.get(filePath);
 }
 
-// For a consumer resolving several paths at once, which cannot call the
-// single-file hook in a loop.
-// eslint-disable-next-line react-refresh/only-export-components
-export function useCurrentTaskFiles() {
-  return useContext(CurrentTaskFilesContext);
-}
-
 // Resolves an asset URL to the file's current on-disk version so previews of a
 // past message follow later overwrites in place instead of pinning stale bytes.
 // Falls back to the URL as built (e.g. the file was deleted) so the preview can

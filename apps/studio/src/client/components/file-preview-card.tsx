@@ -240,7 +240,7 @@ function ImagePreviewCard({
   isSelected?: boolean;
   onClick: () => void;
 }) {
-  const { filename, mimeType } = file;
+  const { filename } = file;
   const url = useLiveAssetUrl(file);
   const fileActions = useFileActionVisibility(file);
   const [resolveOpenTarget, setResolveOpenTarget] = useState(false);
@@ -256,7 +256,7 @@ function ImagePreviewCard({
       await copyFileToClipboard({
         filePath: file.filePath,
         id: file.taskId,
-        isImage: mimeType.startsWith("image/"),
+        isImage: getFileType(file) === "image",
       });
       triggerCopied();
     } catch {

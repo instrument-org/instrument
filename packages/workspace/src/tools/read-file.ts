@@ -327,7 +327,7 @@ export const ReadFile = setupTool({
     }),
     [INPUT_PARAMS.region]: RegionSchema.optional().meta({
       description:
-        "Images only. Two opposite corners of a rectangle, in the pixel space of the whole image as you were first shown it (origin at the top-left, x right, y down) -- not the pixel space of a magnified crop from an earlier read. Returns that region cropped from the full-resolution file and magnified.",
+        "Images only. Two opposite corners of a rectangle, in the pixel space the image was shown to you at -- the first size the read states, which for a large file is smaller than the file's own dimensions on disk (origin at the top-left, x right, y down). Not the file's dimensions, and not the pixel space of a magnified crop from an earlier read. Returns that region cropped from the full-resolution file and magnified.",
     }),
   }),
   name: "read_file",
@@ -429,8 +429,8 @@ export const ReadFile = setupTool({
     - Results are returned using cat -n format, with line numbers starting at the ${INPUT_PARAMS.offset} or 1.
     - If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.
     - You can read images, PDFs, audio files, and video files by using this tool.
-    - Reading an image tells you its pixel dimensions, and the smaller size you are shown it at when it is too large to render whole.
-    - Seeing an image is not the same as reading it: small text, closely spaced lines, and dense chart or table values are unreliable at whole-image scale, and a confident first impression of one is often simply wrong. So when an answer turns on a detail that small -- a chart label, a value in a dense table, which of two lines sits higher, text in a screenshot -- read the image again with ${INPUT_PARAMS.region} set to the corners of the area in question. It comes back cropped from the full-resolution file and magnified, so what was a few pixels becomes legible. Coordinates are always pixels in the whole image as you were first shown it, never pixels in a magnified crop you got back. To narrow further, give a smaller rectangle in those same whole-image coordinates; each response repeats the rectangle it used, so subdivide that. Trust what you read magnified over your first impression of the whole image.
+    - Reading an image tells you the size you are shown it at, and, when the file is too large to render whole, the larger dimensions it has on disk.
+    - Seeing an image is not the same as reading it: small text, closely spaced lines, and dense chart or table values are unreliable at whole-image scale, and a confident first impression of one is often simply wrong. So when an answer turns on a detail that small -- a chart label, a value in a dense table, which of two lines sits higher, text in a screenshot -- read the image again with ${INPUT_PARAMS.region} set to the corners of the area in question. It comes back cropped from the full-resolution file and magnified, so what was a few pixels becomes legible. Coordinates are pixels in the space the image was shown to you at, which is the first size the read states and is smaller than the file's own dimensions whenever the file is large. Never the file's dimensions, and never pixels in a magnified crop you got back. To narrow further, give a smaller rectangle in those same shown-at coordinates; each response repeats the rectangle it used, so subdivide that. Trust what you read magnified over your first impression of the whole image.
   `,
   execute: async ({ input, signal, taskId, taskState }) => {
     const region = input.region;

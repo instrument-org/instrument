@@ -1072,7 +1072,7 @@ describe("toModelOutput", () => {
     });
     expect(result.type === "content" && result.value[0]).toMatchInlineSnapshot(`
       {
-        "text": "Image file: ./scan.png (3840x2160 px, shown to you at 1456x819). Small text and closely spaced lines may not survive at that size; read it again with a \`region\` to magnify part of it.",
+        "text": "Image file: ./scan.png (shown to you at 1456x819 px; the file on disk is 3840x2160). Small text and closely spaced lines may not survive at that size; read it again with a \`region\` to magnify part of it. A region's corners are pixels in that 1456x819 space, not in the file's larger one.",
         "type": "text",
       }
     `);
@@ -1233,7 +1233,7 @@ describe("toModelOutput", () => {
     expect(ignoredRegionText({ x1: 0, x2: 1, y1: 0, y2: 1 }, "no-place"))
       .toMatchInlineSnapshot(`
         {
-          "text": "Image file: ./scan.png (3840x2160 px, shown to you at 1456x819) -- the region (0,0)-(1,1) you asked for is too small to be a place on the image. This is the whole image; to magnify part of it, give a smaller rectangle in that 1456x819 space.",
+          "text": "Image file: ./scan.png (shown to you at 1456x819 px; the file on disk is 3840x2160) -- the region (0,0)-(1,1) you asked for is too small to be a place on the image. This is the whole image; to magnify part of it, give a smaller rectangle in that 1456x819 space.",
           "type": "text",
         }
       `);
@@ -1244,7 +1244,7 @@ describe("toModelOutput", () => {
       ignoredRegionText({ x1: 0, x2: 1456, y1: 0, y2: 819 }, "whole-image"),
     ).toMatchInlineSnapshot(`
       {
-        "text": "Image file: ./scan.png (3840x2160 px, shown to you at 1456x819) -- the region (0,0)-(1456,819) you asked for covers the whole image, so there is nothing in it to magnify. This is the whole image; to magnify part of it, give a smaller rectangle in that 1456x819 space.",
+        "text": "Image file: ./scan.png (shown to you at 1456x819 px; the file on disk is 3840x2160) -- the region (0,0)-(1456,819) you asked for covers the whole image, so there is nothing in it to magnify. This is the whole image; to magnify part of it, give a smaller rectangle in that 1456x819 space.",
         "type": "text",
       }
     `);

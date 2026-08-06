@@ -234,9 +234,14 @@ export async function cropRegion({
  *
  * Without this the model sees a picture and no idea how big it is, so any
  * position it reasons about is a guess at a scale it was never told. When the
- * file is larger than the provider renders, both numbers matter: the file's
- * because that is what still exists on disk, and the view's because that is
- * what the model's eyes are actually on.
+ * file is larger than the preview, both numbers matter: the file's because that
+ * is what still exists on disk and what a crop script would be written against,
+ * and the view's because that is what the model's eyes are actually on.
+ *
+ * The view comes first, and the file's size is named as a property of the file
+ * rather than of the picture. A model reaching for a coordinate takes the first
+ * pair of numbers it read, so which one leads decides which space its rectangles
+ * land in -- the dominant aiming error was two sizes stated in the other order.
  */
 export function describeImageSize(output: {
   height?: number;
@@ -271,7 +276,7 @@ export function describeImageSize(output: {
     ? `${viewWidth}x${viewHeight}`
     : `${width}x${height}`;
   const size = downscaled
-    ? ` (${width}x${height} px, shown to you at ${viewWidth}x${viewHeight})`
+    ? ` (shown to you at ${viewWidth}x${viewHeight} px; the file on disk is ${width}x${height})`
     : ` (${width}x${height} px)`;
 
   // A rectangle that could not be honored. Said at the moment it arrives, and
@@ -314,7 +319,7 @@ export function describeImageSize(output: {
   }
 
   const detailNote = downscaled
-    ? ". Small text and closely spaced lines may not survive at that size; read it again with a `region` to magnify part of it"
+    ? `. Small text and closely spaced lines may not survive at that size; read it again with a \`region\` to magnify part of it. A region's corners are pixels in that ${space} space, not in the file's larger one`
     : "";
 
   return `${size}${detailNote}`;

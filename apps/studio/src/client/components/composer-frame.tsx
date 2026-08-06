@@ -55,7 +55,7 @@ export function ComposerFrame({
         // The negative margin lets the chips' remove buttons sit outside this
         // scroller's clip.
         <div
-          className="-m-2 row-start-1 mb-2 flex max-h-32 min-h-0 flex-wrap items-start gap-2 overflow-y-auto p-2"
+          className="row-start-1 -m-2 mb-2 flex max-h-32 min-h-0 flex-wrap items-start gap-2 overflow-y-auto p-2"
           data-slot="composer-attachments"
         >
           {attachments}

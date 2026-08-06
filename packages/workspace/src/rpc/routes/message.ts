@@ -127,12 +127,25 @@ const create = base
       const message = messageResult.value;
 
       if (isFirstMessageInSession) {
-        generateTitleFromUserMessage({
-          message,
-          model,
-          projectName: await getTaskProjectName(taskId),
-          workspaceConfig: context.workspaceConfig,
-        }).then(async (title) => {
+        // Titling is deliberately non-blocking, and so is finding the project
+        // it reads: resolving one scans `projects/` and reads each settings
+        // file until the id matches, which is a serial walk the agent's turn
+        // would otherwise wait behind on the first message of every session.
+        void (async () => {
+          let projectName: string | undefined;
+          try {
+            projectName = await getTaskProjectName(taskId);
+          } catch {
+            // A title that does not know its project is worth more than no
+            // title, so a failed lookup falls through rather than ending the run.
+          }
+
+          const title = await generateTitleFromUserMessage({
+            message,
+            model,
+            projectName,
+            workspaceConfig: context.workspaceConfig,
+          });
           if (title.isOk()) {
             await updateSessionTitle({
               sessionId: message.metadata.sessionId,
@@ -140,7 +153,7 @@ const create = base
               title: title.value,
             });
           }
-        });
+        })();
       }
 
       context.workspaceRef.send({

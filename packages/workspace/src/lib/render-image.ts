@@ -88,17 +88,20 @@ export function exceedsDecodeBudget({ height, width }: ImageSize) {
  * be seen, so its stored width is its displayed height, and displayed is what
  * the model's coordinates refer to.
  *
+ * `format` is what the bytes were identified as, which is worth naming in a
+ * message even for the formats `mediaType` has no entry for.
+ *
  * `undefined` means these bytes could not be identified as an image at all.
  */
 export function measureImage(
   bytes: Buffer,
-): (ImageSize & { mediaType?: string }) | undefined {
+): (ImageSize & { format?: string; mediaType?: string }) | undefined {
   try {
     const { height, orientation, type, width } = imageSize(bytes);
     const quarterTurned = orientation !== undefined && orientation >= 5;
     const size = quarterTurned
-      ? { height: width, width: height }
-      : { height, width };
+      ? { format: type, height: width, width: height }
+      : { format: type, height, width };
     const mediaType =
       type === undefined ? undefined : SNIFFED_MEDIA_TYPES[type];
     return mediaType === undefined ? size : { ...size, mediaType };

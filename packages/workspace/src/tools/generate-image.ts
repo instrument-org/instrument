@@ -2,7 +2,7 @@ import { imageParametersDescription } from "@instrument-org/ai-gateway";
 import { imageSize } from "image-size";
 import mime from "mime-types";
 import ms from "ms";
-import { err, ok } from "neverthrow";
+import { err, ok, Result } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { dedent } from "radashi";
@@ -16,6 +16,7 @@ import { formatBytes } from "../lib/format-bytes";
 import { generateImageStream } from "../lib/generate-images";
 import { normalizePath } from "../lib/normalize-path";
 import { pathExists } from "../lib/path-exists";
+import { prepareSourceImage } from "../lib/prepare-source-image";
 import {
   resolveExistingFilePath,
   resolveWritableToolPath,
@@ -190,7 +191,7 @@ export const GenerateImage = setupTool({
     let sourceImageBuffers: Buffer[] | undefined;
     const sourceImages: z.output<typeof SourceImageFileSchema>[] = [];
     if (input.sourceImages && input.sourceImages.length > 0) {
-      const resolvedSourcePaths = [];
+      const resolvedSources = [];
       for (const inputPath of input.sourceImages) {
         // Sources are reads in our own process (not a native subprocess), so
         // they resolve like read_file: task paths or attached mounts, with
@@ -205,16 +206,32 @@ export const GenerateImage = setupTool({
           yield executeError(`Source image not found: ${displayPath}`);
           return;
         }
-        resolvedSourcePaths.push(absolutePath);
+        resolvedSources.push({ absolutePath, displayPath });
         const stats = await fs.stat(absolutePath);
         sourceImages.push({
           filePath: displayPath,
           modifiedAt: stats.mtimeMs,
         });
       }
-      sourceImageBuffers = await Promise.all(
-        resolvedSourcePaths.map((p) => fs.readFile(p)),
+      // A file the model cannot decode is worth catching here rather than in
+      // the provider's reply, which names the offending image by position and
+      // arrives a whole request later.
+      const prepared = Result.combine(
+        await Promise.all(
+          resolvedSources.map(async ({ absolutePath, displayPath }) =>
+            prepareSourceImage({
+              bytes: await fs.readFile(absolutePath),
+              displayPath,
+              signal,
+            }),
+          ),
+        ),
       );
+      if (prepared.isErr()) {
+        yield executeError(prepared.error);
+        return;
+      }
+      sourceImageBuffers = prepared.value;
     }
 
     // Each frame overwrites the same path so the UI preview fills in place.

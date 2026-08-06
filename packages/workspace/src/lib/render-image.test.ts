@@ -104,6 +104,7 @@ describe("exceedsDecodeBudget", () => {
 describe("measureImage", () => {
   it("reads plain dimensions", () => {
     expect(measureImage(landscape)).toEqual({
+      format: "png",
       height: 400,
       mediaType: "image/png",
       width: 800,
@@ -116,20 +117,20 @@ describe("measureImage", () => {
 
   it.each([
     {
-      expected: { height: 400, mediaType: "image/jpeg", width: 800 },
+      expected: { format: "jpg", height: 400, mediaType: "image/jpeg", width: 800 },
       orientation: 1,
     },
     {
-      expected: { height: 400, mediaType: "image/jpeg", width: 800 },
+      expected: { format: "jpg", height: 400, mediaType: "image/jpeg", width: 800 },
       orientation: 3,
     },
     // 5-8 store the pixels a quarter turn from how they are displayed.
     {
-      expected: { height: 800, mediaType: "image/jpeg", width: 400 },
+      expected: { format: "jpg", height: 800, mediaType: "image/jpeg", width: 400 },
       orientation: 6,
     },
     {
-      expected: { height: 800, mediaType: "image/jpeg", width: 400 },
+      expected: { format: "jpg", height: 800, mediaType: "image/jpeg", width: 400 },
       orientation: 8,
     },
   ])(
@@ -178,6 +179,7 @@ describe("renderImage", () => {
     const image = renderedImage(result);
     expect(image?.mediaType).toBe("image/png");
     expect(measureImage(image?.bytes ?? Buffer.alloc(0))).toEqual({
+      format: "png",
       height: 200,
       mediaType: "image/png",
       width: 400,
@@ -252,6 +254,7 @@ describe("renderImage", () => {
     expect(
       measureImage(renderedImage(result)?.bytes ?? Buffer.alloc(0)),
     ).toEqual({
+      format: "png",
       height: 400,
       mediaType: "image/png",
       width: 800,
@@ -294,6 +297,7 @@ describe("renderImage", () => {
     expect(
       measureImage(renderedImage(result)?.bytes ?? Buffer.alloc(0)),
     ).toEqual({
+      format: "png",
       height: 700,
       mediaType: "image/png",
       width: 300,

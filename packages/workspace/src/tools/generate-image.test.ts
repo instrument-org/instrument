@@ -114,6 +114,27 @@ describe("GenerateImage source images", () => {
     );
   });
 
+  it("refuses a source image the model could not decode, naming the file", async () => {
+    mockFs({
+      "/ext/Photos": { "cat.png": Buffer.from("<!doctype html>") },
+      [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} },
+    });
+
+    const result = await runTool(
+      GenerateImage,
+      makeExecuteArgs({
+        explanation: "remix",
+        filePath: "output/remix",
+        prompt: "x",
+        sourceImages: ["/mnt/Photos/cat.png"],
+      }),
+    );
+
+    expect(result._unsafeUnwrapErr().message).toBe(
+      "Source image /mnt/Photos/cat.png is not readable as an image. It may be truncated, or it may not be the format its name claims.",
+    );
+  });
+
   it("steers a real host path to the folder's mount path", async () => {
     mockFs({
       "/ext/Photos": { "cat.png": Buffer.from(PNG_BASE64, "base64") },

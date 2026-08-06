@@ -1,4 +1,6 @@
 import { execa } from "execa";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { pngHeaderBytes } from "../test/helpers/png-header";
@@ -6,14 +8,11 @@ import { FFMPEG_PATH } from "./ffmpeg";
 import { prepareSourceImage } from "./prepare-source-image";
 import { measureImage } from "./render-image";
 
-/**
- * A HEIC still, 8x6, as a phone camera writes them.
- *
- * Inlined rather than drawn, because the bundled ffmpeg cannot write this
- * format any more than it can read it -- which is the whole point of the case.
- */
-const HEIC_BASE64 =
-  "AAAAJGZ0eXBoZWljAAAAAG1pZjFNaVBybWlhZk1pSEJoZWljAAABhm1ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAHBpY3QAAAAAAAAAAAAAAAAAAAAAJGRpbmYAAAAcZHJlZgAAAAAAAAABAAAADHVybCAAAAABAAAADnBpdG0AAAAAAAEAAAAjaWluZgAAAAAAAQAAABVpbmZlAgAAAAABAABodmMxAAAAAOZpcHJwAAAAxWlwY28AAAATY29scm5jbHgAAgACAAaAAAAADGNsbGkAywBAAAAAFGlzcGUAAAAAAAAACAAAAAYAAAAJaXJvdAAAAAAQcGl4aQAAAAADCAgIAAAAcWh2Y0MBA3AAAACwAAAAAAAe8AD8/fj4AAALA6AAAQAXQAEMAf//A3AAAAMAsAAAAwAAAwAecCShAAEAI0IBAQNwAAADALAAAAMAAAMAHqAUIEHAmw9iHuRZVNwICBgCogABAAlEAcBhcshEU2QAAAAZaXBtYQAAAAAAAAABAAEGgQIDBYaEAAAAHmlsb2MAAAAARAAAAQABAAAAAQAAAboAAADCAAAAAW1kYXQAAAAAAAAA0gAAAL4oAa+hFZAqkXuYJc/l243E7qVZunbODkkHzmzT12v6W1VAKovQKFP+b/TI3ZQi6oJ+jawTiDXTmhMIGLIZc0H0pwHEdFzqRjOJUjBDDviMDXlFnIiv/meglEQHqO7/cJFXKdBH9Xzkj5dlaldkb2XG/9PkrXpMC+J6dfd/OkAS9W0uD6SRfgWxJUc/SbwzdPc4IgslM3DFkGEJRpZ9NmZCpQ6OCTrOh43eovbgARCoaKYd/T9/DmUtZ7RfSlXg";
+/** A HEIC still, the format an iPhone hands over. */
+const HEIC_FIXTURE = path.resolve(
+  import.meta.dirname,
+  "../../fixtures/assets/photo.heic",
+);
 
 /**
  * An 8x8 JPEG carrying four color components instead of three: the CMYK a
@@ -96,24 +95,28 @@ describe("prepareSourceImage", () => {
     expect(measureImage(prepared)).toMatchObject({ mediaType: "image/png" });
   }, 30_000);
 
-  it("names the file and the format when the format cannot be converted", async () => {
+  it("converts the photo a phone hands over", async () => {
     const result = await prepareSourceImage({
-      bytes: Buffer.from(HEIC_BASE64, "base64"),
+      bytes: await fs.readFile(HEIC_FIXTURE),
       displayPath: "/mnt/Photos/IMG_4021.heic",
     });
 
-    expect(result._unsafeUnwrapErr()).toMatchInlineSnapshot(
-      `"Source image /mnt/Photos/IMG_4021.heic is in a format the image model does not accept (HEIC), and it could not be converted here. Pass a PNG, JPEG, or WebP copy instead."`,
-    );
+    expect(measureImage(result._unsafeUnwrap())).toMatchObject({
+      mediaType: "image/png",
+    });
   }, 60_000);
 
-  it("refuses a vector source, which has no pixels to condition on", async () => {
+  it("names the file and the format when the format cannot be converted", async () => {
+    // A vector, which ffmpeg has no decoder for at any version: there are no
+    // pixels in it to condition on until something rasterizes it.
     const result = await prepareSourceImage({
       bytes: SVG_BYTES,
       displayPath: "output/logo.svg",
     });
 
-    expect(result._unsafeUnwrapErr()).toContain("does not accept (SVG)");
+    expect(result._unsafeUnwrapErr()).toMatchInlineSnapshot(
+      `"Source image output/logo.svg is in a format the image model does not accept (SVG), and it could not be converted here. Pass a PNG, JPEG, or WebP copy instead."`,
+    );
   }, 60_000);
 
   it("refuses bytes that are not an image at all", async () => {

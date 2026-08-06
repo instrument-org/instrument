@@ -1,5 +1,8 @@
 import { execa } from "execa";
 import { imageSize } from "image-size";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 import { FFMPEG_PATH } from "./ffmpeg";
 import { type ImageSize } from "./image-view-size";
@@ -123,6 +126,13 @@ export function measureImage(
  * `MAX_DECODED_PIXELS`. That check lives here because this is the only place
  * that starts a decode: callers test it too, so they can name the cause in a
  * message, but the enforcement cannot depend on them remembering to.
+ *
+ * The bytes are staged as a file rather than piped in. Some containers keep the
+ * index that describes them at the end of the file, so reading one means
+ * seeking backwards -- which a pipe cannot do. HEIC is the format that makes
+ * this concrete: the same photo ffmpeg decodes from disk fails on stdin with
+ * "Not yet implemented in FFmpeg, patches welcome". `canDecodeMedia` probes a
+ * path for the same reason.
  */
 export async function renderImage({
   bytes,
@@ -146,60 +156,71 @@ export async function renderImage({
     return { state: "failed" };
   }
 
-  let attempt = target;
-
-  for (let step = 0; step < SHRINK_STEPS; step++) {
-    const candidates = [
-      { toJpeg: false },
-      ...JPEG_STEPS.map((jpeg) => ({ ...jpeg, toJpeg: true })),
-    ];
-
-    for (const candidate of candidates) {
-      const rendered = await runFfmpeg({
-        ...candidate,
-        bytes,
-        region,
-        signal,
-        target: attempt,
-      });
-      if (rendered === "unavailable") {
-        // Every remaining step is the same spawn with different arguments, so
-        // one that never started settles all thirty of them.
-        return { state: "unavailable" };
-      }
-      if (rendered && rendered.byteLength <= maxBytes) {
-        return {
-          image: {
-            bytes: rendered,
-            height: attempt.height,
-            mediaType: candidate.toJpeg ? "image/jpeg" : "image/png",
-            width: attempt.width,
-          },
-          state: "rendered",
-        };
-      }
-    }
-
-    attempt = {
-      height: Math.max(1, Math.floor(attempt.height * SHRINK_FACTOR)),
-      width: Math.max(1, Math.floor(attempt.width * SHRINK_FACTOR)),
-    };
-    if (attempt.width === 1 && attempt.height === 1) {
-      break;
-    }
+  // Written once and read by every attempt below, since all thirty of them
+  // decode the same bytes.
+  const staged = await stageInput(bytes);
+  if (!staged) {
+    return { state: "unavailable" };
   }
 
-  return { state: "failed" };
+  try {
+    let attempt = target;
+
+    for (let step = 0; step < SHRINK_STEPS; step++) {
+      const candidates = [
+        { toJpeg: false },
+        ...JPEG_STEPS.map((jpeg) => ({ ...jpeg, toJpeg: true })),
+      ];
+
+      for (const candidate of candidates) {
+        const rendered = await runFfmpeg({
+          ...candidate,
+          inputPath: staged.file,
+          region,
+          signal,
+          target: attempt,
+        });
+        if (rendered === "unavailable") {
+          // Every remaining step is the same spawn with different arguments, so
+          // one that never started settles all thirty of them.
+          return { state: "unavailable" };
+        }
+        if (rendered && rendered.byteLength <= maxBytes) {
+          return {
+            image: {
+              bytes: rendered,
+              height: attempt.height,
+              mediaType: candidate.toJpeg ? "image/jpeg" : "image/png",
+              width: attempt.width,
+            },
+            state: "rendered",
+          };
+        }
+      }
+
+      attempt = {
+        height: Math.max(1, Math.floor(attempt.height * SHRINK_FACTOR)),
+        width: Math.max(1, Math.floor(attempt.width * SHRINK_FACTOR)),
+      };
+      if (attempt.width === 1 && attempt.height === 1) {
+        break;
+      }
+    }
+
+    return { state: "failed" };
+  } finally {
+    await fs.rm(staged.dir, { force: true, recursive: true });
+  }
 }
 
 async function runFfmpeg({
-  bytes,
+  inputPath,
   region,
   signal,
   target,
   ...encoding
 }: {
-  bytes: Buffer;
+  inputPath: string;
   pixelFormat?: string;
   quality?: number;
   region?: ImageRegion;
@@ -249,7 +270,7 @@ async function runFfmpeg({
     "-loglevel",
     "error",
     "-i",
-    "pipe:0",
+    inputPath,
     ...filtering,
     "-frames:v",
     "1",
@@ -262,8 +283,11 @@ async function runFfmpeg({
   const result = await execa(FFMPEG_PATH, args, {
     cancelSignal: signal,
     encoding: "buffer",
-    input: bytes,
+    // Nothing arrives on stdin now that the input is a file, and ffmpeg reads
+    // whatever is there as interactive keystrokes -- a `q` among them aborts
+    // the encode midway.
     reject: false,
+    stdin: "ignore",
   });
 
   // No exit code means the process never reached one: it failed to spawn, or a
@@ -277,4 +301,24 @@ async function runFfmpeg({
     return;
   }
   return Buffer.from(result.stdout);
+}
+
+/**
+ * Put the bytes somewhere ffmpeg can seek around in.
+ *
+ * `undefined` when the file could not be written, which is a fact about the
+ * machine rather than the image and reaches the caller as `unavailable`: no
+ * decode was attempted, so nothing was learned about these bytes. The name
+ * carries no extension on purpose -- ffmpeg identifies a container by reading
+ * it, and a name that guessed wrong could only mislead.
+ */
+async function stageInput(bytes: Buffer) {
+  try {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "instrument-render-"));
+    const file = path.join(dir, "source");
+    await fs.writeFile(file, bytes);
+    return { dir, file };
+  } catch {
+    return;
+  }
 }

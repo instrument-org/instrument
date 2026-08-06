@@ -1,6 +1,8 @@
 import type * as ExecaModule from "execa";
 
 import { execa } from "execa";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { pngHeaderBytes } from "../test/helpers/png-header";
@@ -63,6 +65,24 @@ function withExifOrientation(jpeg: Buffer, orientation: number) {
   header.writeUInt16BE(exif.byteLength + 2, 2);
   return Buffer.concat([jpeg.subarray(0, 2), header, exif, jpeg.subarray(2)]);
 }
+
+/**
+ * A HEIC still, the format a phone camera writes.
+ *
+ * A file rather than an inline constant, and 512x512 rather than a few pixels,
+ * because size is what makes this fixture mean anything: a HEIC small enough to
+ * sit inside ffmpeg's probe buffer decodes from a pipe just fine, so a tiny one
+ * would pass against the very code this exists to catch. Committed rather than
+ * drawn in a `beforeAll`, because ffmpeg reads this format but cannot write it.
+ *
+ * Regenerate with:
+ *   ffmpeg -f lavfi -i testsrc=size=1024x768:duration=1:rate=1 -frames:v 1 src.png
+ *   sips -s format heic src.png --out fixtures/assets/photo.heic
+ */
+const HEIC_FIXTURE = path.resolve(
+  import.meta.dirname,
+  "../../fixtures/assets/photo.heic",
+);
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -203,6 +223,23 @@ describe("renderImage", () => {
       height: 200,
       mediaType: "image/png",
       width: 400,
+    });
+  }, 30_000);
+
+  it("reads a container that only decodes from a seekable input", async () => {
+    const result = await renderImage({
+      bytes: await fs.readFile(HEIC_FIXTURE),
+      maxBytes: MAX_BYTES,
+      target: { height: 256, width: 256 },
+    });
+
+    const image = renderedImage(result);
+    expect(image?.mediaType).toBe("image/png");
+    expect(measureImage(image?.bytes ?? Buffer.alloc(0))).toEqual({
+      format: "png",
+      height: 256,
+      mediaType: "image/png",
+      width: 256,
     });
   }, 30_000);
 

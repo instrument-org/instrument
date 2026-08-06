@@ -1,3 +1,4 @@
+import { fileViewerWrapLinesAtom } from "@/client/atoms/file-viewer-wrap-lines";
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import {
   LazyArchiveViewer,
@@ -18,6 +19,7 @@ import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   ArrowClockwiseIcon,
+  ArrowElbowDownLeftIcon,
   ArrowLineDownIcon,
   ArrowsOutSimpleIcon,
   CheckIcon,
@@ -28,6 +30,7 @@ import {
   XIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useAtom } from "jotai";
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -54,6 +57,7 @@ import {
 } from "./ui/context-menu";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
@@ -68,7 +72,25 @@ import { contextMenuComponents } from "./ui/menu-components";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
-function CodeView({ filename, url }: { filename: string; url: string }) {
+/**
+ * Wrapping is entirely ours to decide: the highlighter hands back tokens as
+ * inline spans inside one `<pre>`, so it reflows like any other markup and
+ * nothing about the wrapped view is lost or approximated. Breaking is
+ * `break-word` rather than `break-all` so a line only breaks mid-token when
+ * the token could not fit a line of its own -- a minified bundle or a base64
+ * blob wraps, an ordinary identifier stays whole.
+ */
+const wrapLinesClassName = "whitespace-pre-wrap wrap-break-word";
+
+function CodeView({
+  filename,
+  url,
+  wrapLines,
+}: {
+  filename: string;
+  url: string;
+  wrapLines: boolean;
+}) {
   const { data, error, isLoading } = useFileText(url);
 
   const language = getLanguageFromFilePath(filename);
@@ -88,13 +110,25 @@ function CodeView({ filename, url }: { filename: string; url: string }) {
   if (highlightedHtml) {
     return (
       <div
-        className="p-4 text-sm"
+        className={cn(
+          "p-4 text-sm",
+          wrapLines && "[&_pre]:wrap-break-word [&_pre]:whitespace-pre-wrap",
+        )}
         dangerouslySetInnerHTML={{ __html: highlightedHtml.join("\n") }}
       />
     );
   }
 
-  const plain = <pre className="p-4 text-sm text-foreground">{data}</pre>;
+  const plain = (
+    <pre
+      className={cn(
+        "p-4 text-sm text-foreground",
+        wrapLines && wrapLinesClassName,
+      )}
+    >
+      {data}
+    </pre>
+  );
 
   if (isHighlightable) {
     // Delay showing plain text fallback to give syntax highlighting time to load
@@ -150,7 +184,13 @@ function MarkdownPreview({ url }: { url: string }) {
  * document rather than presenting it. Wrapping only happens where a line is too
  * long for the width on offer.
  */
-function PlainTextView({ url }: { url: string }) {
+function PlainTextView({
+  url,
+  wrapLines,
+}: {
+  url: string;
+  wrapLines: boolean;
+}) {
   const { data, error, isLoading } = useFileText(url);
 
   if (isLoading) {
@@ -162,7 +202,12 @@ function PlainTextView({ url }: { url: string }) {
   }
 
   return (
-    <div className="p-8 text-sm/relaxed wrap-break-word whitespace-pre-wrap text-foreground">
+    <div
+      className={cn(
+        "p-8 text-sm/relaxed text-foreground",
+        wrapLines ? wrapLinesClassName : "whitespace-pre",
+      )}
+    >
       {data}
     </div>
   );
@@ -197,6 +242,7 @@ interface ViewerContext {
   onImageError: () => void;
   onMediaError: (fallbackExtension: string) => void;
   viewMode: "preview" | "raw";
+  wrapLines: boolean;
 }
 
 /**
@@ -375,7 +421,9 @@ const VIEWERS = {
   },
   text: {
     hasToolbar: false,
-    render: ({ file }) => <PlainTextView url={file.url} />,
+    render: ({ file, wrapLines }) => (
+      <PlainTextView url={file.url} wrapLines={wrapLines} />
+    ),
     scrolls: "container",
   },
   unknown: {
@@ -429,8 +477,10 @@ const VIEWERS = {
   },
 } satisfies Record<FileType, ViewerEntry>;
 
-function renderCode({ file }: ViewerContext) {
-  return <CodeView filename={file.filename} url={file.url} />;
+function renderCode({ file, wrapLines }: ViewerContext) {
+  return (
+    <CodeView filename={file.filename} url={file.url} wrapLines={wrapLines} />
+  );
 }
 
 function renderPdf({ fallback, file }: ViewerContext) {
@@ -474,6 +524,7 @@ export function FileViewer({
 }) {
   const { filename, filePath, mimeType, taskId, url } = file;
   const [viewMode, setViewMode] = useState<"preview" | "raw">("preview");
+  const [wrapLines, setWrapLines] = useAtom(fileViewerWrapLinesAtom);
   // Remounts the sandboxed HTML iframe back to its entry page. The iframe is a
   // cross-origin, opaque-origin sandbox, so we can't read or drive its history;
   // reloading `src` is the only way to escape an in-page link navigation.
@@ -503,6 +554,13 @@ export function FileViewer({
 
   const fileType = getFileType(file);
   const hasPreview = fileType === "markdown" || fileType === "html";
+  // What is on screen is the file's own text, so the wrap preference governs
+  // it: the code and plain text viewers always, a markdown or HTML file only
+  // while its own view mode is showing the source.
+  const showsFileText =
+    fileType === "code" ||
+    fileType === "text" ||
+    (hasPreview && viewMode === "raw");
   const fileActions = useFileActionVisibility(file);
   const hasHeaderMenuActions =
     onExpand != null || fileActions.showDownload || fileActions.showReveal;
@@ -510,6 +568,7 @@ export function FileViewer({
     fileActions.showDownload ||
     fileActions.showReveal ||
     hasPreview ||
+    showsFileText ||
     Boolean(onExpand);
 
   const handleDownload = async () => {
@@ -567,6 +626,7 @@ export function FileViewer({
       setMediaErrorType(fallbackExtension);
     },
     viewMode,
+    wrapLines,
   };
 
   return (
@@ -652,7 +712,7 @@ export function FileViewer({
                       <span>{getRevealInFolderLabel()}</span>
                     </DropdownMenuItem>
                   )}
-                  {hasHeaderMenuActions && hasPreview && (
+                  {hasHeaderMenuActions && (hasPreview || showsFileText) && (
                     <DropdownMenuSeparator />
                   )}
                   {hasPreview && (
@@ -681,6 +741,20 @@ export function FileViewer({
                         </DropdownMenuRadioGroup>
                       </DropdownMenuSubContent>
                     </DropdownMenuSub>
+                  )}
+                  {showsFileText && (
+                    <DropdownMenuCheckboxItem
+                      checked={wrapLines}
+                      onCheckedChange={setWrapLines}
+                      // The menu would otherwise close on the first toggle, and
+                      // seeing the file rewrap is the whole point of the item.
+                      onSelect={(event) => {
+                        event.preventDefault();
+                      }}
+                    >
+                      <ArrowElbowDownLeftIcon className="size-4" />
+                      <span>Wrap lines</span>
+                    </DropdownMenuCheckboxItem>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>

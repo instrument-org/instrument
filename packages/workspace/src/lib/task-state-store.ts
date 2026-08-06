@@ -10,7 +10,7 @@ import { getTaskPrivateDir } from "./task-dir-utils";
 
 const StoredTaskStateSchema = z
   .object({
-    attachedFolders: z.record(z.string(), FolderAttachment.StoredSchema).optional(),
+    attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
     promptDraft: z.string().optional(),
     selectedModelURI: z.string().optional(),
     showTutorial: z.boolean().optional(),
@@ -18,7 +18,7 @@ const StoredTaskStateSchema = z
   .default(() => ({}));
 
 export const TaskStateSchema = z.object({
-  attachedFolders: z.record(z.string(), FolderAttachment.StoredSchema).optional(),
+  attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
   promptDraft: z.string().optional(),
   selectedModelURI: AIGatewayModelURI.Schema.optional(),
   showTutorial: z.boolean().optional(),
@@ -31,7 +31,7 @@ export async function getTaskState(dir: TaskDir): Promise<TaskState> {
 
   try {
     const content = await fs.readFile(stateFilePath, "utf8");
-    const rawState = JSON.parse(content) as unknown;
+    const rawState: unknown = migrateTaskState(JSON.parse(content));
     return StoredTaskStateSchema.parse(rawState);
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
@@ -62,4 +62,40 @@ export async function setTaskState(
 
 function getTaskStateFilePath(dir: TaskDir): AbsolutePath {
   return absolutePathJoin(getTaskPrivateDir(dir), TASK_STATE_FILE_NAME);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Brings the stored shape up to what the schema below expects.
+ *
+ * This file is the task's other store, and it has its own door: a task's state
+ * is read in places that never open its database, and a parse failure here is
+ * silent -- the catch above answers with empty state, which the next write would
+ * then persist over the folders it failed to read. So the migration cannot wait
+ * for the database to be opened; see store-migrations.ts for that half and for
+ * the rules both halves follow.
+ *
+ * Applied on read and saved by the next write rather than rewritten here, since
+ * every caller of this either writes back or does not care.
+ */
+function migrateTaskState(state: unknown): unknown {
+  if (!isRecord(state) || !isRecord(state.attachedFolders)) {
+    return state;
+  }
+
+  // Folders were stored under `name`, which was the mount name all along.
+  const folders = Object.entries(state.attachedFolders).map(
+    ([key, folder]): [string, unknown] => {
+      if (!isRecord(folder) || !("name" in folder) || "mountName" in folder) {
+        return [key, folder];
+      }
+      const { name, ...rest } = folder;
+      return [key, { ...rest, mountName: name }];
+    },
+  );
+
+  return { ...state, attachedFolders: Object.fromEntries(folders) };
 }

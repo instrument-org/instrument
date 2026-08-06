@@ -44,19 +44,4 @@ export namespace FolderAttachment {
 
   export type Type = z.output<typeof Schema>;
 
-  /**
-   * What a folder can look like on the way in. `name` is what the mount name
-   * was called before it said so, and `state.json` and stored message parts are
-   * full of it.
-   *
-   * Only the read is tolerant, matching how a project's folders carry their own
-   * older shape: everything written from here on is {@link Schema}, and nothing
-   * that hands a folder to an RPC caller or a tool has any legacy to carry.
-   */
-  export const StoredSchema = z.union([
-    Schema,
-    BaseSchema.extend({ name: MountNameSchema }).transform(
-      ({ name, ...rest }): Type => ({ ...rest, mountName: name }),
-    ),
-  ]);
 }

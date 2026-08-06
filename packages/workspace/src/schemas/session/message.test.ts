@@ -742,11 +742,11 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
-  // The crash this guards: a folder attached before the mount-name rename is
-  // stored with `name`, stored parts are never validated on the way back in,
-  // and assembling model messages reads the field to build the /mnt path. It
-  // fires on the next turn of an existing task, not on a new attachment.
-  it("replays a turn whose folder was attached before the mount-name rename", async () => {
+  // Assembling a turn reads a folder's mount name to build its /mnt path, and
+  // a part that reached here without one crashed the whole turn rather than
+  // losing a line. Store migrations are what guarantee the field is there; this
+  // is the reader holding up its end.
+  it("builds an attached folder's mount path when replaying a turn", async () => {
     const { messageMetadata, partMetadata } = baseMetadata();
     const legacyStoredPart = SessionMessagePart.coerce({
       data: {
@@ -756,7 +756,7 @@ describe("SessionMessage.toModelMessages", () => {
             access: "read-write",
             createdAt: 1_718_198_400_000,
             id: "01KZ9NPNZZPQF80Z7A7DG4Z5BN",
-            name: "Home-Downloads",
+            mountName: "Home-Downloads",
             path: "/Users/sam/Downloads",
             source: "user",
           },

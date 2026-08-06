@@ -14,7 +14,16 @@
 export type ShortcutAccelerator = string | { darwin: string; default: string };
 
 export interface ShortcutDescriptor {
+  /** The chord the menu and the guide show. */
   accelerator: ShortcutAccelerator;
+  /**
+   * Further chords that run the same action and are shown nowhere: the other
+   * physical keys that mean a chord (the numpad's own `+`, `Ctrl+=` where
+   * `Ctrl+Plus` is meant), and the per-key chords behind a range like
+   * `CmdOrCtrl+1…8`. They exist so a key works, not so a user learns four ways
+   * to zoom in, which is why the guide lists one row and the menu one item.
+   */
+  alternates?: string[];
   /** Section the guide lists this under. Menu placement is the menu's own business. */
   group: ShortcutGroup;
   label: string;
@@ -26,10 +35,10 @@ export interface ShortcutDescriptor {
    *   item carrying the same accelerator.
    * - `renderer` -- a renderer keydown, for a chord that is layout-dependent or
    *   has to yield to a focused editor. The menu can still offer the item, just
-   *   without an accelerator.
-   * - `external` -- something outside the table already handles it: an Electron
-   *   role, or a hidden accelerator-only menu item. Listed so the guide can show
-   *   it, never projected into a menu item.
+   *   without an accelerator. Never taken in main.
+   * - `external` -- the app owns the chord but the menu shows no row for it,
+   *   either because it stands for a range of keys or because an Electron role
+   *   performs it. Still listed, so the guide can show it.
    *
    * Chords an editor legitimately uses (Mod-Z to undo) are not the app's to
    * take: they stay Electron roles on the Edit menu and out of this table.
@@ -122,8 +131,6 @@ export const SHORTCUTS = {
     label: "Actual Size",
     owner: "menu",
   },
-  // Hidden accelerator-only items in the Window menu, so the chords exist
-  // without adding ten rows to it; the guide shows them as two.
   selectLastTab: {
     accelerator: "CmdOrCtrl+9",
     group: "Tabs",
@@ -132,18 +139,32 @@ export const SHORTCUTS = {
   },
   selectNextTab: {
     accelerator: "Ctrl+Tab",
+    alternates: ["CmdOrCtrl+Shift+]"],
     group: "Tabs",
     label: "Show Next Tab",
     owner: "menu",
   },
   selectPreviousTab: {
     accelerator: "Ctrl+Shift+Tab",
+    alternates: ["CmdOrCtrl+Shift+["],
     group: "Tabs",
     label: "Show Previous Tab",
     owner: "menu",
   },
+  // The chord stands for eight of them, so it is written the way the guide
+  // reads it and the real keys are the alternates.
   selectTabByIndex: {
     accelerator: "CmdOrCtrl+1…8",
+    alternates: [
+      "CmdOrCtrl+1",
+      "CmdOrCtrl+2",
+      "CmdOrCtrl+3",
+      "CmdOrCtrl+4",
+      "CmdOrCtrl+5",
+      "CmdOrCtrl+6",
+      "CmdOrCtrl+7",
+      "CmdOrCtrl+8",
+    ],
     group: "Tabs",
     label: "Switch to Tab",
     owner: "external",
@@ -192,12 +213,16 @@ export const SHORTCUTS = {
   },
   zoomIn: {
     accelerator: "CmdOrCtrl+Plus",
+    // `Ctrl+=` is what a Windows keyboard physically offers for zoom in, and the
+    // numpad's `+` is a key of its own rather than a shifted `=`.
+    alternates: ["CmdOrCtrl+=", "CmdOrCtrl+numadd"],
     group: "View",
     label: "Zoom In",
     owner: "menu",
   },
   zoomOut: {
     accelerator: "CmdOrCtrl+-",
+    alternates: ["CmdOrCtrl+numsub"],
     group: "View",
     label: "Zoom Out",
     owner: "menu",

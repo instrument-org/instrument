@@ -29,7 +29,7 @@ One declaration per shortcut, read by every surface that shows or runs it:
 
 ## Current building blocks (reuse, don't rebuild)
 
-- **The table**: `ShortcutDescriptor` = `{ accelerator, group, label, owner }` in [shared/shortcuts.ts](../../../apps/studio/src/shared/shortcuts.ts), keyed by id, with `SHORTCUT_ENTRIES` for consumers that walk it and `resolveAccelerator()` for the entries whose chord differs by platform.
+- **The table**: `ShortcutDescriptor` = `{ accelerator, alternates, group, label, owner }` in [shared/shortcuts.ts](../../../apps/studio/src/shared/shortcuts.ts), keyed by id, with `SHORTCUT_ENTRIES` for consumers that walk it and `resolveAccelerator()` for the entries whose chord differs by platform.
 - **The main-side actions**: `SHORTCUT_ACTIONS` (a `Record<ShortcutId, null | ShortcutAction>`, so a new descriptor forces a decision), `shortcutMenuItem(id)` to project one into a menu item, and `bindShortcutAccelerators()` to run every menu-owned chord ahead of the page ([menus/shortcuts.ts](../../../apps/studio/src/electron-main/menus/shortcuts.ts)).
 - **The display formatter**: `formatAccelerator()` splits an accelerator into per-`Kbd` tokens for this platform ([format-accelerator.ts](../../../apps/studio/src/client/lib/format-accelerator.ts)).
 - **Menu rebuild plumbing**: `createApplicationMenu()` re-runs `Menu.buildFromTemplate` on window focus/blur, `window.focus-changed`, and `preferences.updated` ([menus/index.ts](../../../apps/studio/src/electron-main/menus/index.ts)), so a table-driven template stays live without new invalidation.
@@ -40,7 +40,8 @@ One declaration per shortcut, read by every surface that shows or runs it:
 ## Design decisions
 
 - **The table lives in shared code, not main.** The renderer needs `label` and `accelerator` to draw both the bar and the guide, so definitions live in `src/shared`. `run` cannot cross that boundary: main-side entries close over `sendAppCommand`/window controls, and renderer-side entries dispatch locally. Each entry is a serializable descriptor plus a per-process action map keyed by id.
-- **`owner` says who binds the chord.** `menu` (the app owns it: the main-process binder runs it and it is projected into a menu item), `renderer` (a keydown, for chords the menu can't own), or `external` (an Electron role, or a hidden accelerator-only item the template still writes by hand: numpad zoom, `Cmd+=`, `Cmd+1..8`). Every entry is listed in the guide regardless; only `menu` entries get an accelerator on their menu item.
+- **`owner` says how the chord reaches the menu.** `menu` (the app owns it and the menu draws a row for it), `renderer` (a keydown, for chords the menu can't own, and the only kind the main-process binder leaves alone), or `external` (the app owns the chord but the menu draws no row: an Electron role, or a chord standing for a range like `Cmd+1..8`). Every entry is listed in the guide regardless; only `menu` entries get an accelerator on their menu item.
+- **`alternates` carries the chords nothing shows.** The other physical keys that mean one chord (`Cmd+=` and numpad `+` for `Cmd+Plus`) and the per-key chords behind a range live on the entry they belong to, so the binder can run them and `hiddenShortcutItems(id)` can project them as accelerator-only menu items. They stay out of the guide, which shows one Zoom In row rather than three.
 - **`AppCommand` is the action vocabulary.** Most items already resolve to one (`toggleSidebar`, `navigate`, `selectByIndex`...). Entries whose action is main-only (`reload`, `goBack`, zoom, `Close Tab`'s focused-window branch) keep a main-side handler and are dispatched over RPC when the in-app bar fires them.
 - **Roles stay roles.** Undo/Redo/Cut/Copy/Paste/Select All are `role:` items Chromium implements against the focused editable. The in-app bar must invoke them through `webContents` role equivalents rather than re-implementing editing. They are out of the table until the bar needs to draw them: their chords diverge by platform in ways the Edit role already handles (Windows redo is `Ctrl+Y`), so listing them would mean asserting a chord we don't own.
 - **Accelerator strings stay Electron-shaped** (`CmdOrCtrl+Shift+T`), with one formatter for display (`⌘⇧T` vs `Ctrl+Shift+T`) and one matcher for raw key events ([match-accelerator.ts](../../../apps/studio/src/electron-main/menus/match-accelerator.ts)). The matcher reads any modifier set and decides on `code`, the physical key, so `Plus` and a shifted letter mean what the menu means by them; an accelerator outside its vocabulary parses to `null` and matches nothing, and a table entry that lands there fails the suite.
@@ -51,7 +52,7 @@ One declaration per shortcut, read by every surface that shows or runs it:
 
 ### Phase 1 - Grow the table in place (done)
 
-Menu construction is a projection over the table: `shortcutMenuItem(id)` for every item that has a chord, in `main-window.ts` and `utils.ts` alike. The hidden accelerator-only items (numpad zoom, `Cmd+=`, `Cmd+1..8`, the `Cmd+Shift+[`/`]` duplicates) stay hand-written in the template and are represented in the table as one `external` entry each, so the guide shows one Zoom In row rather than four.
+Menu construction is a projection over the table: `shortcutMenuItem(id)` for every item that has a chord, in `main-window.ts` and `utils.ts` alike, and `hiddenShortcutItems(id)` for the accelerator-only ones (numpad zoom, `Cmd+=`, `Cmd+1..8`, the `Cmd+Shift+[`/`]` duplicates), which are `alternates` on the entry they belong to rather than hand-written rows.
 
 ### Phase 2 - Cross the process boundary (done)
 
@@ -73,5 +74,5 @@ Render the same descriptors as a Radix `Menubar` in the custom title bar, gated 
 
 Settled by the guide, and worth revisiting only if the menu bar disagrees:
 
-- **The hidden duplicates are omitted**, not shown as alternates: they exist so a chord works, not so a user learns four ways to zoom in.
+- **`alternates` are omitted from the guide**, not shown beside the chord they stand in for: they exist so a key works, not so a user learns three ways to zoom in.
 - **`group` is the guide's own taxonomy** (General / Tabs / Navigation / View / Developer), not the native menu's structure -- "New Tab" and "Show Next Tab" belong together however the menus split them. Menu placement stays the template's business. Rows sort by label inside a group, since key order in the table is lint's opinion rather than an author's.

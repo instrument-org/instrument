@@ -1,4 +1,4 @@
-import { SHORTCUT_ENTRIES } from "@/shared/shortcuts";
+import { resolveAccelerator, SHORTCUT_ENTRIES } from "@/shared/shortcuts";
 import { describe, expect, it } from "vitest";
 
 import { matchesAccelerator, parseAccelerator } from "./match-accelerator";
@@ -167,18 +167,37 @@ describe("matchesAccelerator", () => {
 
 describe("the shortcut table", () => {
   // A chord the binder can't parse silently never fires, which is exactly the
-  // failure this matcher exists to end. Fail here instead.
-  it.each(
-    SHORTCUT_ENTRIES.filter(({ descriptor }) => descriptor.owner === "menu"),
-  )("$id declares a chord the binder can read", ({ descriptor }) => {
-    for (const isMac of [true, false]) {
-      const accelerator =
-        typeof descriptor.accelerator === "string"
-          ? descriptor.accelerator
-          : isMac
-            ? descriptor.accelerator.darwin
-            : descriptor.accelerator.default;
-      expect(parseAccelerator(accelerator, { isMac })).not.toBeNull();
-    }
-  });
+  // failure this matcher exists to end. Fail here instead. Renderer-owned
+  // chords are excluded: the page binds those, and `?` is not an accelerator.
+  const owned = SHORTCUT_ENTRIES.filter(
+    ({ descriptor }) => descriptor.owner !== "renderer",
+  );
+
+  it.each(owned)(
+    "$id answers to at least one readable chord",
+    ({ descriptor }) => {
+      for (const isMac of [true, false]) {
+        const chords = [
+          resolveAccelerator(descriptor.accelerator, { isMac }),
+          ...(descriptor.alternates ?? []),
+        ];
+        expect(
+          chords.filter((chord) => parseAccelerator(chord, { isMac })),
+        ).not.toHaveLength(0);
+      }
+    },
+  );
+
+  // An alternate is never shown, so a typo in one is invisible until someone
+  // presses the key it was meant to be.
+  it.each(owned.filter(({ descriptor }) => descriptor.alternates))(
+    "$id declares readable alternates",
+    ({ descriptor }) => {
+      for (const isMac of [true, false]) {
+        for (const chord of descriptor.alternates ?? []) {
+          expect(parseAccelerator(chord, { isMac })).not.toBeNull();
+        }
+      }
+    },
+  );
 });

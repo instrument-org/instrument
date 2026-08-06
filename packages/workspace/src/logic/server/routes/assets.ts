@@ -58,7 +58,20 @@ app.all("/*", async (c, next) => {
   }
 
   const { id } = uriDetails.value;
-  const assetPath = c.req.path;
+
+  // Hono decodes the path with `decodeURI`, which by definition leaves the
+  // reserved set (`,` `#` `&` `+` `?` `=` `@` `:` `;` `$`) escaped -- so a file
+  // whose name carries one resolved to a `%2C` that is not on disk and 404'd.
+  // Ordinary names in a folder the user picked look like `Smith, John.pdf`, so
+  // finish the decode here. The traversal check below then reads the decoded
+  // path, which is what it always needed: `..` spelled `%2E%2E` used to sail
+  // past it and only failed later for want of a directory literally named that.
+  let assetPath: string;
+  try {
+    assetPath = decodeURIComponent(c.req.path);
+  } catch {
+    return c.notFound();
+  }
 
   if (UNSAFE_PATH_SEGMENT_REGEX.test(assetPath)) {
     return c.notFound();

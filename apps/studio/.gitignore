@@ -34,3 +34,7 @@ electron.vite.config*.mjs
 # reproduced by re-running the failure, so neither is worth keeping.
 .vitest-attachments/
 __screenshots__/
+
+# Written by the smoke test on every run, and uploaded from here as a CI
+# artifact rather than read back from the checkout.
+smoke-test-screenshots/

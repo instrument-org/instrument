@@ -220,6 +220,73 @@ describe("Studio Smoke Test", () => {
     expect(code).toBe(0);
   }, 120_000);
 
+  // ripgrep and uv already run their `--version` in the afterPack hook. These
+  // three do not, and each finds its binary through its own package's path
+  // math, so resolve them the way the app does rather than by hand: a binary
+  // still inside the archive cannot be executed at all, and a foreign-arch one
+  // left behind by pruning only fails when something runs it.
+  it("runs the vendored binaries the sandbox shells out to", async () => {
+    const executablePath = await resolveExecutablePath(distPath);
+    const nodeModules = path.join(asarPath(executablePath), "node_modules");
+
+    const { code, stderr, stdout } = await runAsNode(
+      executablePath,
+      `
+      const path = require("node:path");
+      const { execFileSync } = require("node:child_process");
+      const { createRequire } = require("node:module");
+      try {
+        const req = createRequire(path.join(${JSON.stringify(nodeModules)}, "probe.js"));
+        // ffmpeg-static and ffprobe-static export a path into the archive;
+        // the app rewrites it the same way to reach the executable copy.
+        const unpack = (binary) =>
+          binary.replace(/[\\\\/]app\\.asar[\\\\/]/, path.sep + "app.asar.unpacked" + path.sep);
+        const probes = [
+          ["ffmpeg", unpack(req("ffmpeg-static")), "-version"],
+          ["ffprobe", unpack(req("@derhuerst/ffprobe-static")), "-version"],
+          ["git", req("dugite").resolveGitBinary(), "--version"],
+        ];
+        const report = {};
+        for (const [name, binary, flag] of probes) {
+          report[name] = {
+            binary,
+            version: execFileSync(binary, [flag], { encoding: "utf8" }).split("\\n")[0],
+          };
+        }
+        process.stdout.write("SANDBOX_BINARIES " + JSON.stringify(report) + "\\n");
+      } catch (error) {
+        process.stdout.write("SANDBOX_BINARIES_ERROR " + String(error && error.stack ? error.stack : error) + "\\n");
+        process.exit(1);
+      }
+      `,
+    );
+
+    const line = stdout
+      .split("\n")
+      .find((entry) => entry.startsWith("SANDBOX_BINARIES"));
+    expect(
+      line?.startsWith("SANDBOX_BINARIES "),
+      `binary probe did not report a result.\nstdout: ${stdout}\nstderr: ${stderr}`,
+    ).toBe(true);
+
+    const report = JSON.parse(
+      (line ?? "").slice("SANDBOX_BINARIES ".length),
+    ) as Record<string, { binary: string; version: string }>;
+
+    for (const [name, expected] of [
+      ["ffmpeg", /^ffmpeg version /],
+      ["ffprobe", /^ffprobe version /],
+      ["git", /^git version /],
+    ] as const) {
+      expect(report[name]?.version, `${name} --version`).toMatch(expected);
+      expect(
+        report[name]?.binary,
+        `${name} runs from outside the archive`,
+      ).toContain("app.asar.unpacked");
+    }
+    expect(code).toBe(0);
+  }, 120_000);
+
   it("should launch the app and verify basic functionality", async () => {
     const executablePath = await resolveExecutablePath(distPath);
 

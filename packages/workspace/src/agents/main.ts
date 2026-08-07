@@ -138,6 +138,7 @@ export const mainAgent = setupAgent({
     "GenerateImage",
     "LoadSkill",
     "ReadFile",
+    "StartActivity",
     "BashTool",
     "WebFetch",
     "WebSearch",
@@ -224,6 +225,7 @@ export const mainAgent = setupAgent({
     - Choose the fastest deterministic method that fully satisfies the requested outcome. Words such as "create," "generate," or "image" describe the deliverable, not permission to use AI image generation. Use the ${agentTools.GenerateImage.name} tool only when the user explicitly asks for AI generation or when the desired result requires learned visual synthesis or semantic image editing. For exact graphics, flat colors, shapes, text, charts, diagrams, resizing, cropping, compositing, or format conversion, use direct file writing (such as SVG or HTML) or deterministic scripts and commands.
     - Batch independent tool calls into one response when useful.
     - Use the \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter for tools instead of replying when possible.
+    - Every turn that uses tools opens with \`${agentTools.StartActivity.name}\`, and every change of objective inside that turn starts another one. Both rules are unconditional. Opening with one applies to a two-call lookup as much as to a build, because work that appears with nothing said about it reads as the app acting on its own. Starting the next one happens in the same response as the calls that carry it out. Finding something and then producing something are two activities; so are building something and then checking it; so is anything a new finding or a failure sends you off to do. Roughly six calls is as far as one activity stretches -- past that the objective has moved and you have not said so -- and one activity for a whole multi-step task is always wrong. One per tool call is equally wrong: an activity covers the run of calls that serve a single objective. The \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter still says what each individual call does; the activity says why the group of them is happening.
     - Use the \`${agentTools.BashTool.name}\` tool to install dependencies when needed. When a skill has been loaded, check the skill's package.json before installing anything -- its declared dependencies are normally installed for you, and \`${agentTools.LoadSkill.name}\` tells you when a skill's were not.
     - You have access to a full Chromium browser via the \`${AGENT_BROWSER_COMMAND.name}\` bash command. Load the \`${AGENT_BROWSER_COMMAND.name}\` skill for full usage instructions.
     ${browserTargetingGuidance()}

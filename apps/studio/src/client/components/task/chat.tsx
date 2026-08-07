@@ -21,13 +21,7 @@ import {
 } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import {
-  type RefObject,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { ChatStream } from "../chat-stream";
@@ -48,6 +42,11 @@ import { ChatZeroState } from "./chat-zero-state";
 import { PromptBrowserToggle } from "./prompt-browser-toggle";
 import { QueuedPrompts } from "./queued-prompts";
 import { TutorialPromptCard } from "./tutorial-prompt-card";
+
+// How long a submitted prompt follows the transcript on its own before the
+// session has to justify it. Long enough to cover starting a turn, short enough
+// that a submit that never becomes one hands the idle transcript back.
+const SUBMIT_FOLLOW_TIMEOUT_MS = 5000;
 
 export function TaskChat({
   isReplayActive = false,
@@ -76,9 +75,8 @@ export function TaskChat({
   useHydrateTaskDraft(id, promptDraft);
 
   const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
-  const scrollToEndRef = useRef<
-    null | ReturnType<typeof useMessageScroller>["scrollToEnd"]
-  >(null);
+  const [scrollToEndSignal, setScrollToEndSignal] = useState(0);
+  const [isFollowingSubmit, setIsFollowingSubmit] = useState(false);
 
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions({
@@ -142,6 +140,28 @@ export function TaskChat({
     isReplayActive,
     sessionId: selectedSessionId,
   });
+
+  // The live session takes over following the transcript as soon as it reports
+  // itself alive, so the submit's own reason to follow ends there.
+  if (isFollowingSubmit && isAgentAlive) {
+    setIsFollowingSubmit(false);
+  }
+
+  // A submit that never becomes a turn would otherwise leave an idle transcript
+  // following forever.
+  useEffect(() => {
+    if (!isFollowingSubmit) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setIsFollowingSubmit(false);
+    }, SUBMIT_FOLLOW_TIMEOUT_MS);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [isFollowingSubmit]);
 
   const { handleContinue } = useContinueSession({
     id,
@@ -250,8 +270,12 @@ export function TaskChat({
       onSubmit={({ files, folders, modelURI, prompt }) => {
         promptInputRef.current?.clear();
         // Submitting is a request to watch what happens next, so a reader who
-        // had scrolled back returns to the live edge and follows it again.
-        scrollToEndRef.current?.();
+        // had scrolled back returns to the live edge and follows it again. Both
+        // halves are needed: the scroller arms follow-bottom from autoScroll at
+        // the moment it is asked to scroll, so a scroll that runs while the
+        // session is still starting up would only land at the end.
+        setIsFollowingSubmit(true);
+        setScrollToEndSignal((signal) => signal + 1);
         if (isTutorialVisible) {
           handleDismissTutorial();
         }
@@ -302,18 +326,18 @@ export function TaskChat({
   // gradient overlay at the scroll frame's bottom edge eases the transcript into
   // the composer; pb-8 keeps the last turn's text clear of the fade band.
   //
-  // autoScroll only while the session is alive: follow-bottom cannot tell new
-  // output from content the reader grew themselves, so on an idle transcript it
-  // reads a collapsible expanding as output and yanks the row out from under the
-  // click. Alive rather than running, so a turn paused for approval still
-  // follows.
+  // autoScroll only while the session is alive, or while a just-submitted
+  // prompt is waiting for one: follow-bottom cannot tell new output from
+  // content the reader grew themselves, so on an idle transcript it reads a
+  // collapsible expanding as output and yanks the row out from under the click.
+  // Alive rather than running, so a turn paused for approval still follows.
   return (
     <MessageScrollerProvider
-      autoScroll={isAgentAlive}
+      autoScroll={isAgentAlive || isFollowingSubmit}
       defaultScrollPosition="end"
       key={selectedSessionId}
     >
-      <ScrollToEndBridge commandRef={scrollToEndRef} />
+      <ScrollToEndBridge signal={scrollToEndSignal} />
       <div className="flex h-full min-h-0 flex-col">
         <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport>
@@ -417,20 +441,20 @@ export function TaskChat({
 }
 
 // The scroll commands come from the provider's context, so they are only
-// reachable below it. This renders nothing and exists to hand scrollToEnd to
-// the submit handler, which sits above the provider.
-function ScrollToEndBridge({
-  commandRef,
-}: {
-  commandRef: RefObject<
-    null | ReturnType<typeof useMessageScroller>["scrollToEnd"]
-  >;
-}) {
+// reachable below it. This renders nothing and exists to run scrollToEnd for
+// the submit handler, which sits above the provider. A counter rather than a
+// direct call, so the scroll runs from the render that turned autoScroll on and
+// the scroller arms follow-bottom with it.
+function ScrollToEndBridge({ signal }: { signal: number }) {
   const { scrollToEnd } = useMessageScroller();
 
-  useEffect(() => {
-    commandRef.current = scrollToEnd;
-  }, [commandRef, scrollToEnd]);
+  useLayoutEffect(() => {
+    if (signal === 0) {
+      return;
+    }
+
+    scrollToEnd();
+  }, [scrollToEnd, signal]);
 
   return null;
 }

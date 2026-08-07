@@ -1,6 +1,6 @@
 # Plan: how the agent presents files, data, and artifacts
 
-Status: **spiked — the file group is built and measured; everything past it is still proposal.** Owner: TBD. Shippable independently of, and ahead of, the folder work in [user-chosen-working-folder.md](user-chosen-working-folder.md).
+Status: **the file group is built and measured; everything past it is still proposal.** Owner: TBD. Shippable independently of, and ahead of, the folder work in [user-chosen-working-folder.md](user-chosen-working-folder.md).
 
 A writable shared folder is what forced this: the agent can now write where the task-directory watcher cannot see, so a file it produces there reaches the user through nothing at all. The syntax is how it says what it made.
 
@@ -193,9 +193,9 @@ Still to build:
 
 - **Unavailable.** A connector record whose service is disconnected renders with a reconnect path.
 
-## What the spike measured
+## What the evals measured
 
-Four situations, `openai/gpt-5.6-luna` (what the auto model resolves to) and `anthropic/claude-haiku-4.5`, three prompt revisions, run with [spike-files-block.ts](../../../packages/workspace/evals/spike-files-block.ts).
+Four situations, `openai/gpt-5.6-luna` (what the auto model resolves to) and `anthropic/claude-haiku-4.5`, three prompt revisions. The cases are committed as [files-fence.ts](../../../packages/workspace/evals/cases/files-fence.ts) and run with `pnpm eval run files-fence`, so re-measuring after a prompt change is one command against the harness's current `MODELS` rather than a rerun of the numbers below.
 
 **The syntax is not the problem.** Every fence either model emitted, across all three revisions, was well formed: bare paths, one per line, a single fence per reply, and every path resolving to a real file. Not one bullet, label, comment, or markdown link appeared inside a fence, and neither model ever emitted one for a reply with no files in it. The renderer's tolerance for those near-misses has yet to be needed.
 

@@ -106,7 +106,7 @@ Interleaved with [pane-tabs-and-the-show-command.md](pane-tabs-and-the-show-comm
 
 - **The fence is the only record now, and adherence is a prompt property.** Measured across four prompt revisions: the model behind the auto setting used it in every case tested, and `claude-haiku-4.5` dropped it about half the time. A turn that produces a file and does not name it produces nothing the user sees.
 
-  Re-measure before step 4 rather than after, and against the harness's current `MODELS` — which is now frontier-per-provider plus the strongest open-weights one, so it covers the case that actually matters here. Haiku is not the bar; a model someone would run a whole workspace on is.
+  Re-measure before step 4 rather than after: `pnpm eval run files-fence`, which runs the four cases against the harness's current `MODELS` — frontier-per-provider plus the strongest open-weights one, so it covers the case that actually matters here. Haiku is not the bar; a model someone would run a whole workspace on is.
 
   **Do not reach for a tool-output nudge**, which is the obvious lever and the wrong one. Measured over four real image-production runs: 24 `write_file` / `edit_file` / `generate_image` calls, and **not one of them wrote a deliverable** — every one wrote a script under `work/`, while every finished file came out of `bash` running that script. A reminder attached to the file tools would fire 24 times naming throwaway scripts and zero times naming what the user asked for. It is not blind to bash; it is anti-correlated with the output.
 

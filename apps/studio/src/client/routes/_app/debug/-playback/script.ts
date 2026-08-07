@@ -33,11 +33,6 @@ export interface Scenario {
 
 export type ToolCall = ToolCallShape & { kind: "call" };
 
-/** The arguments of one tool, exactly as that tool declares them. */
-type ToolInput<TType extends ToolType> = NonNullable<
-  PartOfType<TType>["input"]
->;
-
 /** What one tool returns. */
 export type ToolOutput<TType extends ToolType> = Extract<
   PartOfType<TType>,
@@ -74,6 +69,11 @@ type ToolCallShape = {
     | { error: string; input: ToolInput<TType>; type: TType }
     | { input: ToolInput<TType>; output: ToolOutput<TType>; type: TType };
 }[ToolType];
+
+/** The arguments of one tool, exactly as that tool declares them. */
+type ToolInput<TType extends ToolType> = NonNullable<
+  PartOfType<TType>["input"]
+>;
 
 /** Calls the model asked for in one response, worked off the queue in order. */
 export function batch(...calls: ToolCall[]): Act {

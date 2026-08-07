@@ -721,43 +721,72 @@ a.cursor-pointer {
   }
 }
 
+/* Each word of a message still streaming in; see `rehype-animate-words`, which
+ * is what puts the attribute there and only while the text is still growing.
+ *
+ * Long and eased out rather than short and linear. Tokens arrive in bursts of
+ * wildly varying size, and at a couple of hundred milliseconds each burst reads
+ * as its own slab landing; held this long the fades overlap far enough to read
+ * as one wash settling, which is what removes the appearance of chunking
+ * without holding a single word back from the page. The curve front-loads the
+ * opacity so a word is legible in a fraction of the time it takes to finish.
+ *
+ * Opacity alone. Hundreds of words are in flight at once on a fast model, and
+ * anything else worth animating here either moves the text or, as a filter
+ * would, puts every one of them on its own compositing layer for the duration. */
+[data-stream-word] {
+  animation: stream-word-in 800ms ease-out both;
+}
+
+@keyframes stream-word-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-stream-word] {
+    animation: none;
+  }
+}
+
 /* Semantic component classes. Defined in @layer components so the
  * better-tailwindcss/no-unknown-classes ESLint rule recognizes them
  * automatically via detectComponentClasses — no manual ignore entries needed. */
 @layer components {
-  @media (prefers-color-scheme: light) {
-    .shiny-text {
-      color: #4a4a4a;
-      background: linear-gradient(
-        120deg,
-        #4a4a4a 40%,
-        rgba(180, 180, 180, 0.8) 50%,
-        #4a4a4a 60%
-      );
-      background-size: 200% 100%;
-      -webkit-background-clip: text;
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
-      display: inline-block;
-      animation: shine 3s linear infinite;
-    }
+  /* Keyed off the theme class rather than the OS preference: the theme is a
+   * setting, and `system` resolves to the same class, so the media query read
+   * the wrong one for anyone whose app and desktop disagree. */
+  .shiny-text {
+    color: #4a4a4a;
+    background: linear-gradient(
+      120deg,
+      #4a4a4a 40%,
+      rgba(180, 180, 180, 0.8) 50%,
+      #4a4a4a 60%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: inline-block;
+    animation: shine 3s linear infinite;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .shiny-text {
-      color: #b5b5b5a4;
-      background: linear-gradient(
-        120deg,
-        rgba(255, 255, 255, 0) 40%,
-        rgba(255, 255, 255, 0.8) 50%,
-        rgba(255, 255, 255, 0) 60%
-      );
-      background-size: 200% 100%;
-      -webkit-background-clip: text;
-      background-clip: text;
-      display: inline-block;
-      animation: shine 3s linear infinite;
-    }
+  .dark .shiny-text {
+    color: #b5b5b5a4;
+    background: linear-gradient(
+      120deg,
+      rgba(255, 255, 255, 0) 40%,
+      rgba(255, 255, 255, 0.8) 50%,
+      rgba(255, 255, 255, 0) 60%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
   }
 
   .shiny-text.disabled {

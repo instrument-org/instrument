@@ -34,6 +34,7 @@ import {
   isMermaidLanguage,
   prefetchMermaid,
 } from "../lib/mermaid";
+import { rehypeAnimateWords } from "../lib/rehype-animate-words";
 import { isAddressableTaskFilePath } from "../lib/task-file-path";
 import { cn } from "../lib/utils";
 import { AgentFilesBlock } from "./agent-files-block";
@@ -59,8 +60,8 @@ interface MarkdownProps {
   // permanent, and being block-level each one interrupts the prose it sits in
   // to name a picture the reader will never see.
   hideImages?: boolean;
-  // Passed through to the constructs that resolve their own contents; see
-  // `MarkdownTaskContext`.
+  // Fades each word in as it arrives, and is passed through to the constructs
+  // that resolve their own contents; see `MarkdownTaskContext`.
   isStreaming?: boolean;
   markdown: string;
   // Present only when rendered inside a task chat. Enables the task-file
@@ -456,6 +457,14 @@ export const Markdown = memo(
       }
     }, [needsMermaid]);
 
+    // The word split goes last, after everything that reads the text of a node
+    // whole: the HTML `rehype-raw` re-parses, the formulas `rehype-katex`
+    // consumes. It leaves the pipeline the moment the text settles, so a
+    // finished message carries no spans at all.
+    const streamingRehypePlugins = isStreaming
+      ? [...rehypePlugins, rehypeAnimateWords]
+      : rehypePlugins;
+
     return (
       <MarkdownTaskContext value={{ assetBaseUrl, isStreaming, taskId }}>
         <ReactMarkdown
@@ -492,7 +501,7 @@ export const Markdown = memo(
             ol: markdownOrderedList,
             pre: markdownPre,
           }}
-          rehypePlugins={rehypePlugins}
+          rehypePlugins={streamingRehypePlugins}
           remarkPlugins={[remarkGfm, remarkBreaks, ...remarkPlugins]}
           urlTransform={markdownUrlTransform}
         >

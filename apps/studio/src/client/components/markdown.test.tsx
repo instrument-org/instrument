@@ -94,3 +94,43 @@ describe("Markdown links", () => {
     );
   });
 });
+
+// What the transform does to a tree has its own tests; these are about the
+// attribute surviving the trip through the rehype pipeline and out of
+// react-markdown under the name the stylesheet looks for.
+describe("Markdown streaming words", () => {
+  const streamingWords = (markdown: string) => {
+    const { container } = renderWithProviders(
+      <Markdown
+        assetBaseUrl={ASSET_BASE}
+        isStreaming
+        markdown={markdown}
+        taskId={TASK_ID}
+      />,
+    );
+    return [...container.querySelectorAll("[data-stream-word]")].map(
+      (word) => word.textContent,
+    );
+  };
+
+  it("hands every word of streaming prose to the stylesheet", () => {
+    expect(streamingWords("Reading the config")).toEqual([
+      "Reading",
+      "the",
+      "config",
+    ]);
+  });
+
+  it("leaves code alone, since the components under it read a string", () => {
+    expect(streamingWords("Run `pnpm test run` first")).toEqual([
+      "Run",
+      "first",
+    ]);
+  });
+
+  it("wraps nothing once the text has settled", () => {
+    const { container } = renderMarkdown("Reading the config");
+
+    expect(container.querySelectorAll("[data-stream-word]")).toHaveLength(0);
+  });
+});

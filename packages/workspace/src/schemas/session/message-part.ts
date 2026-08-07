@@ -73,21 +73,37 @@ export namespace SessionMessagePart {
     );
 
   export type ToolPartInputAvailable = ToolUIPart<AISDKTools> & {
-    metadata: BaseMetadata;
+    metadata: ToolPartMetadata;
     state: "input-available";
   };
 
   export type ToolPartInputStreaming = ToolUIPart<AISDKTools> & {
-    metadata: BaseMetadata;
+    metadata: ToolPartMetadata;
     state: "input-streaming";
   };
+
+  /**
+   * `startedAt` is when the runtime began executing the call, which is not when
+   * the model asked for it: calls run one at a time off a queue, so a part can
+   * sit in `input-available` for as long as everything ahead of it takes. The
+   * AI SDK has no state for that wait -- queued and executing are both
+   * `input-available` -- and without this the only way to tell them apart is
+   * position in the part list, which stops being true the moment anything runs
+   * concurrently.
+   *
+   * Absent means the call has not started. It is also absent on parts written
+   * before the field existed, so read it as a positive signal only.
+   */
+  export interface ToolPartMetadata extends BaseMetadata {
+    startedAt?: Date;
+  }
 
   export type ToolPartOutputAvailable = ToolUIPart<AISDKTools> & {
     metadata: ToolPartOutputAvailableMetadata;
     state: "output-available";
   };
 
-  export interface ToolPartOutputAvailableMetadata extends BaseMetadata {
+  export interface ToolPartOutputAvailableMetadata extends ToolPartMetadata {
     endedAt: Date;
   }
 
@@ -96,7 +112,7 @@ export namespace SessionMessagePart {
     state: "output-error";
   };
 
-  export interface ToolPartOutputErrorMetadata extends BaseMetadata {
+  export interface ToolPartOutputErrorMetadata extends ToolPartMetadata {
     endedAt: Date;
   }
 
@@ -132,5 +148,4 @@ export namespace SessionMessagePart {
       ...part,
     };
   }
-
 }

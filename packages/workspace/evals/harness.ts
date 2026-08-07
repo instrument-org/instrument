@@ -7,6 +7,7 @@ import {
 import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { call } from "@orpc/server";
 import { execa } from "execa";
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import * as _ from "radashi";
@@ -316,7 +317,7 @@ export async function runEvals(
           taskRoute.create,
           {
             files: evalCase.files,
-            folders: evalCase.folders,
+            folders: privateFoldersFor(evalCase, index),
             modelURI: uri,
             name: evalCase.name,
             projectId,
@@ -511,6 +512,31 @@ export async function sessionsFor(
     }
   }
   return sessions;
+}
+
+/**
+ * A run's own copy of each folder the case attaches.
+ *
+ * One case runs against every model at once, and they would otherwise share a
+ * single directory: a read-write attachment means each run sees the files the
+ * others just wrote, and a model that finds three charts it did not make
+ * behaves nothing like one working in the folder the user actually has. The
+ * copy is cheap next to an agent turn, so it is unconditional rather than
+ * limited to writable attachments.
+ *
+ * The basename is preserved because it becomes the mount name, which the case's
+ * own prompt refers to ("my Reports folder").
+ */
+function privateFoldersFor(evalCase: EvalCase, index: number) {
+  return evalCase.folders?.map((folder) => {
+    const root = path.join(
+      os.tmpdir(),
+      `${APP_NAME_SLUG}-eval-folders-${ulid()}-${index}`,
+      path.basename(folder.path),
+    );
+    fs.cpSync(folder.path, root, { recursive: true });
+    return { ...folder, path: root };
+  });
 }
 
 function sanitizeCanonicalId(canonicalId: string): string {

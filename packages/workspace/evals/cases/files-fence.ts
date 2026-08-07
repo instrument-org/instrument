@@ -12,10 +12,7 @@
  * nothing the user sees. Adherence is a property of the prompt, which means it
  * has to be measured again whenever the prompt moves.
  */
-import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { ulid } from "ulid";
 
 import { AGENT_FILES_LANGUAGE } from "../../src/constants";
 import { getCurrentFileInfo } from "../../src/lib/get-file-info";
@@ -23,16 +20,9 @@ import { type WorkspaceFilePath } from "../../src/schemas/paths";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, defineEval } from "../harness";
 
+// The harness gives each run its own copy of these, so the writable one is
+// named here as the committed fixture rather than as something built at load.
 const FIXTURES = path.resolve(import.meta.dirname, "../fixtures/files-fence");
-
-// The read-write folder is copied out of the repo, since the case exists for an
-// agent writing a deliverable into it. The read-only one is mounted where it
-// sits, which nothing can change.
-function sharedReportsFolder(): string {
-  const root = path.join(os.tmpdir(), `files-fence-${ulid()}`, "Reports");
-  fs.cpSync(path.join(FIXTURES, "Reports"), root, { recursive: true });
-  return root;
-}
 
 // ---------------------------------------------------------------------------
 // Reading the fence back out of a transcript
@@ -227,7 +217,7 @@ export const FILES_FENCE_EVALS = [
       assertLinesResolve,
       assertNamedMountedFile,
     ],
-    folders: [{ access: "read-write", path: sharedReportsFolder() }],
+    folders: [{ access: "read-write", path: path.join(FIXTURES, "Reports") }],
     name: "files-fence-shared-folder-deliverable",
     prompt:
       "Chart the monthly revenue in the sales spreadsheet in my Reports folder as a PNG, and save it next to the spreadsheet.",

@@ -9,7 +9,7 @@ export {
 } from "./lib/migrate-workspace-layout";
 export { clearOrphanedProjectRefs, resolveProjectDir } from "./lib/project";
 export { readTaskFile } from "./lib/read-task-file";
-export { resolvePathWithinTaskDir } from "./lib/resolve-path-within-task-dir";
+export { resolveWorkspaceFilePath } from "./lib/resolve-workspace-file-path";
 export { taskDir } from "./lib/task-dir-utils";
 export { stopAllTaskFileWatchers } from "./lib/task-file-watcher";
 export { getTaskSettings } from "./lib/task-settings";
@@ -25,7 +25,7 @@ export { publisher as workspacePublisher } from "./rpc/publisher";
 export {
   type AbsolutePath,
   RelativePathSchema,
-  RelativeTaskPathSchema,
+  WorkspaceFilePathSchema,
 } from "./schemas/paths";
 export { type ProjectId, ProjectIdSchema } from "./schemas/project-id";
 export { SessionMessage } from "./schemas/session/message";

@@ -33,11 +33,11 @@ import {
 import {
   ProjectIdSchema,
   readTaskFile,
-  RelativeTaskPathSchema,
-  resolvePathWithinTaskDir,
   resolveProjectDir,
+  resolveWorkspaceFilePath,
   taskDir,
   TaskIdSchema,
+  WorkspaceFilePathSchema,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 import { call, eventIterator } from "@orpc/server";
@@ -297,14 +297,14 @@ const openTaskFile = base
   })
   .input(
     z.object({
-      filePath: RelativeTaskPathSchema,
+      filePath: WorkspaceFilePathSchema,
       id: TaskIdSchema,
     }),
   )
   .handler(async ({ errors, input }) => {
-    const fullPath = resolvePathWithinTaskDir({
-      dir: taskDir(input.id),
+    const fullPath = await resolveWorkspaceFilePath({
       filePath: input.filePath,
+      taskId: input.id,
     });
     if (!fullPath) {
       throw errors.INVALID_PATH();
@@ -344,7 +344,7 @@ const openTaskFileWith = base
   .input(
     z.object({
       appPath: z.string().refine((val) => path.isAbsolute(val)),
-      filePath: RelativeTaskPathSchema,
+      filePath: WorkspaceFilePathSchema,
       id: TaskIdSchema,
     }),
   )
@@ -353,9 +353,9 @@ const openTaskFileWith = base
       throw errors.UNSUPPORTED_PLATFORM();
     }
 
-    const fullPath = resolvePathWithinTaskDir({
-      dir: taskDir(input.id),
+    const fullPath = await resolveWorkspaceFilePath({
       filePath: input.filePath,
+      taskId: input.id,
     });
     if (!fullPath) {
       throw errors.INVALID_PATH();
@@ -387,7 +387,7 @@ const openTaskFileWith = base
 const getTaskFileOpenTarget = base
   .input(
     z.object({
-      filePath: RelativeTaskPathSchema,
+      filePath: WorkspaceFilePathSchema,
       id: TaskIdSchema,
     }),
   )
@@ -398,9 +398,9 @@ const getTaskFileOpenTarget = base
     }),
   )
   .handler(async ({ input }) => {
-    const fullPath = resolvePathWithinTaskDir({
-      dir: taskDir(input.id),
+    const fullPath = await resolveWorkspaceFilePath({
       filePath: input.filePath,
+      taskId: input.id,
     });
     if (!fullPath) {
       return { appName: null, iconUrl: null };
@@ -414,7 +414,7 @@ const getTaskFileOpenTarget = base
 const getTaskFileOpenCandidates = base
   .input(
     z.object({
-      filePath: RelativeTaskPathSchema,
+      filePath: WorkspaceFilePathSchema,
       id: TaskIdSchema,
     }),
   )
@@ -431,9 +431,9 @@ const getTaskFileOpenCandidates = base
     }),
   )
   .handler(async ({ input }) => {
-    const fullPath = resolvePathWithinTaskDir({
-      dir: taskDir(input.id),
+    const fullPath = await resolveWorkspaceFilePath({
       filePath: input.filePath,
+      taskId: input.id,
     });
     if (!fullPath) {
       return { apps: [] };
@@ -472,16 +472,14 @@ const showTaskFileInFolder = base
   })
   .input(
     z.object({
-      filePath: RelativeTaskPathSchema,
+      filePath: WorkspaceFilePathSchema,
       id: TaskIdSchema,
     }),
   )
   .handler(async ({ errors, input }) => {
-    const taskId = input.id;
-
-    const fullPath = resolvePathWithinTaskDir({
-      dir: taskDir(taskId),
+    const fullPath = await resolveWorkspaceFilePath({
       filePath: input.filePath,
+      taskId: input.id,
     });
     if (!fullPath) {
       throw errors.INVALID_PATH();
@@ -675,7 +673,7 @@ const copyFileToClipboard = base
   })
   .input(
     z.object({
-      filePath: RelativeTaskPathSchema,
+      filePath: WorkspaceFilePathSchema,
       id: TaskIdSchema,
       isImage: z.boolean(),
     }),

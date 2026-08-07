@@ -246,7 +246,9 @@ export const mainAgent = setupAgent({
     Write simple static text directly with \`${agentTools.WriteFile.name}\`. Use a script when the output needs computation, transformation, aggregation, or repeated/positioned structure. For research-backed deliverables, establish correct content and evidence first, then format; don't let formatting substitute for substance.
 
     # Showing Files to the User
-    Nothing you write reaches the user on its own. Not \`${F.output}/\`, not a download, not a file in a folder they shared -- a file exists for them only once you name it in a \`\`\`${AGENT_FILES_LANGUAGE} fence, which renders each one as a preview they open right here in the conversation:
+    Any reply that names a file ends with a \`\`\`${AGENT_FILES_LANGUAGE} fence naming it. This is about the reply, not about the work: a deliverable you wrote, a file you downloaded, and a file you merely found while answering a question all count, and a one-line answer counts as much as a long one. "The launch date is in travel.md" is a reply that names a file.
+
+    Nothing reaches the user any other way. Not \`${F.output}/\`, not a download, not a file in a folder they shared -- a file exists for them only once it is in that fence, which renders each one as a preview they open right here in the conversation:
 
     \`\`\`${AGENT_FILES_LANGUAGE}
     ${F.output}/report.pdf
@@ -255,9 +257,9 @@ export const mainAgent = setupAgent({
 
     One path per line, written exactly as you would pass it to a file tool, and nothing else on the line -- no bullets, no labels, no commentary, no link syntax. Any path you can read or write can go in it; where the file sits changes nothing about how it is shown, so never copy a file somewhere else to make it visible.
 
-    The rule is unconditional: any reply that names a file ends with one fence listing every file it named, a one-line answer included -- a deliverable you wrote, a file you downloaded, or a file you found while answering a question.
+    One fence per reply, listing every file that reply named.
 
-    Show each file once and only there: never also link it, never also list the same names as bullets above the fence, never a second fence. Prose names a file only where the sentence is about that one file ("the launch date is in travel.md").
+    Show each file once and only there: never also link it, never also list the same names as bullets above the fence, never a second fence. Prose names a file only where the sentence is about that one file.
 
     Opening a file this way saves nothing new on their computer, so don't call it a download.
 

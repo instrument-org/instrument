@@ -1,9 +1,10 @@
 import type { Plugin } from "vite";
 
 import { ValidateEnv } from "@julr/vite-plugin-validate-env";
+import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
-import react from "@vitejs/plugin-react";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "electron-vite";
 import fs from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -13,6 +14,12 @@ import { readPackage } from "read-pkg";
 import { analyzer } from "vite-bundle-analyzer";
 
 const isAnalyzing = process.env.ANALYZE_BUILD === "true";
+
+// electron-vite deep-clones the config before resolving async plugin factories,
+// so this one is awaited here rather than inline in `plugins`.
+const reactCompilerBabel = await babel({
+  presets: [reactCompilerPreset()],
+});
 
 const monorepoNamespace = "@instrument-org";
 // Not including "components" it will be bundled by default in the client
@@ -310,11 +317,8 @@ export default defineConfig(({ command }) => {
           generatedRouteTree: "./client/routeTree.gen.ts",
           routesDirectory: "./client/routes",
         }),
-        react({
-          babel: {
-            plugins: ["babel-plugin-react-compiler"],
-          },
-        }),
+        react(),
+        reactCompilerBabel,
         tailwindcss(),
       ],
       resolve,

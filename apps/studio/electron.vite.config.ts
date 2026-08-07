@@ -323,6 +323,14 @@ export default defineConfig(({ command }) => {
       ],
       resolve,
       root: path.resolve("src"),
+      // The dev server has a head start on the renderer while Electron boots,
+      // and the route tree pulls every route module eagerly. Transforming those
+      // in parallel there beats serving them one browser connection at a time.
+      server: {
+        warmup: {
+          clientFiles: ["./client/main.tsx", "./client/routes/**/*.tsx"],
+        },
+      },
       // The document viewers' parser workers are module workers whose entries
       // code-split, which the default IIFE worker format cannot express, so the
       // build fails without this.

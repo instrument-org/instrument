@@ -11,7 +11,7 @@ export const BaseInputSchema = z.object({
   // schema we send to the model via `toolInputSchemaForLLM`.
   [TOOL_EXPLANATION_PARAM_NAME]: z.string().optional().meta({
     description:
-      "One short sentence describing what this tool is doing, using present continuous tense (e.g., 'Reading the file', 'Exploring the folder'). Generate this first.",
+      "What this one call is doing, as a short phrase starting with a verb ending in -ing: 'Reading the sales spreadsheet', 'Searching the notes for the launch date'. It is a label on a row, not a sentence addressed to anyone: never write it in the first person ('I'm reading...', 'Let me check...'), never as something you are about to do, and never as a full sentence with a period. Generate this first.",
   }),
 });
 

@@ -1,5 +1,4 @@
 import { BROWSER_SELECTION_EVALS } from "./browser-selection";
-import { CHECK_EVALS } from "./check";
 import { CONTEXT_ROLLOVER_EVALS } from "./context-rollover";
 import { FILES_FENCE_EVALS } from "./files-fence";
 import { IMAGE_REGION_EVALS } from "./image-region";
@@ -13,7 +12,6 @@ import { WEB_SEARCH_EVALS } from "./web-search";
 
 export const EVALS = [
   ...BROWSER_SELECTION_EVALS,
-  ...CHECK_EVALS,
   ...CONTEXT_ROLLOVER_EVALS,
   ...FILES_FENCE_EVALS,
   ...IMAGE_REGION_EVALS,

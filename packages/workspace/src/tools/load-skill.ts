@@ -11,8 +11,8 @@ import { executeError } from "../lib/execute-error";
 import { installPythonSkill } from "../lib/install-python-skill";
 import { normalizedPathJoin } from "../lib/normalize-path";
 import { runPnpmCommand } from "../lib/run-pnpm";
+import { NODE_COMMAND } from "../lib/shell-commands/node";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
-import { TS_COMMAND } from "../lib/shell-commands/ts";
 import { renderSkillCatalog } from "../lib/skill-catalog";
 import {
   getSkillProvenance,
@@ -271,8 +271,8 @@ export const LoadSkill = setupTool({
     if (output.files.length > 0) {
       const fileSectionText = [
         `The skill files below are copied into your task and are yours to edit.`,
-        `For an operation a script already covers, read it and run it with \`${TS_COMMAND.name}\` (TypeScript) or \`python\` (Python) rather than rewriting it.`,
-        `Run a script by its full path from the task root (e.g. \`${TS_COMMAND.name} ${skillRoot}/scripts/<script>.ts ${TASK_FOLDER_NAMES.attachments}/in --output ${TASK_FOLDER_NAMES.output}/out\` or \`python ${skillRoot}/scripts/<script>.py ${TASK_FOLDER_NAMES.attachments}/in --output ${TASK_FOLDER_NAMES.output}/out\`); do NOT \`cd\` into the skill folder to run it, or \`${TASK_FOLDER_NAMES.attachments}/\` and \`${TASK_FOLDER_NAMES.output}/\` won't be where your relative paths point.`,
+        `For an operation a script already covers, read it and run it with \`${NODE_COMMAND.name}\` (TypeScript) or \`python\` (Python) rather than rewriting it.`,
+        `Run a script by its full path from the task root (e.g. \`${NODE_COMMAND.name} ${skillRoot}/scripts/<script>.ts ${TASK_FOLDER_NAMES.attachments}/in --output ${TASK_FOLDER_NAMES.output}/out\` or \`python ${skillRoot}/scripts/<script>.py ${TASK_FOLDER_NAMES.attachments}/in --output ${TASK_FOLDER_NAMES.output}/out\`); do NOT \`cd\` into the skill folder to run it, or \`${TASK_FOLDER_NAMES.attachments}/\` and \`${TASK_FOLDER_NAMES.output}/\` won't be where your relative paths point.`,
         `For work the scripts don't cover -- especially content, layout, or anything generative -- write your own code against the skill's preinstalled libraries (see its recipes) instead of bending a script's flags to fit.`,
       ].join(" ");
 

@@ -10,7 +10,6 @@ import { TASK_FOLDER_NAMES } from "../../constants";
 import { type TaskId } from "../../schemas/task-id";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
 import { systemNote } from "../system-note";
-import { createTsCommand, TS_COMMAND } from "./ts";
 import { resolveCommandContext, subprocessStdin } from "./utils";
 
 export const PNPM_COMMAND = {
@@ -84,20 +83,9 @@ export function createNpxCommand(taskId: TaskId) {
 }
 
 export function createPnpmCommand(taskId: TaskId) {
-  const tsCommand = createTsCommand(taskId);
-
   return defineCommand(PNPM_COMMAND.name, async (args, ctx) => {
     const subcommand = args[0];
     const secondArg = args[1];
-
-    // Forward `pnpm exec tsx ...` or `pnpm tsx ...`
-    // to the ts command so path sandboxing and provider env are applied correctly.
-    if (subcommand === "exec" && secondArg === TS_COMMAND.name) {
-      return tsCommand.execute(args.slice(2), ctx);
-    }
-    if (subcommand === TS_COMMAND.name) {
-      return tsCommand.execute(args.slice(1), ctx);
-    }
 
     if (
       DEV_OR_START.has(subcommand ?? "") ||

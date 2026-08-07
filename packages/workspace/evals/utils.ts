@@ -148,16 +148,16 @@ export const modelURI = {
     ),
 };
 
-/** Per-token USD, as OpenRouter states it. */
-interface ModelPrice {
-  completion: number;
-  prompt: number;
-}
-
 export interface OpenRouterCatalog {
   /** Moving alias slug -> the build it stood for at run time. */
   aliasTargets: Map<string, string>;
   priceFor: (slug: string) => ModelPrice | undefined;
+}
+
+/** Per-token USD, as OpenRouter states it. */
+interface ModelPrice {
+  completion: number;
+  prompt: number;
 }
 
 const NumericStringSchema = z

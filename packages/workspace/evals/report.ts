@@ -22,6 +22,24 @@ import {
 } from "./harness";
 import { buildReportWorkspaceConfig, c, write } from "./utils";
 
+interface RollupSummary {
+  assertions: {
+    failed: number;
+    pass_rate: number;
+    passed: number;
+    total: number;
+  };
+  /** Approximate, and only for models whose price was known. See `formatCost`. */
+  costUSD?: number;
+  /** Tasks where at least one model request failed (rate limit, credits, ...). */
+  erroredTasks: number;
+  modelURIs: string[];
+  results: RunReport[];
+  /** Tasks the harness or the case ended on purpose. Not a failure. */
+  stoppedTasks: number;
+  tasks: number;
+}
+
 /** What one run produced, in the form a caller can act on without re-reading. */
 interface RunReport {
   assertions: AssertionResult[];
@@ -39,24 +57,6 @@ interface RunReport {
   stoppedBy?: RunStop;
   taskId: string;
   totalTokens: number;
-}
-
-interface RollupSummary {
-  assertions: {
-    failed: number;
-    pass_rate: number;
-    passed: number;
-    total: number;
-  };
-  /** Approximate, and only for models whose price was known. See `formatCost`. */
-  costUSD?: number;
-  /** Tasks where at least one model request failed (rate limit, credits, ...). */
-  erroredTasks: number;
-  modelURIs: string[];
-  results: RunReport[];
-  /** Tasks the harness or the case ended on purpose. Not a failure. */
-  stoppedTasks: number;
-  tasks: number;
 }
 
 /**

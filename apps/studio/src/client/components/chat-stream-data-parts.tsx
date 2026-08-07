@@ -30,7 +30,14 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-attachments": "hidden",
   "data-browserStatus": "dev",
   "data-externalFileChanges": "dev",
-  "data-fileChanges": "always",
+  // Superseded by the ```files fence, which is the agent's own account of what
+  // it produced. The two overlap almost exactly -- the agent names the files it
+  // just wrote, which are the files the watcher just saw -- so a turn showed
+  // each one twice. Demoted rather than deleted while fence adherence is still
+  // being measured: seeing what the watcher found next to what the agent named
+  // is exactly the comparison that measurement wants. The part itself, its
+  // schema, and `consumeTurnChanges` go together once that lands.
+  "data-fileChanges": "dev",
   "data-intent": "dev",
   "data-maxSteps": "dev",
   "data-projectChanges": "always",

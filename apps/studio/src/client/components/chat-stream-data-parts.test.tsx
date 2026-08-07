@@ -35,17 +35,21 @@ function fileChangesPart(
   };
 }
 
+// A file-changes part reaches developer mode at most, since the ```files fence
+// is what shows a turn's files to the user now. What is still worth separating
+// is whether the part has anything to draw at all: `dev` renders a card for a
+// developer, `hidden` renders nothing for anyone.
 describe("dataPartVisibility", () => {
   it.each([
     {
-      expected: "always",
+      expected: "dev",
       label: "output deliverable",
       paths: ["output/report.md"],
     },
-    { expected: "always", label: "root-level file", paths: ["report.md"] },
-    { expected: "always", label: "download", paths: ["downloads/logo.png"] },
+    { expected: "dev", label: "root-level file", paths: ["report.md"] },
+    { expected: "dev", label: "download", paths: ["downloads/logo.png"] },
     {
-      expected: "always",
+      expected: "dev",
       label: "one surfaced path among hidden ones",
       paths: ["work/src/app.tsx", "output/report.md"],
     },

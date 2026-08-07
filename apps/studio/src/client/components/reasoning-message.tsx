@@ -4,6 +4,7 @@ import { memo, useEffect, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 
 import { PlanningDotIcon } from "./icons/planning-dot";
+import { useTranscriptGroup } from "./message-part/transcript-group";
 import { reasoningDisplayText } from "./reasoning-utils";
 import { RunRowChevron } from "./run-row-chevron";
 import { SessionMarkdown } from "./session-markdown";
@@ -17,6 +18,13 @@ interface ReasoningMessageProps {
   createdAt?: Date;
   endedAt?: Date;
   isLoading?: boolean;
+  /**
+   * This row is a group's copy of the step in flight, so it is not arriving in
+   * the transcript: the slot is already on screen and already occupied. It draws
+   * at once and plain -- waiting would collapse the row and put it straight
+   * back, and fading in reads as the line blinking out and returning.
+   */
+  isStandIn?: boolean;
   noDelay?: boolean;
   text: string;
 }
@@ -25,10 +33,16 @@ export const ReasoningMessage = memo(function ReasoningMessage({
   createdAt,
   endedAt,
   isLoading = false,
+  isStandIn = false,
   noDelay = false,
   text,
 }: ReasoningMessageProps) {
+  const group = useTranscriptGroup();
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // As a group's head line the row's click opens and shuts the group rather
+  // than this row's own reasoning; see `TranscriptGroup`.
+  const groupHead = group?.isHead === true && group.canExpand ? group : null;
   const [, setTick] = useState(0);
 
   // Re-render once a second so a running duration counts up. Only while
@@ -77,36 +91,45 @@ export const ReasoningMessage = memo(function ReasoningMessage({
       ? `Thought for ${duration}`
       : "Thought";
 
+  // Only the head line of a group carries the live indicator, so there is one
+  // thing moving per group; see `TranscriptGroup`.
+  const isFocused = isLoading && (group === null || group.isHead);
+
   return (
     <Collapsible
       className={cn(
-        "w-full animate-in fill-mode-both fade-in",
-        !hasText && !noDelay && "delay-500",
+        "w-full",
+        !isStandIn && "animate-in fill-mode-both fade-in",
+        !isStandIn && !hasText && !noDelay && "delay-500",
       )}
-      onOpenChange={setIsExpanded}
-      open={isExpanded}
+      onOpenChange={groupHead === null ? setIsExpanded : groupHead.toggle}
+      open={groupHead === null ? isExpanded : groupHead.isExpanded}
     >
       <CollapsibleTrigger
-        className="group/run-row flex cursor-default items-center py-1.5 text-left"
-        disabled={!hasText}
+        className="group/run-row flex cursor-default items-center py-1 text-left"
+        disabled={groupHead === null && !hasText}
       >
-        <div className="flex h-5 items-center gap-3">
-          {isLoading && <PlanningDotIcon className="size-3 shrink-0" />}
+        <div className="flex h-5 items-center gap-2">
+          {isFocused && <PlanningDotIcon />}
           <span
             className={cn(
               "text-sm",
-              isLoading
+              isFocused
                 ? "brand-shiny-text"
                 : "text-muted-foreground group-hover/run-row:text-foreground",
             )}
           >
             {label}
           </span>
-          {hasText && <RunRowChevron isOpen={isExpanded} />}
+          {(hasText || groupHead !== null) && (
+            <RunRowChevron
+              isOpen={groupHead === null ? isExpanded : groupHead.isExpanded}
+            />
+          )}
         </div>
       </CollapsibleTrigger>
 
-      {hasText && (
+      {hasText && groupHead === null && (
         <CollapsibleContent animated>
           <div className="mt-2">
             <div

@@ -68,6 +68,7 @@ function renderReasoning(parts: SessionMessagePart.Type[]) {
       {renderChatPart({
         browserStatusContextAdded: false,
         ctx,
+        isGroupWorking: false,
         message,
         part: reasoningPart,
         partIndex: 0,

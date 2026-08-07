@@ -18,13 +18,24 @@ import {
   type RenderPartContext,
 } from "./chat-stream-render-part";
 import {
-  buildRunBoundaryMap,
+  buildTranscriptLayout,
+  generatedGroupHeading,
+  groupCanExpand,
+  groupStandInRowId,
   isActiveToolPart,
   isVisibleAssistantPart,
-  PLANNING_BOUNDARY_ID,
+  planRow,
+  type TranscriptGroup as TranscriptGroupData,
+  type TranscriptRow,
 } from "./chat-stream-utils";
 import { FolderAttachmentsCard } from "./folder-attachments-card";
 import { MessageError } from "./message-error";
+import { GroupHeading } from "./message-part/group-heading";
+import {
+  STEP_RUN,
+  TranscriptGroup,
+  TranscriptGroupHead,
+} from "./message-part/transcript-group";
 import { ProjectContextNote } from "./project-context-note";
 import { ReasoningMessage } from "./reasoning-message";
 import { Alert, AlertDescription } from "./ui/alert";
@@ -35,6 +46,19 @@ import { Wordmark } from "./wordmark";
 // After a streaming text part stops growing for this long, treat it as stalled
 // so the planning loader can reappear beneath the otherwise-finished prose.
 const STREAM_STALL_MS = 700;
+
+// How far the rows a group holds sit inside its head line: one step in, enough
+// that the indent reads at a glance without pushing the run away from the
+// margin the rest of the transcript is set against.
+const GROUP_INDENT = "pl-6";
+
+// The wordmark's row key, for the one case where it is not a message's own
+// chrome but a row in the turn that has not started yet.
+const TURN_WORDMARK_ID = "turn-wordmark";
+
+// The planning row's key. It is not a part, and belongs to no group: it says
+// the agent is working with nothing to show for it yet.
+const PLANNING_ROW_ID = "planning";
 
 interface ChatStreamProps {
   isAgentRunning: boolean;
@@ -51,6 +75,15 @@ interface ChatStreamProps {
   task: Task;
 }
 
+interface MessageRow {
+  /** The group this row is drawn in; absent for rows outside one. */
+  groupId?: string;
+  /** The part id, or a synthetic key for a row that is not a part. */
+  id: string;
+  /** Null once the fold has taken the row out; the row still holds its place. */
+  node: React.ReactNode;
+}
+
 export function ChatStream({
   isAgentRunning,
   isDeveloperMode,
@@ -63,6 +96,29 @@ export function ChatStream({
   task,
 }: ChatStreamProps) {
   const assetBaseUrl = getAssetBaseUrl(task.id);
+
+  // Every group starts closed, a reopened task included: what a finished task
+  // did is a list of the phases it went through, and the steps inside a phase
+  // are there for the reader who asks for them.
+  const [expandedGroupIds, setExpandedGroupIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+
+  const toggleGroup = useCallback((groupId: string) => {
+    setExpandedGroupIds((current) => {
+      const next = new Set(current);
+      if (!next.delete(groupId)) {
+        next.add(groupId);
+      }
+      return next;
+    });
+  }, []);
+
+  const isGroupExpanded = useCallback(
+    (group: TranscriptGroupData | undefined) =>
+      group !== undefined && expandedGroupIds.has(group.id),
+    [expandedGroupIds],
+  );
 
   // The prompts the session was seeded with belong to the debug chat dialog,
   // not the transcript.
@@ -103,35 +159,11 @@ export function ChatStream({
 
   const streamingTailTextStalled = useStreamStalled(streamingTailText);
 
-  const hasActiveLoadingState = useMemo(() => {
-    if (!isAgentRunning || !lastAssistantMessage) {
-      return false;
-    }
-
-    const lastPart = lastAssistantMessage.parts.at(-1);
-    if (!lastPart) {
-      return false;
-    }
-    if (lastPart.type === "text") {
-      // Empty streaming text renders nothing and stalled streaming text has
-      // stopped producing output; neither should mask the planning loader.
-      return streamingTailText !== undefined && !streamingTailTextStalled;
-    }
-    if (isToolPart(lastPart)) {
-      return isActiveToolPart(lastPart);
-    }
-    if (lastPart.type === "reasoning" && lastPart.state === "streaming") {
-      return true;
-    }
-    return false;
-  }, [
-    isAgentRunning,
-    lastAssistantMessage,
-    streamingTailText,
-    streamingTailTextStalled,
-  ]);
-
-  const isPlanningVisible = isAgentRunning && !hasActiveLoadingState;
+  // Prose still arriving is its own loading state, and the one active state
+  // with no inline affordance of its own (AssistantMessage renders plain
+  // markdown). Stalled means it has stopped producing, so it stops counting.
+  const hasStreamingTailText =
+    streamingTailText !== undefined && !streamingTailTextStalled;
 
   const lastAssistantMessageHasVisibleParts = useMemo(() => {
     if (!lastAssistantMessage) {
@@ -148,16 +180,24 @@ export function ChatStream({
     );
   }, [isDeveloperMode, isToolStreaming, lastAssistantMessage]);
 
-  // Precomputed so run edges can span message boundaries.
-  const runBoundaryMap = useMemo(
+  // Precomputed over the whole transcript, since a group and the run edges
+  // around it both cross message boundaries.
+  const layout = useMemo(
     () =>
-      buildRunBoundaryMap({
-        hasTrailingPlanning: isPlanningVisible,
+      buildTranscriptLayout({
+        hasStreamingTailText,
+        isAgentRunning,
         isDeveloperMode,
         isToolStreaming,
         regularMessages,
       }),
-    [isDeveloperMode, isPlanningVisible, isToolStreaming, regularMessages],
+    [
+      hasStreamingTailText,
+      isAgentRunning,
+      isDeveloperMode,
+      isToolStreaming,
+      regularMessages,
+    ],
   );
 
   const renderCtx: RenderPartContext = useMemo(
@@ -181,15 +221,74 @@ export function ChatStream({
     ],
   );
 
+  // A group's head line copies the step the agent is on, which lives in some
+  // later message than the one the group opens in. Rendering it means reaching
+  // for a part by id rather than by where the loop below has got to.
+  const partsById = useMemo(() => {
+    const byId = new Map<
+      string,
+      {
+        message: SessionMessage.WithParts;
+        part: SessionMessagePart.Type;
+        partIndex: number;
+      }
+    >();
+    for (const message of regularMessages) {
+      for (const [partIndex, part] of message.parts.entries()) {
+        byId.set(part.metadata.id, { message, part, partIndex });
+      }
+    }
+    return byId;
+  }, [regularMessages]);
+
+  const renderStandIn = useCallback(
+    (group: TranscriptGroupData): React.ReactNode => {
+      const rowId = groupStandInRowId({
+        group,
+        isExpanded: isGroupExpanded(group),
+      });
+      if (rowId === undefined) {
+        return null;
+      }
+
+      const found = partsById.get(rowId);
+      if (!found) {
+        return null;
+      }
+      const node = renderChatPart({
+        browserStatusContextAdded: false,
+        ctx: renderCtx,
+        isGroupWorking: true,
+        message: found.message,
+        part: found.part,
+        partIndex: found.partIndex,
+      });
+      if (!node) {
+        return null;
+      }
+
+      // Under a heading the copy is one of the group's rows and sits where they
+      // sit. With no heading it is the head line itself, so it takes the outer
+      // edge and answers the clicks that open and close the group.
+      return group.headingRowId === undefined ? (
+        <TranscriptGroupHead key="stand-in">{node}</TranscriptGroupHead>
+      ) : (
+        <div className={GROUP_INDENT} key="stand-in">
+          {node}
+        </div>
+      );
+    },
+    [isGroupExpanded, partsById, renderCtx],
+  );
+
   const chatElements = useMemo(() => {
-    const planningBoundary = runBoundaryMap.get(PLANNING_BOUNDARY_ID);
     const elements: React.ReactNode[] = [];
     let lastFooterIndex = 0;
     let previousBrowserStatusNote: string | undefined;
     let visibleAssistantContentCount = 0;
 
     for (const [messageIndex, message] of regularMessages.entries()) {
-      const messageElements: React.ReactNode[] = [];
+      const messageRows: MessageRow[] = [];
 
       const prevMessage = regularMessages[messageIndex - 1];
       const nextMessage = regularMessages[messageIndex + 1];
@@ -230,9 +329,29 @@ export function ChatStream({
           continue;
         }
 
+        const rowId = part.metadata.id;
+        const row = layout.rows.get(rowId);
+        const group =
+          row?.groupId === undefined
+            ? undefined
+            : layout.groups.get(row.groupId);
+        const { isHidden, isIndented } = planRow({
+          group,
+          isExpanded: isGroupExpanded(group),
+          row,
+        });
+        // A folded row still takes its place in the run, so the group it
+        // belongs to is drawn even when everything in it is folded away. It is
+        // not rendered, and does not count as something the turn said.
+        if (isHidden) {
+          messageRows.push({ groupId: row?.groupId, id: rowId, node: null });
+          continue;
+        }
+
         const node = renderChatPart({
           browserStatusContextAdded,
           ctx: renderCtx,
+          isGroupWorking: group?.phase === "working",
           message,
           part,
           partIndex,
@@ -241,47 +360,24 @@ export function ChatStream({
           continue;
         }
 
-        const boundary = runBoundaryMap.get(part.metadata.id);
-        if (boundary?.isRunRow) {
-          messageElements.push(
-            <div
-              className={cn(
-                !boundary.prevIsRunRow && "mt-2",
-                !boundary.nextIsRunRow && "mb-2",
-              )}
-              key={`run-row-${part.metadata.id}`}
-            >
-              {node}
-            </div>,
-          );
-        } else {
-          messageElements.push(node);
-        }
+        messageRows.push({
+          groupId: row?.groupId,
+          id: rowId,
+          node: wrapRow({ isIndented, key: rowId, node, row }),
+        });
 
         if (message.role === "assistant") {
           visibleAssistantContentCount++;
         }
       }
 
-      // Planning is the tail of the last turn rather than a row of its own, so
-      // it lands where the call that replaces it will. The two swap places
-      // constantly while a run steps, and any difference in offset between them
-      // reads as the transcript jumping, so it takes its margins from the same
-      // run adjacency a tool call wrapper does.
-      if (isLastMessage && planningBoundary) {
-        messageElements.push(
-          <div
-            className={cn(!planningBoundary.prevIsRunRow && "mt-2", "mb-2")}
-            key="planning"
-          >
-            <ReasoningMessage
-              isLoading
-              noDelay={!lastAssistantMessageHasVisibleParts}
-              text=""
-            />
-          </div>,
-        );
-      }
+      const messageElements = collectGroups({
+        groups: layout.groups,
+        isGroupExpanded,
+        onToggle: toggleGroup,
+        renderStandIn,
+        rows: messageRows,
+      });
 
       // --- Per-message chrome ---
 
@@ -289,16 +385,11 @@ export function ChatStream({
         isFirstInConsecutiveAssistantGroup &&
         (!isLastMessage ||
           lastAssistantMessageHasVisibleParts ||
-          isPlanningVisible);
+          layout.hasPlanningRow);
 
       if (isLogoVisible) {
         messageElements.unshift(
-          <div
-            className="flex justify-start"
-            key={`assistant-header-${message.id}`}
-          >
-            <Wordmark className="mt-5 mb-2 h-5.5 text-black/30 dark:text-white/30" />
-          </div>,
+          <TurnWordmark key={`assistant-header-${message.id}`} />,
         );
       }
 
@@ -422,22 +513,73 @@ export function ChatStream({
       }
     }
 
+    // Planning is the tail of the turn, not a row of any one message in it. It
+    // is drawn here, once, because the message it would otherwise belong to
+    // changes underneath it: the agent's first message arrives and the row has
+    // to move from the user's element into that one. Moved, it is a new element
+    // wherever it lands, so it fades in a second time and the turn reads as
+    // announcing itself twice. Drawn at the end it is the same element from the
+    // moment the turn opens until a real row replaces it.
+    if (layout.hasPlanningRow) {
+      const tail: React.ReactNode[] = [];
+
+      // The wordmark heads the turn, and planning is the first thing the turn
+      // shows. Between the user sending and the agent's first message arriving
+      // there is no assistant message for the wordmark to head, so it comes in
+      // here instead. Without this the turn opens on a bare "Planning..." and
+      // the wordmark drops in above it a moment later, pushing everything the
+      // agent then says down the page.
+      if (regularMessages.at(-1)?.role === "user") {
+        tail.push(<TurnWordmark key={TURN_WORDMARK_ID} />);
+      }
+
+      // A run of one step, in the same box every other run of steps sits in:
+      // without it the row is 4px lower than the step that replaces it, and the
+      // transcript lifts every time the agent starts doing something.
+      tail.push(
+        <div className={STEP_RUN} key={PLANNING_ROW_ID}>
+          <ReasoningMessage
+            isLoading
+            noDelay={!lastAssistantMessageHasVisibleParts}
+            text=""
+          />
+        </div>,
+      );
+
+      // Keyed, both of them, or React reconciles the tail by its position in
+      // the list and a message landing above it counts as a different element.
+      if (renderAsItems) {
+        elements.push(
+          <MessageScrollerItem
+            className="flex flex-col gap-2"
+            key={PLANNING_ROW_ID}
+          >
+            {tail}
+          </MessageScrollerItem>,
+        );
+      } else {
+        elements.push(...tail);
+      }
+    }
+
     return elements;
   }, [
     regularMessages,
     renderCtx,
     renderAsItems,
-    runBoundaryMap,
+    layout,
     assetBaseUrl,
+    isGroupExpanded,
     task.id,
     isAgentRunning,
     isDeveloperMode,
-    isPlanningVisible,
     lastAssistantMessageHasVisibleParts,
     onContinue,
     onModelChange,
     onRetry,
     onStartNewTask,
+    renderStandIn,
+    toggleGroup,
   ]);
 
   const shouldShowContinueButton = useMemo(() => {
@@ -494,6 +636,99 @@ export function ChatStream({
   );
 }
 
+// Boxes each run of rows that share a group, leaving everything else where it
+// was. Adjacency is all it takes: the layout pass has already worked out which
+// group each row belongs to, so a box is the stretch of rows answering to the
+// same id.
+//
+// A turn is one message per step, so a group of any size reaches across several
+// of them and this runs once per message over its share. Everything the box
+// decides therefore comes off the group -- whether it can be opened, where its
+// head line goes -- and never off the rows that happen to have landed on this
+// side of a boundary. A folded group draws in the slice it opened in and nowhere
+// else, which is what keeps it still while the agent works past it.
+function collectGroups({
+  groups,
+  isGroupExpanded,
+  onToggle,
+  renderStandIn,
+  rows,
+}: {
+  groups: Map<string, TranscriptGroupData>;
+  isGroupExpanded: (group: TranscriptGroupData | undefined) => boolean;
+  onToggle: (groupId: string) => void;
+  renderStandIn: (group: TranscriptGroupData) => React.ReactNode;
+  rows: MessageRow[];
+}): React.ReactNode[] {
+  const runs: { groupId?: string; rows: MessageRow[] }[] = [];
+  for (const row of rows) {
+    const current = runs.at(-1);
+    if (current && current.groupId === row.groupId) {
+      current.rows.push(row);
+    } else {
+      runs.push({ groupId: row.groupId, rows: [row] });
+    }
+  }
+
+  return runs.flatMap((run) => {
+    const group =
+      run.groupId === undefined ? undefined : groups.get(run.groupId);
+    const nodes = run.rows.map((row) => row.node).filter(Boolean);
+    if (!group) {
+      return nodes;
+    }
+
+    // The head line belongs to the slice the group opens on, or it would be
+    // drawn again for every message the group runs through. The copy of the
+    // step in flight follows the last row the group still draws, which is that
+    // same slice until the agent writes something mid-phase.
+    const heading = run.rows.some((row) => row.id === group.id)
+      ? generatedGroupHeading(group)
+      : undefined;
+    const standIn = run.rows.some((row) => row.id === group.standInAfterRowId)
+      ? renderStandIn(group)
+      : null;
+
+    // With the group folded, a middle slice holds nothing that draws, and an
+    // empty box is a blank gap down the transcript where the steps used to be.
+    if (nodes.length === 0 && heading === undefined && standIn === null) {
+      return [];
+    }
+
+    // With a heading over it the copy of the step in flight is one of the
+    // group's rows and follows them; with no heading it is the head line and
+    // leads.
+    const standsAtHead = group.headingRowId === undefined;
+
+    return (
+      <TranscriptGroup
+        canExpand={groupCanExpand(group)}
+        isExpanded={isGroupExpanded(group)}
+        key={`group-${group.id}-${run.rows[0]?.id ?? ""}`}
+        onToggle={() => {
+          onToggle(group.id);
+        }}
+      >
+        {heading !== undefined && (
+          <GroupHeading key="heading" title={heading} />
+        )}
+        {standsAtHead && standIn}
+        {nodes}
+        {!standsAtHead && standIn}
+      </TranscriptGroup>
+    );
+  });
+}
+
+// What opens an assistant turn, wherever the turn is opening from.
+function TurnWordmark() {
+  return (
+    <div className="flex justify-start">
+      <Wordmark className="mt-5 mb-2 h-5.5 text-black/30 dark:text-white/30" />
+    </div>
+  );
+}
+
 // True once `text` stops changing for STREAM_STALL_MS. Timer-based, so it can't
 // be derived declaratively: each new value arms a fresh timeout that records the
 // value it settled on, and the result compares that against the current text so
@@ -513,4 +748,39 @@ function useStreamStalled(text: string | undefined) {
     };
   }, [text]);
   return text !== undefined && stalledText === text;
+}
+
+// The wrapper a row sits in.
+//
+// A group's steps are indented under its head line. Prose is not, though the
+// group still holds it: see `planRow` for why the answer a turn ends on cannot
+// afford to be somewhere it will have to move away from.
+//
+// No vertical margins anywhere. The 8px rhythm is the group box's job (see
+// `TranscriptGroup`), and it only works if every row in the box is the same
+// height it looks: a step already carries 4px of padding for its click target,
+// so anything in the box that is not a step is padded to match.
+function wrapRow({
+  isIndented,
+  key,
+  node,
+  row,
+}: {
+  isIndented: boolean;
+  key: string;
+  node: React.ReactNode;
+  row: TranscriptRow | undefined;
+}): React.ReactNode {
+  const needsRowPadding = row?.groupId !== undefined && row.kind !== "step";
+  if (!isIndented && !needsRowPadding) {
+    return node;
+  }
+  return (
+    <div
+      className={cn(isIndented && GROUP_INDENT, needsRowPadding && "py-1")}
+      key={`run-row-${key}`}
+    >
+      {node}
+    </div>
+  );
 }

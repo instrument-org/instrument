@@ -26,6 +26,7 @@ import { useToolCallSession } from "./tool-call-session";
 import { FileChip } from "./tool-card";
 import { SourceImagesChip } from "./tool-generate-image";
 import { WebSearchChip } from "./tool-web-search";
+import { useTranscriptGroup } from "./transcript-group";
 
 export function ToolCallSummary({
   assetBaseUrl,
@@ -39,8 +40,28 @@ export function ToolCallSummary({
   part: SessionMessagePart.ToolPart;
 }) {
   const features = useAtomValue(featuresAtom);
-  const { isStreaming } = useToolCallSession();
+  const { isRunning, isStreaming } = useToolCallSession();
+  const group = useTranscriptGroup();
   const [isOpen, setIsOpen] = useState(false);
+
+  // Non-null when this row is the head line of a group with something behind
+  // it, which is what makes it answer a click on the group's behalf.
+  const groupHead = group?.isHead === true && group.canExpand ? group : null;
+
+  // A call is asked for well before it is worked on, so a row has three states
+  // and not two: the one the agent is on, the ones queued behind it, and the
+  // ones already done. `isStreaming` covers the first two -- asked for, not
+  // finished -- and `isRunning` narrows to the first.
+  //
+  // Only the head line of a group claims the green, so there is one thing
+  // moving per group: a second live indicator on a row beneath it would read as
+  // two things happening at once. Everything else still working says so in the
+  // quieter shimmer, and only a finished call settles to the resting color.
+  // Without that middle state a call that has arrived but not started reads as
+  // done, which on a batch is a run of rows claiming to be finished and, in the
+  // gap between the model emitting a call and the queue reaching it, is a
+  // flicker through the finished treatment.
+  const isFocused = isRunning && (group === null || group.isHead);
 
   const toolName = getToolNameByType(part.type);
   const browserInfo = getBrowserInfo(part);
@@ -83,14 +104,14 @@ export function ToolCallSummary({
     : null;
 
   const trigger = (
-    <div className="group/run-row inline-flex max-w-full min-w-0 items-center gap-3 py-1.5">
+    <div className="group/run-row inline-flex max-w-full min-w-0 items-center gap-2 py-1">
       {isDeadDevMode ? (
         <span className="flex shrink-0 items-center gap-1 rounded-full border border-dev-500/30 bg-dev-500/10 px-1.5 py-0.5 text-[10px] font-medium text-dev-500 uppercase">
           <EyeIcon className="size-2.5" />
           Dev
         </span>
-      ) : isStreaming ? (
-        <PlanningDotIcon className="size-3 shrink-0" />
+      ) : isFocused ? (
+        <PlanningDotIcon />
       ) : (
         Icon && (
           <span className="flex size-5 shrink-0 items-center justify-center rounded-lg bg-black/5 dark:bg-white/5">
@@ -102,12 +123,14 @@ export function ToolCallSummary({
       <span
         className={cn(
           // No leading override: the label's own 20px line box is what holds
-          // the row at one height across every state, since the indicator
-          // beside it is 20px done and 12px while the call runs.
+          // the row at one height, and it is the same 20px the indicator beside
+          // it takes in every state.
           "min-w-0 truncate text-sm",
-          isStreaming
+          isFocused
             ? "brand-shiny-text"
-            : "text-muted-foreground group-hover/run-row:text-foreground",
+            : isStreaming
+              ? "shiny-text"
+              : "text-muted-foreground group-hover/run-row:text-foreground",
         )}
       >
         {deadLabel ?? label}
@@ -126,9 +149,22 @@ export function ToolCallSummary({
       <SourceImagesChip assetBaseUrl={assetBaseUrl} part={part} />
       <FileChip part={part} />
 
-      <RunRowChevron isOpen={isOpen} />
+      <RunRowChevron
+        isOpen={groupHead === null ? isOpen : groupHead.isExpanded}
+      />
     </div>
   );
+
+  // As a group's head line the row's click belongs to the group: the reader is
+  // asking to see the steps behind it, not this one call's output. It keeps the
+  // click while the group is open, since it is then the only way to shut it.
+  if (groupHead !== null) {
+    return (
+      <Collapsible onOpenChange={groupHead.toggle} open={groupHead.isExpanded}>
+        <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
+      </Collapsible>
+    );
+  }
 
   return (
     <Collapsible onOpenChange={setIsOpen} open={isOpen}>

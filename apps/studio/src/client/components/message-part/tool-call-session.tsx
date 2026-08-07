@@ -1,6 +1,8 @@
 import { createContext, type ReactNode, useContext } from "react";
 
 interface ToolCallSessionValue {
+  /** The runtime is executing this call now; see `isToolPartRunning`. */
+  isRunning: boolean;
   isStreaming: boolean;
 }
 
@@ -8,13 +10,15 @@ const ToolCallSessionContext = createContext<null | ToolCallSessionValue>(null);
 
 export function ToolCallSessionProvider({
   children,
+  isRunning,
   isStreaming,
 }: {
   children: ReactNode;
+  isRunning: boolean;
   isStreaming: boolean;
 }) {
   return (
-    <ToolCallSessionContext.Provider value={{ isStreaming }}>
+    <ToolCallSessionContext.Provider value={{ isRunning, isStreaming }}>
       {children}
     </ToolCallSessionContext.Provider>
   );

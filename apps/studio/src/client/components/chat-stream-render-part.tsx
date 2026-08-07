@@ -8,7 +8,10 @@ import {
 import { AssistantMessage } from "./assistant-message";
 import { isDataPart, renderDataPart } from "./chat-stream-data-parts";
 import { ToolCall } from "./message-part/tool-call";
-import { isToolCallVisible } from "./message-part/tool-call-utils";
+import {
+  isToolCallVisible,
+  isToolPartRunning,
+} from "./message-part/tool-call-utils";
 import { ReasoningMessage } from "./reasoning-message";
 import { isReasoningPartVisible } from "./reasoning-utils";
 import { UnknownPart } from "./unknown-part";
@@ -32,12 +35,15 @@ export interface RenderPartContext {
 export function renderChatPart({
   browserStatusContextAdded,
   ctx,
+  isGroupWorking,
   message,
   part,
   partIndex,
 }: {
   browserStatusContextAdded: boolean;
   ctx: RenderPartContext;
+  /** The group this part sits in is still taking rows; see `TranscriptGroup`. */
+  isGroupWorking: boolean;
   message: SessionMessage.WithParts;
   part: SessionMessagePart.Type;
   partIndex: number;
@@ -89,12 +95,17 @@ export function renderChatPart({
       return null;
     }
 
-    // The boundary wrapper div with mt-2/mb-2 around tool-call runs is added
-    // by the chat stream caller, not here.
+    // Indentation and the group box around a run of these are the chat
+    // stream's, not this row's.
     return (
       <ToolCall
         assetBaseUrl={ctx.assetBaseUrl}
+        isActivityRunning={isGroupWorking && ctx.isAgentRunning}
         isDeveloperMode={ctx.isDeveloperMode}
+        // A part can carry a start with no end long after the run that wrote it
+        // died, so the record alone never means "running now": the live session
+        // has to agree, which is what `isToolStreaming` already establishes.
+        isRunning={streaming && isToolPartRunning(part)}
         isStreaming={streaming}
         key={part.metadata.id}
         onRetry={ctx.onRetry}

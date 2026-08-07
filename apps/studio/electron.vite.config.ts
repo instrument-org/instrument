@@ -16,7 +16,8 @@ import { analyzer } from "vite-bundle-analyzer";
 const isAnalyzing = process.env.ANALYZE_BUILD === "true";
 
 // electron-vite deep-clones the config before resolving async plugin factories,
-// so this one is awaited here rather than inline in `plugins`.
+// so this one is awaited here rather than inline in `plugins`. Drop the hoist
+// once https://github.com/alex8088/electron-vite/issues/902 ships.
 const reactCompilerBabel = await babel({
   presets: [reactCompilerPreset()],
 });

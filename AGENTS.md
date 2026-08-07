@@ -62,9 +62,9 @@ A format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`) runs oxfm
 - **React** 19.2 / **react-dom** 19.2
 - **TypeScript** 5.9 (also available as `@typescript/native-preview` 7.x via `tsgo`)
 - **Zod** 4.x
-- **Vite** 7.x / **Vitest** 4.x
+- **Vite** 8.x (Rolldown/Oxc) / **Vitest** 4.x
 - **AI SDK** 6.x
-- **better-auth** 1.2.x
+- **better-auth** 1.6.x
 - **pnpm** 11.10.0 (`packageManager`) / **Node** >=24.15.0 (`engines`)
 
 ## Package management

@@ -23,15 +23,29 @@ Core AI agents, workflow logic, RPC, tools, and runtime.
 real models. `evals/cases/` holds committed cases with assertions; `--prompt`
 runs a throwaway one.
 
+`pnpm eval` also exists at the repo root, so none of these need a `cd` first.
+
 ```bash
 pnpm eval list                      # committed cases
 pnpm eval run [pattern]             # run them
 pnpm eval run --yes --prompt "..."  # one ad-hoc case
-pnpm eval report <workspace-dir>    # re-report a past run
+pnpm eval report <workspace-dir>    # re-report a past run, at no cost
 ```
 
 Flags: `--model` (repeatable; bare slug means OpenRouter, full model URI pins any
-configured provider), `--name`, `--concurrency`, `--dry-run`, `--include-context`.
+configured provider), `--name`, `--repeat`, `--concurrency`, `--dry-run`,
+`--include-context`, `--json`.
+
+`run` and `report` exit non-zero when an assertion failed or a model request was
+refused, so a failed suite is visible without reading the output. `--json` prints
+the whole report as one line on stdout with all narration on stderr; the same
+payload is always written to `summary.json` in the results directory, which is
+the more reliable thing to script against. Color is emitted only to a terminal,
+so a piped run needs no escape-stripping.
+
+A run stops itself at `--max-run-tokens` (1M) or `--max-run-seconds` (1800), both
+of which take `0` to disable. Neither is a failure and both are reported apart
+from one: a stopped run is `Stopped`, only a refused request is `Failed`.
 
 With no `--model`, a case runs against `MODELS` in `harness.ts`: the current
 frontier model from each closed provider plus the strongest open-weights one, so
@@ -41,8 +55,12 @@ no edit here. The harness prints what each resolved to and records it as
 `resolvedModelId` in the run's `eval-case.json`, since "latest" is not a build
 anyone can identify a month later.
 
-Results land in `eval-results.local/<timestamp>/<task>/` as `session.md` (the
-rendered transcript), `stats.json`, `errors.json`, and `assertions.json`.
+Results land in `eval-results.local/<timestamp>/<case>/<model>/` as `session.md`
+(the rendered transcript), `stats.json`, `errors.json`, `assertions.json`, and
+`eval-case.json`. Case and model name the path and every printed line, because a
+seven-model run is otherwise twenty-one directories distinguished by a numeric
+suffix. An approximate cost accompanies each run wherever the model's price is
+known.
 
 For choosing whether an eval is the right check at all, see the
 `validate-changes` skill.

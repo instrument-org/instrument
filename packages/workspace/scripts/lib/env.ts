@@ -16,5 +16,7 @@ export const env = createEnv({
     APP_OPENROUTER_API_KEY: z.string().optional(),
     APP_REGISTRY_DIR_PATH: z.string().optional(),
     APP_ZAI_API_KEY: z.string().optional(),
+    FORCE_COLOR: z.string().optional(),
+    NO_COLOR: z.string().optional(),
   },
 });

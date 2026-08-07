@@ -60,19 +60,28 @@ This is the only rung that tells you whether a model finds and uses what you
 built.
 
 ```bash
-cd packages/workspace
 pnpm eval run --yes --prompt "<task for the agent>" --model anthropic/claude-haiku-4.5
 ```
 
+- Runs from the repo root; no `cd` first.
 - `--model` repeats to build a case x model matrix. Different models fail
-  differently; one model succeeding is weak evidence.
+  differently; one model succeeding is weak evidence. `--repeat` samples the
+  same model more than once, which is what a nondeterministic result needs.
 - A bare slug reads as OpenRouter. Pass a full model URI
   (`<model>?provider=<p>&providerConfigId=<p>-config-id`) to pin another
   configured provider.
-- Each run prints the path to a rendered `session.md`. **Read it.** The tool
-  sequence is the result; the agent's closing summary is not.
+- Each run prints the path to a rendered `session.md`, filed under
+  `<case>/<model>`. **Read it.** The tool sequence is the result; the agent's
+  closing summary is not.
 - Check the summary's failed-request line before trusting anything: a run that
-  dies on a rate limit still produces a task and a transcript.
+  dies on a rate limit still produces a task and a transcript. A run reported as
+  `Stopped` is not that: the harness or the case ended it on purpose.
+- Exit status is non-zero when an assertion failed or a request was refused, so
+  the run does not have to be read to know whether it passed. `--json` and the
+  `summary.json` beside the results carry the same verdict per case and model.
+- Changing an assertion costs nothing to re-check: `pnpm eval report <workspace
+  dir>` re-runs every assertion against the sessions already recorded. The run
+  prints the exact command to use.
 
 Committed cases live in `packages/workspace/evals/cases/`; add one when a
 behavior is worth guarding permanently. Details in

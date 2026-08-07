@@ -18,11 +18,13 @@ import type { Session } from "../src/schemas/session";
 import { workspaceMachine } from "../src/electron";
 import { isToolPart } from "../src/lib/is-tool-part";
 import { createProject } from "../src/lib/project";
+import { Store } from "../src/lib/store";
 import { getTaskUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
 import { session as sessionRoute } from "../src/rpc/routes/session";
 import { task as taskRoute } from "../src/rpc/routes/task";
 import { type FileUpload } from "../src/schemas/file-upload";
+import { type FolderAttachment } from "../src/schemas/folder-attachment";
 import { type ProjectId } from "../src/schemas/project-id";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { type StoreId } from "../src/schemas/store-id";
@@ -32,10 +34,12 @@ import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
 import {
   buildProviderConfigs,
   c,
+  fetchOpenRouterCatalog,
+  formatCost,
   formatNumber,
   modelURI,
-  resolveOpenRouterAliases,
   resolveRegistryDir,
+  write,
 } from "./utils";
 
 export interface Assertion {
@@ -73,7 +77,11 @@ export const MODELS = [
 ];
 
 export interface CompletedRun {
+  /** Approximate USD, when the model's price is known. See `formatCost`. */
+  costUSD?: number;
   label: string;
+  /** The sanitized model id, as it appears in the label and the results path. */
+  modelLabel: string;
   modelURI: string;
   /** The eval case this run came from, so a report can find it by task id. */
   name: string;
@@ -84,8 +92,20 @@ export interface CompletedRun {
    * model, where `modelURI` already says it.
    */
   resolvedModelId?: string;
+  /** Absent when the agent ended the turn itself. */
+  stoppedBy?: RunStop;
   taskId: TaskId;
+  /** 1-based, and only meaningful when `repeat` asked for more than one. */
+  trial: number;
+  usage: { inputTokens: number; outputTokens: number; totalTokens: number };
 }
+
+/**
+ * Why a run ended somewhere other than the agent deciding it was finished.
+ * `unknown` is what a report over a past workspace can tell: the session was
+ * stopped, and nothing recorded on the task says by what.
+ */
+export type RunStop = "budget" | "case" | "timeout" | "unknown";
 
 /**
  * Ceiling on one run's total tokens before the harness stops it.
@@ -97,10 +117,37 @@ export interface CompletedRun {
  */
 export const DEFAULT_MAX_RUN_TOKENS = 1_000_000;
 
+/**
+ * Ceiling on one run's wall clock. The token cap does not cover a run that
+ * stops producing anything at all -- a stalled request, a session that never
+ * reports itself done -- and that failure hangs the whole suite behind it,
+ * which is why every recorded invocation of this harness wraps it in `timeout`.
+ */
+export const DEFAULT_MAX_RUN_SECONDS = 1800;
+
+/**
+ * How often a run's spend is checked against the caps.
+ *
+ * The check also runs on every completed tool call, which is where a runaway
+ * usually shows first. This interval is what covers the case tool calls cannot:
+ * a model looping on text or reasoning makes no tool calls at all, so nothing
+ * event-driven ever looks at its total.
+ *
+ * Both readings come from the stored messages, and usage only lands there when
+ * an assistant message is saved -- so the total does not move within a turn,
+ * however many tool calls that turn makes. The token cap therefore acts at turn
+ * boundaries, and the wall-clock cap is the only thing bounding a single turn
+ * that will not end.
+ */
+const ENFORCEMENT_INTERVAL_MS = 15_000;
+
+/** After a stop is issued, how long to wait for the session to actually end. */
+const STOP_GRACE_MS = 60_000;
+
 export interface EvalCase {
   assertions?: Assertion[];
   files?: FileUpload.Type[];
-  folders?: { path: string }[];
+  folders?: { access?: FolderAttachment.Access; path: string }[];
   name: string;
   /**
    * Run the task inside a project created for it. The only way to exercise the
@@ -124,18 +171,32 @@ export function defineEval(evalCase: EvalCase): EvalCase {
   return evalCase;
 }
 
+/**
+ * The short model name a run is labeled and filed under. A report generated
+ * from a past workspace has no runs to read this from, only the model URI each
+ * task recorded, so the derivation has to be available on its own.
+ */
+export function modelLabelFor(uri: string): string {
+  const parsed = AIGatewayModelURI.parse(uri);
+  return sanitizeCanonicalId(parsed.ok ? parsed.value.canonicalId : uri);
+}
+
 export async function runEvals(
   evals: EvalCase[],
   {
-    concurrency = 3,
+    concurrency = 8,
     dryRun = false,
+    maxRunSeconds = DEFAULT_MAX_RUN_SECONDS,
     maxRunTokens = DEFAULT_MAX_RUN_TOKENS,
     models = MODELS,
+    repeat = 1,
   }: {
     concurrency?: number;
     dryRun?: boolean;
+    maxRunSeconds?: number;
     maxRunTokens?: number;
     models?: string[];
+    repeat?: number;
   } = {},
 ): Promise<{ runs: CompletedRun[]; workspaceRootDir: string }> {
   const workspaceRootDir = path.join(
@@ -145,12 +206,12 @@ export async function runEvals(
   const providerConfigs = buildProviderConfigs();
   const registryDir = resolveRegistryDir();
 
-  process.stdout.write(`${c.dim}Workspace :${c.reset} ${workspaceRootDir}\n`);
-  process.stdout.write(`${c.dim}Registry  :${c.reset} ${registryDir}\n`);
+  write(`${c.dim}Workspace :${c.reset} ${workspaceRootDir}\n`);
+  write(`${c.dim}Registry  :${c.reset} ${registryDir}\n`);
 
-  const aliasTargets = await resolveOpenRouterAliases(models);
-  for (const [alias, target] of aliasTargets) {
-    process.stdout.write(
+  const catalog = await fetchOpenRouterCatalog(models);
+  for (const [alias, target] of catalog.aliasTargets) {
+    write(
       `${c.dim}Alias     :${c.reset} ${alias} ${c.dim}->${c.reset} ${target}\n`,
     );
   }
@@ -197,12 +258,22 @@ export async function runEvals(
 
   actor.start();
 
-  const runs = models.flatMap((uri) => {
-    const parsed = AIGatewayModelURI.parse(uri);
-    const canonicalId = parsed.ok ? parsed.value.canonicalId : uri;
-    const modelPrefix = sanitizeCanonicalId(canonicalId);
-    return evals.map((evalCase) => ({ evalCase, modelPrefix, uri }));
-  }).map((run, index) => ({ ...run, index }));
+  const runs = models
+    .flatMap((uri) => {
+      const modelLabel = modelLabelFor(uri);
+      return evals.flatMap((evalCase) =>
+        _.list(1, repeat).map((trial) => ({
+          evalCase,
+          modelLabel,
+          trial,
+          uri,
+        })),
+      );
+    })
+    .map((run, index) => ({ ...run, index }));
+
+  const totalRuns = runs.length;
+  let finishedRuns = 0;
 
   // A task id is slugified from the prompt, and the name is claimed by creating
   // the directory. Running one case against several models means several runs
@@ -215,13 +286,10 @@ export async function runEvals(
   const completed = await _.parallel(
     concurrency,
     runs,
-    async ({ evalCase, index, modelPrefix, uri }) => {
-      const label =
-        models.length > 1 ? `${evalCase.name}/${modelPrefix}` : evalCase.name;
+    async ({ evalCase, index, modelLabel, trial, uri }) => {
+      const { label } = runKey({ modelLabel, name: evalCase.name, trial });
 
-      process.stdout.write(
-        `${evalPrefix(label)}${c.dim}Starting...${c.reset}\n`,
-      );
+      write(`${evalPrefix(label)}${c.dim}Starting...${c.reset}\n`);
 
       const context = {
         workspaceConfig: actor.getSnapshot().context.config,
@@ -237,7 +305,7 @@ export async function runEvals(
         if (evalCase.project) {
           const project = await createProject({
             instructions: evalCase.project.instructions,
-            name: `${evalCase.project.name} ${modelPrefix} ${index}`,
+            name: `${evalCase.project.name} ${modelLabel} ${index}`,
           });
           if (project.isErr()) {
             throw project.error;
@@ -262,16 +330,50 @@ export async function runEvals(
       creating = created.then(_.noop, _.noop);
       const { id, sessionId } = await created;
 
-      process.stdout.write(
+      write(
         `${evalPrefix(label)}${c.green}Task created${c.reset}${c.dim} (id: ${id})${c.reset}\n`,
       );
 
       const abortController = new AbortController();
-      let stoppedForBudget = false;
+      const startedAt = Date.now();
+      let stoppedBy: RunStop | undefined;
       let overBudget: number | undefined;
       const partUpdates = publisher.subscribe("part.updated", {
         signal: abortController.signal,
       });
+
+      // A model handed an unrecoverable input can keep trying to recover from
+      // it, and nothing in the loop is wrong enough to stop it: each attempt is
+      // a legitimate tool call. Measured, one run has reached millions of tokens
+      // on a single question before a human noticed. The eval harness is the one
+      // place that can see the running total and act on it, so it does.
+      const enforceCaps = (totalTokens: number) => {
+        if (stoppedBy) {
+          return;
+        }
+        const elapsedSeconds = (Date.now() - startedAt) / 1000;
+        if (maxRunTokens > 0 && totalTokens > maxRunTokens) {
+          stoppedBy = "budget";
+          overBudget = totalTokens;
+          process.stderr.write(
+            `${evalPrefix(label)}${c.red}Over budget${c.reset}${c.dim}: ${formatNumber(totalTokens)} tokens > ${formatNumber(maxRunTokens)}, stopping. Raise with --max-run-tokens, or 0 to disable.${c.reset}\n`,
+          );
+        } else if (maxRunSeconds > 0 && elapsedSeconds > maxRunSeconds) {
+          stoppedBy = "timeout";
+          process.stderr.write(
+            `${evalPrefix(label)}${c.red}Out of time${c.reset}${c.dim}: ${Math.round(elapsedSeconds)}s > ${maxRunSeconds}s, stopping. Raise with --max-run-seconds, or 0 to disable.${c.reset}\n`,
+          );
+        } else {
+          return;
+        }
+        void call(sessionRoute.stop, { id }, { context });
+      };
+
+      const enforcementTimer = setInterval(() => {
+        void getTaskUsageSummary(id).then((usage) => {
+          enforceCaps(usage.totalTokens);
+        }, _.noop);
+      }, ENFORCEMENT_INTERVAL_MS);
 
       void (async () => {
         try {
@@ -289,37 +391,25 @@ export async function runEvals(
             ) {
               const isError = part.state === "output-error";
               const stream = isError ? process.stderr : process.stdout;
-              const taskId = id;
-              const usage = await getTaskUsageSummary(taskId);
+              const usage = await getTaskUsageSummary(id);
               const toolName = part.type.replace("tool-", "");
               const toolLabel = isError
                 ? `${c.red}${toolName} ERROR${c.reset}`
                 : `${c.cyan}${toolName}${c.reset}`;
               const statsSuffix = `  ${c.dim}tokens=${c.reset}${formatNumber(usage.totalTokens)}${c.dim} (in=${formatNumber(usage.inputTokens)} out=${formatNumber(usage.outputTokens)}) msgs=${c.reset}${c.yellow}${usage.messageCount}${c.reset}`;
-              stream.write(`${evalPrefix(label)}${toolLabel}${statsSuffix}\n`);
-
-              // A model handed an unrecoverable input can keep trying to
-              // recover from it, and nothing in the loop is wrong enough to
-              // stop it: each attempt is a legitimate tool call. Measured, one
-              // run has reached millions of tokens on a single question before
-              // a human noticed. The eval harness is the one place that can see
-              // the running total and act on it, so it does.
-              if (
-                maxRunTokens > 0 &&
-                usage.totalTokens > maxRunTokens &&
-                !stoppedForBudget
-              ) {
-                stoppedForBudget = true;
-                overBudget = usage.totalTokens;
-                process.stderr.write(
-                  `${evalPrefix(label)}${c.red}Over budget${c.reset}${c.dim}: ${formatNumber(usage.totalTokens)} tokens > ${formatNumber(maxRunTokens)}, stopping. Raise with --max-run-tokens, or 0 to disable.${c.reset}\n`,
-                );
-                void call(sessionRoute.stop, { id }, { context });
+              const line = `${evalPrefix(label)}${toolLabel}${statsSuffix}\n`;
+              if (isError) {
+                stream.write(line);
+              } else {
+                write(line);
               }
+
+              enforceCaps(usage.totalTokens);
             }
 
             if (await evalCase.shouldStop?.(part, id)) {
-              process.stdout.write(
+              stoppedBy ??= "case";
+              write(
                 `${evalPrefix(label)}${c.yellow}shouldStop returned true, stopping session...${c.reset}\n`,
               );
               void call(sessionRoute.stop, { id }, { context });
@@ -332,18 +422,50 @@ export async function runEvals(
         }
       })();
 
-      await waitForSessionDone(sessionId, id);
+      // A stop that never takes effect would otherwise hold the whole suite
+      // behind this one run for as long as the process lives.
+      const outcome = await waitForSessionDone(sessionId, id, {
+        timeoutMs:
+          maxRunSeconds > 0 ? maxRunSeconds * 1000 + STOP_GRACE_MS : undefined,
+      });
+      clearInterval(enforcementTimer);
       abortController.abort();
 
-      process.stdout.write(`${evalPrefix(label)}${c.green}Done.${c.reset}\n`);
+      if (outcome === "timeout") {
+        stoppedBy = "timeout";
+        process.stderr.write(
+          `${evalPrefix(label)}${c.red}Abandoned${c.reset}${c.dim}: the session never reported itself done.${c.reset}\n`,
+        );
+      }
+
+      const usage = await getTaskUsageSummary(id);
+      const price = catalog.priceFor(uri.split("?")[0] ?? uri);
+      const costUSD = price
+        ? usage.inputTokens * price.prompt +
+          usage.outputTokens * price.completion
+        : undefined;
+
+      finishedRuns += 1;
+      write(
+        `${evalPrefix(label)}${c.green}Done.${c.reset}${c.dim} (${finishedRuns}/${totalRuns} complete, ${formatNumber(usage.totalTokens)} tokens${costUSD === undefined ? "" : `, ~${formatCost(costUSD)}`})${c.reset}\n`,
+      );
 
       return {
+        costUSD,
         label,
+        modelLabel,
         modelURI: uri,
         name: evalCase.name,
         overBudget,
-        resolvedModelId: aliasTargets.get(uri.split("?")[0] ?? uri),
+        resolvedModelId: catalog.aliasTargets.get(uri.split("?")[0] ?? uri),
+        stoppedBy,
         taskId: id,
+        trial,
+        usage: {
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          totalTokens: usage.totalTokens,
+        },
       };
     },
   );
@@ -353,6 +475,44 @@ export async function runEvals(
   return { runs: completed, workspaceRootDir };
 }
 
+/** The label and the results path a run is filed under. */
+export function runKey(run: {
+  modelLabel: string;
+  name: string;
+  trial: number;
+}): { dir: string; label: string } {
+  const suffix = run.trial > 1 ? `-trial-${run.trial}` : "";
+  return {
+    dir: path.join(run.name, `${run.modelLabel}${suffix}`),
+    label: `${run.name}/${run.modelLabel}${suffix}`,
+  };
+}
+
+/**
+ * Every session of a task, parts included, which is what an assertion reads and
+ * what a suite needs to render anything of its own afterwards. Exported because
+ * each standalone runner had otherwise written this same function privately.
+ */
+export async function sessionsFor(
+  taskId: TaskId,
+): Promise<Session.WithMessagesAndParts[]> {
+  const list = await Store.getSessions(taskId, { includeChildSessions: true });
+  if (list.isErr()) {
+    return [];
+  }
+  const sessions: Session.WithMessagesAndParts[] = [];
+  for (const session of list.value) {
+    const withParts = await Store.getSessionWithMessagesAndParts(
+      session.id,
+      taskId,
+    );
+    if (withParts.isOk()) {
+      sessions.push(withParts.value);
+    }
+  }
+  return sessions;
+}
+
 function sanitizeCanonicalId(canonicalId: string): string {
   return canonicalId.replaceAll(/[^a-z0-9-]/gi, "-");
 }
@@ -360,19 +520,29 @@ function sanitizeCanonicalId(canonicalId: string): string {
 async function waitForSessionDone(
   sessionId: StoreId.Session,
   id: string,
-): Promise<void> {
+  { timeoutMs }: { timeoutMs?: number } = {},
+): Promise<"done" | "timeout"> {
   return new Promise((resolve) => {
     const abortController = new AbortController();
     const unsubscribe = publisher.subscribe("session.done", {
       signal: abortController.signal,
     });
 
+    const timer =
+      timeoutMs === undefined
+        ? undefined
+        : setTimeout(() => {
+            abortController.abort();
+            resolve("timeout");
+          }, timeoutMs);
+
     void (async () => {
       try {
         for await (const event of unsubscribe) {
           if (event.sessionId === sessionId && event.id === id) {
+            clearTimeout(timer);
             abortController.abort();
-            resolve();
+            resolve("done");
             return;
           }
         }

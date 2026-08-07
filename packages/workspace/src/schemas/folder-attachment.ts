@@ -43,5 +43,4 @@ export namespace FolderAttachment {
   export const Schema = BaseSchema.extend({ mountName: MountNameSchema });
 
   export type Type = z.output<typeof Schema>;
-
 }

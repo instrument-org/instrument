@@ -25,7 +25,7 @@ import { type WorkspaceConfig } from "../src/types";
  */
 const useColor =
   env.FORCE_COLOR !== undefined ||
-  (env.NO_COLOR === undefined &&  process.stdout.isTTY);
+  (env.NO_COLOR === undefined && process.stdout.isTTY);
 
 const color = (code: string) => (useColor ? code : "");
 
@@ -149,7 +149,7 @@ export const modelURI = {
 };
 
 /** Per-token USD, as OpenRouter states it. */
-export interface ModelPrice {
+interface ModelPrice {
   completion: number;
   prompt: number;
 }
@@ -182,7 +182,7 @@ const OpenRouterModelListSchema = z.object({
 
 const NO_PRICES = new Map<string, ModelPrice>();
 
-export const emptyOpenRouterCatalog: OpenRouterCatalog = {
+const emptyOpenRouterCatalog: OpenRouterCatalog = {
   aliasTargets: new Map(),
   priceFor: (slug) => NO_PRICES.get(slug),
 };

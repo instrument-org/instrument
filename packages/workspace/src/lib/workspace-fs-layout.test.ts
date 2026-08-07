@@ -246,7 +246,9 @@ describe("buildBashFs", () => {
         projectFolderName: "Proj",
         taskHostRoot: TaskDirSchema.parse(path.join(tmpDir, "task")),
       });
-      const bashFs = await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 });
+      const bashFs = await buildBashFs(layout, {
+        maxFileReadSize: 1024 * 1024,
+      });
       return new Bash({ cwd: TASK_MOUNT_POINT, fs: bashFs });
     }
 

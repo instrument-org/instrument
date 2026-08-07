@@ -65,7 +65,7 @@ export type WatcherPatterns = z.output<typeof WatcherPatternsSchema>;
  * name there already matches at every depth, so the name and a recursive glob
  * for its contents are all that is needed.
  */
-export const INTERNAL_IGNORE_PATTERNS = GitignorePatternsSchema.parse(
+const INTERNAL_IGNORE_PATTERNS = GitignorePatternsSchema.parse(
   EXCLUDED_NAMES.flatMap((name) => [name, `${name}/**`]),
 );
 

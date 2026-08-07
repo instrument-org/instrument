@@ -34,7 +34,7 @@ export interface Scenario {
 export type ToolCall = ToolCallShape & { kind: "call" };
 
 /** The arguments of one tool, exactly as that tool declares them. */
-export type ToolInput<TType extends ToolType> = NonNullable<
+type ToolInput<TType extends ToolType> = NonNullable<
   PartOfType<TType>["input"]
 >;
 

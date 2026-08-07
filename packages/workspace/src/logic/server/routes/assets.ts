@@ -104,7 +104,7 @@ app.all("/*", async (c, next) => {
   const taskState = await getTaskState(taskHostRoot);
   const layout = buildWorkspaceFsLayout({
     attachedFolders: taskState.attachedFolders,
-      projectFolderName: await resolveTaskProjectFolder(id),
+    projectFolderName: await resolveTaskProjectFolder(id),
     taskHostRoot,
   });
   // A path under a mount root is already a virtual path; anything else is

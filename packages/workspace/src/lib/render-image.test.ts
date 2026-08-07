@@ -117,20 +117,40 @@ describe("measureImage", () => {
 
   it.each([
     {
-      expected: { format: "jpg", height: 400, mediaType: "image/jpeg", width: 800 },
+      expected: {
+        format: "jpg",
+        height: 400,
+        mediaType: "image/jpeg",
+        width: 800,
+      },
       orientation: 1,
     },
     {
-      expected: { format: "jpg", height: 400, mediaType: "image/jpeg", width: 800 },
+      expected: {
+        format: "jpg",
+        height: 400,
+        mediaType: "image/jpeg",
+        width: 800,
+      },
       orientation: 3,
     },
     // 5-8 store the pixels a quarter turn from how they are displayed.
     {
-      expected: { format: "jpg", height: 800, mediaType: "image/jpeg", width: 400 },
+      expected: {
+        format: "jpg",
+        height: 800,
+        mediaType: "image/jpeg",
+        width: 400,
+      },
       orientation: 6,
     },
     {
-      expected: { format: "jpg", height: 800, mediaType: "image/jpeg", width: 400 },
+      expected: {
+        format: "jpg",
+        height: 800,
+        mediaType: "image/jpeg",
+        width: 400,
+      },
       orientation: 8,
     },
   ])(

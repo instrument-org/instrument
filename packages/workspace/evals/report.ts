@@ -23,7 +23,7 @@ import {
 import { buildReportWorkspaceConfig, c, write } from "./utils";
 
 /** What one run produced, in the form a caller can act on without re-reading. */
-export interface RunReport {
+interface RunReport {
   assertions: AssertionResult[];
   caseName: string;
   costUSD?: number;

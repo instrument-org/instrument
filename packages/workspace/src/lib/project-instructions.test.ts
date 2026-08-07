@@ -12,7 +12,11 @@ describe("normalizeProjectInstructions", () => {
   it.each([
     { expected: undefined, input: "", name: "empty" },
     { expected: undefined, input: "   \n\n  \t ", name: "whitespace only" },
-    { expected: "Use British spelling.", input: "  Use British spelling.  \n", name: "padded" },
+    {
+      expected: "Use British spelling.",
+      input: "  Use British spelling.  \n",
+      name: "padded",
+    },
   ])("returns $expected for $name input", ({ expected, input }) => {
     expect(normalizeProjectInstructions(input)).toBe(expected);
   });
@@ -23,12 +27,18 @@ describe("normalizeProjectInstructions", () => {
   });
 
   it("keeps everything at exactly the budget", () => {
-    const exact = paragraph("Use British spelling.\n\n", MAX_PROJECT_INSTRUCTIONS_LENGTH);
+    const exact = paragraph(
+      "Use British spelling.\n\n",
+      MAX_PROJECT_INSTRUCTIONS_LENGTH,
+    );
     expect(normalizeProjectInstructions(exact)).toBe(exact);
   });
 
   it("cuts back to the last whole paragraph and says where the rest is", () => {
-    const kept = paragraph("First rule.\n\n", MAX_PROJECT_INSTRUCTIONS_LENGTH - 100);
+    const kept = paragraph(
+      "First rule.\n\n",
+      MAX_PROJECT_INSTRUCTIONS_LENGTH - 100,
+    );
     const dropped = paragraph("Second rule.", 500);
     const result = normalizeProjectInstructions(`${kept}\n\n${dropped}`);
 

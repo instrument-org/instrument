@@ -167,11 +167,11 @@ describe("normalizeModelImages", () => {
           ),
         ),
       ).toEqual({
-      format: "png",
-      height: 819,
-      mediaType: "image/png",
-      width: 1456,
-    });
+        format: "png",
+        height: 819,
+        mediaType: "image/png",
+        width: 1456,
+      });
     },
     60_000,
   );

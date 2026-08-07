@@ -57,7 +57,6 @@ describe("initializeTask", () => {
         "work/package.json",
         "work/pnpm-lock.yaml",
         "work/pnpm-workspace.yaml",
-        "work/tsconfig.json",
       ]
     `);
     await expect(
@@ -98,7 +97,7 @@ describe("initializeTask", () => {
 
       allowBuilds:
         sharp: true
-      dlxCacheMaxAge: 259200 # 180 days in minutes, extended for pnpm dlx jiti
+      dlxCacheMaxAge: 259200 # 180 days in minutes, so npx/pnpx stay warm across tasks
       packages:
         - skills/*
         - skills/*/*

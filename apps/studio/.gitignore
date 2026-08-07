@@ -26,6 +26,11 @@ resources/vendor/
 # Electron Vite's Temp Files
 electron.vite.config*.mjs
 
+# Where the router generator stages routeTree.gen.ts before renaming it into
+# place. The rename empties it, so a file left here is a generate run that was
+# killed between the two.
+.tanstack/
+
 # Dev logs (written by the main process during local development)
 .logs/
 

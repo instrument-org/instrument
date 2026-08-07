@@ -29,6 +29,7 @@ import {
   getDebugRoute,
   onboardingScreens,
 } from "./-debug-routes";
+import { scenarios } from "./-playback/scenarios";
 import { presetSessions } from "./-sessions";
 
 export const Route = createFileRoute("/_app/debug/components")({
@@ -48,8 +49,12 @@ function RouteComponent() {
   const onboardingPage = componentPages.find(
     (page) => page.id === "onboarding",
   );
+  const playbackPage = componentPages.find((page) => page.id === "playback");
   const defaultSessionId = presetSessions[0]?.id;
+  const defaultScenarioId = scenarios[0]?.id;
   const activeSessionId = search.session ?? defaultSessionId;
+  const activeScenarioId = search.scenario ?? defaultScenarioId;
+  const isPlaybackRoute = pathname === playbackPage?.to;
   const isChatStreamRoute = pathname === chatStreamPage?.to;
   const isDataPartsRoute = pathname === dataPartsPage?.to;
   // data-parts is a chat rendering, so it lives under the Chat section rather
@@ -72,6 +77,7 @@ function RouteComponent() {
                 {componentPages.map((page) => {
                   const isChatStreamPage = page.id === "chat-stream";
                   const isOnboardingPage = page.id === "onboarding";
+                  const isPlaybackPage = page.id === "playback";
 
                   // Rendered as a sub-item under the Chat section below.
                   if (page.id === "data-parts") {
@@ -80,7 +86,9 @@ function RouteComponent() {
                   const pageSearch =
                     isChatStreamPage && defaultSessionId
                       ? { session: defaultSessionId }
-                      : undefined;
+                      : isPlaybackPage && defaultScenarioId
+                        ? { scenario: defaultScenarioId }
+                        : undefined;
 
                   return (
                     <SidebarMenuItem key={page.id}>
@@ -97,6 +105,33 @@ function RouteComponent() {
                           <span>{page.label}</span>
                         </InternalLink>
                       </SidebarMenuButton>
+                      {isPlaybackPage && playbackPage && (
+                        <Collapsible open={isPlaybackRoute}>
+                          <CollapsibleContent>
+                            <SidebarMenuSub>
+                              {scenarios.map((scenario) => (
+                                <SidebarMenuSubItem key={scenario.id}>
+                                  <SidebarMenuSubButton
+                                    asChild
+                                    isActive={
+                                      isPlaybackRoute &&
+                                      scenario.id === activeScenarioId
+                                    }
+                                  >
+                                    <InternalLink
+                                      allowOpenNewTab={false}
+                                      search={{ scenario: scenario.id }}
+                                      to={playbackPage.to}
+                                    >
+                                      <span>{scenario.name}</span>
+                                    </InternalLink>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              ))}
+                            </SidebarMenuSub>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      )}
                       {isChatStreamPage && chatStreamPage && (
                         <Collapsible open={isChatSectionOpen}>
                           <CollapsibleContent>

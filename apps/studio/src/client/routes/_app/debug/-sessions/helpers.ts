@@ -84,6 +84,12 @@ export class SessionBuilder {
     };
   }
 
+  /**
+   * Every call a preset builds has started, and only a finished one has ended.
+   * A call still waiting behind the ones ahead of it is a state a fixed
+   * transcript cannot really hold still in; the playback page walks a call
+   * through it instead.
+   */
   toolPart<
     TState extends SessionMessagePart.ToolPart["state"],
     TPart extends SessionMessagePart.ToolPart & { state: TState },
@@ -92,11 +98,13 @@ export class SessionBuilder {
     state: TState,
     partialPart: Omit<TPart, "metadata" | "state" | "toolCallId">,
   ): TPart {
+    const hasEnded = state === "output-available" || state === "output-error";
     return {
       ...partialPart,
       metadata: {
         ...this.partMetadata(messageId),
-        endedAt: this.nextTime(),
+        startedAt: this.nextTime(),
+        ...(hasEnded ? { endedAt: this.nextTime() } : {}),
       },
       state,
       toolCallId: this.nextToolCallId(),

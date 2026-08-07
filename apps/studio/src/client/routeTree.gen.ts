@@ -35,6 +35,7 @@ import { Route as AppProjectsIdIndexRouteImport } from './routes/_app/projects/$
 import { Route as AppDebugComponentsIndexRouteImport } from './routes/_app/debug/components/index'
 import { Route as AppDebugComponentsSpinnerRouteImport } from './routes/_app/debug/components/spinner'
 import { Route as AppDebugComponentsProviderIconsRouteImport } from './routes/_app/debug/components/provider-icons'
+import { Route as AppDebugComponentsPlaybackRouteImport } from './routes/_app/debug/components/playback'
 import { Route as AppDebugComponentsOnboardingRouteImport } from './routes/_app/debug/components/onboarding'
 import { Route as AppDebugComponentsFormElementsRouteImport } from './routes/_app/debug/components/form-elements'
 import { Route as AppDebugComponentsErrorCardRouteImport } from './routes/_app/debug/components/error-card'
@@ -180,6 +181,12 @@ const AppDebugComponentsProviderIconsRoute =
     path: '/provider-icons',
     getParentRoute: () => AppDebugComponentsRoute,
   } as any)
+const AppDebugComponentsPlaybackRoute =
+  AppDebugComponentsPlaybackRouteImport.update({
+    id: '/playback',
+    path: '/playback',
+    getParentRoute: () => AppDebugComponentsRoute,
+  } as any)
 const AppDebugComponentsOnboardingRoute =
   AppDebugComponentsOnboardingRouteImport.update({
     id: '/onboarding',
@@ -287,6 +294,7 @@ export interface FileRoutesByFullPath {
   '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
   '/debug/components/form-elements': typeof AppDebugComponentsFormElementsRoute
   '/debug/components/onboarding': typeof AppDebugComponentsOnboardingRouteWithChildren
+  '/debug/components/playback': typeof AppDebugComponentsPlaybackRoute
   '/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/debug/components/': typeof AppDebugComponentsIndexRoute
@@ -321,6 +329,7 @@ export interface FileRoutesByTo {
   '/debug/components/data-parts': typeof AppDebugComponentsDataPartsRoute
   '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
   '/debug/components/form-elements': typeof AppDebugComponentsFormElementsRoute
+  '/debug/components/playback': typeof AppDebugComponentsPlaybackRoute
   '/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/debug/components': typeof AppDebugComponentsIndexRoute
@@ -363,6 +372,7 @@ export interface FileRoutesById {
   '/_app/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
   '/_app/debug/components/form-elements': typeof AppDebugComponentsFormElementsRoute
   '/_app/debug/components/onboarding': typeof AppDebugComponentsOnboardingRouteWithChildren
+  '/_app/debug/components/playback': typeof AppDebugComponentsPlaybackRoute
   '/_app/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
   '/_app/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/_app/debug/components/': typeof AppDebugComponentsIndexRoute
@@ -404,6 +414,7 @@ export interface FileRouteTypes {
     | '/debug/components/error-card'
     | '/debug/components/form-elements'
     | '/debug/components/onboarding'
+    | '/debug/components/playback'
     | '/debug/components/provider-icons'
     | '/debug/components/spinner'
     | '/debug/components/'
@@ -438,6 +449,7 @@ export interface FileRouteTypes {
     | '/debug/components/data-parts'
     | '/debug/components/error-card'
     | '/debug/components/form-elements'
+    | '/debug/components/playback'
     | '/debug/components/provider-icons'
     | '/debug/components/spinner'
     | '/debug/components'
@@ -479,6 +491,7 @@ export interface FileRouteTypes {
     | '/_app/debug/components/error-card'
     | '/_app/debug/components/form-elements'
     | '/_app/debug/components/onboarding'
+    | '/_app/debug/components/playback'
     | '/_app/debug/components/provider-icons'
     | '/_app/debug/components/spinner'
     | '/_app/debug/components/'
@@ -681,6 +694,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugComponentsProviderIconsRouteImport
       parentRoute: typeof AppDebugComponentsRoute
     }
+    '/_app/debug/components/playback': {
+      id: '/_app/debug/components/playback'
+      path: '/playback'
+      fullPath: '/debug/components/playback'
+      preLoaderRoute: typeof AppDebugComponentsPlaybackRouteImport
+      parentRoute: typeof AppDebugComponentsRoute
+    }
     '/_app/debug/components/onboarding': {
       id: '/_app/debug/components/onboarding'
       path: '/onboarding'
@@ -823,6 +843,7 @@ interface AppDebugComponentsRouteChildren {
   AppDebugComponentsErrorCardRoute: typeof AppDebugComponentsErrorCardRoute
   AppDebugComponentsFormElementsRoute: typeof AppDebugComponentsFormElementsRoute
   AppDebugComponentsOnboardingRoute: typeof AppDebugComponentsOnboardingRouteWithChildren
+  AppDebugComponentsPlaybackRoute: typeof AppDebugComponentsPlaybackRoute
   AppDebugComponentsProviderIconsRoute: typeof AppDebugComponentsProviderIconsRoute
   AppDebugComponentsSpinnerRoute: typeof AppDebugComponentsSpinnerRoute
   AppDebugComponentsIndexRoute: typeof AppDebugComponentsIndexRoute
@@ -837,6 +858,7 @@ const AppDebugComponentsRouteChildren: AppDebugComponentsRouteChildren = {
   AppDebugComponentsFormElementsRoute: AppDebugComponentsFormElementsRoute,
   AppDebugComponentsOnboardingRoute:
     AppDebugComponentsOnboardingRouteWithChildren,
+  AppDebugComponentsPlaybackRoute: AppDebugComponentsPlaybackRoute,
   AppDebugComponentsProviderIconsRoute: AppDebugComponentsProviderIconsRoute,
   AppDebugComponentsSpinnerRoute: AppDebugComponentsSpinnerRoute,
   AppDebugComponentsIndexRoute: AppDebugComponentsIndexRoute,

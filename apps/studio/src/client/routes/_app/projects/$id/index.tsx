@@ -304,11 +304,11 @@ function RouteComponent() {
         />
 
         <div className="flex flex-col gap-y-1">
-          <div className="py-1 text-xs font-medium text-muted-foreground/60">
+          <div className="px-3 py-1 text-xs font-medium text-muted-foreground/60">
             Tasks
           </div>
           {memberTasks.length === 0 ? (
-            <p className="py-1 text-sm text-muted-foreground">
+            <p className="px-3 py-1 text-sm text-muted-foreground">
               No tasks in this project yet.
             </p>
           ) : (

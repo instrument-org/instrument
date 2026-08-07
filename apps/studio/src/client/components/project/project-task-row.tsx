@@ -114,7 +114,7 @@ export function ProjectTaskRow({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div className="group flex h-9 items-center gap-x-2 rounded-md pr-3">
+        <div className="group flex h-9 items-center gap-x-2 rounded-md px-3">
           {isPinned && (
             <PushPinIcon className="size-3.5 shrink-0 text-muted-foreground/50" />
           )}

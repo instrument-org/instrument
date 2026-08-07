@@ -1,11 +1,9 @@
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
+import { isTypingInto } from "@/client/lib/is-typing-into";
 import { SHORTCUTS } from "@/shared/shortcuts";
 import { useStore } from "jotai";
 import { useEffect } from "react";
-
-const EDITABLE_SELECTOR =
-  "input, textarea, select, [contenteditable]:not([contenteditable='false'])";
 
 /**
  * Opens the shortcut guide on `?`. The chord lives here rather than in the
@@ -34,11 +32,7 @@ export function useShortcutGuideHotkey() {
       ) {
         return;
       }
-      const target = event.target;
-      if (
-        target instanceof HTMLElement &&
-        (target.isContentEditable || target.closest(EDITABLE_SELECTOR))
-      ) {
+      if (isTypingInto(event.target)) {
         return;
       }
       if (store.get(blockingModalCountAtom) > 0) {

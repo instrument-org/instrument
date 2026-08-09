@@ -317,7 +317,7 @@ async function waitForDriveHandle(cdp) {
           "(client/lib/studio-drive.ts); a packaged build drops it.",
       );
     }
-    await sleep(250);
+    await sleep(50);
   }
 }
 
@@ -588,7 +588,12 @@ async function cmdBoot(explicitPort, { fresh }) {
     if (Date.now() > deadline) {
       fail(`Studio did not become drivable within 180s. See ${logFile}`);
     }
-    await sleep(2000);
+    // Polled tightly rather than on a lazy interval. The debug port comes up
+    // partway through a boot that only takes a few seconds, so a coarse
+    // interval spends most of its last sleep with the app already sitting
+    // there waiting to be driven -- and that shows up as boot time in every
+    // measurement anyone takes through this script.
+    await sleep(100);
   }
 }
 

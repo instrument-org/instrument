@@ -33,6 +33,12 @@ node $DRIVE click --selector '[data-probe=kebab]'
 
 Route and modal commands go through `window.__studioDrive`, a dev-only handle the renderer attaches (`client/lib/studio-drive.ts`). A packaged build, and any checkout without that file, will not have it.
 
+`boot` returns as soon as that handle exists, which is when the app can be driven — not when the restored route has finished loading. A `shot` fired straight after `boot` can therefore catch a task pane still filling in. When a command depends on route content rather than on the chrome, wait for the thing itself:
+
+```bash
+node $DRIVE wait 'document.querySelectorAll("[data-slot]").length > 40'
+```
+
 A plain `boot` uses the shared dev application-data directory, so what a run can reach depends on what that machine did last. `--workspace <fixture>` boots against a disposable one built from a committed description:
 
 ```bash

@@ -346,12 +346,15 @@ const require = __cjs_mod__.createRequire(import.meta.url);
       ],
       resolve,
       root: path.resolve("src"),
-      // The dev server has a head start on the renderer while Electron boots,
-      // and the route tree pulls every route module eagerly. Transforming those
-      // in parallel there beats serving them one browser connection at a time.
+      // Just the entry, deliberately. The dev server transforms on one thread,
+      // and its head start on the renderer is shorter than a wide warmup list
+      // takes to drain -- so warming the route modules as well pushes the
+      // request for index.html itself behind the queue, and the window paints
+      // about a second later than with no warmup at all. Warming the entry
+      // alone stays inside the head start and is ahead on every measure.
       server: {
         warmup: {
-          clientFiles: ["./client/main.tsx", "./client/routes/**/*.tsx"],
+          clientFiles: ["./client/main.tsx"],
         },
       },
       // The document viewers' parser workers are module workers whose entries

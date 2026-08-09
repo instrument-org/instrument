@@ -80,7 +80,7 @@ pnpm eval run --yes --prompt "<task for the agent>" --model anthropic/claude-hai
   the run does not have to be read to know whether it passed. `--json` and the
   `summary.json` beside the results carry the same verdict per case and model.
 - Changing an assertion costs nothing to re-check: `pnpm eval report <workspace
-  dir>` re-runs every assertion against the sessions already recorded. The run
+dir>` re-runs every assertion against the sessions already recorded. The run
   prints the exact command to use.
 
 Committed cases live in `packages/workspace/evals/cases/`; add one when a

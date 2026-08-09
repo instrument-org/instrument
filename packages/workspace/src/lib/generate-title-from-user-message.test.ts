@@ -17,12 +17,16 @@ import {
 import { TASK_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
 import { getWorkspaceConfig } from "./workspace-config";
 
-function createMockLanguageModel(text: string) {
+function createMockLanguageModel(
+  text: string,
+  options: { finishReason?: "length" | "stop"; reasoningTokens?: number } = {},
+) {
+  const finishReason = options.finishReason ?? "stop";
   return new MockLanguageModelV3({
     doGenerate: () =>
       Promise.resolve({
         content: [{ text, type: "text" }],
-        finishReason: { raw: "stop", unified: "stop" },
+        finishReason: { raw: finishReason, unified: finishReason },
         usage: {
           inputTokens: {
             cacheRead: undefined,
@@ -31,9 +35,9 @@ function createMockLanguageModel(text: string) {
             total: 10,
           },
           outputTokens: {
-            reasoning: undefined,
+            reasoning: options.reasoningTokens,
             text: undefined,
-            total: 15,
+            total: options.reasoningTokens ?? 15,
           },
         },
         warnings: [],
@@ -74,9 +78,13 @@ function createMockLanguageModelThatThrows(error: Error) {
 
 function setupTest(
   generatedText: string,
-  options: { captureException?: (...args: unknown[]) => void } = {},
+  options: {
+    captureException?: (...args: unknown[]) => void;
+    finishReason?: "length" | "stop";
+    reasoningTokens?: number;
+  } = {},
 ) {
-  const mockLanguageModel = createMockLanguageModel(generatedText);
+  const mockLanguageModel = createMockLanguageModel(generatedText, options);
   const model = createMockAIGatewayModel();
   createMockTaskConfig(TaskIdSchema.parse("mock"), {
     aiSDKModel: mockLanguageModel,
@@ -205,13 +213,38 @@ describe("generateTitleFromUserMessage", () => {
   // "test"). Failing here is what leaves the placeholder standing, so a task
   // keeps the user's own words instead of an invented title.
   it("fails rather than inventing a title for an unnameable message", async () => {
-    const { generate } = setupTest("");
+    const captureException = vi.fn();
+    const { generate } = setupTest("", { captureException });
 
     const result = await generate(createMockMessage("hey"));
 
     expect(result.isErr()).toBe(true);
+    // Typing "hi" to open a task is not an incident. This is the whole reason
+    // the outcome is typed rather than thrown as a bare Error.
+    expect(captureException).not.toHaveBeenCalled();
     expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(
       `"Failed to generate title: No title generated"`,
+    );
+  });
+
+  // Reasoning shares the output budget with the title, and a model that spends
+  // all of it thinking returns nothing at all. That reads identically to the
+  // case above unless the failure says which one it was.
+  it("says the budget ran out when the turn was cut off before any text", async () => {
+    const captureException = vi.fn();
+    const { generate } = setupTest("", {
+      captureException,
+      finishReason: "length",
+      reasoningTokens: TASK_NAME_MAX_OUTPUT_TOKENS,
+    });
+
+    const result = await generate();
+
+    expect(result.isErr()).toBe(true);
+    // Unlike the case above, a cut-off turn is a fault worth reporting.
+    expect(captureException).toHaveBeenCalledOnce();
+    expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(
+      `"Failed to generate title: Output budget spent before any title text"`,
     );
   });
 
@@ -337,6 +370,32 @@ describe("generateTitleFromUserMessage", () => {
 
       expect(prompt).not.toContain("Folders attached by user");
     });
+  });
+
+  // A model that thinks in the text rather than in a reasoning part otherwise
+  // gets the opening line of its own deliberation stored as the title.
+  it.each([
+    ["<think>The user attached a folder</think>\nImages in Downloads"],
+    ["<thinking>The user attached a folder</thinking>Images in Downloads"],
+  ])("drops an inline think block: %s", async (generated) => {
+    const { generate } = setupTest(generated);
+
+    const result = await generate();
+
+    expect(result._unsafeUnwrap()).toBe("Images in Downloads");
+  });
+
+  // The same block cut off by the output budget leaves no closing tag, and
+  // everything after the opening one is thinking.
+  it("fails rather than titling a task with unterminated thinking", async () => {
+    const { generate } = setupTest("<think>The user attached a folder of");
+
+    const result = await generate();
+
+    expect(result.isErr()).toBe(true);
+    expect(result._unsafeUnwrapErr().message).toContain(
+      "Nothing left after cleaning",
+    );
   });
 
   it("should trim whitespace from generated title", async () => {

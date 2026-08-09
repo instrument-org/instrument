@@ -23,6 +23,14 @@ import { textForMessage } from "./text-for-message";
 // 250px, so a title much past this truncates on sight rather than in memory.
 export const MAX_TITLE_WORDS = 8;
 
+// The prompt tells the model to answer nothing for a message with no subject,
+// so an empty answer that ran to a natural stop is the design working. It still
+// fails the call, which is what leaves the placeholder standing, but reporting
+// it would file an exception every time someone opens a task by typing "hi".
+class UnnameableMessage extends Error {
+  readonly type = "workspace-unnameable-message-error";
+}
+
 export function generateTitleFromUserMessage({
   message,
   model,
@@ -57,18 +65,33 @@ export function generateTitleFromUserMessage({
 
       const aiSDKModel = aiSDKModelResult.value;
 
-      const title = await generateText({
+      const result = await generateText({
         maxOutputTokens: TASK_NAME_MAX_OUTPUT_TOKENS,
         model: aiSDKModel,
         prompt: userMessage,
         system: buildSystemPrompt(projectName),
       });
 
-      if (!title.text.trim()) {
-        throw new Error("No title generated");
+      if (!result.text.trim()) {
+        // Reasoning shares the output budget, so a turn can end before the
+        // model writes a character of the title. That is a fault; answering
+        // nothing on a natural stop is not.
+        if (result.finishReason === "length") {
+          throw new Error("Output budget spent before any title text");
+        }
+        throw new UnnameableMessage("No title generated");
       }
 
-      let cleanedTitle = title.text.trim();
+      let cleanedTitle = result.text.trim();
+
+      // Some models think in the text itself rather than in a reasoning part.
+      // The first line of a think block is not a title, and an unterminated one
+      // means the whole answer was thinking, so both forms go.
+      cleanedTitle = cleanedTitle.replaceAll(
+        /<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/g,
+        "",
+      );
+      cleanedTitle = cleanedTitle.replace(/<think(?:ing)?>[\s\S]*$/, "");
 
       cleanedTitle = cleanedTitle.replaceAll(/```[\s\S]*?```/g, "");
       cleanedTitle = cleanedTitle.replaceAll(/```[^\n]*/g, "");
@@ -88,11 +111,10 @@ export function generateTitleFromUserMessage({
       const words = cleanedTitle.split(/\s+/).filter(Boolean);
       const limitedTitle = words.slice(0, MAX_TITLE_WORDS).join(" ");
 
-      // Nothing nameable in the message. Failing here leaves the placeholder
-      // standing, which is the user's own opening words -- a truer name for
-      // "hey" than any sentence invented around it.
+      // An answer made entirely of formatting. Failing here leaves the
+      // placeholder standing, which is the user's own opening words.
       if (!limitedTitle) {
-        throw new Error("No title generated");
+        throw new Error("Nothing left after cleaning");
       }
 
       return limitedTitle;
@@ -102,9 +124,13 @@ export function generateTitleFromUserMessage({
       originalError: error,
     }),
   ).orTee(({ originalError }) => {
-    if (!isNonRetryableGatewayError(originalError)) {
-      workspaceConfig.captureException(originalError);
+    if (
+      originalError instanceof UnnameableMessage ||
+      isNonRetryableGatewayError(originalError)
+    ) {
+      return;
     }
+    workspaceConfig.captureException(originalError);
   });
 }
 

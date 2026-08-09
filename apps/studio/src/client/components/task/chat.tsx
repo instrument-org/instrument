@@ -9,6 +9,7 @@ import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { usePromptQueue } from "@/client/hooks/use-prompt-queue";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -35,6 +36,7 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
   useMessageScroller,
+  useMessageScrollerScrollable,
 } from "../ui/message-scroller";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
@@ -405,6 +407,8 @@ export function TaskChat({
             </MessageScrollerContent>
           </MessageScrollerViewport>
 
+          <TranscriptTopFade />
+
           {/* Fade the transcript into the composer with a background gradient
               rather than a viewport mask, so the scrollbar stays crisp. The
               right inset clears the scrollbar; the content column is centered
@@ -457,4 +461,20 @@ function ScrollToEndBridge({ signal }: { signal: number }) {
   }, [scrollToEnd, signal]);
 
   return null;
+}
+
+// The bottom fade's counterpart at the scroll frame's top edge, softening the
+// transcript into the toolbar. Unlike the bottom, it only shows when there is
+// content scrolled above: at rest the first turn should read at full strength.
+function TranscriptTopFade() {
+  const scrollable = useMessageScrollerScrollable();
+
+  return (
+    <div
+      className={cn(
+        "pointer-events-none absolute top-0 right-3 left-0 h-6 bg-linear-to-b from-background to-transparent transition-opacity duration-150",
+        scrollable.start ? "opacity-100" : "opacity-0",
+      )}
+    />
+  );
 }

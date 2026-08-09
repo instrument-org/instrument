@@ -512,25 +512,46 @@ async function cmdBoot(explicitPort, { fresh }) {
   const logFile = SESSION_FILE.replace(/\.json$/, ".log");
   const log = openSync(logFile, "a");
 
-  const child = spawn("pnpm", ["dev"], {
-    cwd: STUDIO_DIR,
-    detached: true,
-    env: {
-      ...process.env,
-      // Set by some editor integrations; leaving it on makes Electron run as
-      // plain Node and exit without ever opening a window.
-      ELECTRON_RUN_AS_NODE: undefined,
-      REMOTE_DEBUGGING_PORT: String(port),
-      // A seeded workspace has no provider credentials and must not: they
-      // cannot be committed. Without this the app opens the onboarding window
-      // and never reveals the main one, which reads as a hang.
-      ...(workspace && {
-        ELECTRON_USER_DATA_DIR: workspace.userDataDir,
-        SKIP_ONBOARDING: "true",
-      }),
+  // What `pnpm dev` expands to, minus the two node processes that expansion
+  // costs: `pnpm run` plus `cross-env` add about half a second to every boot
+  // and nothing else. Keep this in step with the `dev` script in
+  // apps/studio/package.json, which is the thing it is standing in for.
+  //
+  // The bin shim rather than the .js entry, because the shim is what exports
+  // the NODE_PATH into .pnpm that the config's `require.resolve` of
+  // ffmpeg-static and friends resolves through.
+  const child = spawn(
+    path.join(STUDIO_DIR, "node_modules/.bin/electron-vite"),
+    ["dev", "--sourcemap"],
+    {
+      cwd: STUDIO_DIR,
+      detached: true,
+      env: {
+        ...process.env,
+        // Set by some editor integrations; leaving it on makes Electron run as
+        // plain Node and exit without ever opening a window.
+        ELECTRON_RUN_AS_NODE: undefined,
+        NODE_OPTIONS: "--enable-source-maps",
+        // `pnpm run` puts these in front of PATH, and a booted app inherits it
+        // all the way down to the commands an agent runs. Kept identical so a
+        // driven instance resolves binaries the way a hand-started one does.
+        PATH: [
+          path.join(STUDIO_DIR, "node_modules/.bin"),
+          path.join(REPO_ROOT, "node_modules/.bin"),
+          process.env.PATH,
+        ].join(path.delimiter),
+        REMOTE_DEBUGGING_PORT: String(port),
+        // A seeded workspace has no provider credentials and must not: they
+        // cannot be committed. Without this the app opens the onboarding window
+        // and never reveals the main one, which reads as a hang.
+        ...(workspace && {
+          ELECTRON_USER_DATA_DIR: workspace.userDataDir,
+          SKIP_ONBOARDING: "true",
+        }),
+      },
+      stdio: ["ignore", log, log],
     },
-    stdio: ["ignore", log, log],
-  });
+  );
   child.unref();
 
   const session = {

@@ -22,8 +22,8 @@
    `<br>` hack so the block stays focusable, so match that shape too. */
 .prompt-editor:has(p:only-child:empty)::before,
 .prompt-editor:has(
-  p:only-child > br.ProseMirror-trailingBreak:only-child
-)::before {
+    p:only-child > br.ProseMirror-trailingBreak:only-child
+  )::before {
   /* Overlay the first line. As a static box the pseudo-element would lay out as
      a block sibling above the paragraph, pushing the caret onto a second line. */
   position: absolute;

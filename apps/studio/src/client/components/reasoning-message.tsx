@@ -14,6 +14,11 @@ import {
   CollapsibleTrigger,
 } from "./ui/collapsible";
 
+// How long a thought has to run before the row starts counting it up. Short
+// enough that a wait worth noticing is still reported, long enough that the
+// ordinary ones never put a number on screen at all.
+const COUNT_UP_AFTER_MS = 3000;
+
 interface ReasoningMessageProps {
   createdAt: Date;
   endedAt?: Date;
@@ -78,8 +83,16 @@ export const ReasoningMessage = memo(function ReasoningMessage({
   const elapsedMs = endsAt ? endsAt.getTime() - createdAt.getTime() : 0;
   const duration = formatDuration(Math.max(elapsedMs, 1000));
 
+  // A clock on a row that is still going invites the reader to watch it, and for
+  // the first few seconds there is nothing to watch: every thought passes
+  // through one second and two on its way to wherever it ends up. So the count
+  // waits until the wait is worth remarking on, and until then the row says only
+  // that the agent is thinking. A finished row reports whatever it took, one
+  // second included -- there the number is the answer rather than a ticker.
   const label = isLoading
-    ? `Thinking for ${duration}`
+    ? elapsedMs < COUNT_UP_AFTER_MS
+      ? "Thinking"
+      : `Thinking for ${duration}`
     : endsAt
       ? `Thought for ${duration}`
       : "Thought";

@@ -1,6 +1,5 @@
 import path from "node:path";
 
-import { TASK_FOLDER_NAMES } from "../constants";
 import { type AbsolutePath } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { absolutePathJoin } from "./absolute-path-join";
@@ -8,8 +7,9 @@ import { commandLineToolsEnv } from "./command-line-tools-env";
 import { taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig } from "./workspace-config";
 
-// Per-task virtualenv lives under the runnable `work/` dir so it ships with the
-// task and stays isolated from other tasks.
+// Per-task virtualenv, at the task root so it ships with the task and stays
+// isolated from other tasks. The root is also the agent's working directory,
+// which is where uv and python look for a venv when nothing points them at one.
 const VENV_DIR_NAME = ".venv";
 
 // Pin the managed interpreter to a stable version. Without this, uv
@@ -26,13 +26,9 @@ export function getUvBinPath(): AbsolutePath {
   return getWorkspaceConfig().uvBinPath;
 }
 
-/** Absolute path to the task's virtualenv directory (`work/.venv`). */
+/** Absolute path to the task's virtualenv directory (`.venv`). */
 export function taskVenvDir(taskId: TaskId): AbsolutePath {
-  return absolutePathJoin(
-    taskDir(taskId),
-    TASK_FOLDER_NAMES.work,
-    VENV_DIR_NAME,
-  );
+  return absolutePathJoin(taskDir(taskId), VENV_DIR_NAME);
 }
 
 /**
@@ -53,7 +49,7 @@ export function taskVenvPython(taskId: TaskId): AbsolutePath {
  * userData (just-bash sets `HOME=/`, which would otherwise send uv writing to
  * the host fs, see run-pnpm.ts) and to a managed CPython so it never silently
  * uses a random host Python. `VIRTUAL_ENV` points uv and the interpreter at the
- * task's `work/.venv`.
+ * task's `.venv`.
  */
 export function uvSubprocessEnv({
   taskId,

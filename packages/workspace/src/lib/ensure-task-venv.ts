@@ -1,9 +1,9 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { type TaskId } from "../schemas/task-id";
 import { runUvCommand } from "./run-uv";
-import { getTaskWorkDir, taskDir } from "./task-dir-utils";
+import { taskDir } from "./task-dir-utils";
 import { MANAGED_PYTHON_VERSION, taskVenvDir, taskVenvPython } from "./uv";
 
 export interface TaskVenvError {
@@ -12,7 +12,7 @@ export interface TaskVenvError {
 }
 
 // Tool calls can come from concurrent sessions for the same task. Reuse the
-// in-flight creation so two `uv venv` processes cannot race on work/.venv.
+// in-flight creation so two `uv venv` processes cannot race on the venv.
 const inFlightVenvCreation = new Map<
   TaskId,
   Promise<TaskVenvError | undefined>
@@ -34,11 +34,6 @@ export async function ensureTaskVenvForTask({
     return awaitVenvCreation({ creation: existing, signal });
   }
 
-  // The work dir may not exist yet (nothing else creates it when python is
-  // the task's first command); a missing cwd fails execa before uv even runs.
-  const workDir = getTaskWorkDir(taskDir(taskId));
-  mkdirSync(workDir, { recursive: true });
-
   // `--clear` because we only get here when the venv is missing or unusable,
   // so replacing whatever is there is the intent. Without it uv refuses to
   // touch an existing venv, which would strand a task whose interpreter went
@@ -53,7 +48,7 @@ export async function ensureTaskVenvForTask({
       MANAGED_PYTHON_VERSION,
       taskVenvDir(taskId),
     ],
-    cwd: workDir,
+    cwd: taskDir(taskId),
     taskId,
   })
     .then((result) =>

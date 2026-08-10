@@ -26,20 +26,6 @@ const LEGACY_ATTACHMENT_DIR_NAMES = ["user-provided", "agent-retrieved"];
 // references to screenshots/bash-output under `.state/`, so moving the files
 // would orphan them. It stays in place, still ignored by the file index.
 
-// Root entries moved wholesale (rename) into `work/`. Anything absent is skipped.
-const WORK_ENTRY_NAMES = [
-  "package.json",
-  "pnpm-lock.yaml",
-  "pnpm-workspace.yaml",
-  "tsconfig.json",
-  "AGENTS.md",
-  TASK_FOLDER_NAMES.skills,
-  "src",
-  "scripts",
-  "tmp",
-  "node_modules",
-];
-
 // SQLite keeps sidecar files next to the db; they must travel with it. Empty
 // suffix is the db file itself. Harmless if a given sidecar is absent.
 const DB_FILE_SUFFIXES = ["", "-wal", "-shm", "-journal"];
@@ -133,10 +119,7 @@ export function normalizeTask(taskFolder: string): number {
   foldTaskStateFile(taskFolder);
   // After the fold, so the stamp is written to the file that survives it.
   stampTaskTimestamps(taskFolder);
-  normalizeTaskWorkLayout(taskFolder);
   normalizeTaskAttachments(taskFolder);
-  // After the work/ move, so a pre-work-layout task's clones are found at
-  // their current path rather than the root one they were written to.
   return removeBrowserProfileClones(taskFolder);
 }
 
@@ -313,15 +296,6 @@ function normalizeTaskSettingsFile(taskFolder: string) {
   }
 }
 
-// Moves the runnable package and agent working dirs from the task root into
-// work/. No-ops for tasks already in the current layout (no such root entries).
-function normalizeTaskWorkLayout(taskFolder: string) {
-  const workDir = path.join(taskFolder, TASK_FOLDER_NAMES.work);
-  for (const name of WORK_ENTRY_NAMES) {
-    moveIfMissingTarget(path.join(taskFolder, name), path.join(workDir, name));
-  }
-}
-
 // What the list saw before the stamps existed: the session database's
 // timestamps, falling back to the task folder's for a task that never opened
 // one.
@@ -347,13 +321,11 @@ function observedTaskTimestamps(taskFolder: string) {
 }
 
 // Deletes any cloned Chrome profile sitting in the task's temp dir. See
-// BROWSER_PROFILE_CLONE_PREFIX.
+// BROWSER_PROFILE_CLONE_PREFIX. The path is spelled out rather than built from
+// the current folder names: a clone can only exist where the build that made
+// one wrote it, and the temp dir has moved since.
 function removeBrowserProfileClones(taskFolder: string) {
-  const tmpDir = path.join(
-    taskFolder,
-    TASK_FOLDER_NAMES.work,
-    TASK_FOLDER_NAMES.tmp,
-  );
+  const tmpDir = path.join(taskFolder, "work", "tmp");
   if (!fs.existsSync(tmpDir)) {
     return 0;
   }

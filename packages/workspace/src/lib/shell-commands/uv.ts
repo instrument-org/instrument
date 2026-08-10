@@ -16,7 +16,7 @@ import {
 
 export const UV_COMMAND = {
   description:
-    "Python package and environment manager. Also provides `python`, `python3`, and `pip`, backed by a per-task virtualenv in work/.venv. The very first Python use fetches a managed interpreter (one-time); later uses are fast.",
+    "Python package and environment manager. Also provides `python`, `python3`, and `pip`, backed by a per-task virtualenv in .venv. The very first Python use fetches a managed interpreter (one-time); later uses are fast.",
   name: "uv",
 } as const;
 
@@ -34,7 +34,7 @@ export function createUvCommand(taskId: TaskId) {
 
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
 
-    // `uv pip` requires the venv to exist (VIRTUAL_ENV points at work/.venv).
+    // `uv pip` requires the venv to exist (VIRTUAL_ENV points at .venv).
     // Ensure it here so `uv pip install` works even before any `python`/`pip`
     // call has run, matching the behavior of the `pip` custom command.
     if (args[0] === "pip") {
@@ -56,7 +56,7 @@ export function createUvCommand(taskId: TaskId) {
 }
 
 /**
- * Create the task's `work/.venv` if it does not yet have a usable interpreter.
+ * Create the task's `.venv` if it does not yet have a usable interpreter.
  * The first call (machine-wide) downloads a managed CPython, so it can take a
  * few seconds.
  */

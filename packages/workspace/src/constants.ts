@@ -17,14 +17,14 @@ export const TASK_FOLDER_NAMES = {
   private: TASK_PRIVATE_FOLDER_NAME,
   screenshots: "screenshots",
   skills: "skills",
-  // Subprocess temp dir (TMPDIR/TEMP/TMP), under work/ so tempfile spill and
-  // mktemp scratch land inside the task instead of the host temp dir. A plain
-  // (non-dotted) name: work/ is the agent's raw workspace, so leftover temp
-  // data stays visible and browsable like the rest of it.
-  tmp: "tmp",
-  // Dot-prefixed and written under work/ (see bash.ts): the agent is handed
-  // spill-file paths and must read them, but the logs are noise for the user so
-  // they stay out of the browsable file index.
+  // Subprocess temp dir (TMPDIR/TEMP/TMP), inside the task so tempfile spill
+  // and mktemp scratch land here instead of the host temp dir. Dot-prefixed
+  // because what accumulates is interpreter caches rather than anything the
+  // user would recognize, and the file index excludes it on that basis.
+  tmp: ".tmp",
+  // Dot-prefixed (see bash.ts): the agent is handed spill-file paths and must
+  // read them, but the logs are noise for the user so they stay out of the
+  // browsable file index.
   toolOutput: ".tool-output",
   work: "work",
 } as const;

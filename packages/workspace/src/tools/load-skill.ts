@@ -29,7 +29,7 @@ import {
   SKILL_CONTENT_LIMIT,
   truncateSkillContent,
 } from "../lib/skills";
-import { getTaskWorkDir, taskDir } from "../lib/task-dir-utils";
+import { taskDir } from "../lib/task-dir-utils";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { MOUNT } from "../mount-points";
 import { BaseInputSchema } from "./base";
@@ -180,7 +180,7 @@ export const LoadSkill = setupTool({
       if (provenance.installDependencies) {
         const { exitCode, stderr, stdout } = await runPnpmCommand({
           args: ["install"],
-          cwd: getTaskWorkDir(taskDir(taskId)),
+          cwd: taskDir(taskId),
           signal,
           taskId,
         });
@@ -306,7 +306,7 @@ export const LoadSkill = setupTool({
           const installHint =
             installResult.runtime === "node"
               ? `run \`cd ${skillRoot} && ${PNPM_COMMAND.name} install\``
-              : `install its locked dependencies into \`${TASK_FOLDER_NAMES.work}/.venv\``;
+              : "install its locked dependencies into the task's `.venv`";
           return [
             `This skill declares ${installResult.runtime === "node" ? "Node.js" : "Python"} dependencies, but ${APP_NAME} did not install them because the skill comes from a third-party skills folder on this machine.`,
             `Review the skill first, then ${installHint} yourself if you trust it.`,
@@ -327,12 +327,12 @@ export const LoadSkill = setupTool({
 
         return installResult.runtime === "node"
           ? [
-              `\`${PNPM_COMMAND.name} install\` was run in \`${TASK_FOLDER_NAMES.work}/\`.`,
+              `\`${PNPM_COMMAND.name} install\` was run for this task.`,
               `The skill's Node.js dependencies are ready to use.`,
               `Do not run \`${PNPM_COMMAND.name} add\` for packages this skill already provides.`,
             ].join(" ")
           : [
-              `The skill's locked Python dependencies were installed in \`${TASK_FOLDER_NAMES.work}/.venv\`.`,
+              `The skill's locked Python dependencies were installed in the task's \`.venv\`.`,
               `Run its Python scripts with \`python\`; do not install packages the skill already provides.`,
             ].join(" ");
       });

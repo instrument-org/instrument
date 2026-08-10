@@ -6,7 +6,7 @@ import { MOUNT } from "../../mount-points";
 
 export const MKTEMP_COMMAND = {
   description:
-    "Create a uniquely named scratch file (or -d directory) under work/ and print its path.",
+    "Create a uniquely named scratch file (or -d directory) in the task's temp dir and print its path.",
   name: "mktemp",
 } as const;
 
@@ -18,7 +18,7 @@ export const MKTEMP_COMMAND = {
  * is not writable and never will be: it is outside every mount, so a file
  * written there would have nowhere to live once the call ended.
  */
-const TMP_DIR = `${MOUNT.task}/${TASK_FOLDER_NAMES.work}/${TASK_FOLDER_NAMES.tmp}`;
+const TMP_DIR = `${MOUNT.task}/${TASK_FOLDER_NAMES.tmp}`;
 
 /** GNU's default template, used whenever no operand is given. */
 const DEFAULT_TEMPLATE = "tmp.XXXXXXXXXX";

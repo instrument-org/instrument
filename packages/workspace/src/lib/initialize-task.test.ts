@@ -53,10 +53,10 @@ describe("initializeTask", () => {
         ".instrument/settings.json",
         "attachments/",
         "output/",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
         "work/",
-        "work/package.json",
-        "work/pnpm-lock.yaml",
-        "work/pnpm-workspace.yaml",
       ]
     `);
     await expect(
@@ -78,16 +78,13 @@ describe("initializeTask", () => {
       }"
     `);
     await expect(
-      fs.readFile(path.join(taskDir(taskId), "work", "package.json"), "utf8"),
+      fs.readFile(path.join(taskDir(taskId), "package.json"), "utf8"),
     ).resolves.toContain('"name": "@instrument-org/task"');
     // Snapshotted in full so the supply-chain settings a task installs under
     // stay visible: weakening the age gate or the build allowlist has to show
     // up as a diff here.
     await expect(
-      fs.readFile(
-        path.join(taskDir(taskId), "work", "pnpm-workspace.yaml"),
-        "utf8",
-      ),
+      fs.readFile(path.join(taskDir(taskId), "pnpm-workspace.yaml"), "utf8"),
     ).resolves.toMatchInlineSnapshot(`
       "minimumReleaseAge: 10080
       # Declared empty so the key resolves here rather than from a task-local .npmrc,
@@ -98,9 +95,15 @@ describe("initializeTask", () => {
       allowBuilds:
         sharp: true
       dlxCacheMaxAge: 259200 # 180 days in minutes, so npx/pnpx stay warm across tasks
+      # The task root is both the workspace root and the only package anyone installs
+      # into, so pnpm's "did you mean to add to the root?" guard has nothing to guard.
+      # Without this, every \`pnpm add\` in a task fails until it is retried with \`-w\`.
+      ignoreWorkspaceRootCheck: true
+      # Loaded skills are copied in as their own packages so their declared
+      # dependencies install into the skill's own folder rather than the task's.
       packages:
-        - skills/*
-        - skills/*/*
+        - work/skills/*
+        - work/skills/*/*
       # Unapproved build scripts are skipped with a warning instead of failing the
       # install, so a package the agent adds mid-task cannot dead-end it. The bash
       # tool turns that warning into instructions for extending allowBuilds.

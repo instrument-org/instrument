@@ -51,7 +51,7 @@ import { copySkill } from "../src/lib/copy-skill";
 import { installPythonSkill } from "../src/lib/install-python-skill";
 import { runPnpmCommand } from "../src/lib/run-pnpm";
 import { getSkillRuntime } from "../src/lib/skill-runtime";
-import { getTaskWorkDir, taskDir } from "../src/lib/task-dir-utils";
+import { taskDir } from "../src/lib/task-dir-utils";
 import { taskVenvPython } from "../src/lib/uv";
 import {
   getWorkspaceConfig,
@@ -153,7 +153,7 @@ async function installSkill({
   if (runtime.node) {
     const { exitCode, stderr, stdout } = await runPnpmCommand({
       args: ["install"],
-      cwd: getTaskWorkDir(dir),
+      cwd: dir,
       signal,
       taskId,
     });

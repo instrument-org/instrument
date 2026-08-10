@@ -20,8 +20,7 @@ import { taskDir } from "./task-dir-utils";
  * names. Names rather than patterns because the consumers below do not share a
  * pattern dialect, and a name is the one form each of them can spell correctly.
  * Every name means "wherever this appears in the tree", never just at the task
- * root: the trees that matter sit deeper (`work/.venv`,
- * `work/skills/<source>/<name>/node_modules`).
+ * root: a loaded skill's `node_modules` sits several levels down.
  *
  * Add to this list, not to the derived ones.
  */

@@ -18,7 +18,7 @@ import { ensureTaskVenv } from "./uv";
 // share the environment `pip` (uv pip) installs into.
 export const PYTHON_COMMAND = {
   description:
-    "Run Python via the per-task virtualenv (work/.venv). Shares packages installed with `pip`. Use the `pip` command to install packages: `python -m pip` is not available.",
+    "Run Python via the per-task virtualenv (.venv). Shares packages installed with `pip`. Use the `pip` command to install packages: `python -m pip` is not available.",
   name: "python",
 } as const;
 

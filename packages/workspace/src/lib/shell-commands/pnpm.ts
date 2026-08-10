@@ -6,7 +6,7 @@ import {
 } from "just-bash";
 import { dedent } from "radashi";
 
-import { TASK_FOLDER_NAMES } from "../../constants";
+import { MOUNT } from "../../mount-points";
 import { type TaskId } from "../../schemas/task-id";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
 import { systemNote } from "../system-note";
@@ -203,8 +203,8 @@ export function createPnpmCommand(taskId: TaskId) {
       return {
         exitCode: 1,
         stderr: dedent`
-          No package manifest found here. Your project lives in \`${TASK_FOLDER_NAMES.work}/\`.
-          Run package commands from there, e.g. \`cd ${TASK_FOLDER_NAMES.work} && ${PNPM_COMMAND.name} ${filteredArgs.join(" ")}\`.
+          No package manifest found here. Your package is the task root (\`${MOUNT.task}\`), which is also where you start.
+          Run package commands from there, e.g. \`cd ${MOUNT.task} && ${PNPM_COMMAND.name} ${filteredArgs.join(" ")}\`.
         `,
         stdout: "",
       };

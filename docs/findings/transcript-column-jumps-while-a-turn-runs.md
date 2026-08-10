@@ -1,6 +1,6 @@
 # The transcript column jumps while a turn runs
 
-**Status:** open, instrumented but not diagnosed. Recorded 2026-08-10. The measurement below exists and is committed; the cause has not been isolated and nothing fails when it happens.
+**Status:** open, instrumented but not diagnosed. Recorded 2026-08-10. The measurement below exists and is committed, and two separate bugs that produced the same complaint are fixed; the jumping itself has not been isolated and nothing fails when it happens.
 
 ## Context
 
@@ -26,6 +26,16 @@ Two things about the measurement that cost time to find:
 - **Its tests are browser tests, not jsdom.** jsdom has no layout engine, so every box is zero tall and every measurement agrees with every other: a jsdom test here passes whether or not the code works. This is the case `apps/studio/CLAUDE.md` reserves the browser project for, and it caught the bug above on first run.
 
 **A finished turn's footer can be drawn rather than revealed on hover**, via `alwaysShowFooter` on `ChatStream` threaded to `alwaysVisible` on `AssistantMessagesFooter`. The playback page sets it. The product still reveals on hover — this is a prop and not a change of behaviour, because a page measuring column height cannot hover, and a band of blank it cannot fill in reads as a bug in the transcript.
+
+**A scenario that starts with the screen already full**, "A real turn, already scrolled". Reach for this one rather than "A real turn", because the transcript only follows its own end when there is an end to follow: on a fresh task nothing overflows, so nothing moves, and the jumping cannot happen at all. It replays the same acts — the two share `REAL_TURN` rather than copying it — after an earlier turn that lands whole in a single frame, so the screen is in the state under test by the second frame rather than the fiftieth.
+
+## What was fixed along the way, and was not this
+
+Two things that produced the same complaint and turned out to be their own bugs. Neither is the jumping described here, and finding them did not narrow it.
+
+**The router was parking a switched-to transcript wherever the last one was left.** On every navigation it copies the previous location's per-element scroll offsets onto the new location for any selector that still resolves, then writes them after the render — so a key on the content cannot prevent it, since the element is new but is found by selector and written to afterwards. Task detail had already opted out; the playback page now does too ([scroll-restoration.ts](../../apps/studio/src/client/lib/scroll-restoration.ts)). **This is a class rather than a one-off:** any future page owning its scroll through a `MessageScroller` inherits it, and it presents as "the React key does not work". The list in that file is where it is fixed.
+
+**The footer was hover-revealed on a page with no pointer**, which read as a band of blank at the end of a finished turn. That is the prop above.
 
 ## What is suspected, and not yet shown
 

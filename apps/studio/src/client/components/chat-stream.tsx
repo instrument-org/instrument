@@ -17,6 +17,15 @@ import {
   renderChatPart,
   type RenderPartContext,
 } from "./chat-stream-render-part";
+import { FolderAttachmentsCard } from "./folder-attachments-card";
+import { MessageError } from "./message-error";
+import { GroupHeading } from "./message-part/group-heading";
+import { GroupStandIn } from "./message-part/group-stand-in";
+import {
+  TranscriptGroup,
+  TranscriptGroupHead,
+} from "./message-part/transcript-group";
+import { ProjectContextNote } from "./project-context-note";
 import {
   buildTranscriptLayout,
   generatedGroupHeading,
@@ -27,16 +36,7 @@ import {
   planRow,
   type TranscriptGroup as TranscriptGroupData,
   type TranscriptRow,
-} from "./chat-stream-utils";
-import { FolderAttachmentsCard } from "./folder-attachments-card";
-import { MessageError } from "./message-error";
-import { GroupHeading } from "./message-part/group-heading";
-import { GroupStandIn } from "./message-part/group-stand-in";
-import {
-  TranscriptGroup,
-  TranscriptGroupHead,
-} from "./message-part/transcript-group";
-import { ProjectContextNote } from "./project-context-note";
+} from "./transcript-layout";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
 import { MessageScrollerItem } from "./ui/message-scroller";

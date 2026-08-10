@@ -13,7 +13,7 @@ import {
   groupStandInRowId,
   planRow,
   type TranscriptGroup,
-} from "./chat-stream-utils";
+} from "./transcript-layout";
 
 const sessionId = StoreId.newSessionId();
 

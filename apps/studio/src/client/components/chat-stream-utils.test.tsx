@@ -45,6 +45,17 @@ type Spec = [
 
 type Turns = { role: "assistant" | "user"; specs: Spec[] }[];
 
+/** Each row's wide boundary, read back under the label the spec gave it. */
+function boundaries(turns: Turns): Map<string, boolean> {
+  const { labels, layout } = build(turns);
+  return new Map(
+    [...layout.rows.values()].map((row) => [
+      labels.get(row.id) ?? row.id,
+      row.hasProseBoundaryAbove === true,
+    ]),
+  );
+}
+
 /**
  * The transcript as the layout would draw it.
  *
@@ -53,8 +64,9 @@ type Turns = { role: "assistant" | "user"; specs: Spec[] }[];
  * up in the list like anything else. Every row is on a line, `·` where the fold
  * has taken it out and indented where it sits under a head line, and `>` marks
  * the copy of the step in flight that a working group draws in place of what it
- * holds. So a case reads as the shape it produces, and a change to any of the
- * rules shows up as a change to the picture.
+ * holds. A `~` is the wide boundary between what the agent said and what it did.
+ * So a case reads as the shape it produces, and a change to any of the rules
+ * shows up as a change to the picture.
  */
 function build(
   turns: Turns,
@@ -208,6 +220,11 @@ function draw(
   for (const [rowId, row] of layout.rows) {
     const group =
       row.groupId === undefined ? undefined : layout.groups.get(row.groupId);
+    // Where what the agent said meets what it did, which the transcript opens
+    // wider than the rows around it.
+    if (row.hasProseBoundaryAbove) {
+      lines.push("~");
+    }
     if (row.groupId !== openGroupId) {
       openGroupId = row.groupId;
       if (group) {
@@ -283,6 +300,7 @@ describe("groups the agent named", () => {
       --- declared settled
         Writing the brief
       ·   make brief
+      ~
         here is the brief"
     `);
   });
@@ -309,10 +327,13 @@ describe("groups the agent named", () => {
       "--- declared settled
         Finding the notes
       ·   one
+      ~
         these are older than I expected
+      ~
       --- inferred settled "Read 2 files"
       ·   two
       ·   three
+      ~
         here is the brief"
     `);
   });
@@ -337,6 +358,7 @@ describe("groups the agent named", () => {
       "--- declared settled
         Finding the notes
       ·   one
+      ~
         here is the brief
         Quarterly reports"
     `);
@@ -372,11 +394,13 @@ describe("groups the agent named", () => {
       --- declared settled
         Finding the notes
       ·   one
+      ~
         here is the brief
         now chart it
       --- declared settled
         Charting it
       ·   two
+      ~
         here is the chart"
     `);
   });
@@ -456,7 +480,9 @@ describe("groups the agent named", () => {
       "--- declared settled
         Finding the notes
       ·   one
+      ~
         these are older than I expected
+      ~
       --- inferred working
       > two
       ·   two"
@@ -508,6 +534,7 @@ describe("groups that span messages", () => {
         Inspecting the gallery
       ·   open the page
       ·   convert them
+      ~
         here are the files"
     `);
     expect(groupSpans(turns)).toMatchInlineSnapshot(`
@@ -542,6 +569,7 @@ describe("groups the agent never named", () => {
       ·   costs.csv
       ·   python chart.py
       ·   chart legends
+      ~
         here is the chart"
     `);
   });
@@ -565,10 +593,13 @@ describe("groups the agent never named", () => {
       "--- inferred settled "Read 2 files"
       ·   one
       ·   two
+      ~
         found them
+      ~
       --- inferred settled "Ran 2 commands"
       ·   wc -l
       ·   sort
+      ~
         and here is the count"
     `);
   });
@@ -589,6 +620,7 @@ describe("groups the agent never named", () => {
       "--- inferred settled
         which file
         sales.csv
+      ~
         here it is"
     `);
   });
@@ -749,5 +781,106 @@ describe("while the agent is working", () => {
       --- inferred settled
         two"
     `);
+  });
+});
+
+// 24px where what the agent said meets what it did, against the 8px everything
+// else in the transcript sits on. Runs of steps stay 8px from each other: the
+// boundary is prose, not every edge a group has.
+describe("the space around what the agent said", () => {
+  it("opens either side of a paragraph the agent wrote mid-turn", () => {
+    expect(
+      draw([
+        { role: "user", specs: [["prose", "find the notes"]] },
+        {
+          role: "assistant",
+          specs: [
+            ["read", "one"],
+            ["read", "two"],
+            ["prose", "these are older than I expected"],
+            ["read", "three"],
+            ["read", "four"],
+          ],
+        },
+      ]),
+    ).toMatchInlineSnapshot(`
+      "  find the notes
+      --- inferred settled "Read 2 files"
+      ·   one
+      ·   two
+      ~
+        these are older than I expected
+      ~
+      --- inferred settled "Read 2 files"
+      ·   three
+      ·   four"
+    `);
+  });
+
+  it("leaves one phase against the next on the transcript's own rhythm", () => {
+    expect(
+      draw([
+        {
+          role: "assistant",
+          specs: [
+            ["activity", "Finding the notes"],
+            ["read", "one"],
+            ["activity", "Writing the brief"],
+            ["bash", "make brief"],
+          ],
+        },
+      ]),
+    ).toMatchInlineSnapshot(`
+      "--- declared settled
+        Finding the notes
+      ·   one
+      --- declared settled
+        Writing the brief
+      ·   make brief"
+    `);
+  });
+
+  // The first row of a turn is under the wordmark, which spaces it already.
+  it("leaves the top of a turn alone", () => {
+    expect(
+      draw([
+        { role: "user", specs: [["prose", "find the notes"]] },
+        { role: "assistant", specs: [["read", "one"]] },
+      ]),
+    ).toMatchInlineSnapshot(`
+      "  find the notes
+      --- inferred settled
+        one"
+    `);
+  });
+
+  // The one property that keeps this from moving the transcript. A row's
+  // spacing is read from the row above it, which is settled the moment the row
+  // exists; read the other way, a step arriving after a paragraph would grow
+  // that paragraph 16px taller and lift everything above it.
+  it("settles a row's spacing when the row arrives, and never after", () => {
+    const specs: Spec[] = [
+      ["activity", "Finding the notes"],
+      ["read", "one"],
+      ["thought", "weighing it up"],
+      ["prose", "these are older than I expected"],
+      ["read", "two"],
+      ["read", "three"],
+      ["prose", "here is the brief"],
+      ["note", "Quarterly reports"],
+    ];
+
+    let previous = new Map<string, boolean>();
+    for (let count = 1; count <= specs.length; count++) {
+      const current = boundaries([
+        { role: "user", specs: [["prose", "find the notes"]] },
+        { role: "assistant", specs: specs.slice(0, count) },
+      ]);
+      for (const [label, hadBoundary] of previous) {
+        // Paired with the label so a failure names the row that moved.
+        expect([label, current.get(label)]).toEqual([label, hadBoundary]);
+      }
+      previous = current;
+    }
   });
 });

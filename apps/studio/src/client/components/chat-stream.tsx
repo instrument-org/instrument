@@ -50,6 +50,21 @@ const GROUP_INDENT = "pl-6";
 // chrome but a row in the turn that has not started yet.
 const TURN_WORDMARK_ID = "turn-wordmark";
 
+// What the agent said, held apart from what it did. 24px between a paragraph
+// and a run of steps rather than the 8px the transcript puts between rows, so
+// two things that look alike -- one line of text, the same size, the same
+// leading -- read as the different kinds of thing they are. Runs of steps stay
+// 8px from each other: the boundary is prose, not every group edge.
+//
+// 16px on top of the 8px already there, and always on the lower of the two
+// rows; see `hasProseBoundaryAbove` for why it can only be read that way.
+const PROSE_GAP = "mt-4";
+
+// The same 16px, as padding, for a run of steps opening under a paragraph. The
+// group box's own -4px margin is what holds its steps on the rhythm, so a
+// margin here would be resolved against it rather than added to it.
+const PROSE_GAP_IN_GROUP = "pt-4";
+
 interface ChatStreamProps {
   /**
    * Draw a finished turn's footer rather than revealing it on hover. For a
@@ -74,6 +89,8 @@ interface ChatStreamProps {
 interface MessageRow {
   /** The group this row is drawn in; absent for rows outside one. */
   groupId?: string;
+  /** See `TranscriptRow`; the group box reads it off the row it opens on. */
+  hasProseBoundaryAbove?: boolean;
   /** The part id, or a synthetic key for a row that is not a part. */
   id: string;
   /** Null once the fold has taken the row out; the row still holds its place. */
@@ -347,7 +364,12 @@ export function ChatStream({
         // belongs to is drawn even when everything in it is folded away. It is
         // not rendered, and does not count as something the turn said.
         if (isHidden) {
-          messageRows.push({ groupId: row?.groupId, id: rowId, node: null });
+          messageRows.push({
+            groupId: row?.groupId,
+            hasProseBoundaryAbove: row?.hasProseBoundaryAbove,
+            id: rowId,
+            node: null,
+          });
           continue;
         }
 
@@ -365,6 +387,7 @@ export function ChatStream({
 
         messageRows.push({
           groupId: row?.groupId,
+          hasProseBoundaryAbove: row?.hasProseBoundaryAbove,
           id: rowId,
           node: wrapRow({ isIndented, key: rowId, node, row }),
         });
@@ -683,7 +706,8 @@ function collectGroups({
     // for every message the group runs through. That is also the only place the
     // copy of the step in flight can hold still, since it is the one row of the
     // group that is on screen for the whole of its life.
-    const isOpeningSlice = run.rows.some((row) => row.id === group.id);
+    const openingRow = run.rows.find((row) => row.id === group.id);
+    const isOpeningSlice = openingRow !== undefined;
     const heading = isOpeningSlice ? generatedGroupHeading(group) : undefined;
     const standIn = isOpeningSlice ? renderStandIn(group) : null;
 
@@ -701,6 +725,9 @@ function collectGroups({
     return (
       <TranscriptGroup
         canExpand={groupCanExpand(group)}
+        className={cn(
+          openingRow?.hasProseBoundaryAbove === true && PROSE_GAP_IN_GROUP,
+        )}
         isExpanded={isGroupExpanded(group)}
         key={`group-${group.id}-${run.rows[0]?.id ?? ""}`}
         onToggle={() => {
@@ -732,10 +759,12 @@ function TurnWordmark() {
 // A group's steps are indented under its head line. Nothing else in the box is,
 // and prose is never in one at all: see `planRow`.
 //
-// No vertical margins anywhere. The 8px rhythm is the group box's job (see
-// `TranscriptGroup`), and it only works if every row in the box is the same
+// No vertical margins inside a group box. The 8px rhythm there is the box's job
+// (see `TranscriptGroup`), and it only works if every row in it is the same
 // height it looks: a step already carries 4px of padding for its click target,
-// so anything in the box that is not a step is padded to match.
+// so anything in the box that is not a step is padded to match. The one margin
+// is `PROSE_GAP`, which a paragraph takes at the margin of the transcript, where
+// no box is holding the rhythm.
 function wrapRow({
   isIndented,
   key,
@@ -748,12 +777,20 @@ function wrapRow({
   row: TranscriptRow | undefined;
 }): React.ReactNode {
   const needsRowPadding = row?.groupId !== undefined && row.kind !== "step";
-  if (!isIndented && !needsRowPadding) {
+  // A row inside a group takes the gap from the box around it, or the two would
+  // both open it and the boundary would be twice as wide as it asks for.
+  const needsProseGap =
+    row?.hasProseBoundaryAbove === true && row.groupId === undefined;
+  if (!isIndented && !needsRowPadding && !needsProseGap) {
     return node;
   }
   return (
     <div
-      className={cn(isIndented && GROUP_INDENT, needsRowPadding && "py-1")}
+      className={cn(
+        isIndented && GROUP_INDENT,
+        needsRowPadding && "py-1",
+        needsProseGap && PROSE_GAP,
+      )}
       key={`run-row-${key}`}
     >
       {node}

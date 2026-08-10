@@ -1,5 +1,7 @@
 import { createContext, type ReactNode, useContext } from "react";
 
+import { cn } from "../../lib/utils";
+
 interface TranscriptGroupValue {
   /** There is something behind the head line, so the chevron is worth drawing. */
   canExpand: boolean;
@@ -39,11 +41,14 @@ const STEP_RUN = "-my-1 flex flex-col";
 export function TranscriptGroup({
   canExpand,
   children,
+  className,
   isExpanded,
   onToggle,
 }: {
   canExpand: boolean;
   children: ReactNode;
+  /** Spacing the box takes from what sits above it; see `PROSE_GAP_IN_GROUP`. */
+  className?: string;
   isExpanded: boolean;
   onToggle: () => void;
 }) {
@@ -51,7 +56,7 @@ export function TranscriptGroup({
     <TranscriptGroupContext.Provider
       value={{ canExpand, isExpanded, isHead: false, toggle: onToggle }}
     >
-      <div className={STEP_RUN}>{children}</div>
+      <div className={cn(STEP_RUN, className)}>{children}</div>
     </TranscriptGroupContext.Provider>
   );
 }

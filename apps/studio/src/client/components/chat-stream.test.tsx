@@ -198,6 +198,15 @@ function renderTranscript({
   );
 }
 
+function userMessage(text: string) {
+  return {
+    id: StoreId.newMessageId(),
+    metadata: { createdAt: new Date(0), sessionId },
+    parts: [prose(text)],
+    role: "user",
+  };
+}
+
 describe("ChatStream groups the agent named", () => {
   it("collapses to its heading and the one call in flight", () => {
     renderTranscript();
@@ -408,15 +417,6 @@ describe("ChatStream and the wordmark over a turn", () => {
   const wordmark = (container: HTMLElement) =>
     container.querySelector("svg[viewBox='0 0 400 72']");
 
-  function userMessage(text: string) {
-    return {
-      id: StoreId.newMessageId(),
-      metadata: { createdAt: new Date(0), sessionId },
-      parts: [prose(text)],
-      role: "user",
-    };
-  }
-
   const aborted = { error: { kind: "aborted", message: "Aborted" } };
 
   it("heads the turn before the agent has a message of its own", () => {
@@ -481,6 +481,70 @@ describe("ChatStream and the wordmark over a turn", () => {
     ]);
 
     expect(wordmark(container)).not.toBeNull();
+  });
+});
+
+// 24px where a paragraph meets a run of steps, against the 8px the rest of the
+// transcript sits on: 16px of it here, on top of the container's own gap. It
+// hangs off the lower of the two rows so that nothing already drawn changes
+// height when the agent takes its next step.
+describe("ChatStream and the space around what the agent said", () => {
+  const runBox = (text: string) => screen.getByText(text).closest(".-my-1");
+
+  it("opens the boundary above a paragraph written under a run", () => {
+    renderMessages([
+      userMessage("Read every quarter."),
+      assistantMessage([
+        read({ explanation: "Reading the first quarter" }),
+        read({ explanation: "Reading the second quarter" }),
+        prose("These are older than I expected."),
+      ]),
+    ]);
+
+    expect(
+      screen.getByText("These are older than I expected.").closest(".mt-4"),
+    ).not.toBeNull();
+  });
+
+  // As padding, since the box's own negative margin is what holds its steps on
+  // the rhythm and a margin here would be resolved against it.
+  it("opens it again where the run after that paragraph starts", () => {
+    renderMessages([
+      userMessage("Read every quarter."),
+      assistantMessage([
+        prose("I will read the quarters."),
+        read({ explanation: "Reading the first quarter" }),
+        read({ explanation: "Reading the second quarter" }),
+      ]),
+    ]);
+
+    expect(runBox("Read 2 files")?.className).toContain("pt-4");
+  });
+
+  it("leaves one phase against the next on the transcript's own rhythm", () => {
+    renderMessages([
+      userMessage("Read every quarter."),
+      assistantMessage([
+        activity("Reading each quarter"),
+        read({ explanation: "Reading the first quarter" }),
+        activity("Charting them"),
+        read({ explanation: "Reading the chart script" }),
+      ]),
+    ]);
+
+    expect(runBox("Charting them")?.className).not.toContain("pt-4");
+  });
+
+  it("leaves the run that opens a turn alone, which the wordmark spaces", () => {
+    renderMessages([
+      userMessage("Read every quarter."),
+      assistantMessage([
+        activity("Reading each quarter"),
+        read({ explanation: "Reading the first quarter" }),
+      ]),
+    ]);
+
+    expect(runBox("Reading each quarter")?.className).not.toContain("pt-4");
   });
 });
 

@@ -89,6 +89,22 @@ export interface TranscriptLayout {
 export interface TranscriptRow {
   /** The group it is drawn in, its heading row included. */
   groupId?: string;
+  /**
+   * Whether the row above this one is on the other side of the line between
+   * what the agent said and what it did: a paragraph under a run of steps, or a
+   * run of steps under a paragraph. It is the one boundary in a turn worth more
+   * than the transcript's usual spacing, and the renderer widens it.
+   *
+   * Read as a property of the *lower* row and never the upper one, which is
+   * what keeps it from moving anything. A row's neighbour above is settled the
+   * moment the row exists; the row below it is whatever the agent does next, so
+   * a boundary read downwards would grow a row already on screen the moment the
+   * next step arrived.
+   *
+   * A boundary the user's own message sits across is not one of these. That is
+   * the start of a turn, which the wordmark already spaces.
+   */
+  hasProseBoundaryAbove?: boolean;
   id: string;
   /**
    * What kind of thing it is, which is the whole of how it behaves in a group.
@@ -153,10 +169,21 @@ export function buildTranscriptLayout({
       open = undefined;
     }
   };
+  // The row before this one when both are the agent's own, for the boundary
+  // below. Cleared at the user's own rows: a turn's first row sits under the
+  // wordmark rather than under whatever the turn before it ended on.
+  let rowAbove: TranscriptRow | undefined;
+  let inAssistantMessage = false;
+
   // Every row joins through here, so a group's own tally of what it holds can
   // never fall behind the rows attributed to it.
   const push = (id: string, kind: TranscriptRow["kind"]) => {
-    flat.push({ groupId: open?.id, id, kind });
+    const row: TranscriptRow = { groupId: open?.id, id, kind };
+    if (inAssistantMessage && rowAbove && isProseBoundary(rowAbove, row)) {
+      row.hasProseBoundaryAbove = true;
+    }
+    rowAbove = inAssistantMessage ? row : undefined;
+    flat.push(row);
     if (!open || id === open.headingRowId) {
       return;
     }
@@ -168,6 +195,7 @@ export function buildTranscriptLayout({
 
   for (const message of regularMessages) {
     const isLiveMessage = isAgentRunning && message.id === lastMessageId;
+    inAssistantMessage = message.role === "assistant";
     if (message.role === "user") {
       settle();
     }
@@ -433,10 +461,6 @@ function groupFoldsRows(group: TranscriptGroup): boolean {
     : generatedGroupHeading(group) !== undefined;
 }
 
-// Whether this row is the agent at work rather than a record of work it has
-// finished. Always read against the live session and never the part alone: a
-// tool call keeps its start with no end, and a reasoning part keeps its
-// streaming state, long after the run that wrote them died.
 function isPartLive({
   isLiveMessage,
   isStreaming,
@@ -452,6 +476,20 @@ function isPartLive({
   return (
     isLiveMessage && part.type === "reasoning" && part.state === "streaming"
   );
+}
+
+// Whether this row is the agent at work rather than a record of work it has
+// finished. Always read against the live session and never the part alone: a
+// tool call keeps its start with no end, and a reasoning part keeps its
+// streaming state, long after the run that wrote them died.
+// Whether these two rows sit either side of the line between what the agent
+// said and what it did. A paragraph against a run of steps is the boundary; a
+// paragraph against a note the run filed, or one run of steps against the next,
+// is not.
+function isProseBoundary(above: TranscriptRow, below: TranscriptRow): boolean {
+  return above.kind === "prose"
+    ? below.groupId !== undefined
+    : below.kind === "prose" && above.groupId !== undefined;
 }
 
 // Whether a part renders inline. Data parts derive from `dataPartVisibility`,

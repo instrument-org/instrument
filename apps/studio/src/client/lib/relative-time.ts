@@ -12,6 +12,18 @@ const DAY_MS = 24 * HOUR_MS;
  */
 export const RELATIVE_TIME_MAX_AGE_MS = 7 * DAY_MS;
 
+/**
+ * The units a compact rendering steps through, largest first. It floors rather
+ * than rounds: at this width, "1h" covering anything up to two hours is the
+ * trade the format makes, and rounding up would show an hour that hasn't
+ * finished passing.
+ */
+const COMPACT_UNITS = [
+  { ms: DAY_MS, symbol: "d" },
+  { ms: HOUR_MS, symbol: "h" },
+  { ms: MINUTE_MS, symbol: "m" },
+];
+
 /** The full timestamp behind a relative rendering, for tooltips and titles. */
 export function formatAbsoluteTime(date: Date) {
   return format(date, "PPpp");
@@ -27,16 +39,28 @@ export function formatAbsoluteTime(date: Date) {
  * hour scale with "about", both of which read as noise at the sizes these
  * appear in; the two rewrites below are what every call site used to do for
  * itself, in four different combinations.
+ *
+ * `compact` narrows the distance to "12m ago" / "5h ago" / "3d ago", for a
+ * dense row where the timestamp is the least of what the row says and its
+ * width comes out of the title. The date past `maxAgeMs` is already short and
+ * reads the same either way.
  */
 export function formatRelativeTime(
   date: Date,
   now: number,
-  { maxAgeMs = RELATIVE_TIME_MAX_AGE_MS }: { maxAgeMs?: number } = {},
+  {
+    compact = false,
+    maxAgeMs = RELATIVE_TIME_MAX_AGE_MS,
+  }: { compact?: boolean; maxAgeMs?: number } = {},
 ) {
   const nowDate = new Date(now);
 
   if (now - date.getTime() >= maxAgeMs) {
     return format(date, isSameYear(date, nowDate) ? "MMM d" : "MMM d, yyyy");
+  }
+
+  if (compact) {
+    return formatCompactDistance(now - date.getTime());
   }
 
   return formatDistance(date, nowDate, { addSuffix: true })
@@ -136,6 +160,21 @@ function clearTimer(intervalMs: number) {
     clearTimeout(timer);
     timers.delete(intervalMs);
   }
+}
+
+function formatCompactDistance(ageMs: number) {
+  const age = Math.abs(ageMs);
+  const unit = COMPACT_UNITS.find((candidate) => age >= candidate.ms);
+
+  if (!unit) {
+    return "now";
+  }
+
+  const distance = `${Math.floor(age / unit.ms)}${unit.symbol}`;
+  // The suffix survives the abbreviation: shortening the unit to a letter is
+  // what buys the width, while a bare "5m" no longer says it is an elapsed
+  // time at all, let alone which side of now it falls on.
+  return ageMs < 0 ? `in ${distance}` : `${distance} ago`;
 }
 
 function notify(intervalMs: number) {

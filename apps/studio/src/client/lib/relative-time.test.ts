@@ -54,6 +54,30 @@ describe("formatRelativeTime", () => {
       "in 5 minutes",
     );
   });
+
+  it.each([
+    ["seconds", 5 * SECOND, "now"],
+    ["minutes", 12 * MINUTE, "12m ago"],
+    ["an hour that hasn't finished passing", 119 * MINUTE, "1h ago"],
+    ["hours", 5 * HOUR, "5h ago"],
+    ["days", 3 * DAY, "3d ago"],
+  ])("renders %s compactly", (_label, ageMs, expected) => {
+    expect(formatRelativeTime(ago(ageMs), NOW, { compact: true })).toBe(
+      expected,
+    );
+  });
+
+  it("still falls back to the date once compact", () => {
+    expect(
+      formatRelativeTime(ago(RELATIVE_TIME_MAX_AGE_MS), NOW, { compact: true }),
+    ).toBe("Jul 30");
+  });
+
+  it("keeps a future timestamp's direction once compact", () => {
+    expect(
+      formatRelativeTime(new Date(NOW + 5 * MINUTE), NOW, { compact: true }),
+    ).toBe("in 5m");
+  });
 });
 
 describe("relativeTickMs", () => {

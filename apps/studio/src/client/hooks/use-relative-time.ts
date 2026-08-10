@@ -14,7 +14,10 @@ import { useSyncExternalStore } from "react";
  * `RelativeTime` is the usual way to reach this. Call the hook directly where
  * the string is joined into a larger one rather than rendered on its own.
  */
-export function useRelativeTime(date: Date) {
+export function useRelativeTime(
+  date: Date,
+  { compact = false }: { compact?: boolean } = {},
+) {
   const intervalMs = relativeTickMs(getSharedNow() - date.getTime());
 
   const now = useSyncExternalStore(
@@ -22,7 +25,7 @@ export function useRelativeTime(date: Date) {
     getSharedNow,
   );
 
-  return formatRelativeTime(date, now);
+  return formatRelativeTime(date, now, { compact });
 }
 
 function noopSubscribe() {

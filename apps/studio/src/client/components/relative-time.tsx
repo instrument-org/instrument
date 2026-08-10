@@ -5,10 +5,16 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function RelativeTime({
   className,
+  compact = false,
   date,
   tooltip = true,
 }: {
   className?: string;
+  /**
+   * The narrowest rendering ("12m ago", "5h ago", "3d ago"), for a row whose
+   * title wants the width more than the timestamp does.
+   */
+  compact?: boolean;
   date: Date;
   /**
    * Off where the row already owns hover (a command palette item, a dense list
@@ -17,7 +23,7 @@ export function RelativeTime({
    */
   tooltip?: boolean;
 }) {
-  const text = useRelativeTime(date);
+  const text = useRelativeTime(date, { compact });
 
   if (!tooltip) {
     return <span className={className}>{text}</span>;

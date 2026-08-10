@@ -1,4 +1,5 @@
 import {
+  type Act,
   batch,
   pause,
   prose,
@@ -78,6 +79,157 @@ const AWKWARD_SHAPES = [
 ].join("\n\n");
 
 /**
+ * A whole turn, kept apart from the scenario that plays it so a second one can
+ * replay the same acts after something else has already filled the screen. Two
+ * copies of a transcript this long would drift the first time either was
+ * edited, and the difference between them would stop being the thing under
+ * test.
+ */
+const REAL_TURN: Act[] = [
+  user(
+    "Go through the quarterly reports, work out what actually moved, fix the chart script if it needs it, and write it up for me.",
+  ),
+  // Almost every real turn opens like this: a sentence saying what the
+  // agent is about to do, before it has announced a phase or called
+  // anything. It belongs to no group and sits at the outer edge.
+  prose(
+    "I will read the four quarterly files and the notes alongside them first, then look at whether the chart script still works, and write up what I find.",
+  ),
+  reasoning(
+    "The reports are per-quarter files with a regional split. Read them first, then the notes, then decide whether the chart is worth fixing.",
+  ),
+
+  // A named phase, several calls deep, with the agent thinking part-way
+  // through it: reasoning inside a phase folds like any other step, which
+  // is only visible where a phase has one.
+  activity("Finding the quarterly reports"),
+  ran({
+    command: "ls /mnt/Reports",
+    explanation: "Listing the Reports folder",
+    output: "q1.csv\nq2.csv\nq3.csv\nq4.csv\nnotes.md\nchart.py\n",
+  }),
+  reasoning(
+    "There is a notes file alongside the quarters. Read that before the numbers, since it is where anything that would change how they are read would be written down.",
+  ),
+  read({
+    explanation: "Checking the folder notes",
+    filePath: "/mnt/Reports/notes.md",
+  }),
+  prose(
+    "Four quarters and a notes file. The notes mention a reclassification in August, which is going to matter for any comparison across it, so I will read all four rather than just the two either side.",
+  ),
+
+  // The same phase again, this time as one response asking for four at once.
+  activity("Reading each quarter"),
+  batch(
+    read({ explanation: "Reading Q1", filePath: "/mnt/Reports/q1.csv" }),
+    read({ explanation: "Reading Q2", filePath: "/mnt/Reports/q2.csv" }),
+    read({ explanation: "Reading Q3", filePath: "/mnt/Reports/q3.csv" }),
+    read({ explanation: "Reading Q4", filePath: "/mnt/Reports/q4.csv" }),
+  ),
+  prose(
+    "The reported figures show the north up twelve percent across the year and the south flat. Both of those are suspect until the reclassification is accounted for.",
+  ),
+
+  // An unannounced run: no heading, so it has to earn one from what it did.
+  ran({
+    command: "grep -c reclassified /mnt/Reports/notes.md",
+    explanation: "Counting the reclassified accounts",
+    output: "412",
+  }),
+  read({
+    explanation: "Reading the account map",
+    filePath: "/mnt/Reports/accounts.csv",
+  }),
+  ran({
+    command: "python -c 'print(412 / 3400)'",
+    explanation: "Working out the share",
+    output: "0.1211764705882353",
+  }),
+  prose(
+    "Four hundred and twelve accounts moved across the regional boundary in August, which is twelve percent of the book. That is the whole of the reported growth, so the real figure is much smaller.",
+  ),
+
+  // A run of one, unannounced, between two paragraphs.
+  searched({ query: "regional reclassification accounting treatment" }),
+  prose(
+    "Standard practice is to restate the prior periods so the comparison holds. The files here do not do that.",
+  ),
+
+  // A phase that goes wrong, and one that opens on reasoning rather than a
+  // call: the first row under a heading is a step either way.
+  activity("Fixing the chart script"),
+  reasoning(
+    "The chart is generated from the same per-quarter files, so it will read the reclassification the same wrong way. Read it before running it.",
+  ),
+  read({
+    explanation: "Reading the chart script",
+    filePath: "/mnt/Reports/chart.py",
+  }),
+  ranAndFailed({
+    command: "python /mnt/Reports/chart.py",
+    explanation: "Running the chart script",
+    output:
+      "Traceback (most recent call last):\n  File \"chart.py\", line 22, in <module>\n    plot(totals['north'])\nKeyError: 'north'",
+  }),
+  readMissing({
+    explanation: "Looking for the column map",
+    filePath: "/mnt/Reports/columns.json",
+  }),
+  prose(
+    "The script keys on the region names directly, and the reclassification renamed one of them. There is no column map to fall back on.",
+  ),
+  threw({
+    error: "EACCES: permission denied, open '/mnt/Reports/chart.py'",
+    explanation: "Patching the chart script in place",
+    filePath: "/mnt/Reports/chart.py",
+  }),
+  prose(
+    "That folder is read-only, so the fix goes in a copy under the task instead.",
+  ),
+
+  // A long phase, the shape a debugging loop actually produces.
+  activity("Getting the chart to build"),
+  ...Array.from({ length: 14 }, (_, index) =>
+    index % 3 === 0
+      ? ran({
+          command: `python chart.py --quarter ${(index + 1).toString()}`,
+          explanation: `Rendering quarter ${(index + 1).toString()}`,
+          output: index === 12 ? "wrote chart.png" : "1 warning",
+        })
+      : read({
+          explanation: `Reading the quarter ${(index + 1).toString()} slice`,
+          filePath: `/mnt/Reports/slices/q${(index + 1).toString()}.csv`,
+        }),
+  ),
+  edited({
+    explanation: "Keying the chart on the restated regions",
+    filePath: "./chart.py",
+    newString: "totals[REGION_MAP[name]]",
+    oldString: "totals[name]",
+  }),
+  wrote({
+    content: "north,south\n",
+    explanation: "Writing the region map",
+    filePath: "./regions.csv",
+  }),
+  pause(),
+  ran({
+    command: "python chart.py",
+    explanation: "Rendering the chart",
+    output: "wrote chart.png",
+  }),
+
+  reasoning(
+    "The chart builds now. The write-up needs to lead with the reclassification, because every number below it is wrong without that context.",
+  ),
+
+  prose(
+    "## What moved in Q3\n\nOn the reported figures, revenue in the north grew twelve percent against Q2 and the south was flat. Adjusted for the August reclassification, which moved 412 accounts across the regional boundary without any change in the underlying business, the north grew about three percent and the south was slightly up.\n\nThat reverses the story the raw numbers tell, where the south looks like it is losing ground.\n\n### Why the raw numbers are wrong\n\nThe reclassification was an administrative change made in the first week of August. It is recorded in `notes.md` but not reflected in the per-quarter files, which are generated from the account tables directly. Anything comparing Q3 to Q2 on those files alone reads the boundary move as growth.\n\nStandard practice would be to restate the prior periods so the comparison holds. That has not been done here, and until it is, every quarter-on-quarter figure that crosses August is overstated for the north and understated for the south by the same 412 accounts.\n\n### The remaining three percent\n\nWhat is left after the adjustment is concentrated in the last four weeks of the quarter and looks like ordinary seasonal recovery rather than anything structural. Q3 of the prior year shows the same shape at a smaller absolute size, and Q3 of the year before that shows it again.\n\n### The chart\n\nThe chart script keyed on the region names directly, so it broke outright once one of them was renamed. It now goes through a region map, which is written to `regions.csv` alongside it. The rendered chart is in `chart.png` and shows both the reported and the adjusted series, because showing only one of them is how this gets misread again.\n\n### What to do about it\n\nThe per-quarter files should carry the reclassification date, so a comparison across it is at least visible to whoever makes it. Failing that, `notes.md` has to be read alongside them every time, which is the thing that did not happen here and is not going to reliably happen next time either.",
+  ),
+];
+
+/**
  * The transcripts worth watching play out.
  *
  * One of them is the whole thing end to end, and it is the one to reach for:
@@ -92,148 +244,21 @@ export const scenarios: Scenario[] = [
       "A whole turn as they really come: it opens by saying what it is about to do, then named phases and unannounced runs alternating, reasoning, failures, commentary between them, and a written answer at the end. Long enough to scroll.",
     id: "a-real-turn",
     name: "A real turn",
+    script: REAL_TURN,
+  },
+  {
+    about:
+      "The same turn, replayed after an earlier one has already filled the screen. The transcript only follows its own end when there is an end to follow: on a fresh task nothing overflows, so nothing moves, and the jumping that shows up in a real session cannot happen here at all. This is the one to play with the edge marker on.",
+    id: "a-real-turn-scrolled",
+    name: "A real turn, already scrolled",
     script: [
-      user(
-        "Go through the quarterly reports, work out what actually moved, fix the chart script if it needs it, and write it up for me.",
-      ),
-      // Almost every real turn opens like this: a sentence saying what the
-      // agent is about to do, before it has announced a phase or called
-      // anything. It belongs to no group and sits at the outer edge.
-      prose(
-        "I will read the four quarterly files and the notes alongside them first, then look at whether the chart script still works, and write up what I find.",
-      ),
-      reasoning(
-        "The reports are per-quarter files with a regional split. Read them first, then the notes, then decide whether the chart is worth fixing.",
-      ),
-
-      // A named phase, several calls deep, with the agent thinking part-way
-      // through it: reasoning inside a phase folds like any other step, which
-      // is only visible where a phase has one.
-      activity("Finding the quarterly reports"),
-      ran({
-        command: "ls /mnt/Reports",
-        explanation: "Listing the Reports folder",
-        output: "q1.csv\nq2.csv\nq3.csv\nq4.csv\nnotes.md\nchart.py\n",
-      }),
-      reasoning(
-        "There is a notes file alongside the quarters. Read that before the numbers, since it is where anything that would change how they are read would be written down.",
-      ),
-      read({
-        explanation: "Checking the folder notes",
-        filePath: "/mnt/Reports/notes.md",
-      }),
-      prose(
-        "Four quarters and a notes file. The notes mention a reclassification in August, which is going to matter for any comparison across it, so I will read all four rather than just the two either side.",
-      ),
-
-      // The same phase again, this time as one response asking for four at once.
-      activity("Reading each quarter"),
-      batch(
-        read({ explanation: "Reading Q1", filePath: "/mnt/Reports/q1.csv" }),
-        read({ explanation: "Reading Q2", filePath: "/mnt/Reports/q2.csv" }),
-        read({ explanation: "Reading Q3", filePath: "/mnt/Reports/q3.csv" }),
-        read({ explanation: "Reading Q4", filePath: "/mnt/Reports/q4.csv" }),
-      ),
-      prose(
-        "The reported figures show the north up twelve percent across the year and the south flat. Both of those are suspect until the reclassification is accounted for.",
-      ),
-
-      // An unannounced run: no heading, so it has to earn one from what it did.
-      ran({
-        command: "grep -c reclassified /mnt/Reports/notes.md",
-        explanation: "Counting the reclassified accounts",
-        output: "412",
-      }),
-      read({
-        explanation: "Reading the account map",
-        filePath: "/mnt/Reports/accounts.csv",
-      }),
-      ran({
-        command: "python -c 'print(412 / 3400)'",
-        explanation: "Working out the share",
-        output: "0.1211764705882353",
-      }),
-      prose(
-        "Four hundred and twelve accounts moved across the regional boundary in August, which is twelve percent of the book. That is the whole of the reported growth, so the real figure is much smaller.",
-      ),
-
-      // A run of one, unannounced, between two paragraphs.
-      searched({ query: "regional reclassification accounting treatment" }),
-      prose(
-        "Standard practice is to restate the prior periods so the comparison holds. The files here do not do that.",
-      ),
-
-      // A phase that goes wrong, and one that opens on reasoning rather than a
-      // call: the first row under a heading is a step either way.
-      activity("Fixing the chart script"),
-      reasoning(
-        "The chart is generated from the same per-quarter files, so it will read the reclassification the same wrong way. Read it before running it.",
-      ),
-      read({
-        explanation: "Reading the chart script",
-        filePath: "/mnt/Reports/chart.py",
-      }),
-      ranAndFailed({
-        command: "python /mnt/Reports/chart.py",
-        explanation: "Running the chart script",
-        output:
-          "Traceback (most recent call last):\n  File \"chart.py\", line 22, in <module>\n    plot(totals['north'])\nKeyError: 'north'",
-      }),
-      readMissing({
-        explanation: "Looking for the column map",
-        filePath: "/mnt/Reports/columns.json",
-      }),
-      prose(
-        "The script keys on the region names directly, and the reclassification renamed one of them. There is no column map to fall back on.",
-      ),
-      threw({
-        error: "EACCES: permission denied, open '/mnt/Reports/chart.py'",
-        explanation: "Patching the chart script in place",
-        filePath: "/mnt/Reports/chart.py",
-      }),
-      prose(
-        "That folder is read-only, so the fix goes in a copy under the task instead.",
-      ),
-
-      // A long phase, the shape a debugging loop actually produces.
-      activity("Getting the chart to build"),
-      ...Array.from({ length: 14 }, (_, index) =>
-        index % 3 === 0
-          ? ran({
-              command: `python chart.py --quarter ${(index + 1).toString()}`,
-              explanation: `Rendering quarter ${(index + 1).toString()}`,
-              output: index === 12 ? "wrote chart.png" : "1 warning",
-            })
-          : read({
-              explanation: `Reading the quarter ${(index + 1).toString()} slice`,
-              filePath: `/mnt/Reports/slices/q${(index + 1).toString()}.csv`,
-            }),
-      ),
-      edited({
-        explanation: "Keying the chart on the restated regions",
-        filePath: "./chart.py",
-        newString: "totals[REGION_MAP[name]]",
-        oldString: "totals[name]",
-      }),
-      wrote({
-        content: "north,south\n",
-        explanation: "Writing the region map",
-        filePath: "./regions.csv",
-      }),
-      pause(),
-      ran({
-        command: "python chart.py",
-        explanation: "Rendering the chart",
-        output: "wrote chart.png",
-      }),
-
-      reasoning(
-        "The chart builds now. The write-up needs to lead with the reclassification, because every number below it is wrong without that context.",
-      ),
-
-      prose(
-        "## What moved in Q3\n\nOn the reported figures, revenue in the north grew twelve percent against Q2 and the south was flat. Adjusted for the August reclassification, which moved 412 accounts across the regional boundary without any change in the underlying business, the north grew about three percent and the south was slightly up.\n\nThat reverses the story the raw numbers tell, where the south looks like it is losing ground.\n\n### Why the raw numbers are wrong\n\nThe reclassification was an administrative change made in the first week of August. It is recorded in `notes.md` but not reflected in the per-quarter files, which are generated from the account tables directly. Anything comparing Q3 to Q2 on those files alone reads the boundary move as growth.\n\nStandard practice would be to restate the prior periods so the comparison holds. That has not been done here, and until it is, every quarter-on-quarter figure that crosses August is overstated for the north and understated for the south by the same 412 accounts.\n\n### The remaining three percent\n\nWhat is left after the adjustment is concentrated in the last four weeks of the quarter and looks like ordinary seasonal recovery rather than anything structural. Q3 of the prior year shows the same shape at a smaller absolute size, and Q3 of the year before that shows it again.\n\n### The chart\n\nThe chart script keyed on the region names directly, so it broke outright once one of them was renamed. It now goes through a region map, which is written to `regions.csv` alongside it. The rendered chart is in `chart.png` and shows both the reported and the adjusted series, because showing only one of them is how this gets misread again.\n\n### What to do about it\n\nThe per-quarter files should carry the reclassification date, so a comparison across it is at least visible to whoever makes it. Failing that, `notes.md` has to be read alongside them every time, which is the thing that did not happen here and is not going to reliably happen next time either.",
-      ),
+      user("Summarize the quarterly reports for me."),
+      // Landing whole rather than a few words at a time, which is what history
+      // is: a turn that already happened is on screen the moment the task
+      // opens. It is also what puts the screen in the state being tested by
+      // the second frame rather than the fiftieth.
+      prose(LONG_ANSWER, 0),
+      ...REAL_TURN,
     ],
   },
   {

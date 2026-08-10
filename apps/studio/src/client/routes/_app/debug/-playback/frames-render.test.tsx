@@ -80,13 +80,10 @@ describe("the playback library, drawn frame by frame", () => {
         }
 
         // While a group is folded its steps cost one line between them, so a
-        // second indented step means the fold has let something out. Only the
-        // copy of the step in flight is allowed. Prose is not a step: a
-        // paragraph the agent wrote mid-phase indents with the phase and holds
-        // its place, so it is excluded here rather than counted against it.
-        const indented = [...container.querySelectorAll(".pl-6")].filter(
-          (node) => node.querySelector(".prose") === null,
-        );
+        // second indented row means the fold has let something out. Only the
+        // copy of the step in flight is allowed, and a paragraph is never
+        // indented at all: it belongs to no phase.
+        const indented = [...container.querySelectorAll(".pl-6")];
         if (indented.length > 1) {
           broke.indented.push(
             `${at}: ${indented.map((node) => node.textContent).join(" | ")}`,

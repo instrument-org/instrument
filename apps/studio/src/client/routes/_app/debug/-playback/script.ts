@@ -84,7 +84,7 @@ export function call(spec: ToolCallShape): ToolCall {
   return { ...spec, kind: "call" };
 }
 
-/** The agent working with nothing in flight, which is the planning row. */
+/** The agent between steps, with nothing in flight and nothing yet to show. */
 export function pause(): Act {
   return { kind: "pause" };
 }

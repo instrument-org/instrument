@@ -100,8 +100,8 @@ function describe(mark: FrameMark): { icon: Icon; name: string } {
         name: toolName ?? "tool",
       };
     }
-    case "planning": {
-      return { icon: DotsThreeIcon, name: "planning" };
+    case "pause": {
+      return { icon: DotsThreeIcon, name: "pause" };
     }
     case "prose": {
       return { icon: ArticleIcon, name: "assistant" };

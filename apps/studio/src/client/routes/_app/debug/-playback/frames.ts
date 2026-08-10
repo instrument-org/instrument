@@ -35,7 +35,7 @@ export interface FrameMark {
    * is the only way to tell from the timeline what the frame even was.
    */
   detail?: string;
-  kind: "call" | "planning" | "prose" | "reasoning" | "turn" | "user";
+  kind: "call" | "pause" | "prose" | "reasoning" | "turn" | "user";
   /**
    * Where the step has got to, for the kinds that pass through states.
    *
@@ -108,9 +108,9 @@ class Playback {
         return;
       }
       case "pause": {
-        // No change to the parts: with nothing in flight the stream falls to
-        // its planning row, and this is where that gets looked at.
-        this.snapshot({ kind: "planning" });
+        // No change to the parts at all, which makes this the one frame that
+        // must draw exactly what the frame before it drew.
+        this.snapshot({ kind: "pause" });
         return;
       }
       case "prose": {

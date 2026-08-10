@@ -459,17 +459,27 @@ export function ChatStream({
           .slice(lastFooterIndex, messageIndex + 1)
           .filter((m) => m.role === "assistant");
 
-        const shouldRenderFooter =
-          assistantMessages.length > 0 &&
-          visibleAssistantContentCount > 0 &&
-          (!isLastMessage ||
-            (!isAgentRunning && lastAssistantMessageHasVisibleParts));
+        // A group with nothing in it has no footer at all. One with something in
+        // it always has the row, finished or not: whether the turn is still
+        // being written decides what the row shows, not whether it is there.
+        //
+        // Which matters because "the turn is still being written" is settled by
+        // the session's status and the transcript's messages arriving from two
+        // different live queries, in either order. For the frames where they
+        // disagree the answer here is wrong, and the whole point of reserving
+        // the height is that being wrong costs nothing.
+        const hasFooter =
+          assistantMessages.length > 0 && visibleAssistantContentCount > 0;
 
-        if (shouldRenderFooter) {
+        if (hasFooter) {
           messageElements.push(
             <AssistantMessagesFooter
               alwaysVisible={alwaysShowFooter}
               id={task.id}
+              isTurnLive={
+                isLastMessage &&
+                (isAgentRunning || !lastAssistantMessageHasVisibleParts)
+              }
               key={`assistant-footer-${message.id}`}
               messages={assistantMessages}
             />,

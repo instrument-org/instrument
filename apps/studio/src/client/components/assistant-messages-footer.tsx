@@ -35,6 +35,17 @@ interface AssistantMessagesFooterProps {
    */
   alwaysVisible?: boolean;
   id: TaskId;
+  /**
+   * The turn this footer belongs to is still being produced, so the row holds
+   * its space and shows nothing.
+   *
+   * The space is reserved from the moment the turn has anything in it, rather
+   * than the row being mounted once the turn ends. Mounting it late puts a row's
+   * worth of growth into the frame where the session has just stopped and
+   * nothing is following the transcript, and unmounting it when the next turn
+   * starts takes that height back out from under whatever the reader is on.
+   */
+  isTurnLive?: boolean;
   messages: SessionMessage.AssistantWithParts[];
 }
 
@@ -46,6 +57,7 @@ interface ModelUsageData {
 export function AssistantMessagesFooter({
   alwaysVisible = false,
   id,
+  isTurnLive = false,
   messages,
 }: AssistantMessagesFooterProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -152,9 +164,14 @@ export function AssistantMessagesFooter({
         <div
           className={cn(
             "flex min-w-0 items-center gap-2",
-            alwaysVisible || sources.length > 0
-              ? "opacity-100"
-              : "opacity-0 group-hover/assistant-message-footer:opacity-100",
+            // `invisible` rather than an opacity of nought: a turn still being
+            // written should not answer a click or a tab stop, and the row is
+            // only here to hold the height.
+            isTurnLive
+              ? "invisible"
+              : alwaysVisible || sources.length > 0
+                ? "opacity-100"
+                : "opacity-0 group-hover/assistant-message-footer:opacity-100",
           )}
         >
           {/* The negative margins cancel the buttons' own padding so their icons

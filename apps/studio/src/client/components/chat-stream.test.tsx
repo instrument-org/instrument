@@ -636,6 +636,35 @@ describe("ChatStream and the footer of a finished turn", () => {
 
     expect(footerRow(container).className).not.toContain("opacity-0");
   });
+
+  /**
+   * The row is there for both states and only its visibility changes, so the
+   * turn ending does not grow the transcript by a row and the next turn starting
+   * does not take that row back out. Which state the transcript believes it is
+   * in arrives from a different live query than the messages do, so the two
+   * disagree for a frame or two on every submit -- and this is what makes being
+   * wrong for those frames cost nothing.
+   */
+  it("holds the footer's space while the turn is still being written", () => {
+    const live = renderSteps(
+      [
+        [read({ explanation: "Reading the first quarter" })],
+        [prose("Revenue grew in the north.")],
+      ],
+      { isAgentRunning: true },
+    );
+
+    expect(footerRow(live.container).className).toContain("invisible");
+
+    live.unmount();
+
+    const finished = renderSteps([
+      [read({ explanation: "Reading the first quarter" })],
+      [prose("Revenue grew in the north.")],
+    ]);
+
+    expect(footerRow(finished.container).className).not.toContain("invisible");
+  });
 });
 
 /**

@@ -32,7 +32,7 @@ import {
 import { toast } from "sonner";
 
 import { ChatStream } from "../chat-stream";
-import { PromptInput } from "../prompt-input";
+import { PromptInput, type PromptInputRef } from "../prompt-input";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
 import {
@@ -55,13 +55,6 @@ import { TutorialPromptCard } from "./tutorial-prompt-card";
 // session has to justify it. Long enough to cover starting a turn, short enough
 // that a submit that never becomes one hands the idle transcript back.
 const SUBMIT_FOLLOW_TIMEOUT_MS = 5000;
-
-// How long the transcript keeps following after a turn ends. The footer is added
-// to the DOM by the same change that stops the session, so its height is the
-// first growth nobody would otherwise follow and it lands a row below the fold.
-// Long enough for that commit and the resize behind it, short enough that an
-// idle transcript is the reader's again before they reach for it.
-const TURN_SETTLE_FOLLOW_TIMEOUT_MS = 400;
 
 // Where an anchored turn comes to rest, measured from the top of the viewport.
 // Less than the primitive's default, because the transcript fades its own top
@@ -95,10 +88,9 @@ export function TaskChat({
   // after it.
   useHydrateTaskDraft(id, promptDraft);
 
-  const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
+  const promptInputRef = useRef<PromptInputRef>(null);
   const [scrollToEndSignal, setScrollToEndSignal] = useState(0);
   const [isFollowingSubmit, setIsFollowingSubmit] = useState(false);
-  const [isSettlingTurn, setIsSettlingTurn] = useState(false);
 
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions({
@@ -162,7 +154,6 @@ export function TaskChat({
     isReplayActive,
     sessionId: selectedSessionId,
   });
-  const [wasAgentAlive, setWasAgentAlive] = useState(isAgentAlive);
 
   // The live session takes over following the transcript as soon as it reports
   // itself alive, so the submit's own reason to follow ends there.
@@ -185,29 +176,6 @@ export function TaskChat({
       window.clearTimeout(timeout);
     };
   }, [isFollowingSubmit]);
-
-  // The end of a turn adds the footer, so the session stops following at the
-  // exact moment there is one more thing to follow. Carry it a beat past the
-  // handover. A reader who expands something inside the window releases follow
-  // themselves, which is what keeps it from taking the transcript off them.
-  if (wasAgentAlive !== isAgentAlive) {
-    setWasAgentAlive(isAgentAlive);
-    setIsSettlingTurn(!isAgentAlive);
-  }
-
-  useEffect(() => {
-    if (!isSettlingTurn) {
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      setIsSettlingTurn(false);
-    }, TURN_SETTLE_FOLLOW_TIMEOUT_MS);
-
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [isSettlingTurn]);
 
   const { handleContinue } = useContinueSession({
     id,
@@ -322,6 +290,11 @@ export function TaskChat({
         }
       }}
       onSubmit={({ files, folders, modelURI, prompt }) => {
+        // The composer empties on submit rather than on the reply, so a send the
+        // workspace rejects has to hand the prompt and its attachments back --
+        // nothing else holds them, and a toast the user cannot act on is worse
+        // than no send at all.
+        const draft = promptInputRef.current?.snapshot();
         promptInputRef.current?.clear();
         // Submitting is a request to watch what happens next, so a reader who
         // had scrolled back returns to the live edge and follows it again. Both
@@ -350,6 +323,11 @@ export function TaskChat({
             sessionId: selectedSessionId,
           },
           {
+            onError: () => {
+              if (draft) {
+                promptInputRef.current?.restore(draft);
+              }
+            },
             onSuccess: ({ sessionId }) => {
               void navigate({
                 params: { id },
@@ -380,15 +358,14 @@ export function TaskChat({
   // gradient overlay at the scroll frame's bottom edge eases the transcript into
   // the composer; pb-8 keeps the last turn's text clear of the fade band.
   //
-  // autoScroll only while the session is alive, while a just-submitted prompt is
-  // waiting for one, or for the beat after one ends: follow-bottom cannot tell
-  // new output from content the reader grew themselves, so on an idle transcript
-  // it reads a collapsible expanding as output and yanks the row out from under
-  // the click. Alive rather than running, so a turn paused for approval still
-  // follows.
+  // autoScroll only while the session is alive, or while a just-submitted prompt
+  // is waiting for one: follow-bottom cannot tell new output from content the
+  // reader grew themselves, so on an idle transcript it reads a collapsible
+  // expanding as output and yanks the row out from under the click. Alive rather
+  // than running, so a turn paused for approval still follows.
   return (
     <MessageScrollerProvider
-      autoScroll={isAgentAlive || isFollowingSubmit || isSettlingTurn}
+      autoScroll={isAgentAlive || isFollowingSubmit}
       defaultScrollPosition="end"
       key={selectedSessionId}
       scrollPreviousItemPeek={TRANSCRIPT_PREVIOUS_TURN_PEEK}

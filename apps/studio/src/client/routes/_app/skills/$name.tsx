@@ -251,6 +251,7 @@ function SkillPage() {
         <div className="mt-8">
           <PromptInput
             allowOpenInNewTab
+            allowWorkInProject
             autoResizeMaxHeight={240}
             draftKey={draftKey}
             isLoading={createTaskMutation.isPending}
@@ -302,7 +303,6 @@ function SkillPage() {
             }}
             placeholder="Describe the task"
             ref={promptInputRef}
-            showProjectSelector
             showWorkInFolder
           />
         </div>

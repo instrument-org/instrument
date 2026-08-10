@@ -18,6 +18,7 @@ const noop = () => {
 };
 
 const editorProps = {
+  actions: [],
   disabled: false,
   onPaste: () => false,
   onSubmit: noop,

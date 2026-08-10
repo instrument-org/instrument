@@ -78,6 +78,7 @@ function RouteComponent() {
         </div>
         <PromptInput
           allowOpenInNewTab
+          allowWorkInProject
           autoFocus
           autoResizeMaxHeight={300}
           draftKey={{ scope: "compose", tabId }}
@@ -126,7 +127,6 @@ function RouteComponent() {
           }}
           placeholder={`Talk to ${APP_NAME}`}
           ref={promptInputRef}
-          showProjectSelector
           showWorkInFolder
         />
       </div>

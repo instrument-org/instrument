@@ -2,8 +2,7 @@ import { projectModalAtom } from "@/client/atoms/project-modal";
 import {
   DEFAULT_FOLDER_ACCESS,
   type FolderAccess,
-  FolderAccessSelect,
-  FolderAccessWarning,
+  FolderAccessControl,
 } from "@/client/components/folder-access-list";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { Button } from "@/client/components/ui/button";
@@ -387,22 +386,6 @@ function ProjectModalForm({
 
           {!isEditing && (
             <div className="flex flex-col gap-2">
-              {folders.some((folder) => folder.access === "read-write") && (
-                <FolderAccessWarning
-                  folderCount={
-                    folders.filter((folder) => folder.access === "read-write")
-                      .length
-                  }
-                  onUseReadOnly={() => {
-                    setFolders((prev) =>
-                      prev.map((folder) => ({
-                        ...folder,
-                        access: "read-only",
-                      })),
-                    );
-                  }}
-                />
-              )}
               {/* One rounded block with rules between the folders rather than
                   a card each: at this size a stack of separate cards reads as
                   several controls instead of one list. */}
@@ -424,7 +407,7 @@ function ProjectModalForm({
                         {displayPath(folder.path)}
                       </span>
                     </div>
-                    <FolderAccessSelect
+                    <FolderAccessControl
                       access={folder.access}
                       folderName={folderNameFromPath(folder.path)}
                       onChange={(access) => {

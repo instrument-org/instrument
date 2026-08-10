@@ -1,20 +1,19 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { openLogin } from "@/client/atoms/login-modal";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
+import {
+  type ComposerAction,
+  ComposerAddMenu,
+  type ComposerMenuView,
+} from "@/client/components/composer-add-menu";
+import { ComposerFolderTray } from "@/client/components/composer-folder-tray";
 import { ComposerFrame } from "@/client/components/composer-frame";
 import {
   DEFAULT_FOLDER_ACCESS,
   type FolderAccess,
-  FolderAccessList,
 } from "@/client/components/folder-access-list";
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { folderNameFromPath } from "@/client/lib/path-utils";
@@ -24,8 +23,10 @@ import {
   useWindowFileDrop,
 } from "@/client/lib/use-window-file-drop";
 import { cn, isMacOS } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { OUR_MODELS } from "@instrument-org/shared";
+import { skillMentionToken } from "@instrument-org/shared/skill-mention";
 import {
   type FileUpload,
   type FolderAttachment,
@@ -36,10 +37,9 @@ import {
 import { safe } from "@orpc/client";
 import {
   ArrowUpIcon,
-  FileIcon,
+  CardsThreeIcon,
   FolderIcon,
   PaperclipIcon,
-  PlusIcon,
   StopIcon,
   UploadSimpleIcon,
 } from "@phosphor-icons/react";
@@ -64,8 +64,7 @@ import {
   promptFocusSignalAtom,
   removeTransientDraft,
 } from "../atoms/prompt-value";
-import { rpcClient } from "../rpc/client";
-import { PromptProjectSelector } from "./project/prompt-project-selector";
+import { PromptProjectChip } from "./project/prompt-project-chip";
 import { PromptEditor, type PromptEditorRef } from "./prompt-editor";
 import { SessionContextRing } from "./session-context-ring";
 import { Spinner } from "./ui/spinner";
@@ -101,19 +100,28 @@ const MAX_FILE_PREVIEW_SIZE = 10 * 1024 * 1024;
 
 interface PromptInputProps {
   allowOpenInNewTab?: boolean;
+  // Whether the plus menu offers to work in a project, and a chosen one shows
+  // beside it. Off where the project is not the composer's to decide -- a task's
+  // is fixed when it is created.
+  allowWorkInProject?: boolean;
   autoFocus?: boolean;
   autoResizeMaxHeight?: number;
-  // Extra action rendered in the button row before the attach control (e.g. the
+  // Extra action rendered in the button row beside the plus button (e.g. the
   // task page's browser-panel toggle). The host owns it so this stays generic.
   browserToggle?: React.ReactNode;
   className?: string;
   disabled?: boolean;
   draftKey: PromptDraftKey;
+  // Which side of the composer the attached folders are listed on. Below on the
+  // surfaces a prompt is composed from scratch; above where the composer is
+  // already pinned to the bottom of the window.
+  folderTrayPlacement?: "above" | "below";
   id?: TaskId;
   isLoading: boolean;
   isStoppable?: boolean;
   isSubmittable?: boolean;
   modelURI?: AIGatewayModelURI.Type;
+  onFolderCountChange?: (count: number) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onStop?: () => void;
   onSubmit: (value: {
@@ -127,11 +135,10 @@ interface PromptInputProps {
   placeholder?: string;
   ref?: React.Ref<PromptInputRef>;
   selectedSessionId?: StoreId.Session;
-  showProjectSelector?: boolean;
-  // Whether the work-in-folder drawer offers its own entry point. Off, the
-  // drawer still appears once folders are attached -- otherwise a folder added
-  // from the attach menu would be invisible and impossible to remove -- it just
-  // does not advertise itself on surfaces that have their own folder controls.
+  // Whether the folder tray offers its own entry point. Off, the tray still
+  // appears once folders are attached -- otherwise a folder added from the plus
+  // menu would be invisible and impossible to remove -- it just does not
+  // advertise itself on surfaces that have their own folder controls.
   showWorkInFolder?: boolean;
 }
 
@@ -142,24 +149,26 @@ interface PromptInputRef {
 
 export const PromptInput = ({
   allowOpenInNewTab = false,
+  allowWorkInProject = false,
   autoFocus = false,
   autoResizeMaxHeight = 400,
   browserToggle,
   className,
   disabled = false,
   draftKey,
+  folderTrayPlacement = "below",
   id,
   isLoading,
   isStoppable = false,
   isSubmittable = true,
   modelURI,
+  onFolderCountChange,
   onModelChange,
   onStop,
   onSubmit,
   placeholder,
   ref,
   selectedSessionId,
-  showProjectSelector = false,
   showWorkInFolder = false,
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
@@ -169,11 +178,18 @@ export const PromptInput = ({
   const [selectedProjectId, setSelectedProjectId] = useState<null | ProjectId>(
     null,
   );
+  const [menuView, setMenuView] = useState<ComposerMenuView | null>(null);
   const openFilePreview = useSetAtom(openFilePreviewAtom);
   const promptEditorRef = useRef<PromptEditorRef>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useAtom(promptDraftAtom(draftKey));
   const setInputRef = useSetAtom(promptDraftRefAtom(draftKey));
+  // The plus menu lists skills the way a typed slash does -- name, description
+  // and source on one line -- so it is sized to the composer rather than to the
+  // 32px button it hangs off. Layout px, which is the unit the menu re-applies
+  // zoom to.
+  const [menuWidth, setMenuWidth] = useState<number>();
 
   const {
     data: modelsData,
@@ -223,6 +239,25 @@ export const PromptInput = ({
       setInputRef(null);
     };
   }, [setInputRef]);
+
+  useEffect(() => {
+    const composer = composerRef.current;
+    if (!composer) {
+      return;
+    }
+    // The content box rather than the border box: what the menu should span is
+    // the button row it hangs off, which is the composer inside its padding.
+    const observer = new ResizeObserver(([entry]) => {
+      const inlineSize = entry?.contentBoxSize[0]?.inlineSize;
+      if (inlineSize !== undefined) {
+        setMenuWidth(inlineSize);
+      }
+    });
+    observer.observe(composer);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   // A transient draft belongs to the surface that mounted it, so drop it when
   // that surface goes away or re-keys. Without this it would outlive the page
@@ -443,6 +478,47 @@ export const PromptInput = ({
     access: folder.access,
     path: folder.path,
   }));
+  const showFolderTray = showWorkInFolder || folderAccessList.length > 0;
+
+  // A host may lay itself out around what this prompt has been given -- the
+  // tutorial task folds its own card away rather than wrapping a wrapper -- so
+  // the count is reported as it changes rather than only on submit.
+  const folderCount = folderAccessList.length;
+  useEffect(() => {
+    onFolderCountChange?.(folderCount);
+  }, [folderCount, onFolderCountChange]);
+
+  const actions: ComposerAction[] = [
+    {
+      icon: PaperclipIcon,
+      id: "add-files",
+      label: "Add files",
+      onSelect: () => {
+        fileInputRef.current?.click();
+      },
+    },
+    {
+      icon: FolderIcon,
+      id: "work-in-folder",
+      label: "Work in a local folder",
+      onSelect: () => {
+        void handleFolderPick();
+      },
+    },
+    ...(allowWorkInProject
+      ? [
+          {
+            icon: CardsThreeIcon,
+            id: "work-in-project",
+            keepMenuOpen: true,
+            label: "Work in a project",
+            onSelect: () => {
+              setMenuView("projects");
+            },
+          },
+        ]
+      : []),
+  ];
 
   const canSubmit =
     !disabled &&
@@ -602,141 +678,131 @@ export const PromptInput = ({
     return false;
   };
 
+  const folderTray = showFolderTray && (
+    <ComposerFolderTray
+      disabled={disabled || isLoading}
+      folders={folderAccessList}
+      onAccessChange={setFolderAccess}
+      onAdd={() => void handleFolderPick()}
+      onRemove={removeFolder}
+      showAdd={showWorkInFolder}
+    />
+  );
+
   return (
-    <div className={cn("flex flex-col", className)}>
-      {(showWorkInFolder || folderAccessList.length > 0) && (
-        // A tray behind the composer: inset on both sides and tucked under its
-        // top edge, so the folders read as attached to the prompt rather than
-        // as one more block of chrome stacked above it.
-        <div className="mx-2 -mb-4 flex flex-col items-start rounded-t-2xl bg-muted px-2 pt-1.5 pb-6">
-          {folderAccessList.length > 0 && (
-            <FolderAccessList
-              className="w-full"
-              compact
-              folders={folderAccessList}
-              onAccessChange={setFolderAccess}
-              onRemove={removeFolder}
-            />
-          )}
-          {/* Doubles as the empty state: with nothing attached it is the only
-              thing in the tray, and once folders are listed it is the line that
-              says the list can grow. */}
-          <Button
-            className="h-7 gap-1.5 px-1.5 text-xs text-muted-foreground"
-            disabled={disabled || isLoading}
-            onClick={() => void handleFolderPick()}
-            size="sm"
-            variant="ghost"
-          >
-            {folderAccessList.length > 0 ? (
-              <PlusIcon className="size-4" />
-            ) : (
-              <FolderIcon className="size-4" />
-            )}
-            {folderAccessList.length > 0
-              ? "Add another folder"
-              : "Work in folder"}
-          </Button>
-        </div>
+    // Once there are folders to show, the composer sits inside a tray rather
+    // than on top of one: a single rounded block, a shade off the page, with the
+    // prompt inset in it.
+    <div
+      className={cn(
+        "flex flex-col",
+        showFolderTray &&
+          "rounded-3xl border border-black/5 bg-muted p-1 dark:border-white/10",
+        className,
       )}
+    >
+      {folderTrayPlacement === "above" && folderTray}
 
       <ComposerFrame
         actions={
           <>
-            <div className="flex min-w-0 flex-1 items-end gap-2">
-              <div className="min-w-0 flex-1">
-                <ModelPicker
+            <div className="flex min-w-0 shrink-0 items-center gap-1">
+              <ComposerAddMenu
+                actions={actions}
+                disabled={disabled || isLoading}
+                onSelectProject={
+                  allowWorkInProject ? setSelectedProjectId : undefined
+                }
+                onSelectSkill={(skill) => {
+                  promptEditorRef.current?.insertText(
+                    skillMentionToken(skill.id),
+                  );
+                  promptEditorRef.current?.focus();
+                }}
+                onViewChange={setMenuView}
+                projectId={selectedProjectId}
+                skills={userInvocableSkills}
+                view={menuView}
+                width={menuWidth}
+              />
+
+              {allowWorkInProject && selectedProjectId && (
+                <PromptProjectChip
                   disabled={disabled || isLoading}
-                  errors={modelsErrors}
-                  isError={modelsIsError}
-                  isInvalidOurModel={isInvalidSelectedModel}
-                  isLoading={modelsIsLoading}
-                  models={models}
-                  modelURI={modelURI}
-                  onAddProvider={() => {
-                    openLogin(
-                      hasToken ? { reason: "provider-required" } : undefined,
-                    );
+                  onOpenPicker={() => {
+                    setMenuView("projects");
                   }}
-                  onClose={() => {
-                    if (modelURI) {
-                      promptEditorRef.current?.focus();
-                    }
+                  onRemove={() => {
+                    setSelectedProjectId(null);
                   }}
-                  onOpenChange={(open) => {
-                    if (open && modelsErrors && modelsErrors.length > 0) {
-                      void modelsRefetch();
-                    }
-                  }}
-                  onValueChange={onModelChange}
-                  selectedModel={selectedModel}
+                  projectId={selectedProjectId}
                 />
-              </div>
+              )}
+
+              {browserToggle}
             </div>
 
-            {features.context_ring && id && selectedSessionId && (
-              <SessionContextRing
-                id={id}
-                model={selectedModel}
-                selectedSessionId={selectedSessionId}
-              />
-            )}
-
-            {showProjectSelector && (
-              <PromptProjectSelector
-                disabled={disabled || isLoading}
-                onChange={setSelectedProjectId}
-                value={selectedProjectId}
-              />
-            )}
-
-            {browserToggle}
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  className="size-8 p-0"
-                  disabled={disabled || isLoading}
-                  size="sm"
-                  variant="ghost"
-                >
-                  <PaperclipIcon className="size-5" weight="regular" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                  <FileIcon />
-                  Add files
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => void handleFolderPick()}>
-                  <FolderIcon />
-                  Add folder
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <Button
-              className="size-10 rounded-full p-0 disabled:opacity-100"
-              disabled={isStoppable ? false : !canSubmit}
-              onClick={(e) => {
-                if (isStoppable) {
-                  handleStop();
-                } else {
-                  const openInNewTab =
-                    allowOpenInNewTab && (isMacOS() ? e.metaKey : e.ctrlKey);
-                  handleSubmit(openInNewTab);
-                }
-              }}
-              variant="brand"
-            >
-              {isStoppable ? (
-                <StopIcon className="size-5" weight="fill" />
-              ) : isLoading ? (
-                <Spinner className="size-5" />
-              ) : (
-                <ArrowUpIcon className="size-5" />
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-4">
+              {features.context_ring && id && selectedSessionId && (
+                <SessionContextRing
+                  id={id}
+                  model={selectedModel}
+                  selectedSessionId={selectedSessionId}
+                />
               )}
-            </Button>
+
+              <ModelPicker
+                className="min-w-0"
+                disabled={disabled || isLoading}
+                errors={modelsErrors}
+                isError={modelsIsError}
+                isInvalidOurModel={isInvalidSelectedModel}
+                isLoading={modelsIsLoading}
+                models={models}
+                modelURI={modelURI}
+                onAddProvider={() => {
+                  openLogin(
+                    hasToken ? { reason: "provider-required" } : undefined,
+                  );
+                }}
+                onClose={() => {
+                  if (modelURI) {
+                    promptEditorRef.current?.focus();
+                  }
+                }}
+                onOpenChange={(open) => {
+                  if (open && modelsErrors && modelsErrors.length > 0) {
+                    void modelsRefetch();
+                  }
+                }}
+                onValueChange={onModelChange}
+                selectedModel={selectedModel}
+              />
+
+              <Button
+                aria-label={isStoppable ? "Stop" : "Send"}
+                className="size-8 shrink-0 rounded-full p-0 disabled:opacity-100"
+                disabled={isStoppable ? false : !canSubmit}
+                onClick={(e) => {
+                  if (isStoppable) {
+                    handleStop();
+                  } else {
+                    const openInNewTab =
+                      allowOpenInNewTab && (isMacOS() ? e.metaKey : e.ctrlKey);
+                    handleSubmit(openInNewTab);
+                  }
+                }}
+                variant="brand"
+              >
+                {isStoppable ? (
+                  <StopIcon className="size-5" weight="fill" />
+                ) : isLoading ? (
+                  <Spinner className="size-5" />
+                ) : (
+                  <ArrowUpIcon className="size-5" />
+                )}
+              </Button>
+            </div>
           </>
         }
         attachments={
@@ -775,11 +841,13 @@ export const PromptInput = ({
             </div>
           )
         }
+        ref={composerRef}
       >
         {/* Keyed by draft: the editor reads its text once, at mount, so a
             surface that swaps which draft it is composing (one skill page to
             the next) needs a new editor rather than a new prop. */}
         <PromptEditor
+          actions={actions}
           autoFocus={autoFocus}
           defaultValue={value}
           disabled={disabled || isLoading}
@@ -794,6 +862,8 @@ export const PromptInput = ({
           skills={userInvocableSkills}
         />
       </ComposerFrame>
+
+      {folderTrayPlacement === "below" && folderTray}
 
       <input
         className="hidden"

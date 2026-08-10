@@ -21,6 +21,7 @@ export function ComposerFrame({
   children,
   maxHeight,
   overlay,
+  ref,
 }: {
   /** The button row along the bottom. Never pushed out of the box. */
   actions: React.ReactNode;
@@ -32,6 +33,8 @@ export function ComposerFrame({
   maxHeight: number;
   /** Covers the whole box, out of flow. The drag-and-drop target. */
   overlay?: React.ReactNode;
+  /** The box itself, for anything that has to be sized or placed against it. */
+  ref?: React.Ref<HTMLDivElement>;
 }) {
   return (
     <div
@@ -44,6 +47,7 @@ export function ComposerFrame({
         "focus-within:ring-1 focus-within:ring-black/5 dark:focus-within:ring-white/5",
       )}
       data-slot="composer-frame"
+      ref={ref}
       style={{ maxHeight }}
     >
       {overlay}

@@ -56,6 +56,7 @@ async function renderFrame({
         maxHeight={maxHeight}
       >
         <PromptEditor
+          actions={[]}
           autoFocus={false}
           defaultValue={draft}
           disabled={false}

@@ -2,7 +2,12 @@ import { renderWithProviders } from "@/tests/render";
 import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { type FolderAccess, FolderAccessList } from "./folder-access-list";
+import {
+  type FolderAccess,
+  FolderAccessLabel,
+  FolderAccessList,
+} from "./folder-access-list";
+import { TooltipProvider } from "./ui/tooltip";
 
 function renderList(
   folders: FolderAccess[],
@@ -10,46 +15,30 @@ function renderList(
   onRemove = vi.fn(),
 ) {
   renderWithProviders(
-    <FolderAccessList
-      folders={folders}
-      onAccessChange={onAccessChange}
-      onRemove={onRemove}
-    />,
+    <TooltipProvider>
+      <FolderAccessList
+        folders={folders}
+        onAccessChange={onAccessChange}
+        onRemove={onRemove}
+      />
+    </TooltipProvider>,
   );
   return { onAccessChange, onRemove };
 }
 
 describe("FolderAccessList", () => {
-  it("warns only when a folder can be written", () => {
-    renderList([{ access: "read-only", path: "/Users/sam/Docs" }]);
-    expect(screen.queryByText(/read and write/)).toBeNull();
-  });
-
-  it("warns when any folder can be written", () => {
+  it("states what each folder was granted", () => {
     renderList([
       { access: "read-only", path: "/Users/sam/Docs" },
       { access: "read-write", path: "/Users/sam/Photos" },
     ]);
-    expect(screen.getByText(/read and write/)).toBeTruthy();
-  });
 
-  // The warning's action is a way out of every grant at once, so a folder the
-  // user deliberately left read-only must not produce a redundant change.
-  it("switches only the writable folders to read-only", () => {
-    const { onAccessChange } = renderList([
-      { access: "read-only", path: "/Users/sam/Docs" },
-      { access: "read-write", path: "/Users/sam/Photos" },
-      { access: "read-write", path: "/Users/sam/Clips" },
-    ]);
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Use read-only instead" }),
-    );
-
-    expect(onAccessChange.mock.calls).toEqual([
-      ["/Users/sam/Photos", "read-only"],
-      ["/Users/sam/Clips", "read-only"],
-    ]);
+    expect(
+      screen.getByRole("button", { name: "Access for Docs" }).textContent,
+    ).toMatchInlineSnapshot(`"Read-only"`);
+    expect(
+      screen.getByRole("button", { name: "Access for Photos" }).textContent,
+    ).toMatchInlineSnapshot(`"Full access"`);
   });
 
   it("removes the folder the user closed", () => {
@@ -60,5 +49,25 @@ describe("FolderAccessList", () => {
     fireEvent.click(screen.getByRole("button", { name: /Remove Photos/ }));
 
     expect(onRemove).toHaveBeenCalledExactlyOnceWith("/Users/sam/Photos");
+  });
+});
+
+describe("FolderAccessLabel", () => {
+  // The sentence about writing lives on the shield, so a folder that cannot be
+  // written must not carry one for it to hang off.
+  it("offers the warning only where the agent can write", () => {
+    const { rerender } = renderWithProviders(
+      <TooltipProvider>
+        <FolderAccessLabel access="read-only" />
+      </TooltipProvider>,
+    );
+    expect(screen.getByText("Read-only").dataset.state).toBeUndefined();
+
+    rerender(
+      <TooltipProvider>
+        <FolderAccessLabel access="read-write" />
+      </TooltipProvider>,
+    );
+    expect(screen.getByText("Full access").dataset.state).toBe("closed");
   });
 });

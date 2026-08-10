@@ -1,5 +1,6 @@
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
+import { Button } from "@/client/components/ui/button";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -7,18 +8,28 @@ import {
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/client/components/ui/select";
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
 import { displayPath, folderNameFromPath } from "@/client/lib/path-utils";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { APP_NAME } from "@instrument-org/shared";
 import { type FolderAttachment } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { EyeIcon, XIcon } from "@phosphor-icons/react";
+import {
+  type Icon,
+  LockIcon,
+  ShieldWarningIcon,
+  XIcon,
+} from "@phosphor-icons/react";
 import { toast } from "sonner";
 
 export interface FolderAccess {
@@ -27,8 +38,8 @@ export interface FolderAccess {
 }
 
 // Adding a folder is the user asking the agent to work in it, so it starts with
-// the access that allows that. The warning and the per-folder control are what
-// make the choice reversible.
+// the access that allows that. The icon, its tooltip and the per-folder control
+// are what make the choice legible and reversible.
 //
 // Deliberately the opposite of the schema's default, which is what an
 // attachment carrying no access at all resolves to: that one is about folders
@@ -41,7 +52,98 @@ const ACCESS_LABELS: Record<FolderAttachment.Access, string> = {
   "read-write": "Full access",
 };
 
-/** Read-only label for a folder the user cannot currently change. */
+const ACCESS_ICONS: Record<FolderAttachment.Access, Icon> = {
+  "read-only": LockIcon,
+  "read-write": ShieldWarningIcon,
+};
+
+// Full access is stated in one place and shown the same way everywhere it
+// applies: the shield, and this sentence on hovering it. Fixed rather than
+// counted, because it describes the grant rather than the list it is read
+// against.
+export const FULL_ACCESS_WARNING = `${APP_NAME} will be able to read and write the contents of these folders.`;
+
+// Full access first: it is what a folder is attached with, so the list opens
+// with the current choice at the top rather than the way out of it.
+const ACCESS_ORDER: FolderAttachment.Access[] = ["read-write", "read-only"];
+
+/**
+ * What a folder was granted, and the way to change it.
+ *
+ * The trigger states the access in an icon and a word; hovering it while the
+ * agent can write says what that means. Shared by every surface that grants a
+ * folder so the same posture never reads two ways.
+ */
+export function FolderAccessControl({
+  access,
+  className,
+  folderName,
+  onChange,
+}: {
+  access: FolderAttachment.Access;
+  className?: string;
+  folderName: string;
+  onChange: (access: FolderAttachment.Access) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button
+              aria-label={`Access for ${folderName}`}
+              className={cn(
+                "h-7 gap-1.5 border-border px-2 text-xs",
+                className,
+              )}
+              variant="outline"
+            >
+              <FolderAccessIcon access={access} />
+              {ACCESS_LABELS[access]}
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        {/* Below, so what it says about the folder does not cover the prompt
+            the folder was attached to. */}
+        {access === "read-write" && (
+          <TooltipContent side="bottom">{FULL_ACCESS_WARNING}</TooltipContent>
+        )}
+      </Tooltip>
+      <DropdownMenuContent align="end">
+        {ACCESS_ORDER.map((value) => (
+          <DropdownMenuCheckboxItem
+            checked={access === value}
+            // The checked row carries the emphasis, so the two read as a
+            // current choice and an alternative rather than a pair of options.
+            className="data-[state=checked]:text-foreground"
+            key={value}
+            onSelect={() => {
+              onChange(value);
+            }}
+          >
+            <FolderAccessIcon access={value} />
+            {ACCESS_LABELS[value]}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** The shield or the lock, at the size every surface shows it. */
+export function FolderAccessIcon({
+  access,
+  className,
+}: {
+  access: FolderAttachment.Access;
+  className?: string;
+}) {
+  const Icon = ACCESS_ICONS[access];
+
+  return <Icon className={cn("size-4", className)} />;
+}
+
+/** States the access for a folder the user cannot currently change. */
 export function FolderAccessLabel({
   access,
   className,
@@ -49,28 +151,43 @@ export function FolderAccessLabel({
   access: FolderAttachment.Access;
   className?: string;
 }) {
-  return (
-    <span className={cn("shrink-0 text-xs text-muted-foreground", className)}>
+  const label = (
+    <span
+      className={cn(
+        "flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground",
+        className,
+      )}
+    >
+      <FolderAccessIcon access={access} />
       {ACCESS_LABELS[access]}
     </span>
+  );
+
+  if (access !== "read-write") {
+    return label;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{label}</TooltipTrigger>
+      <TooltipContent>{FULL_ACCESS_WARNING}</TooltipContent>
+    </Tooltip>
   );
 }
 
 /**
  * The folders a task will work in, each with the access it was granted.
  *
- * Shared by the prompt composer and the project window so the two never drift;
- * `compact` is the composer's slimmer arrangement, not a different control.
+ * The full-size arrangement, for a panel with room for it. The composer keeps
+ * its own row layout, tight enough to sit under the prompt.
  */
 export function FolderAccessList({
   className,
-  compact = false,
   folders,
   onAccessChange,
   onRemove,
 }: {
   className?: string;
-  compact?: boolean;
   folders: FolderAccess[];
   onAccessChange: (path: string, access: FolderAttachment.Access) => void;
   onRemove: (path: string) => void;
@@ -79,121 +196,33 @@ export function FolderAccessList({
     return null;
   }
 
-  const writableCount = folders.filter(
-    (folder) => folder.access === "read-write",
-  ).length;
-
   return (
-    <div className={cn("flex flex-col", className)}>
-      {writableCount > 0 && (
-        <FolderAccessWarning
-          className={compact ? "px-1.5 pt-1 pb-1.5" : "px-3 pb-2"}
-          folderCount={writableCount}
-          onUseReadOnly={() => {
-            for (const folder of folders) {
-              if (folder.access === "read-write") {
-                onAccessChange(folder.path, "read-only");
-              }
-            }
-          }}
-        />
-      )}
-      <ul className="flex flex-col">
-        {folders.map((folder) => (
-          <li key={folder.path}>
-            <FolderAccessRow
-              access={folder.access}
-              compact={compact}
-              onAccessChange={(access) => {
-                onAccessChange(folder.path, access);
-              }}
-              onRemove={() => {
-                onRemove(folder.path);
-              }}
-              path={folder.path}
-            />
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/** The access picker itself, for any row layout that needs one. */
-export function FolderAccessSelect({
-  access,
-  folderName,
-  onChange,
-}: {
-  access: FolderAttachment.Access;
-  folderName: string;
-  onChange: (access: FolderAttachment.Access) => void;
-}) {
-  return (
-    <Select
-      onValueChange={(value) => {
-        if (value === "read-only" || value === "read-write") {
-          onChange(value);
-        }
-      }}
-      value={access}
-    >
-      {/* The chevron ships at size-4, which overpowers the 12px label it sits
-          beside; the direct-child selector is what beats the utility class the
-          primitive puts on it. */}
-      <SelectTrigger
-        className="h-auto shrink-0 gap-1 border-0 bg-none px-1.5 py-0.5 text-xs shadow-none dark:border-0 dark:bg-transparent dark:hover:bg-muted [&>svg]:size-3.5"
-        size="sm"
-      >
-        <SelectValue />
-        <span className="sr-only">Access for {folderName}</span>
-      </SelectTrigger>
-      <SelectContent align="end">
-        <SelectItem value="read-write">
-          {ACCESS_LABELS["read-write"]}
-        </SelectItem>
-        <SelectItem value="read-only">{ACCESS_LABELS["read-only"]}</SelectItem>
-      </SelectContent>
-    </Select>
-  );
-}
-
-export function FolderAccessWarning({
-  className,
-  folderCount,
-  onUseReadOnly,
-}: {
-  className?: string;
-  folderCount: number;
-  onUseReadOnly: () => void;
-}) {
-  return (
-    <div className={cn("flex items-start gap-x-2", className)}>
-      <EyeIcon className="mt-px size-4 shrink-0 text-muted-foreground" />
-      <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-        Instrument will be able to read and write the contents of{" "}
-        {folderCount === 1 ? "this folder" : "these folders"}.
-      </p>
-      <button
-        className="shrink-0 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-        onClick={onUseReadOnly}
-        type="button"
-      >
-        Use read-only instead
-      </button>
-    </div>
+    <ul className={cn("flex flex-col", className)}>
+      {folders.map((folder) => (
+        <li key={folder.path}>
+          <FolderAccessRow
+            access={folder.access}
+            onAccessChange={(access) => {
+              onAccessChange(folder.path, access);
+            }}
+            onRemove={() => {
+              onRemove(folder.path);
+            }}
+            path={folder.path}
+          />
+        </li>
+      ))}
+    </ul>
   );
 }
 
 function FolderAccessRow({
   access,
-  compact,
   onAccessChange,
   onRemove,
   path,
 }: {
   access: FolderAttachment.Access;
-  compact: boolean;
   onAccessChange: (access: FolderAttachment.Access) => void;
   onRemove: () => void;
   path: string;
@@ -212,21 +241,12 @@ function FolderAccessRow({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div
-          className={cn(
-            "group flex items-center gap-x-2",
-            compact ? "px-1.5 py-1" : "gap-x-2.5 px-3 py-2",
-          )}
-        >
-          <MacFolderIcon
-            className={cn("shrink-0", compact ? "size-5" : "size-8")}
-          />
+        <div className="group flex items-center gap-x-2.5 px-3 py-2">
+          <MacFolderIcon className="size-8 shrink-0" />
           <div className="flex min-w-0 flex-1 flex-col">
-            {!compact && (
-              <span className="truncate text-xs font-medium">
-                {folderNameFromPath(path)}
-              </span>
-            )}
+            <span className="truncate text-xs font-medium">
+              {folderNameFromPath(path)}
+            </span>
             <span
               className="truncate text-xs text-muted-foreground"
               title={path}
@@ -234,13 +254,11 @@ function FolderAccessRow({
               {displayPath(path)}
             </span>
           </div>
-          <FolderAccessSelect
+          <FolderAccessControl
             access={access}
             folderName={folderNameFromPath(path)}
             onChange={onAccessChange}
           />
-          {/* Matched to the select's chevron in size and weight: side by side
-              at different weights they read as two competing icons. */}
           <button
             className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-50 hover:bg-foreground/5 hover:opacity-100"
             onClick={onRemove}

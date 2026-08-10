@@ -3,6 +3,7 @@ import {
   isToolPart,
   type SessionMessage,
   type SessionMessagePart,
+  type StoreId,
   type ToolName,
 } from "@instrument-org/workspace/client";
 
@@ -52,7 +53,7 @@ export interface TranscriptGroup {
    * it holds. Absent once the group settles, since nothing in it is happening
    * any more.
    */
-  activeRowId?: string;
+  activeRowId?: StoreId.Part;
   /**
    * Steps and notes it holds, counted across the whole group and not the part
    * any one message happens to carry. A group routinely spans several messages,
@@ -61,34 +62,34 @@ export interface TranscriptGroup {
    */
   foldedRowCount: number;
   /** The `start_activity` row heading it. Absent on an inferred group. */
-  headingRowId?: string;
+  headingRowId?: StoreId.Part;
   /**
    * Also the id of the row the group opens on, which is how a renderer working
    * one message at a time tells the slice that starts the group from the ones
    * that continue it.
    */
-  id: string;
+  id: StoreId.Part;
   /**
    * The last row the fold took away, absent until one lands. A working group
    * falls back to this for the line it shows while the agent works out what to
    * do next, so a phase that pauses keeps saying what it just did rather than
    * emptying out.
    */
-  lastRowId?: string;
+  lastRowId?: StoreId.Part;
   phase: "settled" | "working";
   /** Its tool calls in order, which is what a generated heading is built from. */
   toolNames: ToolName[];
 }
 
 export interface TranscriptLayout {
-  groups: Map<string, TranscriptGroup>;
-  rows: Map<string, TranscriptRow>;
+  groups: Map<StoreId.Part, TranscriptGroup>;
+  rows: Map<StoreId.Part, TranscriptRow>;
 }
 
 /** Where one row sits in the transcript. */
 export interface TranscriptRow {
   /** The group it is drawn in, its heading row included. */
-  groupId?: string;
+  groupId?: StoreId.Part;
   /**
    * Whether the row above this one is on the other side of the line between
    * what the agent said and what it did: a paragraph under a run of steps, or a
@@ -105,7 +106,7 @@ export interface TranscriptRow {
    * the start of a turn, which the wordmark already spaces.
    */
   hasProseBoundaryAbove?: boolean;
-  id: string;
+  id: StoreId.Part;
   /**
    * What kind of thing it is, which is the whole of how it behaves in a group.
    *
@@ -152,7 +153,7 @@ export function buildTranscriptLayout({
 }): TranscriptLayout {
   const lastMessageId = regularMessages.at(-1)?.id;
   const flat: TranscriptRow[] = [];
-  const groups = new Map<string, TranscriptGroup>();
+  const groups = new Map<StoreId.Part, TranscriptGroup>();
   const seenSourceIds = new Set<string>();
 
   // The group still taking rows, if any. Settling is what writes one out, so
@@ -177,7 +178,7 @@ export function buildTranscriptLayout({
 
   // Every row joins through here, so a group's own tally of what it holds can
   // never fall behind the rows attributed to it.
-  const push = (id: string, kind: TranscriptRow["kind"]) => {
+  const push = (id: StoreId.Part, kind: TranscriptRow["kind"]) => {
     const row: TranscriptRow = { groupId: open?.id, id, kind };
     if (inAssistantMessage && rowAbove && isProseBoundary(rowAbove, row)) {
       row.hasProseBoundaryAbove = true;
@@ -292,7 +293,9 @@ export function buildTranscriptLayout({
 
   return {
     groups,
-    rows: new Map(flat.map((row): [string, TranscriptRow] => [row.id, row])),
+    rows: new Map(
+      flat.map((row): [StoreId.Part, TranscriptRow] => [row.id, row]),
+    ),
   };
 }
 
@@ -350,7 +353,7 @@ export function groupStandInRowId({
 }: {
   group: TranscriptGroup;
   isExpanded: boolean;
-}): string | undefined {
+}): StoreId.Part | undefined {
   if (group.phase !== "working") {
     return undefined;
   }
@@ -435,8 +438,8 @@ export function planRow({
 }
 
 function emptyGroup(
-  id: string,
-  { headingRowId }: { headingRowId?: string } = {},
+  id: StoreId.Part,
+  { headingRowId }: { headingRowId?: StoreId.Part } = {},
 ): TranscriptGroup {
   return {
     foldedRowCount: 0,
@@ -461,6 +464,10 @@ function groupFoldsRows(group: TranscriptGroup): boolean {
     : generatedGroupHeading(group) !== undefined;
 }
 
+// Whether this row is the agent at work rather than a record of work it has
+// finished. Always read against the live session and never the part alone: a
+// tool call keeps its start with no end, and a reasoning part keeps its
+// streaming state, long after the run that wrote them died.
 function isPartLive({
   isLiveMessage,
   isStreaming,
@@ -478,10 +485,6 @@ function isPartLive({
   );
 }
 
-// Whether this row is the agent at work rather than a record of work it has
-// finished. Always read against the live session and never the part alone: a
-// tool call keeps its start with no end, and a reasoning part keeps its
-// streaming state, long after the run that wrote them died.
 // Whether these two rows sit either side of the line between what the agent
 // said and what it did. A paragraph against a run of steps is the boundary; a
 // paragraph against a note the run filed, or one run of steps against the next,
@@ -545,7 +548,7 @@ function markLive({
   isLive,
 }: {
   group: TranscriptGroup;
-  id: string;
+  id: StoreId.Part;
   isLive: boolean;
 }) {
   if (isLive) {

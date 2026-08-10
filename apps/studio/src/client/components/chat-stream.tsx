@@ -4,6 +4,7 @@ import {
   isToolPart,
   type SessionMessage,
   type SessionMessagePart,
+  type StoreId,
   type Task,
 } from "@instrument-org/workspace/client";
 import { WarningIcon } from "@phosphor-icons/react";
@@ -112,11 +113,11 @@ interface ChatStreamProps {
 
 interface MessageRow {
   /** The group this row is drawn in; absent for rows outside one. */
-  groupId?: string;
+  groupId?: StoreId.Part;
   /** See `TranscriptRow`; the group box reads it off the row it opens on. */
   hasProseBoundaryAbove?: boolean;
-  /** The part id, or a synthetic key for a row that is not a part. */
-  id: string;
+  /** The part it draws. Every row in the transcript is one. */
+  id: StoreId.Part;
   /** Null once the fold has taken the row out; the row still holds its place. */
   node: React.ReactNode;
 }
@@ -139,11 +140,11 @@ export function ChatStream({
   // Every group starts closed, a reopened task included: what a finished task
   // did is a list of the phases it went through, and the steps inside a phase
   // are there for the reader who asks for them.
-  const [expandedGroupIds, setExpandedGroupIds] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
+  const [expandedGroupIds, setExpandedGroupIds] = useState<
+    ReadonlySet<StoreId.Part>
+  >(() => new Set());
 
-  const toggleGroup = (groupId: string) => {
+  const toggleGroup = (groupId: StoreId.Part) => {
     // Before the state change, so the scroller is already out of follow when
     // the rows it opens are measured.
     onReleaseAutoScroll?.();
@@ -213,7 +214,7 @@ export function ChatStream({
   // later message than the one the group opens in. Rendering it means reaching
   // for a part by id rather than by where the loop below has got to.
   const partsById = new Map<
-    string,
+    StoreId.Part,
     {
       message: SessionMessage.WithParts;
       part: SessionMessagePart.Type;
@@ -648,13 +649,13 @@ function collectGroups({
   renderStandIn,
   rows,
 }: {
-  groups: Map<string, TranscriptGroupData>;
+  groups: Map<StoreId.Part, TranscriptGroupData>;
   isGroupExpanded: (group: TranscriptGroupData | undefined) => boolean;
-  onToggle: (groupId: string) => void;
+  onToggle: (groupId: StoreId.Part) => void;
   renderStandIn: (group: TranscriptGroupData) => React.ReactNode;
   rows: MessageRow[];
 }): React.ReactNode[] {
-  const runs: { groupId?: string; rows: MessageRow[] }[] = [];
+  const runs: { groupId?: StoreId.Part; rows: MessageRow[] }[] = [];
   for (const row of rows) {
     const current = runs.at(-1);
     if (current && current.groupId === row.groupId) {

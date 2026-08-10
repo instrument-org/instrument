@@ -710,6 +710,9 @@ export const PromptInput = ({
               <ComposerAddMenu
                 actions={actions}
                 disabled={disabled || isLoading}
+                onReturnFocus={() => {
+                  promptEditorRef.current?.focus();
+                }}
                 onSelectProject={
                   allowWorkInProject ? setSelectedProjectId : undefined
                 }
@@ -717,7 +720,6 @@ export const PromptInput = ({
                   promptEditorRef.current?.insertText(
                     skillMentionToken(skill.id),
                   );
-                  promptEditorRef.current?.focus();
                 }}
                 onViewChange={setMenuView}
                 projectId={selectedProjectId}

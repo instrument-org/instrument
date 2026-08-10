@@ -17,6 +17,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { type ProjectId } from "@instrument-org/workspace/client";
 import { type Icon, PlusIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
+import { useRef } from "react";
 
 /**
  * Something the composer can be given, offered by name in the menu that adds
@@ -53,6 +54,7 @@ export type ComposerMenuView = "projects" | "root";
 export function ComposerAddMenu({
   actions,
   disabled,
+  onReturnFocus,
   onSelectProject,
   onSelectSkill,
   onViewChange,
@@ -63,6 +65,8 @@ export function ComposerAddMenu({
 }: {
   actions: ComposerAction[];
   disabled?: boolean;
+  /** Puts the caret back in the prompt, once something has been chosen here. */
+  onReturnFocus: () => void;
   /** Omitted where a task's project is not the composer's to choose. */
   onSelectProject?: (projectId: null | ProjectId) => void;
   onSelectSkill: (skill: ComposerSkill) => void;
@@ -73,6 +77,11 @@ export function ComposerAddMenu({
   /** Layout px, measured off the composer. Unset until it has been. */
   width?: number;
 }) {
+  // Whether this closed because something was chosen, which is the only case
+  // where the menu owns where focus lands next. Dismissing it is the user
+  // going somewhere themselves, and Radix's own handling is right for that.
+  const chose = useRef(false);
+
   return (
     <DropdownMenu
       onOpenChange={(open) => {
@@ -94,10 +103,30 @@ export function ComposerAddMenu({
           <PlusIcon className="size-5" weight="regular" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" style={{ width }}>
+      <DropdownMenuContent
+        align="start"
+        // Room for the first group and a few skills, and no more: left to the
+        // available height a full skills list becomes a column as tall as the
+        // window. The same cap the slash menu keeps, over the same entries.
+        className="max-h-[min(18rem,calc(var(--radix-dropdown-menu-content-available-height)/var(--content-zoom)))]"
+        // Everything on offer here is something the prompt is about to carry,
+        // so the caret goes back to the prompt rather than to the button that
+        // opened this -- including out of the project picker, which is a
+        // second menu deep and would otherwise leave the caret nowhere.
+        onCloseAutoFocus={(event) => {
+          if (!chose.current) {
+            return;
+          }
+          chose.current = false;
+          event.preventDefault();
+          onReturnFocus();
+        }}
+        style={{ width }}
+      >
         {view === "projects" && onSelectProject ? (
           <ProjectItems
             onSelect={(id) => {
+              chose.current = true;
               onSelectProject(id);
               onViewChange(null);
             }}
@@ -111,6 +140,8 @@ export function ComposerAddMenu({
                 onSelect={(event) => {
                   if (action.keepMenuOpen) {
                     event.preventDefault();
+                  } else {
+                    chose.current = true;
                   }
                   action.onSelect();
                 }}
@@ -126,6 +157,7 @@ export function ComposerAddMenu({
               <DropdownMenuItem
                 key={skill.id}
                 onSelect={() => {
+                  chose.current = true;
                   onSelectSkill(skill);
                 }}
               >

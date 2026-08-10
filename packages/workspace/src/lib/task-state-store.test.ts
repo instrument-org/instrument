@@ -5,9 +5,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
+import { TaskPane } from "../schemas/task-pane";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { getTaskPrivateDir, taskDir } from "./task-dir-utils";
-import { getTaskState, setTaskState } from "./task-state-store";
+import { getTaskState, setTaskState, updateTaskPane } from "./task-state-store";
 
 const id = TaskIdSchema.parse("task-state-store-test");
 
@@ -107,5 +108,50 @@ describe("getTaskState", () => {
     );
     expect(written).toContain('"mountName": "Home-Downloads"');
     expect(written).not.toContain('"name":');
+  });
+});
+
+describe("the pane", () => {
+  it("round-trips through the stored schema", async () => {
+    await setTaskState(taskDir(taskId), {
+      pane: {
+        open: true,
+        selected: "file:output/report.pdf",
+        tabs: [{ filePath: "output/report.pdf", type: "file" }],
+      },
+    });
+
+    const state = await getTaskState(taskDir(taskId));
+
+    expect(state.pane).toMatchInlineSnapshot(`
+      {
+        "open": true,
+        "selected": "file:output/report.pdf",
+        "tabs": [
+          {
+            "filePath": "output/report.pdf",
+            "type": "file",
+          },
+        ],
+      }
+    `);
+  });
+
+  it("serializes overlapping writes instead of losing one", async () => {
+    await Promise.all([
+      updateTaskPane(taskDir(taskId), (pane) =>
+        TaskPane.openTabs(pane, [TaskPane.fileTab("a.png")]),
+      ),
+      updateTaskPane(taskDir(taskId), (pane) =>
+        TaskPane.openTabs(pane, [TaskPane.fileTab("b.png")]),
+      ),
+    ]);
+
+    const state = await getTaskState(taskDir(taskId));
+
+    expect(state.pane?.tabs.map((tab) => TaskPane.tabKey(tab))).toEqual([
+      "file:a.png",
+      "file:b.png",
+    ]);
   });
 });

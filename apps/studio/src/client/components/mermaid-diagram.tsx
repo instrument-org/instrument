@@ -125,10 +125,13 @@ export const MermaidDiagram = ({
   };
 
   return (
-    <div className="group relative isolate my-4" ref={viewportRef}>
+    <div
+      className="group/block-toolbar relative isolate my-4"
+      ref={viewportRef}
+    >
       {/* Revealed on focus as well as hover, so tabbing through never lands
           on an invisible control. */}
-      <div className="absolute top-1 right-1 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+      <div className="absolute top-1 right-1 z-10 flex items-center gap-1 opacity-0 group-hover/block-toolbar:opacity-100 focus-within:opacity-100">
         {!showSource && (
           <button
             aria-label="Open diagram"

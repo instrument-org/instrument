@@ -19,11 +19,11 @@ export const CodeWithCopy = ({
   content: string;
   ref?: React.Ref<HTMLDivElement>;
 }) => (
-  <div className="group relative isolate" ref={ref}>
+  <div className="group/block-toolbar relative isolate" ref={ref}>
     {/* `focus-within` as well as hover: the button stays in the tab order while
         it is transparent, so without it a keyboard user lands on a control
         with nothing on screen to show for it. */}
-    <div className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+    <div className="absolute top-1 right-1 z-10 opacity-0 group-hover/block-toolbar:opacity-100 focus-within:opacity-100">
       <CopyButton
         className={blockToolbarButtonClassName}
         iconSize={12}

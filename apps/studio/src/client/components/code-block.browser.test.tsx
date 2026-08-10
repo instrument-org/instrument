@@ -82,6 +82,37 @@ describe("block toolbar", () => {
   );
 });
 
+// An unnamed `group-hover:` answers any hovered ancestor carrying `group`, not
+// the nearest one, so a block sitting inside a message that groups itself for
+// its own hover chrome would reveal its copy button from anywhere in that
+// message. The toolbar names its group so the block itself is the only thing
+// that can show it.
+describe("block toolbar scope", () => {
+  it("stays hidden while an outer group is hovered", async () => {
+    const screen = await render(
+      <div className="group">
+        <p data-testid="prose">Prose above the block.</p>
+        <CodeWithCopy content="const answer = 42;">
+          <pre data-testid="block">
+            <code>const answer = 42;</code>
+          </pre>
+        </CodeWithCopy>
+      </div>,
+    );
+
+    const toolbar = screen.getByRole("button").element().parentElement;
+    if (!toolbar) {
+      throw new Error("the toolbar did not render");
+    }
+
+    await screen.getByTestId("prose").hover();
+    expect(globalThis.getComputedStyle(toolbar).opacity).toBe("0");
+
+    await screen.getByTestId("block").hover();
+    expect(globalThis.getComputedStyle(toolbar).opacity).toBe("1");
+  });
+});
+
 // The wrapper that holds those controls also sits between the prose root and
 // the block, which is enough to defeat Typography's first/last-child margin
 // reset: it lands on the wrapper, and the block's own margin collapses through

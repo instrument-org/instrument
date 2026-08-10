@@ -1,6 +1,8 @@
 # The transcript column jumps while a turn runs
 
-**Status:** open, instrumented but not diagnosed. Recorded 2026-08-10. The measurement below exists and is committed, and two separate bugs that produced the same complaint are fixed; the jumping itself has not been isolated and nothing fails when it happens.
+**Status:** open, instrumented but not diagnosed. Recorded 2026-08-10. The measurement exists and is committed, and two bugs in the instrument itself are fixed; the jumping has not been isolated and nothing fails when it happens.
+
+**This is about the chat transcript in the product, not about the page it is being watched on.** The playback page is the instrument and nothing more. Everything fixed so far was noise in that instrument rather than the thing it was pointed at, so nothing yet has changed what a reader sees during a real turn.
 
 ## Context
 
@@ -31,7 +33,7 @@ Two things about the measurement that cost time to find:
 
 ## What was fixed along the way, and was not this
 
-Two things that produced the same complaint and turned out to be their own bugs. Neither is the jumping described here, and finding them did not narrow it.
+Two bugs **in the instrument**, both of which moved the transcript on the playback page and neither of which the product ever had. They are recorded because they had to be cleared before the measurement could be trusted — an offset arriving from the previously viewed scenario means the edge is reporting a position that is not the transcript's own — and because the first is a class rather than a one-off. Fixing them narrowed nothing about the jumping itself.
 
 **The router was parking a switched-to transcript wherever the last one was left.** On every navigation it copies the previous location's per-element scroll offsets onto the new location for any selector that still resolves, then writes them after the render — so a key on the content cannot prevent it, since the element is new but is found by selector and written to afterwards. Task detail had already opted out; the playback page now does too ([scroll-restoration.ts](../../apps/studio/src/client/lib/scroll-restoration.ts)). **This is a class rather than a one-off:** any future page owning its scroll through a `MessageScroller` inherits it, and it presents as "the React key does not work". The list in that file is where it is fixed.
 

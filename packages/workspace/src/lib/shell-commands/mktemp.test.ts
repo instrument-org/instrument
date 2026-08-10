@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { MOUNT } from "../../mount-points";
 import { createMktempCommand } from "./mktemp";
 
-const TMP_DIR = `${MOUNT.task}/work/tmp`;
+const TMP_DIR = `${MOUNT.task}/.tmp`;
 
 async function makeBash() {
   const fs = new InMemoryFs();

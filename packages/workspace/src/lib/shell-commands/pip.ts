@@ -9,11 +9,11 @@ import {
 import { ensureTaskVenv, runUv } from "./uv";
 
 // `pip` (and the `pip3` alias) route through `uv pip`, which installs into the
-// task venv (work/.venv) without needing pip seeded into the env. `uv pip`
+// task venv (.venv) without needing pip seeded into the env. `uv pip`
 // honors VIRTUAL_ENV, set by the uv env overlay.
 export const PIP_COMMAND = {
   description:
-    "Install Python packages into the per-task virtualenv (work/.venv) via uv. Use like pip, e.g. `pip install <package>`.",
+    "Install Python packages into the per-task virtualenv (.venv) via uv. Use like pip, e.g. `pip install <package>`.",
   name: "pip",
 } as const;
 
@@ -48,7 +48,7 @@ function createPipCommandNamed(taskId: TaskId, name: string) {
       return {
         exitCode: 0,
         stderr: "",
-        stdout: `pip (via uv; ${uvVersion}) from work/.venv\n`,
+        stdout: `pip (via uv; ${uvVersion}) from .venv\n`,
       };
     }
 

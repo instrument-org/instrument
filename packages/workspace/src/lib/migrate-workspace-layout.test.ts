@@ -311,26 +311,17 @@ describe("migrateWorkspaceLayout", () => {
     expect(exists("tasks", "My Project")).toBe(false);
   });
 
-  it("folds the runnable package and agent dirs into work/", () => {
+  it("leaves the runnable package at the task root", () => {
     const taskRoot = path.join(rootDir, "tasks", "abc");
-    fs.mkdirSync(path.join(taskRoot, "skills", "pdf"), { recursive: true });
     fs.mkdirSync(path.join(taskRoot, "output"), { recursive: true });
     fs.writeFileSync(path.join(taskRoot, "package.json"), `{"name":"task"}`);
-    fs.writeFileSync(path.join(taskRoot, "skills", "pdf", "SKILL.md"), "skill");
     fs.writeFileSync(path.join(taskRoot, "output", "report.md"), "out");
 
     migrateWorkspaceLayout({ rootDir });
 
-    expect(read("tasks", "abc", "work", "package.json")).toBe(
-      `{"name":"task"}`,
-    );
-    expect(read("tasks", "abc", "work", "skills", "pdf", "SKILL.md")).toBe(
-      "skill",
-    );
-    // output stays at the task root
+    expect(read("tasks", "abc", "package.json")).toBe(`{"name":"task"}`);
+    expect(exists("tasks", "abc", "work", "package.json")).toBe(false);
     expect(read("tasks", "abc", "output", "report.md")).toBe("out");
-    expect(exists("tasks", "abc", "package.json")).toBe(false);
-    expect(exists("tasks", "abc", "skills")).toBe(false);
   });
 
   it("leaves a legacy .state dir in place (db references point at it)", () => {

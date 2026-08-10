@@ -38,7 +38,7 @@ describe("createPnpmCommand", () => {
     });
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Your project lives in `work/`");
+    expect(result.stderr).toContain("Your package is the task root");
   });
 
   it("strips global flags from the manifest guard suggestion", async () => {
@@ -48,7 +48,7 @@ describe("createPnpmCommand", () => {
     });
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("`cd work && pnpm add lodash`");
+    expect(result.stderr).toContain("`cd /task && pnpm add lodash`");
   });
 
   it.each([{ subcommand: "dev" }, { subcommand: "start" }])(

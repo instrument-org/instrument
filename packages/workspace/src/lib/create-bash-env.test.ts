@@ -9,7 +9,7 @@ describe("createBashDescription", () => {
 
       IMPORTANT: Folders the user attaches appear as mounts under \`/mnt/\`, each read-only or read-and-write; the attached-folders list in your context says which. A write into a read-only one fails with EROFS. A write into a read-and-write one lands on the user's real files immediately, so treat \`rm\` there as permanent. \`rg\` searches mount paths directly, but the interpreter hatches (python, node, ffmpeg, pnpm) cannot resolve one: copy the file into the task first (e.g. \`cp '/mnt/<folder>/file' attachments/\`), work on the copy, and \`mv\` the result back if it belongs in the folder.
 
-      IMPORTANT: Python is available via the specialized \`python\`/\`python3\`/\`pip\`/\`uv\` commands below (backed by a per-task virtualenv in work/.venv), TypeScript/JavaScript via \`node\`, and package management via \`pnpm\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside script code run by these commands, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`/task/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`/mnt/...\` never is (copy attached files into the task first) and paths inside script FILES on disk are never translated.
+      IMPORTANT: Python is available via the specialized \`python\`/\`python3\`/\`pip\`/\`uv\` commands below (backed by a per-task virtualenv at the task root), TypeScript/JavaScript via \`node\`, and package management via \`pnpm\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside script code run by these commands, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`/task/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`/mnt/...\` never is (copy attached files into the task first) and paths inside script FILES on disk are never translated.
 
       IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`/task\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`/task\`, the \`/mnt\` mounts, and \`/skills\` exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files, or \`mktemp\` to name one. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
@@ -52,13 +52,13 @@ describe("createBashDescription", () => {
         ffmpeg - Process audio and video files using FFmpeg.
         ffprobe - Probe and inspect audio and video files using FFprobe.
         git - Clone and fetch public repositories over http(s), inspect history, branch, and commit locally. No credentials are configured, so private repositories, pushing, and ssh:// remotes are unavailable. Pass commit messages with -m or -F; there is no editor. A large clone may need a raised timeoutMs, and leaves a partial directory to delete if it is cut short.
-        mktemp - Create a uniquely named scratch file (or -d directory) under work/ and print its path.
+        mktemp - Create a uniquely named scratch file (or -d directory) in the task's temp dir and print its path.
         node - Run a TypeScript or JavaScript file. Types are stripped, not checked, so a .ts file runs directly; \`enum\`, \`namespace\`, and parameter properties are not supported, and a relative import needs its file extension (\`./lib/util.ts\`). A file resolves node_modules from its own directory upward, but -e code resolves from the current directory instead, so code importing a dependency belongs in a file next to it. In -e code: relative paths resolve from cwd, quoted "/task/..." strings are bridged; /mnt paths are not available.
         pnpm - CLI tool for managing JavaScript packages. Global installs (--global / -g) are not supported; packages must be installed locally.
         pnx - Alias for pnpm dlx.
-        uv - Python package and environment manager. Also provides \`python\`, \`python3\`, and \`pip\`, backed by a per-task virtualenv in work/.venv. The very first Python use fetches a managed interpreter (one-time); later uses are fast.
-        python - Run Python via the per-task virtualenv (work/.venv). Shares packages installed with \`pip\`. Use the \`pip\` command to install packages: \`python -m pip\` is not available.
-        pip - Install Python packages into the per-task virtualenv (work/.venv) via uv. Use like pip, e.g. \`pip install <package>\`.
+        uv - Python package and environment manager. Also provides \`python\`, \`python3\`, and \`pip\`, backed by a per-task virtualenv in .venv. The very first Python use fetches a managed interpreter (one-time); later uses are fast.
+        python - Run Python via the per-task virtualenv (.venv). Shares packages installed with \`pip\`. Use the \`pip\` command to install packages: \`python -m pip\` is not available.
+        pip - Install Python packages into the per-task virtualenv (.venv) via uv. Use like pip, e.g. \`pip install <package>\`.
         validate-skill - Check a skill written under \`/skills/\` and report what is wrong with it.
       Errors are what the runtime already acts on: a skill that is never discovered, or one \`load_skill\` refuses. Warnings are authoring rules and context budgets.
       Run it after writing or editing a skill -- a skill with broken frontmatter fails silently, by simply never appearing anywhere.
@@ -89,6 +89,6 @@ describe("createBashDescription", () => {
   it("notes Python availability via specialized commands", () => {
     const description = createBashDescription();
     expect(description).toContain("Python is available");
-    expect(description).toContain("work/.venv");
+    expect(description).toContain("per-task virtualenv at the task root");
   });
 });

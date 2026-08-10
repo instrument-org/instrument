@@ -40,7 +40,9 @@ import { z } from "zod";
 
 import { buildFrames, type Frame, type FrameMark } from "../-playback/frames";
 import { scenarios } from "../-playback/scenarios";
+import { TranscriptEdgeOverlay } from "../-playback/transcript-edge";
 import { usePlaybackKeys } from "../-playback/use-playback-keys";
+import { useTranscriptEdge } from "../-playback/use-transcript-edge";
 
 const searchSchema = z.object({
   scenario: z.string().optional(),
@@ -137,10 +139,13 @@ function Player({ scenarioId }: { scenarioId: string }) {
   const [speed, setSpeed] = useState(4);
   const [isDeveloperMode, setIsDeveloperMode] = useState(false);
   const [follows, setFollows] = useState(true);
+  const [showsEdge, setShowsEdge] = useState(true);
   const [shownMs, setShownMs] = useState<number>();
   const renderMs = useRef(0);
+  const transcript = useRef<HTMLDivElement>(null);
 
   const frame = frames[Math.min(index, lastIndex)];
+  const edge = useTranscriptEdge({ frameRef: transcript, index });
 
   useEffect(() => {
     if (!isPlaying) {
@@ -187,7 +192,8 @@ function Player({ scenarioId }: { scenarioId: string }) {
       {/* The transcript's own scroll frame, matching the task view, so what is
           measured here is what ships: the same scroller, the same content
           column, the same padding. */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="relative flex min-w-0 flex-1 flex-col" ref={transcript}>
+        {showsEdge && edge && <TranscriptEdgeOverlay edge={edge} />}
         <MessageScrollerProvider
           autoScroll={follows}
           defaultScrollPosition="end"
@@ -299,6 +305,12 @@ function Player({ scenarioId }: { scenarioId: string }) {
             id="playback-follow"
             label="Follow"
             onChange={setFollows}
+          />
+          <Toggle
+            checked={showsEdge}
+            id="playback-edge"
+            label="Edge"
+            onChange={setShowsEdge}
           />
           {/* Whether the agent is running is the last frame's business and
               nobody else's: it says the same thing for the whole scenario. What

@@ -21,6 +21,14 @@ describe("taskFolderSlug", () => {
     expect(taskFolderSlug(input)).toBe(expected);
   });
 
+  it("counts a skill mention once, as the name the user typed", () => {
+    expect(
+      taskFolderSlug(
+        "[$commit-message](skill:commit-message) for the staged changes",
+      ),
+    ).toMatchInlineSnapshot(`"commit-message-for-the-staged-changes"`);
+  });
+
   it("truncates at a token boundary within the length cap", () => {
     const slug = taskFolderSlug(
       "one two three four five six seven eight nine ten eleven twelve",

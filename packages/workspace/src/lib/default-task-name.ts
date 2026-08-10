@@ -1,3 +1,5 @@
+import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
+
 import { type SessionMessage } from "../schemas/session/message";
 import { textForMessage } from "./text-for-message";
 
@@ -11,8 +13,10 @@ const MAX_CHARS = 50;
 export function defaultTaskName(
   source: SessionMessage.WithParts | string,
 ): string {
-  const text = (
-    typeof source === "string" ? source : textForMessage(source)
+  // A skill mention is stored in its `[$name](skill:name)` wire form, which is
+  // markup no one typed and would spend most of the budget below.
+  const text = renderSkillMentionsAsText(
+    typeof source === "string" ? source : textForMessage(source),
   ).trim();
 
   if (text.length <= MAX_CHARS) {

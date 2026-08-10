@@ -3,6 +3,7 @@ import {
   fetchAISDKModel,
 } from "@instrument-org/ai-gateway";
 import { shortenHomePath } from "@instrument-org/shared";
+import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
 import { generateText } from "ai";
 import { ResultAsync } from "neverthrow";
 import os from "node:os";
@@ -216,7 +217,9 @@ function buildSystemPrompt(projectName?: string): string {
 }
 
 function titleSourceText(message: SessionMessage.UserWithParts): string {
-  const text = textForMessage(message);
+  // Same as the message the agent reads: the model names what the user typed,
+  // not the `[$name](skill:name)` wire form the mention is stored in.
+  const text = renderSkillMentionsAsText(textForMessage(message));
 
   const attachments = message.parts.find(
     (part) => part.type === "data-attachments",

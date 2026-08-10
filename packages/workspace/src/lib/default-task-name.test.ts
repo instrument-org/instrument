@@ -23,4 +23,12 @@ describe("defaultTaskName", () => {
   it("trims before measuring", () => {
     expect(defaultTaskName("   hey   ")).toBe("hey");
   });
+
+  it("reads a skill mention as the name the user typed", () => {
+    expect(
+      defaultTaskName(
+        "[$commit-message](skill:commit-message) for the staged changes",
+      ),
+    ).toBe("/commit-message for the staged changes");
+  });
 });

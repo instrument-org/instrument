@@ -20,6 +20,11 @@ jobs:
       contents: read
     runs-on: ${{ matrix.os }}
     strategy:
+      # One platform's flake shouldn't discard the other platforms' results:
+      # the interesting signal is which platforms the packaged app runs on, and
+      # a cancelled leg answers nothing. The caller still gates on the matrix
+      # result as a whole, which is only `success` when every leg passed.
+      fail-fast: false
       matrix:
         # icon.icon needs actool 26+ on a macOS 26 host (Xcode 26 on macos-15 crashes at runtime).
         os: [ubuntu-latest, macos-26, windows-latest]

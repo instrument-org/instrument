@@ -18,10 +18,13 @@ import {
   type RenderPartContext,
 } from "./chat-stream-render-part";
 import { FolderAttachmentsCard } from "./folder-attachments-card";
+import { PlanningDotIcon } from "./icons/planning-dot";
 import { MessageError } from "./message-error";
 import { GroupHeading } from "./message-part/group-heading";
 import { GroupStandIn } from "./message-part/group-stand-in";
 import {
+  STEP_RUN,
+  TRANSCRIPT_ROW,
   TranscriptGroup,
   TranscriptGroupHead,
 } from "./message-part/transcript-group";
@@ -50,6 +53,10 @@ const GROUP_INDENT = "pl-6";
 // The wordmark's row key, for the one case where it is not a message's own
 // chrome but a row in the turn that has not started yet.
 const TURN_WORDMARK_ID = "turn-wordmark";
+
+// The initial row has no message part of its own, so it needs a stable key as
+// empty assistant messages arrive before the first visible part.
+const PLANNING_ROW_ID = "planning";
 
 // What the agent said, held apart from what it did. 24px between a paragraph
 // and a run of steps rather than the 8px the transcript puts between rows, so
@@ -176,7 +183,7 @@ export function ChatStream({
       message: lastAssistantMessage,
     });
 
-  const wordmarkMessageIds = turnOpeningMessageIds({
+  const { isAwaitingFirstRow, wordmarkMessageIds } = readTurnOpenings({
     isAgentRunning,
     isDeveloperMode,
     isToolStreaming,
@@ -496,22 +503,26 @@ export function ChatStream({
       }
     }
 
-    // A turn opens the moment the user sends, which is before the agent has a
-    // message for the wordmark to head. Drawn here for that window, it lands in
-    // the same place it takes once that message arrives, so the turn announces
-    // itself once rather than announcing itself and then moving.
-    if (isAgentRunning && regularMessages.at(-1)?.role === "user") {
-      const wordmark = <TurnWordmark key={TURN_WORDMARK_ID} />;
+    // A turn opens the moment the user sends, before there is a visible part to
+    // hang either of these on -- and the agent's first message can arrive empty,
+    // so the window outlasts it. Drawn at the tail they keep one identity across
+    // that whole window, and the first real row replaces the planning line in a
+    // single step rather than fading a second copy in beneath it.
+    if (isAwaitingFirstRow) {
+      const initialRows = [
+        <TurnWordmark key={TURN_WORDMARK_ID} />,
+        <AwaitingFirstRow key={PLANNING_ROW_ID} />,
+      ];
       elements.push(
         renderAsItems ? (
           <MessageScrollerItem
             className="flex flex-col gap-2"
             key={TURN_WORDMARK_ID}
           >
-            {wordmark}
+            {initialRows}
           </MessageScrollerItem>
         ) : (
-          wordmark
+          initialRows
         ),
       );
     }
@@ -588,6 +599,25 @@ function assistantMessageHasContent({
     isToolStreaming,
     message,
   });
+}
+
+/**
+ * The turn is running and has nothing to show for it yet.
+ *
+ * The one row in the transcript with no part behind it, so it is built here
+ * rather than through `renderChatPart`. It still takes `TRANSCRIPT_ROW` inside
+ * `STEP_RUN`, because the first real row will replace it in the same place and
+ * a row that is 4px off is a transcript that lifts as the agent starts working.
+ */
+function AwaitingFirstRow() {
+  return (
+    <div className={STEP_RUN}>
+      <div className={cn(TRANSCRIPT_ROW, "animate-in fill-mode-both fade-in")}>
+        <PlanningDotIcon />
+        <span className="brand-shiny-text text-sm">Planning</span>
+      </div>
+    </div>
+  );
 }
 
 // Boxes each run of rows that share a group, leaving everything else where it
@@ -712,7 +742,7 @@ function hasVisibleAssistantParts({
  * opens the turn, and whether the turn holds anything is not settled until the
  * last of them.
  */
-function turnOpeningMessageIds({
+function readTurnOpenings({
   isAgentRunning,
   isDeveloperMode,
   isToolStreaming,
@@ -721,20 +751,22 @@ function turnOpeningMessageIds({
   isAgentRunning: boolean;
   regularMessages: SessionMessage.WithParts[];
 }) {
-  const ids = new Set<string>();
+  const wordmarkMessageIds = new Set<string>();
   let openedBy: SessionMessage.WithParts | undefined;
   let hasContent = false;
-  const close = (isTrailingTurn: boolean) => {
-    if (openedBy && (hasContent || (isAgentRunning && isTrailingTurn))) {
-      ids.add(openedBy.id);
+  const close = () => {
+    if (openedBy && hasContent) {
+      wordmarkMessageIds.add(openedBy.id);
     }
+    const closed = hasContent;
     openedBy = undefined;
     hasContent = false;
+    return closed;
   };
 
   for (const message of regularMessages) {
     if (message.role !== "assistant") {
-      close(false);
+      close();
       continue;
     }
     openedBy ??= message;
@@ -744,9 +776,15 @@ function turnOpeningMessageIds({
       message,
     });
   }
-  close(true);
+  const trailingTurnHasContent = close();
 
-  return ids;
+  // The one turn that gets a wordmark without having earned it, which is why
+  // `close` above can ask only whether a turn produced something. It is drawn
+  // at the tail rather than on a message, so it is deliberately not in the set.
+  const isAwaitingFirstRow =
+    isAgentRunning && regularMessages.length > 0 && !trailingTurnHasContent;
+
+  return { isAwaitingFirstRow, wordmarkMessageIds };
 }
 
 // What opens an assistant turn, wherever the turn is opening from.

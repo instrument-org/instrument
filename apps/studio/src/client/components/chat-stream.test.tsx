@@ -454,6 +454,7 @@ describe("ChatStream and the wordmark over a turn", () => {
     });
 
     expect(wordmark(container)).not.toBeNull();
+    expect(screen.getByText("Planning")).toBeDefined();
   });
 
   it("keeps it when the agent's first message lands with nothing in it", () => {
@@ -463,6 +464,20 @@ describe("ChatStream and the wordmark over a turn", () => {
     );
 
     expect(wordmark(container)).not.toBeNull();
+    expect(screen.getByText("Planning")).toBeDefined();
+  });
+
+  // One wordmark per turn. The planning row draws its own at the tail, so the
+  // empty message it is standing in for must not draw a second.
+  it("heads the opening turn once while it is still empty", () => {
+    const { container } = renderMessages(
+      [userMessage("Read every quarter."), assistantMessage([])],
+      { isAgentRunning: true },
+    );
+
+    expect(
+      container.querySelectorAll("svg[viewBox='0 0 400 72']"),
+    ).toHaveLength(1);
   });
 
   it("drops it for a turn stopped before it produced anything", () => {
@@ -510,6 +525,21 @@ describe("ChatStream and the wordmark over a turn", () => {
     ]);
 
     expect(wordmark(container)).not.toBeNull();
+  });
+
+  // Planning is the opening of a turn and nothing else. Once the turn has drawn
+  // anything the row is gone, and it does not come back for the pauses between
+  // one step and the next.
+  it("drops planning as soon as the turn has drawn something", () => {
+    renderMessages(
+      [
+        userMessage("Read every quarter."),
+        assistantMessage([prose("Revenue grew in the north.")]),
+      ],
+      { isAgentRunning: true },
+    );
+
+    expect(screen.queryByText("Planning")).toBeNull();
   });
 });
 
@@ -650,7 +680,7 @@ describe("ChatStream and the turn the scroller anchors", () => {
     expect(anchoring(container)).toMatchInlineSnapshot(`
       [
         "true How did we do?Dec 31",
-        "false ",
+        "false Planning",
       ]
     `);
   });

@@ -1,4 +1,4 @@
-import { COMPOSER_CLOSE, COMPOSER_OPEN } from "@/client/lib/composer-motion";
+import { BLOCK_CLOSE, BLOCK_OPEN } from "@/client/lib/motion";
 import { cn } from "@/client/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
 
@@ -69,9 +69,9 @@ export function ComposerFrame({
           <motion.div
             animate={{ height: "auto", opacity: 1 }}
             className="row-start-1 -mx-2 -mt-2 mb-2 overflow-hidden"
-            exit={{ height: 0, opacity: 0, transition: COMPOSER_CLOSE }}
+            exit={{ height: 0, opacity: 0, transition: BLOCK_CLOSE }}
             initial={{ height: 0, opacity: 0 }}
-            transition={COMPOSER_OPEN}
+            transition={BLOCK_OPEN}
           >
             <div
               className="flex max-h-32 min-h-0 flex-wrap items-start gap-2 overflow-y-auto scroll-fade-y p-2"

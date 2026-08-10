@@ -4,7 +4,7 @@ import {
 } from "@/client/components/folder-access-list";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { Button } from "@/client/components/ui/button";
-import { COMPOSER_CLOSE, COMPOSER_OPEN } from "@/client/lib/composer-motion";
+import { BLOCK_CLOSE, BLOCK_OPEN } from "@/client/lib/motion";
 import { displayPath, folderNameFromPath } from "@/client/lib/path-utils";
 import { cn } from "@/client/lib/utils";
 import { type FolderAttachment } from "@instrument-org/workspace/client";
@@ -57,10 +57,10 @@ export function ComposerFolderTray({
             <motion.div
               animate={{ height: "auto", opacity: 1 }}
               className="overflow-hidden"
-              exit={{ height: 0, opacity: 0, transition: COMPOSER_CLOSE }}
+              exit={{ height: 0, opacity: 0, transition: BLOCK_CLOSE }}
               initial={{ height: 0, opacity: 0 }}
               key={folder.path}
-              transition={COMPOSER_OPEN}
+              transition={BLOCK_OPEN}
             >
               {/* The margin is what separates the rows, and it sits inside the
                   clip so it collapses with the row rather than leaving a band

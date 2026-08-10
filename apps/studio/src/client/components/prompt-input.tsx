@@ -16,10 +16,10 @@ import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import {
-  COMPOSER_CHIP,
-  COMPOSER_CLOSE,
-  COMPOSER_OPEN,
-} from "@/client/lib/composer-motion";
+  BLOCK_CLOSE,
+  BLOCK_OPEN,
+  ITEM_IN,
+} from "@/client/lib/motion";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { folderNameFromPath } from "@/client/lib/path-utils";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
@@ -720,9 +720,9 @@ export const PromptInput = ({
         <motion.div
           animate={{ height: "auto", opacity: 1 }}
           className="overflow-hidden"
-          exit={{ height: 0, opacity: 0, transition: COMPOSER_CLOSE }}
+          exit={{ height: 0, opacity: 0, transition: BLOCK_CLOSE }}
           initial={{ height: 0, opacity: 0 }}
-          transition={COMPOSER_OPEN}
+          transition={BLOCK_OPEN}
         >
           <ComposerFolderTray
             disabled={disabled || isLoading}
@@ -746,7 +746,7 @@ export const PromptInput = ({
       animate={{ padding: showFolderTray ? 4 : 0 }}
       className={cn("relative isolate flex flex-col", className)}
       initial={false}
-      transition={showFolderTray ? COMPOSER_OPEN : COMPOSER_CLOSE}
+      transition={showFolderTray ? BLOCK_OPEN : BLOCK_CLOSE}
     >
       {/* The block itself, out of flow: a border and a fill on the box the
           prompt sits in cannot be faded without taking the prompt with them. */}
@@ -754,7 +754,7 @@ export const PromptInput = ({
         animate={{ opacity: showFolderTray ? 1 : 0 }}
         className="pointer-events-none absolute inset-0 -z-10 rounded-3xl border border-black/5 bg-muted dark:border-white/10"
         initial={false}
-        transition={showFolderTray ? COMPOSER_OPEN : COMPOSER_CLOSE}
+        transition={showFolderTray ? BLOCK_OPEN : BLOCK_CLOSE}
       />
 
       {folderTrayPlacement === "above" && folderTray}
@@ -876,7 +876,7 @@ export const PromptInput = ({
                   exit={{ opacity: 0, scale: 0.9 }}
                   initial={{ opacity: 0, scale: 0.9 }}
                   key={item.id}
-                  transition={COMPOSER_CHIP}
+                  transition={ITEM_IN}
                 >
                   <AttachedFilePreview
                     filename={item.name}

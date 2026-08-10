@@ -13,7 +13,9 @@ import {
 } from "../schemas/task-settings";
 import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
+import { getCurrentDate } from "./get-current-date";
 import { getTaskPrivateDir, taskDir } from "./task-dir-utils";
+import { getWorkspaceConfig } from "./workspace-config";
 
 export async function getTaskSettings(
   dir: TaskDir,
@@ -29,6 +31,22 @@ export async function getTaskSettings(
     return parsed.data;
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * Mark that something happened in this task, which is what orders the list.
+ *
+ * Best-effort: a task whose activity stamp fails to write sorts by the old
+ * filesystem fallback, which is worse but not wrong, and losing the turn over
+ * it would be.
+ */
+export async function recordTaskActivity(taskId: TaskId): Promise<void> {
+  const result = await updateTaskSettings(taskId, {
+    lastActivityAt: getCurrentDate(),
+  });
+  if (result.isErr()) {
+    getWorkspaceConfig().captureException(result.error);
   }
 }
 

@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TASK_FOLDER_NAMES } from "../constants";
 import { AbsolutePathSchema } from "../schemas/paths";
@@ -15,9 +15,14 @@ let rootDir: string;
 
 beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "initialize-task-"));
+  // The settings file is snapshotted whole, and it carries the activity stamp
+  // a new task starts with.
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-01-02T03:04:05.000Z"));
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
@@ -67,7 +72,8 @@ describe("initializeTask", () => {
     ).resolves.toMatchInlineSnapshot(`
       "{
         "name": "Test task",
-        "createdWithAppVersion": "0.0.0-test"
+        "createdWithAppVersion": "0.0.0-test",
+        "lastActivityAt": "2026-01-02T03:04:05.000Z"
       }"
     `);
     await expect(

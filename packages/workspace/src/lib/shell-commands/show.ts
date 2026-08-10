@@ -95,7 +95,7 @@ export function createShowCommand({
     await updateTaskPane(taskDir(taskId), (pane) =>
       TaskPane.openTabs(pane, tabs),
     );
-    publisher.publish("task.updated", { id: taskId });
+    publisher.publish("task.stateUpdated", { id: taskId });
 
     return {
       exitCode: failures.length > 0 ? 1 : 0,

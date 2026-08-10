@@ -1,3 +1,4 @@
+import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { call, eventIterator } from "@orpc/server";
 import { z } from "zod";
 
@@ -48,7 +49,7 @@ const set = base
     // again, so publishing one would wake every reader of this task once a
     // second while someone types.
     if (Object.keys(stateToSave).some((key) => key !== "promptDraft")) {
-      publisher.publish("task.updated", { id: taskId });
+      publisher.publish("task.stateUpdated", { id: taskId });
     }
   });
 
@@ -78,7 +79,12 @@ const live = {
     .handler(async function* ({ context, input, signal }) {
       yield call(get, input, { context, signal });
 
-      const updates = publisher.subscribe("task.updated", { signal });
+      // Both channels: a folder attach lands as a task update, a pane change
+      // as a state update, and this stream is the reader of each.
+      const updates = mergeGenerators([
+        publisher.subscribe("task.updated", { signal }),
+        publisher.subscribe("task.stateUpdated", { signal }),
+      ]);
 
       for await (const payload of updates) {
         if (payload.id === input.id) {

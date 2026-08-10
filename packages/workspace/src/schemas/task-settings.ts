@@ -5,6 +5,12 @@ import { TaskIndicatorSchema } from "./task-indicator";
 
 export const TaskSettingsSchema = z.object({
   createdWithAppVersion: z.string().optional(),
+  // When something happened in this task, as opposed to when a file under it
+  // was last written. It orders the task list, and it is recorded rather than
+  // observed because the observable timestamps do not mean what the list needs:
+  // the session database is rewritten by the act of opening a task, so sorting
+  // on its mtime moves a task to the top for having been read.
+  lastActivityAt: z.coerce.date().optional(),
   name: z.string().default("Untitled task"),
   // Presence marks the task as pinned; the timestamp orders the pin list. Lives
   // in the folder so it travels with a rename and can't collide with a reused
@@ -17,6 +23,7 @@ export const TaskSettingsSchema = z.object({
 });
 
 export const TaskSettingsUpdateSchema = TaskSettingsSchema.partial().extend({
+  lastActivityAt: z.coerce.date().optional(),
   name: z.string().trim().min(1).optional(),
   // `null` explicitly clears (unpins); omit to leave unchanged.
   pinnedAt: z.coerce.date().nullable().optional(),

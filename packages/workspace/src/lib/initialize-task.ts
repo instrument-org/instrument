@@ -8,6 +8,7 @@ import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { copyTask } from "./copy-task";
 import { TypedError } from "./errors";
+import { getCurrentDate } from "./get-current-date";
 import { taskDir } from "./task-dir-utils";
 import { updateTaskSettings } from "./task-settings";
 
@@ -58,6 +59,10 @@ export async function initializeTask(
     yield* updateTaskSettings(taskId, {
       ...initialSettings,
       createdWithAppVersion: workspaceConfig.appVersion,
+      // Stamped from the start so a task that has never been messaged still
+      // orders by when it was made rather than by whatever last touched a file
+      // beneath it.
+      lastActivityAt: getCurrentDate(),
     });
 
     // Create standard directories so they appear in the file tree. Avoids agent

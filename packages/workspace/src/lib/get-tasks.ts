@@ -106,6 +106,10 @@ async function readTask({ dir }: { dir: TaskDir }) {
 
   const task: Task = {
     ...timestamps,
+    // A recorded stamp beats an observed one wherever there is one. Tasks from
+    // before it was recorded keep the filesystem answer, which is right often
+    // enough and settles the first time anything happens in them.
+    ...(settings?.lastActivityAt ? { updatedAt: settings.lastActivityAt } : {}),
     id,
     pinnedAt: settings?.pinnedAt,
     projectId: settings?.projectId,

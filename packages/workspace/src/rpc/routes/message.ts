@@ -10,6 +10,7 @@ import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
 import { getTaskProjectName } from "../../lib/project";
 import { Store } from "../../lib/store";
+import { recordTaskActivity } from "../../lib/task-settings";
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
 import { FolderAttachment } from "../../schemas/folder-attachment";
@@ -17,7 +18,6 @@ import { SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { base, toORPCError } from "../base";
-import { publisher } from "../publisher";
 
 const listWithParts = base
   .input(
@@ -167,9 +167,9 @@ const create = base
         },
       });
 
-      publisher.publish("task.updated", {
-        id: taskId,
-      });
+      // Publishes `task.updated` itself, which is what moves the task in the
+      // list, so this replaces the bare publish rather than joining it.
+      await recordTaskActivity(taskId);
 
       return { sessionId: message.metadata.sessionId };
     },

@@ -48,7 +48,10 @@ export function AttachmentsCard({
     };
   });
 
-  return <FilesGrid alignEnd compact files={fileItems} prioritizeUserFiles />;
+  // In attach order, not bucketed: this is the set the user picked, and a file
+  // they attached from somewhere the buckets do not cover would be dropped from
+  // a card whose whole job is to show what they sent.
+  return <FilesGrid alignEnd compact files={fileItems} preserveOrder />;
 }
 
 function normalizeAttachmentFilePath(filePath: string): string {

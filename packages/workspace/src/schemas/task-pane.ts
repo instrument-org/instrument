@@ -53,7 +53,7 @@ export namespace TaskPane {
   export const EMPTY: Type = { open: false, tabs: [] };
 
   /**
-   * Close one tab, focusing its neighbour.
+   * Close one tab, focusing its neighbor.
    *
    * Closing the last one leaves the pane open rather than dismissing it: the
    * browser is a fixed tab the pane always draws, so there is something to fall
@@ -67,12 +67,12 @@ export namespace TaskPane {
 
     const tabs = pane.tabs.filter((_, i) => i !== index);
     const wasSelected = pane.selected === key;
-    const neighbour = tabs[Math.min(index, tabs.length - 1)];
+    const neighbor = tabs[Math.min(index, tabs.length - 1)];
 
     return {
       open: pane.open,
       selected:
-        wasSelected && neighbour ? tabKey(neighbour) : (pane.selected ?? ""),
+        wasSelected && neighbor ? tabKey(neighbor) : (pane.selected ?? ""),
       tabs,
     };
   }

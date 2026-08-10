@@ -16,4 +16,3 @@ export function useBrowserTargets(): ReadonlySet<BrowserTargetId> {
     getAttachedTargetsSnapshot,
   );
 }
-

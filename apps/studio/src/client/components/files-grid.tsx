@@ -126,10 +126,7 @@ export function FilesGrid({
               >
                 <FilePreviewCard
                   file={file}
-                  isSelected={isPaneFileSelected(
-                    file,
-                    selectedTab,
-                  )}
+                  isSelected={isPaneFileSelected(file, selectedTab)}
                   onClick={() => {
                     handleFileClick(file);
                   }}
@@ -151,10 +148,7 @@ export function FilesGrid({
             {rowCardFiles.map((file) => (
               <FilePreviewCard
                 file={file}
-                isSelected={isPaneFileSelected(
-                  file,
-                  selectedTab,
-                )}
+                isSelected={isPaneFileSelected(file, selectedTab)}
                 key={file.filePath}
                 onClick={() => {
                   handleFileClick(file);
@@ -176,10 +170,7 @@ export function FilesGrid({
             <div className="h-12 max-w-48 min-w-0" key={file.filePath}>
               <FilePreviewListItem
                 file={file}
-                isSelected={isPaneFileSelected(
-                  file,
-                  selectedTab,
-                )}
+                isSelected={isPaneFileSelected(file, selectedTab)}
                 onClick={() => {
                   handleFileClick(file);
                 }}

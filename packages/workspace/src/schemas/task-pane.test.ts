@@ -91,7 +91,7 @@ describe("TaskPane.openTabs", () => {
 });
 
 describe("TaskPane.closeTab", () => {
-  it("focuses the neighbour when the focused tab goes", () => {
+  it("focuses the neighbor when the focused tab goes", () => {
     const pane = TaskPane.openTabs(TaskPane.EMPTY, [
       TaskPane.fileTab("a.png"),
       TaskPane.fileTab("b.png"),
@@ -120,9 +120,7 @@ describe("TaskPane.closeTab", () => {
   });
 
   it("stays open when the last tab goes, falling back to the browser", () => {
-    const pane = TaskPane.openTabs(TaskPane.EMPTY, [
-      TaskPane.fileTab("a.png"),
-    ]);
+    const pane = TaskPane.openTabs(TaskPane.EMPTY, [TaskPane.fileTab("a.png")]);
     const closed = TaskPane.closeTab(pane, "file:a.png");
 
     expect(closed.open).toBe(true);

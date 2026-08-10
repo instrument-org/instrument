@@ -213,10 +213,9 @@ describe("ChatStream groups the agent named", () => {
     expect(screen.getByText("Reading the second quarter")).toBeDefined();
   });
 
-  // A heading that is still taking rows reads as running on its own, which is
-  // the whole of what the planning row would say. Drawing both puts two live
-  // indicators on screen for one agent.
-  it("says it is working through the heading, and not twice", () => {
+  // A heading that is still taking rows is what says the agent is working, and
+  // it says it in the same shimmer any in-flight row uses.
+  it("says it is working through the heading", () => {
     renderSteps([[activityRunning("Reading each quarter")]], {
       isAgentRunning: true,
     });
@@ -224,7 +223,6 @@ describe("ChatStream groups the agent named", () => {
     expect(screen.getByText("Reading each quarter").className).toContain(
       "brand-shiny-text",
     );
-    expect(screen.queryByText("Planning...")).toBeNull();
   });
 
   it("keeps the copy of the step in flight with the heading, messages later", () => {
@@ -342,12 +340,9 @@ describe("ChatStream groups that span messages", () => {
     expect(empty).toHaveLength(0);
   });
 
-  // A paragraph stays on screen while the phase it was written in is still
-  // running: it is what the agent has to say about the work going on around it.
-  // Never indented under it, though -- the answer a turn ends on is written
-  // inside a phase and has to leave when the turn is over, and it can only do
-  // that without moving if it was at the margin the whole time.
-  it("holds a note at the margin while its phase runs", () => {
+  // A paragraph belongs to no phase, so it is at the margin from the moment it
+  // is written and no fold anywhere can reach it.
+  it("holds a note the agent wrote mid-turn at the margin", () => {
     renderSteps(
       [
         [activity("Reading each quarter")],
@@ -363,33 +358,9 @@ describe("ChatStream groups that span messages", () => {
     expect(note.closest(".pl-6")).toBeNull();
   });
 
-  // The whole point of the margin: the reply is in the same place before and
-  // after the turn ends, and only its membership of the phase changes.
-  it("leaves the reply exactly where it was written when the turn ends", () => {
-    const steps = [
-      [activity("Reading each quarter")],
-      [read({ explanation: "Reading the first quarter" })],
-      [prose("Revenue grew in the north.")],
-    ];
-
-    const running = renderSteps(steps, { isAgentRunning: true });
-    const whileRunning = screen
-      .getByText("Revenue grew in the north.")
-      .closest(".pl-6");
-    running.unmount();
-
-    renderSteps(steps);
-
-    expect(whileRunning).toBeNull();
-    expect(
-      screen.getByText("Revenue grew in the north.").closest(".pl-6"),
-    ).toBeNull();
-  });
-
-  // A finished phase is one line. A paragraph left hanging under a heading that
-  // has stopped saying anything is the mess that reads as. The reply the turn
-  // ends on is not one of them: it leaves the phase and takes the margin.
-  it("folds a note away once its phase is over, and keeps the reply", () => {
+  // Everything the agent said stays said. Phases open and close above and below
+  // it, and the paragraphs between them are untouched by any of that.
+  it("keeps every note on screen as the phases around it come and go", () => {
     renderSteps([
       [activity("Reading each quarter")],
       [read({ explanation: "Reading the first quarter" })],
@@ -399,24 +370,12 @@ describe("ChatStream groups that span messages", () => {
       [prose("Revenue grew in the north.")],
     ]);
 
-    expect(screen.queryByText("These are older than I expected.")).toBeNull();
+    expect(
+      screen.getByText("These are older than I expected.").closest(".pl-6"),
+    ).toBeNull();
     expect(
       screen.getByText("Revenue grew in the north.").closest(".pl-6"),
     ).toBeNull();
-  });
-
-  it("gives the note back when the reader opens the phase again", () => {
-    renderSteps([
-      [activity("Reading each quarter")],
-      [read({ explanation: "Reading the first quarter" })],
-      [prose("These are older than I expected.")],
-      [activity("Charting them")],
-      [read({ explanation: "Reading the chart script" })],
-    ]);
-
-    clickRow("Reading each quarter");
-
-    expect(screen.getByText("These are older than I expected.")).toBeDefined();
   });
 
   it("names a run the agent never named once, not once per message", () => {
@@ -427,103 +386,6 @@ describe("ChatStream groups that span messages", () => {
     ]);
 
     expect(screen.getAllByText("Read 2 files")).toHaveLength(1);
-  });
-});
-
-describe("ChatStream opening a turn", () => {
-  // Between the user sending and the agent's first message arriving there is no
-  // assistant message to hang the wordmark on, and planning is all there is to
-  // show. Drawn without it, the turn opens on a bare "Planning..." and the
-  // wordmark drops in above a moment later, pushing the turn down the page.
-  it("heads the planning row with the wordmark, before the agent has spoken", () => {
-    const { container } = renderWithProviders(
-      <TooltipProvider>
-        <ChatStream
-          isAgentRunning
-          isDeveloperMode={false}
-          messages={
-            [
-              {
-                id: StoreId.newMessageId(),
-                metadata: { createdAt: new Date(0), sessionId },
-                parts: [prose("Read every quarter.")],
-                role: "user",
-              },
-            ] as SessionMessage.WithParts[]
-          }
-          onContinue={vi.fn()}
-          onModelChange={vi.fn()}
-          onRetry={vi.fn()}
-          onStartNewTask={vi.fn()}
-          task={task}
-        />
-      </TooltipProvider>,
-    );
-
-    const wordmark = container.querySelector("svg[viewBox='0 0 400 72']");
-    if (!wordmark) {
-      throw new Error("the turn opened without its wordmark");
-    }
-    const follows =
-      wordmark.compareDocumentPosition(screen.getByText("Planning...")) &
-      Node.DOCUMENT_POSITION_FOLLOWING;
-    expect(follows).toBeTruthy();
-  });
-
-  // The message it would belong to changes underneath it: the agent's first
-  // message arrives and the row would have to move out of the user's element
-  // and into that one. Moved, it is a new element wherever it lands, so it
-  // fades in a second time and the turn reads as announcing itself twice.
-  it("keeps the same planning row when the agent's first message arrives", () => {
-    const user = {
-      id: StoreId.newMessageId(),
-      metadata: { createdAt: new Date(0), sessionId },
-      parts: [prose("Read every quarter.")],
-      role: "user",
-    };
-    const stream = (messages: unknown[]) => (
-      <TooltipProvider>
-        <ChatStream
-          isAgentRunning
-          isDeveloperMode={false}
-          messages={messages as SessionMessage.WithParts[]}
-          onContinue={vi.fn()}
-          onModelChange={vi.fn()}
-          onRetry={vi.fn()}
-          onStartNewTask={vi.fn()}
-          task={task}
-        />
-      </TooltipProvider>
-    );
-
-    const { rerender } = renderWithProviders(stream([user]));
-    const opened = screen.getByText("Planning...");
-
-    rerender(
-      stream([
-        user,
-        {
-          id: StoreId.newMessageId(),
-          metadata: { createdAt: new Date(0), sessionId },
-          parts: [],
-          role: "assistant",
-        },
-      ]),
-    );
-
-    expect(screen.getByText("Planning...")).toBe(opened);
-  });
-});
-
-describe("ChatStream and the transcript's rhythm", () => {
-  // A step row carries 4px of its own padding for the click target, and the
-  // run it sits in pulls that back so its text lands on the 8px rhythm. A step
-  // outside such a run is 4px lower than the step that replaces it, which lifts
-  // the whole transcript the moment the agent starts doing something.
-  it("puts the planning row in the same run box a step sits in", () => {
-    renderSteps([[]], { isAgentRunning: true });
-
-    expect(screen.getByText("Planning...").closest(".-my-1")).not.toBeNull();
   });
 });
 

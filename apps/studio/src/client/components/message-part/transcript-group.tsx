@@ -25,11 +25,8 @@ const TranscriptGroupContext = createContext<null | TranscriptGroupValue>(null);
  * neighbors 16px away. So a run stacks its rows flush and pulls itself in by
  * that padding, which leaves the text of a step exactly 8px from whatever is
  * above and below it.
- *
- * Exported because a step can sit outside a group -- the planning row does --
- * and a step row without this is 4px lower than the one that replaces it.
  */
-export const STEP_RUN = "-my-1 flex flex-col";
+const STEP_RUN = "-my-1 flex flex-col";
 
 /**
  * The box around a run of steps and the head line over it.

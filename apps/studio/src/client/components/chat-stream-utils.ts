@@ -72,41 +72,16 @@ export interface TranscriptGroup {
    * The last row the fold took away, absent until one lands. A working group
    * falls back to this for the line it shows while the agent works out what to
    * do next, so a phase that pauses keeps saying what it just did rather than
-   * emptying out. Prose clears it: a paragraph draws where it sits, so once the
-   * agent has said something the phase's latest line is already on screen.
+   * emptying out.
    */
   lastRowId?: string;
   phase: "settled" | "working";
-  /**
-   * Paragraphs it holds. They fold away too, but not until the phase is over:
-   * while it runs, what the agent said about the work stays on screen next to
-   * the work.
-   */
-  proseRowCount: number;
-  /**
-   * The row the copy of the step in flight is drawn after: the last of the
-   * group's rows that the fold leaves on screen. It is the row the group opened
-   * on until the agent writes something mid-phase, and then that paragraph,
-   * because a copy drawn above prose the agent wrote earlier puts the steps of
-   * a phase in the wrong order.
-   */
-  standInAfterRowId: string;
   /** Its tool calls in order, which is what a generated heading is built from. */
   toolNames: ToolName[];
 }
 
 export interface TranscriptLayout {
   groups: Map<string, TranscriptGroup>;
-  /**
-   * Whether the turn ends on the planning row.
-   *
-   * It is the last resort, and says only that the agent is working with nothing
-   * to show for it yet. Anything already reading as in flight says that better:
-   * a call running, a phase heading, reasoning arriving, prose still being
-   * written. Two of them at once read as two things happening at once, so this
-   * is decided here, where what else is on screen is already known.
-   */
-  hasPlanningRow: boolean;
   rows: Map<string, TranscriptRow>;
 }
 
@@ -121,8 +96,8 @@ export interface TranscriptRow {
    * A **step** is the agent at work -- a tool call or a reasoning block -- and
    * folds away with the rest of its phase. It brings its own row padding. A
    * **note** is anything else attached to the run, and folds the same way. Prose
-   * is neither: it is what the agent said rather than how it worked, so it draws
-   * whether the phase is open or shut.
+   * is neither: it is what the agent said rather than how it worked, and it ends
+   * the phase it lands after rather than joining one.
    */
   kind: "note" | "prose" | "step";
 }
@@ -135,31 +110,22 @@ export interface TranscriptRow {
  * group id, and a declared group is only ever implied by the agent having
  * announced one before making the calls. So membership is read positionally: a
  * group opens at a `start_activity` row, or at the first step after a break,
- * and closes at the next heading or at the end of the turn.
+ * and closes at the next heading, at a paragraph, or at the end of the turn.
  *
- * Prose is the one boundary that reads differently for the two kinds. It closes
- * an inferred group, because an unannounced run is only a run and the agent
- * turning to address the user is the clearest break in one. It does not close a
- * declared group: there the agent has said where the boundary is, and a note
- * dropped mid-phase belongs to the phase it interrupted rather than ending it.
- * The prose that ends a turn is outside every group either way -- that is the
- * answer the user came for, and folding it away would hide the point.
- *
- * Which of those a paragraph is can only be told from what follows it, so it is
- * told at the one moment that is settled: the end of the turn. Until then every
- * paragraph is a note dropped mid-phase, and the last one leaves its phase once
- * the turn is over -- which costs it no movement, since prose sits at the margin
- * whether a phase holds it or not.
+ * Prose closes a group of either kind. The agent turning to address the user is
+ * the clearest break in a run there is, and taking it as one means every
+ * boundary can be read the moment it arrives: a paragraph belongs to no phase,
+ * and whatever the agent does after it opens a phase of its own, named or not.
+ * So nothing already drawn changes as the turn goes on -- a paragraph never
+ * folds away later, and a phase never grows a step underneath something written
+ * before it.
  */
 export function buildTranscriptLayout({
-  hasStreamingTailText,
   isAgentRunning,
   isDeveloperMode,
   isToolStreaming,
   regularMessages,
 }: {
-  /** The turn's last prose is still arriving, which is its own loading state. */
-  hasStreamingTailText: boolean;
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
   isToolStreaming: (
@@ -189,44 +155,21 @@ export function buildTranscriptLayout({
   };
   // Every row joins through here, so a group's own tally of what it holds can
   // never fall behind the rows attributed to it.
-  const push = (id: string, kind: TranscriptRow["kind"]): TranscriptRow => {
-    const row: TranscriptRow = { groupId: open?.id, id, kind };
-    flat.push(row);
+  const push = (id: string, kind: TranscriptRow["kind"]) => {
+    flat.push({ groupId: open?.id, id, kind });
     if (!open || id === open.headingRowId) {
-      return row;
-    }
-    if (kind === "prose") {
-      // The paragraph is the phase's latest line and is drawn where it sits, so
-      // there is nothing left to copy and nowhere above it to copy anything to.
-      open.proseRowCount++;
-      open.lastRowId = undefined;
-      open.standInAfterRowId = id;
-      return row;
+      return;
     }
     open.foldedRowCount++;
     if (kind === "step") {
       open.lastRowId = id;
     }
-    return row;
   };
-
-  // The last thing each turn said, which is that turn's answer. Collected as the
-  // pass runs rather than looked for afterwards, because "the answer" is the
-  // last paragraph of a turn and not the last row of one: plenty can come after
-  // it without making it any less the answer.
-  const replies: TranscriptRow[] = [];
-  let lastProseRow: TranscriptRow | undefined;
 
   for (const message of regularMessages) {
     const isLiveMessage = isAgentRunning && message.id === lastMessageId;
     if (message.role === "user") {
       settle();
-      // The user speaking ends the turn before it, whatever state it left off
-      // in, so whatever that turn last said is now its answer for good.
-      if (lastProseRow) {
-        replies.push(lastProseRow);
-        lastProseRow = undefined;
-      }
     }
 
     for (const part of message.parts) {
@@ -276,17 +219,12 @@ export function buildTranscriptLayout({
             : "note";
 
       if (part.type === "text") {
-        // Prose ends an unannounced run: a run is only a run, and the agent
-        // turning to address the user ends one. It does not end a declared
-        // phase -- there the agent said where the boundary is -- and it joins
-        // it instead, drawn under the heading with the steps it sits among.
-        if (open?.headingRowId === undefined) {
-          settle();
-        }
-        const row = push(id, kind);
-        if (message.role === "assistant") {
-          lastProseRow = row;
-        }
+        // Prose ends the phase it lands after, named or not. The agent turning
+        // to address the user is the clearest break in a run there is, and a
+        // phase carried on across it would go on collecting steps that belong
+        // underneath the paragraph rather than above it.
+        settle();
+        push(id, kind);
         continue;
       }
 
@@ -312,21 +250,6 @@ export function buildTranscriptLayout({
     }
   }
 
-  // Nothing else is saying the agent is working, so the planning row has to.
-  // A phase heading counts: a declared group still taking rows reads as running
-  // on its own, and a planning row under it is the second thing moving.
-  const hasPlanningRow =
-    isAgentRunning &&
-    !hasStreamingTailText &&
-    open?.activeRowId === undefined &&
-    open?.headingRowId === undefined;
-
-  // The agent has stopped, so whatever the last turn said last is now its
-  // answer too.
-  if (!isAgentRunning && lastProseRow) {
-    replies.push(lastProseRow);
-  }
-
   // Whatever is still open reaches the end of the transcript. It counts as
   // working only if the agent is: a task that stopped mid-run has nothing in
   // flight, whatever its last rows still say.
@@ -339,29 +262,8 @@ export function buildTranscriptLayout({
     );
   }
 
-  // A turn's answer belongs to no phase. A phase is closed by the next one
-  // starting or by the turn ending -- nothing closes one from the inside -- so
-  // a turn that used tools always ends inside a phase, and that is where the
-  // answer gets written. Left in, the phase folding would take the answer with
-  // it, and there is no rule about how a phase folds that is worth losing the
-  // thing the user asked for.
-  //
-  // Done last, so every group is in the map and it does not matter which one
-  // the answer landed in.
-  for (const row of replies) {
-    if (row.groupId === undefined) {
-      continue;
-    }
-    const group = groups.get(row.groupId);
-    if (group) {
-      group.proseRowCount--;
-    }
-    row.groupId = undefined;
-  }
-
   return {
     groups,
-    hasPlanningRow,
     rows: new Map(flat.map((row): [string, TranscriptRow] => [row.id, row])),
   };
 }
@@ -399,14 +301,9 @@ export function groupCanExpand(group: TranscriptGroup): boolean {
   if (!groupFoldsRows(group)) {
     return false;
   }
-  // Paragraphs count only once the phase is over, since until then they are on
-  // screen and opening the group would not reveal them.
-  const hidden =
-    group.foldedRowCount +
-    (group.phase === "settled" ? group.proseRowCount : 0);
   return group.headingRowId === undefined && group.phase === "working"
-    ? hidden > 1
-    : hidden > 0;
+    ? group.foldedRowCount > 1
+    : group.foldedRowCount > 0;
 }
 
 /**
@@ -486,17 +383,8 @@ export function isVisibleAssistantPart({
  * with nothing to head it keeps every row, since there would be nothing left to
  * open it from.
  *
- * Prose is held by its phase but never indented under it. A phase ends when the
- * next one starts or when the turn does -- nothing closes one from the inside --
- * so a turn that used tools always ends inside a phase, and that is where the
- * answer the user came for gets written. It has to leave when the turn is over,
- * or the phase folding would take the answer with it. Left at the margin all
- * along, leaving costs it nothing: the paragraph is in the same place before and
- * after, and all that changes is whether the fold can still reach it.
- *
- * It waits for the fold, too. A paragraph stays on screen while the phase it was
- * written in is still running, because it is what the agent has to say about the
- * work going on around it. Once the phase is over it folds away with the steps.
+ * Prose is not here at all. A paragraph ends the phase it lands after and
+ * belongs to none, so nothing the fold does can reach what the agent said.
  */
 export function planRow({
   group,
@@ -515,12 +403,6 @@ export function planRow({
     return { isHidden: false, isIndented: false };
   }
   const folds = groupFoldsRows(group);
-  if (row.kind === "prose") {
-    return {
-      isHidden: folds && !isExpanded && group.phase === "settled",
-      isIndented: false,
-    };
-  }
   return { isHidden: folds && !isExpanded, isIndented: folds };
 }
 
@@ -533,8 +415,6 @@ function emptyGroup(
     headingRowId,
     id,
     phase: "working",
-    proseRowCount: 0,
-    standInAfterRowId: id,
     toolNames: [],
   };
 }

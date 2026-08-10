@@ -18,7 +18,6 @@ import {
 const sessionId = StoreId.newSessionId();
 
 interface BuildOptions {
-  hasStreamingTailText?: boolean;
   isAgentRunning?: boolean;
   isDeveloperMode?: boolean;
 }
@@ -59,17 +58,12 @@ type Turns = { role: "assistant" | "user"; specs: Spec[] }[];
  */
 function build(
   turns: Turns,
-  {
-    hasStreamingTailText = false,
-    isAgentRunning = false,
-    isDeveloperMode = false,
-  }: BuildOptions = {},
+  { isAgentRunning = false, isDeveloperMode = false }: BuildOptions = {},
 ) {
   const built = turns.map((turn) => buildMessage(turn.role, turn.specs));
   const labels = new Map(built.flatMap(({ labels: l }) => [...l]));
   const lastMessageId = built.at(-1)?.message.id;
   const layout = buildTranscriptLayout({
-    hasStreamingTailText,
     isAgentRunning,
     isDeveloperMode,
     // Matches the rule the stream itself applies: only the tail message of a
@@ -201,7 +195,6 @@ function draw(
 
   const lines: string[] = [];
   let openGroupId: string | undefined;
-  const announced = new Set<string>();
 
   const standIn = (group: TranscriptGroup) => {
     const rowId = groupStandInRowId({ group, isExpanded });
@@ -217,10 +210,7 @@ function draw(
       row.groupId === undefined ? undefined : layout.groups.get(row.groupId);
     if (row.groupId !== openGroupId) {
       openGroupId = row.groupId;
-      // A phase's rows are not contiguous once prose lands between them, but it
-      // is still one phase, so it is announced once.
-      if (group && !announced.has(group.id)) {
-        announced.add(group.id);
+      if (group) {
         const heading = generatedGroupHeading(group);
         lines.push(
           [
@@ -242,19 +232,11 @@ function draw(
     lines.push(
       `${isHidden ? "·" : " "} ${isIndented ? "  " : ""}${labels.get(rowId) ?? rowId}`,
     );
-    // A declared group draws it after the last row it still shows, which is the
-    // heading until the agent writes something mid-phase.
-    if (
-      group?.headingRowId !== undefined &&
-      group.standInAfterRowId === rowId
-    ) {
+    // A declared group draws it under the heading, which is the one row of the
+    // group that is on screen for the whole of its life.
+    if (group?.headingRowId === rowId) {
       standIn(group);
     }
-  }
-
-  // Drawn last and outside every group, which is the whole of where it sits.
-  if (layout.hasPlanningRow) {
-    lines.push("  planning");
   }
 
   return lines.join("\n");
@@ -305,11 +287,10 @@ describe("groups the agent named", () => {
     `);
   });
 
-  // The phase carries on across it and holds it: the paragraph folds away with
-  // the steps once the phase is over. It is never indented under the heading,
-  // which is what lets the last one -- the reply the turn ends on -- leave the
-  // phase without moving anywhere.
-  it("carries a phase across a note the agent dropped mid-way", () => {
+  // The agent stopping to say something ends the phase, named or not. What it
+  // does next is a phase of its own, which the transcript has to generate a
+  // name for even though the agent already gave it one for the work above.
+  it("ends the phase where the agent stops to say something", () => {
     expect(
       draw([
         {
@@ -319,6 +300,7 @@ describe("groups the agent named", () => {
             ["read", "one"],
             ["prose", "these are older than I expected"],
             ["read", "two"],
+            ["read", "three"],
             ["prose", "here is the brief"],
           ],
         },
@@ -327,18 +309,18 @@ describe("groups the agent named", () => {
       "--- declared settled
         Finding the notes
       ·   one
-      · these are older than I expected
+        these are older than I expected
+      --- inferred settled "Read 2 files"
       ·   two
+      ·   three
         here is the brief"
     `);
   });
 
-  // The answer is the last thing the turn said, not the last row of it. A note
-  // the run attached afterwards -- a project change, a file the watcher saw,
-  // whatever developer mode is drawing this week -- says nothing about whether
-  // the paragraph above it was the answer, and folding the answer away because
-  // one landed is the worst thing this file can do.
-  it("keeps the answer out of the phase even with a note filed after it", () => {
+  // Nothing the fold does can reach what the agent said, so nothing that lands
+  // after a paragraph can pull it out of view either -- a project change, a file
+  // the watcher saw, whatever developer mode is drawing this week.
+  it("leaves what the agent said outside every phase, notes and all", () => {
     expect(
       draw([
         {
@@ -356,7 +338,7 @@ describe("groups the agent named", () => {
         Finding the notes
       ·   one
         here is the brief
-      ·   Quarterly reports"
+        Quarterly reports"
     `);
   });
 
@@ -450,12 +432,11 @@ describe("groups the agent named", () => {
     `);
   });
 
-  // Two rules in one picture. While the phase runs, what the agent said about
-  // it stays on screen at the margin and only the steps are folded away. And
-  // the copy of the step in flight follows that paragraph: drawn where the
-  // group opened, it would sit above prose written after those steps, which
-  // puts the phase in the wrong order.
-  it("holds a note on screen while the phase runs, and copies the step after it", () => {
+  // The named phase is over, so the call that follows the paragraph starts a run
+  // of its own rather than joining it. That is what keeps the copy of the step
+  // in flight above whatever the agent has said: a phase carried on across the
+  // paragraph would draw its next step underneath it and then jump back up.
+  it("starts a new run after the note, rather than reopening the phase", () => {
     expect(
       draw(
         [
@@ -472,11 +453,12 @@ describe("groups the agent named", () => {
         { isAgentRunning: true },
       ),
     ).toMatchInlineSnapshot(`
-      "--- declared working
+      "--- declared settled
         Finding the notes
       ·   one
         these are older than I expected
-      >   two
+      --- inferred working
+      > two
       ·   two"
     `);
   });
@@ -514,7 +496,6 @@ describe("groups that span messages", () => {
       { role: "assistant", specs: [["thought", "which page"]] },
       { role: "assistant", specs: [["activity", "Inspecting the gallery"]] },
       { role: "assistant", specs: [["bash", "open the page"]] },
-      { role: "assistant", specs: [["prose", "these are transparent PNGs"]] },
       { role: "assistant", specs: [["bash", "convert them"]] },
       { role: "assistant", specs: [["prose", "here are the files"]] },
     ];
@@ -526,7 +507,6 @@ describe("groups that span messages", () => {
       --- declared settled
         Inspecting the gallery
       ·   open the page
-      · these are transparent PNGs
       ·   convert them
         here are the files"
     `);
@@ -684,7 +664,7 @@ describe("while the agent is working", () => {
     `);
   });
 
-  it("falls to the planning row when the group has nothing in flight", () => {
+  it("keeps the last step under the heading when nothing is in flight", () => {
     expect(
       draw(
         [

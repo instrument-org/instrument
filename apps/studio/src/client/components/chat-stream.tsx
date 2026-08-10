@@ -7,7 +7,7 @@ import {
   type Task,
 } from "@instrument-org/workspace/client";
 import { WarningIcon } from "@phosphor-icons/react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { getAssetBaseUrl } from "../lib/asset-base-url";
 import { cn } from "../lib/utils";
@@ -32,33 +32,19 @@ import { FolderAttachmentsCard } from "./folder-attachments-card";
 import { MessageError } from "./message-error";
 import { GroupHeading } from "./message-part/group-heading";
 import {
-  STEP_RUN,
   TranscriptGroup,
   TranscriptGroupHead,
 } from "./message-part/transcript-group";
 import { ProjectContextNote } from "./project-context-note";
-import { ReasoningMessage } from "./reasoning-message";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
 import { MessageScrollerItem } from "./ui/message-scroller";
 import { Wordmark } from "./wordmark";
 
-// After a streaming text part stops growing for this long, treat it as stalled
-// so the planning loader can reappear beneath the otherwise-finished prose.
-const STREAM_STALL_MS = 700;
-
 // How far the rows a group holds sit inside its head line: one step in, enough
 // that the indent reads at a glance without pushing the run away from the
 // margin the rest of the transcript is set against.
 const GROUP_INDENT = "pl-6";
-
-// The wordmark's row key, for the one case where it is not a message's own
-// chrome but a row in the turn that has not started yet.
-const TURN_WORDMARK_ID = "turn-wordmark";
-
-// The planning row's key. It is not a part, and belongs to no group: it says
-// the agent is working with nothing to show for it yet.
-const PLANNING_ROW_ID = "planning";
 
 interface ChatStreamProps {
   /**
@@ -145,33 +131,6 @@ export function ChatStream({
     [isAgentRunning, lastMessageId],
   );
 
-  // A still-streaming text part at the tail of the live assistant message that
-  // already has visible content. It is the one active state with no inline
-  // loading affordance of its own (AssistantMessage renders plain markdown), so
-  // it, and only it, suppresses the planning loader while it grows.
-  const streamingTailText = useMemo(() => {
-    if (!isAgentRunning || !lastAssistantMessage) {
-      return;
-    }
-    const lastPart = lastAssistantMessage.parts.at(-1);
-    if (
-      lastPart?.type === "text" &&
-      lastPart.state !== "done" &&
-      lastPart.text.trim() !== ""
-    ) {
-      return lastPart.text;
-    }
-    return;
-  }, [isAgentRunning, lastAssistantMessage]);
-
-  const streamingTailTextStalled = useStreamStalled(streamingTailText);
-
-  // Prose still arriving is its own loading state, and the one active state
-  // with no inline affordance of its own (AssistantMessage renders plain
-  // markdown). Stalled means it has stopped producing, so it stops counting.
-  const hasStreamingTailText =
-    streamingTailText !== undefined && !streamingTailTextStalled;
-
   const lastAssistantMessageHasVisibleParts = useMemo(() => {
     if (!lastAssistantMessage) {
       return false;
@@ -192,19 +151,12 @@ export function ChatStream({
   const layout = useMemo(
     () =>
       buildTranscriptLayout({
-        hasStreamingTailText,
         isAgentRunning,
         isDeveloperMode,
         isToolStreaming,
         regularMessages,
       }),
-    [
-      hasStreamingTailText,
-      isAgentRunning,
-      isDeveloperMode,
-      isToolStreaming,
-      regularMessages,
-    ],
+    [isAgentRunning, isDeveloperMode, isToolStreaming, regularMessages],
   );
 
   const renderCtx: RenderPartContext = useMemo(
@@ -390,9 +342,7 @@ export function ChatStream({
 
       const isLogoVisible =
         isFirstInConsecutiveAssistantGroup &&
-        (!isLastMessage ||
-          lastAssistantMessageHasVisibleParts ||
-          layout.hasPlanningRow);
+        (!isLastMessage || lastAssistantMessageHasVisibleParts);
 
       if (isLogoVisible) {
         messageElements.unshift(
@@ -521,55 +471,6 @@ export function ChatStream({
       }
     }
 
-    // Planning is the tail of the turn, not a row of any one message in it. It
-    // is drawn here, once, because the message it would otherwise belong to
-    // changes underneath it: the agent's first message arrives and the row has
-    // to move from the user's element into that one. Moved, it is a new element
-    // wherever it lands, so it fades in a second time and the turn reads as
-    // announcing itself twice. Drawn at the end it is the same element from the
-    // moment the turn opens until a real row replaces it.
-    if (layout.hasPlanningRow) {
-      const tail: React.ReactNode[] = [];
-
-      // The wordmark heads the turn, and planning is the first thing the turn
-      // shows. Between the user sending and the agent's first message arriving
-      // there is no assistant message for the wordmark to head, so it comes in
-      // here instead. Without this the turn opens on a bare "Planning..." and
-      // the wordmark drops in above it a moment later, pushing everything the
-      // agent then says down the page.
-      if (regularMessages.at(-1)?.role === "user") {
-        tail.push(<TurnWordmark key={TURN_WORDMARK_ID} />);
-      }
-
-      // A run of one step, in the same box every other run of steps sits in:
-      // without it the row is 4px lower than the step that replaces it, and the
-      // transcript lifts every time the agent starts doing something.
-      tail.push(
-        <div className={STEP_RUN} key={PLANNING_ROW_ID}>
-          <ReasoningMessage
-            isLoading
-            noDelay={!lastAssistantMessageHasVisibleParts}
-            text=""
-          />
-        </div>,
-      );
-
-      // Keyed, both of them, or React reconciles the tail by its position in
-      // the list and a message landing above it counts as a different element.
-      if (renderAsItems) {
-        elements.push(
-          <MessageScrollerItem
-            className="flex flex-col gap-2"
-            key={PLANNING_ROW_ID}
-          >
-            {tail}
-          </MessageScrollerItem>,
-        );
-      } else {
-        elements.push(...tail);
-      }
-    }
-
     return elements;
   }, [
     alwaysShowFooter,
@@ -687,16 +588,13 @@ function collectGroups({
       return nodes;
     }
 
-    // The head line belongs to the slice the group opens on, or it would be
-    // drawn again for every message the group runs through. The copy of the
-    // step in flight follows the last row the group still draws, which is that
-    // same slice until the agent writes something mid-phase.
-    const heading = run.rows.some((row) => row.id === group.id)
-      ? generatedGroupHeading(group)
-      : undefined;
-    const standIn = run.rows.some((row) => row.id === group.standInAfterRowId)
-      ? renderStandIn(group)
-      : null;
+    // Both belong to the slice the group opens on, or they would be drawn again
+    // for every message the group runs through. That is also the only place the
+    // copy of the step in flight can hold still, since it is the one row of the
+    // group that is on screen for the whole of its life.
+    const isOpeningSlice = run.rows.some((row) => row.id === group.id);
+    const heading = isOpeningSlice ? generatedGroupHeading(group) : undefined;
+    const standIn = isOpeningSlice ? renderStandIn(group) : null;
 
     // With the group folded, a middle slice holds nothing that draws, and an
     // empty box is a blank gap down the transcript where the steps used to be.
@@ -738,32 +636,10 @@ function TurnWordmark() {
   );
 }
 
-// True once `text` stops changing for STREAM_STALL_MS. Timer-based, so it can't
-// be derived declaratively: each new value arms a fresh timeout that records the
-// value it settled on, and the result compares that against the current text so
-// a still-growing stream never reads as stalled. Returns false when there is no
-// streaming text.
-function useStreamStalled(text: string | undefined) {
-  const [stalledText, setStalledText] = useState<string>();
-  useEffect(() => {
-    if (text === undefined) {
-      return;
-    }
-    const timer = setTimeout(() => {
-      setStalledText(text);
-    }, STREAM_STALL_MS);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [text]);
-  return text !== undefined && stalledText === text;
-}
-
 // The wrapper a row sits in.
 //
-// A group's steps are indented under its head line. Prose is not, though the
-// group still holds it: see `planRow` for why the answer a turn ends on cannot
-// afford to be somewhere it will have to move away from.
+// A group's steps are indented under its head line. Nothing else in the box is,
+// and prose is never in one at all: see `planRow`.
 //
 // No vertical margins anywhere. The 8px rhythm is the group box's job (see
 // `TranscriptGroup`), and it only works if every row in the box is the same

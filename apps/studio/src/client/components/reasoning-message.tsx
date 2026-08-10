@@ -15,7 +15,7 @@ import {
 } from "./ui/collapsible";
 
 interface ReasoningMessageProps {
-  createdAt?: Date;
+  createdAt: Date;
   endedAt?: Date;
   isLoading?: boolean;
   /**
@@ -25,7 +25,6 @@ interface ReasoningMessageProps {
    * back, and fading in reads as the line blinking out and returning.
    */
   isStandIn?: boolean;
-  noDelay?: boolean;
   text: string;
 }
 
@@ -34,7 +33,6 @@ export const ReasoningMessage = memo(function ReasoningMessage({
   endedAt,
   isLoading = false,
   isStandIn = false,
-  noDelay = false,
   text,
 }: ReasoningMessageProps) {
   const group = useTranscriptGroup();
@@ -77,17 +75,12 @@ export const ReasoningMessage = memo(function ReasoningMessage({
   // measures to its end; a running one measures to now, and the timer above is
   // what makes it climb.
   const endsAt = endedAt ?? (isLoading ? new Date() : undefined);
-  const hasTiming = createdAt !== undefined && endsAt !== undefined;
-  const elapsedMs = hasTiming ? endsAt.getTime() - createdAt.getTime() : 0;
+  const elapsedMs = endsAt ? endsAt.getTime() - createdAt.getTime() : 0;
   const duration = formatDuration(Math.max(elapsedMs, 1000));
 
-  // Without a start time there is no reasoning part behind this row: it is the
-  // stand-in the stream shows when the agent is working with nothing to report.
   const label = isLoading
-    ? createdAt
-      ? `Thinking for ${duration}`
-      : "Planning..."
-    : hasTiming
+    ? `Thinking for ${duration}`
+    : endsAt
       ? `Thought for ${duration}`
       : "Thought";
 
@@ -100,7 +93,7 @@ export const ReasoningMessage = memo(function ReasoningMessage({
       className={cn(
         "w-full",
         !isStandIn && "animate-in fill-mode-both fade-in",
-        !isStandIn && !hasText && !noDelay && "delay-500",
+        !isStandIn && !hasText && "delay-500",
       )}
       onOpenChange={groupHead === null ? setIsExpanded : groupHead.toggle}
       open={groupHead === null ? isExpanded : groupHead.isExpanded}

@@ -7,7 +7,7 @@ import {
   type Task,
 } from "@instrument-org/workspace/client";
 import { WarningIcon } from "@phosphor-icons/react";
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 
 import { getAssetBaseUrl } from "../lib/asset-base-url";
 import { cn } from "../lib/utils";
@@ -65,6 +65,15 @@ const PROSE_GAP = "mt-4";
 // group box's own -4px margin is what holds its steps on the rhythm, so a
 // margin here would be resolved against it rather than added to it.
 const PROSE_GAP_IN_GROUP = "pt-4";
+
+interface AssistantMessageCheck {
+  isDeveloperMode: boolean;
+  isToolStreaming: (
+    part: SessionMessagePart.ToolPart,
+    message: SessionMessage.WithParts,
+  ) => boolean;
+  message: SessionMessage.AssistantWithParts;
+}
 
 interface ChatStreamProps {
   /**
@@ -127,33 +136,26 @@ export function ChatStream({
     () => new Set(),
   );
 
-  const toggleGroup = useCallback(
-    (groupId: string) => {
-      // Before the state change, so the scroller is already out of follow when
-      // the rows it opens are measured.
-      onReleaseAutoScroll?.();
-      setExpandedGroupIds((current) => {
-        const next = new Set(current);
-        if (!next.delete(groupId)) {
-          next.add(groupId);
-        }
-        return next;
-      });
-    },
-    [onReleaseAutoScroll],
-  );
+  const toggleGroup = (groupId: string) => {
+    // Before the state change, so the scroller is already out of follow when
+    // the rows it opens are measured.
+    onReleaseAutoScroll?.();
+    setExpandedGroupIds((current) => {
+      const next = new Set(current);
+      if (!next.delete(groupId)) {
+        next.add(groupId);
+      }
+      return next;
+    });
+  };
 
-  const isGroupExpanded = useCallback(
-    (group: TranscriptGroupData | undefined) =>
-      group !== undefined && expandedGroupIds.has(group.id),
-    [expandedGroupIds],
-  );
+  const isGroupExpanded = (group: TranscriptGroupData | undefined) =>
+    group !== undefined && expandedGroupIds.has(group.id);
 
   // The prompts the session was seeded with belong to the debug chat dialog,
   // not the transcript.
-  const regularMessages = useMemo(
-    () => messages.filter((message) => message.role !== "session-context"),
-    [messages],
+  const regularMessages = messages.filter(
+    (message) => message.role !== "session-context",
   );
 
   const lastMessageId = regularMessages.at(-1)?.id;
@@ -161,171 +163,108 @@ export function ChatStream({
   const lastAssistantMessage =
     lastRegularMessage?.role === "assistant" ? lastRegularMessage : undefined;
 
-  const isToolStreaming = useCallback(
-    (part: SessionMessagePart.ToolPart, message: SessionMessage.WithParts) =>
-      isAgentRunning && lastMessageId === message.id && isActiveToolPart(part),
-    [isAgentRunning, lastMessageId],
-  );
+  const isToolStreaming = (
+    part: SessionMessagePart.ToolPart,
+    message: SessionMessage.WithParts,
+  ) => isAgentRunning && lastMessageId === message.id && isActiveToolPart(part);
 
-  const lastAssistantMessageHasVisibleParts = useMemo(() => {
-    if (!lastAssistantMessage) {
-      return false;
-    }
-    return lastAssistantMessage.parts.some((part) =>
-      isVisibleAssistantPart({
-        isDeveloperMode,
-        isStreaming: isToolPart(part)
-          ? isToolStreaming(part, lastAssistantMessage)
-          : false,
-        part,
-      }),
-    );
-  }, [isDeveloperMode, isToolStreaming, lastAssistantMessage]);
+  const lastAssistantMessageHasVisibleParts =
+    lastAssistantMessage !== undefined &&
+    hasVisibleAssistantParts({
+      isDeveloperMode,
+      isToolStreaming,
+      message: lastAssistantMessage,
+    });
 
-  /**
-   * The assistant messages the wordmark heads: the ones that open a turn with
-   * something in it, and the turn in flight whether or not it has anything yet.
-   *
-   * The wordmark is the anchor that says the agent has the message, so it comes
-   * up the moment the turn is running rather than waiting for the first row to
-   * arrive. A turn that ends with nothing to show keeps nothing -- an empty
-   * header over a stack of user messages reads as a reply that failed to draw --
-   * and the only way to end a turn with nothing is to stop it before it started,
-   * which is exactly the case where the user is looking at what they sent.
-   *
-   * Decided here rather than in the loop below because a turn is one message per
-   * step: the wordmark goes on the message that opens the turn, and whether the
-   * turn holds anything is not settled until the last of them.
-   */
-  const wordmarkMessageIds = useMemo(() => {
-    const ids = new Set<string>();
-    let openedBy: SessionMessage.WithParts | undefined;
-    let hasContent = false;
-    const close = (isTrailingTurn: boolean) => {
-      if (openedBy && (hasContent || (isAgentRunning && isTrailingTurn))) {
-        ids.add(openedBy.id);
-      }
-      openedBy = undefined;
-      hasContent = false;
-    };
-
-    for (const message of regularMessages) {
-      if (message.role !== "assistant") {
-        close(false);
-        continue;
-      }
-      openedBy ??= message;
-      hasContent ||= assistantMessageHasContent({
-        isDeveloperMode,
-        isToolStreaming,
-        message,
-      });
-    }
-    close(true);
-    return ids;
-  }, [isAgentRunning, isDeveloperMode, isToolStreaming, regularMessages]);
+  const wordmarkMessageIds = turnOpeningMessageIds({
+    isAgentRunning,
+    isDeveloperMode,
+    isToolStreaming,
+    regularMessages,
+  });
 
   // Precomputed over the whole transcript, since a group and the run edges
   // around it both cross message boundaries.
-  const layout = useMemo(
-    () =>
-      buildTranscriptLayout({
-        isAgentRunning,
-        isDeveloperMode,
-        isToolStreaming,
-        regularMessages,
-      }),
-    [isAgentRunning, isDeveloperMode, isToolStreaming, regularMessages],
-  );
+  const layout = buildTranscriptLayout({
+    isAgentRunning,
+    isDeveloperMode,
+    isToolStreaming,
+    regularMessages,
+  });
 
-  const renderCtx: RenderPartContext = useMemo(
-    () => ({
-      assetBaseUrl,
-      isAgentRunning,
-      isDeveloperMode,
-      isToolStreaming,
-      lastMessageId,
-      onRetry,
-      task,
-    }),
-    [
-      assetBaseUrl,
-      isAgentRunning,
-      isDeveloperMode,
-      isToolStreaming,
-      lastMessageId,
-      onRetry,
-      task,
-    ],
-  );
+  const renderCtx: RenderPartContext = {
+    assetBaseUrl,
+    isAgentRunning,
+    isDeveloperMode,
+    isToolStreaming,
+    lastMessageId,
+    onRetry,
+    task,
+  };
 
   // A group's head line copies the step the agent is on, which lives in some
   // later message than the one the group opens in. Rendering it means reaching
   // for a part by id rather than by where the loop below has got to.
-  const partsById = useMemo(() => {
-    const byId = new Map<
-      string,
-      {
-        message: SessionMessage.WithParts;
-        part: SessionMessagePart.Type;
-        partIndex: number;
-      }
-    >();
-    for (const message of regularMessages) {
-      for (const [partIndex, part] of message.parts.entries()) {
-        byId.set(part.metadata.id, { message, part, partIndex });
-      }
+  const partsById = new Map<
+    string,
+    {
+      message: SessionMessage.WithParts;
+      part: SessionMessagePart.Type;
+      partIndex: number;
     }
-    return byId;
-  }, [regularMessages]);
+  >();
+  for (const message of regularMessages) {
+    for (const [partIndex, part] of message.parts.entries()) {
+      partsById.set(part.metadata.id, { message, part, partIndex });
+    }
+  }
 
-  const renderStandIn = useCallback(
-    (group: TranscriptGroupData): React.ReactNode => {
-      const rowId = groupStandInRowId({
-        group,
-        isExpanded: isGroupExpanded(group),
-      });
-      if (rowId === undefined) {
-        return null;
-      }
+  const renderStandIn = (group: TranscriptGroupData): React.ReactNode => {
+    const rowId = groupStandInRowId({
+      group,
+      isExpanded: isGroupExpanded(group),
+    });
+    if (rowId === undefined) {
+      return null;
+    }
 
-      const found = partsById.get(rowId);
-      if (!found) {
-        return null;
-      }
-      const node = renderChatPart({
-        browserStatusContextAdded: false,
-        ctx: renderCtx,
-        isGroupWorking: true,
-        isStandIn: true,
-        message: found.message,
-        part: found.part,
-        partIndex: found.partIndex,
-      });
-      if (!node) {
-        return null;
-      }
+    const found = partsById.get(rowId);
+    if (!found) {
+      return null;
+    }
+    const node = renderChatPart({
+      browserStatusContextAdded: false,
+      ctx: renderCtx,
+      isGroupWorking: true,
+      isStandIn: true,
+      message: found.message,
+      part: found.part,
+      partIndex: found.partIndex,
+    });
+    if (!node) {
+      return null;
+    }
 
-      // The slot is what moves from one step to the next, so it wraps the copy
-      // rather than the other way round: it stays put while the row inside it
-      // is replaced.
-      const slot = <GroupStandIn rowId={rowId}>{node}</GroupStandIn>;
+    // The slot is what moves from one step to the next, so it wraps the copy
+    // rather than the other way round: it stays put while the row inside it
+    // is replaced.
+    const slot = <GroupStandIn rowId={rowId}>{node}</GroupStandIn>;
 
-      // Under a heading the copy is one of the group's rows and sits where they
-      // sit. With no heading it is the head line itself, so it takes the outer
-      // edge and answers the clicks that open and close the group.
-      return group.headingRowId === undefined ? (
-        <TranscriptGroupHead key="stand-in">{slot}</TranscriptGroupHead>
-      ) : (
-        <div className={GROUP_INDENT} key="stand-in">
-          {slot}
-        </div>
-      );
-    },
-    [isGroupExpanded, partsById, renderCtx],
-  );
+    // Under a heading the copy is one of the group's rows and sits where they
+    // sit. With no heading it is the head line itself, so it takes the outer
+    // edge and answers the clicks that open and close the group.
+    return group.headingRowId === undefined ? (
+      <TranscriptGroupHead key="stand-in">{slot}</TranscriptGroupHead>
+    ) : (
+      <div className={GROUP_INDENT} key="stand-in">
+        {slot}
+      </div>
+    );
+  };
 
-  const chatElements = useMemo(() => {
+  const chatElements = buildChatElements();
+
+  function buildChatElements() {
     const elements: React.ReactNode[] = [];
     let lastFooterIndex = 0;
     let previousBrowserStatusNote: string | undefined;
@@ -578,37 +517,13 @@ export function ChatStream({
     }
 
     return elements;
-  }, [
-    alwaysShowFooter,
-    regularMessages,
-    renderCtx,
-    renderAsItems,
-    layout,
-    assetBaseUrl,
-    isGroupExpanded,
-    task.id,
-    isAgentRunning,
-    isDeveloperMode,
-    lastAssistantMessageHasVisibleParts,
-    onContinue,
-    onModelChange,
-    onRetry,
-    onStartNewTask,
-    renderStandIn,
-    toggleGroup,
-    wordmarkMessageIds,
-  ]);
+  }
 
-  const shouldShowContinueButton = useMemo(() => {
-    if (messages.length === 0 || isAgentRunning) {
-      return false;
-    }
-    const lastMessage = messages.at(-1);
-    return (
-      lastMessage?.role === "assistant" &&
-      lastMessage.metadata.finishReason === "max-steps"
-    );
-  }, [messages, isAgentRunning]);
+  const lastMessage = messages.at(-1);
+  const shouldShowContinueButton =
+    !isAgentRunning &&
+    lastMessage?.role === "assistant" &&
+    lastMessage.metadata.finishReason === "max-steps";
 
   const continueNode = shouldShowContinueButton ? (
     <Alert className="mt-4" variant="warning">
@@ -653,7 +568,8 @@ export function ChatStream({
   );
 }
 
-// Whether the turn this message belongs to has anything to show for itself.
+// Whether the turn this message belongs to has anything to show for itself:
+// the above, plus the one thing a message can show that is not one of its parts.
 //
 // The error row counts, since a turn that failed did produce something the user
 // can see. An abort does not: it draws nothing outside developer mode, and a
@@ -662,25 +578,16 @@ function assistantMessageHasContent({
   isDeveloperMode,
   isToolStreaming,
   message,
-}: {
-  isDeveloperMode: boolean;
-  isToolStreaming: (
-    part: SessionMessagePart.ToolPart,
-    message: SessionMessage.WithParts,
-  ) => boolean;
-  message: SessionMessage.AssistantWithParts;
-}) {
+}: AssistantMessageCheck) {
   const error = message.metadata.error;
   if (error && (isDeveloperMode || error.kind !== "aborted")) {
     return true;
   }
-  return message.parts.some((part) =>
-    isVisibleAssistantPart({
-      isDeveloperMode,
-      isStreaming: isToolPart(part) ? isToolStreaming(part, message) : false,
-      part,
-    }),
-  );
+  return hasVisibleAssistantParts({
+    isDeveloperMode,
+    isToolStreaming,
+    message,
+  });
 }
 
 // Boxes each run of rows that share a group, leaving everything else where it
@@ -766,6 +673,80 @@ function collectGroups({
       </TranscriptGroup>
     );
   });
+}
+
+/**
+ * Whether the message holds a part that draws a row.
+ *
+ * Not the same question as how many rows the transcript loop went on to emit
+ * for it. That is a count of what was drawn, and the fold sits between the two:
+ * a settled group keeps its rows and shows one of them. This is about the parts.
+ */
+function hasVisibleAssistantParts({
+  isDeveloperMode,
+  isToolStreaming,
+  message,
+}: AssistantMessageCheck) {
+  return message.parts.some((part) =>
+    isVisibleAssistantPart({
+      isDeveloperMode,
+      isStreaming: isToolPart(part) ? isToolStreaming(part, message) : false,
+      part,
+    }),
+  );
+}
+
+/**
+ * The assistant messages the wordmark heads: the ones that open a turn with
+ * something in it, and the turn in flight whether or not it has anything yet.
+ *
+ * The wordmark is the anchor that says the agent has the message, so it comes up
+ * the moment the turn is running rather than waiting for the first row to
+ * arrive. A turn that ends with nothing to show keeps nothing -- an empty header
+ * over a stack of user messages reads as a reply that failed to draw -- and the
+ * only way to end a turn with nothing is to stop it before it started, which is
+ * exactly the case where the user is looking at what they sent.
+ *
+ * Settled in one pass over the transcript rather than as the rows are built,
+ * because a turn is one message per step: the wordmark goes on the message that
+ * opens the turn, and whether the turn holds anything is not settled until the
+ * last of them.
+ */
+function turnOpeningMessageIds({
+  isAgentRunning,
+  isDeveloperMode,
+  isToolStreaming,
+  regularMessages,
+}: Omit<AssistantMessageCheck, "message"> & {
+  isAgentRunning: boolean;
+  regularMessages: SessionMessage.WithParts[];
+}) {
+  const ids = new Set<string>();
+  let openedBy: SessionMessage.WithParts | undefined;
+  let hasContent = false;
+  const close = (isTrailingTurn: boolean) => {
+    if (openedBy && (hasContent || (isAgentRunning && isTrailingTurn))) {
+      ids.add(openedBy.id);
+    }
+    openedBy = undefined;
+    hasContent = false;
+  };
+
+  for (const message of regularMessages) {
+    if (message.role !== "assistant") {
+      close(false);
+      continue;
+    }
+    openedBy ??= message;
+    hasContent ||= assistantMessageHasContent({
+      isDeveloperMode,
+      isToolStreaming,
+      message,
+    });
+  }
+  close(true);
+
+  return ids;
 }
 
 // What opens an assistant turn, wherever the turn is opening from.

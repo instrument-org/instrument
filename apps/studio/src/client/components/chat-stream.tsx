@@ -78,6 +78,13 @@ interface ChatStreamProps {
   messages: SessionMessage.WithParts[];
   onContinue: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
+  /**
+   * Hands scrolling back to the reader, called before the transcript grows
+   * because they asked it to. The scroller cannot tell content a click opened
+   * from output the agent produced, so without this it follows the growth and
+   * takes the row out from under the pointer. Absent outside a scroller.
+   */
+  onReleaseAutoScroll?: () => void;
   onRetry: (prompt: string) => void;
   onStartNewTask: () => void;
   // Wrap each turn in a MessageScrollerItem so the transcript scroller can
@@ -105,6 +112,7 @@ export function ChatStream({
   messages,
   onContinue,
   onModelChange,
+  onReleaseAutoScroll,
   onRetry,
   onStartNewTask,
   renderAsItems = false,
@@ -119,15 +127,21 @@ export function ChatStream({
     () => new Set(),
   );
 
-  const toggleGroup = useCallback((groupId: string) => {
-    setExpandedGroupIds((current) => {
-      const next = new Set(current);
-      if (!next.delete(groupId)) {
-        next.add(groupId);
-      }
-      return next;
-    });
-  }, []);
+  const toggleGroup = useCallback(
+    (groupId: string) => {
+      // Before the state change, so the scroller is already out of follow when
+      // the rows it opens are measured.
+      onReleaseAutoScroll?.();
+      setExpandedGroupIds((current) => {
+        const next = new Set(current);
+        if (!next.delete(groupId)) {
+          next.add(groupId);
+        }
+        return next;
+      });
+    },
+    [onReleaseAutoScroll],
+  );
 
   const isGroupExpanded = useCallback(
     (group: TranscriptGroupData | undefined) =>
@@ -522,15 +536,17 @@ export function ChatStream({
 
       if (renderAsItems) {
         if (messageElements.length > 0) {
-          // No scrollAnchor: opting into the primitive's per-turn
-          // anchor-to-top inflates a spacer and jumps the view up mid-stream
-          // as tool-call DOM churns in. We only want follow-bottom +
-          // release-on-scroll-up, so nothing is marked as an anchor.
+          // The user's message is where a turn starts, and it is the one row per
+          // turn that says so: the agent's side arrives as a message per step.
+          // Anchoring it moves it to the reading line on arrival and holds it
+          // there while the reply grows into the room the scroller reserves
+          // below, so the column stops moving under whatever is being read.
           elements.push(
             <MessageScrollerItem
               className="flex flex-col gap-2"
               key={message.id}
               messageId={message.id}
+              scrollAnchor={message.role === "user"}
             >
               {messageElements}
             </MessageScrollerItem>,

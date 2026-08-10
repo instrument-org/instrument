@@ -22,7 +22,13 @@ import {
 } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ComponentProps,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 
 import { ChatStream } from "../chat-stream";
@@ -49,6 +55,19 @@ import { TutorialPromptCard } from "./tutorial-prompt-card";
 // session has to justify it. Long enough to cover starting a turn, short enough
 // that a submit that never becomes one hands the idle transcript back.
 const SUBMIT_FOLLOW_TIMEOUT_MS = 5000;
+
+// How long the transcript keeps following after a turn ends. The footer is added
+// to the DOM by the same change that stops the session, so its height is the
+// first growth nobody would otherwise follow and it lands a row below the fold.
+// Long enough for that commit and the resize behind it, short enough that an
+// idle transcript is the reader's again before they reach for it.
+const TURN_SETTLE_FOLLOW_TIMEOUT_MS = 400;
+
+// Where an anchored turn comes to rest, measured from the top of the viewport.
+// Less than the primitive's default, because the transcript fades its own top
+// 24px: the previous turn showing through the fade is the whole point of the
+// band, and past that it is just a gap above the turn being read.
+const TRANSCRIPT_PREVIOUS_TURN_PEEK = 40;
 
 export function TaskChat({
   isReplayActive = false,
@@ -79,6 +98,7 @@ export function TaskChat({
   const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
   const [scrollToEndSignal, setScrollToEndSignal] = useState(0);
   const [isFollowingSubmit, setIsFollowingSubmit] = useState(false);
+  const [isSettlingTurn, setIsSettlingTurn] = useState(false);
 
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions({
@@ -142,6 +162,7 @@ export function TaskChat({
     isReplayActive,
     sessionId: selectedSessionId,
   });
+  const [wasAgentAlive, setWasAgentAlive] = useState(isAgentAlive);
 
   // The live session takes over following the transcript as soon as it reports
   // itself alive, so the submit's own reason to follow ends there.
@@ -164,6 +185,29 @@ export function TaskChat({
       window.clearTimeout(timeout);
     };
   }, [isFollowingSubmit]);
+
+  // The end of a turn adds the footer, so the session stops following at the
+  // exact moment there is one more thing to follow. Carry it a beat past the
+  // handover. A reader who expands something inside the window releases follow
+  // themselves, which is what keeps it from taking the transcript off them.
+  if (wasAgentAlive !== isAgentAlive) {
+    setWasAgentAlive(isAgentAlive);
+    setIsSettlingTurn(!isAgentAlive);
+  }
+
+  useEffect(() => {
+    if (!isSettlingTurn) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setIsSettlingTurn(false);
+    }, TURN_SETTLE_FOLLOW_TIMEOUT_MS);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [isSettlingTurn]);
 
   const { handleContinue } = useContinueSession({
     id,
@@ -336,16 +380,18 @@ export function TaskChat({
   // gradient overlay at the scroll frame's bottom edge eases the transcript into
   // the composer; pb-8 keeps the last turn's text clear of the fade band.
   //
-  // autoScroll only while the session is alive, or while a just-submitted
-  // prompt is waiting for one: follow-bottom cannot tell new output from
-  // content the reader grew themselves, so on an idle transcript it reads a
-  // collapsible expanding as output and yanks the row out from under the click.
-  // Alive rather than running, so a turn paused for approval still follows.
+  // autoScroll only while the session is alive, while a just-submitted prompt is
+  // waiting for one, or for the beat after one ends: follow-bottom cannot tell
+  // new output from content the reader grew themselves, so on an idle transcript
+  // it reads a collapsible expanding as output and yanks the row out from under
+  // the click. Alive rather than running, so a turn paused for approval still
+  // follows.
   return (
     <MessageScrollerProvider
-      autoScroll={isAgentAlive || isFollowingSubmit}
+      autoScroll={isAgentAlive || isFollowingSubmit || isSettlingTurn}
       defaultScrollPosition="end"
       key={selectedSessionId}
+      scrollPreviousItemPeek={TRANSCRIPT_PREVIOUS_TURN_PEEK}
     >
       <ScrollToEndBridge signal={scrollToEndSignal} />
       <div className="flex h-full min-h-0 flex-col">
@@ -397,7 +443,7 @@ export function TaskChat({
                     selectedSessionId={selectedSessionId}
                   />
                 ) : (
-                  <ChatStream
+                  <TranscriptStream
                     isAgentRunning={isAgentRunning}
                     isDeveloperMode={isDeveloperMode}
                     messages={messages}
@@ -405,7 +451,6 @@ export function TaskChat({
                     onModelChange={setSelectedModelURI}
                     onRetry={handleRetry}
                     onStartNewTask={handleStartNewTask}
-                    renderAsItems
                     task={task}
                   />
                 )
@@ -469,6 +514,26 @@ function ScrollToEndBridge({ signal }: { signal: number }) {
   }, [scrollToEnd, signal]);
 
   return null;
+}
+
+// The transcript, wired to the scroller it is drawn in. ChatStream also renders
+// outside one (nested tool-agent streams) where useMessageScroller throws, so
+// reading the scroll commands is this wrapper's job rather than its own.
+function TranscriptStream(
+  props: Omit<
+    ComponentProps<typeof ChatStream>,
+    "onReleaseAutoScroll" | "renderAsItems"
+  >,
+) {
+  const { releaseAutoScroll } = useMessageScroller();
+
+  return (
+    <ChatStream
+      {...props}
+      onReleaseAutoScroll={releaseAutoScroll}
+      renderAsItems
+    />
+  );
 }
 
 // The bottom fade's counterpart at the scroll frame's top edge, softening the

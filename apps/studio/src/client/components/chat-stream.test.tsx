@@ -9,6 +9,12 @@ import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ChatStream } from "./chat-stream";
+import {
+  MessageScroller,
+  MessageScrollerContent,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "./ui/message-scroller";
 import { TooltipProvider } from "./ui/tooltip";
 
 const sessionId = StoreId.newSessionId();
@@ -25,6 +31,8 @@ interface RenderOptions {
   alwaysShowFooter?: boolean;
   isAgentRunning?: boolean;
   isDeveloperMode?: boolean;
+  onReleaseAutoScroll?: () => void;
+  renderAsItems?: boolean;
 }
 
 let partCounter = 0;
@@ -145,21 +153,41 @@ function renderMessages(
     alwaysShowFooter = false,
     isAgentRunning = false,
     isDeveloperMode = false,
+    onReleaseAutoScroll,
+    renderAsItems = false,
   }: RenderOptions = {},
 ) {
+  const stream = (
+    <ChatStream
+      alwaysShowFooter={alwaysShowFooter}
+      isAgentRunning={isAgentRunning}
+      isDeveloperMode={isDeveloperMode}
+      messages={messages as SessionMessage.WithParts[]}
+      onContinue={vi.fn()}
+      onModelChange={vi.fn()}
+      onReleaseAutoScroll={onReleaseAutoScroll}
+      onRetry={vi.fn()}
+      onStartNewTask={vi.fn()}
+      renderAsItems={renderAsItems}
+      task={task}
+    />
+  );
+
   return renderWithProviders(
     <TooltipProvider>
-      <ChatStream
-        alwaysShowFooter={alwaysShowFooter}
-        isAgentRunning={isAgentRunning}
-        isDeveloperMode={isDeveloperMode}
-        messages={messages as SessionMessage.WithParts[]}
-        onContinue={vi.fn()}
-        onModelChange={vi.fn()}
-        onRetry={vi.fn()}
-        onStartNewTask={vi.fn()}
-        task={task}
-      />
+      {/* Rows only become scroller items inside a scroller, and only the
+          top-level transcript is one. */}
+      {renderAsItems ? (
+        <MessageScrollerProvider>
+          <MessageScroller>
+            <MessageScrollerViewport>
+              <MessageScrollerContent>{stream}</MessageScrollerContent>
+            </MessageScrollerViewport>
+          </MessageScroller>
+        </MessageScrollerProvider>
+      ) : (
+        stream
+      )}
     </TooltipProvider>,
   );
 }
@@ -185,8 +213,9 @@ function renderSteps(steps: unknown[][], options?: RenderOptions) {
 function renderTranscript({
   isAgentRunning = true,
   isDeveloperMode = false,
+  onReleaseAutoScroll,
   withActivity = true,
-} = {}) {
+}: RenderOptions & { withActivity?: boolean } = {}) {
   return renderParts(
     [
       ...(withActivity ? [activity("Reading each quarter")] : []),
@@ -194,7 +223,7 @@ function renderTranscript({
       read({ explanation: "Reading the second quarter", running: true }),
       queued("Reading the third quarter"),
     ],
-    { isAgentRunning, isDeveloperMode },
+    { isAgentRunning, isDeveloperMode, onReleaseAutoScroll },
   );
 }
 
@@ -576,6 +605,63 @@ describe("ChatStream and the footer of a finished turn", () => {
     );
 
     expect(footerRow(container).className).not.toContain("opacity-0");
+  });
+});
+
+/**
+ * Which rows the scroller is told a turn starts at. Where those rows come to
+ * rest is layout, and jsdom has none; this is only the marking.
+ */
+describe("ChatStream and the turn the scroller anchors", () => {
+  const anchoring = (container: HTMLElement) =>
+    [...container.querySelectorAll<HTMLElement>("[data-scroll-anchor]")].map(
+      (item) =>
+        `${item.dataset.scrollAnchor ?? ""} ${item.textContent.slice(0, 20)}`,
+    );
+
+  it("starts a turn at what the user sent and nowhere else", () => {
+    const { container } = renderMessages(
+      [
+        userMessage("How did we do?"),
+        assistantMessage([read({ explanation: "Reading the first quarter" })]),
+        assistantMessage([prose("Revenue grew in the north.")]),
+      ],
+      { renderAsItems: true },
+    );
+
+    expect(anchoring(container)).toMatchInlineSnapshot(`
+      [
+        "true How did we do?Dec 31",
+        "false Reading the first qu",
+        "false Revenue grew in the ",
+      ]
+    `);
+  });
+
+  // The window between sending and the agent's first message: the wordmark is
+  // standing in for a turn that has produced nothing, and the message under it
+  // is already the anchor. Marking it too would give one turn two starts.
+  it("does not start a turn at the wordmark holding the place for one", () => {
+    const { container } = renderMessages([userMessage("How did we do?")], {
+      isAgentRunning: true,
+      renderAsItems: true,
+    });
+
+    expect(anchoring(container)).toMatchInlineSnapshot(`
+      [
+        "true How did we do?Dec 31",
+        "false ",
+      ]
+    `);
+  });
+
+  it("hands scrolling back to the reader before opening a group under them", () => {
+    const onReleaseAutoScroll = vi.fn();
+    renderTranscript({ onReleaseAutoScroll });
+
+    clickRow("Reading each quarter");
+
+    expect(onReleaseAutoScroll).toHaveBeenCalledOnce();
   });
 });
 

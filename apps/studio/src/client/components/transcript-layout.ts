@@ -343,9 +343,7 @@ export function groupCanExpand(group: TranscriptGroup): boolean {
     group.headingRowId === undefined &&
     (group.phase === "working" || soleToolCallRowId(group) !== undefined);
 
-  return isHeadedByOwnRow
-    ? group.foldedRowCount > 1
-    : group.foldedRowCount > 0;
+  return isHeadedByOwnRow ? group.foldedRowCount > 1 : group.foldedRowCount > 0;
 }
 
 /**

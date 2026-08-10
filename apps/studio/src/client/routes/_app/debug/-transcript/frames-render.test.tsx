@@ -18,7 +18,11 @@ import { scenarios } from "./scenarios";
 // resolves that through `matchMedia` and an RPC round trip -- neither of which
 // exists here, and neither of which any rule below reads.
 vi.mock("@/client/components/theme-provider", () => ({
-  useTheme: () => ({ resolvedTheme: "light", setTheme: vi.fn(), theme: "light" }),
+  useTheme: () => ({
+    resolvedTheme: "light",
+    setTheme: vi.fn(),
+    theme: "light",
+  }),
 }));
 
 const task: Task = {

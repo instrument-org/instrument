@@ -4,10 +4,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
-import {
-  dataPartVisibility,
-  renderDataPart,
-} from "./chat-stream-data-parts";
+import { dataPartVisibility, renderDataPart } from "./chat-stream-data-parts";
 import { type RenderPartContext } from "./chat-stream-render-part";
 
 const sessionId = StoreId.newSessionId();

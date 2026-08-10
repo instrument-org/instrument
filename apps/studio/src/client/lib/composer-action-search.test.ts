@@ -13,15 +13,15 @@ const marked = (label: string, ranges: null | number[]) => {
   if (!ranges) {
     return label;
   }
-  let marked = "";
+  let markedItem = "";
   let cursor = 0;
   for (let index = 0; index < ranges.length; index += 2) {
     const start = ranges[index] ?? 0;
     const end = ranges[index + 1] ?? 0;
-    marked += `${label.slice(cursor, start)}[${label.slice(start, end)}]`;
+    markedItem += `${label.slice(cursor, start)}[${label.slice(start, end)}]`;
     cursor = end;
   }
-  return marked + label.slice(cursor);
+  return markedItem + label.slice(cursor);
 };
 
 describe("matchComposerActions", () => {

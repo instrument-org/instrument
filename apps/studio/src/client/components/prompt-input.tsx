@@ -15,11 +15,7 @@ import {
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
-import {
-  BLOCK_CLOSE,
-  BLOCK_OPEN,
-  ITEM_IN,
-} from "@/client/lib/motion";
+import { BLOCK_CLOSE, BLOCK_OPEN, ITEM_IN } from "@/client/lib/motion";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { folderNameFromPath } from "@/client/lib/path-utils";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
@@ -104,18 +100,18 @@ type AttachedItem =
 const MAX_PASTE_TEXT_LENGTH = 5000;
 const MAX_FILE_PREVIEW_SIZE = 10 * 1024 * 1024;
 
-/** Everything a submit clears, so a rejected one can put it back. */
-export interface PromptInputDraft {
-  items: AttachedItem[];
-  projectId: null | ProjectId;
-  prompt: string;
-}
-
 export interface PromptInputRef {
   clear: () => void;
   focus: () => void;
   restore: (draft: PromptInputDraft) => void;
   snapshot: () => PromptInputDraft;
+}
+
+/** Everything a submit clears, so a rejected one can put it back. */
+interface PromptInputDraft {
+  items: AttachedItem[];
+  projectId: null | ProjectId;
+  prompt: string;
 }
 
 interface PromptInputProps {

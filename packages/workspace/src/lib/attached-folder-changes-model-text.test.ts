@@ -95,5 +95,4 @@ describe("attachedFolderChangesModelNote", () => {
       </instrument-system-note>"
     `);
   });
-
 });

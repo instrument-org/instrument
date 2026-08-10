@@ -519,7 +519,7 @@ export function FileViewer({
   onExpand,
 }: {
   file: TaskFileViewerFile;
-  onClose: () => void;
+  onClose?: () => void;
   onExpand?: () => void;
 }) {
   const { filename, filePath, mimeType, taskId, url } = file;
@@ -816,7 +816,9 @@ export function FileViewerHeader({
   filename: string;
   filePath: string;
   mimeType?: string;
-  onClose: () => void;
+  // Absent in the pane, where the tab strip owns closing. Present in the
+  // expanded modal, whose close is a collapse back to the pane.
+  onClose?: () => void;
 }) {
   return (
     // `h-10 px-2` matches `ViewerToolbar`, which some viewers render right
@@ -848,14 +850,16 @@ export function FileViewerHeader({
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {actions}
-        <Button
-          className={fileViewerHeaderIconActionClassName}
-          onClick={onClose}
-          size="icon-sm"
-          variant="ghost"
-        >
-          <XIcon className="size-4" />
-        </Button>
+        {onClose && (
+          <Button
+            className={fileViewerHeaderIconActionClassName}
+            onClick={onClose}
+            size="icon-sm"
+            variant="ghost"
+          >
+            <XIcon className="size-4" />
+          </Button>
+        )}
       </div>
     </div>
   );

@@ -108,7 +108,7 @@ const FEATURE_CODES: Record<FeatureName, string> = {
   bash_summary_chip: "b",
   context_ring: "c",
   external_browser: "x",
-  prompt_browser_toggle: "t",
+  pane_browser_tab: "t",
   prompt_queue: "q",
   skills: "s",
 };

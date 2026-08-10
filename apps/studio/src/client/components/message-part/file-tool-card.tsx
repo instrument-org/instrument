@@ -1,10 +1,10 @@
 import { type TaskId } from "@instrument-org/workspace/client";
 import { ArrowsOutSimpleIcon, ChatIcon, CopyIcon } from "@phosphor-icons/react";
-import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 
 import { appendToPromptAtom } from "../../atoms/prompt-value";
 import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
+import { useTaskPaneActions } from "../../hooks/use-task-pane";
 import { getLanguageFromFilePath } from "../../lib/file-extension-to-language";
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
@@ -32,7 +32,7 @@ export function FileToolCard({
   const filename = filenameFromFilePath(filePath);
   const detectedLanguage = language ?? getLanguageFromFilePath(filePath);
   const appendToPrompt = useSetAtom(appendToPromptAtom);
-  const navigate = useNavigate({ from: "/tasks/$id/" });
+  const { openFiles } = useTaskPaneActions(id);
 
   const cleanedContent =
     !isStreaming && content.endsWith("\n") ? content.slice(0, -1) : content;
@@ -54,13 +54,7 @@ export function FileToolCard({
     if (modifiedAt === undefined) {
       return;
     }
-    void navigate({
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        artifactPanel: { filePath, modifiedAt, type: "file" as const },
-      }),
-    });
+    openFiles([filePath]);
   };
 
   if (!content) {

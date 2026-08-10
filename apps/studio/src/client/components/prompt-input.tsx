@@ -124,7 +124,6 @@ interface PromptInputProps {
   autoResizeMaxHeight?: number;
   // Extra action rendered in the button row beside the plus button (e.g. the
   // task page's browser-panel toggle). The host owns it so this stays generic.
-  browserToggle?: React.ReactNode;
   className?: string;
   disabled?: boolean;
   draftKey: PromptDraftKey;
@@ -163,7 +162,6 @@ export const PromptInput = ({
   allowWorkInProject = false,
   autoFocus = false,
   autoResizeMaxHeight = 400,
-  browserToggle,
   className,
   disabled = false,
   draftKey,
@@ -792,8 +790,6 @@ export const PromptInput = ({
                   projectId={selectedProjectId}
                 />
               )}
-
-              {browserToggle}
             </div>
 
             <div className="flex min-w-0 flex-1 items-center justify-end gap-4">

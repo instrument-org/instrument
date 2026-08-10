@@ -1,6 +1,7 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { useTaskPaneActions } from "@/client/hooks/use-task-pane";
 import {
   AGENT_FILES_LANGUAGE,
   isAddressableTaskFilePath,
@@ -8,7 +9,6 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { ImageIcon } from "@phosphor-icons/react";
-import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import {
   memo,
@@ -197,7 +197,7 @@ const TaskFileLink = ({
   const { assetBaseUrl, taskId } = useContext(MarkdownTaskContext);
   const filePath = taskFilePathFromHref(href);
   const filename = filePath.split("/").at(-1) ?? filePath;
-  const navigate = useNavigate({ from: "/tasks/$id/" });
+  const { openFiles } = useTaskPaneActions(taskId);
   const appendToPrompt = useSetAtom(appendToPromptAtom);
 
   if (!isAddressableTaskFilePath(filePath)) {
@@ -205,16 +205,7 @@ const TaskFileLink = ({
   }
 
   const openInPanel = () => {
-    void navigate({
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        artifactPanel: {
-          filePath,
-          type: "file" as const,
-        },
-      }),
-    });
+    openFiles([filePath]);
   };
 
   const chip = (

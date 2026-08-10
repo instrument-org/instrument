@@ -47,7 +47,6 @@ import {
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ChatZeroState } from "./chat-zero-state";
-import { PromptBrowserToggle } from "./prompt-browser-toggle";
 import { QueuedPrompts } from "./queued-prompts";
 import { TutorialPromptCard } from "./tutorial-prompt-card";
 
@@ -264,11 +263,6 @@ export function TaskChat({
   const promptInput = (
     <PromptInput
       autoFocus
-      browserToggle={
-        features.prompt_browser_toggle ? (
-          <PromptBrowserToggle disabled={isReplayActive} />
-        ) : undefined
-      }
       className="relative z-10"
       draftKey={draftKey}
       folderTrayPlacement="above"

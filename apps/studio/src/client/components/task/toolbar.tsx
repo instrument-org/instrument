@@ -5,6 +5,7 @@ import { Button } from "@/client/components/ui/button";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useInlineRename } from "@/client/hooks/use-inline-rename";
+import { useTaskPane } from "@/client/hooks/use-task-pane";
 import { hasVisibleTaskFiles } from "@/client/lib/task-file-groups";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type StoreId, type Task } from "@instrument-org/workspace/client";
@@ -18,6 +19,7 @@ import { type MenuComponents } from "../ui/menu-components";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { TaskActionsMenu, TaskActionsMenuItems } from "./actions-menu";
 import { TaskDebugDialog } from "./debug-dialog";
+import { PaneToggle } from "./pane-toggle";
 import { TaskBreadcrumb } from "./task-breadcrumb";
 import { TaskFiles } from "./task-files";
 import { TaskUsageSummary } from "./usage-summary";
@@ -43,6 +45,7 @@ export function TaskToolbar({
   const [replayModalOpen, setReplayModalOpen] = useState(false);
 
   const isDeveloperMode = useDeveloperMode();
+  const pane = useTaskPane(task.id);
 
   // The trigger is the only way into this list, so it comes and goes with the
   // list: a task with nothing to browse gets no button rather than a button
@@ -159,6 +162,13 @@ export function TaskToolbar({
                 </PopoverContent>
               </Popover>
             )}
+
+            {/* Unlike the files trigger, this does not come and go with what
+                the task holds: it is how the pane is reopened after being
+                closed, so it has to be findable on a task with nothing in it
+                yet. It leaves when the pane opens, because the pane's own tab
+                strip then carries it on the same pixel. */}
+            {!pane.open && <PaneToggle taskId={task.id} />}
           </div>
         </div>
       </div>

@@ -1,14 +1,14 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { useTaskPane, useTaskPaneActions } from "@/client/hooks/use-task-pane";
 import { type FileType, getFileType } from "@/client/lib/get-file-type";
 import {
   isFileInTaskFolder,
   isRootTaskFile,
 } from "@/client/lib/task-file-visibility";
 import { cn } from "@/client/lib/utils";
-import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
-import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
+import { TASK_FOLDER_NAMES, TaskPane } from "@instrument-org/workspace/client";
 import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import { fork } from "radashi";
 import { useState } from "react";
 
@@ -45,28 +45,19 @@ export function FilesGrid({
   preserveOrder = false,
   prioritizeUserFiles = false,
 }: FilesGridProps) {
-  const navigate = useNavigate({ from: "/tasks/$id/" });
-  const search = useSearch({
+  // Absent outside the task route -- a previewed conversation, the debug
+  // scenarios -- where a card is still worth drawing and clicking it has
+  // nowhere to go.
+  const taskId = useParams({
     from: "/_app/tasks/$id/",
     shouldThrow: false,
-  });
-  const selectedArtifactFile = search?.artifactPanel ?? null;
+  })?.id;
+  const pane = useTaskPane(taskId);
+  const { openFiles } = useTaskPaneActions(taskId);
+  const selectedTab = TaskPane.selectedTab(pane);
 
   const handleFileClick = (file: TaskFileViewerFile) => {
-    if (!search) {
-      return;
-    }
-    void navigate({
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        artifactPanel: {
-          filePath: file.filePath,
-          modifiedAt: file.modifiedAt,
-          type: "file",
-        },
-      }),
-    });
+    openFiles([file.filePath]);
   };
 
   const [isExpanded, setIsExpanded] = useState(false);
@@ -135,9 +126,9 @@ export function FilesGrid({
               >
                 <FilePreviewCard
                   file={file}
-                  isSelected={isArtifactPanelFileSelected(
+                  isSelected={isPaneFileSelected(
                     file,
-                    selectedArtifactFile,
+                    selectedTab,
                   )}
                   onClick={() => {
                     handleFileClick(file);
@@ -160,9 +151,9 @@ export function FilesGrid({
             {rowCardFiles.map((file) => (
               <FilePreviewCard
                 file={file}
-                isSelected={isArtifactPanelFileSelected(
+                isSelected={isPaneFileSelected(
                   file,
-                  selectedArtifactFile,
+                  selectedTab,
                 )}
                 key={file.filePath}
                 onClick={() => {
@@ -185,9 +176,9 @@ export function FilesGrid({
             <div className="h-12 max-w-48 min-w-0" key={file.filePath}>
               <FilePreviewListItem
                 file={file}
-                isSelected={isArtifactPanelFileSelected(
+                isSelected={isPaneFileSelected(
                   file,
-                  selectedArtifactFile,
+                  selectedTab,
                 )}
                 onClick={() => {
                   handleFileClick(file);
@@ -330,16 +321,14 @@ function hasRowCardPreview(file: TaskFileViewerFile) {
   return ROW_CARD_PREVIEW[getFileType(file)];
 }
 
-// Which card the panel is showing. The path decides it: an mtime in the
+// Which card the pane is showing. The path decides it: an mtime in the
 // comparison meant a card lost its own highlight the moment the file it points
 // at changed underneath it.
-function isArtifactPanelFileSelected(
+function isPaneFileSelected(
   file: TaskFileViewerFile,
-  artifactPanel: ArtifactPanel | null,
+  selectedTab: TaskPane.Tab | undefined,
 ) {
-  return (
-    artifactPanel?.type === "file" && file.filePath === artifactPanel.filePath
-  );
+  return selectedTab?.type === "file" && file.filePath === selectedTab.filePath;
 }
 
 function sortByRichPreview(files: TaskFileViewerFile[]) {

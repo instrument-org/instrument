@@ -3,10 +3,10 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { ArrowsOutSimpleIcon, ChatIcon } from "@phosphor-icons/react";
-import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 
 import { appendToPromptAtom } from "../../atoms/prompt-value";
+import { useTaskPaneActions } from "../../hooks/use-task-pane";
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { FileIcon } from "../file-icon";
 import { IconButton } from "../icon-button";
@@ -179,7 +179,7 @@ function ReadFileCard({
 }) {
   const filename = filenameFromFilePath(filePath);
   const appendToPrompt = useSetAtom(appendToPromptAtom);
-  const navigate = useNavigate({ from: "/tasks/$id/" });
+  const { openFiles } = useTaskPaneActions(id);
 
   const handleAddToChat = () => {
     appendToPrompt({ key: { scope: "task", taskId: id }, update: filePath });
@@ -189,13 +189,7 @@ function ReadFileCard({
     if (modifiedAt === undefined) {
       return;
     }
-    void navigate({
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        artifactPanel: { filePath, modifiedAt, type: "file" as const },
-      }),
-    });
+    openFiles([filePath]);
   };
 
   return (

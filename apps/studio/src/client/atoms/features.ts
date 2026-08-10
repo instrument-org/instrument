@@ -9,7 +9,7 @@ const defaultFeatures: Features = {
   bash_summary_chip: false,
   context_ring: false,
   external_browser: false,
-  prompt_browser_toggle: false,
+  pane_browser_tab: false,
   prompt_queue: false,
   skills: false,
 };

@@ -1,3 +1,4 @@
+import { featuresAtom } from "@/client/atoms/features";
 import {
   openFileViewerAtom,
   type TaskFileViewerFile,
@@ -13,23 +14,24 @@ import {
   ResizablePanelGroup,
 } from "@/client/components/ui/resizable";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
+import { useTaskPaneActions } from "@/client/hooks/use-task-pane";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   encodeBrowserTargetId,
   type StoreId,
   type Task,
+  TaskPane,
 } from "@instrument-org/workspace/client";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useState } from "react";
 
 import { FileLoading } from "../file-loading";
 import { TaskBrowserPanel } from "./browser-panel";
+import { PaneTabs } from "./pane-tabs";
 import { TaskSidebar } from "./sidebar";
 
 const PANEL_SIZES = {
@@ -37,9 +39,9 @@ const PANEL_SIZES = {
   sidebarMin: 350,
 };
 
-// Default split when the artifact panel opens: favor the artifact and keep the
-// chat compact. These are proportions clamped by the pixel min sizes, so the
-// sidebar still snaps to sidebarMin on narrow windows.
+// Default split when the pane opens: favor the pane and keep the chat compact.
+// These are proportions clamped by the pixel min sizes, so the sidebar still
+// snaps to sidebarMin on narrow windows.
 const OPEN_LAYOUT = { artifact: 65, sidebar: 35 };
 
 const LAYOUT = {
@@ -48,35 +50,33 @@ const LAYOUT = {
 };
 
 export function TaskView({
-  artifactPanel,
   attachedFolders,
   files,
+  pane,
   promptDraft,
   selectedModelURI,
   selectedSessionId,
   showTutorial,
   task,
 }: {
-  artifactPanel: ArtifactPanel | undefined;
   attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
   files: RPCOutput["workspace"]["task"]["files"]["list"] | undefined;
+  pane: TaskPane.Type;
   promptDraft: string;
   selectedModelURI: AIGatewayModelURI.Type | undefined;
   selectedSessionId?: StoreId.Session;
   showTutorial?: boolean;
   task: Task;
 }) {
-  const navigate = useNavigate();
   const openFileViewer = useSetAtom(openFileViewerAtom);
+  const features = useAtomValue(featuresAtom);
   const assetBaseUrl = getAssetBaseUrl(task.id);
+  const { closeTab, openFiles, selectTab } = useTaskPaneActions(task.id);
 
   // Bumped to force the file viewer to remount when the user re-opens the
   // already-active artifact, snapping an HTML preview back to its entry page
   // after an in-iframe link navigated it away.
   const [artifactReloadNonce, setArtifactReloadNonce] = useState(0);
-
-  const filePanel = artifactPanel?.type === "file" ? artifactPanel : undefined;
-  const browserPanel = artifactPanel?.type === "browser";
 
   // Whether a live browser exists for this session, used to show the guest vs a
   // placeholder in the browser panel.
@@ -87,6 +87,19 @@ export function TaskView({
   const browserActive = Boolean(
     liveTargetId && attachedTargets.has(liveTargetId),
   );
+
+  // The browser earns a tab without anyone having stored one: with the feature
+  // on it is offered, and with it off it still appears once the agent is
+  // actually browsing, so a session that starts browsing is not invisible.
+  // Selecting it is what writes it into the task's own tabs.
+  const hasStoredBrowserTab = pane.tabs.some((tab) => tab.type === "browser");
+  const tabs: TaskPane.Tab[] =
+    hasStoredBrowserTab || !(features.pane_browser_tab || browserActive)
+      ? pane.tabs
+      : [{ type: "browser" }, ...pane.tabs];
+
+  const selected = TaskPane.selectedTab({ ...pane, tabs });
+  const filePanel = selected?.type === "file" ? selected : undefined;
 
   const { data: replayStatus } = useQuery(
     rpcClient.workspace.replay.live.status.experimental_liveOptions({
@@ -106,7 +119,7 @@ export function TaskView({
     }
   };
 
-  const showArtifactPanel = artifactPanel !== undefined;
+  const showArtifactPanel = pane.open && tabs.length > 0;
 
   const {
     data: fileInfo,
@@ -156,32 +169,11 @@ export function TaskView({
     !hasFileAnswer ||
     (fileInfo !== undefined && currentModifiedAt === undefined);
 
-  const handleArtifactPanelClose = () => {
-    void navigate({
-      from: "/tasks/$id/",
-      params: { id: task.id },
-      replace: true,
-      search: (prev) => ({ ...prev, artifactPanel: undefined }),
-    });
-  };
-
   const handleFileSelect = (file: TaskFileViewerFile) => {
     if (filePanel?.filePath === file.filePath) {
       setArtifactReloadNonce((nonce) => nonce + 1);
     }
-    void navigate({
-      from: "/tasks/$id/",
-      params: { id: task.id },
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        artifactPanel: {
-          filePath: file.filePath,
-          modifiedAt: file.modifiedAt,
-          type: "file",
-        },
-      }),
-    });
+    openFiles([file.filePath]);
   };
 
   const chatProps = {
@@ -227,10 +219,24 @@ export function TaskView({
               minSize={PANEL_SIZES.artifactMin}
             >
               <div className="flex h-full flex-1 animate-in flex-col p-2 duration-150 fade-in-0 slide-in-from-right-2">
-                {browserPanel && selectedSessionId ? (
+                <PaneTabs
+                  onClose={closeTab}
+                  onSelect={(key) => {
+                    if (
+                      key === TaskPane.tabKey(selected ?? { type: "browser" })
+                    ) {
+                      setArtifactReloadNonce((nonce) => nonce + 1);
+                    }
+                    selectTab(key);
+                  }}
+                  selectedKey={selected ? TaskPane.tabKey(selected) : undefined}
+                  tabs={tabs}
+                  taskId={task.id}
+                />
+
+                {selected?.type === "browser" && selectedSessionId ? (
                   <TaskBrowserPanel
                     active={browserActive}
-                    onClose={handleArtifactPanelClose}
                     sessionId={selectedSessionId}
                     taskId={task.id}
                   />
@@ -239,7 +245,6 @@ export function TaskView({
                     <FileViewer
                       file={currentFile}
                       key={`${currentFile.url}#${artifactReloadNonce}`}
-                      onClose={handleArtifactPanelClose}
                       onExpand={() => {
                         openFileViewer({ files: [currentFile] });
                       }}
@@ -253,10 +258,7 @@ export function TaskView({
                   // The wait itself shows nothing: it is over faster than the
                   // eye settles, so anything drawn there is a flicker between
                   // two files rather than a sign of progress.
-                  <ArtifactPanelShell
-                    filePath={filePanel.filePath}
-                    onClose={handleArtifactPanelClose}
-                  >
+                  <ArtifactPanelShell filePath={filePanel.filePath}>
                     {isResolvingFile ? <FileLoading /> : <MissingFileNotice />}
                   </ArtifactPanelShell>
                 ) : null}
@@ -270,20 +272,18 @@ export function TaskView({
 }
 
 /**
- * The artifact panel's frame for a file that has no viewer mounted in it,
- * either because the file is still being looked up or because it is not there.
- * Built from `FileViewer`'s own frame and header so nothing moves when one
- * replaces the other -- including the hairline under the chrome, which sits a
- * row lower for a format whose viewer opens a toolbar.
+ * The pane's frame for a file that has no viewer mounted in it, either because
+ * the file is still being looked up or because it is not there. Built from
+ * `FileViewer`'s own frame and header so nothing moves when one replaces the
+ * other -- including the hairline under the chrome, which sits a row lower for
+ * a format whose viewer opens a toolbar.
  */
 function ArtifactPanelShell({
   children,
   filePath,
-  onClose,
 }: {
   children: ReactNode;
   filePath: string;
-  onClose: () => void;
 }) {
   const filename = filePath.slice(filePath.lastIndexOf("/") + 1);
 
@@ -292,11 +292,7 @@ function ArtifactPanelShell({
       {/* No mime type: that is part of what the panel is still waiting on.
           Every format whose viewer opens a toolbar is identified by its
           extension anyway, so the chrome band lays out the same either way. */}
-      <FileViewerHeader
-        filename={filename}
-        filePath={filePath}
-        onClose={onClose}
-      />
+      <FileViewerHeader filename={filename} filePath={filePath} />
       {children}
     </div>
   );

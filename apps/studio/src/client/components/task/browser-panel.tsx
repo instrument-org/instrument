@@ -53,7 +53,6 @@ import {
   DotsThreeVerticalIcon,
   MagnifyingGlassIcon,
   WarningCircleIcon,
-  XIcon,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -79,12 +78,10 @@ interface DidFailLoadEvent extends Event {
  */
 export function TaskBrowserPanel({
   active,
-  onClose,
   sessionId,
   taskId,
 }: {
   active: boolean;
-  onClose: () => void;
   sessionId: StoreId.Session;
   taskId: TaskId;
 }) {
@@ -526,9 +523,6 @@ export function TaskBrowserPanel({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button onClick={onClose} size="icon-sm" variant="ghost">
-          <XIcon className="size-4" />
-        </Button>
       </div>
       {active && find.findOpen && (
         <BrowserFindBar

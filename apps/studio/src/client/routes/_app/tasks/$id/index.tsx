@@ -2,16 +2,14 @@ import { releaseTaskDraft } from "@/client/atoms/prompt-value";
 import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
 import { TaskView } from "@/client/components/task/view";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
-import { useAutoOpenBrowserArtifact } from "@/client/hooks/use-auto-open-browser-artifact";
-import { useAutoOpenOutputArtifact } from "@/client/hooks/use-auto-open-output-artifact";
 import { useClearTaskIndicatorOnView } from "@/client/hooks/use-clear-task-indicator-on-view";
 import { useTaskRouteSync } from "@/client/hooks/use-task-route-sync";
 import { rpcClient } from "@/client/rpc/client";
-import { artifactPanelSchema } from "@/client/schemas/artifact-panel";
 import {
   StoreId,
   type Task,
   TaskIdSchema,
+  TaskPane,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import {
@@ -30,7 +28,6 @@ import {
 import { z } from "zod";
 
 const taskSearchSchema = z.object({
-  artifactPanel: artifactPanelSchema.optional(),
   selectedSessionId: StoreId.SessionSchema.optional(),
   showSettings: z.boolean().optional(),
 });
@@ -223,7 +220,7 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
 
 function RouteComponent() {
   const { id } = Route.useParams();
-  const { artifactPanel, selectedSessionId, showSettings } = Route.useSearch();
+  const { selectedSessionId, showSettings } = Route.useSearch();
   const navigate = useNavigate();
 
   useClearTaskIndicatorOnView(id);
@@ -275,18 +272,6 @@ function RouteComponent() {
     }),
   );
 
-  // Focuses output artifacts produced by the active turn.
-  useAutoOpenOutputArtifact({
-    id,
-    selectedSessionId,
-  });
-
-  // Opens the browser panel when the agent starts browsing.
-  useAutoOpenBrowserArtifact({
-    id,
-    selectedSessionId,
-  });
-
   const isLoading = isTaskLoading || isTaskStateLoading;
 
   const error = taskError ?? taskStateError;
@@ -307,9 +292,9 @@ function RouteComponent() {
   return (
     <>
       <TaskView
-        artifactPanel={artifactPanel}
         attachedFolders={taskState.attachedFolders}
         files={files}
+        pane={taskState.pane ?? TaskPane.EMPTY}
         promptDraft={taskState.promptDraft ?? ""}
         selectedModelURI={taskState.selectedModelURI}
         selectedSessionId={selectedSessionId}

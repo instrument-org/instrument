@@ -10,11 +10,11 @@ import {
   ImagesIcon,
   QuotesIcon,
 } from "@phosphor-icons/react";
-import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import { useEffect, useState } from "react";
 
 import { appendToPromptAtom } from "../../atoms/prompt-value";
+import { useTaskPaneActions } from "../../hooks/use-task-pane";
 import { copyFileToClipboard } from "../../lib/file-actions";
 import { getAssetUrl } from "../../lib/get-asset-url";
 import { filenameFromFilePath } from "../../lib/path-utils";
@@ -116,7 +116,7 @@ export function ToolGenerateImage({
   onRetry: (prompt: string) => void;
   part: GenerateImagePart;
 }) {
-  const navigate = useNavigate({ from: "/tasks/$id/" });
+  const { openFiles } = useTaskPaneActions(id);
 
   if (!part.input) {
     return null;
@@ -150,20 +150,8 @@ export function ToolGenerateImage({
   const modelName = resolveImageModelName(successOutput?.modelId);
   const modelProviderType = successOutput?.provider.type;
 
-  const openInPanel = ({
-    filePath,
-    modifiedAt,
-  }: {
-    filePath: string;
-    modifiedAt: number;
-  }) => {
-    void navigate({
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        artifactPanel: { filePath, modifiedAt, type: "file" as const },
-      }),
-    });
+  const openInPanel = ({ filePath }: { filePath: string }) => {
+    openFiles([filePath]);
   };
 
   return (
@@ -189,11 +177,7 @@ export function ToolGenerateImage({
           !isGenerating &&
           primaryFilePath &&
           primaryModifiedAt !== undefined && (
-            <ImageActions
-              filePath={primaryFilePath}
-              id={id}
-              modifiedAt={primaryModifiedAt}
-            />
+            <ImageActions filePath={primaryFilePath} id={id} />
           )}
       </ToolCardHeader>
 
@@ -425,30 +409,16 @@ function humanizeParamKey(key: string): string {
     : key;
 }
 
-function ImageActions({
-  filePath,
-  id,
-  modifiedAt,
-}: {
-  filePath: string;
-  id: TaskId;
-  modifiedAt: number;
-}) {
+function ImageActions({ filePath, id }: { filePath: string; id: TaskId }) {
   const appendToPrompt = useSetAtom(appendToPromptAtom);
-  const navigate = useNavigate({ from: "/tasks/$id/" });
+  const { openFiles } = useTaskPaneActions(id);
 
   const handleAddToChat = () => {
     appendToPrompt({ key: { scope: "task", taskId: id }, update: filePath });
   };
 
   const handleExpand = () => {
-    void navigate({
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        artifactPanel: { filePath, modifiedAt, type: "file" as const },
-      }),
-    });
+    openFiles([filePath]);
   };
 
   const handleCopy = async () => {

@@ -11,23 +11,14 @@ import { systemNote } from "./system-note";
  * as the address that changed. A rename here is a rename of the mount, which
  * happens for reasons on our side: saying so plainly is what stops the model
  * telling the user their folder was renamed.
- *
- * Takes the payload as `Partial` because that is what a persisted one is. The
- * schema gives every list a default, but a stored part is cast to its type on
- * read rather than parsed through it, so a task written before a field existed
- * still arrives without it however the type reads. `accessChanged` shipped with
- * writable folders, long after the earliest of these parts were written.
  */
 export function attachedFolderChangesModelNote(
-  data: Partial<SessionMessageDataPart.AttachedFolderChangesDataPart>,
+  data: SessionMessageDataPart.AttachedFolderChangesDataPart,
 ): null | string {
   const lines: string[] = [];
-  const accessChanged = data.accessChanged ?? [];
-  const removedFolders = data.removed ?? [];
-  const renamedFolders = data.renamed ?? [];
 
-  if (removedFolders.length > 0) {
-    const removed = removedFolders
+  if (data.removed.length > 0) {
+    const removed = data.removed
       .map(
         (folder) =>
           `- "${folderNameFromPath(folder.path)}" (was mounted at \`${attachedFolderMountPoint(folder.name)}\`)`,
@@ -38,8 +29,8 @@ export function attachedFolderChangesModelNote(
     );
   }
 
-  if (renamedFolders.length > 0) {
-    const renamed = renamedFolders
+  if (data.renamed.length > 0) {
+    const renamed = data.renamed
       .map(
         (folder) =>
           `- "${folderNameFromPath(folder.path)}": now \`${attachedFolderMountPoint(folder.newName)}\`, was \`${attachedFolderMountPoint(folder.oldName)}\``,
@@ -50,8 +41,8 @@ export function attachedFolderChangesModelNote(
     );
   }
 
-  if (accessChanged.length > 0) {
-    const changed = accessChanged
+  if (data.accessChanged.length > 0) {
+    const changed = data.accessChanged
       .map(
         (folder) =>
           `- "${folderNameFromPath(folder.path)}" (\`${attachedFolderMountPoint(folder.name)}\`): now ${folder.access === "read-write" ? "read and write" : "read-only"}`,

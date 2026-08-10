@@ -44,6 +44,7 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-projectContext": "hidden",
   "data-skillChanges": "always",
   "data-skillMentions": "dev",
+  "data-unknown": "dev",
 };
 
 export function dataPartVisibility(
@@ -176,14 +177,26 @@ export function renderDataPart({
         />
       );
     }
+    case "data-unknown": {
+      // Not a failure the reader can do anything about, so it stays a
+      // developer-mode row: the part is from a build that wrote a shape this one
+      // cannot read, and the reason is the useful half.
+      return (
+        <ModelContextDebugCard
+          className="mt-2"
+          key={part.metadata.id}
+          text={`Could not read a ${part.data.originalType} part: ${part.data.reason}`}
+        />
+      );
+    }
     default: {
       // A new data-part type must be handled above (and classified in
       // DATA_PART_DISPLAY); `satisfies never` fails the build otherwise.
       //
-      // Returning the part instead of null is what made an unrecognised type
+      // Returning the part instead of null is what made an unrecognized type
       // fatal rather than invisible: React was handed a message part as a child
       // and took the whole transcript down with it. Unreachable now that
-      // `declaredVisibility` hides what it does not recognise, and cheap to
+      // `declaredVisibility` hides what it does not recognize, and cheap to
       // keep correct anyway.
       part satisfies never;
       return null;

@@ -172,6 +172,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-skillMentions": {
       return `<data-skillMentions>${part.data.names.join(",")}</data-skillMentions>`;
     }
+    case "data-unknown": {
+      return `<data-unknown originalType="${part.data.originalType}" />`;
+    }
     case "file": {
       const filename = part.filename ? ` filename="${part.filename}"` : "";
       const mediaType = ` mediaType="${part.mediaType}"`;

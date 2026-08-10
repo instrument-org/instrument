@@ -12,7 +12,7 @@ import {
 
 import { type AISDKTools } from "../../tools/all";
 import { type StoreId } from "../store-id";
-import { type SessionMessageDataPart } from "./message-data-part";
+import { SessionMessageDataPart } from "./message-data-part";
 import { SessionMessageRelaxedPart } from "./message-relaxed-part";
 
 interface BaseMetadata extends Record<string, unknown> {
@@ -131,13 +131,42 @@ export namespace SessionMessagePart {
     endedAt?: Date;
   }
 
-  // Coercion from relaxed schema to strongly typed parts
+  /**
+   * Coercion from the relaxed schema the store round-trips to strongly typed
+   * parts.
+   *
+   * Everything but a data part is a cast, as it always was: the relaxed schema
+   * is the shape, and the type adds nothing a stored part could contradict.
+   *
+   * A data part is different, because its payload is `unknown` to the relaxed
+   * schema and is described somewhere else entirely. Casting one meant the type
+   * said a payload had fields that a task written a month earlier does not, and
+   * every reader believed it -- the transcript went blank on a retired part type
+   * and the model-message build threw on a payload written before a field
+   * existed. So a data part is parsed here against the schema for its own type,
+   * which is also what applies that schema's defaults, and one that cannot be
+   * read becomes `data-unknown` rather than a lie about its own shape.
+   */
   export const CoercedSchema = SessionMessageRelaxedPart.Schema.transform(
     (data) => data as Type,
   );
 
+  /**
+   * The same coercion for a part coming *out* of storage, where a payload that
+   * cannot be read is a task older than a schema rather than a bug to reject.
+   *
+   * Separate from `CoercedSchema` because that one also validates writes, and
+   * `setParsedStorageItem` persists a schema's output rather than its input. A
+   * repair on that path would write `data-unknown` over a payload that failed
+   * validation -- turning a write that used to fail loudly into one that
+   * silently destroys what it was asked to store.
+   */
+  export const FromStorageSchema = SessionMessageRelaxedPart.Schema.transform(
+    (data) => (isRelaxedDataPart(data) ? coerceDataPart(data) : (data as Type)),
+  );
+
   export function coerce(part: SessionMessageRelaxedPart.Type): Type {
-    return CoercedSchema.parse(part);
+    return FromStorageSchema.parse(part);
   }
 
   export function toUIPart({
@@ -147,5 +176,26 @@ export namespace SessionMessagePart {
     return {
       ...part,
     };
+  }
+
+  function coerceDataPart(part: SessionMessageRelaxedPart.DataPart): DataPart {
+    const name = part.type.slice("data-".length);
+    const parsed = SessionMessageDataPart.parseDataPayload(name, part.data);
+
+    if (parsed.ok) {
+      return { ...part, data: parsed.value } as DataPart;
+    }
+
+    return {
+      ...part,
+      data: { originalType: part.type, reason: parsed.reason },
+      type: "data-unknown",
+    } as DataPart;
+  }
+
+  function isRelaxedDataPart(
+    part: SessionMessageRelaxedPart.Type,
+  ): part is SessionMessageRelaxedPart.DataPart {
+    return part.type.startsWith("data-");
   }
 }

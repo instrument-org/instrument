@@ -17,6 +17,7 @@ export namespace SessionMessageDataPart {
     "maxSteps",
     "projectChanges",
     "projectContext",
+    "unknown",
   ]);
 
   export type Name = z.output<typeof NameSchema>;
@@ -212,6 +213,25 @@ export namespace SessionMessageDataPart {
 
   export type MaxStepsDataPart = z.output<typeof MaxStepsDataPartSchema>;
 
+  /**
+   * What a data part becomes when it cannot be read as the type it claims.
+   *
+   * Two ways in, both of them a task outliving a schema: a type this build has
+   * no schema for at all (`data-gitCommit` is still sitting in tasks from before
+   * git-based file versioning was removed), and a payload written before a field
+   * the schema now describes. The part is kept rather than dropped, because
+   * `attachments` is a data part too and silently losing a turn's uploads is a
+   * worse answer than a row saying something could not be read.
+   *
+   * Nothing writes one. It exists only on the way out of the store.
+   */
+  const UnknownDataPartSchema = z.object({
+    originalType: z.string(),
+    reason: z.string(),
+  });
+
+  export type UnknownDataPart = z.output<typeof UnknownDataPartSchema>;
+
   // oxlint-disable-next-line no-unused-vars
   const DataPartsSchema = z.object({
     [NameSchema.enum.attachedFolderChanges]:
@@ -226,6 +246,35 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,
     [NameSchema.enum.skillChanges]: SkillChangesDataPartSchema,
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,
+    [NameSchema.enum.unknown]: UnknownDataPartSchema,
   });
   export type DataParts = z.output<typeof DataPartsSchema>;
+
+  /**
+   * Reads a stored payload as the type its part claims, or says why it cannot.
+   *
+   * This is the only place a persisted data payload meets the schema that
+   * describes it. Everything downstream is handed the parsed value, so a field
+   * added since the part was written arrives with the default the schema already
+   * gives it rather than as undefined behind a type that promises otherwise.
+   */
+  export function parseDataPayload(
+    name: string,
+    data: unknown,
+  ): { ok: false; reason: string } | { ok: true; value: unknown } {
+    // `unknown` is a name like any other here, and deliberately so: parts are
+    // coerced on the way out of the store and again by the rpc output schema, so
+    // an already-wrapped part meets this twice. Excluding it would re-wrap the
+    // wrapper on the second pass and lose the type it was reporting.
+    const parsed = NameSchema.safeParse(name);
+    if (!parsed.success) {
+      return { ok: false, reason: `no schema for data-${name}` };
+    }
+
+    const result = DataPartsSchema.shape[parsed.data].safeParse(data);
+
+    return result.success
+      ? { ok: true, value: result.data }
+      : { ok: false, reason: z.prettifyError(result.error) };
+  }
 }

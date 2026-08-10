@@ -96,25 +96,4 @@ describe("attachedFolderChangesModelNote", () => {
     `);
   });
 
-  // A part persisted before writable folders shipped has no accessChanged at
-  // all. Reading a task written back then went through here and threw, taking
-  // the transcript down with it.
-  it("reads a payload written before a field it expects existed", () => {
-    expect(
-      attachedFolderChangesModelNote({
-        removed: [{ name: "Photos", path: "/base/Photos" }],
-        renamed: [],
-      }),
-    ).toMatchInlineSnapshot(`
-      "
-      <instrument-system-note>
-      The user removed these attached folders from this task since your last activity. Their /mnt mounts are gone, so do not attempt to read or search them:
-      - "Photos" (was mounted at \`/mnt/Photos\`)
-      </instrument-system-note>"
-    `);
-  });
-
-  it("has nothing to say about a payload with no lists at all", () => {
-    expect(attachedFolderChangesModelNote({})).toBeNull();
-  });
 });

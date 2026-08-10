@@ -195,7 +195,7 @@ export namespace Store {
       const storage = yield* getSessionsStoreStorage(taskId);
       const part = yield* getParsedStorageItem(
         StorageKey.part(sessionId, messageId, partId),
-        SessionMessagePart.CoercedSchema,
+        SessionMessagePart.FromStorageSchema,
         storage,
         { signal },
       );

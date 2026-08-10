@@ -15,10 +15,12 @@ Everything below follows from those.
 
 ## What gets deleted
 
-- **`data-fileChanges`** end to end, and not compatibly: the schema member, `FileChangesCard`, its `chat-stream-data-parts` entry, and the `consumeTurnChanges` call that produces it. Old messages carrying the part render nothing. The fence replaces it, and the agent is answerable for naming what it wants shown.
+- **`data-fileChanges`** end to end, and not compatibly: the schema member, `FileChangesCard`, its `chat-stream-data-parts` entry, and the `consumeTurnChanges` call that produces it. The part is demoted to `dev` visibility, so the card is already dark for users and what remains is the code. Old messages carrying the part render nothing. The fence replaces it, and the agent is answerable for naming what it wants shown.
+
+  One non-obvious passenger rides along: `consumeTurnChanges` also feeds `outputArtifactsFromChanges` and the `task.outputArtifactsCreated` publish, which is the only input `use-auto-open-output-artifact` has. Deleting the part deletes that hook's data source, and the hook itself is on the other plan's deletion list, so the two land together or the publisher outlives its producer.
 - **`task-file-watcher.ts`** and the `@parcel/watcher` dependency of this feature, with `files.live.list` and its `seedLiveQuery`. `files.list` stays as a one-shot walk.
-- **`CurrentTaskFilesProvider`** and its four hooks, which exist only to answer questions nothing asks anymore.
-- ~~**The render-time `fileInfo` queries** in `TaskFileLink` and `AgentFilesBlock`~~ and ~~**`?version=`** on transcript asset URLs~~ — done in step 1.
+- **`CurrentTaskFilesProvider`** and its three hooks, which exist only to answer questions nothing asks anymore.
+- ~~**The render-time `fileInfo` queries** in `TaskFileLink` and `AgentFilesBlock`~~ and ~~**`?version=`** on those two surfaces' asset URLs~~ — done in step 1. `?version=` survives elsewhere in the transcript: in `FileChangesCard`, which goes with the part above; in `AttachmentsCard`; and at three sites in `tool-generate-image.tsx`. The last two are transcript surfaces no step below owns, and they lose it for the same reason the chip did.
 
 Already on the `show` plan's list and not repeated here: both auto-open hooks, the `artifactPanel` search param, `external-file-changes.ts`, `file-index-baseline.ts`.
 
@@ -86,8 +88,6 @@ Prior art worth knowing: a comparable desktop agent app runs precisely this pair
 
 ## One thing to reconcile
 
-[pane-tabs-and-the-show-command.md](pane-tabs-and-the-show-command.md) says "The live file index stays. It is what the sidebar list, the fence's fast path, and the chip's existence check all read." Two of those three readers are deleted here and the third does not need it to be live, so that line should go when this lands. Nothing else in that plan depends on it.
-
 `show` should reject what `isAddressableTaskFilePath` rejects, so the one path grammar the chip and the fence now share covers the command too.
 
 ## Order, and who does it
@@ -97,7 +97,7 @@ Interleaved with [pane-tabs-and-the-show-command.md](pane-tabs-and-the-show-comm
 1. ~~**Stateless rendering** (here).~~ **Landed.** The render-time `fileInfo` queries and `?version=` are gone from transcript references, cards and chips draw from the path, and the standing index is still there and simply no longer read by these surfaces. It went first because it removes two index readers before the other plan has to migrate them.
 2. **The whole pane landing** (there). Tabs, `state.json`, `show`, and its deletions. Not divisible; its own plan says so.
 3. **The pane subscription** (here). `fs.watchFile` on the open path, owned by the file tab, which step 2 is what creates.
-4. **Delete `data-fileChanges`** (here). Product call, taken: the fence is the record. Re-measure adherence first — see Risks.
+4. **Delete `data-fileChanges`** (here). Product call, taken: the fence is the record, and the card is already dark. Re-measure adherence before the producer goes — see Risks.
 5. **The file-list popover to a one-shot read**, then delete the watcher, `files.live.list`, and `CurrentTaskFilesProvider`.
 
 **One owner for all five**, not two in parallel. Steps 1, 3, 4, and 5 are consequences of 2 rather than a separate feature, they land in the files 2 rewrites, and splitting them produces conflicts in exactly the code both would be restructuring. Two plans is still right — one answers "how does the pane work", the other "how does a reference resolve and stay fresh", and later readers will arrive with one question or the other — but they are one piece of work.

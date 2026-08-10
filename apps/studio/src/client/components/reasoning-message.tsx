@@ -3,8 +3,8 @@ import { cn } from "@/client/lib/utils";
 import { memo, useEffect, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 
-import { PlanningDotIcon } from "./icons/planning-dot";
 import { useTranscriptGroup } from "./message-part/transcript-group";
+import { PlanningDotSlot } from "./planning-dot-slot";
 import { reasoningDisplayText } from "./reasoning-utils";
 import { RunRowChevron } from "./run-row-chevron";
 import { SessionMarkdown } from "./session-markdown";
@@ -99,7 +99,7 @@ export const ReasoningMessage = memo(function ReasoningMessage({
 
   // Only the head line of a group carries the live indicator, so there is one
   // thing moving per group; see `TranscriptGroup`.
-  const isFocused = isLoading && (group === null || group.isHead);
+  const showsLiveIndicator = isLoading && (group === null || group.isHead);
 
   return (
     <Collapsible
@@ -116,11 +116,11 @@ export const ReasoningMessage = memo(function ReasoningMessage({
         disabled={groupHead === null && !hasText}
       >
         <div className="flex h-5 items-center gap-2">
-          {isFocused && <PlanningDotIcon />}
+          <PlanningDotSlot isRunning={showsLiveIndicator} />
           <span
             className={cn(
               "text-sm",
-              isFocused
+              showsLiveIndicator
                 ? "brand-shiny-text"
                 : "text-muted-foreground group-hover/run-row:text-foreground",
             )}

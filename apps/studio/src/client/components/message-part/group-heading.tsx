@@ -1,5 +1,5 @@
 import { cn } from "../../lib/utils";
-import { PlanningDotIcon } from "../icons/planning-dot";
+import { PlanningDotSlot } from "../planning-dot-slot";
 import { RunRowChevron } from "../run-row-chevron";
 import { useTranscriptGroup } from "./transcript-group";
 
@@ -40,7 +40,7 @@ export function GroupHeading({
       onClick={group?.toggle}
       type="button"
     >
-      {isRunning && <PlanningDotIcon />}
+      <PlanningDotSlot isRunning={isRunning} />
       <span
         className={cn(
           "min-w-0 truncate text-sm",

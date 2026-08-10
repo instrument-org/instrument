@@ -122,8 +122,22 @@ describe("Studio Smoke Test", () => {
   }, 300_000);
 
   afterAll(async () => {
-    await fs.rm(distPath, { force: true, recursive: true });
-    await fs.rm(tempUserDataDir, { force: true, recursive: true });
+    // Windows keeps a handle on the packaged executable for a moment after the
+    // app exits, so the unlink needs retries -- and cleanup of a temp directory
+    // must never turn a passing suite red.
+    for (const dir of [distPath, tempUserDataDir]) {
+      try {
+        await fs.rm(dir, {
+          force: true,
+          maxRetries: 10,
+          recursive: true,
+          retryDelay: 200,
+        });
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn(`Could not remove ${dir}:`, error);
+      }
+    }
   });
 
   it("should not contain monorepo paths baked into compiled bundles", async () => {

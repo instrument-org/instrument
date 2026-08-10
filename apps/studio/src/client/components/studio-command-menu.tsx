@@ -26,6 +26,7 @@ import {
   CardsThreeIcon,
   ChatCircleIcon,
   PlusIcon,
+  PushPinIcon,
   SidebarSimpleIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -37,6 +38,8 @@ import { toast } from "sonner";
 
 import { FuzzyHighlight } from "./fuzzy-highlight";
 import { RelativeTime } from "./relative-time";
+import { TaskStatusIcon } from "./session-status-icon";
+import { UnreadDot } from "./unread-dot";
 
 interface DebugItem {
   key: string;
@@ -110,6 +113,17 @@ export function StudioCommandMenu() {
     rpcClient.workspace.project.live.list.experimental_liveOptions(),
   );
 
+  const { data: pinnedTaskIds } = useQuery(
+    rpcClient.workspace.pin.live.listTaskIds.experimental_liveOptions({
+      enabled: open,
+    }),
+  );
+
+  const pinnedTaskIdSet = useMemo(
+    () => new Set(pinnedTaskIds ?? []),
+    [pinnedTaskIds],
+  );
+
   const tasks = tasksData?.tasks ?? [];
 
   const currentTaskId = taskRouteMatch?.params.id;
@@ -118,7 +132,16 @@ export function StudioCommandMenu() {
 
   const matchedTasks = useMemo((): MatchedTask[] => {
     if (!search) {
-      return candidateTasks.map((task) => ({ task, titleRanges: null }));
+      // Pinned float to top, the order the sidebar shows. A search is ordered by
+      // relevance instead: a pin says the task matters, not that it's the better
+      // answer to what was typed.
+      const pinned = candidateTasks.filter((task) =>
+        pinnedTaskIdSet.has(task.id),
+      );
+      const rest = candidateTasks.filter(
+        (task) => !pinnedTaskIdSet.has(task.id),
+      );
+      return [...pinned, ...rest].map((task) => ({ task, titleRanges: null }));
     }
 
     const haystack = candidateTasks.map((p) => p.title);
@@ -136,7 +159,7 @@ export function StudioCommandMenu() {
       const task = candidateTasks[info.idx[orderIdx] ?? -1];
       return task ? [{ task, titleRanges: info.ranges[orderIdx] ?? null }] : [];
     });
-  }, [candidateTasks, search]);
+  }, [candidateTasks, pinnedTaskIdSet, search]);
 
   // Projects are search-only: the empty state stays a list of recent tasks.
   const matchedProjects = useMemo((): MatchedProject[] => {
@@ -419,6 +442,7 @@ export function StudioCommandMenu() {
                 onSelectDebugItem={handleSelectDebugItem}
                 onSelectProject={handleSelectProject}
                 onSelectTask={handleSelectTask}
+                pinnedTaskIds={pinnedTaskIdSet}
               />
             )}
           </>
@@ -441,6 +465,7 @@ function CommandResultsList({
   onSelectDebugItem,
   onSelectProject,
   onSelectTask,
+  pinnedTaskIds,
 }: {
   matchedDebugItems: MatchedDebugItem[];
   matchedProjects: MatchedProject[];
@@ -448,6 +473,7 @@ function CommandResultsList({
   onSelectDebugItem: (item: DebugItem) => void;
   onSelectProject: (project: Project) => void;
   onSelectTask: (id: TaskId) => void;
+  pinnedTaskIds: Set<TaskId>;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -523,15 +549,30 @@ function CommandResultsList({
                   }}
                   value={row.matched.task.id}
                 >
-                  <ChatCircleIcon className="size-4 shrink-0 opacity-50" />
+                  {pinnedTaskIds.has(row.matched.task.id) ? (
+                    <PushPinIcon className="size-4 shrink-0 opacity-50" />
+                  ) : (
+                    <ChatCircleIcon className="size-4 shrink-0 opacity-50" />
+                  )}
                   <span className="flex-1 truncate text-sm">
                     <FuzzyHighlight
                       ranges={row.matched.titleRanges}
                       text={row.matched.task.title}
                     />
                   </span>
+                  {/* Same precedence as the sidebar row: a task the user hasn't
+                      read reads as unread even once its run is over. */}
+                  {row.matched.task.unreadIndicator ? (
+                    <UnreadDot />
+                  ) : (
+                    <TaskStatusIcon
+                      className="size-4 shrink-0"
+                      id={row.matched.task.id}
+                    />
+                  )}
                   <RelativeTime
                     className="text-xs text-muted-foreground/60"
+                    compact
                     date={new Date(row.matched.task.updatedAt)}
                     tooltip={false}
                   />

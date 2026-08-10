@@ -26,7 +26,11 @@ export function PaneTabs({
   taskId: Parameters<typeof PaneToggle>[0]["taskId"];
 }) {
   return (
-    <div className="flex h-9 shrink-0 items-center gap-1 pr-1 pl-1">
+    // `h-10 px-2` matches `FileViewerHeader` and `ViewerToolbar`, the rows that
+    // stack under this one, so the three read as one band. No rule under it:
+    // the row below draws its own, and two hairlines a row apart break the band
+    // into pieces rather than separating anything.
+    <div className="flex h-10 shrink-0 items-center gap-1 px-2">
       <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
         {tabs.map((tab) => {
           const key = TaskPane.tabKey(tab);
@@ -95,25 +99,29 @@ function PaneTab({
 
       <span className="min-w-0 truncate">{filename}</span>
 
-      {/* Held open for the selected tab: the one being read is the one most
-          likely to be closed, and hunting for a control that only exists under
-          the cursor is worse than a button that is always there. */}
-      <button
-        aria-label={`Close ${filename}`}
-        className={cn(
-          "flex size-4 shrink-0 items-center justify-center rounded-sm hover:bg-foreground/10",
-          isSelected
-            ? "opacity-100"
-            : "opacity-0 group-hover/pane-tab:opacity-100",
-        )}
-        onClick={(event) => {
-          event.stopPropagation();
-          onClose();
-        }}
-        type="button"
-      >
-        <XIcon className="size-3" />
-      </button>
+      {/* The browser tab is fixed: it is the pane's zero state, so there is
+          nothing behind it to fall back to. Held open for a selected file tab,
+          since the one being read is the one most likely to be closed and
+          hunting for a control that only exists under the cursor is worse than
+          a button that is always there. */}
+      {tab.type === "file" && (
+        <button
+          aria-label={`Close ${filename}`}
+          className={cn(
+            "flex size-4 shrink-0 items-center justify-center rounded-sm hover:bg-foreground/10",
+            isSelected
+              ? "opacity-100"
+              : "opacity-0 group-hover/pane-tab:opacity-100",
+          )}
+          onClick={(event) => {
+            event.stopPropagation();
+            onClose();
+          }}
+          type="button"
+        >
+          <XIcon className="size-3" />
+        </button>
+      )}
     </div>
   );
 }

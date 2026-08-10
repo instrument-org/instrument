@@ -1,4 +1,3 @@
-import { featuresAtom } from "@/client/atoms/features";
 import {
   openFileViewerAtom,
   type TaskFileViewerFile,
@@ -17,6 +16,7 @@ import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { useTaskPaneActions } from "@/client/hooks/use-task-pane";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
+import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
@@ -26,7 +26,7 @@ import {
   TaskPane,
 } from "@instrument-org/workspace/client";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useSetAtom } from "jotai";
 import { type ReactNode, useState } from "react";
 
 import { FileLoading } from "../file-loading";
@@ -49,6 +49,15 @@ const LAYOUT = {
   open: OPEN_LAYOUT,
 };
 
+// The pane is the card. Whatever it is showing sits inside this, so the tab
+// strip, a viewer's title row and a viewer's own toolbar stack as one band.
+const paneSurfaceClassName =
+  "flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl bg-card shadow-sm";
+
+// ...and the thing inside gives up the card it would otherwise draw, rather
+// than nesting a second rounded surface a few pixels inside the first.
+const paneContentClassName = "rounded-none bg-transparent shadow-none";
+
 export function TaskView({
   attachedFolders,
   files,
@@ -69,7 +78,6 @@ export function TaskView({
   task: Task;
 }) {
   const openFileViewer = useSetAtom(openFileViewerAtom);
-  const features = useAtomValue(featuresAtom);
   const assetBaseUrl = getAssetBaseUrl(task.id);
   const { closeTab, openFiles, selectTab } = useTaskPaneActions(task.id);
 
@@ -88,15 +96,15 @@ export function TaskView({
     liveTargetId && attachedTargets.has(liveTargetId),
   );
 
-  // The browser earns a tab without anyone having stored one: with the feature
-  // on it is offered, and with it off it still appears once the agent is
-  // actually browsing, so a session that starts browsing is not invisible.
-  // Selecting it is what writes it into the task's own tabs.
-  const hasStoredBrowserTab = pane.tabs.some((tab) => tab.type === "browser");
-  const tabs: TaskPane.Tab[] =
-    hasStoredBrowserTab || !(features.pane_browser_tab || browserActive)
-      ? pane.tabs
-      : [{ type: "browser" }, ...pane.tabs];
+  // The browser is a fixed first tab rather than one of the stored ones. It is
+  // what the pane opens onto when nothing else is in it, which is what keeps
+  // "open the pane" from ever being a request that lands on nothing -- and with
+  // a tab always present, the strip always has somewhere to put the control
+  // that closes it again.
+  const tabs: TaskPane.Tab[] = [
+    { type: "browser" },
+    ...pane.tabs.filter((tab) => tab.type !== "browser"),
+  ];
 
   const selected = TaskPane.selectedTab({ ...pane, tabs });
   const filePanel = selected?.type === "file" ? selected : undefined;
@@ -119,7 +127,7 @@ export function TaskView({
     }
   };
 
-  const showArtifactPanel = pane.open && tabs.length > 0;
+  const showArtifactPanel = pane.open;
 
   const {
     data: fileInfo,
@@ -219,49 +227,64 @@ export function TaskView({
               minSize={PANEL_SIZES.artifactMin}
             >
               <div className="flex h-full flex-1 animate-in flex-col p-2 duration-150 fade-in-0 slide-in-from-right-2">
-                <PaneTabs
-                  onClose={closeTab}
-                  onSelect={(key) => {
-                    if (
-                      key === TaskPane.tabKey(selected ?? { type: "browser" })
-                    ) {
-                      setArtifactReloadNonce((nonce) => nonce + 1);
+                {/* One card, with the strip as its first row. The viewers below
+                    already stack a title and a toolbar inside this same frame,
+                    so the tabs join that band instead of floating above the
+                    pane on the task's own background. */}
+                <div className={paneSurfaceClassName}>
+                  <PaneTabs
+                    onClose={closeTab}
+                    onSelect={(key) => {
+                      if (
+                        key === TaskPane.tabKey(selected ?? { type: "browser" })
+                      ) {
+                        setArtifactReloadNonce((nonce) => nonce + 1);
+                      }
+                      selectTab(key);
+                    }}
+                    selectedKey={
+                      selected ? TaskPane.tabKey(selected) : undefined
                     }
-                    selectTab(key);
-                  }}
-                  selectedKey={selected ? TaskPane.tabKey(selected) : undefined}
-                  tabs={tabs}
-                  taskId={task.id}
-                />
-
-                {selected?.type === "browser" && selectedSessionId ? (
-                  <TaskBrowserPanel
-                    active={browserActive}
-                    sessionId={selectedSessionId}
+                    tabs={tabs}
                     taskId={task.id}
                   />
-                ) : currentFile ? (
-                  <div className="flex h-full">
-                    <FileViewer
-                      file={currentFile}
-                      key={`${currentFile.url}#${artifactReloadNonce}`}
-                      onExpand={() => {
-                        openFileViewer({ files: [currentFile] });
-                      }}
-                    />
+
+                  <div className="min-h-0 flex-1">
+                    {selected?.type === "browser" && selectedSessionId ? (
+                      <TaskBrowserPanel
+                        active={browserActive}
+                        className={paneContentClassName}
+                        sessionId={selectedSessionId}
+                        taskId={task.id}
+                      />
+                    ) : currentFile ? (
+                      <FileViewer
+                        className={paneContentClassName}
+                        file={currentFile}
+                        key={`${currentFile.url}#${artifactReloadNonce}`}
+                        onExpand={() => {
+                          openFileViewer({ files: [currentFile] });
+                        }}
+                      />
+                    ) : filePanel ? (
+                      // Only claim the file is gone once the lookup has
+                      // answered. Rendering the missing state while the query is
+                      // still in flight flashes "File not found" over every file
+                      // on its way in, which is a lie the panel then corrects a
+                      // frame later. The wait itself shows nothing: it is over
+                      // faster than the eye settles, so anything drawn there is
+                      // a flicker between two files rather than a sign of
+                      // progress.
+                      <ArtifactPanelShell filePath={filePanel.filePath}>
+                        {isResolvingFile ? (
+                          <FileLoading />
+                        ) : (
+                          <MissingFileNotice />
+                        )}
+                      </ArtifactPanelShell>
+                    ) : null}
                   </div>
-                ) : filePanel ? (
-                  // Only claim the file is gone once the lookup has answered.
-                  // Rendering the missing state while the query is still in
-                  // flight flashes "File not found" over every file on its way
-                  // in, which is a lie the panel then corrects a frame later.
-                  // The wait itself shows nothing: it is over faster than the
-                  // eye settles, so anything drawn there is a flicker between
-                  // two files rather than a sign of progress.
-                  <ArtifactPanelShell filePath={filePanel.filePath}>
-                    {isResolvingFile ? <FileLoading /> : <MissingFileNotice />}
-                  </ArtifactPanelShell>
-                ) : null}
+                </div>
               </div>
             </ResizablePanel>
           </>
@@ -288,7 +311,7 @@ function ArtifactPanelShell({
   const filename = filePath.slice(filePath.lastIndexOf("/") + 1);
 
   return (
-    <div className={fileViewerClassName}>
+    <div className={cn(fileViewerClassName, paneContentClassName)}>
       {/* No mime type: that is part of what the panel is still waiting on.
           Every format whose viewer opens a toolbar is identified by its
           extension anyway, so the chrome band lays out the same either way. */}

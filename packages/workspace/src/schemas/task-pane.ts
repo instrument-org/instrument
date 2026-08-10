@@ -55,8 +55,9 @@ export namespace TaskPane {
   /**
    * Close one tab, focusing its neighbour.
    *
-   * Closing the last tab closes the pane but keeps `open` truthful rather than
-   * leaving an empty frame on screen; the header's toggle is what reopens it.
+   * Closing the last one leaves the pane open rather than dismissing it: the
+   * browser is a fixed tab the pane always draws, so there is something to fall
+   * back to, and closing a file is not a request to close the panel.
    */
   export function closeTab(pane: Type, key: string): Type {
     const index = pane.tabs.findIndex((tab) => tabKey(tab) === key);
@@ -65,16 +66,13 @@ export namespace TaskPane {
     }
 
     const tabs = pane.tabs.filter((_, i) => i !== index);
-    if (tabs.length === 0) {
-      return { open: false, tabs: [] };
-    }
-
     const wasSelected = pane.selected === key;
     const neighbour = tabs[Math.min(index, tabs.length - 1)];
 
     return {
       open: pane.open,
-      selected: wasSelected && neighbour ? tabKey(neighbour) : pane.selected,
+      selected:
+        wasSelected && neighbour ? tabKey(neighbour) : (pane.selected ?? ""),
       tabs,
     };
   }

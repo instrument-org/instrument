@@ -119,12 +119,14 @@ describe("TaskPane.closeTab", () => {
     expect(TaskPane.closeTab(pane, "file:a.png").selected).toBe("file:b.png");
   });
 
-  it("closes the pane when the last tab goes", () => {
-    const pane = TaskPane.openTabs(TaskPane.EMPTY, [browser]);
-    expect(TaskPane.closeTab(pane, "browser")).toEqual({
-      open: false,
-      tabs: [],
-    });
+  it("stays open when the last tab goes, falling back to the browser", () => {
+    const pane = TaskPane.openTabs(TaskPane.EMPTY, [
+      TaskPane.fileTab("a.png"),
+    ]);
+    const closed = TaskPane.closeTab(pane, "file:a.png");
+
+    expect(closed.open).toBe(true);
+    expect(closed.tabs).toEqual([]);
   });
 });
 

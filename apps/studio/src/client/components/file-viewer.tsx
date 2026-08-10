@@ -514,10 +514,14 @@ const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
 });
 
 export function FileViewer({
+  className,
   file,
   onClose,
   onExpand,
 }: {
+  // Set by a caller that already draws the surface this sits in, so the viewer
+  // can drop its own card and fill the frame instead of nesting inside it.
+  className?: string;
   file: TaskFileViewerFile;
   onClose?: () => void;
   onExpand?: () => void;
@@ -630,7 +634,7 @@ export function FileViewer({
   };
 
   return (
-    <div className={fileViewerClassName}>
+    <div className={cn(fileViewerClassName, className)}>
       <FileViewerHeader
         actions={
           <>

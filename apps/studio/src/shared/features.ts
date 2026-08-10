@@ -4,7 +4,6 @@ export const FeatureNameSchema = z.enum([
   "bash_summary_chip",
   "context_ring",
   "external_browser",
-  "pane_browser_tab",
   "prompt_queue",
   "skills",
 ]);
@@ -31,11 +30,6 @@ export const FEATURE_METADATA: Record<
     description:
       "Let the agent drive a browser outside the app: the user's own Chrome profile and its logins, a Chromium already running with remote debugging, or a cloud browser. macOS asks for a system permission the first time.",
     title: "External Browser",
-  },
-  pane_browser_tab: {
-    description:
-      "Offer a browser tab in the task pane, for an in-app browser you can drive yourself or hand to the agent. Without it the tab still appears once the agent starts browsing.",
-    title: "Pane Browser Tab",
   },
   prompt_queue: {
     description:

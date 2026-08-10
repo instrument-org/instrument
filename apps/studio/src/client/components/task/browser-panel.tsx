@@ -33,6 +33,7 @@ import {
   type EmulatedDevice,
 } from "@/client/lib/emulated-devices";
 import { resolveUrlOrSearch } from "@/client/lib/resolve-url-or-search";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { BROWSER_ZOOM_MAX, BROWSER_ZOOM_MIN } from "@/shared/browser";
 import { steppedZoom } from "@/shared/zoom";
@@ -78,10 +79,13 @@ interface DidFailLoadEvent extends Event {
  */
 export function TaskBrowserPanel({
   active,
+  className,
   sessionId,
   taskId,
 }: {
   active: boolean;
+  // See FileViewer: set when the surface is already drawn around this.
+  className?: string;
   sessionId: StoreId.Session;
   taskId: TaskId;
 }) {
@@ -311,7 +315,12 @@ export function TaskBrowserPanel({
   const pageUrl = active ? currentUrl() : undefined;
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-xl bg-card shadow-sm">
+    <div
+      className={cn(
+        "flex h-full flex-col overflow-hidden rounded-xl bg-card shadow-sm",
+        className,
+      )}
+    >
       <div className="flex items-center gap-1 border-b p-1.5">
         <Button
           disabled={!active || !nav.back}

@@ -104,7 +104,7 @@ function describe(mark: FrameMark): { icon: Icon; name: string } {
       return { icon: DotsThreeIcon, name: "planning" };
     }
     case "prose": {
-      return { icon: ArticleIcon, name: "answer" };
+      return { icon: ArticleIcon, name: "assistant" };
     }
     case "reasoning": {
       return { icon: BrainIcon, name: "reasoning" };
@@ -113,7 +113,7 @@ function describe(mark: FrameMark): { icon: Icon; name: string } {
       return { icon: CheckIcon, name: "turn" };
     }
     case "user": {
-      return { icon: UserIcon, name: "you" };
+      return { icon: UserIcon, name: "user" };
     }
   }
 }

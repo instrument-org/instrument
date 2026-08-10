@@ -48,7 +48,7 @@ describe("buildFrames", () => {
         buildFrames([read({ explanation: "Reading it", filePath: "./a.csv" })]),
       ),
     ).toMatchInlineSnapshot(`
-      "call:arriving        input-streaming
+      "call:streaming       input-streaming
       call:running         running
       call:done            available
       turn:settled         available"
@@ -80,8 +80,8 @@ describe("buildFrames", () => {
         ]),
       ),
     ).toMatchInlineSnapshot(`
-      "call:asked for       queued
-      call:asked for       queued queued
+      "call:queued          queued
+      call:queued          queued queued
       call:running         running queued
       call:done            available queued
       call:running         available running
@@ -108,14 +108,14 @@ describe("buildFrames", () => {
     expect(shared.at(-1)?.messages).toHaveLength(1);
   });
 
-  it("streams prose and then settles it", () => {
+  it("streams prose and then marks it done", () => {
     expect(
       draw(buildFrames([prose("one two three four five six seven eight")])),
     ).toMatchInlineSnapshot(`
       "prose:streaming      text:streaming
       prose:streaming      text:streaming
       prose:streaming      text:streaming
-      prose:settled        text:done
+      prose:done           text:done
       turn:settled         text:done"
     `);
   });

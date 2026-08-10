@@ -22,6 +22,11 @@ export interface Frame {
  * tool, how far along -- and not the prose the transcript itself is already
  * showing. An explanation is the row's own job; here it is the thing that
  * pushes everything useful off the right-hand edge.
+ *
+ * It is a debug surface, so it says what the part says. Where a word here has a
+ * counterpart in the part it describes, it is that word: a call and a paragraph
+ * that have both arrived are both `done`, rather than one being `done` and the
+ * other `settled` for no reason a reader could recover.
  */
 export interface FrameMark {
   /**
@@ -31,12 +36,22 @@ export interface FrameMark {
    */
   detail?: string;
   kind: "call" | "planning" | "prose" | "reasoning" | "turn" | "user";
-  /** Where the step has got to, for the kinds that pass through states. */
+  /**
+   * Where the step has got to, for the kinds that pass through states.
+   *
+   * Every one of these but the last two is a part state: `streaming` is
+   * `input-streaming` on a call and `streaming` on text, `done` is
+   * `output-available` and `done`, `failed` is `output-error`. `queued` and
+   * `running` are the one split the SDK's states cannot express on their own,
+   * since a call waiting its turn and a call executing are both
+   * `input-available` and only `startedAt` tells them apart. `settled` and
+   * `stopped` belong to the turn rather than to any part: the agent finishing
+   * and the agent being stopped.
+   */
   phase?:
-    | "arriving"
-    | "asked for"
     | "done"
     | "failed"
+    | "queued"
     | "running"
     | "settled"
     | "stopped"
@@ -135,7 +150,7 @@ class Playback {
     const opened = calls.map((call) => {
       const seat = this.newSeat();
       this.put(toolPart(call, seat, "queued"));
-      this.snapshot(mark(call, "asked for"));
+      this.snapshot(mark(call, "queued"));
       return { call, seat };
     });
     for (const { call, seat } of opened) {
@@ -174,7 +189,7 @@ class Playback {
     // and the agent looks like it is thinking again.
     const seat = this.newSeat();
     this.put(toolPart(call, seat, "streaming"));
-    this.snapshot(mark(call, "arriving"));
+    this.snapshot(mark(call, "streaming"));
     this.put(toolPart(call, seat, "running", this.time()));
     this.snapshot(mark(call, "running"));
     this.put(toolPart(call, seat, "finished", this.time()));
@@ -258,7 +273,7 @@ class Playback {
       text,
       type,
     });
-    this.snapshot({ kind, phase: "settled" });
+    this.snapshot({ kind, phase: "done" });
   }
 
   private time(): Date {

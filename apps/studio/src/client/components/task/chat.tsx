@@ -231,7 +231,13 @@ export function TaskChat({
   }, [isActiveTab, focusSignal, selectedSessionId, promptEditor]);
 
   const [isTutorialDismissed, setIsTutorialDismissed] = useState(false);
-  const isTutorialVisible = showTutorial === true && !isTutorialDismissed;
+  const [composerFolderCount, setComposerFolderCount] = useState(0);
+  const isTutorialActive = showTutorial === true && !isTutorialDismissed;
+  // The composer grows its own wrapper once a folder is attached, and two
+  // nested ones read as a box in a box. The tutorial gives way for as long as
+  // the folder is there and comes back if it is removed: nothing is written
+  // away, so this is a fold rather than a dismissal.
+  const isTutorialVisible = isTutorialActive && composerFolderCount === 0;
 
   const handleDismissTutorial = () => {
     setIsTutorialDismissed(true);
@@ -253,11 +259,13 @@ export function TaskChat({
       }
       className="relative z-10"
       draftKey={draftKey}
+      folderTrayPlacement="above"
       id={id}
       isLoading={createMessage.isPending}
       isStoppable={isAgentAlive}
       isSubmittable={isQueueEnabled ? true : !isAgentAlive}
       modelURI={selectedModelURI}
+      onFolderCountChange={setComposerFolderCount}
       onModelChange={setSelectedModelURI}
       onStop={() => {
         if (isReplayActive && onCancelReplay) {
@@ -278,7 +286,7 @@ export function TaskChat({
         // session is still starting up would only land at the end.
         setIsFollowingSubmit(true);
         setScrollToEndSignal((signal) => signal + 1);
-        if (isTutorialVisible) {
+        if (isTutorialActive) {
           handleDismissTutorial();
         }
         // While a turn is running, buffer the prompt; the queue delivers it

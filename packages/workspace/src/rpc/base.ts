@@ -11,6 +11,7 @@ export interface WorkspaceRPCContext {
 }
 
 const ORPC_ERRORS = {
+  FILE_SYSTEM_ERROR: {},
   GATEWAY_FETCH_ERROR: {},
   GIT_ERROR: {},
   NOT_FOUND: {},
@@ -38,6 +39,9 @@ export function toORPCError(
     case "gateway-parse-error":
     case "workspace-parse-error": {
       return orpcErrors.PARSE_ERROR({ message: error.message });
+    }
+    case "workspace-filesystem-error": {
+      return orpcErrors.FILE_SYSTEM_ERROR({ message: error.message });
     }
     case "workspace-git-error": {
       return orpcErrors.GIT_ERROR({ message: error.message });

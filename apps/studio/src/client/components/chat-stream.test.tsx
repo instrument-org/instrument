@@ -23,6 +23,7 @@ const task: Task = {
 };
 
 interface RenderOptions {
+  alwaysShowFooter?: boolean;
   isAgentRunning?: boolean;
   isDeveloperMode?: boolean;
 }
@@ -138,7 +139,11 @@ function renderParts(parts: unknown[], options?: RenderOptions) {
  */
 function renderSteps(
   steps: unknown[][],
-  { isAgentRunning = false, isDeveloperMode = false }: RenderOptions = {},
+  {
+    alwaysShowFooter = false,
+    isAgentRunning = false,
+    isDeveloperMode = false,
+  }: RenderOptions = {},
 ) {
   const messages = steps.map((parts) => ({
     id: StoreId.newMessageId(),
@@ -150,6 +155,7 @@ function renderSteps(
   return renderWithProviders(
     <TooltipProvider>
       <ChatStream
+        alwaysShowFooter={alwaysShowFooter}
         isAgentRunning={isAgentRunning}
         isDeveloperMode={isDeveloperMode}
         messages={messages}
@@ -518,6 +524,37 @@ describe("ChatStream and the transcript's rhythm", () => {
     renderSteps([[]], { isAgentRunning: true });
 
     expect(screen.getByText("Planning...").closest(".-my-1")).not.toBeNull();
+  });
+});
+
+// The footer's row takes its space either way, so hover decides only whether
+// that space has anything in it. That is fine where there is a pointer and
+// wrong where there is not: the playback page measures the column's height, and
+// a band of blank it cannot fill in reads as the transcript having gone wrong.
+describe("ChatStream and the footer of a finished turn", () => {
+  const footerRow = (container: HTMLElement) =>
+    screen.getByLabelText("Branch from here").closest(".flex.min-w-0") ??
+    container;
+
+  it("leaves the footer to hover by default", () => {
+    const { container } = renderSteps([
+      [read({ explanation: "Reading the first quarter" })],
+      [prose("Revenue grew in the north.")],
+    ]);
+
+    expect(footerRow(container).className).toContain("opacity-0");
+  });
+
+  it("draws the footer without hover when asked to", () => {
+    const { container } = renderSteps(
+      [
+        [read({ explanation: "Reading the first quarter" })],
+        [prose("Revenue grew in the north.")],
+      ],
+      { alwaysShowFooter: true },
+    );
+
+    expect(footerRow(container).className).not.toContain("opacity-0");
   });
 });
 

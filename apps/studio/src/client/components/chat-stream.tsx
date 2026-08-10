@@ -61,6 +61,12 @@ const TURN_WORDMARK_ID = "turn-wordmark";
 const PLANNING_ROW_ID = "planning";
 
 interface ChatStreamProps {
+  /**
+   * Draw a finished turn's footer rather than revealing it on hover. For a
+   * surface with no reader to hover it, where the row's height is real whether
+   * or not anything is in it -- the playback page measures exactly that.
+   */
+  alwaysShowFooter?: boolean;
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
   messages: SessionMessage.WithParts[];
@@ -85,6 +91,7 @@ interface MessageRow {
 }
 
 export function ChatStream({
+  alwaysShowFooter = false,
   isAgentRunning,
   isDeveloperMode,
   messages,
@@ -481,6 +488,7 @@ export function ChatStream({
         if (shouldRenderFooter) {
           messageElements.push(
             <AssistantMessagesFooter
+              alwaysVisible={alwaysShowFooter}
               id={task.id}
               key={`assistant-footer-${message.id}`}
               messages={assistantMessages}
@@ -564,6 +572,7 @@ export function ChatStream({
 
     return elements;
   }, [
+    alwaysShowFooter,
     regularMessages,
     renderCtx,
     renderAsItems,

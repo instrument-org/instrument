@@ -200,7 +200,7 @@ function Player({ scenarioId }: { scenarioId: string }) {
         >
           <MessageScroller className="min-h-0 flex-1">
             <MessageScrollerViewport>
-              <MessageScrollerContent className="group/assistant-message-footer mx-auto w-full max-w-2xl gap-2 p-4 pb-8">
+              <MessageScrollerContent className="mx-auto w-full max-w-2xl gap-2 p-4 pb-8">
                 <Profiler
                   id="transcript"
                   onRender={(_id, _phase, actualDuration) => {
@@ -208,6 +208,7 @@ function Player({ scenarioId }: { scenarioId: string }) {
                   }}
                 >
                   <ChatStream
+                    alwaysShowFooter
                     isAgentRunning={frame.isAgentRunning}
                     isDeveloperMode={isDeveloperMode}
                     messages={frame.messages}

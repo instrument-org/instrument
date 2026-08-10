@@ -28,6 +28,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { UsageStatsTooltip, UsageSummaryText } from "./usage-stats-tooltip";
 
 interface AssistantMessagesFooterProps {
+  /**
+   * Draw the row rather than waiting for the pointer. For a surface with no
+   * reader to hover it: the row takes its space either way, so left to hover it
+   * is a band of blank whose height is real and whose contents are not.
+   */
+  alwaysVisible?: boolean;
   id: TaskId;
   messages: SessionMessage.AssistantWithParts[];
 }
@@ -38,6 +44,7 @@ interface ModelUsageData {
 }
 
 export function AssistantMessagesFooter({
+  alwaysVisible = false,
   id,
   messages,
 }: AssistantMessagesFooterProps) {
@@ -145,7 +152,7 @@ export function AssistantMessagesFooter({
         <div
           className={cn(
             "flex min-w-0 items-center gap-2",
-            sources.length > 0
+            alwaysVisible || sources.length > 0
               ? "opacity-100"
               : "opacity-0 group-hover/assistant-message-footer:opacity-100",
           )}

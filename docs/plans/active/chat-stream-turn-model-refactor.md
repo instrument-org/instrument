@@ -45,8 +45,8 @@ Adopt the shape most mature chat renderers converge on: **raw items → derived 
 
 ## Suggested migration path (incremental)
 
-1. Introduce the `turn` / `item` / `unit` types and a pure `deriveRenderGroups` next to the current renderer. Unit-test it against the existing `presetSessions` fixtures with `toMatchInlineSnapshot`.
-2. Swap `ChatStream`'s inner loop to render `units` via the `kind → component` registry, one `MessageScrollerItem` per turn. Delete the flatten / tool-boundary / footer special-casing. Verify against the same fixtures and the debug chat-stream route.
+1. Introduce the `turn` / `item` / `unit` types and a pure `deriveRenderGroups` next to the current renderer. Unit-test it against the transcript scenarios with `toMatchInlineSnapshot`.
+2. Swap `ChatStream`'s inner loop to render `units` via the `kind → component` registry, one `MessageScrollerItem` per turn. Delete the flatten / tool-boundary / footer special-casing. Verify against the same scenarios and the debug transcript route.
 3. Layer collapsing + `detailLevel` onto the unit model.
 
 ## Open questions

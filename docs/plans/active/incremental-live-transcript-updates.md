@@ -33,7 +33,7 @@ The server snapshot (`LiveMessagesSnapshot`) already preserves **per-message ref
 ## Migration path (incremental)
 
 1. Land `chat-stream-turn-model-refactor` (C) so turns are stable memoized rows.
-2. Add a reconcile-by-id wrapper around the live messages query (A). Verify against the debug chat-stream route and the `presetSessions` fixtures that unchanged turns stop re-rendering during a stream (React Profiler / render-count assertion).
+2. Add a reconcile-by-id wrapper around the live messages query (A). Verify against the debug transcript route and its scenarios that unchanged turns stop re-rendering during a stream (React Profiler / render-count assertion).
 3. Measure wire cost on a large session. If it dominates, add the patch protocol (B): a delta event schema, a custom merging query function, and client-side apply with the same id-ordering the snapshot uses.
 
 ## Dependencies

@@ -604,7 +604,11 @@ describe("groups the agent never named", () => {
     `);
   });
 
-  it("leaves a lone call alone, since a summary would say less than the row", () => {
+  // A phrase built from one call would say less than the call's own row does,
+  // which is why a generated heading needs two. The run around it is another
+  // matter: the agent thinks before it acts, so the fold is trading three rows
+  // for one rather than one for one, and the call heads its own run.
+  it("folds a run around a lone call under the call itself", () => {
     expect(
       draw([
         {
@@ -618,10 +622,82 @@ describe("groups the agent never named", () => {
       ]),
     ).toMatchInlineSnapshot(`
       "--- inferred settled
-        which file
+      > sales.csv
+      ·   which file
+      ·   sales.csv
+      ~
+        here it is"
+    `);
+  });
+
+  // The shape almost every turn with one call really has: the agent reasons,
+  // calls, reasons about what came back, then answers.
+  it("folds a call with reasoning on both sides of it", () => {
+    expect(
+      draw([
+        {
+          role: "assistant",
+          specs: [
+            ["thought", "what to draw"],
+            ["read", "cat.png"],
+            ["thought", "that worked"],
+            ["prose", "here is the cat"],
+          ],
+        },
+      ]),
+    ).toMatchInlineSnapshot(`
+      "--- inferred settled
+      > cat.png
+      ·   what to draw
+      ·   cat.png
+      ·   that worked
+      ~
+        here is the cat"
+    `);
+  });
+
+  // Nothing to fold: the run is already the one line it would fold to, and a
+  // copy of the only row is not a head line, it is the row again.
+  it("leaves a call standing alone as its own row", () => {
+    expect(
+      draw([
+        {
+          role: "assistant",
+          specs: [
+            ["read", "sales.csv"],
+            ["prose", "here it is"],
+          ],
+        },
+      ]),
+    ).toMatchInlineSnapshot(`
+      "--- inferred settled
         sales.csv
       ~
         here it is"
+    `);
+  });
+
+  it("shows what the run held once the reader opens it", () => {
+    expect(
+      draw(
+        [
+          {
+            role: "assistant",
+            specs: [
+              ["thought", "what to draw"],
+              ["read", "cat.png"],
+              ["thought", "that worked"],
+            ],
+          },
+        ],
+        { isExpanded: true },
+      ),
+    ).toMatchInlineSnapshot(`
+      "--- inferred settled
+      > cat.png
+          what to draw
+          cat.png
+          that worked"
     `);
   });
 });

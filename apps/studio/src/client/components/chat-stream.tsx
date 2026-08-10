@@ -243,7 +243,9 @@ export function ChatStream({
     const node = renderChatPart({
       browserStatusContextAdded: false,
       ctx: renderCtx,
-      isGroupWorking: true,
+      // A settled run heads itself with its own call, so the copy is not always
+      // a copy of something in flight.
+      isGroupWorking: group.phase === "working",
       isStandIn: true,
       message: found.message,
       part: found.part,

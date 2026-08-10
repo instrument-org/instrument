@@ -77,8 +77,12 @@ export interface TranscriptGroup {
    */
   lastRowId?: StoreId.Part;
   phase: "settled" | "working";
-  /** Its tool calls in order, which is what a generated heading is built from. */
-  toolNames: ToolName[];
+  /**
+   * Its tool calls in order: the names a generated heading is built from, and
+   * the row each one sits in, for the run that ends up folding under a copy of
+   * its own single call rather than under a phrase.
+   */
+  toolCalls: { name: ToolName; rowId: StoreId.Part }[];
 }
 
 export interface TranscriptLayout {
@@ -269,7 +273,7 @@ export function buildTranscriptLayout({
 
       push(id, kind);
       if (isToolPart(part)) {
-        open.toolNames.push(getToolNameByType(part.type));
+        open.toolCalls.push({ name: getToolNameByType(part.type), rowId: id });
       }
       markLive({
         group: open,
@@ -314,10 +318,10 @@ export function generatedGroupHeading(
   if (group.headingRowId !== undefined || group.phase === "working") {
     return undefined;
   }
-  if (group.toolNames.length < MIN_INFERRED_GROUP_CALLS) {
+  if (group.toolCalls.length < MIN_INFERRED_GROUP_CALLS) {
     return undefined;
   }
-  return summarizeToolRun(group.toolNames);
+  return summarizeToolRun(group.toolCalls.map((call) => call.name));
 }
 
 /**
@@ -332,7 +336,14 @@ export function groupCanExpand(group: TranscriptGroup): boolean {
   if (!groupFoldsRows(group)) {
     return false;
   }
-  return group.headingRowId === undefined && group.phase === "working"
+  // A run headed by a copy of one of its own rows has more to show only once it
+  // holds more than that one; everywhere else the head line is not a row, and a
+  // single row behind it is still a row hidden.
+  const isHeadedByOwnRow =
+    group.headingRowId === undefined &&
+    (group.phase === "working" || soleToolCallRowId(group) !== undefined);
+
+  return isHeadedByOwnRow
     ? group.foldedRowCount > 1
     : group.foldedRowCount > 0;
 }
@@ -355,7 +366,7 @@ export function groupStandInRowId({
   isExpanded: boolean;
 }): StoreId.Part | undefined {
   if (group.phase !== "working") {
-    return undefined;
+    return soleToolCallRowId(group);
   }
   // Opening a named phase shows the steps themselves, so the copy goes.
   if (isExpanded && group.headingRowId !== undefined) {
@@ -446,7 +457,7 @@ function emptyGroup(
     headingRowId,
     id,
     phase: "working",
-    toolNames: [],
+    toolCalls: [],
   };
 }
 
@@ -459,9 +470,13 @@ function groupFoldsRows(group: TranscriptGroup): boolean {
   if (group.headingRowId !== undefined) {
     return true;
   }
-  return group.phase === "working"
-    ? group.foldedRowCount > 0
-    : generatedGroupHeading(group) !== undefined;
+  if (group.phase === "working") {
+    return group.foldedRowCount > 0;
+  }
+  return (
+    generatedGroupHeading(group) !== undefined ||
+    soleToolCallRowId(group) !== undefined
+  );
 }
 
 // Whether this row is the agent at work rather than a record of work it has
@@ -554,4 +569,28 @@ function markLive({
   if (isLive) {
     group.activeRowId = id;
   }
+}
+
+/**
+ * The one call a settled run folds under, when a phrase built from the run would
+ * say less than that call's own row does.
+ *
+ * A lone call keeps its row: "Read a file" replaces a line that at least said
+ * which file, which is why a generated heading needs two. But the run around a
+ * call is rarely only the call -- the agent thinks before it acts and again
+ * after -- and three rows where two of them say "Thought" is worth folding even
+ * though the phrase is not worth writing. So the call heads its own run: one
+ * line, and it is the line that says which file.
+ *
+ * Only with something else to fold. A run that is just the one call is already
+ * the line it would fold to.
+ */
+function soleToolCallRowId(group: TranscriptGroup): StoreId.Part | undefined {
+  if (group.headingRowId !== undefined || group.phase !== "settled") {
+    return undefined;
+  }
+  if (group.toolCalls.length !== 1 || group.foldedRowCount < 2) {
+    return undefined;
+  }
+  return group.toolCalls[0]?.rowId;
 }

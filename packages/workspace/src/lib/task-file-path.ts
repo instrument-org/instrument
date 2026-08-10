@@ -1,4 +1,4 @@
-import { ATTACHED_FOLDERS_MOUNT_ROOT } from "@instrument-org/workspace/client";
+import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../schemas/paths";
 
 /**
  * Whether a path is one this app can address at all: somewhere inside the task,
@@ -13,6 +13,9 @@ import { ATTACHED_FOLDERS_MOUNT_ROOT } from "@instrument-org/workspace/client";
  * a host path can appear among them. `/Users/someone/.ssh/id_rsa` has to read
  * as prose, since no version of clicking it opens anything, and an affordance
  * that looks like it would is worse than no affordance at all.
+ *
+ * It lives here rather than in the renderer because `show` and the pane state
+ * ask it too, and a grammar with two implementations is a grammar that drifts.
  */
 export function isAddressableTaskFilePath(path: string): boolean {
   if (path.includes("\\") || path.split("/").includes("..")) {

@@ -17,6 +17,7 @@ export { maxStepsModelNote } from "./lib/max-steps-model-text";
 export { normalizeTaskFilePath } from "./lib/normalize-task-file-path";
 export { projectChangesModelNote } from "./lib/project-changes-model-text";
 export { systemNoteBody } from "./lib/system-note";
+export { isAddressableTaskFilePath } from "./lib/task-file-path";
 export {
   getUsageSummaryFromMessages,
   type UsageSummary,
@@ -38,6 +39,7 @@ export { StoreId } from "./schemas/store-id";
 export type { Task } from "./schemas/task";
 export type { SessionTag } from "./schemas/task-agent-status";
 export { type TaskId, TaskIdSchema } from "./schemas/task-id";
+export { TaskPane } from "./schemas/task-pane";
 export type { ToolName } from "./tools/types";
 export {
   type BrowserTargetId,

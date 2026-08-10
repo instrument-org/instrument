@@ -1,7 +1,7 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { parseFilesBlock } from "@/client/lib/parse-files-block";
-import { isAddressableTaskFilePath } from "@/client/lib/task-file-path";
+import { isAddressableTaskFilePath } from "@instrument-org/workspace/client";
 import { useContext } from "react";
 
 import { FilesGrid } from "./files-grid";

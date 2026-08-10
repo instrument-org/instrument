@@ -3,6 +3,7 @@ import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import {
   AGENT_FILES_LANGUAGE,
+  isAddressableTaskFilePath,
   normalizeTaskFilePath,
   type TaskId,
 } from "@instrument-org/workspace/client";
@@ -35,7 +36,6 @@ import {
   prefetchMermaid,
 } from "../lib/mermaid";
 import { rehypeAnimateWords } from "../lib/rehype-animate-words";
-import { isAddressableTaskFilePath } from "../lib/task-file-path";
 import { cn } from "../lib/utils";
 import { AgentFilesBlock } from "./agent-files-block";
 import { CodeBlock, CodeWithCopy } from "./code-block";

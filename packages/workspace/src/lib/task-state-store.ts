@@ -5,6 +5,7 @@ import { z } from "zod";
 import { TASK_STATE_FILE_NAME } from "../constants";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
+import { TaskPane } from "../schemas/task-pane";
 import { absolutePathJoin } from "./absolute-path-join";
 import { getTaskPrivateDir } from "./task-dir-utils";
 
@@ -24,6 +25,10 @@ import { getTaskPrivateDir } from "./task-dir-utils";
 const StoredTaskStateSchema = z
   .object({
     attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
+    // A pane this build cannot read costs the pane, not the folder list beside
+    // it, which the silent catch below would otherwise write away.
+    // eslint-disable-next-line unicorn/prefer-top-level-await -- zod's catch, not a promise's
+    pane: TaskPane.Schema.optional().catch(undefined),
     projectFolderName: z.string().optional(),
     promptDraft: z.string().optional(),
     selectedModelURI: z.string().optional(),
@@ -36,6 +41,7 @@ const StoredTaskStateSchema = z
 // it is not something a client should be able to set.
 export const TaskStateSchema = z.object({
   attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
+  pane: TaskPane.Schema.optional(),
   promptDraft: z.string().optional(),
   selectedModelURI: AIGatewayModelURI.Schema.optional(),
   showTutorial: z.boolean().optional(),
@@ -58,23 +64,52 @@ export async function getTaskState(dir: TaskDir): Promise<TaskState> {
   }
 }
 
+// Read-modify-write, so two writes that overlap would each merge onto the state
+// the other had not yet written and the later one would win outright. Rare while
+// the writers were a debounced draft and a model change; the pane adds tab
+// writes from the renderer and from `show`, which do overlap. Serializing per
+// task is enough: the file belongs to one task and nothing writes across two.
+const writeQueues = new Map<TaskDir, Promise<unknown>>();
+
 export async function setTaskState(
   dir: TaskDir,
   state: Partial<TaskState>,
 ): Promise<void> {
-  const stateFilePath = getTaskStateFilePath(dir);
-  const privateDir = getTaskPrivateDir(dir);
+  await enqueue(dir, () => writeTaskState(dir, state));
+}
 
-  await fs.mkdir(privateDir, { recursive: true });
-
-  const currentState = await getTaskState(dir);
-
-  const newState = StoredTaskStateSchema.parse({
-    ...currentState,
-    ...state,
+/**
+ * Apply a change to the pane, reading the current one inside the write queue.
+ *
+ * The tab actions are read-modify-write on top of a read-modify-write, and the
+ * whole point of serializing is lost if the read happens before the queue: two
+ * `show` calls in one command line would each append to the tabs they saw and
+ * the second would drop the first's.
+ */
+export async function updateTaskPane(
+  dir: TaskDir,
+  update: (pane: TaskPane.Type) => TaskPane.Type,
+): Promise<TaskPane.Type> {
+  return enqueue(dir, async () => {
+    const current = await getTaskState(dir);
+    const pane = update(current.pane ?? TaskPane.EMPTY);
+    await writeTaskState(dir, { pane });
+    return pane;
   });
+}
 
-  await fs.writeFile(stateFilePath, JSON.stringify(newState, null, 2), "utf8");
+function enqueue<T>(dir: TaskDir, work: () => Promise<T>): Promise<T> {
+  // Both arms run the work: a failed write ahead of this one is that caller's
+  // to report, and dropping every write behind it would be worse.
+  const queued = (writeQueues.get(dir) ?? Promise.resolve()).then(work, work);
+
+  writeQueues.set(dir, queued);
+
+  return queued.finally(() => {
+    if (writeQueues.get(dir) === queued) {
+      writeQueues.delete(dir);
+    }
+  });
 }
 
 function getTaskStateFilePath(dir: TaskDir): AbsolutePath {
@@ -115,4 +150,23 @@ function migrateTaskState(state: unknown): unknown {
   );
 
   return { ...state, attachedFolders: Object.fromEntries(folders) };
+}
+
+async function writeTaskState(
+  dir: TaskDir,
+  state: Partial<TaskState>,
+): Promise<void> {
+  const stateFilePath = getTaskStateFilePath(dir);
+  const privateDir = getTaskPrivateDir(dir);
+
+  await fs.mkdir(privateDir, { recursive: true });
+
+  const currentState = await getTaskState(dir);
+
+  const newState = StoredTaskStateSchema.parse({
+    ...currentState,
+    ...state,
+  });
+
+  await fs.writeFile(stateFilePath, JSON.stringify(newState, null, 2), "utf8");
 }

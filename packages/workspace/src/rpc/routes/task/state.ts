@@ -42,6 +42,14 @@ const set = base
     }
 
     await setTaskState(taskDir(taskId), stateToSave);
+
+    // The pane is read back off this stream, so a write has to push. A draft is
+    // not: it is seeded once with the rest of the task's state and never read
+    // again, so publishing one would wake every reader of this task once a
+    // second while someone types.
+    if (Object.keys(stateToSave).some((key) => key !== "promptDraft")) {
+      publisher.publish("task.updated", { id: taskId });
+    }
   });
 
 const removeFolder = base

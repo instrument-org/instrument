@@ -20,6 +20,13 @@ const TASK_ITEM_HEIGHT = 36;
 const TASK_ITEM_GAP = 2;
 const TASK_ROW_HEIGHT = TASK_ITEM_HEIGHT + TASK_ITEM_GAP;
 
+// How recently a task has to have been made for its row to be treated as
+// arriving. Long enough to cover the trip from the write to the live list,
+// short enough that the same row scrolled back into view later is just a row
+// again: the list is virtualized, so one leaving and re-entering the viewport
+// is an ordinary mount and must not read as something new.
+const TASK_ARRIVAL_WINDOW_MS = 3000;
+
 export function NavTasks({
   matches,
   pinnedTaskIds,
@@ -133,6 +140,11 @@ function TasksList({
   const virtualizer = useVirtualizer({
     count: tasks.length,
     estimateSize: () => TASK_ROW_HEIGHT,
+    // Keyed by task rather than by position, so a task arriving at the top
+    // takes a new row instead of pushing every row below it onto a different
+    // task. React then keeps each row where it was, and only the new one is
+    // new.
+    getItemKey: (index) => tasks[index]?.id ?? index,
     getScrollElement: () => scrollElement,
     overscan: 5,
     scrollMargin,
@@ -164,6 +176,13 @@ function TasksList({
         if (!task || !state) {
           return null;
         }
+        // A task made while the sidebar is up arrives on its own, from another
+        // tab or from the page the user is reading, and the row is the only
+        // sign of it. Opacity and transform only, on the one row: nothing here
+        // measures or reflows, so a long list stays as cheap to draw as it was.
+        const isArriving =
+          Date.now() - task.createdAt.getTime() < TASK_ARRIVAL_WINDOW_MS;
+
         return (
           <div
             key={virtualItem.key}
@@ -176,12 +195,24 @@ function TasksList({
               width: "100%",
             }}
           >
-            <NavTaskItem
-              isActive={state.isActive}
-              isPinned={state.isPinned}
-              onOpenInNewTab={onOpenInNewTab}
-              task={task}
-            />
+            {/* Inside the positioned row rather than on it: the virtualizer
+                owns that element's transform. A stylesheet keyframe rather
+                than an animated component, so a list this long carries no
+                per-row machinery for something that happens to one row of it
+                once. */}
+            <div
+              className={cn(
+                isArriving &&
+                  "animate-in duration-200 fade-in slide-in-from-left-2",
+              )}
+            >
+              <NavTaskItem
+                isActive={state.isActive}
+                isPinned={state.isPinned}
+                onOpenInNewTab={onOpenInNewTab}
+                task={task}
+              />
+            </div>
           </div>
         );
       })}

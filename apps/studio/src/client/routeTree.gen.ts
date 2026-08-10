@@ -33,15 +33,13 @@ import { Route as AppAuthenticatedSubscribeRouteImport } from './routes/_app/_au
 import { Route as AppTasksIdIndexRouteImport } from './routes/_app/tasks/$id/index'
 import { Route as AppProjectsIdIndexRouteImport } from './routes/_app/projects/$id/index'
 import { Route as AppDebugComponentsIndexRouteImport } from './routes/_app/debug/components/index'
+import { Route as AppDebugComponentsTranscriptRouteImport } from './routes/_app/debug/components/transcript'
 import { Route as AppDebugComponentsSpinnerRouteImport } from './routes/_app/debug/components/spinner'
 import { Route as AppDebugComponentsProviderIconsRouteImport } from './routes/_app/debug/components/provider-icons'
-import { Route as AppDebugComponentsPlaybackRouteImport } from './routes/_app/debug/components/playback'
 import { Route as AppDebugComponentsOnboardingRouteImport } from './routes/_app/debug/components/onboarding'
 import { Route as AppDebugComponentsFormElementsRouteImport } from './routes/_app/debug/components/form-elements'
 import { Route as AppDebugComponentsErrorCardRouteImport } from './routes/_app/debug/components/error-card'
-import { Route as AppDebugComponentsDataPartsRouteImport } from './routes/_app/debug/components/data-parts'
 import { Route as AppDebugComponentsColorsRouteImport } from './routes/_app/debug/components/colors'
-import { Route as AppDebugComponentsChatStreamRouteImport } from './routes/_app/debug/components/chat-stream'
 import { Route as AppDebugComponentsAlertsRouteImport } from './routes/_app/debug/components/alerts'
 import { Route as AppDebugBrowserViewTargetIdRouteImport } from './routes/_app/debug/browser-view.$targetId'
 import { Route as AppDebugComponentsOnboardingIndexRouteImport } from './routes/_app/debug/components/onboarding/index'
@@ -169,6 +167,12 @@ const AppDebugComponentsIndexRoute = AppDebugComponentsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppDebugComponentsRoute,
 } as any)
+const AppDebugComponentsTranscriptRoute =
+  AppDebugComponentsTranscriptRouteImport.update({
+    id: '/transcript',
+    path: '/transcript',
+    getParentRoute: () => AppDebugComponentsRoute,
+  } as any)
 const AppDebugComponentsSpinnerRoute =
   AppDebugComponentsSpinnerRouteImport.update({
     id: '/spinner',
@@ -179,12 +183,6 @@ const AppDebugComponentsProviderIconsRoute =
   AppDebugComponentsProviderIconsRouteImport.update({
     id: '/provider-icons',
     path: '/provider-icons',
-    getParentRoute: () => AppDebugComponentsRoute,
-  } as any)
-const AppDebugComponentsPlaybackRoute =
-  AppDebugComponentsPlaybackRouteImport.update({
-    id: '/playback',
-    path: '/playback',
     getParentRoute: () => AppDebugComponentsRoute,
   } as any)
 const AppDebugComponentsOnboardingRoute =
@@ -205,22 +203,10 @@ const AppDebugComponentsErrorCardRoute =
     path: '/error-card',
     getParentRoute: () => AppDebugComponentsRoute,
   } as any)
-const AppDebugComponentsDataPartsRoute =
-  AppDebugComponentsDataPartsRouteImport.update({
-    id: '/data-parts',
-    path: '/data-parts',
-    getParentRoute: () => AppDebugComponentsRoute,
-  } as any)
 const AppDebugComponentsColorsRoute =
   AppDebugComponentsColorsRouteImport.update({
     id: '/colors',
     path: '/colors',
-    getParentRoute: () => AppDebugComponentsRoute,
-  } as any)
-const AppDebugComponentsChatStreamRoute =
-  AppDebugComponentsChatStreamRouteImport.update({
-    id: '/chat-stream',
-    path: '/chat-stream',
     getParentRoute: () => AppDebugComponentsRoute,
   } as any)
 const AppDebugComponentsAlertsRoute =
@@ -288,15 +274,13 @@ export interface FileRoutesByFullPath {
   '/tasks/': typeof AppTasksIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
-  '/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
   '/debug/components/colors': typeof AppDebugComponentsColorsRoute
-  '/debug/components/data-parts': typeof AppDebugComponentsDataPartsRoute
   '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
   '/debug/components/form-elements': typeof AppDebugComponentsFormElementsRoute
   '/debug/components/onboarding': typeof AppDebugComponentsOnboardingRouteWithChildren
-  '/debug/components/playback': typeof AppDebugComponentsPlaybackRoute
   '/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
+  '/debug/components/transcript': typeof AppDebugComponentsTranscriptRoute
   '/debug/components/': typeof AppDebugComponentsIndexRoute
   '/projects/$id/': typeof AppProjectsIdIndexRoute
   '/tasks/$id/': typeof AppTasksIdIndexRoute
@@ -324,14 +308,12 @@ export interface FileRoutesByTo {
   '/tasks': typeof AppTasksIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
-  '/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
   '/debug/components/colors': typeof AppDebugComponentsColorsRoute
-  '/debug/components/data-parts': typeof AppDebugComponentsDataPartsRoute
   '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
   '/debug/components/form-elements': typeof AppDebugComponentsFormElementsRoute
-  '/debug/components/playback': typeof AppDebugComponentsPlaybackRoute
   '/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
+  '/debug/components/transcript': typeof AppDebugComponentsTranscriptRoute
   '/debug/components': typeof AppDebugComponentsIndexRoute
   '/projects/$id': typeof AppProjectsIdIndexRoute
   '/tasks/$id': typeof AppTasksIdIndexRoute
@@ -366,15 +348,13 @@ export interface FileRoutesById {
   '/_app/tasks/': typeof AppTasksIndexRoute
   '/_app/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/_app/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
-  '/_app/debug/components/chat-stream': typeof AppDebugComponentsChatStreamRoute
   '/_app/debug/components/colors': typeof AppDebugComponentsColorsRoute
-  '/_app/debug/components/data-parts': typeof AppDebugComponentsDataPartsRoute
   '/_app/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
   '/_app/debug/components/form-elements': typeof AppDebugComponentsFormElementsRoute
   '/_app/debug/components/onboarding': typeof AppDebugComponentsOnboardingRouteWithChildren
-  '/_app/debug/components/playback': typeof AppDebugComponentsPlaybackRoute
   '/_app/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
   '/_app/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
+  '/_app/debug/components/transcript': typeof AppDebugComponentsTranscriptRoute
   '/_app/debug/components/': typeof AppDebugComponentsIndexRoute
   '/_app/projects/$id/': typeof AppProjectsIdIndexRoute
   '/_app/tasks/$id/': typeof AppTasksIdIndexRoute
@@ -408,15 +388,13 @@ export interface FileRouteTypes {
     | '/tasks/'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
-    | '/debug/components/chat-stream'
     | '/debug/components/colors'
-    | '/debug/components/data-parts'
     | '/debug/components/error-card'
     | '/debug/components/form-elements'
     | '/debug/components/onboarding'
-    | '/debug/components/playback'
     | '/debug/components/provider-icons'
     | '/debug/components/spinner'
+    | '/debug/components/transcript'
     | '/debug/components/'
     | '/projects/$id/'
     | '/tasks/$id/'
@@ -444,14 +422,12 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
-    | '/debug/components/chat-stream'
     | '/debug/components/colors'
-    | '/debug/components/data-parts'
     | '/debug/components/error-card'
     | '/debug/components/form-elements'
-    | '/debug/components/playback'
     | '/debug/components/provider-icons'
     | '/debug/components/spinner'
+    | '/debug/components/transcript'
     | '/debug/components'
     | '/projects/$id'
     | '/tasks/$id'
@@ -485,15 +461,13 @@ export interface FileRouteTypes {
     | '/_app/tasks/'
     | '/_app/debug/browser-view/$targetId'
     | '/_app/debug/components/alerts'
-    | '/_app/debug/components/chat-stream'
     | '/_app/debug/components/colors'
-    | '/_app/debug/components/data-parts'
     | '/_app/debug/components/error-card'
     | '/_app/debug/components/form-elements'
     | '/_app/debug/components/onboarding'
-    | '/_app/debug/components/playback'
     | '/_app/debug/components/provider-icons'
     | '/_app/debug/components/spinner'
+    | '/_app/debug/components/transcript'
     | '/_app/debug/components/'
     | '/_app/projects/$id/'
     | '/_app/tasks/$id/'
@@ -680,6 +654,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugComponentsIndexRouteImport
       parentRoute: typeof AppDebugComponentsRoute
     }
+    '/_app/debug/components/transcript': {
+      id: '/_app/debug/components/transcript'
+      path: '/transcript'
+      fullPath: '/debug/components/transcript'
+      preLoaderRoute: typeof AppDebugComponentsTranscriptRouteImport
+      parentRoute: typeof AppDebugComponentsRoute
+    }
     '/_app/debug/components/spinner': {
       id: '/_app/debug/components/spinner'
       path: '/spinner'
@@ -692,13 +673,6 @@ declare module '@tanstack/react-router' {
       path: '/provider-icons'
       fullPath: '/debug/components/provider-icons'
       preLoaderRoute: typeof AppDebugComponentsProviderIconsRouteImport
-      parentRoute: typeof AppDebugComponentsRoute
-    }
-    '/_app/debug/components/playback': {
-      id: '/_app/debug/components/playback'
-      path: '/playback'
-      fullPath: '/debug/components/playback'
-      preLoaderRoute: typeof AppDebugComponentsPlaybackRouteImport
       parentRoute: typeof AppDebugComponentsRoute
     }
     '/_app/debug/components/onboarding': {
@@ -722,25 +696,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugComponentsErrorCardRouteImport
       parentRoute: typeof AppDebugComponentsRoute
     }
-    '/_app/debug/components/data-parts': {
-      id: '/_app/debug/components/data-parts'
-      path: '/data-parts'
-      fullPath: '/debug/components/data-parts'
-      preLoaderRoute: typeof AppDebugComponentsDataPartsRouteImport
-      parentRoute: typeof AppDebugComponentsRoute
-    }
     '/_app/debug/components/colors': {
       id: '/_app/debug/components/colors'
       path: '/colors'
       fullPath: '/debug/components/colors'
       preLoaderRoute: typeof AppDebugComponentsColorsRouteImport
-      parentRoute: typeof AppDebugComponentsRoute
-    }
-    '/_app/debug/components/chat-stream': {
-      id: '/_app/debug/components/chat-stream'
-      path: '/chat-stream'
-      fullPath: '/debug/components/chat-stream'
-      preLoaderRoute: typeof AppDebugComponentsChatStreamRouteImport
       parentRoute: typeof AppDebugComponentsRoute
     }
     '/_app/debug/components/alerts': {
@@ -837,30 +797,26 @@ const AppDebugComponentsOnboardingRouteWithChildren =
 
 interface AppDebugComponentsRouteChildren {
   AppDebugComponentsAlertsRoute: typeof AppDebugComponentsAlertsRoute
-  AppDebugComponentsChatStreamRoute: typeof AppDebugComponentsChatStreamRoute
   AppDebugComponentsColorsRoute: typeof AppDebugComponentsColorsRoute
-  AppDebugComponentsDataPartsRoute: typeof AppDebugComponentsDataPartsRoute
   AppDebugComponentsErrorCardRoute: typeof AppDebugComponentsErrorCardRoute
   AppDebugComponentsFormElementsRoute: typeof AppDebugComponentsFormElementsRoute
   AppDebugComponentsOnboardingRoute: typeof AppDebugComponentsOnboardingRouteWithChildren
-  AppDebugComponentsPlaybackRoute: typeof AppDebugComponentsPlaybackRoute
   AppDebugComponentsProviderIconsRoute: typeof AppDebugComponentsProviderIconsRoute
   AppDebugComponentsSpinnerRoute: typeof AppDebugComponentsSpinnerRoute
+  AppDebugComponentsTranscriptRoute: typeof AppDebugComponentsTranscriptRoute
   AppDebugComponentsIndexRoute: typeof AppDebugComponentsIndexRoute
 }
 
 const AppDebugComponentsRouteChildren: AppDebugComponentsRouteChildren = {
   AppDebugComponentsAlertsRoute: AppDebugComponentsAlertsRoute,
-  AppDebugComponentsChatStreamRoute: AppDebugComponentsChatStreamRoute,
   AppDebugComponentsColorsRoute: AppDebugComponentsColorsRoute,
-  AppDebugComponentsDataPartsRoute: AppDebugComponentsDataPartsRoute,
   AppDebugComponentsErrorCardRoute: AppDebugComponentsErrorCardRoute,
   AppDebugComponentsFormElementsRoute: AppDebugComponentsFormElementsRoute,
   AppDebugComponentsOnboardingRoute:
     AppDebugComponentsOnboardingRouteWithChildren,
-  AppDebugComponentsPlaybackRoute: AppDebugComponentsPlaybackRoute,
   AppDebugComponentsProviderIconsRoute: AppDebugComponentsProviderIconsRoute,
   AppDebugComponentsSpinnerRoute: AppDebugComponentsSpinnerRoute,
+  AppDebugComponentsTranscriptRoute: AppDebugComponentsTranscriptRoute,
   AppDebugComponentsIndexRoute: AppDebugComponentsIndexRoute,
 }
 

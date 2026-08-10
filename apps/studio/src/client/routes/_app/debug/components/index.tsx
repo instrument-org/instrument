@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { scenarios } from "../-playback/scenarios";
+import { scenarios } from "../-transcript/scenarios";
 
 export const Route = createFileRoute("/_app/debug/components/")({
   beforeLoad: () => {
@@ -9,7 +9,7 @@ export const Route = createFileRoute("/_app/debug/components/")({
     // oxlint-disable-next-line typescript/only-throw-error
     throw redirect({
       search: defaultScenarioId ? { scenario: defaultScenarioId } : undefined,
-      to: "/debug/components/playback",
+      to: "/debug/components/transcript",
     });
   },
 });

@@ -29,8 +29,7 @@ import {
   getDebugRoute,
   onboardingScreens,
 } from "./-debug-routes";
-import { scenarios } from "./-playback/scenarios";
-import { presetSessions } from "./-sessions";
+import { scenarios } from "./-transcript/scenarios";
 
 export const Route = createFileRoute("/_app/debug/components")({
   component: RouteComponent,
@@ -42,24 +41,15 @@ export const Route = createFileRoute("/_app/debug/components")({
 function RouteComponent() {
   const { pathname } = useLocation();
   const search = useSearch({ strict: false });
-  const chatStreamPage = componentPages.find(
-    (page) => page.id === "chat-stream",
-  );
-  const dataPartsPage = componentPages.find((page) => page.id === "data-parts");
   const onboardingPage = componentPages.find(
     (page) => page.id === "onboarding",
   );
-  const playbackPage = componentPages.find((page) => page.id === "playback");
-  const defaultSessionId = presetSessions[0]?.id;
+  const transcriptPage = componentPages.find(
+    (page) => page.id === "transcript",
+  );
   const defaultScenarioId = scenarios[0]?.id;
-  const activeSessionId = search.session ?? defaultSessionId;
   const activeScenarioId = search.scenario ?? defaultScenarioId;
-  const isPlaybackRoute = pathname === playbackPage?.to;
-  const isChatStreamRoute = pathname === chatStreamPage?.to;
-  const isDataPartsRoute = pathname === dataPartsPage?.to;
-  // data-parts is a chat rendering, so it lives under the Chat section rather
-  // than as its own top-level entry. Keep the section open on either route.
-  const isChatSectionOpen = isChatStreamRoute || isDataPartsRoute;
+  const isTranscriptRoute = pathname === transcriptPage?.to;
   const isOnboardingRoute =
     onboardingPage !== undefined &&
     pathname.startsWith(onboardingPage.to + "/");
@@ -75,20 +65,12 @@ function RouteComponent() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {componentPages.map((page) => {
-                  const isChatStreamPage = page.id === "chat-stream";
                   const isOnboardingPage = page.id === "onboarding";
-                  const isPlaybackPage = page.id === "playback";
-
-                  // Rendered as a sub-item under the Chat section below.
-                  if (page.id === "data-parts") {
-                    return null;
-                  }
+                  const isTranscriptPage = page.id === "transcript";
                   const pageSearch =
-                    isChatStreamPage && defaultSessionId
-                      ? { session: defaultSessionId }
-                      : isPlaybackPage && defaultScenarioId
-                        ? { scenario: defaultScenarioId }
-                        : undefined;
+                    isTranscriptPage && defaultScenarioId
+                      ? { scenario: defaultScenarioId }
+                      : undefined;
 
                   return (
                     <SidebarMenuItem key={page.id}>
@@ -105,8 +87,8 @@ function RouteComponent() {
                           <span>{page.label}</span>
                         </InternalLink>
                       </SidebarMenuButton>
-                      {isPlaybackPage && playbackPage && (
-                        <Collapsible open={isPlaybackRoute}>
+                      {isTranscriptPage && transcriptPage && (
+                        <Collapsible open={isTranscriptRoute}>
                           <CollapsibleContent>
                             <SidebarMenuSub>
                               {scenarios.map((scenario) => (
@@ -114,58 +96,16 @@ function RouteComponent() {
                                   <SidebarMenuSubButton
                                     asChild
                                     isActive={
-                                      isPlaybackRoute &&
+                                      isTranscriptRoute &&
                                       scenario.id === activeScenarioId
                                     }
                                   >
                                     <InternalLink
                                       allowOpenNewTab={false}
                                       search={{ scenario: scenario.id }}
-                                      to={playbackPage.to}
+                                      to={transcriptPage.to}
                                     >
                                       <span>{scenario.name}</span>
-                                    </InternalLink>
-                                  </SidebarMenuSubButton>
-                                </SidebarMenuSubItem>
-                              ))}
-                            </SidebarMenuSub>
-                          </CollapsibleContent>
-                        </Collapsible>
-                      )}
-                      {isChatStreamPage && chatStreamPage && (
-                        <Collapsible open={isChatSectionOpen}>
-                          <CollapsibleContent>
-                            <SidebarMenuSub>
-                              {dataPartsPage && (
-                                <SidebarMenuSubItem>
-                                  <SidebarMenuSubButton
-                                    asChild
-                                    isActive={isDataPartsRoute}
-                                  >
-                                    <InternalLink
-                                      allowOpenNewTab={false}
-                                      to={dataPartsPage.to}
-                                    >
-                                      <span>{dataPartsPage.label}</span>
-                                    </InternalLink>
-                                  </SidebarMenuSubButton>
-                                </SidebarMenuSubItem>
-                              )}
-                              {presetSessions.map((session) => (
-                                <SidebarMenuSubItem key={session.id}>
-                                  <SidebarMenuSubButton
-                                    asChild
-                                    isActive={
-                                      isChatStreamRoute &&
-                                      session.id === activeSessionId
-                                    }
-                                  >
-                                    <InternalLink
-                                      allowOpenNewTab={false}
-                                      search={{ session: session.id }}
-                                      to={chatStreamPage.to}
-                                    >
-                                      <span>{session.name}</span>
                                     </InternalLink>
                                   </SidebarMenuSubButton>
                                 </SidebarMenuSubItem>

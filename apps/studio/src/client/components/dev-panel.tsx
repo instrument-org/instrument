@@ -40,7 +40,7 @@ import {
   debugNavigationRoutes,
   onboardingScreens,
 } from "@/client/routes/_app/debug/-debug-routes";
-import { presetSessions } from "@/client/routes/_app/debug/-sessions";
+import { scenarios } from "@/client/routes/_app/debug/-transcript/scenarios";
 import { rpcClient } from "@/client/rpc/client";
 import {
   FEATURE_METADATA,
@@ -206,7 +206,7 @@ export function DevPanel() {
 
   function handleNavigate(
     to: NavigateTo,
-    search?: { session: string },
+    search?: { scenario: string },
     params?: Record<string, string>,
   ) {
     // `to` is widened to the full route union here, so TS can't correlate it
@@ -308,27 +308,27 @@ export function DevPanel() {
                     </MenubarSubTrigger>
                     <MenubarSubContent>
                       {componentPages.map((page) => {
-                        const isChatStreamPage = page.id === "chat-stream";
                         const isOnboardingPage = page.id === "onboarding";
+                        const isTranscriptPage = page.id === "transcript";
 
-                        if (isChatStreamPage) {
+                        if (isTranscriptPage) {
                           return (
                             <MenubarSub key={page.id}>
                               <MenubarSubTrigger className="font-mono text-xs">
                                 {page.label}
                               </MenubarSubTrigger>
                               <MenubarSubContent>
-                                {presetSessions.map((session) => (
+                                {scenarios.map((scenario) => (
                                   <MenubarItem
                                     className="font-mono text-xs"
-                                    key={session.id}
+                                    key={scenario.id}
                                     onSelect={() => {
                                       handleNavigate(page.to, {
-                                        session: session.id,
+                                        scenario: scenario.id,
                                       });
                                     }}
                                   >
-                                    {session.name}
+                                    {scenario.name}
                                   </MenubarItem>
                                 ))}
                               </MenubarSubContent>

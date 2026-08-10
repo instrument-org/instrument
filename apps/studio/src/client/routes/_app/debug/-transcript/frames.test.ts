@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildFrames, type Frame } from "./frames";
 import { scenarios } from "./scenarios";
-import { batch, prose, sameStep, user } from "./script";
+import { batch, fail, maxSteps, prose, sameStep, user } from "./script";
 import { activity, read } from "./tools";
 
 /** Each frame as what it is, then the state of every part in order. */
@@ -148,5 +148,40 @@ describe("buildFrames", () => {
 
     expect(frames[0]?.mark).toEqual({ kind: "user" });
     expect(frames[0]?.messages).toHaveLength(1);
+  });
+
+  // The error is recorded on the step the request was made from, not as a part,
+  // so a turn that said something before it broke has to keep both.
+  it("puts an error on the step it happened in", () => {
+    const [frame] = buildFrames([
+      sameStep(
+        prose("I'll start by"),
+        fail({ kind: "unknown", message: "it broke" }),
+      ),
+    ]).slice(-1);
+    const message = frame?.messages.at(-1);
+
+    expect(message?.role === "assistant" && message.metadata.error).toEqual({
+      kind: "unknown",
+      message: "it broke",
+    });
+    expect(message?.parts).toHaveLength(1);
+    expect(frame?.isAgentRunning).toBe(false);
+  });
+
+  // A transcript of a bad afternoon is several failed turns in a row, and every
+  // one of them but the last has a live turn after it.
+  it.each([
+    ["an error", fail({ kind: "unknown", message: "it broke" })],
+    ["the step cap", maxSteps(200)],
+  ])("has the agent working again after %s, once asked again", (_what, act) => {
+    const frames = buildFrames([user("go"), act, user("again")]);
+
+    expect(frames.map((frame) => frame.isAgentRunning)).toEqual([
+      true,
+      false,
+      true,
+      false,
+    ]);
   });
 });

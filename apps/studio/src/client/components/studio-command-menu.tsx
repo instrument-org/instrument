@@ -12,7 +12,7 @@ import { toggleSidebar } from "@/client/hooks/use-sidebar";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import { debugPages } from "@/client/routes/_app/debug/-debug-routes";
-import { presetSessions } from "@/client/routes/_app/debug/-sessions";
+import { scenarios } from "@/client/routes/_app/debug/-transcript/scenarios";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type Project,
@@ -41,7 +41,7 @@ import { RelativeTime } from "./relative-time";
 interface DebugItem {
   key: string;
   label: string;
-  search?: { session: string };
+  search?: { scenario: string };
   to: string;
 }
 
@@ -177,9 +177,9 @@ export function StudioCommandMenu() {
   const isOnNewTabPage = !!newTabRouteMatch;
   const commandSearch = search.trim().toLowerCase();
 
-  // In developer mode every debug page is a flat, top-level entry (preset chat
-  // sessions included, deep-linked via the session search param). Shown on open
-  // and fuzzy-filtered by name as the user types.
+  // In developer mode every debug page is a flat, top-level entry (transcript
+  // scenarios included, deep-linked via the scenario search param). Shown on
+  // open and fuzzy-filtered by name as the user types.
   const developerMode = preferences.developerMode;
   const matchedDebugItems = useMemo((): MatchedDebugItem[] => {
     if (!developerMode) {
@@ -191,11 +191,11 @@ export function StudioCommandMenu() {
         label: page.label,
         to: page.to,
       })),
-      ...presetSessions.map((session) => ({
-        key: `session:${session.id}`,
-        label: session.name,
-        search: { session: session.id },
-        to: "/debug/components/chat-stream",
+      ...scenarios.map((scenario) => ({
+        key: `scenario:${scenario.id}`,
+        label: scenario.name,
+        search: { scenario: scenario.id },
+        to: "/debug/components/transcript",
       })),
     ];
 

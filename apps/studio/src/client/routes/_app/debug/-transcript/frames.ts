@@ -1,10 +1,17 @@
+import { SYNTHETIC_MODEL_ID } from "@instrument-org/shared";
 import {
+  type AgentName,
   type SessionMessage,
   type SessionMessagePart,
   StoreId,
 } from "@instrument-org/workspace/client";
 
-import { type Act, type ToolCall, type ToolType } from "./script";
+import {
+  type Act,
+  type DataPart,
+  type ToolCall,
+  type TurnError,
+} from "./script";
 
 /** One moment in the transcript: what the chat stream would draw right then. */
 export interface Frame {
@@ -30,25 +37,38 @@ export interface Frame {
  */
 export interface FrameMark {
   /**
-   * What the call was about, from its own input. The transcript may draw
-   * nothing for it -- an activity with a blank title does not -- and then this
-   * is the only way to tell from the timeline what the frame even was.
+   * What the step was about, from its own input. The transcript may draw
+   * nothing for it -- an activity with a blank title does not, and a data part
+   * draws nothing outside developer mode -- and then this is the only way to
+   * tell from the timeline what the frame even was.
    */
   detail?: string;
-  kind: "call" | "pause" | "prose" | "reasoning" | "turn" | "user";
+  kind:
+    | "call"
+    | "context"
+    | "empty-step"
+    | "notes"
+    | "pause"
+    | "prose"
+    | "reasoning"
+    | "turn"
+    | "user";
   /**
    * Where the step has got to, for the kinds that pass through states.
    *
-   * Every one of these but the last two is a part state: `streaming` is
+   * Every one of these but the last four is a part state: `streaming` is
    * `input-streaming` on a call and `streaming` on text, `done` is
    * `output-available` and `done`, `failed` is `output-error`. `queued` and
    * `running` are the one split the SDK's states cannot express on their own,
    * since a call waiting its turn and a call executing are both
-   * `input-available` and only `startedAt` tells them apart. `settled` and
-   * `stopped` belong to the turn rather than to any part: the agent finishing
-   * and the agent being stopped.
+   * `input-available` and only `startedAt` tells them apart. `settled`,
+   * `stopped` and `capped` belong to the turn rather than to any part: the agent
+   * finishing, the agent being stopped, and the run reaching the step cap. A
+   * turn is `failed` when the request itself errored, which is the word a call
+   * uses for the same thing.
    */
   phase?:
+    | "capped"
     | "done"
     | "failed"
     | "queued"
@@ -57,12 +77,20 @@ export interface FrameMark {
     | "stopped"
     | "streaming";
   /** The tool, when the frame is a call, so the row can draw its icon. */
-  toolType?: ToolType;
+  toolType?: ToolCall["type"];
 }
+
+/** The agent every transcript here is attributed to; there is only the one. */
+const AGENT_NAME: AgentName = "main";
 
 // How far the clock moves between frames. Fixed, so a scenario reads the same
 // every time it is built and the durations rows report are stable.
 const TICK_MS = 400;
+
+/** The model an errored turn asked for, when the error is about the model. */
+type GatewayModel = NonNullable<
+  SessionMessage.AssistantWithParts["metadata"]["aiGatewayModel"]
+>;
 
 /** Where one call lives: fixed for its whole life, so its states replace it. */
 interface Seat {
@@ -107,6 +135,26 @@ class Playback {
         this.call(act, ownStep);
         return;
       }
+      case "context": {
+        this.context(act.realRole, act.text);
+        return;
+      }
+      case "empty-step": {
+        this.emptyStep();
+        return;
+      }
+      case "fail": {
+        this.fail(act.error, act.model, ownStep);
+        return;
+      }
+      case "max-steps": {
+        this.maxSteps(act.maxStepCount);
+        return;
+      }
+      case "notes": {
+        this.notes(act.parts, ownStep);
+        return;
+      }
       case "pause": {
         // No change to the parts at all, which makes this the one frame that
         // must draw exactly what the frame before it drew.
@@ -134,7 +182,7 @@ class Playback {
         return;
       }
       case "user": {
-        this.user(act.text);
+        this.user(act.text, act.parts);
         return;
       }
     }
@@ -196,25 +244,143 @@ class Playback {
     this.snapshot(mark(call, "error" in call ? "failed" : "done"));
   }
 
+  private context(
+    realRole: SessionMessage.Context["metadata"]["realRole"],
+    text: string,
+  ) {
+    const messageId = StoreId.newMessageId();
+    this.messages = [
+      ...this.messages,
+      {
+        id: messageId,
+        metadata: {
+          agentName: AGENT_NAME,
+          createdAt: this.time(),
+          realRole,
+          sessionId: this.sessionId,
+        },
+        parts: [
+          {
+            metadata: this.partMetadata(messageId),
+            state: "done",
+            text,
+            type: "text",
+          },
+        ],
+        role: "session-context",
+      },
+    ];
+    this.snapshot({ detail: realRole, kind: "context" });
+  }
+
+  // A step the model opened and closed without saying anything. The `step-start`
+  // is all a real one leaves behind, and it draws nothing.
+  private emptyStep() {
+    this.beginStep();
+    const message = this.messages.at(-1);
+    if (!message) {
+      throw new Error("a step-start needs its own step");
+    }
+    this.put({
+      metadata: { ...this.partMetadata(message.id), stepCount: 0 },
+      type: "step-start",
+    });
+    this.snapshot({ kind: "empty-step" });
+  }
+
+  // The request itself came back an error, which the runtime records on the step
+  // it was making rather than as something the model said.
+  private fail(
+    error: TurnError,
+    model: GatewayModel | undefined,
+    ownStep: boolean,
+  ) {
+    if (ownStep) {
+      this.beginStep();
+    }
+    const message = this.messages.at(-1);
+    if (message?.role !== "assistant") {
+      throw new Error("an error needs an open assistant step to land on");
+    }
+    this.messages = [
+      ...this.messages.slice(0, -1),
+      {
+        ...message,
+        metadata: {
+          ...message.metadata,
+          aiGatewayModel: model,
+          error,
+          finishReason: "error",
+        },
+      },
+    ];
+    this.running = false;
+    this.snapshot({ detail: error.kind, kind: "turn", phase: "failed" });
+  }
+
+  private maxSteps(maxStepCount: number) {
+    const messageId = StoreId.newMessageId();
+    this.messages = [
+      ...this.messages,
+      {
+        id: messageId,
+        metadata: {
+          createdAt: this.time(),
+          finishReason: "max-steps",
+          modelId: SYNTHETIC_MODEL_ID,
+          providerId: "system",
+          sessionId: this.sessionId,
+          synthetic: true,
+        },
+        parts: [
+          {
+            data: { maxStepCount },
+            metadata: this.partMetadata(messageId),
+            type: "data-maxSteps",
+          },
+        ],
+        role: "assistant",
+      },
+    ];
+    this.running = false;
+    this.snapshot({ kind: "turn", phase: "capped" });
+  }
+
   private newSeat(): Seat {
     this.toolCallCounter++;
     return {
-      metadata: this.partMetadata(),
+      metadata: this.openPartMetadata(),
       toolCallId: StoreId.ToolCallSchema.parse(
         `call_${this.toolCallCounter.toString()}`,
       ),
     };
   }
 
-  private partMetadata(): SessionMessagePart.ToolPartMetadata {
+  private notes(parts: DataPart[], ownStep: boolean) {
+    if (ownStep) {
+      this.beginStep();
+    }
+    for (const part of parts) {
+      this.put(dataPart(part, this.openPartMetadata()));
+    }
+    this.snapshot({ detail: describeParts(parts), kind: "notes" });
+  }
+
+  private openPartMetadata(): SessionMessagePart.ToolPartMetadata {
     const message = this.messages.at(-1);
     if (!message) {
       throw new Error("a part needs a message to land in");
     }
+    return this.partMetadata(message.id);
+  }
+
+  private partMetadata(
+    messageId: StoreId.Message,
+  ): SessionMessagePart.ToolPartMetadata {
     return {
       createdAt: this.time(),
       id: StoreId.newPartId(),
-      messageId: message.id,
+      messageId,
       sessionId: this.sessionId,
     };
   }
@@ -261,7 +427,7 @@ class Playback {
     if (ownStep) {
       this.beginStep();
     }
-    const metadata = this.partMetadata();
+    const metadata = this.openPartMetadata();
     const kind = type === "text" ? "prose" : "reasoning";
     for (const partial of growingChunks(text, chunkCount)) {
       this.put({ metadata, state: "streaming", text: partial, type });
@@ -281,30 +447,36 @@ class Playback {
     return new Date(this.clock);
   }
 
-  private user(text: string) {
+  private user(text: string, parts: DataPart[]) {
     const messageId = StoreId.newMessageId();
+    // A message can be nothing but its attachments, which is what dropping a
+    // file in and pressing send produces.
+    const written: SessionMessagePart.Type[] = text
+      ? [
+          {
+            metadata: this.partMetadata(messageId),
+            state: "done",
+            text,
+            type: "text",
+          },
+        ]
+      : [];
     this.messages = [
       ...this.messages,
       {
         id: messageId,
         metadata: { createdAt: this.time(), sessionId: this.sessionId },
         parts: [
-          {
-            metadata: {
-              createdAt: this.time(),
-              id: StoreId.newPartId(),
-              messageId,
-              sessionId: this.sessionId,
-            },
-            state: "done",
-            text,
-            type: "text",
-          },
+          ...written,
+          ...parts.map((part) => dataPart(part, this.partMetadata(messageId))),
         ],
         role: "user",
       },
     ];
-    this.snapshot({ kind: "user" });
+    // However the turn before it ended, the agent is working again the moment
+    // there is something new to answer.
+    this.running = true;
+    this.snapshot({ detail: describeParts(parts), kind: "user" });
   }
 }
 
@@ -314,7 +486,8 @@ class Playback {
  * The whole point is that this is a fold: frame `n` is the transcript after the
  * first `n` events and nothing else, so scrubbing is indexing and there is no
  * timer anywhere in the model. Playing is a timer advancing the index, which
- * means play, drag, and single-step all show the same thing.
+ * means play, drag, and single-step all show the same thing. The last frame is
+ * the finished transcript, which is what the page draws when it is not playing.
  *
  * Frames share structure. Each one replaces only the message and the part that
  * changed, so React's identity checks see exactly what a live stream would
@@ -322,6 +495,28 @@ class Playback {
  */
 export function buildFrames(script: Act[], startedAt = 0): Frame[] {
   return new Playback(startedAt).run(script);
+}
+
+/**
+ * A data part with the metadata a store would have given it.
+ *
+ * The cast is the inverse of the `Omit` that defines `DataPart`, and it is here
+ * for the reason the ones in `toolPart` are: `data` is checked against `type` at
+ * the point the part is written, and TypeScript cannot carry that pairing back
+ * through a variable of the union type.
+ */
+function dataPart(
+  part: DataPart,
+  metadata: SessionMessagePart.DataPart["metadata"],
+): SessionMessagePart.DataPart {
+  return { ...part, metadata } as SessionMessagePart.DataPart;
+}
+
+/** The data parts a frame landed, named, since not one of them draws a row. */
+function describeParts(parts: DataPart[]): string | undefined {
+  return parts.length === 0
+    ? undefined
+    : parts.map((part) => part.type.replace("data-", "")).join(", ");
 }
 
 /** Successively longer prefixes of `text`, broken at word boundaries. */
@@ -373,7 +568,6 @@ function mark(call: ToolCall, phase: FrameMark["phase"]): FrameMark {
  * TypeScript cannot carry that pairing through a variable of the union type --
  * from here it sees every `type` paired with every `input` -- and narrowing it
  * back would take a branch per tool, which is exactly the list that goes stale.
- * The one phase with no input needs no cast, which is the shape of the problem.
  */
 function toolPart(
   call: ToolCall,
@@ -384,13 +578,14 @@ function toolPart(
   const base = { toolCallId: seat.toolCallId, type: call.type };
 
   if (phase === "streaming") {
-    // No input yet, which is the row drawn from the tool's name alone.
+    // However much of the input had arrived, which is none of it unless the
+    // call says otherwise: the row is then drawn from the tool's name alone.
     return {
       ...base,
-      input: undefined,
+      input: call.streamed,
       metadata: seat.metadata,
       state: "input-streaming",
-    };
+    } as SessionMessagePart.ToolPart;
   }
   if (phase === "queued") {
     return {

@@ -22,7 +22,7 @@ import { type FileRouteTypes } from "../routeTree.gen";
  * compile instead of silently re-enabling restoration.
  */
 const SCROLLER_OWNED_PATHS = [
-  "/debug/components/playback",
+  "/debug/components/transcript",
   "/tasks/$id/",
 ] satisfies FileRouteTypes["fullPaths"][];
 

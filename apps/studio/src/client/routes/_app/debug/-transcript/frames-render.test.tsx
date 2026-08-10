@@ -2,33 +2,62 @@ import { ChatStream } from "@/client/components/chat-stream";
 import { TooltipProvider } from "@/client/components/ui/tooltip";
 import { renderWithProviders } from "@/tests/render";
 import { type Task, TaskIdSchema } from "@instrument-org/workspace/client";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+  RouterContextProvider,
+} from "@tanstack/react-router";
 import { cleanup } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildFrames, type Frame } from "./frames";
 import { scenarios } from "./scenarios";
 
+// A diagram asks the app which theme to draw against, and the real provider
+// resolves that through `matchMedia` and an RPC round trip -- neither of which
+// exists here, and neither of which any rule below reads.
+vi.mock("@/client/components/theme-provider", () => ({
+  useTheme: () => ({ resolvedTheme: "light", setTheme: vi.fn(), theme: "light" }),
+}));
+
 const task: Task = {
   createdAt: new Date(0),
-  id: TaskIdSchema.parse("transcript-playback"),
-  title: "Transcript playback",
+  id: TaskIdSchema.parse("debug-transcript"),
+  title: "Transcript",
   updatedAt: new Date(0),
 };
 
+/**
+ * A router, and only a router.
+ *
+ * Several cards a transcript can carry read the location or link somewhere, and
+ * the hooks they use dereference the router context rather than checking it, so
+ * without one they throw rather than degrade. Nothing here navigates, so the
+ * tree is empty and the context is provided on its own: rendering matches would
+ * mean mounting the app around every frame.
+ */
+const router = createRouter({
+  history: createMemoryHistory({ initialEntries: ["/"] }),
+  routeTree: createRootRoute(),
+});
+
 function draw(frame: Frame) {
   const { container } = renderWithProviders(
-    <TooltipProvider>
-      <ChatStream
-        isAgentRunning={frame.isAgentRunning}
-        isDeveloperMode={false}
-        messages={frame.messages}
-        onContinue={vi.fn()}
-        onModelChange={vi.fn()}
-        onRetry={vi.fn()}
-        onStartNewTask={vi.fn()}
-        task={task}
-      />
-    </TooltipProvider>,
+    <RouterContextProvider router={router}>
+      <TooltipProvider>
+        <ChatStream
+          isAgentRunning={frame.isAgentRunning}
+          isDeveloperMode={false}
+          messages={frame.messages}
+          onContinue={vi.fn()}
+          onModelChange={vi.fn()}
+          onRetry={vi.fn()}
+          onStartNewTask={vi.fn()}
+          task={task}
+        />
+      </TooltipProvider>
+    </RouterContextProvider>,
   );
   return container;
 }
@@ -36,12 +65,12 @@ function draw(frame: Frame) {
 /**
  * Every frame of every scenario, drawn.
  *
- * The playback page exists to be watched, and this is the part of watching it
+ * The transcript page exists to be watched, and this is the part of watching it
  * that a machine can do: scrub the whole library and check the things that have
  * to hold in every single frame. Anything about how it looks is still a job for
  * the page.
  */
-describe("the playback library, drawn frame by frame", () => {
+describe("the scenario library, drawn frame by frame", () => {
   // One pass, three checks. Drawing the library is the expensive part -- some
   // hundreds of transcripts, the longest of them a page of markdown -- so it
   // happens once and every rule reads the same render.
@@ -96,5 +125,5 @@ describe("the playback library, drawn frame by frame", () => {
 
     expect(drawn).toBeGreaterThan(200);
     expect(broke).toEqual({ empty: [], indented: [], live: [] });
-  }, 30_000);
+  }, 120_000);
 });

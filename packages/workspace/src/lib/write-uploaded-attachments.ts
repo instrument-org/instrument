@@ -22,6 +22,7 @@ import { TypedError } from "./errors";
 import { findAvailableName } from "./find-available-name";
 import { getCurrentDate } from "./get-current-date";
 import { getMimeType } from "./get-mime-type";
+import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
 import { sanitizeFilename } from "./sanitize-filename";
 import { getTaskAttachmentsDir } from "./task-dir-utils";
@@ -32,6 +33,9 @@ interface PreparedUploadedFile {
   filename: string;
   filePath: AbsolutePath;
   input: FileUpload.Type;
+  // A source the task already holds is attached where it lies, so there is
+  // nothing to write and `filePath` names the file itself.
+  isInTask: boolean;
   mimeType: string;
   relativePath: RelativePath;
 }
@@ -64,25 +68,27 @@ export async function writeUploadedAttachments({
       });
 
       for (const preparedFile of preparedFiles) {
-        if ("path" in preparedFile.input) {
-          yield* ResultAsync.fromPromise(
-            fs.copyFile(preparedFile.input.path, preparedFile.filePath),
-            (error) =>
-              new TypedError.FileSystem(
-                error instanceof Error ? error.message : "Unknown error",
-                { cause: error },
-              ),
-          );
-        } else {
-          const buffer = Buffer.from(preparedFile.input.content, "base64");
-          yield* ResultAsync.fromPromise(
-            fs.writeFile(preparedFile.filePath, buffer),
-            (error) =>
-              new TypedError.FileSystem(
-                error instanceof Error ? error.message : "Unknown error",
-                { cause: error },
-              ),
-          );
+        if (!preparedFile.isInTask) {
+          if ("path" in preparedFile.input) {
+            yield* ResultAsync.fromPromise(
+              fs.copyFile(preparedFile.input.path, preparedFile.filePath),
+              (error) =>
+                new TypedError.FileSystem(
+                  error instanceof Error ? error.message : "Unknown error",
+                  { cause: error },
+                ),
+            );
+          } else {
+            const buffer = Buffer.from(preparedFile.input.content, "base64");
+            yield* ResultAsync.fromPromise(
+              fs.writeFile(preparedFile.filePath, buffer),
+              (error) =>
+                new TypedError.FileSystem(
+                  error instanceof Error ? error.message : "Unknown error",
+                  { cause: error },
+                ),
+            );
+          }
         }
 
         const stats = yield* ResultAsync.fromPromise(
@@ -95,6 +101,7 @@ export async function writeUploadedAttachments({
         );
 
         if (
+          !preparedFile.isInTask &&
           "path" in preparedFile.input &&
           stats.size !== preparedFile.input.size
         ) {
@@ -233,6 +240,26 @@ function prepareUploadedFiles({
     const reservedFilenames = new Set<string>();
 
     for (const file of files) {
+      if ("path" in file) {
+        yield* await validatePathUpload({ file });
+
+        // A file the task already holds is attached where it lies. Copying it
+        // into `attachments/` would fork it: the agent would work on the copy
+        // while the original the user pointed at silently went stale.
+        const inTaskPath = taskAttachmentPath({ dir, filePath: file.path });
+        if (inTaskPath) {
+          preparedFiles.push({
+            filename: file.filename,
+            filePath: file.path,
+            input: file,
+            isInTask: true,
+            mimeType: file.mimeType,
+            relativePath: inTaskPath,
+          });
+          continue;
+        }
+      }
+
       const sanitized = sanitizeFilename(file.filename);
       const uniqueFilename = yield* ResultAsync.fromPromise(
         getUniqueFilename(inputDir, sanitized, reservedFilenames),
@@ -240,10 +267,6 @@ function prepareUploadedFiles({
       );
 
       reservedFilenames.add(uniqueFilename);
-
-      if ("path" in file) {
-        yield* await validatePathUpload({ dir, file });
-      }
 
       const relativePath = RelativePathSchema.parse(
         `${TASK_FOLDER_NAMES.attachments}/${uniqueFilename}`,
@@ -253,6 +276,7 @@ function prepareUploadedFiles({
         filename: uniqueFilename,
         filePath: absolutePathJoin(dir, relativePath),
         input: file,
+        isInTask: false,
         mimeType: "path" in file ? file.mimeType : getMimeType(uniqueFilename),
         relativePath,
       });
@@ -262,13 +286,32 @@ function prepareUploadedFiles({
   });
 }
 
-function validatePathUpload({
+/**
+ * The task-relative spelling of a path already inside the task, or undefined
+ * for one outside it. The private dir counts as outside: the agent may not read
+ * it, so a file dragged out of there is copied in like any other outside file.
+ */
+function taskAttachmentPath({
   dir,
-  file,
+  filePath,
 }: {
   dir: TaskDir;
-  file: PathFileUpload;
-}) {
+  filePath: AbsolutePath;
+}): RelativePath | undefined {
+  const relative = normalizePath(path.relative(dir, filePath));
+  if (
+    relative === "" ||
+    relative === ".." ||
+    relative.startsWith("../") ||
+    path.isAbsolute(relative) ||
+    relative.split("/")[0] === TASK_FOLDER_NAMES.private
+  ) {
+    return undefined;
+  }
+  return RelativePathSchema.parse(relative);
+}
+
+function validatePathUpload({ file }: { file: PathFileUpload }) {
   return safeTry(async function* () {
     if (!path.isAbsolute(file.path)) {
       yield* err(
@@ -283,19 +326,6 @@ function validatePathUpload({
       yield* err(
         new TypedError.FileSystem(
           `Uploaded file path does not match filename: ${file.filename}`,
-        ),
-      );
-    }
-
-    const relativeSourcePath = path.relative(dir, file.path);
-    if (
-      relativeSourcePath === "" ||
-      (!relativeSourcePath.startsWith("..") &&
-        !path.isAbsolute(relativeSourcePath))
-    ) {
-      yield* err(
-        new TypedError.FileSystem(
-          `Uploaded file is already inside the task: ${file.filename}`,
         ),
       );
     }

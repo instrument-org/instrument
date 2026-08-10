@@ -147,7 +147,7 @@
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@rolldown/plugin-babel": "^0.2.0",
-    "@shadcn/react": "github:mutewinter/ui#a4fb2dc756980ca95e99bc6d955146816fa5b19e",
+    "@shadcn/react": "github:mutewinter/ui#8a4283d26022c01716ca3cb155a075367e1c6e5b",
     "@sqlite.org/sqlite-wasm": "3.53.0-build1",
     "@tailwindcss/browser": "^4.2.2",
     "@tailwindcss/typography": "^0.5.19",

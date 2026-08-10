@@ -60,7 +60,7 @@ export function dataPartVisibility(
     return "hidden";
   }
 
-  return DATA_PART_DISPLAY[part.type];
+  return declaredVisibility(part.type);
 }
 
 export function isDataPart(
@@ -178,11 +178,35 @@ export function renderDataPart({
     }
     default: {
       // A new data-part type must be handled above (and classified in
-      // DATA_PART_DISPLAY); this fails the build otherwise.
-      const _exhaustiveCheck: never = part;
-      return _exhaustiveCheck;
+      // DATA_PART_DISPLAY); `satisfies never` fails the build otherwise.
+      //
+      // Returning the part instead of null is what made an unrecognised type
+      // fatal rather than invisible: React was handed a message part as a child
+      // and took the whole transcript down with it. Unreachable now that
+      // `declaredVisibility` hides what it does not recognise, and cheap to
+      // keep correct anyway.
+      part satisfies never;
+      return null;
     }
   }
+}
+
+/**
+ * How a part type is classified, or "hidden" for one this build has never heard
+ * of.
+ *
+ * The transcript draws what earlier builds persisted, and a part outlives the
+ * feature that wrote it: `data-gitCommit` is still sitting in tasks from before
+ * git-based file versioning was removed. Parts are cast to their schema type on
+ * read rather than parsed, so nothing upstream filters those out, and the record
+ * cannot describe them either -- it is keyed by the types that exist now. So the
+ * lookup is widened here, and a type with no classification draws nothing.
+ */
+function declaredVisibility(type: string): DataPartVisibility {
+  const declared: Record<string, DataPartVisibility | undefined> =
+    DATA_PART_DISPLAY;
+
+  return declared[type] ?? "hidden";
 }
 
 function isSurfacedFileChange(

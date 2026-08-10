@@ -71,9 +71,27 @@ function TooltipProvider({
 }
 
 function TooltipTrigger({
+  onFocus,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
+  return (
+    <TooltipPrimitive.Trigger
+      data-slot="tooltip-trigger"
+      onFocus={(event) => {
+        onFocus?.(event);
+        // Radix opens on focus, and a menu or dialog hands focus back to
+        // whatever opened it when it closes: the tooltip returns over a choice
+        // the user has just finished making, uninvited. A visible focus is the
+        // arrival that did ask for it, since reading a control is all a
+        // keyboard user can do before acting on it. Preventing the default is
+        // how Radix's composed handler is told to stay out of this one.
+        if (!event.currentTarget.matches(":focus-visible")) {
+          event.preventDefault();
+        }
+      }}
+      {...props}
+    />
+  );
 }
 
 const TooltipRoot = TooltipPrimitive.Root;

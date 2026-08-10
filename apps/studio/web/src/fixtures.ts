@@ -162,6 +162,45 @@ const tasks = [
   },
 ] satisfies Task[];
 
+// More than a menu can show at once, on purpose: the composer's list of skills
+// is one of the few things here that has to be scrolled to be read, and a
+// fixture of three never shows that.
+const skills = [
+  ["brand-voice", "Rewrite copy in the house voice, with the words we avoid"],
+  ["changelog", "Turn a range of commits into release notes people can read"],
+  ["competitor-scan", "Collect how other products word a screen like this one"],
+  ["design-review", "Check a screen against the type, spacing and color rules"],
+  ["invoice", "Pull the amounts and dates out of a bill and total them"],
+  [
+    "meeting-notes",
+    "Write up a transcript as decisions, owners and next steps",
+  ],
+  ["pricing-model", "Build a sheet that prices a plan against its costs"],
+  ["research-brief", "Gather sources on a question and say what they agree on"],
+  ["screenshot-diff", "Say what moved between two captures of the same screen"],
+  ["seo-audit", "Read a page the way a crawler does and list what it misses"],
+  ["slide-deck", "Draft a deck from an outline, one idea per slide"],
+  ["sql-explain", "Say in prose what a query returns and what it costs"],
+].map(([name = "", description = ""], index) => {
+  // Two sources, so the label on the right of a row has something to tell
+  // apart and its tooltip has two answers.
+  const source = index % 3 === 0 ? "claude" : "workspace";
+  return {
+    aliases: [],
+    description,
+    // The stable ID a mention stores, which is the source and the name: a
+    // token in the prompt is resolved back to a skill through it, so an ID of
+    // any other shape leaves the chip permanently unresolved.
+    id: `${source}:${name}`,
+    name,
+    path: `/workspace/.skills/${name}`,
+    qualifiedName: `${source}:${name}`,
+    source,
+    title: name,
+    userInvocable: true,
+  };
+});
+
 const byId = (input: unknown) =>
   tasks.find((t) => t.id === (input as { id: string }).id) ?? null;
 
@@ -174,8 +213,9 @@ export const FIXTURES: Record<string, unknown> = {
   "browser.live.restoreHostFocus": undefined,
   "browser.live.targets": [],
   "debug.getAppEnvironment": { isPackaged: false },
-  "features.getAll": {},
-  "features.live.getAll": {},
+  // Skills on, so the composer's menu carries the group a typed slash reaches.
+  "features.getAll": { skills: true },
+  "features.live.getAll": { skills: true },
   "gateway.models.list": { errors: [], models },
   "gateway.models.live.list": { errors: [], models },
   // Snapshots, not the mutable object: handing out the same reference the
@@ -204,7 +244,7 @@ export const FIXTURES: Record<string, unknown> = {
   // has to be an array. Empty means the task opens with no session rather than
   // pulling a whole transcript fixture in behind it.
   "workspace.session.list": [],
-  "workspace.skill.list": [],
+  "workspace.skill.list": skills,
   "workspace.skill.live.changed": undefined,
   // Keyed by task, so this one reads its input: no task has a running agent.
   "workspace.task.agentStatus.live.byId": (input: unknown) => ({

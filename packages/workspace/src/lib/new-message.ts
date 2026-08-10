@@ -16,7 +16,6 @@ import { detectAttachedFolderChanges } from "./attached-folder-changes";
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createPaneTabsPart } from "./create-pane-tabs-part";
 import { detectProjectChanges } from "./detect-project-changes";
-import { detectExternalFileChanges } from "./external-file-changes";
 import { taskDir } from "./task-dir-utils";
 import { setTaskState } from "./task-state-store";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -137,18 +136,6 @@ export async function newMessage({
   });
   if (paneTabsPart) {
     parts.push(paneTabsPart);
-  }
-
-  const externalChanges = await detectExternalFileChanges({
-    messageId,
-    sessionId,
-    taskId,
-  });
-  if (externalChanges.isErr()) {
-    // Awareness of disk changes is best-effort; never block sending.
-    getWorkspaceConfig().captureException(externalChanges.error);
-  } else if (externalChanges.value) {
-    parts.push(externalChanges.value);
   }
 
   // Notify agent when the live project's instructions or folders drift from the

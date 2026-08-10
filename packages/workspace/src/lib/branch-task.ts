@@ -6,7 +6,6 @@ import { type TaskId, TaskIdSchema } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
 import { copyTask } from "./copy-task";
 import { TypedError } from "./errors";
-import { clearFileIndexBaselines } from "./file-index-baseline";
 import { generateBranchFolderName } from "./generate-task-folder-name";
 import { pathExists } from "./path-exists";
 import { Store } from "./store";
@@ -93,7 +92,6 @@ export async function branchTask(
       const targetPrivateDir = getTaskPrivateDir(taskDir(taskId));
       await fs.mkdir(targetPrivateDir, { recursive: true });
       await fs.copyFile(sourceSessionDbPath, targetSessionDbPath);
-      yield* clearFileIndexBaselines(taskId, { signal });
 
       if (branchPoint) {
         const messageIdsAfter = yield* Store.getMessageIdsAfter(

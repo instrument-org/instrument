@@ -16,7 +16,6 @@ import {
 } from "../lib/build-project-context-text";
 import { getEffectiveProjectContext } from "../lib/effective-project-context";
 import { TypedError } from "../lib/errors";
-import { setFileIndexBaseline } from "../lib/file-index-baseline";
 import { getCurrentDate } from "../lib/get-current-date";
 import { outputArtifactsFromChanges } from "../lib/get-task-files";
 import { isToolPart } from "../lib/is-tool-part";
@@ -350,25 +349,12 @@ export const mainAgent = setupAgent({
     return [systemMessage, userMessage];
   },
   onFinish: async ({ parentMessageId, sessionId, signal, taskId }) => {
-    const [{ after, changes: fileChanges }, skillChanges] = await Promise.all([
+    const [{ changes: fileChanges }, skillChanges] = await Promise.all([
       // Always consume so the watcher ref acquired in onStart is released, even
       // when we skip saving the change summary below.
       consumeTurnChanges({ id: taskId, sessionId }),
       consumeSkillChanges({ id: taskId, sessionId }),
     ]);
-
-    // Advance the cross-turn baseline to the post-turn tree so the agent's own
-    // changes aren't re-reported as external on the next user message.
-    if (after) {
-      const baselineResult = await setFileIndexBaseline(
-        taskId,
-        sessionId,
-        after,
-      );
-      if (baselineResult.isErr()) {
-        getWorkspaceConfig().captureException(baselineResult.error);
-      }
-    }
 
     // Skills live outside the task tree, in the shared writable `/skills`
     // mount, so the file watcher above never sees them and a turn that only

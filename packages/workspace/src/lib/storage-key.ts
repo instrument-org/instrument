@@ -3,7 +3,6 @@ import { StoreId } from "../schemas/store-id";
 export namespace StorageKey {
   const SEPARATOR = ":";
   export const MESSAGES_KEY = "messages";
-  export const FILE_INDEX_BASELINE_KEY = "file-index-baseline";
 
   // Per-session baseline of the task's attached folders, diffed against the
   // current set when composing a user message to detect folders the user
@@ -29,13 +28,6 @@ export namespace StorageKey {
 
   export function extractSessionId(sessionKey: string): StoreId.Session {
     return StoreId.SessionSchema.parse(sessionKey.split(SEPARATOR).at(-1));
-  }
-
-  // Per-session baseline of the on-disk file index, diffed against a fresh walk
-  // when composing a user message to detect changes made between turns. Keyed by
-  // session so concurrent chats in the same task each track what they witnessed.
-  export function fileIndexBaseline(sessionId: StoreId.Session) {
-    return [FILE_INDEX_BASELINE_KEY, sessionId].join(SEPARATOR);
   }
 
   export function message(

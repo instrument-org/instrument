@@ -7,7 +7,6 @@ export {
 } from "./constants";
 export { attachedFolderChangesModelNote } from "./lib/attached-folder-changes-model-text";
 export { browserStatusModelNote } from "./lib/browser-status-model-text";
-export { externalFileChangesModelNote } from "./lib/external-file-changes-model-text";
 export { formatBytes } from "./lib/format-bytes";
 export { getToolNameByType } from "./lib/get-tool-name-by-type";
 export { isInteractiveTool } from "./lib/is-interactive-tool";

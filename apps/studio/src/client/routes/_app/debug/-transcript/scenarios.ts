@@ -979,19 +979,6 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
         },
         {
           data: {
-            files: [
-              changedFile({
-                filePath: "src/tokens.css",
-                mimeType: "text/css",
-                size: 1200,
-                status: "modified",
-              }),
-            ],
-          },
-          type: "data-externalFileChanges",
-        },
-        {
-          data: {
             accessChanged: [
               { access: "read-only", name: "Photos", path: "/tmp/Photos" },
             ],

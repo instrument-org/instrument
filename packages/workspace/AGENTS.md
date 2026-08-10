@@ -15,7 +15,7 @@ Core AI agents, workflow logic, RPC, tools, and runtime.
 ## Context messages
 
 - `session-context` message (system prompt + `agent.getMessages`) persisted once per session, reused across turns. `prepare-model-messages.ts` rebuilds only when stale (`STALE_MESSAGE_THRESHOLD_MINUTES`, 60 min).
-- So `getMessages`-derived values (project instructions, folder list, task layout) lag up to 60 min. Need-it-now changes: attach a per-turn `data-*` part to the user message (`detect-project-changes.ts`, `external-file-changes.ts`). Derive standing values from current state (`getEffectiveProjectContext`) so rebuild doesn't revert to a stale snapshot.
+- So `getMessages`-derived values (project instructions, folder list, task layout) lag up to 60 min. Need-it-now changes: attach a per-turn `data-*` part to the user message (`detect-project-changes.ts`, `create-pane-tabs-part.ts`). Derive standing values from current state (`getEffectiveProjectContext`) so rebuild doesn't revert to a stale snapshot.
 
 ## Evals
 

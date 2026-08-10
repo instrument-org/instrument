@@ -18,7 +18,6 @@ import { attachedFolderChangesModelNote } from "../../lib/attached-folder-change
 import { attachedFolderMountPoint } from "../../lib/attached-folder-mounts";
 import { browserStatusModelNote } from "../../lib/browser-status-model-text";
 import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text";
-import { externalFileChangesModelNote } from "../../lib/external-file-changes-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
@@ -321,20 +320,6 @@ export namespace SessionMessage {
             injectedParts.push({ text: note, type: "text" });
           }
           previousPaneTabsNote = note;
-        }
-
-        const externalChangesPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-externalFileChanges";
-          } => part.type === "data-externalFileChanges",
-        );
-        if (externalChangesPart) {
-          const note = externalFileChangesModelNote(externalChangesPart.data);
-          if (note) {
-            injectedParts.push({ text: note, type: "text" });
-          }
         }
 
         const folderChangesPart = message.parts.find(

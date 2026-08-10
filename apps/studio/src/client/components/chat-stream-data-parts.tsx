@@ -2,7 +2,6 @@ import { isSurfacedTaskFile } from "@/client/lib/task-file-visibility";
 import {
   attachedFolderChangesModelNote,
   browserStatusModelNote,
-  externalFileChangesModelNote,
   maxStepsModelNote,
   paneTabsModelNote,
   type SessionMessageDataPart,
@@ -30,7 +29,6 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-attachedFolderChanges": "dev",
   "data-attachments": "hidden",
   "data-browserStatus": "dev",
-  "data-externalFileChanges": "dev",
   // Superseded by the ```files fence, which is the agent's own account of what
   // it produced. The two overlap almost exactly -- the agent names the files it
   // just wrote, which are the files the watcher just saw -- so a turn showed
@@ -115,16 +113,6 @@ export function renderDataPart({
           text={browserStatusModelNote(part.data)}
         />
       );
-    }
-    case "data-externalFileChanges": {
-      const note = externalFileChangesModelNote(part.data);
-      return note ? (
-        <ModelContextDebugCard
-          className="mt-2"
-          key={part.metadata.id}
-          text={note}
-        />
-      ) : null;
     }
     case "data-fileChanges": {
       return (

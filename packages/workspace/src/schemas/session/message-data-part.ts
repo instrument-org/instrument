@@ -10,7 +10,6 @@ export namespace SessionMessageDataPart {
     "attachedFolderChanges",
     "attachments",
     "browserStatus",
-    "externalFileChanges",
     "fileChanges",
     "intent",
     "skillChanges",
@@ -44,16 +43,6 @@ export namespace SessionMessageDataPart {
   });
 
   export type FileChangesDataPart = z.output<typeof FileChangesDataPartSchema>;
-
-  // Changes detected on disk between turns (created outside the agent), attached
-  // to the user message that triggered the next turn so the model is aware.
-  const ExternalFileChangesDataPartSchema = z.object({
-    files: z.array(FileChangeDataPartItemSchema),
-  });
-
-  export type ExternalFileChangesDataPart = z.output<
-    typeof ExternalFileChangesDataPartSchema
-  >;
 
   // Attached folders removed, renamed, or re-permissioned since the model last
   // saw them -- attached to the user message that triggers the next turn so the
@@ -254,7 +243,6 @@ export namespace SessionMessageDataPart {
       AttachedFolderChangesDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
-    [NameSchema.enum.externalFileChanges]: ExternalFileChangesDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,

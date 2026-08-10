@@ -21,6 +21,8 @@ export function PortalContainerProvider({ children }: { children: ReactNode }) {
         compound with the inherited zoom (double-scaled, mispositioned overlays).
       */}
       <div
+        // `data-slot` is what the stylesheet keeps everything portalled here
+        // out of the window's drag region by.
         data-slot="portal-container"
         ref={setContainer}
         style={zoom === 1 ? undefined : { zoom: 1 / zoom }}

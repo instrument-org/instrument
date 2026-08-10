@@ -688,6 +688,17 @@ body {
   }
 }
 
+/* Nothing that floats above the app is a handle for the window behind it.
+ * `-webkit-app-region` does not inherit, so this reaches every box inside the
+ * portal target rather than the target alone: a menu or a tooltip reaching over
+ * the title bar would otherwise keep the drag region it covers and stop
+ * answering the pointer at all, which reads as an item that cannot be hovered
+ * or clicked. */
+[data-slot="portal-container"],
+[data-slot="portal-container"] * {
+  -webkit-app-region: no-drag;
+}
+
 /* Adhere to standard macOS cursor behavior. */
 a {
   cursor: default;

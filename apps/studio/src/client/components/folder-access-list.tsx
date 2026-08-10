@@ -30,6 +30,7 @@ import {
   ShieldWarningIcon,
   XIcon,
 } from "@phosphor-icons/react";
+import { Fragment } from "react";
 import { toast } from "sonner";
 
 export interface FolderAccess {
@@ -110,21 +111,40 @@ export function FolderAccessControl({
         )}
       </Tooltip>
       <DropdownMenuContent align="end">
-        {ACCESS_ORDER.map((value) => (
-          <DropdownMenuCheckboxItem
-            checked={access === value}
-            // The checked row carries the emphasis, so the two read as a
-            // current choice and an alternative rather than a pair of options.
-            className="data-[state=checked]:text-foreground"
-            key={value}
-            onSelect={() => {
-              onChange(value);
-            }}
-          >
-            <FolderAccessIcon access={value} />
-            {ACCESS_LABELS[value]}
-          </DropdownMenuCheckboxItem>
-        ))}
+        {ACCESS_ORDER.map((value) => {
+          const item = (
+            <DropdownMenuCheckboxItem
+              checked={access === value}
+              // The checked row carries the emphasis, so the two read as a
+              // current choice and an alternative rather than a pair of options.
+              className="data-[state=checked]:text-foreground"
+              onSelect={() => {
+                onChange(value);
+              }}
+            >
+              <FolderAccessIcon access={value} />
+              {ACCESS_LABELS[value]}
+            </DropdownMenuCheckboxItem>
+          );
+
+          if (value !== "read-write") {
+            return <Fragment key={value}>{item}</Fragment>;
+          }
+
+          // The row is where the choice is actually made, so what it means has
+          // to be readable from here too: whoever opened this menu to find out
+          // what full access is should not have to close it again to be told.
+          // Beside the menu rather than over it, so the other option stays
+          // visible while this one is being read.
+          return (
+            <Tooltip key={value}>
+              <TooltipTrigger asChild>{item}</TooltipTrigger>
+              <TooltipContent side="right">
+                {FULL_ACCESS_WARNING}
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );

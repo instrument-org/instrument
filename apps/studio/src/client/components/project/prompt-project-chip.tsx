@@ -41,11 +41,15 @@ export function PromptProjectChip({
         <CardsThreeIcon className="size-5 shrink-0" />
         <span className="max-w-32 truncate">{project.name}</span>
       </button>
-      <span className="grid grid-cols-[0fr] transition-[grid-template-columns] duration-150 ease-out group-hover/chip:grid-cols-[1fr]">
+      {/* The negative margin belongs out here rather than on the button: the
+          column the reveal animates is as wide as the button's margin box, and
+          pulling the button in from inside would crop that much of it off
+          against the clip below. */}
+      <span className="-mr-0.5 grid grid-cols-[0fr] transition-[grid-template-columns] duration-150 ease-out group-hover/chip:grid-cols-[1fr]">
         <span className="flex items-center overflow-hidden">
           <button
             aria-label="Remove from project"
-            className="-mr-0.5 flex translate-x-1 items-center rounded-sm p-0.5 opacity-0 transition-[opacity,transform,background-color] duration-150 ease-out group-hover/chip:translate-x-0 group-hover/chip:opacity-60 hover:bg-foreground/10 hover:!opacity-100"
+            className="flex translate-x-1 items-center rounded-sm p-0.5 opacity-0 transition-[opacity,transform,background-color] duration-150 ease-out group-hover/chip:translate-x-0 group-hover/chip:opacity-60 hover:bg-foreground/10 hover:!opacity-100"
             disabled={disabled}
             onClick={onRemove}
             type="button"

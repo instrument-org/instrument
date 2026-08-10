@@ -293,7 +293,12 @@ function Player({ scenarioId }: { scenarioId: string }) {
           </DropdownMenu>
         </div>
 
-        <div className="flex items-center gap-4 border-b px-3 py-2">
+        {/* Switches and readouts on separate rows, because they grow for
+            different reasons: a switch arrives when there is a new mode, a
+            number every time something new is worth measuring. Sharing one row
+            in a 288px sidebar means each new number competes with every switch
+            already there, and the loser is silently clipped off the edge. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2">
           <Toggle
             checked={isDeveloperMode}
             id="playback-developer-mode"
@@ -312,12 +317,26 @@ function Player({ scenarioId }: { scenarioId: string }) {
             label="Edge"
             onChange={setShowsEdge}
           />
-          {/* Whether the agent is running is the last frame's business and
-              nobody else's: it says the same thing for the whole scenario. What
-              is worth watching is what each frame costs. */}
-          {shownMs !== undefined && (
-            <span className="ml-auto font-mono text-xs text-muted-foreground tabular-nums">
-              {shownMs.toFixed(1)}ms
+        </div>
+
+        {/* Whether the agent is running is the last frame's business and nobody
+            else's: it says the same thing for the whole scenario. What is worth
+            watching is what each frame costs, and what it did to the column. */}
+        <div className="flex items-center gap-3 border-b px-3 py-1.5 font-mono text-xs text-muted-foreground tabular-nums">
+          <span>{shownMs === undefined ? "--" : shownMs.toFixed(1)}ms</span>
+          {edge && (
+            <span
+              className={cn(
+                "ml-auto",
+                edge.delta !== undefined &&
+                  edge.delta < 0 &&
+                  "text-destructive",
+              )}
+            >
+              {edge.contentHeight}px
+              {edge.delta === undefined
+                ? ""
+                : ` ${edge.delta >= 0 ? "+" : ""}${edge.delta.toString()}`}
             </span>
           )}
         </div>

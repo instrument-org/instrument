@@ -193,6 +193,10 @@ export const FIXTURES: Record<string, unknown> = {
   "utils.live.onWindowFocus": undefined,
   "utils.live.serverExceptions": undefined,
   "utils.live.windowMaximized": false,
+  // A browser cannot raise the native folder panel, so picking one always
+  // lands on the same folder. Enough for the composer's folder tray, which is
+  // what a page here is for.
+  "utils.showFolderPicker": { path: "/Users/sam/Documents/Legal Docs" },
   "utils.syncZoom": undefined,
   "workspace.pin.live.listTaskIds": [tasks[1]?.id],
   "workspace.project.live.list": projects,

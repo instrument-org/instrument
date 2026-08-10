@@ -61,7 +61,7 @@ const ACCESS_ICONS: Record<FolderAttachment.Access, Icon> = {
 // applies: the shield, and this sentence on hovering it. Fixed rather than
 // counted, because it describes the grant rather than the list it is read
 // against.
-export const FULL_ACCESS_WARNING = `${APP_NAME} will be able to read and write the contents of these folders.`;
+const FULL_ACCESS_WARNING = `${APP_NAME} will be able to read and write the contents of these folders.`;
 
 // Full access first: it is what a folder is attached with, so the list opens
 // with the current choice at the top rather than the way out of it.
@@ -128,19 +128,6 @@ export function FolderAccessControl({
       </DropdownMenuContent>
     </DropdownMenu>
   );
-}
-
-/** The shield or the lock, at the size every surface shows it. */
-export function FolderAccessIcon({
-  access,
-  className,
-}: {
-  access: FolderAttachment.Access;
-  className?: string;
-}) {
-  const Icon = ACCESS_ICONS[access];
-
-  return <Icon className={cn("size-4", className)} />;
 }
 
 /** States the access for a folder the user cannot currently change. */
@@ -214,6 +201,19 @@ export function FolderAccessList({
       ))}
     </ul>
   );
+}
+
+/** The shield or the lock, at the size every surface shows it. */
+function FolderAccessIcon({
+  access,
+  className,
+}: {
+  access: FolderAttachment.Access;
+  className?: string;
+}) {
+  const Icon = ACCESS_ICONS[access];
+
+  return <Icon className={cn("size-4", className)} />;
 }
 
 function FolderAccessRow({

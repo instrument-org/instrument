@@ -2,6 +2,8 @@
 
 Status: landed. The three fork changes shipped as `@shadcn/react` 0.2.3 and all four Studio changes are in. Two details came out differently from the plan and are marked below: how anchors are marked as handled, and the reading line's value.
 
+A fourth fork change followed in 0.2.4: the plan fixed the equal-count branch (defect 1) by identity, and left the append branch deciding by index. Rows a reader expands grow the list in its middle, so every anchor below the growth crossed the previous item count without having moved, and opening a folded run pinned the turn under it. Both branches now read the same handled-anchor set.
+
 ---
 
 ## Background / why

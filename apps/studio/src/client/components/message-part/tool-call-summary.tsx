@@ -26,7 +26,7 @@ import { useToolCallSession } from "./tool-call-session";
 import { FileChip } from "./tool-card";
 import { SourceImagesChip } from "./tool-generate-image";
 import { WebSearchChip } from "./tool-web-search";
-import { useTranscriptGroup } from "./transcript-group";
+import { TRANSCRIPT_ROW, useTranscriptGroup } from "./transcript-group";
 
 export function ToolCallSummary({
   assetBaseUrl,
@@ -100,7 +100,10 @@ export function ToolCallSummary({
     : null;
 
   const trigger = (
-    <div className="group/run-row inline-flex max-w-full min-w-0 items-center gap-2 py-1">
+    // Inline, unlike the rows that are a whole line: a call's chips follow its
+    // label and the hover target ends with them rather than running to the
+    // margin.
+    <div className={cn(TRANSCRIPT_ROW, "inline-flex max-w-full")}>
       {isDeadDevMode ? (
         <span className="flex shrink-0 items-center gap-1 rounded-full border border-dev-500/30 bg-dev-500/10 px-1.5 py-0.5 text-[10px] font-medium text-dev-500 uppercase">
           <EyeIcon className="size-2.5" />

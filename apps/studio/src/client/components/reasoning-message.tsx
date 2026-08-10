@@ -3,7 +3,10 @@ import { cn } from "@/client/lib/utils";
 import { memo, useEffect, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 
-import { useTranscriptGroup } from "./message-part/transcript-group";
+import {
+  TRANSCRIPT_ROW,
+  useTranscriptGroup,
+} from "./message-part/transcript-group";
 import { PlanningDotSlot } from "./planning-dot-slot";
 import { reasoningDisplayText } from "./reasoning-utils";
 import { RunRowChevron } from "./run-row-chevron";
@@ -112,27 +115,25 @@ export const ReasoningMessage = memo(function ReasoningMessage({
       open={groupHead === null ? isExpanded : groupHead.isExpanded}
     >
       <CollapsibleTrigger
-        className="group/run-row flex cursor-default items-center py-1 text-left"
+        className={cn(TRANSCRIPT_ROW, "cursor-default text-left")}
         disabled={groupHead === null && !hasText}
       >
-        <div className="flex h-5 items-center gap-2">
-          <PlanningDotSlot isRunning={showsLiveIndicator} />
-          <span
-            className={cn(
-              "text-sm",
-              showsLiveIndicator
-                ? "brand-shiny-text"
-                : "text-muted-foreground group-hover/run-row:text-foreground",
-            )}
-          >
-            {label}
-          </span>
-          {(hasText || groupHead !== null) && (
-            <RunRowChevron
-              isOpen={groupHead === null ? isExpanded : groupHead.isExpanded}
-            />
+        <PlanningDotSlot isRunning={showsLiveIndicator} />
+        <span
+          className={cn(
+            "text-sm",
+            showsLiveIndicator
+              ? "brand-shiny-text"
+              : "text-muted-foreground group-hover/run-row:text-foreground",
           )}
-        </div>
+        >
+          {label}
+        </span>
+        {(hasText || groupHead !== null) && (
+          <RunRowChevron
+            isOpen={groupHead === null ? isExpanded : groupHead.isExpanded}
+          />
+        )}
       </CollapsibleTrigger>
 
       {hasText && groupHead === null && (

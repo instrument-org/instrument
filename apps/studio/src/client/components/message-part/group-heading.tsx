@@ -1,7 +1,7 @@
 import { cn } from "../../lib/utils";
 import { PlanningDotSlot } from "../planning-dot-slot";
 import { RunRowChevron } from "../run-row-chevron";
-import { useTranscriptGroup } from "./transcript-group";
+import { TRANSCRIPT_ROW, useTranscriptGroup } from "./transcript-group";
 
 /**
  * The one line a group of steps costs when it is folded.
@@ -35,7 +35,7 @@ export function GroupHeading({
 
   return (
     <button
-      className="group/run-row flex min-w-0 cursor-default items-center gap-2 py-1 text-left"
+      className={cn(TRANSCRIPT_ROW, "cursor-default text-left")}
       disabled={!canExpand}
       onClick={group?.toggle}
       type="button"

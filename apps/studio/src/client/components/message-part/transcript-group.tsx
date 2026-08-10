@@ -31,6 +31,33 @@ const TranscriptGroupContext = createContext<null | TranscriptGroupValue>(null);
 const STEP_RUN = "-my-1 flex flex-col";
 
 /**
+ * The shape every row in a run takes, wherever it is drawn from.
+ *
+ * A tool call, a phase heading and a reasoning row are one line each and have to
+ * be interchangeable: the fold swaps one for another in the same slot, and a
+ * label that shifts by a pixel between them reads as the row moving rather than
+ * the step changing. So the geometry is stated once here rather than three times
+ * where the rows are built.
+ *
+ * Every piece of it is load-bearing:
+ *
+ * - `py-1` is the click target, and it is also half of the run's rhythm. Rows in
+ *   a run stack flush, so a row's 4px against its neighbour's 4px is the 8px the
+ *   rest of the transcript gets from a container's `gap`. `STEP_RUN` above
+ *   cancels the outermost 4px of it, which is the only reason that box carries a
+ *   negative margin -- the two constants are one decision and change together.
+ * - `gap-2` is the space between the indicator and the label. `PlanningDotSlot`
+ *   cancels this exact value when its dot leaves, so it is not free to change on
+ *   its own.
+ * - No height and no leading override. The label's own 20px line box holds the
+ *   row, and it is the same 20px a tool icon and the planning dot each take, so
+ *   every row is 20px of content whatever is in it.
+ * - `group/run-row` is the hover target the labels and chevrons read.
+ */
+export const TRANSCRIPT_ROW =
+  "group/run-row flex min-w-0 items-center gap-2 py-1";
+
+/**
  * The box around a run of steps and the head line over it.
  *
  * Which rows go in and which of them draw is decided in `buildTranscriptLayout`

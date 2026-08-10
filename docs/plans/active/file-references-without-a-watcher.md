@@ -1,8 +1,8 @@
 # Plan: file references resolve at click, and the folder watcher goes
 
-Status: **step 1 landed; steps 2-5 designed, not started.** Owner: TBD.
+Status: **steps 1 and 2 landed; steps 3-5 designed, not started.** Owner: TBD.
 
-Three mechanisms currently infer, from disk, what the user should see and how fresh it is: a recursive watcher over the task directory, a per-turn diff of that watcher into a change card, and a per-reference existence query at render. All three exist because the app had to guess what a turn produced. It no longer has to guess: a ` ```files ` fence says what the reply hands over ([presentation-syntax.md](presentation-syntax.md)) and `show` says what goes on screen ([pane-tabs-and-the-show-command.md](pane-tabs-and-the-show-command.md)). This deletes the guessing.
+Three mechanisms currently infer, from disk, what the user should see and how fresh it is: a recursive watcher over the task directory, a per-turn diff of that watcher into a change card, and a per-reference existence query at render. All three exist because the app had to guess what a turn produced. It no longer has to guess: a ` ```files ` fence says what the reply hands over ([presentation-syntax.md](presentation-syntax.md)) and `show` says what goes on screen ([pane-tabs-and-the-show-command.md](../completed/pane-tabs-and-the-show-command.md)). This deletes the guessing.
 
 The forcing function is [user-chosen-working-folder.md](user-chosen-working-folder.md): the work is about to live in a folder the user picked, which can be a monorepo. A recursive index over that is not a thing to tune, it is a thing not to build.
 
@@ -22,7 +22,7 @@ Everything below follows from those.
 - **`CurrentTaskFilesProvider`** and its three hooks, which exist only to answer questions nothing asks anymore.
 - ~~**The render-time `fileInfo` queries** in `TaskFileLink` and `AgentFilesBlock`~~ and ~~**`?version=`** on those two surfaces' asset URLs~~ — done in step 1. `?version=` survives elsewhere in the transcript: in `FileChangesCard`, which goes with the part above; in `AttachmentsCard`; and at three sites in `tool-generate-image.tsx`. The last two are transcript surfaces no step below owns, and they lose it for the same reason the chip did.
 
-Already on the `show` plan's list and not repeated here: both auto-open hooks, the `artifactPanel` search param, `external-file-changes.ts`, `file-index-baseline.ts`.
+~~Already on the `show` plan's list and not repeated here: both auto-open hooks, the `artifactPanel` search param, `external-file-changes.ts`, `file-index-baseline.ts`.~~ All gone with step 2.
 
 Untouched: **skill change tracking.** It never used the watcher — `workspace-skill-index.ts` is a `readdir` + `stat` snapshot plus write hooks fired from the virtual filesystem, which is the write-tracker pattern the folder plan wants. It survives intact and is the working prototype if file attribution is ever wanted back.
 
@@ -48,7 +48,7 @@ Three consequences, all taken in step 1:
 
 - **A hallucinated path becomes clickable.** It used to degrade to plain text, which hid that the reply claimed a file at all. Click-then-report makes the claim visible, which is the better failure.
 - **The render-time missing state goes**, including the one built for the fence. It is replaced by the 404 fallback for images and by click for everything else. What survives from that work is the streaming gate, for a new reason: a fence still arriving has a half-typed last line, and an optimistic renderer would draw a card for `output/ch` and then for `output/cha`. **Draw only lines the fence has finished.**
-- **Addressability replaces existence as the gate.** Dropping the existence check took away the thing that kept a host path in model output from rendering as an affordance, so a structural check on the string took its place: task-relative or under the mount root, never traversing ([task-file-path.ts](../../../apps/studio/src/client/lib/task-file-path.ts)). It asks nothing of disk, and it is the one path grammar both the chip and the fence use. `show` should use it too.
+- **Addressability replaces existence as the gate.** Dropping the existence check took away the thing that kept a host path in model output from rendering as an affordance, so a structural check on the string took its place: task-relative or under the mount root, never traversing ([task-file-path.ts](../../../packages/workspace/src/lib/task-file-path.ts)). It asks nothing of disk, and it is the one path grammar both the chip and the fence use. `show` should use it too.
 
 ## How the open file stays fresh
 
@@ -92,15 +92,15 @@ Prior art worth knowing: a comparable desktop agent app runs precisely this pair
 
 ## Order, and who does it
 
-Interleaved with [pane-tabs-and-the-show-command.md](pane-tabs-and-the-show-command.md), because both rewrite the same three files — `markdown.tsx`'s chip, `files-grid.tsx`'s cards, and `view.tsx` — and both rewrite the same function, the one that opens a file into the pane.
+Interleaved with [pane-tabs-and-the-show-command.md](../completed/pane-tabs-and-the-show-command.md), because both rewrite the same three files — `markdown.tsx`'s chip, `files-grid.tsx`'s cards, and `view.tsx` — and both rewrite the same function, the one that opens a file into the pane.
 
 1. ~~**Stateless rendering** (here).~~ **Landed.** The render-time `fileInfo` queries and `?version=` are gone from transcript references, cards and chips draw from the path, and the standing index is still there and simply no longer read by these surfaces. It went first because it removes two index readers before the other plan has to migrate them.
-2. **The whole pane landing** (there). Tabs, `state.json`, `show`, and its deletions. Not divisible; its own plan says so.
-3. **The pane subscription** (here). `fs.watchFile` on the open path, owned by the file tab, which step 2 is what creates.
+2. ~~**The whole pane landing** (there). Tabs, `state.json`, `show`, and its deletions. Not divisible; its own plan says so.~~ **Landed**, in [pane-tabs-and-the-show-command.md](../completed/pane-tabs-and-the-show-command.md). The pane is a card with a tab strip, the browser is its fixed first tab, and `show` opens files and URLs into it.
+3. **The pane subscription** (here). `fs.watchFile` on the open path, owned by the file tab, which step 2 has now created. The tab to hang it on is `TaskPane.selectedTab`; the pane still reads `files.fileInfo` once per open and builds its own `?version=` from the file list, which is what this replaces.
 4. **Delete `data-fileChanges`** (here). Product call, taken: the fence is the record, and the card is already dark. Re-measure adherence before the producer goes — see Risks.
 5. **The file-list popover to a one-shot read**, then delete the watcher, `files.live.list`, and `CurrentTaskFilesProvider`.
 
-**One owner for all five**, not two in parallel. Steps 1, 3, 4, and 5 are consequences of 2 rather than a separate feature, they land in the files 2 rewrites, and splitting them produces conflicts in exactly the code both would be restructuring. Two plans is still right — one answers "how does the pane work", the other "how does a reference resolve and stay fresh", and later readers will arrive with one question or the other — but they are one piece of work.
+**One owner for the rest**, not two in parallel. Steps 1, 3, 4, and 5 are consequences of 2 rather than a separate feature, they land in the files 2 rewrites, and splitting them produces conflicts in exactly the code both would be restructuring. Two plans is still right — one answers "how does the pane work", the other "how does a reference resolve and stay fresh", and later readers will arrive with one question or the other — but they are one piece of work.
 
 ## Risks
 

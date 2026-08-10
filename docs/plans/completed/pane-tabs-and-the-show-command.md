@@ -1,6 +1,6 @@
 # Plan: a tabbed pane the agent can open into
 
-Status: **designed, not started.** Owner: TBD.
+Status: **landed.**
 
 The right pane holds one artifact at a time, keeps that choice in a URL search param, and two hooks race each other to guess what belongs there. The agent, meanwhile, cannot put anything in it at all. This replaces all of that at once: the pane becomes a tab strip whose state lives on disk beside the task, and `show` is how the agent opens something into it.
 
@@ -12,7 +12,7 @@ Sequenced with [file-references-without-a-watcher.md](file-references-without-a-
 
 [artifact-panel.ts](../../../apps/studio/src/client/schemas/artifact-panel.ts) is a single-slot discriminated union, `file | browser`, parsed out of the task route's `artifactPanel` search param. Nine files write it, at eleven call sites: [view.tsx](../../../apps/studio/src/client/components/task/view.tsx) (which both sets and clears), the file chip in [markdown.tsx](../../../apps/studio/src/client/components/markdown.tsx), the cards in [files-grid.tsx](../../../apps/studio/src/client/components/files-grid.tsx), [use-auto-open-output-artifact.ts](../../../apps/studio/src/client/hooks/use-auto-open-output-artifact.ts), [use-auto-open-browser-artifact.ts](../../../apps/studio/src/client/hooks/use-auto-open-browser-artifact.ts), the composer globe via [use-browser-artifact-toggle.ts](../../../apps/studio/src/client/hooks/use-browser-artifact-toggle.ts), and three message-part components that open the file they are about: [file-tool-card.tsx](../../../apps/studio/src/client/components/message-part/file-tool-card.tsx), [tool-read-file.tsx](../../../apps/studio/src/client/components/message-part/tool-read-file.tsx), and [tool-generate-image.tsx](../../../apps/studio/src/client/components/message-part/tool-generate-image.tsx) (twice). They all build the same `{ filePath, modifiedAt, type: "file" }` literal, so the migration is mechanical, but it is nine files rather than the six this plan first counted. The two auto-opens contend for the same slot, so whichever fires last wins and the other's work is invisible.
 
-Separately, [external-file-changes.ts](../../../packages/workspace/src/lib/external-file-changes.ts) diffs the task-directory file index against a per-session baseline at the top of every message, so the agent can be told what the user touched between turns.
+Separately, `external-file-changes.ts` diffs the task-directory file index against a per-session baseline at the top of every message, so the agent can be told what the user touched between turns.
 
 ## The decisions, and why
 
@@ -121,3 +121,24 @@ Worth measuring alongside: whether the open-tabs context line actually restrains
 - **Opening in the user's native app.** Named `open`, expected shortly after this; the file row in the pane is where the action goes.
 - **More than one browser.** Tabs do not depend on it -- the dependency runs the other way -- so this lands first and [lazy-browser-targets-and-multiple-tabs.md](./lazy-browser-targets-and-multiple-tabs.md) fills in the second target later. Until it does, `show <url>` moves the agent's own browser and the user's view follows it.
 - **Drag to reorder.** The state shape supports it; the interaction is not needed to land.
+
+## What landed, where it differed
+
+The design above held. Five things are worth recording because the code reads differently from the plan.
+
+**The browser tab is fixed, not stored.** The plan gated its presence on a feature flag, falling back to "appears once the browser is in use". Both were wrong for the same reason: with no tab, an open pane renders nothing, the tab strip that carries the close control never appears, and the toggle has already left the header -- so opening the pane on a task with no files was a dead end with no way back. The browser is now the pane's zero state: always the first tab, never closable, drawn ahead of the stored ones. The flag is gone rather than repurposed, since nothing is left for it to gate.
+
+**The strip is a row inside the pane's card**, not a row above it. The viewers already stack a title row and their own toolbar inside one frame, so the tabs join that band: the pane owns `rounded-xl bg-card shadow-sm`, and the viewer and the browser panel each take a `className` that drops the card they would otherwise draw. No rule under the tabs -- the row below draws its own, and two hairlines a row apart read as a seam rather than a separation.
+
+**Tab writes are immediate, not debounced.** The plan asked for a debounce on the grounds that tab switches are frequent. What that would buy is not worth what it costs: a write still inside its window can be reverted on screen by any unrelated `task.updated` push, and there is one of those per message. Each tab action is a discrete user act rather than a keystroke, the write is a small JSON file behind a per-task queue, and an optimistic cache update already covers the latency.
+
+**`setTaskState` gained `updateTaskPane` alongside the promise chain.** Serializing the file write is not enough on its own: the tab reducers are a read-modify-write on top of one, so a read taken before the queue reintroduces exactly the clobber the queue exists to prevent. `updateTaskPane` runs the reducer inside the queue, which is what makes two `show` calls on one command line both land.
+
+**Pane writes publish `task.stateUpdated`, not `task.updated`.** They have to push, because the pane is read back off that stream, but `task.updated` is what the task list subscribes to and the list is ordered by a filesystem timestamp. See [task-list-order-followed-file-mtimes.md](../../findings/task-list-order-followed-file-mtimes.md) for what that turned out to be hiding.
+
+`isAddressableTaskFilePath` moved from the renderer into the workspace package on the way, so `show`, the pane schema, the file chip and the fence all ask one implementation.
+
+## Still open
+
+- **Drag to reorder**, as deferred above. The state shape supports it.
+- **The evals the plan asks for.** `show` is committed with unit coverage of its own behavior, but nothing yet measures whether models reach for it where a user would want to see something, whether they mistake it for the fence, or whether the open-tabs turn line actually restrains repeat opens. That measurement is the open risk on the name.

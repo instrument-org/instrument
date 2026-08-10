@@ -165,7 +165,7 @@ The description asserts:
 
 Nothing enforces it, and nothing compares the file's mtime against the one `read_file` returned. opencode v1 and pi-mono are in the same position (opencode even ships the stronger bluff "This tool will fail if you did not read the file first", with no implementation).
 
-But **our exposure is worse than theirs**, because users edit task files directly while the agent works -- that's why `detect-external-file-changes.ts` exists at all. A user editing `output/report.md` mid-turn currently loses the edit with no signal to either party.
+But **our exposure is worse than theirs**, because users edit task files directly while the agent works. There is no longer any detection of that: the between-turn diff was deleted with the standing file index, on the grounds that it could only ever see the task directory and the work is moving into folders the user picks. A user editing `output/report.md` mid-turn loses the edit with no signal to either party.
 
 opencode's v2 rewrite is the only one that solved it, with optimistic concurrency on write:
 

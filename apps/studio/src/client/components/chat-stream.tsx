@@ -31,6 +31,7 @@ import {
 import { FolderAttachmentsCard } from "./folder-attachments-card";
 import { MessageError } from "./message-error";
 import { GroupHeading } from "./message-part/group-heading";
+import { GroupStandIn } from "./message-part/group-stand-in";
 import {
   TranscriptGroup,
   TranscriptGroupHead,
@@ -282,6 +283,7 @@ export function ChatStream({
         browserStatusContextAdded: false,
         ctx: renderCtx,
         isGroupWorking: true,
+        isStandIn: true,
         message: found.message,
         part: found.part,
         partIndex: found.partIndex,
@@ -290,14 +292,19 @@ export function ChatStream({
         return null;
       }
 
+      // The slot is what moves from one step to the next, so it wraps the copy
+      // rather than the other way round: it stays put while the row inside it
+      // is replaced.
+      const slot = <GroupStandIn rowId={rowId}>{node}</GroupStandIn>;
+
       // Under a heading the copy is one of the group's rows and sits where they
       // sit. With no heading it is the head line itself, so it takes the outer
       // edge and answers the clicks that open and close the group.
       return group.headingRowId === undefined ? (
-        <TranscriptGroupHead key="stand-in">{node}</TranscriptGroupHead>
+        <TranscriptGroupHead key="stand-in">{slot}</TranscriptGroupHead>
       ) : (
         <div className={GROUP_INDENT} key="stand-in">
-          {node}
+          {slot}
         </div>
       );
     },

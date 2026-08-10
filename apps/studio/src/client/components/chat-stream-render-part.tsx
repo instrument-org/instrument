@@ -36,6 +36,7 @@ export function renderChatPart({
   browserStatusContextAdded,
   ctx,
   isGroupWorking,
+  isStandIn = false,
   message,
   part,
   partIndex,
@@ -44,6 +45,13 @@ export function renderChatPart({
   ctx: RenderPartContext;
   /** The group this part sits in is still taking rows; see `TranscriptGroup`. */
   isGroupWorking: boolean;
+  /**
+   * This is the copy a working group draws in its own slot rather than the row
+   * where it really sits, so it is arriving into a place that is already on
+   * screen and already occupied. `GroupStandIn` is what moves it in; a row that
+   * also animates its own arrival animates twice.
+   */
+  isStandIn?: boolean;
   message: SessionMessage.WithParts;
   part: SessionMessagePart.Type;
   partIndex: number;
@@ -133,6 +141,7 @@ export function renderChatPart({
           partIndex === message.parts.length - 1 &&
           part.state === "streaming"
         }
+        isStandIn={isStandIn}
         key={part.metadata.id}
         text={part.text}
       />

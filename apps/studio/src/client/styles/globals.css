@@ -567,6 +567,31 @@ body {
     calc(100% - var(--scroll-fade-size)) 100%;
 }
 
+/* The window a group's stand-in rolls through; see `GroupStandIn`.
+ *
+ * Same mask as `scroll-fade-y` above, held still rather than driven by a scroll
+ * timeline, and it is doing two jobs at once. `mask-repeat: no-repeat` leaves
+ * everything past the ends transparent, so this clips the row on its way out
+ * without an `overflow` that would also cut off the output of a row a reader
+ * expanded. And softening the last few pixels at each end is what makes the
+ * movement read as the line turning past an edge rather than sliding out from
+ * under a blade.
+ *
+ * The fade is sized to eat the row's own 4px of padding and stop just short of
+ * its 20px line box, so a row at rest is never dimmed at its top and bottom by
+ * a mask that is about to be taken off it anyway. */
+@utility roll-window-y {
+  --roll-fade-size: 0.375rem;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black var(--roll-fade-size),
+    black calc(100% - var(--roll-fade-size)),
+    transparent
+  );
+  mask-repeat: no-repeat;
+}
+
 @utility checkerboard {
   --checkerboard-bg: #f5f5f5;
   --checkerboard-tile: #d0d0d0;

@@ -2,6 +2,7 @@ import {
   type ComposerAction,
   MenuGroupHeader,
 } from "@/client/components/composer-add-menu";
+import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { SkillMention } from "@/client/components/skill-mention";
 import {
   type ComposerSkill,
@@ -12,6 +13,7 @@ import {
   PopoverAnchor,
   PopoverContent,
 } from "@/client/components/ui/popover";
+import { matchComposerActions } from "@/client/lib/composer-action-search";
 import { matchSkills, type SkillMatch } from "@/client/lib/skill-search";
 import { cn } from "@/client/lib/utils";
 import { baseKeymap, splitBlock } from "prosemirror-commands";
@@ -93,7 +95,7 @@ export interface PromptEditorRef {
 // What a slash offers, in the order it offers it: the things the composer can
 // be given first, then the skills that can be run.
 type MenuEntry =
-  | { action: ComposerAction; type: "action" }
+  | { action: ComposerAction; labelRanges: null | number[]; type: "action" }
   | { match: SkillMatch<ComposerSkill>; type: "skill" };
 
 // A skill token in the document, paired with the element ProseMirror gave its
@@ -109,26 +111,20 @@ interface SkillChip {
 // off the one they wanted.
 const SKILL_MENU_LIMIT = 50;
 
-// Plain substring rather than the fuzzy matcher the skills get: these are three
-// fixed phrases, and a subsequence match over so few of them turns half a word
-// into a hit on all of them.
 const menuEntries = (
   actions: ComposerAction[],
   skills: ComposerSkill[],
   query: string,
-): MenuEntry[] => {
-  const needle = query.toLowerCase();
-
-  return [
-    ...actions
-      .filter((action) => action.label.toLowerCase().includes(needle))
-      .map((action) => ({ action, type: "action" as const })),
-    ...matchSkills(skills, query, SKILL_MENU_LIMIT).map((match) => ({
-      match,
-      type: "skill" as const,
-    })),
-  ];
-};
+): MenuEntry[] => [
+  ...matchComposerActions(actions, query).map((match) => ({
+    ...match,
+    type: "action" as const,
+  })),
+  ...matchSkills(skills, query, SKILL_MENU_LIMIT).map((match) => ({
+    match,
+    type: "skill" as const,
+  })),
+];
 
 // Chooses an entry against the range the slash opened. A skill becomes a token
 // in the document; an action leaves nothing behind, because the slash was the
@@ -617,7 +613,10 @@ export function PromptEditor({
               ) : (
                 <>
                   <entry.action.icon className="size-4 shrink-0" />
-                  {entry.action.label}
+                  <FuzzyHighlight
+                    ranges={entry.labelRanges}
+                    text={entry.action.label}
+                  />
                 </>
               )}
             </MenuEntryButton>

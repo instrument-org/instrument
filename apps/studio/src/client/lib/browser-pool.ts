@@ -138,17 +138,10 @@ const paintOwners = new Map<BrowserTargetId, symbol>();
 // polled endpoint. Replaced (not mutated) on each reconcile so the snapshot is a
 // stable reference for useSyncExternalStore between changes.
 let attachedTargets: ReadonlySet<BrowserTargetId> = new Set();
-// Ids of targets that have started loading a real page, mirrored the same way.
-// Distinct from attached: every target attaches, only some are ever navigated.
-let navigatedTargets: ReadonlySet<BrowserTargetId> = new Set();
 const targetListeners = new Set<() => void>();
 
 export function getAttachedTargetsSnapshot(): ReadonlySet<BrowserTargetId> {
   return attachedTargets;
-}
-
-export function getNavigatedTargetsSnapshot(): ReadonlySet<BrowserTargetId> {
-  return navigatedTargets;
 }
 
 /** The pooled guest element for a target, if it exists (for nav controls). */
@@ -320,11 +313,7 @@ export function showOverSlot(
   }
 }
 
-/**
- * useSyncExternalStore glue for {@link attachedTargets} and
- * {@link navigatedTargets} (see use-browser-targets). Both are replaced in the
- * same reconcile, so one listener set covers them.
- */
+/** useSyncExternalStore glue for {@link attachedTargets} (see use-browser-targets). */
 export function subscribeAttachedTargets(listener: () => void): () => void {
   targetListeners.add(listener);
   return () => {
@@ -455,9 +444,6 @@ function reconcile(targets: BrowserGuestTarget[]) {
 
   attachedTargets = new Set(
     targets.filter((target) => target.attached).map((target) => target.id),
-  );
-  navigatedTargets = new Set(
-    targets.filter((target) => target.navigated).map((target) => target.id),
   );
   for (const listener of targetListeners) {
     listener();

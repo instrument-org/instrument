@@ -152,19 +152,6 @@ export async function consumeTurnChanges({
 }
 
 /**
- * Returns a copy of the current in-memory file index for a id, or
- * undefined when no watcher is active. Lets callers diff against the index the
- * watcher already maintains instead of walking disk again.
- */
-export function getCurrentTaskFileIndex(id: TaskId): TaskFileIndex | undefined {
-  const entry = REGISTRY.get(id);
-  if (!entry?.seeded) {
-    return undefined;
-  }
-  return new Map(entry.index);
-}
-
-/**
  * Returns the current in-memory file list for a id, or undefined when no
  * watcher is active (callers fall back to a fresh walk in that case).
  */

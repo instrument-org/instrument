@@ -158,12 +158,9 @@ const TaskFileIndexEntrySchema = z.object({
   size: z.number(),
 });
 
-type TaskFileEntry = z.output<typeof TaskFileIndexEntrySchema>;
-
-// Serializable form of the index, used to persist a baseline across turns.
-export const TaskFileIndexSnapshotSchema = z.array(TaskFileIndexEntrySchema);
-
 export type TaskFileIgnore = Awaited<ReturnType<typeof getTaskFileIgnore>>;
+
+type TaskFileEntry = z.output<typeof TaskFileIndexEntrySchema>;
 
 export function diffTaskFileIndexes({
   after,
@@ -334,16 +331,6 @@ export function outputArtifactsFromChanges(changes: TaskFileChange[]) {
     )
     .map(({ filePath, modifiedAt }) => ({ filePath, modifiedAt }))
     .sort((a, b) => a.filePath.localeCompare(b.filePath));
-}
-
-export function taskFileIndexFromSnapshot(
-  snapshot: TaskFileEntry[],
-): TaskFileIndex {
-  return new Map(snapshot.map((entry) => [entry.filePath, entry]));
-}
-
-export function taskFileIndexToSnapshot(index: TaskFileIndex): TaskFileEntry[] {
-  return [...index.values()];
 }
 
 export function taskFilesFromIndex(index: TaskFileIndex): TaskFile[] {

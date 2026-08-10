@@ -1,6 +1,9 @@
 import { openWelcome } from "@/client/atoms/welcome-modal";
 import { AnimatedOutlineBrandIconGlyph } from "@/client/components/brand-icon";
-import { PromptInput } from "@/client/components/prompt-input";
+import {
+  PromptInput,
+  type PromptInputRef,
+} from "@/client/components/prompt-input";
 import { useTabId } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
@@ -55,7 +58,7 @@ function RouteComponent() {
   const router = useRouter();
   const { addTab } = useTabActions();
   const tabId = useTabId();
-  const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
+  const promptInputRef = useRef<PromptInputRef>(null);
   const createTaskMutation = useMutation(
     rpcClient.workspace.task.create.mutationOptions(),
   );

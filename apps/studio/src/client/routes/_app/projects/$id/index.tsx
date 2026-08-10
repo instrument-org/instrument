@@ -5,7 +5,10 @@ import { DeleteProjectDialog } from "@/client/components/project/delete-project-
 import { ProjectFolders } from "@/client/components/project/project-folders";
 import { ProjectInstructions } from "@/client/components/project/project-instructions";
 import { ProjectTaskRow } from "@/client/components/project/project-task-row";
-import { PromptInput } from "@/client/components/prompt-input";
+import {
+  PromptInput,
+  type PromptInputRef,
+} from "@/client/components/prompt-input";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -70,7 +73,7 @@ function RouteComponent() {
   const tabId = useTabId();
   const [selectedModelURI, setSelectedModelURI, saveSelectedModelURI] =
     useDefaultModelURI();
-  const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
+  const promptInputRef = useRef<PromptInputRef>(null);
 
   const [deleteProjectOpen, setDeleteProjectOpen] = useState(false);
 

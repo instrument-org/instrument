@@ -98,6 +98,20 @@ type AttachedItem =
 const MAX_PASTE_TEXT_LENGTH = 5000;
 const MAX_FILE_PREVIEW_SIZE = 10 * 1024 * 1024;
 
+/** Everything a submit clears, so a rejected one can put it back. */
+export interface PromptInputDraft {
+  items: AttachedItem[];
+  projectId: null | ProjectId;
+  prompt: string;
+}
+
+export interface PromptInputRef {
+  clear: () => void;
+  focus: () => void;
+  restore: (draft: PromptInputDraft) => void;
+  snapshot: () => PromptInputDraft;
+}
+
 interface PromptInputProps {
   allowOpenInNewTab?: boolean;
   // Whether the plus menu offers to work in a project, and a chosen one shows
@@ -140,11 +154,6 @@ interface PromptInputProps {
   // menu would be invisible and impossible to remove -- it just does not
   // advertise itself on surfaces that have their own folder controls.
   showWorkInFolder?: boolean;
-}
-
-interface PromptInputRef {
-  clear: () => void;
-  focus: () => void;
 }
 
 export const PromptInput = ({
@@ -231,6 +240,24 @@ export const PromptInput = ({
     focus: () => {
       promptEditorRef.current?.focus();
     },
+    // Only into a composer the user left alone: a send can fail after they have
+    // started the next prompt, and their new words outrank the rejected ones.
+    restore: (draft) => {
+      if (
+        promptEditorRef.current?.getValue().trim() ||
+        attachedItems.length > 0
+      ) {
+        return;
+      }
+      promptEditorRef.current?.setValue(draft.prompt);
+      setAttachedItems(draft.items);
+      setSelectedProjectId(draft.projectId);
+    },
+    snapshot: () => ({
+      items: attachedItems,
+      projectId: selectedProjectId,
+      prompt: promptEditorRef.current?.getValue() ?? "",
+    }),
   }));
 
   useEffect(() => {

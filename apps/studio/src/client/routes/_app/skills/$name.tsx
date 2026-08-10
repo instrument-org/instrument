@@ -4,7 +4,10 @@ import { CopyButton } from "@/client/components/copy-button";
 import { FileIcon } from "@/client/components/file-icon";
 import { InternalLink } from "@/client/components/internal-link";
 import { Markdown } from "@/client/components/markdown";
-import { PromptInput } from "@/client/components/prompt-input";
+import {
+  PromptInput,
+  type PromptInputRef,
+} from "@/client/components/prompt-input";
 import { RevealPath } from "@/client/components/reveal-path";
 import { SkillBadges } from "@/client/components/skill-badges";
 import { SkillFileView } from "@/client/components/skill-file-view";
@@ -117,7 +120,7 @@ function SkillPage() {
   const navigate = useNavigate();
   const { addTab } = useTabActions();
   const tabId = useTabId();
-  const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
+  const promptInputRef = useRef<PromptInputRef>(null);
   // Keyed by skill so navigating between skills starts back at SKILL.md
   // without an effect to reset it.
   const [selection, setSelection] = useState({ file: SKILL_FILE, skill: name });

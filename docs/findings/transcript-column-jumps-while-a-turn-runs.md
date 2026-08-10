@@ -1,8 +1,8 @@
 # The transcript column jumps while a turn runs
 
-**Status:** open, instrumented but not diagnosed. Recorded 2026-08-10. The measurement exists and is committed, and two bugs in the instrument itself are fixed; the jumping has not been isolated and nothing fails when it happens.
+**Status:** open, instrumented but not diagnosed. Recorded 2026-08-10. The measurement exists and is committed, and two bugs in the instrument itself are fixed; the jumping has not been isolated and nothing fails when it happens. Two known sources of movement have since been taken out of the transcript by hand — see below — without anything having been measured to say how much of the symptom they were.
 
-**This is about the chat transcript in the product, not about the page it is being watched on.** The playback page is the instrument and nothing more. Everything fixed so far was noise in that instrument rather than the thing it was pointed at, so nothing yet has changed what a reader sees during a real turn.
+**This is about the chat transcript in the product, not about the page it is being watched on.** The playback page is the instrument and nothing more.
 
 ## Context
 
@@ -31,6 +31,14 @@ Two things about the measurement that cost time to find:
 
 **A scenario that starts with the screen already full**, "A real turn, already scrolled". Reach for this one rather than "A real turn", because the transcript only follows its own end when there is an end to follow: on a fresh task nothing overflows, so nothing moves, and the jumping cannot happen at all. It replays the same acts — the two share `REAL_TURN` rather than copying it — after an earlier turn that lands whole in a single frame, so the screen is in the state under test by the second frame rather than the fiftieth.
 
+## What has been taken out of the transcript since
+
+Two shapes that could only move the column, removed on the reasoning rather than on a measurement. Neither was shown to be the reported jump, and both are worth knowing about before anyone re-derives them.
+
+**A paragraph now ends the phase it lands after, whatever kind of phase it is.** A declared phase used to carry on across prose the agent wrote mid-way, which meant the copy of the step in flight moved below that paragraph and the phase went on collecting steps underneath it — the run walking down the page as it worked and springing back when the phase settled. It also meant a paragraph on screen during a turn could fold away once the phase around it closed. Cutting at the paragraph makes every boundary decidable when it arrives: what is drawn stays drawn, and whatever the agent does next is a new run. The cost is a generated heading where the agent had already supplied one.
+
+**The planning row is gone.** It said the agent was working with nothing to show for it, appeared on a delay when nothing else read as in flight, and so came and went between frames on its own timer — a row's worth of height, arriving and leaving independently of anything in the data. Nothing replaces it: a turn between the user sending and the first row arriving now shows nothing at all, which is deliberate and may be worth revisiting.
+
 ## What was fixed along the way, and was not this
 
 Two bugs **in the instrument**, both of which moved the transcript on the playback page and neither of which the product ever had. They are recorded because they had to be cleared before the measurement could be trusted — an offset arriving from the previously viewed scenario means the edge is reporting a position that is not the transcript's own — and because the first is a class rather than a one-off. Fixing them narrowed nothing about the jumping itself.
@@ -58,7 +66,7 @@ Getting that boundary right is most of the work in any automated check, and it s
 
 ## Where detection would go, cheapest first
 
-**At the layout level, in node.** `buildTranscriptLayout` already decides what is visible for every frame and `buildFrames` already produces every frame, so a plain test can walk consecutive frames and ask whether anything visible in frame N is missing from frame N+1. That covers the whole class described here — a footer flipping, a fold flipping, the planning row flapping — in milliseconds, with no DOM, and it names the row that vanished rather than reporting a pixel count. This is where to start.
+**At the layout level, in node.** `buildTranscriptLayout` already decides what is visible for every frame and `buildFrames` already produces every frame, so a plain test can walk consecutive frames and ask whether anything visible in frame N is missing from frame N+1. That covers the whole class described here — a footer flipping, a fold flipping — in milliseconds, with no DOM, and it names the row that vanished rather than reporting a pixel count. This is where to start.
 
 **At the pixel level, in the browser project.** Playing every frame through Chromium and checking the height catches what the layout pass cannot see: spacing, a wrapper's margin, a row that renders taller than its rules imply. It is the expensive tier — five scenarios, several hundred frames each — and worth reaching for only once the cheap one is exhausted.
 

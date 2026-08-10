@@ -53,15 +53,11 @@ export function ToolCallSummary({
   // ones already done. `isStreaming` covers the first two -- asked for, not
   // finished -- and `isRunning` narrows to the first.
   //
-  // Only the head line of a group claims the green, so there is one thing
-  // moving per group: a second live indicator on a row beneath it would read as
-  // two things happening at once. Everything else still working says so in the
-  // quieter shimmer, and only a finished call settles to the resting color.
-  // Without that middle state a call that has arrived but not started reads as
-  // done, which on a batch is a run of rows claiming to be finished and, in the
-  // gap between the model emitting a call and the queue reaching it, is a
-  // flicker through the finished treatment.
-  const isFocused = isRunning && (group === null || group.isHead);
+  // One row draws the live indicator and every other row is at rest, queued
+  // calls included. A second row moving under the head line would read as two
+  // things happening at once, and a call waiting its turn is not work in
+  // progress worth announcing: what it is waiting on is already saying so.
+  const showsLiveIndicator = isRunning && (group === null || group.isHead);
 
   const toolName = getToolNameByType(part.type);
   const browserInfo = getBrowserInfo(part);
@@ -110,7 +106,7 @@ export function ToolCallSummary({
           <EyeIcon className="size-2.5" />
           Dev
         </span>
-      ) : isFocused ? (
+      ) : showsLiveIndicator ? (
         <PlanningDotIcon />
       ) : (
         Icon && (
@@ -126,11 +122,9 @@ export function ToolCallSummary({
           // the row at one height, and it is the same 20px the indicator beside
           // it takes in every state.
           "min-w-0 truncate text-sm",
-          isFocused
+          showsLiveIndicator
             ? "brand-shiny-text"
-            : isStreaming
-              ? "shiny-text"
-              : "text-muted-foreground group-hover/run-row:text-foreground",
+            : "text-muted-foreground group-hover/run-row:text-foreground",
         )}
       >
         {deadLabel ?? label}

@@ -42,7 +42,7 @@ const STEP_RUN = "-my-1 flex flex-col";
  * Every piece of it is load-bearing:
  *
  * - `py-1` is the click target, and it is also half of the run's rhythm. Rows in
- *   a run stack flush, so a row's 4px against its neighbour's 4px is the 8px the
+ *   a run stack flush, so a row's 4px against its neighbor's 4px is the 8px the
  *   rest of the transcript gets from a container's `gap`. `STEP_RUN` above
  *   cancels the outermost 4px of it, which is the only reason that box carries a
  *   negative margin -- the two constants are one decision and change together.

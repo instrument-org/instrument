@@ -96,7 +96,7 @@ export interface TranscriptRow {
    * than the transcript's usual spacing, and the renderer widens it.
    *
    * Read as a property of the *lower* row and never the upper one, which is
-   * what keeps it from moving anything. A row's neighbour above is settled the
+   * what keeps it from moving anything. A row's neighbor above is settled the
    * moment the row exists; the row below it is whatever the agent does next, so
    * a boundary read downwards would grow a row already on screen the moment the
    * next step arrived.

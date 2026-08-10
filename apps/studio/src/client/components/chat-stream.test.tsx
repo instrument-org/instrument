@@ -1,7 +1,6 @@
 import { renderWithProviders } from "@/tests/render";
 import {
   type SessionMessage,
-  type SessionMessagePart,
   StoreId,
   type Task,
   TaskIdSchema,
@@ -49,6 +48,18 @@ function activityRunning(title: string) {
     state: "input-available",
     toolCallId: StoreId.ToolCallSchema.parse(`call-ar${partCounter}`),
     type: "tool-start_activity",
+  };
+}
+
+function assistantMessage(
+  parts: unknown[],
+  extraMetadata: Record<string, unknown> = {},
+) {
+  return {
+    id: StoreId.newMessageId(),
+    metadata: { createdAt: new Date(0), sessionId, ...extraMetadata },
+    parts,
+    role: "assistant",
   };
 }
 
@@ -128,6 +139,31 @@ function read({
       };
 }
 
+function renderMessages(
+  messages: unknown[],
+  {
+    alwaysShowFooter = false,
+    isAgentRunning = false,
+    isDeveloperMode = false,
+  }: RenderOptions = {},
+) {
+  return renderWithProviders(
+    <TooltipProvider>
+      <ChatStream
+        alwaysShowFooter={alwaysShowFooter}
+        isAgentRunning={isAgentRunning}
+        isDeveloperMode={isDeveloperMode}
+        messages={messages as SessionMessage.WithParts[]}
+        onContinue={vi.fn()}
+        onModelChange={vi.fn()}
+        onRetry={vi.fn()}
+        onStartNewTask={vi.fn()}
+        task={task}
+      />
+    </TooltipProvider>,
+  );
+}
+
 function renderParts(parts: unknown[], options?: RenderOptions) {
   return renderSteps([parts], options);
 }
@@ -137,35 +173,10 @@ function renderParts(parts: unknown[], options?: RenderOptions) {
  * agent emits a message per step, so a group of any size reaches across
  * several of them.
  */
-function renderSteps(
-  steps: unknown[][],
-  {
-    alwaysShowFooter = false,
-    isAgentRunning = false,
-    isDeveloperMode = false,
-  }: RenderOptions = {},
-) {
-  const messages = steps.map((parts) => ({
-    id: StoreId.newMessageId(),
-    metadata: { createdAt: new Date(0), sessionId },
-    parts: parts as SessionMessagePart.Type[],
-    role: "assistant",
-  })) as SessionMessage.WithParts[];
-
-  return renderWithProviders(
-    <TooltipProvider>
-      <ChatStream
-        alwaysShowFooter={alwaysShowFooter}
-        isAgentRunning={isAgentRunning}
-        isDeveloperMode={isDeveloperMode}
-        messages={messages}
-        onContinue={vi.fn()}
-        onModelChange={vi.fn()}
-        onRetry={vi.fn()}
-        onStartNewTask={vi.fn()}
-        task={task}
-      />
-    </TooltipProvider>,
+function renderSteps(steps: unknown[][], options?: RenderOptions) {
+  return renderMessages(
+    steps.map((parts) => assistantMessage(parts)),
+    options,
   );
 }
 
@@ -386,6 +397,90 @@ describe("ChatStream groups that span messages", () => {
     ]);
 
     expect(screen.getAllByText("Read 2 files")).toHaveLength(1);
+  });
+});
+
+// The wordmark is the anchor that says the agent has the message, so what it
+// waits for is the turn starting and not the first row landing. A turn that
+// produced nothing keeps none of it: an empty header over a stack of user
+// messages reads as a reply that failed to draw.
+describe("ChatStream and the wordmark over a turn", () => {
+  const wordmark = (container: HTMLElement) =>
+    container.querySelector("svg[viewBox='0 0 400 72']");
+
+  function userMessage(text: string) {
+    return {
+      id: StoreId.newMessageId(),
+      metadata: { createdAt: new Date(0), sessionId },
+      parts: [prose(text)],
+      role: "user",
+    };
+  }
+
+  const aborted = { error: { kind: "aborted", message: "Aborted" } };
+
+  it("heads the turn before the agent has a message of its own", () => {
+    const { container } = renderMessages([userMessage("Read every quarter.")], {
+      isAgentRunning: true,
+    });
+
+    expect(wordmark(container)).not.toBeNull();
+  });
+
+  it("keeps it when the agent's first message lands with nothing in it", () => {
+    const { container } = renderMessages(
+      [userMessage("Read every quarter."), assistantMessage([])],
+      { isAgentRunning: true },
+    );
+
+    expect(wordmark(container)).not.toBeNull();
+  });
+
+  it("drops it for a turn stopped before it produced anything", () => {
+    const { container } = renderMessages([
+      userMessage("Read every quarter."),
+      assistantMessage([], aborted),
+    ]);
+
+    expect(wordmark(container)).toBeNull();
+  });
+
+  // The turn is over and still empty however many messages follow it, so the
+  // wordmark cannot arrive later just because the transcript moved on.
+  it("leaves it off a stopped turn the conversation has moved past", () => {
+    const { container } = renderMessages([
+      userMessage("Read every quarter."),
+      assistantMessage([], aborted),
+      userMessage("Read every quarter."),
+      assistantMessage([], aborted),
+    ]);
+
+    expect(wordmark(container)).toBeNull();
+  });
+
+  it("heads a turn that failed, which is something to show", () => {
+    const { container } = renderMessages([
+      userMessage("Read every quarter."),
+      assistantMessage([], {
+        error: {
+          kind: "api-call",
+          message: "no",
+          name: "APICallError",
+          url: "",
+        },
+      }),
+    ]);
+
+    expect(wordmark(container)).not.toBeNull();
+  });
+
+  it("heads a turn that said something", () => {
+    const { container } = renderMessages([
+      userMessage("Read every quarter."),
+      assistantMessage([prose("Revenue grew in the north.")]),
+    ]);
+
+    expect(wordmark(container)).not.toBeNull();
   });
 });
 

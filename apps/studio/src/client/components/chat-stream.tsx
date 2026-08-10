@@ -46,6 +46,10 @@ import { Wordmark } from "./wordmark";
 // margin the rest of the transcript is set against.
 const GROUP_INDENT = "pl-6";
 
+// The wordmark's row key, for the one case where it is not a message's own
+// chrome but a row in the turn that has not started yet.
+const TURN_WORDMARK_ID = "turn-wordmark";
+
 interface ChatStreamProps {
   /**
    * Draw a finished turn's footer rather than revealing it on hover. For a
@@ -145,6 +149,49 @@ export function ChatStream({
       }),
     );
   }, [isDeveloperMode, isToolStreaming, lastAssistantMessage]);
+
+  /**
+   * The assistant messages the wordmark heads: the ones that open a turn with
+   * something in it, and the turn in flight whether or not it has anything yet.
+   *
+   * The wordmark is the anchor that says the agent has the message, so it comes
+   * up the moment the turn is running rather than waiting for the first row to
+   * arrive. A turn that ends with nothing to show keeps nothing -- an empty
+   * header over a stack of user messages reads as a reply that failed to draw --
+   * and the only way to end a turn with nothing is to stop it before it started,
+   * which is exactly the case where the user is looking at what they sent.
+   *
+   * Decided here rather than in the loop below because a turn is one message per
+   * step: the wordmark goes on the message that opens the turn, and whether the
+   * turn holds anything is not settled until the last of them.
+   */
+  const wordmarkMessageIds = useMemo(() => {
+    const ids = new Set<string>();
+    let openedBy: SessionMessage.WithParts | undefined;
+    let hasContent = false;
+    const close = (isTrailingTurn: boolean) => {
+      if (openedBy && (hasContent || (isAgentRunning && isTrailingTurn))) {
+        ids.add(openedBy.id);
+      }
+      openedBy = undefined;
+      hasContent = false;
+    };
+
+    for (const message of regularMessages) {
+      if (message.role !== "assistant") {
+        close(false);
+        continue;
+      }
+      openedBy ??= message;
+      hasContent ||= assistantMessageHasContent({
+        isDeveloperMode,
+        isToolStreaming,
+        message,
+      });
+    }
+    close(true);
+    return ids;
+  }, [isAgentRunning, isDeveloperMode, isToolStreaming, regularMessages]);
 
   // Precomputed over the whole transcript, since a group and the run edges
   // around it both cross message boundaries.
@@ -249,10 +296,7 @@ export function ChatStream({
     for (const [messageIndex, message] of regularMessages.entries()) {
       const messageRows: MessageRow[] = [];
 
-      const prevMessage = regularMessages[messageIndex - 1];
       const nextMessage = regularMessages[messageIndex + 1];
-      const isFirstInConsecutiveAssistantGroup =
-        message.role === "assistant" && prevMessage?.role !== "assistant";
       const isLastInConsecutiveAssistantGroup =
         message.role === "assistant" && nextMessage?.role !== "assistant";
       const isLastMessage = messageIndex === regularMessages.length - 1;
@@ -340,11 +384,7 @@ export function ChatStream({
 
       // --- Per-message chrome ---
 
-      const isLogoVisible =
-        isFirstInConsecutiveAssistantGroup &&
-        (!isLastMessage || lastAssistantMessageHasVisibleParts);
-
-      if (isLogoVisible) {
+      if (wordmarkMessageIds.has(message.id)) {
         messageElements.unshift(
           <TurnWordmark key={`assistant-header-${message.id}`} />,
         );
@@ -471,6 +511,26 @@ export function ChatStream({
       }
     }
 
+    // A turn opens the moment the user sends, which is before the agent has a
+    // message for the wordmark to head. Drawn here for that window, it lands in
+    // the same place it takes once that message arrives, so the turn announces
+    // itself once rather than announcing itself and then moving.
+    if (isAgentRunning && regularMessages.at(-1)?.role === "user") {
+      const wordmark = <TurnWordmark key={TURN_WORDMARK_ID} />;
+      elements.push(
+        renderAsItems ? (
+          <MessageScrollerItem
+            className="flex flex-col gap-2"
+            key={TURN_WORDMARK_ID}
+          >
+            {wordmark}
+          </MessageScrollerItem>
+        ) : (
+          wordmark
+        ),
+      );
+    }
+
     return elements;
   }, [
     alwaysShowFooter,
@@ -490,6 +550,7 @@ export function ChatStream({
     onStartNewTask,
     renderStandIn,
     toggleGroup,
+    wordmarkMessageIds,
   ]);
 
   const shouldShowContinueButton = useMemo(() => {
@@ -543,6 +604,36 @@ export function ChatStream({
       <div className="flex flex-col gap-2">{chatElements}</div>
       {continueNode}
     </div>
+  );
+}
+
+// Whether the turn this message belongs to has anything to show for itself.
+//
+// The error row counts, since a turn that failed did produce something the user
+// can see. An abort does not: it draws nothing outside developer mode, and a
+// turn stopped before it started is one the user is looking away from already.
+function assistantMessageHasContent({
+  isDeveloperMode,
+  isToolStreaming,
+  message,
+}: {
+  isDeveloperMode: boolean;
+  isToolStreaming: (
+    part: SessionMessagePart.ToolPart,
+    message: SessionMessage.WithParts,
+  ) => boolean;
+  message: SessionMessage.AssistantWithParts;
+}) {
+  const error = message.metadata.error;
+  if (error && (isDeveloperMode || error.kind !== "aborted")) {
+    return true;
+  }
+  return message.parts.some((part) =>
+    isVisibleAssistantPart({
+      isDeveloperMode,
+      isStreaming: isToolPart(part) ? isToolStreaming(part, message) : false,
+      part,
+    }),
   );
 }
 

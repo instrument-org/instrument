@@ -18,6 +18,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import { BLOCK_CLOSE, BLOCK_OPEN } from "@/client/lib/motion";
 import { displayPath, folderNameFromPath } from "@/client/lib/path-utils";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -30,6 +31,7 @@ import {
   ShieldWarningIcon,
   XIcon,
 } from "@phosphor-icons/react";
+import { AnimatePresence, motion } from "motion/react";
 import { Fragment } from "react";
 import { toast } from "sonner";
 
@@ -205,20 +207,33 @@ export function FolderAccessList({
 
   return (
     <ul className={cn("flex flex-col", className)}>
-      {folders.map((folder) => (
-        <li key={folder.path}>
-          <FolderAccessRow
-            access={folder.access}
-            onAccessChange={(access) => {
-              onAccessChange(folder.path, access);
-            }}
-            onRemove={() => {
-              onRemove(folder.path);
-            }}
-            path={folder.path}
-          />
-        </li>
-      ))}
+      {/* A folder granted here is granted from a panel the user is reading
+          rather than a dialog that answers them, so the row it takes opens
+          instead of appearing. `initial={false}`: the ones a project already
+          had are not arriving. */}
+      <AnimatePresence initial={false}>
+        {folders.map((folder) => (
+          <motion.li
+            animate={{ height: "auto", opacity: 1 }}
+            className="overflow-hidden"
+            exit={{ height: 0, opacity: 0, transition: BLOCK_CLOSE }}
+            initial={{ height: 0, opacity: 0 }}
+            key={folder.path}
+            transition={BLOCK_OPEN}
+          >
+            <FolderAccessRow
+              access={folder.access}
+              onAccessChange={(access) => {
+                onAccessChange(folder.path, access);
+              }}
+              onRemove={() => {
+                onRemove(folder.path);
+              }}
+              path={folder.path}
+            />
+          </motion.li>
+        ))}
+      </AnimatePresence>
     </ul>
   );
 }

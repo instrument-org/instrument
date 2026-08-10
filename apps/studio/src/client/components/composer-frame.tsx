@@ -1,4 +1,6 @@
+import { COMPOSER_CLOSE, COMPOSER_OPEN } from "@/client/lib/composer-motion";
 import { cn } from "@/client/lib/utils";
+import { AnimatePresence, motion } from "motion/react";
 
 /**
  * The box the prompt is composed in: rows stacked around an editor that takes
@@ -54,17 +56,32 @@ export function ComposerFrame({
 
       {/* Rows are placed rather than flowed: with nothing attached the first row
           is empty and sizes to nothing, and the editor still has to land in the
-          row that can give. */}
-      {attachments && (
-        // The negative margin lets the chips' remove buttons sit outside this
-        // scroller's clip.
-        <div
-          className="row-start-1 -m-2 mb-2 flex max-h-32 min-h-0 flex-wrap items-start gap-2 overflow-y-auto p-2"
-          data-slot="composer-attachments"
-        >
-          {attachments}
-        </div>
-      )}
+          row that can give.
+
+          The row opens the box rather than appearing inside it, so what was
+          attached is read as arriving. `initial={false}`: a draft restored with
+          files already had them. */}
+      <AnimatePresence initial={false}>
+        {attachments && (
+          // The negative margin carries the clip out past the chips, so the
+          // remove buttons that sit outside them survive both it and the
+          // scroller's own.
+          <motion.div
+            animate={{ height: "auto", opacity: 1 }}
+            className="row-start-1 -mx-2 -mt-2 mb-2 overflow-hidden"
+            exit={{ height: 0, opacity: 0, transition: COMPOSER_CLOSE }}
+            initial={{ height: 0, opacity: 0 }}
+            transition={COMPOSER_OPEN}
+          >
+            <div
+              className="flex max-h-32 min-h-0 flex-wrap items-start gap-2 overflow-y-auto scroll-fade-y p-2"
+              data-slot="composer-attachments"
+            >
+              {attachments}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="row-start-2 flex min-h-0 flex-col">{children}</div>
 

@@ -4,10 +4,12 @@ import {
 } from "@/client/components/folder-access-list";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { Button } from "@/client/components/ui/button";
+import { COMPOSER_CLOSE, COMPOSER_OPEN } from "@/client/lib/composer-motion";
 import { displayPath, folderNameFromPath } from "@/client/lib/path-utils";
 import { cn } from "@/client/lib/utils";
 import { type FolderAttachment } from "@instrument-org/workspace/client";
 import { FolderIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
+import { AnimatePresence, motion } from "motion/react";
 
 /**
  * The folders this prompt will be worked in, listed beside the composer they
@@ -41,39 +43,60 @@ export function ComposerFolderTray({
   showAdd?: boolean;
 }) {
   return (
-    <div className={cn("flex flex-col gap-1 px-4 py-2", className)}>
-      {folders.map((folder) => {
-        const name = folderNameFromPath(folder.path);
+    // No gap: the space under a row belongs to the row, so it collapses with
+    // one on its way out instead of leaving a band where it was.
+    <div className={cn("flex flex-col px-4 py-2", className)}>
+      {/* `initial={false}`: folders a draft already had are not arriving, and
+          the first one on a surface that grows a tray for it is carried in by
+          the tray opening around it. */}
+      <AnimatePresence initial={false}>
+        {folders.map((folder) => {
+          const name = folderNameFromPath(folder.path);
 
-        return (
-          <div className="flex h-7 items-center gap-2" key={folder.path}>
-            <button
-              className="flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground opacity-60 hover:bg-foreground/10 hover:opacity-100"
-              onClick={() => {
-                onRemove(folder.path);
-              }}
-              type="button"
+          return (
+            <motion.div
+              animate={{ height: "auto", opacity: 1 }}
+              className="overflow-hidden"
+              exit={{ height: 0, opacity: 0, transition: COMPOSER_CLOSE }}
+              initial={{ height: 0, opacity: 0 }}
+              key={folder.path}
+              transition={COMPOSER_OPEN}
             >
-              <XIcon className="size-3" />
-              <span className="sr-only">Remove {name}</span>
-            </button>
-            <MacFolderIcon className="size-5 shrink-0" />
-            <span
-              className="min-w-0 flex-1 truncate text-xs text-muted-foreground"
-              title={folder.path}
-            >
-              {displayPath(folder.path)}
-            </span>
-            <FolderAccessControl
-              access={folder.access}
-              folderName={name}
-              onChange={(access) => {
-                onAccessChange(folder.path, access);
-              }}
-            />
-          </div>
-        );
-      })}
+              {/* The margin is what separates the rows, and it sits inside the
+                  clip so it collapses with the row rather than leaving a band
+                  where one was. Splitting it over both edges also keeps the
+                  outlined button off the clip, which took a pixel of its
+                  border at any zoom that landed the row on a half pixel. */}
+              <div className="my-0.5 flex h-7 items-center gap-2">
+                <button
+                  className="flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground opacity-60 hover:bg-foreground/10 hover:opacity-100"
+                  onClick={() => {
+                    onRemove(folder.path);
+                  }}
+                  type="button"
+                >
+                  <XIcon className="size-3" />
+                  <span className="sr-only">Remove {name}</span>
+                </button>
+                <MacFolderIcon className="size-5 shrink-0" />
+                <span
+                  className="min-w-0 flex-1 truncate text-xs text-muted-foreground"
+                  title={folder.path}
+                >
+                  {displayPath(folder.path)}
+                </span>
+                <FolderAccessControl
+                  access={folder.access}
+                  folderName={name}
+                  onChange={(access) => {
+                    onAccessChange(folder.path, access);
+                  }}
+                />
+              </div>
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
       {showAdd && (
         <Button
           className="-ml-1.5 h-6 w-fit gap-2 px-1.5 text-xs text-muted-foreground"

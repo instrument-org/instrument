@@ -15,6 +15,11 @@ import {
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
+import {
+  COMPOSER_CHIP,
+  COMPOSER_CLOSE,
+  COMPOSER_OPEN,
+} from "@/client/lib/composer-motion";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { folderNameFromPath } from "@/client/lib/path-utils";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
@@ -45,6 +50,7 @@ import {
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { AnimatePresence, motion } from "motion/react";
 import {
   useEffect,
   useImperativeHandle,
@@ -705,29 +711,52 @@ export const PromptInput = ({
     return false;
   };
 
-  const folderTray = showFolderTray && (
-    <ComposerFolderTray
-      disabled={disabled || isLoading}
-      folders={folderAccessList}
-      onAccessChange={setFolderAccess}
-      onAdd={() => void handleFolderPick()}
-      onRemove={removeFolder}
-      showAdd={showWorkInFolder}
-    />
+  const folderTray = (
+    // `initial={false}`: a surface that offers the tray has it from the first
+    // paint, and a restored draft arrives with its folders already attached.
+    // Neither is a change, so neither is worth animating.
+    <AnimatePresence initial={false}>
+      {showFolderTray && (
+        <motion.div
+          animate={{ height: "auto", opacity: 1 }}
+          className="overflow-hidden"
+          exit={{ height: 0, opacity: 0, transition: COMPOSER_CLOSE }}
+          initial={{ height: 0, opacity: 0 }}
+          transition={COMPOSER_OPEN}
+        >
+          <ComposerFolderTray
+            disabled={disabled || isLoading}
+            folders={folderAccessList}
+            onAccessChange={setFolderAccess}
+            onAdd={() => void handleFolderPick()}
+            onRemove={removeFolder}
+            showAdd={showWorkInFolder}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 
   return (
     // Once there are folders to show, the composer sits inside a tray rather
     // than on top of one: a single rounded block, a shade off the page, with the
-    // prompt inset in it.
-    <div
-      className={cn(
-        "flex flex-col",
-        showFolderTray &&
-          "rounded-3xl border border-black/5 bg-muted p-1 dark:border-white/10",
-        className,
-      )}
+    // prompt inset in it. `isolate` keeps the block behind the prompt rather
+    // than behind whatever the composer was placed on.
+    <motion.div
+      animate={{ padding: showFolderTray ? 4 : 0 }}
+      className={cn("relative isolate flex flex-col", className)}
+      initial={false}
+      transition={showFolderTray ? COMPOSER_OPEN : COMPOSER_CLOSE}
     >
+      {/* The block itself, out of flow: a border and a fill on the box the
+          prompt sits in cannot be faded without taking the prompt with them. */}
+      <motion.div
+        animate={{ opacity: showFolderTray ? 1 : 0 }}
+        className="pointer-events-none absolute inset-0 -z-10 rounded-3xl border border-black/5 bg-muted dark:border-white/10"
+        initial={false}
+        transition={showFolderTray ? COMPOSER_OPEN : COMPOSER_CLOSE}
+      />
+
       {folderTrayPlacement === "above" && folderTray}
 
       <ComposerFrame
@@ -835,29 +864,43 @@ export const PromptInput = ({
           </>
         }
         attachments={
-          attachedFiles.length > 0 &&
-          attachedFiles.map((item) => (
-            <AttachedFilePreview
-              filename={item.name}
-              key={item.id}
-              mimeType={item.mimeType}
-              onClick={() => {
-                if (item.url) {
-                  openFilePreview({
-                    filename: item.name,
-                    mimeType: item.mimeType,
-                    size: item.size,
-                    url: item.url,
-                  });
-                }
-              }}
-              onRemove={() => {
-                removeAttachedItem(item.id);
-              }}
-              size={item.size}
-              url={item.url}
-            />
-          ))
+          attachedFiles.length > 0 && (
+            // A file lands in the corner of a box the user is looking away
+            // from, at the caret, so it grows into place rather than appearing
+            // there. `initial={false}`: the first one is carried in by the row
+            // opening around it, and does not need a second motion of its own.
+            <AnimatePresence initial={false}>
+              {attachedFiles.map((item) => (
+                <motion.div
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  key={item.id}
+                  transition={COMPOSER_CHIP}
+                >
+                  <AttachedFilePreview
+                    filename={item.name}
+                    mimeType={item.mimeType}
+                    onClick={() => {
+                      if (item.url) {
+                        openFilePreview({
+                          filename: item.name,
+                          mimeType: item.mimeType,
+                          size: item.size,
+                          url: item.url,
+                        });
+                      }
+                    }}
+                    onRemove={() => {
+                      removeAttachedItem(item.id);
+                    }}
+                    size={item.size}
+                    url={item.url}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          )
         }
         maxHeight={autoResizeMaxHeight}
         overlay={
@@ -901,6 +944,6 @@ export const PromptInput = ({
         ref={fileInputRef}
         type="file"
       />
-    </div>
+    </motion.div>
   );
 };

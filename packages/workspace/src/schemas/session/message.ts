@@ -22,6 +22,7 @@ import { externalFileChangesModelNote } from "../../lib/external-file-changes-mo
 import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
+import { paneTabsModelNote } from "../../lib/pane-tabs-model-text";
 import { projectChangesModelNote } from "../../lib/project-changes-model-text";
 import { TOOL_NAMES } from "../../tools/name";
 import { StoreId } from "../store-id";
@@ -213,6 +214,7 @@ export namespace SessionMessage {
     tools: ToolSet,
   ): Promise<ModelMessage[]> {
     let previousBrowserStatusNote: string | undefined;
+    let previousPaneTabsNote: string | undefined;
     // A max-steps stop is recorded on the assistant message where the run
     // halted, but the note belongs on the user turn that resumes it (injection
     // only runs for user messages). Carry it forward to the next user message.
@@ -308,6 +310,17 @@ export namespace SessionMessage {
             injectedParts.push({ text: note, type: "text" });
           }
           previousBrowserStatusNote = note;
+        }
+
+        const paneTabsPart = message.parts.find(
+          (part) => part.type === "data-paneTabs",
+        );
+        if (paneTabsPart) {
+          const note = paneTabsModelNote(paneTabsPart.data);
+          if (note !== previousPaneTabsNote) {
+            injectedParts.push({ text: note, type: "text" });
+          }
+          previousPaneTabsNote = note;
         }
 
         const externalChangesPart = message.parts.find(

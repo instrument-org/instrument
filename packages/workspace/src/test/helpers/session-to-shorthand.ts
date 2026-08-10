@@ -138,6 +138,12 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-maxSteps": {
       return `<data-maxSteps maxStepCount="${part.data.maxStepCount}" />`;
     }
+    case "data-paneTabs": {
+      const tabs = part.data.tabs
+        .map((tab) => (tab.type === "file" ? tab.filePath : "browser"))
+        .join(", ");
+      return `<data-paneTabs>${tabs}</data-paneTabs>`;
+    }
     case "data-projectChanges": {
       const projectName = ` projectName="${part.data.projectName}"`;
       const instructions = part.data.instructionsChanged

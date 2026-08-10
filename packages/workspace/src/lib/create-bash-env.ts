@@ -50,6 +50,7 @@ import {
   PYTHON_COMMAND,
 } from "./shell-commands/python";
 import { createRgCommand, RG_COMMAND } from "./shell-commands/rg";
+import { createShowCommand, SHOW_COMMAND } from "./shell-commands/show";
 import { createTsCommand, TS_COMMAND } from "./shell-commands/ts";
 import { createTscCommand, TSC_COMMAND } from "./shell-commands/tsc";
 import { createUvCommand, UV_COMMAND } from "./shell-commands/uv";
@@ -311,6 +312,7 @@ export function createBashDescription() {
 
   const customLines = [
     `  ${AGENT_BROWSER_COMMAND.name} - ${agentBrowserCommandDescription()}`,
+    `  ${SHOW_COMMAND.name} - ${SHOW_COMMAND.description}`,
     ...CUSTOM_COMMAND_DEFS.filter((cmd) => cmd.listInDescription).map(
       (cmd) => `  ${cmd.name} - ${cmd.description}`,
     ),
@@ -394,10 +396,12 @@ export async function createBashEnv({
       // the real binary is orders of magnitude faster on a large tree and does
       // not carry its `(?i)` and root-level-glob bugs.
       createRgCommand({ attachedFolders, projectFolderName, taskId }),
+      createShowCommand({ sessionId, taskId }),
       ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(taskId)),
       createWhichCommand(
         new Set([
           AGENT_BROWSER_COMMAND.name,
+          SHOW_COMMAND.name,
           ...allowedCommands,
           ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.name),
         ]),

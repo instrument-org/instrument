@@ -4,6 +4,7 @@ import {
   browserStatusModelNote,
   externalFileChangesModelNote,
   maxStepsModelNote,
+  paneTabsModelNote,
   type SessionMessageDataPart,
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
@@ -40,6 +41,7 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-fileChanges": "dev",
   "data-intent": "dev",
   "data-maxSteps": "dev",
+  "data-paneTabs": "dev",
   "data-projectChanges": "always",
   "data-projectContext": "hidden",
   "data-skillChanges": "always",
@@ -150,6 +152,15 @@ export function renderDataPart({
           className="mt-2"
           key={part.metadata.id}
           text={maxStepsModelNote(part.data)}
+        />
+      );
+    }
+    case "data-paneTabs": {
+      return (
+        <ModelContextDebugCard
+          className="mt-2"
+          key={part.metadata.id}
+          text={paneTabsModelNote(part.data)}
         />
       );
     }

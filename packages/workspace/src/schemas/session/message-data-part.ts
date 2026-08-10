@@ -3,6 +3,7 @@ import { z } from "zod";
 import { FolderAttachment } from "../folder-attachment";
 import { RelativePathSchema } from "../paths";
 import { ProjectIdSchema } from "../project-id";
+import { TaskPane } from "../task-pane";
 
 export namespace SessionMessageDataPart {
   export const NameSchema = z.enum([
@@ -15,6 +16,7 @@ export namespace SessionMessageDataPart {
     "skillChanges",
     "skillMentions",
     "maxSteps",
+    "paneTabs",
     "projectChanges",
     "projectContext",
     "unknown",
@@ -161,6 +163,20 @@ export namespace SessionMessageDataPart {
     typeof BrowserStatusDataPartSchema
   >;
 
+  /**
+   * What the task's pane already has open, at the start of a turn.
+   *
+   * Attached per turn rather than written into the session context, which is
+   * rebuilt at most hourly: what is on screen changes several times inside one
+   * turn, and standing context that lags an hour would have the agent reasoning
+   * about a pane the user closed long ago.
+   */
+  const PaneTabsDataPartSchema = z.object({
+    tabs: z.array(TaskPane.TabSchema),
+  });
+
+  export type PaneTabsDataPart = z.output<typeof PaneTabsDataPartSchema>;
+
   // Attached to the synthetic assistant message written when a run stops after
   // reaching the max unattended step count. Hidden from the chat UI (the
   // "Resume the agent" alert is the visible affordance); surfaced to the model
@@ -242,6 +258,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
+    [NameSchema.enum.paneTabs]: PaneTabsDataPartSchema,
     [NameSchema.enum.projectChanges]: ProjectChangesDataPartSchema,
     [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,
     [NameSchema.enum.skillChanges]: SkillChangesDataPartSchema,

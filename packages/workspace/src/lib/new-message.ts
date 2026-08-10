@@ -14,6 +14,7 @@ import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { detectAttachedFolderChanges } from "./attached-folder-changes";
 import { createBrowserStatusPart } from "./create-browser-status-part";
+import { createPaneTabsPart } from "./create-pane-tabs-part";
 import { detectProjectChanges } from "./detect-project-changes";
 import { detectExternalFileChanges } from "./external-file-changes";
 import { taskDir } from "./task-dir-utils";
@@ -126,6 +127,16 @@ export async function newMessage({
   });
   if (browserStatusPart) {
     parts.push(browserStatusPart);
+  }
+
+  const paneTabsPart = await createPaneTabsPart({
+    createdAt,
+    messageId,
+    sessionId,
+    taskId,
+  });
+  if (paneTabsPart) {
+    parts.push(paneTabsPart);
   }
 
   const externalChanges = await detectExternalFileChanges({

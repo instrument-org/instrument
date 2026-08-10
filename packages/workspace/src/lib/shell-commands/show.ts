@@ -1,0 +1,191 @@
+import { defineCommand } from "just-bash";
+
+import { publisher } from "../../rpc/publisher";
+import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../../schemas/paths";
+import { type StoreId } from "../../schemas/store-id";
+import { type TaskId } from "../../schemas/task-id";
+import { TaskPane } from "../../schemas/task-pane";
+import { recordBrowserUse } from "../browser-state";
+import { isTaskId } from "../is-task-id";
+import { getBrowserSessionDir, taskDir } from "../task-dir-utils";
+import { updateTaskPane } from "../task-state-store";
+import { getWorkspaceConfig } from "../workspace-config";
+import { privateMountPoint, TASK_MOUNT_POINT } from "../workspace-fs-layout";
+
+export const SHOW_COMMAND = {
+  description: [
+    `Show a file or a URL to the user, in the panel beside the conversation. Takes several arguments and opens one tab each, focusing the last.`,
+    `Use it for something the user should look at now: a chart just rendered, a report just written, a page worth seeing. It composes with the command that produced the thing, so \`python build.py && show output/chart.png\` is one call.`,
+    `It does NOT replace the \`\`\`files fence, which is how a reply hands files over and leaves a record in the conversation. A closed panel must not erase what the reply said it produced, so name deliverables in the fence whether or not you show them.`,
+    `Paths are yours as you write them elsewhere: task-relative (\`output/report.pdf\`) or under \`${ATTACHED_FOLDERS_MOUNT_ROOT}/\`. An argument starting with http:// or https:// is a URL, and steers the browsing session you already drive rather than opening a separate window.`,
+    `It does not open the file in the user's own applications, does not download anything, and does not raise or focus the app's window.`,
+  ].join("\n"),
+  name: "show",
+} as const;
+
+export function createShowCommand({
+  sessionId,
+  taskId,
+}: {
+  sessionId: StoreId.Session;
+  taskId: TaskId;
+}) {
+  return defineCommand(SHOW_COMMAND.name, async (args, ctx) => {
+    if (!isTaskId(taskId)) {
+      return {
+        exitCode: 1,
+        stderr: `${SHOW_COMMAND.name}: only available in task contexts.\n`,
+        stdout: "",
+      };
+    }
+
+    if (args.length === 0) {
+      return {
+        exitCode: 1,
+        stderr: `${SHOW_COMMAND.name}: nothing to show. Usage: ${SHOW_COMMAND.name} <path-or-url>...\n`,
+        stdout: "",
+      };
+    }
+
+    const tabs: TaskPane.Tab[] = [];
+    const shown: string[] = [];
+    const failures: string[] = [];
+    let browserUrl: string | undefined;
+
+    for (const arg of args) {
+      if (isUrl(arg)) {
+        tabs.push({ type: "browser" });
+        browserUrl = arg;
+        shown.push(arg);
+        continue;
+      }
+
+      const resolved = await resolveShowPath(arg, ctx);
+      if ("error" in resolved) {
+        failures.push(`${SHOW_COMMAND.name}: ${resolved.error}`);
+        continue;
+      }
+
+      tabs.push(TaskPane.fileTab(resolved.filePath));
+      shown.push(resolved.filePath);
+    }
+
+    // Deliberately unlike the fence, which degrades silently: a fence is a
+    // description and a bad line should cost nothing, but this is imperative
+    // and the agent should learn it failed. What did resolve is still shown.
+    if (tabs.length === 0) {
+      return {
+        exitCode: 1,
+        stderr: `${failures.join("\n")}\n`,
+        stdout: "",
+      };
+    }
+
+    if (browserUrl) {
+      const navigated = await navigateTaskBrowser({
+        sessionId,
+        taskId,
+        url: browserUrl,
+      });
+      if (navigated) {
+        failures.push(`${SHOW_COMMAND.name}: ${navigated}`);
+      }
+    }
+
+    await updateTaskPane(taskDir(taskId), (pane) =>
+      TaskPane.openTabs(pane, tabs),
+    );
+    publisher.publish("task.updated", { id: taskId });
+
+    return {
+      exitCode: failures.length > 0 ? 1 : 0,
+      stderr: failures.length > 0 ? `${failures.join("\n")}\n` : "",
+      // One line per opened argument, so the agent has something to check
+      // rather than something to assume.
+      stdout: shown.map((line) => `Showing ${line}`).join("\n") + "\n",
+    };
+  });
+}
+
+function isUrl(arg: string): boolean {
+  return arg.startsWith("http://") || arg.startsWith("https://");
+}
+
+/**
+ * Point the session's browser at a URL, returning a message when it could not.
+ *
+ * There is one browser per session, so this steers the one the agent already
+ * drives rather than opening a second. `createTarget` is idempotent and returns
+ * the live view when there is one.
+ */
+async function navigateTaskBrowser({
+  sessionId,
+  taskId,
+  url,
+}: {
+  sessionId: StoreId.Session;
+  taskId: TaskId;
+  url: string;
+}): Promise<string | undefined> {
+  try {
+    const { browser } = getWorkspaceConfig();
+    const { targetId } = await browser.createTarget(
+      taskId,
+      sessionId,
+      getBrowserSessionDir(),
+    );
+    await browser.sendCommand(targetId, "Page.navigate", { url });
+    const result = await recordBrowserUse({ sessionId, taskId, url });
+    if (result.isErr()) {
+      getWorkspaceConfig().captureException(result.error);
+    }
+    return undefined;
+  } catch (error) {
+    return `could not open ${url}: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+/**
+ * The path the pane stores for an argument, in the same grammar the fence and
+ * the file chip use: task-relative, or under the attached-folders mount.
+ *
+ * Containment is whatever bash already allows, since the argument is resolved
+ * through the same virtual filesystem every other command sees; there is
+ * nothing new to reason about here beyond refusing the two mounts a reference
+ * cannot address.
+ */
+async function resolveShowPath(
+  arg: string,
+  ctx: {
+    cwd: string;
+    fs: {
+      exists(path: string): Promise<boolean>;
+      resolvePath(cwd: string, path: string): string;
+    };
+  },
+): Promise<{ error: string } | { filePath: string }> {
+  const virtualPath = ctx.fs.resolvePath(ctx.cwd, arg);
+
+  const privateDir = privateMountPoint(TASK_MOUNT_POINT);
+  if (virtualPath === privateDir || virtualPath.startsWith(`${privateDir}/`)) {
+    return { error: `"${arg}" is inside the task's private directory.` };
+  }
+
+  const isTaskFile = virtualPath.startsWith(`${TASK_MOUNT_POINT}/`);
+  const isMountFile = virtualPath.startsWith(`${ATTACHED_FOLDERS_MOUNT_ROOT}/`);
+  if (!isTaskFile && !isMountFile) {
+    return {
+      error: `"${arg}" is outside the task and the folders the user shared, so there is nothing to show it in.`,
+    };
+  }
+
+  if (!(await ctx.fs.exists(virtualPath))) {
+    return { error: `"${arg}" does not exist.` };
+  }
+
+  return {
+    filePath: isTaskFile
+      ? virtualPath.slice(TASK_MOUNT_POINT.length + 1)
+      : virtualPath,
+  };
+}

@@ -61,6 +61,42 @@ function message(role: "assistant" | "user", text: string) {
   };
 }
 
+/** One finished read, as its own assistant message: a turn is a message a step. */
+function readStep(filePath: string) {
+  return {
+    id: StoreId.newMessageId(),
+    metadata: { createdAt: new Date(0), sessionId },
+    parts: [
+      {
+        input: { explanation: `Reading ${filePath}`, filePath },
+        metadata: {
+          createdAt: new Date(0),
+          endedAt: new Date(2),
+          id: StoreId.newPartId(),
+          messageId: StoreId.newMessageId(),
+          sessionId,
+          startedAt: new Date(1),
+        },
+        output: {
+          content: "region,revenue",
+          displayedLines: 1,
+          filePath,
+          hasMoreLines: false,
+          modifiedAt: 0,
+          offset: 1,
+          state: "exists",
+          totalLines: 1,
+          truncatedByBytes: false,
+        },
+        state: "output-available",
+        toolCallId: StoreId.ToolCallSchema.parse(`call-${filePath}`),
+        type: "tool-read_file",
+      },
+    ],
+    role: "assistant",
+  };
+}
+
 // Enough turns above to make the transcript overflow, so the anchor has room to
 // move to and the placement is a real measurement rather than a clamp to zero.
 const history = Array.from({ length: 6 }, (_, index) => [
@@ -92,7 +128,13 @@ function anchorOffset() {
  * agent's first message, so the scroller's content observer sees one batch with
  * an unchanged child count -- which is the branch this is here to hold.
  */
-function Harness({ steps }: { steps: unknown[][] }) {
+function Harness({
+  isAgentRunning = true,
+  steps,
+}: {
+  isAgentRunning?: boolean;
+  steps: unknown[][];
+}) {
   const [index, setIndex] = useState(0);
 
   return (
@@ -107,11 +149,17 @@ function Harness({ steps }: { steps: unknown[][] }) {
           >
             step
           </button>
-          <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+          <MessageScrollerProvider
+            autoScroll={isAgentRunning}
+            defaultScrollPosition="end"
+          >
             <MessageScroller>
               <MessageScrollerViewport style={{ height: VIEWPORT_HEIGHT }}>
                 <MessageScrollerContent className="gap-2 p-4">
-                  <Transcript messages={steps[index] ?? []} />
+                  <Transcript
+                    isAgentRunning={isAgentRunning}
+                    messages={steps[index] ?? []}
+                  />
                 </MessageScrollerContent>
               </MessageScrollerViewport>
             </MessageScroller>
@@ -142,12 +190,26 @@ function settle(frames = 6) {
   });
 }
 
-function Transcript({ messages }: { messages: unknown[] }) {
+function spacerHeight() {
+  const spacer = document.querySelector<HTMLElement>(
+    "[data-message-scroller-spacer]",
+  );
+
+  return spacer ? Math.round(spacer.getBoundingClientRect().height) : 0;
+}
+
+function Transcript({
+  isAgentRunning,
+  messages,
+}: {
+  isAgentRunning: boolean;
+  messages: unknown[];
+}) {
   const { releaseAutoScroll } = useMessageScroller();
 
   return (
     <ChatStream
-      isAgentRunning
+      isAgentRunning={isAgentRunning}
       isDeveloperMode={false}
       messages={messages as SessionMessage.WithParts[]}
       onContinue={vi.fn()}
@@ -158,6 +220,20 @@ function Transcript({ messages }: { messages: unknown[] }) {
       renderAsItems
       task={task}
     />
+  );
+}
+
+function viewportOffset(element: Element) {
+  const viewport = document.querySelector<HTMLElement>(
+    "[data-slot=message-scroller-viewport]",
+  );
+
+  if (!viewport) {
+    throw new Error("no scroller viewport");
+  }
+
+  return Math.round(
+    element.getBoundingClientRect().top - viewport.getBoundingClientRect().top,
   );
 }
 
@@ -191,4 +267,53 @@ test("holds the turn in place when the wordmark gives way to the reply", async (
   // testing the append path instead and would pass without meaning anything.
   expect(rowCount()).toBe(placedRowCount);
   expect(anchorOffset()).toBe(placed);
+});
+
+test("leaves an idle transcript where it is when a folded run is opened", async () => {
+  // A run with a turn after it. Folded, the steps behind the head line draw
+  // nothing, so the messages holding them are not rows at all -- opening the
+  // run puts them back, in the middle of the list, which is the part the
+  // scroller must not read as a turn arriving.
+  const messages = [
+    ...history,
+    message("user", "Check the numbers"),
+    readStep("q1.csv"),
+    readStep("q2.csv"),
+    readStep("q3.csv"),
+    message("assistant", "Revenue grew."),
+    message("user", "And after that?"),
+    message("assistant", "It kept growing."),
+  ];
+
+  await render(<Harness isAgentRunning={false} steps={[messages]} />);
+  await settle();
+
+  const head = [...document.querySelectorAll("*")].find(
+    (element) =>
+      element.children.length === 0 && element.textContent === "Read 3 files",
+  );
+
+  if (!head) {
+    throw new Error("no folded run in the transcript");
+  }
+
+  // Clicking has to be a plain dispatch: a driver click scrolls its target into
+  // view first, which is the movement under test.
+  const closed = viewportOffset(head);
+  const closedRowCount = rowCount();
+  expect(closed).toBeGreaterThan(0);
+  expect(closed).toBeLessThan(VIEWPORT_HEIGHT);
+
+  (head as HTMLElement).click();
+  await settle();
+
+  // The premise: opening really does put rows back into the middle of the list.
+  // Without that the scroller never sees an append here and this would pass
+  // whether or not the bug was fixed.
+  expect(rowCount()).toBeGreaterThan(closedRowCount);
+
+  // Nothing was pinned, so nothing reserved room under the last turn for it,
+  // and the row that was clicked is still under the pointer.
+  expect(spacerHeight()).toBe(0);
+  expect(viewportOffset(head)).toBe(closed);
 });

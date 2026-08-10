@@ -1,4 +1,9 @@
-import type { Project, Task, TaskId } from "@instrument-org/workspace/client";
+import type {
+  Project,
+  ProjectId,
+  Task,
+  TaskId,
+} from "@instrument-org/workspace/client";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { InternalLink } from "@/client/components/internal-link";
@@ -30,7 +35,7 @@ export function createColumns({
   onSettings: (id: TaskId) => void;
   onStop: (id: TaskId) => void;
   pinnedTaskIds: Set<TaskId>;
-  projects: Map<string, Project>;
+  projects: Map<ProjectId, Project>;
 }): ColumnDef<Task>[] {
   return [
     {

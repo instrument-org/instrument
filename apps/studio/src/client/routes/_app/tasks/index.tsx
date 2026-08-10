@@ -29,6 +29,7 @@ import { APP_NAME, TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import {
   isTaskId,
   type Project,
+  type ProjectId,
   type Task,
   type TaskId,
 } from "@instrument-org/workspace/client";
@@ -102,7 +103,7 @@ function RouteComponent() {
   );
 
   const projectsMap = useMemo(() => {
-    const map = new Map<string, Project>();
+    const map = new Map<ProjectId, Project>();
     for (const project of projectsList ?? []) {
       map.set(project.id, project);
     }

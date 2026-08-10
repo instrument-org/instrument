@@ -53,8 +53,8 @@ function getSessionTags({
   sessionActors,
   sessionId,
 }: {
-  sessionActors: { sessionId: string; tags: SessionTag[] }[];
-  sessionId: string;
+  sessionActors: { sessionId: StoreId.Session; tags: SessionTag[] }[];
+  sessionId: StoreId.Session;
 }) {
   return sessionActors.find((a) => a.sessionId === sessionId)?.tags ?? [];
 }

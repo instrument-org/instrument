@@ -762,7 +762,7 @@ function readTurnOpenings({
   isAgentRunning: boolean;
   regularMessages: SessionMessage.WithParts[];
 }) {
-  const wordmarkMessageIds = new Set<string>();
+  const wordmarkMessageIds = new Set<StoreId.Message>();
   let openedBy: SessionMessage.WithParts | undefined;
   let hasContent = false;
   const close = () => {

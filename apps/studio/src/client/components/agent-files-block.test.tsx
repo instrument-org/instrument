@@ -12,12 +12,17 @@ import { MarkdownTaskContext } from "./markdown-task-context";
 vi.mock("./files-grid", () => ({
   FilesGrid: ({
     files,
+    pendingFilePath,
     preserveOrder,
   }: {
     files: TaskFileViewerFile[];
+    pendingFilePath?: string;
     preserveOrder?: boolean;
   }) => (
-    <ul data-preserve-order={String(preserveOrder)}>
+    <ul
+      data-pending={pendingFilePath ?? ""}
+      data-preserve-order={String(preserveOrder)}
+    >
       {files.map((file) => (
         <li key={file.filePath}>{`${file.filePath} @ ${file.url}`}</li>
       ))}
@@ -130,10 +135,39 @@ describe("AgentFilesBlock", () => {
     ]);
   });
 
+  // Not drawn, but not ignored either: the grid holds the room the card will
+  // need, so the finished line lands into space that is already there rather
+  // than pushing the reply down as the turn ends.
+  it("hands over the line being typed once it names something to reserve", () => {
+    renderBlock("output/chart.png\noutput/second.png", { isStreaming: true });
+
+    expect(screen.getByRole("list").dataset.pending).toBe("output/second.png");
+  });
+
+  // A tile is reserved by its shape, and until an extension arrives there is no
+  // shape to reserve -- nor any way to tell a path from a sentence.
+  it.each(["output/ch", "output/notes.md"])(
+    "reserves nothing for %s, which names no tile",
+    (line) => {
+      renderBlock(`output/chart.png\n${line}`, { isStreaming: true });
+
+      expect(screen.getByRole("list").dataset.pending).toBe("");
+    },
+  );
+
   it("renders nothing while a fence with no finished line streams in", () => {
     const { container } = renderBlock("output/ch", { isStreaming: true });
 
     expect(container.innerHTML).toBe("");
+  });
+
+  // The first line of a fence is the whole of it for a moment, and a fence
+  // that opens with an image should hold its room from that moment.
+  it("reserves for the first line of a fence that has finished none", () => {
+    renderBlock("output/chart.png", { isStreaming: true });
+
+    expect(screen.queryAllByRole("listitem")).toHaveLength(0);
+    expect(screen.getByRole("list").dataset.pending).toBe("output/chart.png");
   });
 
   it("ignores a stray line that was never meant as a path", () => {

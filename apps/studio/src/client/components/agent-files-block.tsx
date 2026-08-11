@@ -1,5 +1,6 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
+import { isMediaFile } from "@/client/lib/get-file-type";
 import { parseFilesBlock } from "@/client/lib/parse-files-block";
 import { isAddressableTaskFilePath } from "@instrument-org/workspace/client";
 import { useContext } from "react";
@@ -29,16 +30,34 @@ export function AgentFilesBlock({ content }: { content: string }) {
   // A fence still arriving ends mid-path: the model has typed `output/ch` of
   // `output/chart.png`, and an optimistic card would be drawn and replaced on
   // every further keystroke. A line is finished once a newline follows it.
+  const lineBreak = content.lastIndexOf("\n");
   const settledContent =
-    isStreaming === true
-      ? content.slice(0, content.lastIndexOf("\n") + 1)
-      : content;
+    isStreaming === true ? content.slice(0, lineBreak + 1) : content;
   const paths = parseFilesBlock(settledContent).filter(isDrawablePath);
+
+  // The line still being typed, which the grid holds a place for without
+  // drawing. Every fence has one until the message ends -- the code node drops
+  // the newline before the closing fence, so the last path is unfinished by
+  // this reckoning right up to the frame the message settles in, and that is
+  // the frame it would otherwise arrive in unannounced.
+  //
+  // Only a path that already names media, since that is all the grid can
+  // reserve an exact box for. It is also the only kind worth reserving: a
+  // square tile is the tallest thing a fence draws, and the room it needs is
+  // the room the reader would otherwise have to go and find.
+  const pendingPath =
+    isStreaming === true
+      ? parseFilesBlock(content.slice(lineBreak + 1))
+          .filter(isDrawablePath)
+          .find(
+            (path) => isMediaFile({ filename: path }) && !paths.includes(path),
+          )
+      : undefined;
 
   if (
     taskId === undefined ||
     assetBaseUrl === undefined ||
-    paths.length === 0
+    (paths.length === 0 && pendingPath === undefined)
   ) {
     return null;
   }
@@ -52,7 +71,7 @@ export function AgentFilesBlock({ content }: { content: string }) {
 
   return (
     <div className="not-prose my-4">
-      <FilesGrid files={files} preserveOrder />
+      <FilesGrid files={files} pendingFilePath={pendingPath} preserveOrder />
     </div>
   );
 }

@@ -385,6 +385,23 @@ export function getFileType({
   return "unknown";
 }
 
+/**
+ * Whether the file is one a surface previews by showing it rather than by
+ * naming it.
+ *
+ * Asked of a name alone, so a path with no file behind it yet can be asked the
+ * same question -- which is what lets a grid reserve the room a file is going
+ * to need before the line naming it has finished arriving.
+ */
+export function isMediaFile(file: {
+  filename: string;
+  mimeType?: string;
+}): boolean {
+  const fileType = getFileType(file);
+
+  return fileType === "image" || fileType === "video";
+}
+
 function isMarkdown({
   filename,
   mimeType,

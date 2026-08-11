@@ -1,6 +1,10 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { useTaskPane, useTaskPaneActions } from "@/client/hooks/use-task-pane";
-import { type FileType, getFileType } from "@/client/lib/get-file-type";
+import {
+  type FileType,
+  getFileType,
+  isMediaFile,
+} from "@/client/lib/get-file-type";
 import {
   isFileInTaskFolder,
   isRootTaskFile,
@@ -14,12 +18,29 @@ import { useState } from "react";
 
 import { FilePreviewCard } from "./file-preview-card";
 import { FilePreviewListItem } from "./file-preview-list-item";
+import { useReleaseAutoScroll } from "./transcript-scroll-context";
+import { Skeleton } from "./ui/skeleton";
 
 interface FilesGridProps {
   alignEnd?: boolean;
   compact?: boolean;
   files: TaskFileViewerFile[];
   initialVisibleCount?: number;
+  /**
+   * A path still being typed, drawn as an empty tile in the place its card will
+   * take.
+   *
+   * The point is the box, not the file: a half-typed path resolves to nothing,
+   * so nothing is resolved. What it buys is that the row is already the height
+   * it settles at when the finished line replaces the tile -- which matters
+   * because a fence's last line is withheld until the message stops streaming,
+   * and that is the same frame the session goes idle in.
+   *
+   * Only media reserves a tile. A media tile's height is its width, so the box
+   * is exact; a list row's is its contents, and a box guessed at is a smaller
+   * version of the jump it was drawn to avoid.
+   */
+  pendingFilePath?: string;
   // Takes the list as given instead of bucketing it by task folder. For a set
   // an agent chose and ordered: the buckets exist to find the deliverables in
   // everything a turn touched, which is a judgment already made here, and they
@@ -42,6 +63,7 @@ export function FilesGrid({
   compact = false,
   files,
   initialVisibleCount = DEFAULT_INITIAL_VISIBLE_COUNT,
+  pendingFilePath,
   preserveOrder = false,
   prioritizeUserFiles = false,
 }: FilesGridProps) {
@@ -54,6 +76,7 @@ export function FilesGrid({
   })?.id;
   const pane = useTaskPane(taskId);
   const { openFiles } = useTaskPaneActions(taskId);
+  const releaseAutoScroll = useReleaseAutoScroll();
   const selectedTab = TaskPane.selectedTab(pane);
 
   const handleFileClick = (file: TaskFileViewerFile) => {
@@ -71,10 +94,10 @@ export function FilesGrid({
   // Media collapses on its own budget (square previews are tall); list content
   // keeps the base budget plus a peek row. Splitting them keeps a big set of
   // images down to ~2 rows instead of pushing the whole grid past three.
-  const allMedia = compact ? [] : mainFiles.filter(hasMediaPreview);
+  const allMedia = compact ? [] : mainFiles.filter(isMediaFile);
   const listFiles = compact
     ? mainFiles
-    : mainFiles.filter((file) => !hasMediaPreview(file));
+    : mainFiles.filter((file) => !isMediaFile(file));
 
   const shownMedia = isExpanded
     ? allMedia
@@ -95,35 +118,43 @@ export function FilesGrid({
     ? shownListFiles
     : shownListFiles.filter((file) => !hasRowCardPreview(file));
 
-  const isSingleMediaFile = mediaPreviewFiles.length === 1;
+  // See `pendingFilePath`. Not while media is capped, where the tile would be
+  // drawn past the cap rather than where the file is going to land.
+  const hasPendingMediaTile =
+    !compact &&
+    pendingFilePath !== undefined &&
+    isMediaFile({ filename: pendingFilePath }) &&
+    shownMedia.length === allMedia.length;
+
+  const mediaTileCount =
+    mediaPreviewFiles.length + (hasPendingMediaTile ? 1 : 0);
+  const isSingleMediaFile = mediaTileCount === 1;
+
+  // How wide one tile is, as a share of the row. One on its own is the reply's
+  // subject and takes the column; a set of them is a grid, two across and three
+  // once the column is wide enough to read them at. Both are container queries:
+  // the same grid is drawn in a message column, a pane, and a card.
+  const mediaTileWidth = cn(
+    "shrink-0 grow-0",
+    isSingleMediaFile
+      ? "w-full @md:w-[calc((100%/3*2)-(0.5rem/3))]"
+      : "w-[calc((100%/2)-(0.5rem/2))] @xl:w-[calc((100%/3)-(0.5rem*2/3))]",
+  );
 
   // The fade sits at the very bottom of the grid; when that bottom row is tall
   // square media (no shorter list rows below it), fade higher into the row.
   const bottomSectionIsMedia =
-    mediaPreviewFiles.length > 0 &&
-    rowCardFiles.length === 0 &&
-    otherFiles.length === 0;
+    mediaTileCount > 0 && rowCardFiles.length === 0 && otherFiles.length === 0;
 
   const gridSections = (
     <>
-      {mediaPreviewFiles.length > 0 && (
+      {mediaTileCount > 0 && (
         <div className="@container">
           <div
             className={cn("flex flex-wrap gap-2", alignEnd && "justify-end")}
           >
             {mediaPreviewFiles.map((file) => (
-              <div
-                className={cn(
-                  "shrink-0 grow-0",
-                  isSingleMediaFile
-                    ? "w-full @md:w-[calc((100%/3*2)-(0.5rem/3))]"
-                    : "w-[calc((100%/2)-(0.5rem/2))]",
-                  // 3-up once the column is wide; the message column tops out
-                  // near 40rem, so @2xl (42rem) could never trigger.
-                  "@xl:w-[calc((100%/3)-(0.5rem*2/3))]",
-                )}
-                key={file.filePath}
-              >
+              <div className={mediaTileWidth} key={file.filePath}>
                 <FilePreviewCard
                   file={file}
                   isSelected={isPaneFileSelected(file, selectedTab)}
@@ -133,6 +164,11 @@ export function FilesGrid({
                 />
               </div>
             ))}
+            {hasPendingMediaTile && (
+              <div className={mediaTileWidth} key="pending">
+                <Skeleton className="aspect-square w-full rounded-2xl" />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -184,7 +220,7 @@ export function FilesGrid({
 
   // Every path was filtered out above, so the grid has nothing to draw. Render
   // nothing rather than an empty box, which a flex parent still gives a gap.
-  if (mainFiles.length === 0) {
+  if (mainFiles.length === 0 && !hasPendingMediaTile) {
     return null;
   }
 
@@ -218,6 +254,7 @@ export function FilesGrid({
             "hover:bg-muted hover:text-foreground",
           )}
           onClick={() => {
+            releaseAutoScroll();
             setIsExpanded((expanded) => !expanded);
           }}
           type="button"
@@ -275,11 +312,6 @@ function bucketByTaskFolder(
       ];
 }
 
-function hasMediaPreview(file: TaskFileViewerFile) {
-  const fileType = getFileType(file);
-  return fileType === "image" || fileType === "video";
-}
-
 // Which types get a full-width preview row rather than a compact chip. Images
 // and video are the exceptions: they have their own square media section above.
 //
@@ -323,7 +355,7 @@ function isPaneFileSelected(
 }
 
 function sortByRichPreview(files: TaskFileViewerFile[]) {
-  const [media, rest] = fork(files, hasMediaPreview);
+  const [media, rest] = fork(files, isMediaFile);
   const [rowCard, other] = fork(rest, hasRowCardPreview);
   return [...media, ...rowCard, ...other];
 }

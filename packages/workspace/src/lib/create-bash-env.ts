@@ -87,6 +87,11 @@ function stubCommand(
 
 // Commands excluded due to upstream bugs and replaced with stubs that explain
 // the situation to the agent. Each entry explains why.
+//
+// These, and the command descriptions below that steer the agent around an
+// upstream gap, are registered in docs/architecture/just-bash-upstream.md with
+// what has to be true before each can go. A workaround that outlives its bug
+// keeps the model avoiding something that works, so retire both together.
 const BROKEN_COMMANDS = new Set<CommandName>([
   "html-to-markdown", // depends on `turndown`, which requires `@mixmark-io/domino` as an undeclared peer dependency
   "which", // always errors in this environment; replaced with a stub below

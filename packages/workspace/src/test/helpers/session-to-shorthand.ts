@@ -112,6 +112,12 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
           : "";
       return `<data-browserStatus status="${part.data.status}"${target}${previousUrl} />`;
     }
+    case "data-fileChanges": {
+      const files = part.data.files
+        .map((file) => `${file.filePath} (${file.status})`)
+        .join(", ");
+      return `<data-fileChanges>${files}</data-fileChanges>`;
+    }
     case "data-intent": {
       return `<data-intent>${part.data.text}</data-intent>`;
     }

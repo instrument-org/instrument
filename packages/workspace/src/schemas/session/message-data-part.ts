@@ -24,11 +24,15 @@ export namespace SessionMessageDataPart {
    *   sees, it just quietly spends context.
    *
    * Adding a part? Decide which of the three it is first.
+   *
+   * One member below is none of the three, because nothing writes it: see
+   * `fileChanges`.
    */
   export const NameSchema = z.enum([
     "attachedFolderChanges",
     "attachments",
     "browserStatus",
+    "fileChanges",
     "intent",
     "skillChanges",
     "skillMentions",
@@ -216,6 +220,52 @@ export namespace SessionMessageDataPart {
   export type MaxStepsDataPart = z.output<typeof MaxStepsDataPartSchema>;
 
   /**
+   * Retired, and read anyway.
+   *
+   * The directory watcher that wrote this is gone, and so is the change card it
+   * fed: what a reply hands over is now what the reply names in its ` ```files `
+   * fence. Nothing writes this part, and nothing should.
+   *
+   * It is still parsed because tasks from before the fence hold it, and it is
+   * the only record those conversations have of what a turn produced. Dropping
+   * the schema does not delete the payload -- it survives in `task.db` either
+   * way -- it just makes the part unreadable, which costs those transcripts
+   * their file links for no gain.
+   *
+   * Deliberately narrower than what was written. The payload also carried
+   * `filename`, `mimeType`, `modifiedAt` and `size`; the first two come from the
+   * path and the last two were the freshness machinery this replaced, so they
+   * are dropped on read and this schema says how much of the idea survives.
+   *
+   * Parsed element-wise so one malformed entry costs that entry rather than the
+   * whole part: this is old data, written by code nobody is fixing.
+   *
+   * **Safe to delete once tasks predating the fence are not worth reading.**
+   * Added 2026-08-11; revisit in a couple of months. Deleting it means deleting
+   * this schema, its `NameSchema` member, and the renderer's case -- all three
+   * of which the exhaustiveness checks will point at.
+   */
+  const RetiredFileChangeSchema = z.object({
+    filePath: RelativePathSchema,
+    status: z.enum(["added", "deleted", "modified"]),
+  });
+
+  const FileChangesDataPartSchema = z.object({
+    files: z
+      .array(z.unknown())
+      .transform((entries) =>
+        entries.flatMap((entry) => {
+          const parsed = RetiredFileChangeSchema.safeParse(entry);
+          return parsed.success ? [parsed.data] : [];
+        }),
+      )
+      // eslint-disable-next-line unicorn/prefer-top-level-await -- zod's catch, not a promise's
+      .catch([]),
+  });
+
+  export type FileChangesDataPart = z.output<typeof FileChangesDataPartSchema>;
+
+  /**
    * What a data part becomes when it cannot be read as the type it claims.
    *
    * Two ways in, both of them a task outliving a schema: a type this build has
@@ -240,6 +290,7 @@ export namespace SessionMessageDataPart {
       AttachedFolderChangesDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
+    [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
     [NameSchema.enum.paneTabs]: PaneTabsDataPartSchema,

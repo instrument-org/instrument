@@ -1,3 +1,4 @@
+import { pathsNamedInMessage } from "@/client/lib/paths-named-in-message";
 import {
   isToolPart,
   type SessionMessage,
@@ -88,7 +89,17 @@ export function renderChatPart({
   }
 
   if (isDataPart(part)) {
-    return renderDataPart({ browserStatusContextAdded, ctx, part });
+    return renderDataPart({
+      browserStatusContextAdded,
+      ctx,
+      part,
+      // Only the retired file-changes grid needs this, and almost no message
+      // carries one, so the message's text is not read unless one does.
+      pathsAlreadyShown:
+        part.type === "data-fileChanges"
+          ? pathsNamedInMessage(message)
+          : undefined,
+    });
   }
 
   if (isToolPart(part)) {

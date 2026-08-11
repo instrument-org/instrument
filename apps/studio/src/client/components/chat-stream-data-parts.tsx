@@ -1,12 +1,15 @@
 import {
   attachedFolderChangesModelNote,
   browserStatusModelNote,
+  isAddressableTaskFilePath,
   maxStepsModelNote,
   paneTabsModelNote,
   type SessionMessagePart,
+  TASK_FOLDER_NAMES,
 } from "@instrument-org/workspace/client";
 import { type ReactNode } from "react";
 
+import { FilePathsGrid } from "./agent-files-block";
 import { type RenderPartContext } from "./chat-stream-render-part";
 import { ModelContextDebugCard } from "./model-context-debug-card";
 import { ProjectChangesNote } from "./project-changes-note";
@@ -26,6 +29,12 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-attachedFolderChanges": "dev",
   "data-attachments": "hidden",
   "data-browserStatus": "dev",
+  // Retired, and shown to everyone rather than to developers, which is the
+  // opposite of where it ended up before it was deleted. It was demoted to
+  // "dev" because it was a live change card nobody wanted; what it is now is
+  // the only record a pre-fence conversation has of what a turn produced, and
+  // the person who wants that is the person whose task it is.
+  "data-fileChanges": "always",
   "data-intent": "dev",
   "data-maxSteps": "dev",
   "data-paneTabs": "dev",
@@ -52,10 +61,17 @@ export function renderDataPart({
   browserStatusContextAdded,
   ctx,
   part,
+  pathsAlreadyShown,
 }: {
   browserStatusContextAdded: boolean;
   ctx: RenderPartContext;
   part: SessionMessagePart.DataPart;
+  /**
+   * Files this message already puts on screen, so the retired file-changes grid
+   * does not draw a second copy of one. Computed once for the message rather
+   * than per part.
+   */
+  pathsAlreadyShown?: ReadonlySet<string>;
 }): ReactNode {
   const visibility = dataPartVisibility(part);
   if (
@@ -90,6 +106,28 @@ export function renderDataPart({
           key={part.metadata.id}
           text={browserStatusModelNote(part.data)}
         />
+      );
+    }
+    case "data-fileChanges": {
+      // Only `output/`. The watcher behind this part reported everything a turn
+      // touched, and the overwhelming majority of that is `work/`: the scripts
+      // the agent wrote to make the deliverable, not the deliverable. Showing
+      // those is what made the card worth deleting in the first place.
+      //
+      // A deleted file has nothing to show, and one the reply already fenced or
+      // linked is on screen already.
+      const paths = part.data.files
+        .filter(
+          (file) =>
+            file.status !== "deleted" &&
+            file.filePath.startsWith(`${TASK_FOLDER_NAMES.output}/`) &&
+            isAddressableTaskFilePath(file.filePath) &&
+            pathsAlreadyShown?.has(file.filePath) !== true,
+        )
+        .map((file) => file.filePath);
+
+      return paths.length === 0 ? null : (
+        <FilePathsGrid key={part.metadata.id} paths={[...new Set(paths)]} />
       );
     }
     case "data-intent": {
@@ -187,4 +225,3 @@ function declaredVisibility(type: string): DataPartVisibility {
 
   return declared[type] ?? "hidden";
 }
-

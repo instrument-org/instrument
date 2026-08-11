@@ -25,7 +25,7 @@ import { MarkdownTaskContext } from "./markdown-task-context";
  * loads or 404s onto the fallback card.
  */
 export function AgentFilesBlock({ content }: { content: string }) {
-  const { assetBaseUrl, isStreaming, taskId } = useContext(MarkdownTaskContext);
+  const { isStreaming } = useContext(MarkdownTaskContext);
 
   // A fence still arriving ends mid-path: the model has typed `output/ch` of
   // `output/chart.png`, and an optimistic card would be drawn and replaced on
@@ -54,10 +54,30 @@ export function AgentFilesBlock({ content }: { content: string }) {
           )
       : undefined;
 
+  return <FilePathsGrid paths={paths} pendingFilePath={pendingPath} />;
+}
+
+/**
+ * A list of paths, drawn as the grid a reply shows its files in.
+ *
+ * Shared rather than inlined because a second producer draws the same thing:
+ * the retired `data-fileChanges` part, which is how a task from before the
+ * fence still shows what a turn produced. Two grids that are meant to be
+ * indistinguishable should not be two pieces of code.
+ */
+export function FilePathsGrid({
+  paths,
+  pendingFilePath,
+}: {
+  paths: string[];
+  pendingFilePath?: string;
+}) {
+  const { assetBaseUrl, taskId } = useContext(MarkdownTaskContext);
+
   if (
     taskId === undefined ||
     assetBaseUrl === undefined ||
-    (paths.length === 0 && pendingPath === undefined)
+    (paths.length === 0 && pendingFilePath === undefined)
   ) {
     return null;
   }
@@ -71,7 +91,11 @@ export function AgentFilesBlock({ content }: { content: string }) {
 
   return (
     <div className="not-prose my-4">
-      <FilesGrid files={files} pendingFilePath={pendingPath} preserveOrder />
+      <FilesGrid
+        files={files}
+        pendingFilePath={pendingFilePath}
+        preserveOrder
+      />
     </div>
   );
 }

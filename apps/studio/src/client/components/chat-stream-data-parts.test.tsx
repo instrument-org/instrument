@@ -46,3 +46,72 @@ describe("a data part this build has never heard of", () => {
     ).toBeNull();
   });
 });
+
+/**
+ * The one retired part that is still read.
+ *
+ * Written by the directory watcher, which reported everything a turn touched,
+ * so what it holds is mostly the scratch the agent worked in. It survives
+ * because a task from before the ` ```files ` fence has no other record of what
+ * a turn produced, and it renders as the same grid a fence does.
+ */
+describe("a file-changes part from before the fence", () => {
+  const partWith = (
+    files: { filePath: string; status: string }[],
+  ): SessionMessagePart.DataPart =>
+    ({
+      data: { files },
+      metadata: {
+        createdAt: new Date(0),
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
+      type: "data-fileChanges",
+    }) as unknown as SessionMessagePart.DataPart;
+
+  const render = (
+    part: SessionMessagePart.DataPart,
+    pathsAlreadyShown?: ReadonlySet<string>,
+  ) =>
+    renderDataPart({
+      browserStatusContextAdded: false,
+      ctx: { isDeveloperMode: false } as unknown as RenderPartContext,
+      part,
+      pathsAlreadyShown,
+    });
+
+  it("shows a deliverable to everyone, not just developers", () => {
+    expect(dataPartVisibility(partWith([]))).toBe("always");
+    expect(
+      render(partWith([{ filePath: "output/chart.png", status: "added" }])),
+    ).not.toBeNull();
+  });
+
+  // The reason the card was worth deleting: `work/` is where the agent writes
+  // the script that makes the deliverable, and the watcher reported all of it.
+  it("draws nothing for a turn that only touched scratch", () => {
+    expect(
+      render(
+        partWith([
+          { filePath: "work/build.py", status: "added" },
+          { filePath: "work/data.json", status: "modified" },
+          { filePath: "attachments/logo.png", status: "added" },
+        ]),
+      ),
+    ).toBeNull();
+  });
+
+  it("leaves out a file the turn deleted", () => {
+    expect(
+      render(partWith([{ filePath: "output/gone.png", status: "deleted" }])),
+    ).toBeNull();
+  });
+
+  it("leaves out a file the reply already showed", () => {
+    const part = partWith([{ filePath: "output/chart.png", status: "added" }]);
+
+    expect(render(part)).not.toBeNull();
+    expect(render(part, new Set(["output/chart.png"]))).toBeNull();
+  });
+});

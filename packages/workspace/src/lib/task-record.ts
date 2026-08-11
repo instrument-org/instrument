@@ -81,25 +81,6 @@ export async function readTaskRecord(dir: TaskDir): Promise<TaskRecord> {
 }
 
 /**
- * Applies a change to the whole file, reading it inside the write queue.
- *
- * The callback receives what is currently on disk and returns what should
- * replace it, so a read-modify-write cannot interleave with another: two tab
- * opens, or a generated title landing on a message send, would otherwise each
- * build on the record the other had not written yet.
- */
-export async function updateTaskRecord(
-  dir: TaskDir,
-  update: (record: TaskRecord) => Record<string, unknown>,
-): Promise<TaskRecord> {
-  return enqueue(dir, async () => {
-    const next = update(await readTaskRecord(dir));
-    await writeTaskRecord(dir, next);
-    return recordFrom(next);
-  });
-}
-
-/**
  * A record with `changes` applied to its state half, ready to be written.
  *
  * The raw state is spread *under* the parsed one, which is the whole point of
@@ -125,6 +106,25 @@ export function recordWithState(
       ...changes,
     },
   };
+}
+
+/**
+ * Applies a change to the whole file, reading it inside the write queue.
+ *
+ * The callback receives what is currently on disk and returns what should
+ * replace it, so a read-modify-write cannot interleave with another: two tab
+ * opens, or a generated title landing on a message send, would otherwise each
+ * build on the record the other had not written yet.
+ */
+export async function updateTaskRecord(
+  dir: TaskDir,
+  update: (record: TaskRecord) => Record<string, unknown>,
+): Promise<TaskRecord> {
+  return enqueue(dir, async () => {
+    const next = update(await readTaskRecord(dir));
+    await writeTaskRecord(dir, next);
+    return recordFrom(next);
+  });
 }
 
 function emptyRecord(): TaskRecord {

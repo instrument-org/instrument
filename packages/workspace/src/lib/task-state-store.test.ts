@@ -8,6 +8,7 @@ import { type TaskId, TaskIdSchema } from "../schemas/task-id";
 import { TaskPane } from "../schemas/task-pane";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { getTaskPrivateDir, taskDir } from "./task-dir-utils";
+import { getTaskSettings, updateTaskSettings } from "./task-settings";
 import { getTaskState, setTaskState, updateTaskPane } from "./task-state-store";
 
 const id = TaskIdSchema.parse("task-state-store-test");
@@ -201,6 +202,35 @@ describe("the pane", () => {
     expect(fromSnapshot.tabs.map((tab) => TaskPane.tabKey(tab))).toEqual([
       "file:already-open.png",
       "file:user-clicked.png",
+    ]);
+  });
+
+  /**
+   * The pane and the task's settings are the same file now, so the two write
+   * paths have to share one queue. The pair that actually happens: a title
+   * generated after the first message lands while the user is opening a tab.
+   * Without a shared queue each merges onto the record the other has not
+   * written, and whichever lands second erases the other's half.
+   */
+  it("does not lose a generated title to a tab opening at the same time", async () => {
+    await updateTaskSettings(taskId, { name: "Untitled task" });
+
+    await Promise.all([
+      updateTaskSettings(taskId, { name: "Generated title" }),
+      updateTaskPane(taskDir(taskId), (pane) =>
+        TaskPane.applyOperation(pane, {
+          filePaths: ["output/report.pdf"],
+          type: "openFiles",
+        }),
+      ),
+    ]);
+
+    const settings = await getTaskSettings(taskDir(taskId));
+    const state = await getTaskState(taskDir(taskId));
+
+    expect(settings?.name).toBe("Generated title");
+    expect(state.pane?.tabs.map((tab) => TaskPane.tabKey(tab))).toEqual([
+      "file:output/report.pdf",
     ]);
   });
 });

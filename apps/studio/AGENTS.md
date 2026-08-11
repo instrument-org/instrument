@@ -21,8 +21,7 @@ Renderer: React 19, TanStack Router file routes, shadcn UI, oRPC to main process
 - Use shadcn Tailwind colors (`bg-background`), not raw colors.
 - `rpcClient` `.call()` throws unless wrapped with `safe` from `@orpc/client`; use only for imperative calls outside React.
 - Queries: `useQuery` + `rpcClient.method.name.queryOptions({ input })`. Skip conditionally with `skipToken`.
-- Streaming procedures are marked by a router segment, and picking the wrong client helper is not a type error. `live.*` (snapshot on subscribe, re-yields on change) takes `experimental_liveOptions` and its `data` is safe to render. `events.*` takes the same helper but stays silent until something happens, so treat `data` as a trigger, not a value. Everything else takes `queryOptions` / `mutationOptions`.
-- A live query and its non-live sibling are **different cache keys**. Invalidating one does not touch the other, and the two are named alike on purpose, so check which key the reader on screen actually uses.
+- Streams: `live.*` and `events.*` both take `experimental_liveOptions`, but `events.*` has no `data` until something fires, so treat it as a trigger. A live procedure and its non-live twin are separate cache keys.
 - External links: `<ExternalLink href="..." />` or `rpcClient.utils.openExternalLink`.
 - Route matching: `useMatchRoute`, never pathname strings.
 - After adding/removing/renaming files under `src/client/routes`, run `pnpm --filter @instrument-org/studio run routes:generate`. Don't hand-edit `routeTree.gen.ts`.

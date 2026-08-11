@@ -83,12 +83,7 @@ export function FilePreviewCard({
     (fileType === "image" || fileType === "video")
   ) {
     return (
-      <MissingMediaCard
-        aspectRatio={fileType === "image" ? "square" : "video"}
-        file={file}
-        isSelected={isSelected}
-        onClick={onClick}
-      />
+      <MissingMediaCard file={file} isSelected={isSelected} onClick={onClick} />
     );
   }
 
@@ -270,7 +265,6 @@ function ImagePreviewCard({
 
   return (
     <MediaCardShell
-      aspectRatio="square"
       canCopy={!imageLoadError}
       file={file}
       hideActionsMenu={hideActionsMenu}
@@ -347,12 +341,10 @@ function ImagePreviewCard({
 // would render a broken thumbnail with no explanation. Swap in a labeled state
 // that mirrors the missing-file artifact panel and drops the now-dead actions.
 function MissingMediaCard({
-  aspectRatio,
   file,
   isSelected,
   onClick,
 }: {
-  aspectRatio: "square" | "video";
   file: TaskFileViewerFile;
   isSelected?: boolean;
   onClick: () => void;
@@ -362,8 +354,7 @@ function MissingMediaCard({
       <TooltipTrigger asChild>
         <button
           className={cn(
-            "relative flex w-full flex-col items-center justify-center gap-1.5 overflow-hidden rounded-2xl bg-card p-3 text-center shadow-sm dark:bg-muted",
-            aspectRatio === "square" ? "aspect-square" : "aspect-video",
+            "relative flex aspect-square w-full flex-col items-center justify-center gap-1.5 overflow-hidden rounded-2xl bg-card p-3 text-center shadow-sm dark:bg-muted",
             isSelected &&
               "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
           )}
@@ -427,7 +418,6 @@ function VideoPreviewCard({
 
   return (
     <MediaCardShell
-      aspectRatio="video"
       bottomBar={
         displayTime === null ? undefined : (
           <div className="pointer-events-none absolute right-4 bottom-4 left-4 z-10 flex flex-col gap-1 opacity-0 transition-opacity duration-200 group-hover/media:opacity-100">
@@ -482,8 +472,13 @@ function VideoPreviewCard({
       }
       scrim={<div className="absolute inset-0 bg-black/20" />}
     >
+      {/* No surface of its own: the card's is what shows around a frame that
+          does not fill the square, the same as an image's. A black box would
+          be the heaviest thing in the reply, and next to the image tiles it
+          sits beside it reads as a different component rather than a
+          different kind of file. */}
       <video
-        className="size-full bg-black object-contain"
+        className="size-full object-contain"
         loop
         muted
         onLoadedMetadata={onLoadedMetadata}

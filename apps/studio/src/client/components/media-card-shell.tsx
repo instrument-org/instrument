@@ -16,7 +16,6 @@ const INTERACTIVE_DELAY_MS = 300;
 const VISIBLE_DELAY_MS = 400;
 
 export function MediaCardShell({
-  aspectRatio,
   bottomBar,
   canCopy,
   children,
@@ -29,7 +28,6 @@ export function MediaCardShell({
   overlayActions,
   scrim,
 }: {
-  aspectRatio: "square" | "video";
   bottomBar?: React.ReactNode;
   canCopy?: boolean;
   children: React.ReactNode;
@@ -73,8 +71,13 @@ export function MediaCardShell({
             // bar stack against each other and nothing else. Without it they
             // join whatever stacking context the page happens to give them and
             // outrank chrome that is nowhere near this card.
-            "group/media relative isolate w-full overflow-hidden rounded-2xl bg-card shadow-sm dark:bg-muted",
-            aspectRatio === "square" ? "aspect-square" : "aspect-video",
+            //
+            // Square whatever the media inside it is. The grid lays these out
+            // several to a row, so a card that took its own shape would set the
+            // row's height by whichever of them happened to be tallest -- and
+            // that height would then change as the rest of the row arrived.
+            // A video letterboxes into the square instead.
+            "group/media relative isolate aspect-square w-full overflow-hidden rounded-2xl bg-card shadow-sm dark:bg-muted",
             isSelected &&
               "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
           )}

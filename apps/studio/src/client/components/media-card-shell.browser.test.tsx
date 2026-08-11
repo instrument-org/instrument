@@ -27,7 +27,6 @@ async function renderCard(onClick: () => void) {
     <TooltipProvider>
       <div style={{ width: 320 }}>
         <MediaCardShell
-          aspectRatio="video"
           file={FILE}
           onClick={onClick}
           overlayActions={

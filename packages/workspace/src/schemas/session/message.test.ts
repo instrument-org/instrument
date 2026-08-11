@@ -211,6 +211,8 @@ describe("SessionMessage.toModelMessages", () => {
                 "type": "text",
                 "value": "Exit code: 0
 
+      The command produced no output on stdout or stderr.
+
       Duration: 0 ms",
               },
               "toolCallId": "call_789",

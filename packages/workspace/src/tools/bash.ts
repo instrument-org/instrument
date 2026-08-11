@@ -146,10 +146,19 @@ export const BashTool = setupTool({
     const exitLine = `Exit code: ${output.exitCode}`;
     const durationLine = `Duration: ${ms(output.durationMs, { long: true })}`;
 
+    // Say that the command printed nothing rather than leaving a gap where the
+    // output would be. Silence otherwise reads as a swallowed result, and the
+    // usual next move is to run something else to find out which it was.
     if (!hasErrors && !displayOutput) {
       return {
         type: "text",
-        value: [exitLine, "", durationLine].join("\n"),
+        value: [
+          exitLine,
+          "",
+          "The command produced no output on stdout or stderr.",
+          "",
+          durationLine,
+        ].join("\n"),
       };
     }
 

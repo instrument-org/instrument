@@ -26,12 +26,16 @@ afterEach(async () => {
   await fs.rm(root, { force: true, recursive: true });
 });
 
+function recordFilePath(): string {
+  return path.join(getTaskPrivateDir(taskDir(taskId)), "settings.json");
+}
+
 async function writeStateFile(state: unknown): Promise<void> {
   const privateDir = getTaskPrivateDir(taskDir(taskId));
   await fs.mkdir(privateDir, { recursive: true });
   await fs.writeFile(
-    path.join(privateDir, "state.json"),
-    JSON.stringify(state, null, 2),
+    recordFilePath(),
+    JSON.stringify({ name: "Test task", state }, null, 2),
     "utf8",
   );
 }
@@ -84,8 +88,8 @@ describe("getTaskState", () => {
     expect(state.attachedFolders?.Downloads?.mountName).toBe("Downloads");
   });
 
-  // Reading tolerates the old field; writing must not carry it back out, or
-  // state.json would keep both names alive indefinitely.
+  // Reading tolerates the old field; writing must not carry it back out, or the
+  // record would keep both names alive indefinitely.
   it("writes only the current field name back to disk", async () => {
     await writeStateFile({
       attachedFolders: {
@@ -102,12 +106,9 @@ describe("getTaskState", () => {
 
     await setTaskState(taskDir(taskId), { promptDraft: "anything" });
 
-    const written = await fs.readFile(
-      path.join(getTaskPrivateDir(taskDir(taskId)), "state.json"),
-      "utf8",
-    );
+    const written = await fs.readFile(recordFilePath(), "utf8");
     expect(written).toContain('"mountName": "Home-Downloads"');
-    expect(written).not.toContain('"name":');
+    expect(written).not.toContain('"name": "Home-Downloads"');
   });
 });
 

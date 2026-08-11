@@ -96,9 +96,9 @@ describe("migrateWorkspaceLayout", () => {
 
     // renamed + relocated under tasks/
     expect(read("tasks", "abc", ".instrument", "task.db")).toBe("db-bytes");
-    expect(read("tasks", "abc", ".instrument", "state.json")).toBe(
-      `{"showTutorial":true}`,
-    );
+    // The legacy state file is renamed, then folded into the settings file.
+    expect(exists("tasks", "abc", ".instrument", "state.json")).toBe(false);
+    expect(readSettings("abc").state).toEqual({ showTutorial: true });
     expect(readSettings("abc").name).toBe("My Task");
 
     // old names gone

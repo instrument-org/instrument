@@ -49,15 +49,27 @@ Two reorderings that were never intentional went with it, because both are setti
 - **Marking a task read or unread** no longer moves it. It publishes `task.updated`, so the list re-reads, but the sort key does not change.
 - **Renaming a task** no longer moves it either. It arguably never did on its own -- but you have to open a task to rename it, and opening it is what bumped the timestamp, so the re-read that followed the rename carried it to the top.
 
-## Why `settings.json` and `state.json` stay separate
+## Why `settings.json` and `state.json` became one file
 
-Worth writing down, because the obvious guess is wrong and someone will make it. The split is **not** about keeping machine-local values out of an exported task: `exportTaskZip` takes the whole task folder apart from `.git`, `node_modules` and the browser profile, so `state.json` ships already. `projectFolderName` is stored as a folder name rather than an absolute path precisely *because* the file travels.
+They were two files for a reason that did not survive being asked about, and the answer is worth recording so nobody splits them again.
 
-The split is the publisher channel made structural. `updateTaskSettings` publishes `task.updated`, which wakes the list and re-reads every task in the workspace; `setTaskState` publishes `task.stateUpdated`, which wakes only whoever has that task open. Merged into one file, a single writer would have to classify by key to choose a channel, and a field added without being classified would either stop updating the list or reintroduce the bug above. Today the file you write *is* the classification, which is the cheapest form of correct.
+The reason usually guessed is export, and it is wrong: `exportTaskZip` takes the whole task folder apart from `.git`, `node_modules` and the browser profile, so `state.json` always shipped. `projectFolderName` is stored as a folder name rather than an absolute path precisely *because* the file travels. Nothing machine-local was being held back.
 
-Size is not the argument either way. Across a 596-task workspace, `settings.json` runs a median of 82 bytes and `state.json` 112, so merging would change no read counts on the list path. Blast radius is: `getTaskState` answers with empty state when a parse fails and the next write persists that, which today costs the pane and the folder list. Merged, it would cost the name, the pin, the unread flag and the sort key.
+The reason actually given was that the split made the publisher channel structural: `updateTaskSettings` publishes `task.updated` and wakes the whole list, `setTaskState` publishes `task.stateUpdated` and wakes only the open task, so the file you wrote was the classification. That is a convenience, not a constraint. Two functions over one file classify exactly as well as two files do, which is what they now are.
 
-So: settings hold what the task *is* and order the list; state holds what the user is *doing with it* and never does.
+Size was never the argument. Across a 596-task workspace `settings.json` ran a median of 82 bytes and `state.json` 112, so merging changed no read counts anywhere.
+
+What is real is a difference in *lifetime*, and it is preserved as a nested key rather than a second file:
+
+- The top level is what the app asks **about** a task: title, pin, unread, project, timestamps. The list reads it for every task in the workspace, and the cross-task index in [conversation-storage.md](../plans/active/conversation-storage.md) projects exactly these and is specified as rebuildable from them. They need a durable per-task home on disk permanently.
+- `state` is where the user left off **inside** one task: draft, open tabs, chosen model, attached folders. Read when a task is open, never queried across tasks, and nothing will ever index it.
+
+Two conditions came with the merge, because without them it would have been a downgrade:
+
+- **The halves are parsed separately.** A draft or a pane the schema rejects must not cost the task its title and its place in the list, and a title that cannot be read must not silently unmount the folders the agent may reach. `readTaskRecord` parses each half from the same object and answers with an empty one for whichever failed.
+- **Writes go through a temporary file and a rename.** One file now carries the title, the sort key and a draft rewritten as the user types. Writing over the live file leaves a window where a crash truncates it, and a truncated record does not read as damaged -- the parse fails and the task simply answers as though it has no settings.
+
+A write also carries forward any field it could not read, so a record written by a newer build survives an older one touching it.
 
 ## The general shape
 

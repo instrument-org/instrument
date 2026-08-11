@@ -7,11 +7,11 @@ import { taskDir } from "../../../lib/task-dir-utils";
 import {
   getTaskState,
   setTaskState,
-  TaskStateSchema,
   updateTaskPane,
 } from "../../../lib/task-state-store";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { TaskPane } from "../../../schemas/task-pane";
+import { TaskStateSchema } from "../../../schemas/task-state";
 import { base } from "../../base";
 import { publisher } from "../../publisher";
 

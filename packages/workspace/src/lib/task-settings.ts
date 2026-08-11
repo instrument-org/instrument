@@ -1,40 +1,31 @@
-import { TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import { err, ok, ResultAsync, safeTry } from "neverthrow";
-import fs from "node:fs/promises";
 
 import { publisher } from "../rpc/publisher";
 import { type TaskDir } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import {
   type TaskSettings,
-  TaskSettingsSchema,
   type TaskSettingsUpdate,
   TaskSettingsUpdateSchema,
 } from "../schemas/task-settings";
-import { absolutePathJoin } from "./absolute-path-join";
-import { createWriteQueue } from "./create-write-queue";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
-import { getTaskPrivateDir, taskDir } from "./task-dir-utils";
+import { taskDir } from "./task-dir-utils";
+import { readTaskRecord, updateTaskRecord } from "./task-record";
 import { getWorkspaceConfig } from "./workspace-config";
 
-const enqueue = createWriteQueue();
-
+/**
+ * What the app knows about a task: its title, whether it is pinned or unread,
+ * which project it belongs to, and when it was made and last worked in.
+ *
+ * One of the two views over the task record; the state beside it is the other.
+ * See task-record.ts for what separates them.
+ */
 export async function getTaskSettings(
   dir: TaskDir,
 ): Promise<TaskSettings | undefined> {
-  const settingsPath = getTaskSettingsPath(dir);
-
-  try {
-    const content = await fs.readFile(settingsPath, "utf8");
-    const parsed = TaskSettingsSchema.safeParse(JSON.parse(content));
-    if (!parsed.success) {
-      return undefined;
-    }
-    return parsed.data;
-  } catch {
-    return undefined;
-  }
+  const record = await readTaskRecord(dir);
+  return record.settings;
 }
 
 /**
@@ -68,13 +59,8 @@ export function updateTaskSettings(
       );
     }
 
-    // Read, merge and write as one step. The writers do overlap -- a generated
-    // title lands while a sent message records activity, an agent marks a task
-    // unread while the user marks it read -- and without this each would merge
-    // onto the settings the other had not written yet, so the later write would
-    // drop the earlier field with no error anywhere.
     yield* ResultAsync.fromPromise(
-      enqueue(taskId, () => writeMergedSettings(taskId, parseResult.data)),
+      writeMergedSettings(taskId, parseResult.data),
       (error) =>
         new TypedError.FileSystem(
           `Failed to write task settings: ${error instanceof Error ? error.message : String(error)}`,
@@ -82,6 +68,9 @@ export function updateTaskSettings(
         ),
     );
 
+    // Only the settings view publishes this. A draft or a tab is a change to
+    // the same file and no business of the task list, so its writers publish
+    // `task.stateUpdated` instead and the list is not woken by them.
     publisher.publish("task.updated", {
       id: taskId,
     });
@@ -90,39 +79,33 @@ export function updateTaskSettings(
   });
 }
 
-function getTaskSettingsPath(dir: TaskDir) {
-  return absolutePathJoin(getTaskPrivateDir(dir), TASK_SETTINGS_FILE_NAME);
-}
-
 async function writeMergedSettings(
   taskId: TaskId,
   updates: TaskSettingsUpdate,
-) {
-  const dir = taskDir(taskId);
+): Promise<void> {
+  await updateTaskRecord(taskDir(taskId), (record) => {
+    // Raw first so `state` and anything this build cannot read survive the
+    // write, then the parsed settings so their defaults apply, then the change.
+    const merged: Record<string, unknown> = {
+      ...record.raw,
+      ...(record.settings ?? { name: "" }),
+      ...updates,
+    };
 
-  let existing: TaskSettings = { name: "" };
+    // A `null` projectId is the clear sentinel: drop the key entirely rather
+    // than persisting `null`.
+    if (updates.projectId === null) {
+      delete merged.projectId;
+    }
+    // Same for pinnedAt: `null` unpins by removing the key.
+    if (updates.pinnedAt === null) {
+      delete merged.pinnedAt;
+    }
+    // Same for unreadIndicator: `null` marks read by removing the key.
+    if (updates.unreadIndicator === null) {
+      delete merged.unreadIndicator;
+    }
 
-  try {
-    existing = (await getTaskSettings(dir)) ?? { name: "" };
-  } catch {
-    // File doesn't exist or is invalid, use defaults
-  }
-
-  const merged = { ...existing, ...updates };
-  // A `null` projectId is the clear sentinel: drop the key entirely rather
-  // than persisting `null`.
-  if (updates.projectId === null) {
-    delete merged.projectId;
-  }
-  // Same for pinnedAt: `null` unpins by removing the key.
-  if (updates.pinnedAt === null) {
-    delete merged.pinnedAt;
-  }
-  // Same for unreadIndicator: `null` marks read by removing the key.
-  if (updates.unreadIndicator === null) {
-    delete merged.unreadIndicator;
-  }
-
-  await fs.mkdir(getTaskPrivateDir(dir), { recursive: true });
-  await fs.writeFile(getTaskSettingsPath(dir), JSON.stringify(merged, null, 2));
+    return merged;
+  });
 }

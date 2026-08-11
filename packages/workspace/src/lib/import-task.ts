@@ -8,6 +8,7 @@ import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
 import { extractTaskZip } from "./extract-task-zip";
+import { foldTaskStateFile } from "./fold-task-state-file";
 import { generateTaskFolderName } from "./generate-task-folder-name";
 import { getCurrentDate } from "./get-current-date";
 import { getTaskSettings, updateTaskSettings } from "./task-settings";
@@ -67,6 +68,11 @@ export async function importTask(
           { cause: error },
         ),
     );
+
+    // A zip written before state was folded into the settings file carries both
+    // files. Nothing else would fold it until the next boot, and until then the
+    // imported task would open with no draft, no tabs and no attached folders.
+    foldTaskStateFile(taskDirPath);
 
     // An import is activity in this workspace whatever the zip says, so the
     // task lands at the top of the list the way it did when the answer was the

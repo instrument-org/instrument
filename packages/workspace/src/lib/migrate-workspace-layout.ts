@@ -12,6 +12,7 @@ import {
   TASKS_DIR_NAME,
 } from "../constants";
 import { ProjectIdSchema } from "../schemas/project-id";
+import { foldTaskStateFile } from "./fold-task-state-file";
 
 // Legacy on-disk names this migration renames to their current equivalents.
 const LEGACY_TASKS_DIR_NAME = "projects";
@@ -249,8 +250,10 @@ function normalizeTasks(tasksDir: string) {
     const taskFolder = path.join(tasksDir, entry.name);
     normalizeTaskPrivateFiles(taskFolder);
     normalizeTaskSettingsFile(taskFolder);
-    // After both, so the settings file is where this expects it and the db has
-    // its current name.
+    // After both, so `state.json` is under its current name and the settings
+    // file it folds into is in the private dir.
+    foldTaskStateFile(taskFolder);
+    // After the fold, so the stamp is written to the file that survives it.
     stampTaskTimestamps(taskFolder);
     normalizeTaskWorkLayout(taskFolder);
     normalizeTaskAttachments(taskFolder);

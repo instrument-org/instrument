@@ -6,8 +6,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { TASKS_DIR_NAME } from "../constants";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
-import { taskDir } from "./task-dir-utils";
+import { getTaskPrivateDir, taskDir } from "./task-dir-utils";
 import { getTaskSettings, updateTaskSettings } from "./task-settings";
+import { getTaskState, setTaskState } from "./task-state-store";
 
 const id = TaskIdSchema.parse("task-settings-test");
 
@@ -54,6 +55,39 @@ describe("updateTaskSettings", () => {
     expect(first.isOk()).toBe(true);
     expect(second.isOk()).toBe(true);
     expect(settings?.name).toBe("Second");
+  });
+
+  // The two views share one file, so each has to leave the other's half alone.
+  it("leaves the state alone", async () => {
+    await setTaskState(taskDir(taskId), { promptDraft: "half typed" });
+
+    await updateTaskSettings(taskId, { name: "Renamed" });
+
+    const state = await getTaskState(taskDir(taskId));
+    const settings = await getTaskSettings(taskDir(taskId));
+
+    expect(state.promptDraft).toBe("half typed");
+    expect(settings?.name).toBe("Renamed");
+  });
+
+  it("survives a state half the schema cannot read", async () => {
+    await updateTaskSettings(taskId, { name: "Named" });
+    await fs.writeFile(
+      path.join(getTaskPrivateDir(taskDir(taskId)), "settings.json"),
+      JSON.stringify({ name: "Named", state: { attachedFolders: "broken" } }),
+      "utf8",
+    );
+
+    const stamped = await updateTaskSettings(taskId, {
+      lastActivityAt: new Date("2026-02-03T04:05:06.000Z"),
+    });
+    const settings = await getTaskSettings(taskDir(taskId));
+
+    expect(stamped.isOk()).toBe(true);
+    expect(settings?.name).toBe("Named");
+    expect(settings?.lastActivityAt).toEqual(
+      new Date("2026-02-03T04:05:06.000Z"),
+    );
   });
 
   it("clears a pin with null while a concurrent update keeps its own field", async () => {

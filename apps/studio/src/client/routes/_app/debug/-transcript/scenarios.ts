@@ -1,12 +1,6 @@
 import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
 
-import {
-  file,
-  folder,
-  OUR_MODEL,
-  platformFailure,
-  PROJECT_ID,
-} from "./parts";
+import { file, folder, OUR_MODEL, platformFailure, PROJECT_ID } from "./parts";
 import {
   type Act,
   batch,
@@ -933,14 +927,12 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
         },
       ),
       prose("I updated the hero section and removed the legacy stylesheet."),
-      notes(
-        {
-          // Real skill names, so the card resolves a title and description here
-          // the way it does in a session; an unknown one falls back to the name.
-          data: { created: ["wireframe"], updated: ["markdown"] },
-          type: "data-skillChanges",
-        },
-      ),
+      notes({
+        // Real skill names, so the card resolves a title and description here
+        // the way it does in a session; an unknown one falls back to the name.
+        data: { created: ["wireframe"], updated: ["markdown"] },
+        type: "data-skillChanges",
+      }),
       user(
         "Great, keep going and check it in the browser.",
         {

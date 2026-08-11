@@ -3,6 +3,10 @@ import { z } from "zod";
 import { ProjectIdSchema } from "./project-id";
 import { TaskIndicatorSchema } from "./task-indicator";
 
+// Load-bearing that this stays a plain object schema: it is parsed against the
+// whole task record, whose `state` key it is meant to ignore rather than reject.
+// Making it strict would fail every task's settings at once and take every title
+// in the workspace with them.
 export const TaskSettingsSchema = z.object({
   // When the task was made, recorded for the same reason as `lastActivityAt`:
   // the observable answer is the session database's birth time, which is when

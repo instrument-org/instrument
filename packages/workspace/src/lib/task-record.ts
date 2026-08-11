@@ -34,6 +34,15 @@ const enqueue = createWriteQueue();
  * Two views over one file rather than two files: see the finding on the task
  * list following file timestamps for why they were split and why that reason
  * did not survive.
+ *
+ * The two views publish differently and the asymmetry is deliberate.
+ * `updateTaskSettings` publishes `task.updated` itself, waking the whole list;
+ * the state writers leave `task.stateUpdated` to their callers. That looks
+ * sloppy and is not, because it makes the dangerous direction unreachable: no
+ * state write can wake the task list, so a draft or a tab cannot reorder the
+ * sidebar the way a file mtime once did. The opposite mistake, forgetting to
+ * publish after a state write, costs a panel that does not refresh until
+ * something else does.
  */
 export interface TaskRecord {
   /**
@@ -90,6 +99,34 @@ export async function updateTaskRecord(
   });
 }
 
+/**
+ * A record with `changes` applied to its state half, ready to be written.
+ *
+ * The raw state is spread *under* the parsed one, which is the whole point of
+ * this existing: `StoredTaskStateSchema` is a plain object schema and strips
+ * keys it does not know, so writing the parsed view back would quietly delete a
+ * field a newer build had written. The top level is protected by spreading
+ * `raw`, and this is the same protection one level down -- which is where it
+ * matters more, since the top level is a closed set and `state` is the half
+ * that keeps growing.
+ *
+ * The parsed view still wins over raw, so a value `migrateTaskState` rewrote is
+ * not overwritten by the old shape sitting beneath it.
+ */
+export function recordWithState(
+  record: TaskRecord,
+  changes: Partial<TaskState>,
+): Record<string, unknown> {
+  return {
+    ...record.raw,
+    state: {
+      ...(isRecord(record.raw.state) ? record.raw.state : {}),
+      ...record.state,
+      ...changes,
+    },
+  };
+}
+
 function emptyRecord(): TaskRecord {
   return {
     raw: {},
@@ -137,8 +174,9 @@ async function writeTaskRecord(
 ): Promise<void> {
   const target = recordPath(dir);
   // Named per process so two app instances sharing a workspace cannot write
-  // each other's temporary file. Within one process the queue already orders
-  // them.
+  // each other's temporary file. That is all it buys: the writes are still
+  // unordered across instances and the last rename wins. Within one process the
+  // queue orders them.
   const temporary = `${target}.${process.pid}.tmp`;
 
   await fs.mkdir(getTaskPrivateDir(dir), { recursive: true });

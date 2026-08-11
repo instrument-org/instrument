@@ -69,7 +69,9 @@ Two conditions came with the merge, because without them it would have been a do
 - **The halves are parsed separately.** A draft or a pane the schema rejects must not cost the task its title and its place in the list, and a title that cannot be read must not silently unmount the folders the agent may reach. `readTaskRecord` parses each half from the same object and answers with an empty one for whichever failed.
 - **Writes go through a temporary file and a rename.** One file now carries the title, the sort key and a draft rewritten as the user types. Writing over the live file leaves a window where a crash truncates it, and a truncated record does not read as damaged -- the parse fails and the task simply answers as though it has no settings.
 
-A write also carries forward any field it could not read, so a record written by a newer build survives an older one touching it.
+A write also carries forward any field it could not read, at both levels, so a record written by a newer build survives an older one touching it. The nested half is the one that needed saying: the schemas strip unknown keys, so writing the parsed view back would delete them, and `state` is the half that keeps growing while the top level is a closed set.
+
+What makes the publisher asymmetry safe is worth stating too, since it is the reason the original split looked necessary. `updateTaskSettings` publishes `task.updated` itself; the state writers leave `task.stateUpdated` to their callers. That means no state write can wake the task list, so the bug at the top of this finding cannot come back through a draft or a tab. The opposite mistake costs a panel that does not refresh.
 
 ## The general shape
 

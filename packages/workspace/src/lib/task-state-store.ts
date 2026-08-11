@@ -1,7 +1,11 @@
 import { type TaskDir } from "../schemas/paths";
 import { TaskPane } from "../schemas/task-pane";
 import { type TaskState } from "../schemas/task-state";
-import { readTaskRecord, updateTaskRecord } from "./task-record";
+import {
+  readTaskRecord,
+  recordWithState,
+  updateTaskRecord,
+} from "./task-record";
 
 /**
  * Where the user left off in a task.
@@ -18,10 +22,7 @@ export async function setTaskState(
   dir: TaskDir,
   state: Partial<TaskState>,
 ): Promise<void> {
-  await updateTaskRecord(dir, (record) => ({
-    ...record.raw,
-    state: { ...record.state, ...state },
-  }));
+  await updateTaskRecord(dir, (record) => recordWithState(record, state));
 }
 
 /**
@@ -36,13 +37,11 @@ export async function updateTaskPane(
   dir: TaskDir,
   update: (pane: TaskPane.Type) => TaskPane.Type,
 ): Promise<TaskPane.Type> {
-  const written = await updateTaskRecord(dir, (record) => ({
-    ...record.raw,
-    state: {
-      ...record.state,
+  const written = await updateTaskRecord(dir, (record) =>
+    recordWithState(record, {
       pane: update(record.state.pane ?? TaskPane.EMPTY),
-    },
-  }));
+    }),
+  );
 
   return written.state.pane ?? TaskPane.EMPTY;
 }

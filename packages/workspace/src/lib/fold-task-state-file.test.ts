@@ -101,6 +101,18 @@ describe("foldTaskStateFile", () => {
     expect(JSON.parse(read("settings.json"))).toEqual({ name: "My task" });
   });
 
+  // This runs over every task at boot, so it writes the way the runtime does.
+  it("leaves no temporary file behind", () => {
+    write("settings.json", { name: "My task" });
+    write("state.json", { showTutorial: true });
+
+    foldTaskStateFile(taskFolder);
+
+    expect(fs.readdirSync(path.join(taskFolder, ".instrument"))).toEqual([
+      "settings.json",
+    ]);
+  });
+
   it("no-ops for a folder with neither file", () => {
     expect(foldTaskStateFile(taskFolder)).toBe(false);
     expect(exists("settings.json")).toBe(false);

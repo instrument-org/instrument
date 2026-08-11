@@ -5,9 +5,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
+import { TaskPane } from "../schemas/task-pane";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { getTaskPrivateDir, taskDir } from "./task-dir-utils";
 import { readTaskRecord, updateTaskRecord } from "./task-record";
+import { setTaskState, updateTaskPane } from "./task-state-store";
 
 const id = TaskIdSchema.parse("task-record-test");
 
@@ -101,6 +103,45 @@ describe("updateTaskRecord", () => {
     expect(written).toEqual({
       futureField: { written: "by a newer build" },
       name: "Renamed",
+    });
+  });
+
+  // The half that matters for this: the top level is a closed set, `state` is
+  // the one that keeps growing, so it is the one a build rollback meets.
+  it("carries forward an unreadable field inside the state too", async () => {
+    await writeRecordFile({
+      name: "Test task",
+      state: { futureNested: "keep me", promptDraft: "before" },
+    });
+
+    await setTaskState(taskDir(taskId), { promptDraft: "after" });
+
+    const written: unknown = JSON.parse(
+      await fs.readFile(recordPath(), "utf8"),
+    );
+
+    expect(written).toEqual({
+      name: "Test task",
+      state: { futureNested: "keep me", promptDraft: "after" },
+    });
+  });
+
+  it("carries an unreadable state field through a pane change", async () => {
+    await writeRecordFile({
+      name: "Test task",
+      state: { futureNested: "keep me" },
+    });
+
+    await updateTaskPane(taskDir(taskId), (pane) =>
+      TaskPane.openTabs(pane, [TaskPane.fileTab("output/report.pdf")]),
+    );
+
+    const written: unknown = JSON.parse(
+      await fs.readFile(recordPath(), "utf8"),
+    );
+
+    expect(written).toMatchObject({
+      state: { futureNested: "keep me" },
     });
   });
 

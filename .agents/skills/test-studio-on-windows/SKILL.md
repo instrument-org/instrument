@@ -108,7 +108,11 @@ node "$DRIVE" state --port 49160
 node "$DRIVE" goto /release-notes --port 49160
 node "$DRIVE" click --text "New task" --port 49160
 node "$DRIVE" shot /tmp/windows-dev.png --port 49160
+node "$DRIVE" rpc workspace.task.agentStatus.byIds '{"ids":["<task-id>"]}' --port 49160
+node "$DRIVE" wait --idle --task <task-id> --port 49160
 ```
+
+Every `--port` here is the local end of the tunnel, so the whole driver works against a remote host unchanged: it only ever needs a CDP endpoint. That includes running a task end to end without the UI (`studio-chrome-devtools`), with one caveat this platform adds nothing to — the seeded workspace carries no credentials, so a live turn needs the `dev` target rather than `dev-seeded`.
 
 Against an installed build:
 
@@ -122,6 +126,14 @@ node "$DRIVE" shot /tmp/windows-installed.png --port 49161
 ```
 
 Do not use `state`, `goto`, or `modal` against the installed build. They wait for a dev-only handle that packaged builds intentionally omit.
+
+`rpc` is the exception, and it is why enumerating the DOM should not be the first move on this target. It goes through a different handle (`window.__studioDebug`) that does ship in a packaged build, so the installed product can be asked what it holds rather than read off what it painted:
+
+```bash
+node "$DRIVE" rpc workspace.task.list '{}' --port 49161
+```
+
+Two things it needs on a remote host. Developer Mode has to be on in that machine's own settings, because the preference is checked per call and the bridge cannot turn itself on; a call made while it is off says exactly that. And `wait --idle` needs an explicit `--task` here, since without one it asks the dev-only handle which task the active tab is showing.
 
 Treat screenshots as supporting evidence. Also assert the expected DOM or state, inspect relevant logs, and include the remote commit or installed version in the result.
 

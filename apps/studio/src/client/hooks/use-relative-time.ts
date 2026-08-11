@@ -4,7 +4,7 @@ import {
   getSharedNow,
   relativeTickMs,
 } from "@/client/lib/relative-time";
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 /**
  * An instant rendered the way the app renders instants, kept current as it
@@ -18,12 +18,27 @@ export function useRelativeTime(
   date: Date,
   { compact = false }: { compact?: boolean } = {},
 ) {
-  const intervalMs = relativeTickMs(getSharedNow() - date.getTime());
+  // The cadence is state rather than something read off the clock as the
+  // instance renders: the age it follows from goes on changing after the first
+  // render, and a rendering that reads the clock directly is free to be cached
+  // at the first age it ever saw and never move off it again.
+  const [intervalMs, setIntervalMs] = useState(() =>
+    relativeTickMs(getSharedNow() - date.getTime()),
+  );
 
   const now = useSyncExternalStore(
     intervalMs === null ? noopSubscribe : clockSubscriber(intervalMs),
     getSharedNow,
   );
+
+  // Crossing into another unit is exactly when this instance should move to
+  // another timer, and it is a tick of the current one that carries it across.
+  // Re-rendering from here rather than from an effect keeps the subscription
+  // and the age it was chosen for from disagreeing for a frame.
+  const nextIntervalMs = relativeTickMs(now - date.getTime());
+  if (nextIntervalMs !== intervalMs) {
+    setIntervalMs(nextIntervalMs);
+  }
 
   return formatRelativeTime(date, now, { compact });
 }

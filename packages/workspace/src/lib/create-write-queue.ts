@@ -18,6 +18,12 @@
  * disk, a different and much larger thing.
  */
 export function createWriteQueue() {
+  // The tail of each key's chain, held only to be waited on. `unknown` is the
+  // answer rather than a placeholder: successive jobs for one key resolve to
+  // different types, nothing here reads any of them, and TypeScript has no way
+  // to say "some type, and I don't care which". Narrowing it to `Promise<void>`
+  // would mean allocating a second promise per call to discard a value nobody
+  // was going to look at.
   const tails = new Map<string, Promise<unknown>>();
 
   return function enqueue<T>(key: string, work: () => Promise<T>): Promise<T> {

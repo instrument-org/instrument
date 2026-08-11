@@ -22,6 +22,12 @@ const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 // large product page measured ~180k), which would swamp the model's context.
 // This ceiling is roughly 14,000 tokens of page markdown.
 const MAX_TEXT_CHARACTERS = 50_000;
+// What a fetch costs when nobody chose a number. The maximum is a useful
+// ceiling for a page the agent has decided it needs whole, and a poor default:
+// one product page reached it during an audit and, with a single search in the
+// same step, added roughly 12,000 tokens to the next request. The rest of the
+// page is still on disk and still one parameter away.
+const DEFAULT_TEXT_CHARACTERS = 20_000;
 const DEFAULT_TIMEOUT_SECONDS = 30;
 const MAX_TIMEOUT_SECONDS = 120;
 const MAX_REDIRECTS = 5;
@@ -57,7 +63,7 @@ export const WebFetch = setupTool({
       .max(MAX_TEXT_CHARACTERS)
       .optional()
       .meta({
-        description: `Maximum characters of page content to return (default and max ${MAX_TEXT_CHARACTERS}). Lower this when you only need the top of a long page.`,
+        description: `Maximum characters of page content to return (default ${DEFAULT_TEXT_CHARACTERS}, max ${MAX_TEXT_CHARACTERS}). Raise it when the default cuts off something you need, or lower it when you only want the top of a long page.`,
       }),
     [INPUT_PARAMS.timeout]: z
       .number()
@@ -115,7 +121,7 @@ export const WebFetch = setupTool({
     try {
       const result = await fetchTextual({
         format,
-        maxCharacters: input.maxCharacters ?? MAX_TEXT_CHARACTERS,
+        maxCharacters: input.maxCharacters ?? DEFAULT_TEXT_CHARACTERS,
         signal: AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]),
         url,
       });
@@ -183,8 +189,8 @@ export const WebFetch = setupTool({
     }
     const truncationNote = output.truncated
       ? output.spillFilePath
-        ? `\n\nNote: the page was cut off after ${output.text.length} characters. The full content is saved to ${output.spillFilePath}.`
-        : `\n\nNote: the page was cut off after ${output.text.length} characters.`
+        ? `\n\nNote: the page was cut off after ${output.text.length} characters. The full content is saved to ${output.spillFilePath}, and ${INPUT_PARAMS.maxCharacters} can be raised to ${MAX_TEXT_CHARACTERS} on another fetch.`
+        : `\n\nNote: the page was cut off after ${output.text.length} characters. ${INPUT_PARAMS.maxCharacters} can be raised to ${MAX_TEXT_CHARACTERS} on another fetch.`
       : "";
     return {
       type: "text",

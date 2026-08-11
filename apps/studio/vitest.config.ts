@@ -7,6 +7,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
+// Spelled with its extension because Vite's native config loader -- the one
+// that will read this file once it becomes the default -- resolves the
+// specifier as written rather than guessing. `allowImportingTsExtensions` in
+// `tsconfig.json` is there for this import and nothing else.
+import { ariaSnapshot } from "./src/tests/commands/aria-snapshot.ts";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 
@@ -108,6 +114,10 @@ export default defineConfig({
         extends: true,
         test: {
           browser: {
+            // Playwright can serialize an accessibility tree and Vitest's own
+            // browser API cannot, so the one thing this project would otherwise
+            // have to drive the app to see is reached through a command.
+            commands: { ariaSnapshot },
             enabled: true,
             headless: true,
             instances: [{ browser: "chromium" }],

@@ -1,3 +1,4 @@
+import { ariaSnapshot } from "@/tests/aria-snapshot";
 import { renderInBrowser } from "@/tests/render-browser";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { expect, test } from "vitest";
@@ -16,6 +17,9 @@ import { MarkdownTaskContext } from "./markdown-task-context";
  * reader has to go and find. And the tiles' widths at three column widths,
  * because both of the rules that set them are container queries and the same
  * grid is drawn in a message column, a pane, and a card.
+ *
+ * The third thing is not a measurement at all: what the grid *is*, to anything
+ * that reads structure rather than pixels.
  */
 
 // Either side of the grid's two container breakpoints: @md at 28rem and @xl at
@@ -57,6 +61,36 @@ async function tileWidths(content: string, width: number) {
     (tile) => Math.round(tile.getBoundingClientRect().width),
   );
 }
+
+test("reads as a set of anonymous controls to anything but a pointer", async () => {
+  // Not a measurement: the roles and accessible names a screen reader is handed,
+  // and the same tree a script driving the app has to find its way around by.
+  //
+  // The fence below names three files and the tree names none of them. Only
+  // `notes.md` appears, and only because a non-media card writes its filename
+  // out as text; the image and the video are a bare `img` and two bare
+  // `button`s each, addressable by position and nothing else. That is what this
+  // records -- the grid lays out correctly and is unreadable, which is a state
+  // neither the heights above nor the widths below can distinguish from a
+  // working one.
+  const { locator } = await drawFence(
+    "output/revenue.png\noutput/notes.md\noutput/clip.mp4",
+  );
+
+  await expect(ariaSnapshot(locator)).resolves.toMatchInlineSnapshot(`
+    "- img
+    - button
+    - button:
+      - img
+    - img
+    - button
+    - button:
+      - img
+    - text: notes.md Markdown
+    - button:
+      - img"
+  `);
+});
 
 test("keeps a row of media the same height as its last card lands", async () => {
   // A video and an image, which is where the heights used to diverge: the

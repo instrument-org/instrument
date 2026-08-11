@@ -1,4 +1,6 @@
+import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
+import { reactCompilerPreset } from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -30,6 +32,10 @@ const GLOBAL_DEFINES = {
   ),
 } as const;
 
+const reactCompilerBabel = await babel({
+  presets: [reactCompilerPreset()],
+});
+
 const SHARED_EXCLUDE = [
   "node_modules",
   "dist",
@@ -49,7 +55,13 @@ export default defineConfig({
   // different app, so the browser project loads `globals.css` for real and
   // needs the plugin that compiles it. Inert for the other two projects, which
   // process no CSS.
-  plugins: [tailwindcss()],
+  //
+  // The React Compiler is the other half of that: a component it has rewritten
+  // is not the component in the source, and the differences are exactly the
+  // ones a render test is for -- what re-renders, and what a cached value goes
+  // on reporting after its inputs stop changing. So the suite runs the compiled
+  // component, the same as the app does.
+  plugins: [tailwindcss(), reactCompilerBabel],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),

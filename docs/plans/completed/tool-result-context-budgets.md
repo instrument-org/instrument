@@ -104,6 +104,15 @@ Five things came out differently from the plan above.
 
 Both budgets are allocated by [allocateFairShare](../../../packages/workspace/src/lib/fair-share.ts), which is the same max-min split in both places: short pieces stay whole, and what they do not use goes back to the long ones.
 
+### What a real session showed
+
+A single ad-hoc run (compare per-TB storage prices across three cloud providers, one frontier model) exercised all three phases:
+
+- Three parallel searches in one step returned 11,841 characters between them and tripped neither budget. The per-search ceiling is well above what an ordinary search costs, which is what it was meant to be.
+- Three parallel fetches in the next step returned 55,714 characters, so the step budget bound and removed roughly 23,000 characters from the following request. The turn still produced a correct, fully sourced answer, so trimming the middle of three pages did not cost the model what it needed.
+- The model raised `maxCharacters` to 50,000 and re-fetched one of the three pages. This is the repeat-at-the-maximum behavior Phase 3 says to watch: one page in three needed more than 20,000 characters, and the other two did not, which is the trade the lower default was chosen for. It is worth re-measuring across models before concluding anything from one run.
+- It also produced a wording bug worth keeping in mind for any similar note: a fetch already at the 50,000 maximum was being told it could raise the parameter to 50,000. The note now offers only recovery paths that exist.
+
 ## Related
 
 - [Context compaction](../active/context-compaction.md) handles accumulated session history after preventive limits have done their job.

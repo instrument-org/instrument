@@ -187,10 +187,20 @@ export const WebFetch = setupTool({
     if (output.state === "failure") {
       return { type: "error-text", value: output.errorMessage };
     }
+    // A fetch already at the maximum has nothing left to ask for, so it is sent
+    // to the spilled copy instead of being told to raise a parameter it cannot.
+    const recovery = [
+      output.spillFilePath
+        ? `The full content is saved to ${output.spillFilePath}.`
+        : undefined,
+      output.text.length < MAX_TEXT_CHARACTERS
+        ? `${INPUT_PARAMS.maxCharacters} can be raised to ${MAX_TEXT_CHARACTERS} on another fetch.`
+        : undefined,
+    ]
+      .filter((sentence) => sentence !== undefined)
+      .join(" ");
     const truncationNote = output.truncated
-      ? output.spillFilePath
-        ? `\n\nNote: the page was cut off after ${output.text.length} characters. The full content is saved to ${output.spillFilePath}, and ${INPUT_PARAMS.maxCharacters} can be raised to ${MAX_TEXT_CHARACTERS} on another fetch.`
-        : `\n\nNote: the page was cut off after ${output.text.length} characters. ${INPUT_PARAMS.maxCharacters} can be raised to ${MAX_TEXT_CHARACTERS} on another fetch.`
+      ? `\n\nNote: the page was cut off after ${output.text.length} characters.${recovery === "" ? "" : ` ${recovery}`}`
       : "";
     return {
       type: "text",

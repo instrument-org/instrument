@@ -138,6 +138,15 @@ const config: Configuration = {
     "**/node_modules/date-fns/locale/_lib/**",
     "**/node_modules/date-fns/locale/en-US/**",
     "**/node_modules/date-fns/locale/en-US.*",
+    // just-bash declares quickjs-emscripten to back its `js-exec` command and
+    // turndown (which pulls domino) to back `html-to-markdown`. Neither
+    // command can run here: `js-exec` is absent from the command registry
+    // just-bash builds, and `html-to-markdown` is filtered out by
+    // BROKEN_COMMANDS in create-bash-env. Both are required from inside the
+    // command body, so excluding them removes 9.4MB nothing can reach.
+    "!**/node_modules/{quickjs-emscripten,turndown}/**",
+    "!**/node_modules/@jitl/quickjs-*/**",
+    "!**/node_modules/@mixmark-io/domino/**",
     "!**/*.map", // someday we may want to keep these for debugging
     /* cspell:disable */
     "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",

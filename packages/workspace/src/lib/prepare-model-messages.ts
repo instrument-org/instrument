@@ -9,6 +9,7 @@ import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { addCacheControlToMessages } from "./add-cache-control";
+import { budgetStepToolResults } from "./budget-step-tool-results";
 import { dropTrailingFailedMessages } from "./drop-trailing-failed-messages";
 import { filterUnsupportedMedia } from "./filter-unsupported-media";
 import { normalizeModelImages } from "./normalize-model-images";
@@ -161,8 +162,34 @@ export async function prepareModelMessages({
     a.role === "system" ? -1 : b.role === "system" ? 1 : 0,
   );
 
+  // Before the provider-specific passes: what one step of tool calls may spend
+  // is a property of the conversation, not of whoever runs the next turn.
+  const budgeted = budgetStepToolResults(modelMessagesWithSystemFirst);
+
+  // Only the step that just ran is counted. Every earlier step is clipped the
+  // same way on every request for the rest of the session, so counting those
+  // too would report one bad step once per turn and make the totals a function
+  // of session length rather than of how often the budget binds.
+  const latestStepIndex = budgeted.messages.findLastIndex(
+    (message) => message.role === "tool",
+  );
+  for (const clipped of budgeted.clipped) {
+    if (clipped.stepIndex !== latestStepIndex) {
+      continue;
+    }
+    getWorkspaceConfig().captureEvent("llm.tool_result_clipped", {
+      limit: "step",
+      modelId: model.canonicalId,
+      original_characters: clipped.originalCharacters,
+      providerId: model.params.provider,
+      retained_characters: clipped.retainedCharacters,
+      step_result_count: clipped.stepResultCount,
+      tool_name: clipped.toolName,
+    });
+  }
+
   const splitMessages = splitMultipartToolResults({
-    messages: modelMessagesWithSystemFirst,
+    messages: budgeted.messages,
     provider: model.params.provider,
   });
 

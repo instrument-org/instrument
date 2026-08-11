@@ -98,7 +98,7 @@ export function ProviderPicker({
       >
         <Command>
           <CommandInput placeholder="Search providers..." />
-          <CommandList className="max-h-none min-h-0 flex-1">
+          <CommandList className="min-h-0 flex-1">
             <CommandEmpty>Error loading providers.</CommandEmpty>
             <CommandGroup>
               {sortedProviderMetadata

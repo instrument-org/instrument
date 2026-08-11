@@ -45,7 +45,10 @@ describe("watchFileInfo", () => {
     const controller = new AbortController();
     const seen = [];
 
-    for await (const value of watch("/mnt/Not-Attached/x.png", controller.signal)) {
+    for await (const value of watch(
+      "/mnt/Not-Attached/x.png",
+      controller.signal,
+    )) {
       seen.push(value);
     }
 

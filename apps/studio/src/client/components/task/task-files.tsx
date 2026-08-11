@@ -4,10 +4,7 @@ import { FolderAttachmentRow } from "@/client/components/folder-attachment-row";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { getFileKindLabel } from "@/client/lib/get-file-type";
-import {
-  hasVisibleTaskFiles,
-  shouldFilterTaskFile,
-} from "@/client/lib/task-file-groups";
+import { shouldFilterTaskFile } from "@/client/lib/task-file-groups";
 import { cn } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";
 import { rpcClient } from "@/client/rpc/client";
@@ -144,9 +141,20 @@ export function TaskFiles({
 
   const folderEntries = attachedFolders ? Object.values(attachedFolders) : [];
 
-  if (!hasVisibleTaskFiles(files) && folderEntries.length === 0) {
+  // Only when there is genuinely nothing to draw. This used to ask whether the
+  // task had any *prominent* files, which answered "no" for a task whose work
+  // so far is all under `work/` -- and then said there were no files while the
+  // "Other files" section below was holding them.
+  if (
+    computed.tree.length === 0 &&
+    computed.hiddenTree.length === 0 &&
+    folderEntries.length === 0
+  ) {
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center px-4 text-center text-sm text-muted-foreground">
+      // Padded rather than centered in a flex child that collapses: this panel
+      // is as tall as its contents, so `flex-1` around one line of text left it
+      // in a box barely taller than the line.
+      <div className="px-4 py-8 text-center text-sm text-muted-foreground">
         There are no files yet.
       </div>
     );

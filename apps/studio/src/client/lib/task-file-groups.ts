@@ -11,15 +11,6 @@ const PROMINENT_TOP_LEVEL_DIRS = new Set([
   TASK_FOLDER_NAMES.output,
 ]);
 
-export function hasVisibleTaskFiles(
-  rawFiles: undefined | { filePath: string }[],
-): boolean {
-  if (!rawFiles) {
-    return false;
-  }
-  return rawFiles.some((f) => !shouldFilterTaskFile(f.filePath));
-}
-
 /**
  * Hide anything that is not under a prominent top-level dir (`attachments/`,
  * `downloads/`, `output/`) and is not a root-level file. Root files are

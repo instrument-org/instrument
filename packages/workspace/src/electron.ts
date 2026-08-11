@@ -11,7 +11,6 @@ export { clearOrphanedProjectRefs, resolveProjectDir } from "./lib/project";
 export { readTaskFile } from "./lib/read-task-file";
 export { resolveWorkspaceFilePath } from "./lib/resolve-workspace-file-path";
 export { taskDir } from "./lib/task-dir-utils";
-export { stopAllTaskFileWatchers } from "./lib/task-file-watcher";
 export { getTaskSettings } from "./lib/task-settings";
 export { stopWorkspaceSkillWatcher } from "./lib/workspace-skill-watcher";
 export {

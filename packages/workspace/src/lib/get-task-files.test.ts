@@ -4,13 +4,8 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TASK_FOLDER_NAMES } from "../constants";
-import { RelativePathSchema, TaskDirSchema } from "../schemas/paths";
-import {
-  diffTaskFileIndexes,
-  getTaskFileIgnore,
-  getTaskFileIndex,
-  isIgnoredTaskPath,
-} from "./get-task-files";
+import { TaskDirSchema } from "../schemas/paths";
+import { getTaskFileIndex } from "./get-task-files";
 
 describe("getTaskFileIndex", () => {
   let taskDirPath: string;
@@ -100,44 +95,6 @@ describe("getTaskFileIndex", () => {
   // that list must not turn everything it newly covers into a deletion. The
   // agent would otherwise be told the user deleted a venv that is merely no
   // longer indexed.
-  it("does not report paths dropped from the index as deleted", async () => {
-    // A baseline captured under a narrower ignore list: two paths the index no
-    // longer tracks, plus one the user really did delete.
-    const before = new Map(
-      [
-        "work/.venv/lib/x.so",
-        "work/skills/docx/node_modules/dep/index.js",
-        "deleted-by-user.md",
-      ].map((filePath) => [
-        filePath,
-        {
-          filename: path.basename(filePath),
-          filePath: RelativePathSchema.parse(filePath),
-          mimeType: "text/plain",
-          mtimeMs: 1,
-          size: 1,
-        },
-      ]),
-    );
-
-    const ignore = await getTaskFileIgnore(dir);
-    const kept = new Map(
-      [...before].filter(([key]) => !isIgnoredTaskPath(ignore, key)),
-    );
-    const after = await getTaskFileIndex(dir);
-    expect(after.isOk()).toBe(true);
-    if (after.isErr()) {
-      return;
-    }
-
-    const deleted = diffTaskFileIndexes({ after: after.value, before: kept })
-      .filter((change) => change.status === "deleted")
-      .map(({ filePath }) => String(filePath));
-
-    // The real deletion survives; the two generated paths never enter the diff.
-    expect(deleted).toEqual(["deleted-by-user.md"]);
-  });
-
   // A Python task's venv alone runs to hundreds of files, past the index cap
   // once it holds the scientific stack, so leaving these enumerated would both
   // bury the task's own files and drown the change list the user reads.
@@ -256,46 +213,5 @@ describe("getTaskFileIndex", () => {
         "output/chart.png",
       ]
     `);
-  });
-
-  it("diffs file index snapshots and extracts output artifacts", async () => {
-    const beforeResult = await getTaskFileIndex(dir);
-    expect(beforeResult.isOk()).toBe(true);
-    if (beforeResult.isErr()) {
-      return;
-    }
-
-    await fs.writeFile(path.join(taskDirPath, "notes.md"), "changed");
-    await fs.writeFile(path.join(taskDirPath, "output", "new.txt"), "new");
-    await fs.rm(path.join(taskDirPath, "output", "chart.png"));
-
-    const afterResult = await getTaskFileIndex(dir);
-    expect(afterResult.isOk()).toBe(true);
-    if (afterResult.isErr()) {
-      return;
-    }
-
-    const changes = diffTaskFileIndexes({
-      after: afterResult.value,
-      before: beforeResult.value,
-    });
-
-    expect(changes.map((change) => [change.filePath, change.status]))
-      .toMatchInlineSnapshot(`
-        [
-          [
-            "notes.md",
-            "modified",
-          ],
-          [
-            "output/chart.png",
-            "deleted",
-          ],
-          [
-            "output/new.txt",
-            "added",
-          ],
-        ]
-      `);
   });
 });

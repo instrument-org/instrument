@@ -4,7 +4,6 @@ import { type RPCOutput } from "@/client/rpc/client";
 import { type StoreId, type Task } from "@instrument-org/workspace/client";
 import { type ComponentProps } from "react";
 
-import { CurrentTaskFilesProvider } from "./current-task-files";
 import { TaskToolbar } from "./toolbar";
 
 export function TaskSidebar({
@@ -25,23 +24,19 @@ export function TaskSidebar({
   task: Task;
 }) {
   return (
-    // The provider covers the toolbar too: the file list hangs off it in a
-    // popover, so it reads the same live files the chat does.
-    <CurrentTaskFilesProvider files={files}>
-      <div className="flex h-full flex-col overflow-hidden bg-background">
-        <TaskToolbar
-          activeFilePath={activeFilePath}
-          attachedFolders={attachedFolders}
-          files={files}
-          onFileSelect={onFileSelect}
-          selectedSessionId={selectedSessionId}
-          task={task}
-        />
+    <div className="flex h-full flex-col overflow-hidden bg-background">
+      <TaskToolbar
+        activeFilePath={activeFilePath}
+        attachedFolders={attachedFolders}
+        files={files}
+        onFileSelect={onFileSelect}
+        selectedSessionId={selectedSessionId}
+        task={task}
+      />
 
-        <div className="min-h-0 flex-1 overflow-hidden">
-          <TaskChat {...chatProps} />
-        </div>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <TaskChat {...chatProps} />
       </div>
-    </CurrentTaskFilesProvider>
+    </div>
   );
 }

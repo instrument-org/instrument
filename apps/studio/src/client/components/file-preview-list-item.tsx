@@ -1,5 +1,4 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import { useLiveAssetUrl } from "@/client/components/task/current-task-files";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
@@ -29,7 +28,7 @@ export function FilePreviewListItem({
 }) {
   const { filename, filePath, mimeType } = file;
   const fileType = getFileType(file);
-  const url = useLiveAssetUrl(file);
+  const { url } = file;
   const [imageLoadError, setImageLoadError] = useState(false);
   const fileActions = useFileActionVisibility(file);
   const hasFileActions =

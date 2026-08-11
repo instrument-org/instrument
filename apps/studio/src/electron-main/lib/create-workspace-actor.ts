@@ -17,7 +17,6 @@ import {
   closeAllAgentBrowserSessions,
   migrateWorkspaceLayout,
   pruneExternalBrowserTmp,
-  stopAllTaskFileWatchers,
   stopWorkspaceSkillWatcher,
   workspaceMachine,
   workspaceRouter,
@@ -344,13 +343,11 @@ export function createWorkspaceActor({
             app.exit(0);
           };
           // @parcel/watcher aborts the process (SIGABRT) if a live subscription
-          // is torn down while Node frees the environment, so stop watchers and
-          // await their unsubscribe before app.exit. Runs before actor.stop so
-          // watchers still held by an in-flight turn are captured. Bounded so a
+          // is torn down while Node frees the environment, so stop the skills
+          // watcher and await its unsubscribe before app.exit. Bounded so a
           // stuck unsubscribe can't wedge the quit.
           const forceFinalize = setTimeout(finalize, 2000);
           void Promise.all([
-            stopAllTaskFileWatchers().catch(noop),
             stopWorkspaceSkillWatcher().catch(noop),
             telemetryFinalized,
           ]).finally(() => {

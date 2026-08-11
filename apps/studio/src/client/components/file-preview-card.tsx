@@ -1,10 +1,6 @@
 import type { RefObject } from "react";
 
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import {
-  useLiveAssetUrl,
-  useTaskFileReferenceStatus,
-} from "@/client/components/task/current-task-files";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { useTaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
@@ -14,7 +10,6 @@ import {
   ArrowLineDownIcon,
   CheckIcon,
   CopyIcon,
-  ImageBrokenIcon,
   PlayIcon,
 } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
@@ -55,7 +50,6 @@ export function FilePreviewCard({
   const [isPlaying, setIsPlaying] = useState(false);
 
   const fileType = getFileType({ filename, mimeType });
-  const referenceStatus = useTaskFileReferenceStatus(file);
 
   const handleMouseEnter = () => {
     if (fileType === "video" && videoRef.current) {
@@ -77,15 +71,6 @@ export function FilePreviewCard({
       setIsPlaying(false);
     }
   };
-
-  if (
-    referenceStatus === "missing" &&
-    (fileType === "image" || fileType === "video")
-  ) {
-    return (
-      <MissingMediaCard file={file} isSelected={isSelected} onClick={onClick} />
-    );
-  }
 
   if (fileType === "image") {
     return (
@@ -146,7 +131,6 @@ function FileRowCard({
   onClick: () => void;
 }) {
   const { filename, filePath } = file;
-  const isMissing = useTaskFileReferenceStatus(file) === "missing";
   const fileActions = useFileActionVisibility(file);
   const hasFileActions =
     fileActions.showCopy ||
@@ -185,7 +169,7 @@ function FileRowCard({
           </TooltipContent>
         </Tooltip>
         <span className="truncate text-xs leading-[18px] font-medium text-muted-foreground">
-          {isMissing ? "File not found" : getFileKindLabel(file)}
+          {getFileKindLabel(file)}
         </span>
       </div>
       {!hideActionsMenu && hasFileActions && (
@@ -235,8 +219,7 @@ function ImagePreviewCard({
   isSelected?: boolean;
   onClick: () => void;
 }) {
-  const { filename } = file;
-  const url = useLiveAssetUrl(file);
+  const { filename, url } = file;
   const fileActions = useFileActionVisibility(file);
   const [resolveOpenTarget, setResolveOpenTarget] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
@@ -336,44 +319,6 @@ function ImagePreviewCard({
   );
 }
 
-// Inline media previews resolve their bytes from disk; when the referenced file
-// is gone (e.g. an imported task whose output was renamed) the raw <img>/<video>
-// would render a broken thumbnail with no explanation. Swap in a labeled state
-// that mirrors the missing-file artifact panel and drops the now-dead actions.
-function MissingMediaCard({
-  file,
-  isSelected,
-  onClick,
-}: {
-  file: TaskFileViewerFile;
-  isSelected?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          className={cn(
-            "relative flex aspect-square w-full flex-col items-center justify-center gap-1.5 overflow-hidden rounded-2xl bg-card p-3 text-center shadow-sm dark:bg-muted",
-            isSelected &&
-              "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
-          )}
-          onClick={onClick}
-          type="button"
-        >
-          <ImageBrokenIcon className="size-6 text-muted-foreground/60" />
-          <span className="text-xs font-medium text-muted-foreground">
-            File not found
-          </span>
-        </button>
-      </TooltipTrigger>
-      <TooltipContent>
-        <span className="break-all">{file.filePath}</span>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
 function VideoPreviewCard({
   file,
   handleMouseEnter,
@@ -403,7 +348,7 @@ function VideoPreviewCard({
   videoProgress: number;
   videoRef: RefObject<HTMLVideoElement | null>;
 }) {
-  const url = useLiveAssetUrl(file);
+  const { url } = file;
   const fileActions = useFileActionVisibility(file);
   const [resolveOpenTarget, setResolveOpenTarget] = useState(false);
   const openControl = useTaskFileOpenControl(

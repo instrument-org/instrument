@@ -24,7 +24,6 @@ import { ConfirmedIconButton } from "../confirmed-icon-button";
 import { FileIcon } from "../file-icon";
 import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
-import { useCurrentTaskFile } from "../task/current-task-files";
 import { isActiveToolPart } from "../transcript-layout";
 import { ToolCapabilityFailure } from "./tool-capability-failure";
 import {
@@ -324,12 +323,7 @@ function GeneratedImage({
   thumbnail?: boolean;
 }) {
   const filename = filenameFromFilePath(filePath);
-  const currentFile = useCurrentTaskFile(filePath);
-  const src = getAssetUrl({
-    assetBase: assetBaseUrl,
-    filePath,
-    version: currentFile?.modifiedAt ?? modifiedAt,
-  });
+  const src = getAssetUrl({ assetBase: assetBaseUrl, filePath });
 
   const handleClick = () => {
     onOpen({ filePath, modifiedAt });

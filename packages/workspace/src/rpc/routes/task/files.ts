@@ -6,14 +6,7 @@ import {
   getCurrentFileInfo,
 } from "../../../lib/get-file-info";
 import { getTaskFiles, TaskFilesSchema } from "../../../lib/get-task-files";
-import {
-  getCurrentTaskFiles,
-  startWatchingTaskFiles,
-} from "../../../lib/task-file-watcher";
-import {
-  WatchedFileSchema,
-  watchFileInfo,
-} from "../../../lib/watch-file-info";
+import { WatchedFileSchema, watchFileInfo } from "../../../lib/watch-file-info";
 import { WorkspaceFilePathSchema } from "../../../schemas/paths";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { base, toORPCError } from "../../base";
@@ -27,13 +20,6 @@ const list = base
   )
   .output(TaskFilesSchema)
   .handler(async ({ errors, input: { taskId } }) => {
-    // Serve the live in-memory index when a watcher is active; otherwise fall
-    // back to a fresh walk of disk.
-    const live = getCurrentTaskFiles(taskId);
-    if (live) {
-      return live;
-    }
-
     const result = await getTaskFiles(taskId);
 
     if (result.isErr()) {
@@ -89,25 +75,19 @@ export const taskFiles = {
         }),
       )
       .output(eventIterator(TaskFilesSchema))
+      // A walk on subscribe and another when a turn ends, rather than a
+      // standing index over the task directory. The list is a browsing surface
+      // the user opens; it does not need to know about a file the moment it
+      // lands, and the folder this will eventually be walking is one the user
+      // picked, which a recursive watcher has no business indexing.
       .handler(async function* ({ context, input, signal }) {
-        const release = startWatchingTaskFiles({
-          id: input.taskId,
-          workspaceConfig: context.workspaceConfig,
-        });
+        const changes = publisher.subscribe("task.files.changed", { signal });
+        yield call(list, input, { context, signal });
 
-        try {
-          const changes = publisher.subscribe("task.files.changed", {
-            signal,
-          });
-          yield call(list, input, { context, signal });
-
-          for await (const payload of changes) {
-            if (payload.id === input.taskId) {
-              yield call(list, input, { context, signal });
-            }
+        for await (const payload of changes) {
+          if (payload.id === input.taskId) {
+            yield call(list, input, { context, signal });
           }
-        } finally {
-          release();
         }
       }),
   },

@@ -36,6 +36,7 @@ import {
   beginSkillChangeTracking,
   consumeSkillChanges,
 } from "../lib/workspace-skill-index";
+import { publisher } from "../rpc/publisher";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { StoreId } from "../schemas/store-id";
@@ -343,6 +344,10 @@ export const mainAgent = setupAgent({
     return [systemMessage, userMessage];
   },
   onFinish: async ({ parentMessageId, sessionId, signal, taskId }) => {
+    // What a turn did to the task's files is not tracked while it runs, so the
+    // end of one is the moment to tell anything listing them to look again.
+    publisher.publish("task.files.changed", { id: taskId });
+
     const skillChanges = await consumeSkillChanges({ id: taskId, sessionId });
 
     // Skills live outside the task tree, in the shared writable `/skills`

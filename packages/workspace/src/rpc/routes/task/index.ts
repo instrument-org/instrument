@@ -629,16 +629,6 @@ const exportZip = base
     }
   });
 
-const OutputArtifactsCreatedSchema = z.object({
-  files: z
-    .object({
-      filePath: z.string(),
-      modifiedAt: z.number(),
-    })
-    .array(),
-  sessionId: StoreId.SessionSchema,
-});
-
 const live = {
   byId: base
     .input(z.object({ id: TaskIdSchema }))
@@ -696,26 +686,6 @@ const live = {
 
       for await (const _ of mergeGenerators([taskUpdates, taskRemoved])) {
         yield call(list, input, { context, signal });
-      }
-    }),
-  // Forwards artifact-produced events as they happen. Unlike the other live
-  // endpoints this is a pure event stream (no initial snapshot): clients only
-  // react to runs that finish while subscribed.
-  outputArtifacts: base
-    .input(z.object({ id: TaskIdSchema }))
-    .output(eventIterator(OutputArtifactsCreatedSchema))
-    .handler(async function* ({ input, signal }) {
-      const events = publisher.subscribe("task.outputArtifactsCreated", {
-        signal,
-      });
-
-      for await (const payload of events) {
-        if (payload.id === input.id) {
-          yield {
-            files: payload.files,
-            sessionId: payload.sessionId,
-          };
-        }
       }
     }),
 };

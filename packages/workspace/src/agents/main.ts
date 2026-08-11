@@ -17,7 +17,6 @@ import {
 import { getEffectiveProjectContext } from "../lib/effective-project-context";
 import { TypedError } from "../lib/errors";
 import { getCurrentDate } from "../lib/get-current-date";
-import { outputArtifactsFromChanges } from "../lib/get-task-files";
 import { isToolPart } from "../lib/is-tool-part";
 import { pathExists } from "../lib/path-exists";
 import { normalizeProjectInstructions } from "../lib/project-instructions";
@@ -27,10 +26,6 @@ import { TS_COMMAND } from "../lib/shell-commands/ts";
 import { TSC_COMMAND } from "../lib/shell-commands/tsc";
 import { Store } from "../lib/store";
 import { taskDir } from "../lib/task-dir-utils";
-import {
-  beginTurnChangeTracking,
-  consumeTurnChanges,
-} from "../lib/task-file-watcher";
 import { getTaskState } from "../lib/task-state-store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import {
@@ -41,7 +36,6 @@ import {
   beginSkillChangeTracking,
   consumeSkillChanges,
 } from "../lib/workspace-skill-index";
-import { publisher } from "../rpc/publisher";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { StoreId } from "../schemas/store-id";
@@ -349,23 +343,17 @@ export const mainAgent = setupAgent({
     return [systemMessage, userMessage];
   },
   onFinish: async ({ parentMessageId, sessionId, signal, taskId }) => {
-    const [{ changes: fileChanges }, skillChanges] = await Promise.all([
-      // Always consume so the watcher ref acquired in onStart is released, even
-      // when we skip saving the change summary below.
-      consumeTurnChanges({ id: taskId, sessionId }),
-      consumeSkillChanges({ id: taskId, sessionId }),
-    ]);
+    const skillChanges = await consumeSkillChanges({ id: taskId, sessionId });
 
     // Skills live outside the task tree, in the shared writable `/skills`
-    // mount, so the file watcher above never sees them and a turn that only
-    // authored a skill has no task file changes at all.
+    // mount, so a turn that only authored a skill leaves nothing in the task.
     const skillChangesPart =
       skillChanges.created.length > 0 || skillChanges.updated.length > 0
         ? { created: skillChanges.created, updated: skillChanges.updated }
         : undefined;
 
     const result = await safeTry(async function* () {
-      if (fileChanges.length === 0 && !skillChangesPart) {
+      if (!skillChangesPart) {
         return ok(undefined);
       }
 
@@ -404,50 +392,20 @@ export const mainAgent = setupAgent({
         return err(new TypedError.NotFound("No assistant message found"));
       }
 
-      if (fileChanges.length > 0) {
-        yield* Store.savePart(
-          {
-            data: {
-              files: fileChanges,
-            },
-            metadata: {
-              createdAt: new Date(),
-              id: StoreId.newPartId(),
-              messageId: lastAssistantMessage.id,
-              sessionId,
-            },
-            type: "data-fileChanges",
-          },
-          taskId,
-          { signal },
-        );
-
-        const outputArtifacts = outputArtifactsFromChanges(fileChanges);
-        if (outputArtifacts.length > 0) {
-          publisher.publish("task.outputArtifactsCreated", {
-            files: outputArtifacts,
-            id: taskId,
+      yield* Store.savePart(
+        {
+          data: skillChangesPart,
+          metadata: {
+            createdAt: new Date(),
+            id: StoreId.newPartId(),
+            messageId: lastAssistantMessage.id,
             sessionId,
-          });
-        }
-      }
-
-      if (skillChangesPart) {
-        yield* Store.savePart(
-          {
-            data: skillChangesPart,
-            metadata: {
-              createdAt: new Date(),
-              id: StoreId.newPartId(),
-              messageId: lastAssistantMessage.id,
-              sessionId,
-            },
-            type: "data-skillChanges",
           },
-          taskId,
-          { signal },
-        );
-      }
+          type: "data-skillChanges",
+        },
+        taskId,
+        { signal },
+      );
 
       return ok(undefined);
     });
@@ -456,14 +414,7 @@ export const mainAgent = setupAgent({
     }
   },
   onStart: async ({ sessionId, taskId }) => {
-    await Promise.all([
-      beginTurnChangeTracking({
-        id: taskId,
-        sessionId,
-        workspaceConfig: getWorkspaceConfig(),
-      }),
-      beginSkillChangeTracking({ id: taskId, sessionId }),
-    ]);
+    await beginSkillChangeTracking({ id: taskId, sessionId });
   },
   shouldContinue: shouldContinueWithToolCalls,
 }));

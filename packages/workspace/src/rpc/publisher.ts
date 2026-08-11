@@ -58,11 +58,6 @@ export const publisher = new EventPublisher<{
   "task.files.changed": {
     id: TaskId;
   };
-  "task.outputArtifactsCreated": {
-    files: { filePath: string; modifiedAt: number }[];
-    id: TaskId;
-    sessionId: StoreId.Session;
-  };
   "task.removed": {
     id: TaskId;
   };

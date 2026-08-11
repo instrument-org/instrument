@@ -1,7 +1,6 @@
 import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
 
 import {
-  changedFile,
   file,
   folder,
   OUR_MODEL,
@@ -935,32 +934,6 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
       ),
       prose("I updated the hero section and removed the legacy stylesheet."),
       notes(
-        {
-          // Root-level paths: the grid only surfaces the task's own folders and
-          // the files beside them, so a nested path renders nothing.
-          data: {
-            files: [
-              changedFile({
-                filePath: "hero.tsx",
-                size: 3200,
-                status: "modified",
-              }),
-              changedFile({
-                filePath: "styles.css",
-                mimeType: "text/css",
-                size: 1800,
-                status: "added",
-              }),
-              changedFile({
-                filePath: "legacy.css",
-                mimeType: "text/css",
-                size: 0,
-                status: "deleted",
-              }),
-            ],
-          },
-          type: "data-fileChanges",
-        },
         {
           // Real skill names, so the card resolves a title and description here
           // the way it does in a session; an unknown one falls back to the name.

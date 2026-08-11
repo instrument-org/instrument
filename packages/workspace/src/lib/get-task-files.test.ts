@@ -10,7 +10,6 @@ import {
   getTaskFileIgnore,
   getTaskFileIndex,
   isIgnoredTaskPath,
-  outputArtifactsFromChanges,
 } from "./get-task-files";
 
 describe("getTaskFileIndex", () => {
@@ -298,11 +297,5 @@ describe("getTaskFileIndex", () => {
           ],
         ]
       `);
-    expect(outputArtifactsFromChanges(changes)).toEqual([
-      {
-        filePath: "output/new.txt",
-        modifiedAt: expect.any(Number),
-      },
-    ]);
   });
 });

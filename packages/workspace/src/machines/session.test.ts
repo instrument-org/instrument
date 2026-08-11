@@ -508,9 +508,6 @@ describe("sessionMachine", () => {
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="3" />
           <text state="done">I'm done.</text>
-          <data-fileChanges>
-            <file filename="test.txt" status="modified" />
-          </data-fileChanges>
         </assistant>
         <session-context main realRole="system" />
         <session-context main realRole="user" />
@@ -666,9 +663,6 @@ describe("sessionMachine", () => {
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <text state="done">I'm done.</text>
-          <data-fileChanges>
-            <file filename="generated-image.png" status="added" />
-          </data-fileChanges>
         </assistant>
         <session-context main realRole="system" />
         <session-context main realRole="user" />

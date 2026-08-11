@@ -854,19 +854,6 @@ function renderPersistedAssistantParts(
       });
       continue;
     }
-    if (part.type === "data-fileChanges") {
-      const files = part.data.files.map(
-        (file) =>
-          `${file.status} ${file.filePath} | ${file.mimeType} | ${file.size} bytes`,
-      );
-      lines.push(
-        "",
-        `### Files Changed (${files.length})`,
-        "",
-        fenceText(files.join("\n"), "text"),
-      );
-      continue;
-    }
     if (isDataPart(part)) {
       lines.push(
         "",

@@ -322,17 +322,6 @@ export function isIgnoredTaskPath(
   return ignore.ignores(relativePath) || ignore.ignores(`${relativePath}/`);
 }
 
-export function outputArtifactsFromChanges(changes: TaskFileChange[]) {
-  return changes
-    .filter(
-      (change) =>
-        change.status !== "deleted" &&
-        change.filePath.startsWith(`${TASK_FOLDER_NAMES.output}/`),
-    )
-    .map(({ filePath, modifiedAt }) => ({ filePath, modifiedAt }))
-    .sort((a, b) => a.filePath.localeCompare(b.filePath));
-}
-
 export function taskFilesFromIndex(index: TaskFileIndex): TaskFile[] {
   return [...index.values()]
     .map(toTaskFile)

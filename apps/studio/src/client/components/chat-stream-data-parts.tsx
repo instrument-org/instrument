@@ -1,16 +1,13 @@
-import { isSurfacedTaskFile } from "@/client/lib/task-file-visibility";
 import {
   attachedFolderChangesModelNote,
   browserStatusModelNote,
   maxStepsModelNote,
   paneTabsModelNote,
-  type SessionMessageDataPart,
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
 import { type ReactNode } from "react";
 
 import { type RenderPartContext } from "./chat-stream-render-part";
-import { FileChangesCard } from "./file-changes-card";
 import { ModelContextDebugCard } from "./model-context-debug-card";
 import { ProjectChangesNote } from "./project-changes-note";
 import { SkillChangesCard } from "./skill-changes-card";
@@ -29,14 +26,6 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-attachedFolderChanges": "dev",
   "data-attachments": "hidden",
   "data-browserStatus": "dev",
-  // Superseded by the ```files fence, which is the agent's own account of what
-  // it produced. The two overlap almost exactly -- the agent names the files it
-  // just wrote, which are the files the watcher just saw -- so a turn showed
-  // each one twice. Demoted rather than deleted while fence adherence is still
-  // being measured: seeing what the watcher found next to what the agent named
-  // is exactly the comparison that measurement wants. The part itself, its
-  // schema, and `consumeTurnChanges` go together once that lands.
-  "data-fileChanges": "dev",
   "data-intent": "dev",
   "data-maxSteps": "dev",
   "data-paneTabs": "dev",
@@ -50,17 +39,6 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
 export function dataPartVisibility(
   part: SessionMessagePart.DataPart,
 ): DataPartVisibility {
-  // File changes confined to paths the grid never surfaces (skill files copied
-  // into `work/`, say) have no card to draw. Reporting them as hidden keeps them
-  // from counting as visible content and from leaving an empty gap in the
-  // message column.
-  if (
-    part.type === "data-fileChanges" &&
-    !part.data.files.some(isSurfacedFileChange)
-  ) {
-    return "hidden";
-  }
-
   return declaredVisibility(part.type);
 }
 
@@ -111,17 +89,6 @@ export function renderDataPart({
           className="mt-2"
           key={part.metadata.id}
           text={browserStatusModelNote(part.data)}
-        />
-      );
-    }
-    case "data-fileChanges": {
-      return (
-        <FileChangesCard
-          assetBaseUrl={ctx.assetBaseUrl}
-          className="mt-2"
-          files={part.data.files}
-          key={part.metadata.id}
-          taskId={ctx.task.id}
         />
       );
     }
@@ -221,9 +188,3 @@ function declaredVisibility(type: string): DataPartVisibility {
   return declared[type] ?? "hidden";
 }
 
-function isSurfacedFileChange(
-  file: SessionMessageDataPart.FileChangeDataPartItem,
-) {
-  // Deleted files have nothing to preview, matching `FileChangesCard`.
-  return file.status !== "deleted" && isSurfacedTaskFile(file.filePath);
-}

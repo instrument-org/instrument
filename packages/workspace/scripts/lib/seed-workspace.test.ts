@@ -147,14 +147,11 @@ describe("seedWorkspace", () => {
     ).toEqual({ developerMode: true, theme: "dark" });
   });
 
-  it("copies every file the transcript reports as changed", async () => {
+  it("copies every file the fixture carries", async () => {
     const { first, tasks } = await seedIntoTempDir();
     const dir = taskDir(at(tasks, 0).id);
 
-    const reported = first.session.messages
-      .flatMap((message) => message.parts)
-      .filter((part) => part.type === "data-fileChanges")
-      .flatMap((part) => part.data.files.map((file) => file.filePath));
+    const reported = first.files.map((file) => file.to);
     expect(reported.length).toBeGreaterThan(0);
 
     for (const filePath of reported) {

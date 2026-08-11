@@ -41,21 +41,6 @@ export const OUR_MODEL: AIGatewayModel.Type = {
 };
 
 /** A file the turn touched, for the grid of what changed. */
-export function changedFile({
-  filePath,
-  mimeType = "text/plain",
-  size = 1024,
-  status,
-}: {
-  filePath: string;
-  mimeType?: string;
-  size?: number;
-  status: SessionMessageDataPart.FileChangeDataPartItem["status"];
-}): SessionMessageDataPart.FileChangeDataPartItem {
-  return { ...file({ filePath, mimeType, size }), status };
-}
-
-/** A file riding along with a message, as the uploader records it. */
 export function file({
   filePath,
   mimeType = "text/plain",

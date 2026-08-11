@@ -11,8 +11,8 @@ export namespace SessionMessageDataPart {
    * whether it needs to guard against repeating itself.
    *
    * - **Event**: something that happened on this turn -- `attachments`,
-   *   `intent`, `maxSteps`, `skillChanges`, `skillMentions`, `fileChanges`,
-   *   and `projectContext`, which is written once at creation. A repeat is
+   *   `intent`, `maxSteps`, `skillChanges`, `skillMentions`, and
+   *   `projectContext`, which is written once at creation. A repeat is
    *   impossible by construction; nothing to guard.
    * - **Diff**: what changed since last time -- `projectChanges`,
    *   `attachedFolderChanges`. Self-limiting: no change, no part.
@@ -29,7 +29,6 @@ export namespace SessionMessageDataPart {
     "attachedFolderChanges",
     "attachments",
     "browserStatus",
-    "fileChanges",
     "intent",
     "skillChanges",
     "skillMentions",
@@ -41,27 +40,6 @@ export namespace SessionMessageDataPart {
   ]);
 
   export type Name = z.output<typeof NameSchema>;
-
-  const FileChangeStatusSchema = z.enum(["added", "deleted", "modified"]);
-
-  const FileChangeDataPartItemSchema = z.object({
-    filename: z.string(),
-    filePath: RelativePathSchema,
-    mimeType: z.string(),
-    modifiedAt: z.number(),
-    size: z.number(),
-    status: FileChangeStatusSchema,
-  });
-
-  export type FileChangeDataPartItem = z.output<
-    typeof FileChangeDataPartItemSchema
-  >;
-
-  const FileChangesDataPartSchema = z.object({
-    files: z.array(FileChangeDataPartItemSchema),
-  });
-
-  export type FileChangesDataPart = z.output<typeof FileChangesDataPartSchema>;
 
   // Attached folders removed, renamed, or re-permissioned since the model last
   // saw them -- attached to the user message that triggers the next turn so the
@@ -262,7 +240,6 @@ export namespace SessionMessageDataPart {
       AttachedFolderChangesDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
-    [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
     [NameSchema.enum.paneTabs]: PaneTabsDataPartSchema,

@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASK_FOLDER_NAMES } from "../constants";
 import { AbsolutePathSchema } from "../schemas/paths";
@@ -11,18 +11,17 @@ import { initializeTask } from "./initialize-task";
 import { taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
+const ISO_TIMESTAMP = /\d{4}-\d{2}-\d{2}T[\d:.]+Z/g;
+
 let rootDir: string;
 
 beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "initialize-task-"));
   // The settings file is snapshotted whole, and it carries the activity stamp
   // a new task starts with.
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date("2026-01-02T03:04:05.000Z"));
 });
 
 afterEach(async () => {
-  vi.useRealTimers();
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
@@ -64,16 +63,19 @@ describe("initializeTask", () => {
     await expect(
       fs.readFile(path.join(taskDir(taskId), "instrument.json"), "utf8"),
     ).rejects.toMatchObject({ code: "ENOENT" });
-    await expect(
-      fs.readFile(
-        path.join(taskDir(taskId), ".instrument", "settings.json"),
-        "utf8",
-      ),
-    ).resolves.toMatchInlineSnapshot(`
+    // Stamps normalized rather than frozen: faking the clock for a snapshot
+    // leaves every real timer in the file faked too, which is a flake waiting
+    // for the suite to run under load.
+    const settings = await fs.readFile(
+      path.join(taskDir(taskId), ".instrument", "settings.json"),
+      "utf8",
+    );
+    expect(settings.replaceAll(ISO_TIMESTAMP, "<when>")).toMatchInlineSnapshot(`
       "{
         "name": "Test task",
+        "createdAt": "<when>",
         "createdWithAppVersion": "0.0.0-test",
-        "lastActivityAt": "2026-01-02T03:04:05.000Z"
+        "lastActivityAt": "<when>"
       }"
     `);
     await expect(

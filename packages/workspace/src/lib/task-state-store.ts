@@ -7,6 +7,7 @@ import { FolderAttachment } from "../schemas/folder-attachment";
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
 import { TaskPane } from "../schemas/task-pane";
 import { absolutePathJoin } from "./absolute-path-join";
+import { createWriteQueue } from "./create-write-queue";
 import { getTaskPrivateDir } from "./task-dir-utils";
 
 // `projectFolderName` names the folder under `projects/` belonging to the
@@ -67,9 +68,9 @@ export async function getTaskState(dir: TaskDir): Promise<TaskState> {
 // Read-modify-write, so two writes that overlap would each merge onto the state
 // the other had not yet written and the later one would win outright. Rare while
 // the writers were a debounced draft and a model change; the pane adds tab
-// writes from the renderer and from `show`, which do overlap. Serializing per
-// task is enough: the file belongs to one task and nothing writes across two.
-const writeQueues = new Map<TaskDir, Promise<unknown>>();
+// writes from the renderer and from `show`, which do overlap. Queueing per task
+// is enough: the file belongs to one task and nothing writes across two.
+const enqueue = createWriteQueue();
 
 export async function setTaskState(
   dir: TaskDir,
@@ -95,20 +96,6 @@ export async function updateTaskPane(
     const pane = update(current.pane ?? TaskPane.EMPTY);
     await writeTaskState(dir, { pane });
     return pane;
-  });
-}
-
-function enqueue<T>(dir: TaskDir, work: () => Promise<T>): Promise<T> {
-  // Both arms run the work: a failed write ahead of this one is that caller's
-  // to report, and dropping every write behind it would be worse.
-  const queued = (writeQueues.get(dir) ?? Promise.resolve()).then(work, work);
-
-  writeQueues.set(dir, queued);
-
-  return queued.finally(() => {
-    if (writeQueues.get(dir) === queued) {
-      writeQueues.delete(dir);
-    }
   });
 }
 

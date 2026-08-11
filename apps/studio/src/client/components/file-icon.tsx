@@ -1,4 +1,10 @@
 import {
+  type FileIconToken,
+  getFileIconToken,
+} from "@/client/lib/get-file-icon-token";
+import {
+  CalendarBlankIcon,
+  FileArchiveIcon,
   FileAudioIcon,
   FileCIcon,
   FileCodeIcon,
@@ -36,137 +42,65 @@ import {
   BsFileCode,
   BsFileEarmarkFont,
   BsFileEarmarkImage,
+  BsFileEarmarkPerson,
+  BsFileEarmarkPlay,
+  BsFileEarmarkPost,
   BsFileEarmarkPpt,
   BsFileEarmarkRichtext,
   BsFileEarmarkSpreadsheet,
   BsFileEarmarkWord,
 } from "react-icons/bs";
 import { type IconType } from "react-icons/lib";
-
-import { EXTENSION_MAP } from "../lib/file-extension-to-language";
+import { TbFileDatabase } from "react-icons/tb";
 
 type AnyIcon = Icon | IconType;
 
-const EXTENSION_ICON_MAP: Record<string, AnyIcon | null> = {
-  // --- Phosphor first-class file icons ---
+const TOKEN_ICONS: Record<FileIconToken, AnyIcon> = {
+  archive: FileArchiveIcon,
+  audio: FileAudioIcon,
+  binary: BsFileBinary,
   c: FileCIcon,
-  cc: FileCppIcon,
-  cjs: FileJsIcon,
+  calendar: CalendarBlankIcon,
+  code: BsFileCode,
+  config: FileCodeIcon,
+  contact: BsFileEarmarkPerson,
   cpp: FileCppIcon,
-  cs: FileCSharpIcon,
+  csharp: FileCSharpIcon,
   css: FileCssIcon,
   csv: FileCsvIcon,
-  cts: FileTsIcon,
-  cxx: FileCppIcon,
-  doc: FileDocIcon,
-  docx: FileDocIcon,
-  h: FileCIcon,
-  hpp: FileCppIcon,
-  htm: FileHtmlIcon,
+  database: TbFileDatabase,
+  document: BsFileEarmarkWord,
+  ebook: BsFileEarmarkRichtext,
+  email: BsFileEarmarkPost,
+  font: BsFileEarmarkFont,
   html: FileHtmlIcon,
+  image: BsFileEarmarkImage,
   ini: FileIniIcon,
-  jpeg: FileJpgIcon,
+  javascript: FileJsIcon,
   jpg: FileJpgIcon,
-  js: FileJsIcon,
   jsx: FileJsxIcon,
-  md: FileMdIcon,
-  mdx: FileMdIcon,
-  mjs: FileJsIcon,
-  mts: FileTsIcon,
+  markdown: FileMdIcon,
   pdf: FilePdfIcon,
   png: FilePngIcon,
-  ppt: FilePptIcon,
-  pptx: FilePptIcon,
-  py: FilePyIcon,
-  rs: FileRsIcon,
+  presentation: FilePptIcon,
+  python: FilePyIcon,
+  richtext: BsFileEarmarkRichtext,
+  rust: FileRsIcon,
+  slides: BsFileEarmarkPpt,
+  spreadsheet: FileXlsIcon,
   sql: FileSqlIcon,
+  subtitle: BsFileEarmarkPlay,
   svg: FileSvgIcon,
-  toml: FileIniIcon,
-  ts: FileTsIcon,
+  table: BsFileEarmarkSpreadsheet,
+  text: FileTextIcon,
   tsx: FileTsxIcon,
   txt: FileTxtIcon,
+  typescript: FileTsIcon,
+  unknown: PhFileIcon,
+  video: FileVideoIcon,
   vue: FileVueIcon,
-  xls: FileXlsIcon,
-  xlsx: FileXlsIcon,
-  yaml: FileCodeIcon,
-  yml: FileCodeIcon,
-
-  // --- Archives ---
-  "7z": FileZipIcon,
-  gz: FileZipIcon,
-  rar: FileZipIcon,
-  tar: FileZipIcon,
+  word: FileDocIcon,
   zip: FileZipIcon,
-
-  // --- Audio (Phosphor FileAudioIcon) ---
-  aac: FileAudioIcon,
-  flac: FileAudioIcon,
-  m4a: FileAudioIcon,
-  mp3: FileAudioIcon,
-  ogg: FileAudioIcon,
-  wav: FileAudioIcon,
-
-  // --- Video (Phosphor FileVideoIcon) ---
-  avi: FileVideoIcon,
-  mkv: FileVideoIcon,
-  mov: FileVideoIcon,
-  mp4: FileVideoIcon,
-  webm: FileVideoIcon,
-
-  // --- Images not covered by Phosphor specifics ---
-  ai: BsFileEarmarkImage,
-  bmp: BsFileEarmarkImage,
-  gif: BsFileEarmarkImage,
-  heic: BsFileEarmarkImage,
-  psd: BsFileEarmarkImage,
-  raw: BsFileEarmarkImage,
-  tif: BsFileEarmarkImage,
-  tiff: BsFileEarmarkImage,
-  webp: BsFileEarmarkImage,
-
-  // --- Office / docs ---
-  epub: BsFileEarmarkRichtext,
-  key: BsFileEarmarkPpt,
-  numbers: BsFileEarmarkSpreadsheet,
-  odf: BsFileEarmarkRichtext,
-  odp: BsFileEarmarkPpt,
-  ods: BsFileEarmarkSpreadsheet,
-  odt: BsFileEarmarkWord,
-  odw: BsFileEarmarkWord,
-  pages: BsFileEarmarkWord,
-  rtf: BsFileEarmarkRichtext,
-  tsv: BsFileEarmarkSpreadsheet,
-
-  // --- Fonts ---
-  otf: BsFileEarmarkFont,
-  ttf: BsFileEarmarkFont,
-  woff: BsFileEarmarkFont,
-  woff2: BsFileEarmarkFont,
-
-  // --- Binary / executable ---
-  dll: BsFileBinary,
-  // cspell:ignore dylib
-  dylib: BsFileBinary,
-  exe: BsFileBinary,
-  so: BsFileBinary,
-};
-
-// Populate all code-language extensions that aren't already explicitly mapped
-// above with BsFileCode as a generic code fallback.
-for (const ext of Object.keys(EXTENSION_MAP)) {
-  if (!(ext in EXTENSION_ICON_MAP)) {
-    EXTENSION_ICON_MAP[ext] = BsFileCode;
-  }
-}
-
-const FILENAME_ICON_MAP: Record<string, AnyIcon | null> = {
-  ".env": FileIniIcon,
-  ".gitignore": FileCodeIcon,
-  changelog: FileTxtIcon,
-  dockerfile: FileCodeIcon,
-  license: FileTxtIcon,
-  makefile: FileCodeIcon,
-  readme: FileMdIcon,
 };
 
 export function FileIcon({
@@ -180,34 +114,8 @@ export function FileIcon({
   filename: string;
   mimeType?: string;
 }) {
-  const lowerName = filename.toLowerCase();
-  let IconComponent: AnyIcon = PhFileIcon;
-
-  if (FILENAME_ICON_MAP[lowerName]) {
-    IconComponent = FILENAME_ICON_MAP[lowerName];
-  } else {
-    const ext = getFileExtension(filename);
-    if (ext && EXTENSION_ICON_MAP[ext]) {
-      IconComponent = EXTENSION_ICON_MAP[ext] ?? IconComponent;
-    } else if (
-      fallbackExtension &&
-      EXTENSION_ICON_MAP[fallbackExtension.toLowerCase()]
-    ) {
-      IconComponent =
-        EXTENSION_ICON_MAP[fallbackExtension.toLowerCase()] ?? IconComponent;
-    } else if (mimeType?.startsWith("text/")) {
-      IconComponent = FileTextIcon;
-    }
-  }
+  const IconComponent =
+    TOKEN_ICONS[getFileIconToken({ fallbackExtension, filename, mimeType })];
 
   return <IconComponent className={className} />;
-}
-
-function getFileExtension(filename: string): string {
-  const lowerName = filename.toLowerCase();
-  const lastDotIndex = lowerName.lastIndexOf(".");
-  if (lastDotIndex === -1 || lastDotIndex === 0) {
-    return "";
-  }
-  return lowerName.slice(lastDotIndex + 1);
 }

@@ -46,10 +46,17 @@ Ours, all against `vercel-labs/just-bash`. Volatile by nature; the point of list
 
 | PR | what | affects us |
 | --- | --- | --- |
-| #363 | `ls`: operands resolved literally rather than re-globbed, GNU operand grouping, `-t` implemented, type indicators only with `-F` | Yes. A bracketed filename is reported as missing, `find -exec ls -l {} +` pipelines return blank lines, `ls -t` returns name order. |
-| #364 | `touch`: `-t` and `-r` honored instead of discarded, `-d` bare dates read as local midnight | Yes, wherever a timestamp is written and then compared. |
+| #363 | `ls`: operands resolved literally rather than re-globbed, GNU operand grouping, `-t` implemented, type indicators only with `-F`, `-R` sections ordered by the sort key | Yes. A bracketed filename is reported as missing, `find -exec ls -l {} +` pipelines return blank lines, `ls -t` returns name order. |
+| #364 | `touch`: `-t` and `-r` honored instead of discarded, `-t` and `-d` read in `$TZ` rather than the host zone | Yes, wherever a timestamp is written and then compared. |
 | #318 | `interpreter`: interleave duplicated streams in write order | Yes, for output ordering under redirection. |
 | #313 | `fs`: `allowNestedMounts` on `MountableFs` | Only if we adopt nested mounts. |
+
+## Known gaps with no fix in flight
+
+Not workarounds, so they carry no removal trigger. They are here because each one is a way the sandbox can hand the agent a confident wrong answer, and knowing about them is cheaper than rediscovering them.
+
+- **`ls -l` prints timestamps in host-local time.** `date` defaults to UTC unless `$TZ` is set, deliberately, so the host's zone does not leak. `ls`'s formatter uses local components instead, so the two commands disagree about what time a file carries, and a correctly stored UTC instant can display as the previous day. Found while fixing `touch`; reported on #364 rather than fixed, because the fix belongs in `ls` and would move every `ls -l` timestamp in the suite.
+- **`sqlite3` dot commands are a parse error.** Already covered as a prompt workaround above; noted here too because it is the one gap upstream has declined rather than deferred.
 
 ## Checking whether a release has caught up
 

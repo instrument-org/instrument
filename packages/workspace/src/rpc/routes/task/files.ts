@@ -10,6 +10,10 @@ import {
   getCurrentTaskFiles,
   startWatchingTaskFiles,
 } from "../../../lib/task-file-watcher";
+import {
+  WatchedFileSchema,
+  watchFileInfo,
+} from "../../../lib/watch-file-info";
 import { WorkspaceFilePathSchema } from "../../../schemas/paths";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { base, toORPCError } from "../../base";
@@ -64,6 +68,20 @@ export const taskFiles = {
   fileInfo,
   list,
   live: {
+    // One file, watched while something is looking at it. Deliberately not the
+    // standing index: exactly one thing in the app is live at a time, and it is
+    // the file on screen.
+    info: base
+      .input(
+        z.object({
+          filePath: WorkspaceFilePathSchema,
+          taskId: TaskIdSchema,
+        }),
+      )
+      .output(eventIterator(WatchedFileSchema))
+      .handler(async function* ({ input, signal }) {
+        yield* watchFileInfo({ ...input, signal });
+      }),
     list: base
       .input(
         z.object({

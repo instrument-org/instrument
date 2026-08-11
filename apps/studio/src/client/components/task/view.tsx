@@ -125,53 +125,41 @@ export function TaskView({
 
   const showArtifactPanel = pane.open;
 
-  const {
-    data: fileInfo,
-    dataUpdatedAt,
-    errorUpdatedAt,
-  } = useQuery(
-    rpcClient.workspace.task.files.fileInfo.queryOptions({
+  // The one live thing in the app: a stat on the open file, on an interval,
+  // for as long as this tab is the one showing. It answers both questions the
+  // pane has -- whether the file is there, and which bytes are current -- so
+  // there is nothing here reading a standing index and nothing resolving a
+  // path at render.
+  const { data: watchedFile, dataUpdatedAt } = useQuery(
+    rpcClient.workspace.task.files.live.info.experimental_liveOptions({
       input: filePanel
-        ? {
-            filePath: filePanel.filePath,
-            taskId: task.id,
-          }
+        ? { filePath: filePanel.filePath, taskId: task.id }
         : skipToken,
     }),
   );
 
-  const currentFileMetadata = files?.find(
-    (file) => file.filePath === filePanel?.filePath,
-  );
-  const currentModifiedAt =
-    currentFileMetadata?.modifiedAt ?? fileInfo?.modifiedAt;
-  const currentFile: null | TaskFileViewerFile =
-    fileInfo && currentModifiedAt !== undefined
-      ? {
-          ...fileInfo,
-          modifiedAt: currentModifiedAt,
-          taskId: task.id,
-          url: getAssetUrl({
-            assetBase: assetBaseUrl,
-            filePath: fileInfo.filePath,
-            version: currentModifiedAt,
-          }),
-        }
-      : null;
+  const currentFile: null | TaskFileViewerFile = watchedFile
+    ? {
+        ...watchedFile,
+        taskId: task.id,
+        url: getAssetUrl({
+          assetBase: assetBaseUrl,
+          filePath: watchedFile.filePath,
+          version: watchedFile.modifiedAt,
+        }),
+      }
+    : null;
 
-  // Whether the panel is still working out what this file is. "Not found" is a
+  // Whether the pane is still working out what this file is. "Not found" is a
   // claim about the file, so it waits for an answer.
   //
-  // The answer is "has this query ever delivered anything for this file", read
-  // off the update stamps, which reset to 0 when the key changes. The status
-  // flags cannot be used for it: while the query is disabled -- which it is for
-  // the render where the path arrives -- it reports neither pending nor
-  // fetching while still holding no data, so a check on those shows the missing
-  // state to every file on its way in.
-  const hasFileAnswer = dataUpdatedAt > 0 || errorUpdatedAt > 0;
-  const isResolvingFile =
-    !hasFileAnswer ||
-    (fileInfo !== undefined && currentModifiedAt === undefined);
+  // The answer is "has this subscription ever delivered anything for this
+  // file", read off the update stamp, which resets to 0 when the key changes.
+  // The status flags cannot be used for it: while the query is disabled --
+  // which it is for the render where the path arrives -- it reports neither
+  // pending nor fetching while still holding no data, so a check on those shows
+  // the missing state to every file on its way in.
+  const isResolvingFile = dataUpdatedAt === 0;
 
   const handleFileSelect = (file: TaskFileViewerFile) => {
     openFiles([file.filePath]);

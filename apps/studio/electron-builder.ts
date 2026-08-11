@@ -125,6 +125,19 @@ const config: Configuration = {
     // .wasm are reachable from Node; the asm.js, browser, and debug variants are
     // ~17MB of the package's 18MB and nothing loads them.
     "!**/node_modules/sql.js/dist/{sql-asm*,worker.sql-*,*-debug.*,sql-wasm-browser.*}",
+    // date-fns resolves its default locale by requiring `locale/en-US`, so
+    // that one locale and the builders it shares under `locale/_lib` load
+    // whether or not anything asks for a locale by name. Nothing here asks:
+    // every call site imports arithmetic or ISO parsing. The other ~110
+    // locales and the `cdn` browser bundles beside them are ~6.5MB.
+    //
+    // Order matters. Each re-include has to follow the exclusion, and the
+    // directory itself is re-included by the partial match electron-builder
+    // does on directories, which is what lets the walker descend at all.
+    "!**/node_modules/date-fns/locale/**",
+    "**/node_modules/date-fns/locale/_lib/**",
+    "**/node_modules/date-fns/locale/en-US/**",
+    "**/node_modules/date-fns/locale/en-US.*",
     "!**/*.map", // someday we may want to keep these for debugging
     /* cspell:disable */
     "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",

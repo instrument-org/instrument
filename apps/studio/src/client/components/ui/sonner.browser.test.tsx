@@ -17,6 +17,17 @@ import { render } from "vitest-browser-react";
 const GAP = 14;
 const TOAST_COUNT = 3;
 
+/** Where each toast currently sits, as a comparable string. */
+function positions() {
+  return [...document.querySelectorAll("[data-sonner-toast]")]
+    .map((node) => {
+      const rect = node.getBoundingClientRect();
+      return `${Math.round(rect.top)}:${Math.round(rect.bottom)}`;
+    })
+    .sort()
+    .join(",");
+}
+
 async function stackToasts(zoom: number) {
   await render(
     <div style={{ zoom }}>
@@ -28,13 +39,30 @@ async function stackToasts(zoom: number) {
     toast.success(`Toast ${index + 1}`);
   }
 
-  // Toasts settle into place over sonner's 400ms transform transition.
   await expect
     .poll(() => document.querySelectorAll("[data-sonner-toast]").length, {
       timeout: 2000,
     })
     .toBe(TOAST_COUNT);
-  await new Promise((resolve) => setTimeout(resolve, 600));
+
+  // Sonner moves each toast into place with a transform, so the rects are worth
+  // reading only once they have stopped changing. Waited out by watching them
+  // rather than by sleeping for the transition's declared length: the browser
+  // project zeroes transition durations, so that sleep was 600ms of nothing on
+  // every case, and reading the positions answers the question whether or not
+  // that stays true.
+  let previous = "";
+  await expect
+    .poll(
+      () => {
+        const current = positions();
+        const settled = current === previous;
+        previous = current;
+        return settled;
+      },
+      { timeout: 2000 },
+    )
+    .toBe(true);
 
   return [...document.querySelectorAll("[data-sonner-toast]")]
     .map((node) => node.getBoundingClientRect())

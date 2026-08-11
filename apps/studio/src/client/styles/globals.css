@@ -615,6 +615,29 @@ body {
   }
 }
 
+/* Clears a tab's title out from under a close control drawn on top of it.
+ *
+ * Fully transparent across the control rather than merely on the way there: a
+ * gradient that only reaches transparent at the very edge leaves the name at
+ * roughly four fifths opacity under the control's left half, which reads as
+ * text showing through a button. The stops are measured from the title's own
+ * box, whose right edge sits 0.75rem short of where the control begins.
+ *
+ * Applied only while the control is on screen, because a tab is the width of
+ * its name: with nothing drawn over it, the same fade would eat the last few
+ * letters of a name that fits perfectly well. */
+@utility tab-title-fade {
+  --tab-title-fade: linear-gradient(
+    to right,
+    #000 0%,
+    #000 calc(100% - 1.5rem),
+    transparent calc(100% - 0.75rem),
+    transparent 100%
+  );
+  mask-image: var(--tab-title-fade);
+  -webkit-mask-image: var(--tab-title-fade);
+}
+
 @utility inset-shadow-toolbar {
   box-shadow: inset 0 0px 4px var(--tw-inset-shadow-color, rgb(0 0 0 / 0.05));
 }

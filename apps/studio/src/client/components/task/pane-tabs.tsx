@@ -1,5 +1,4 @@
 import { FileIcon } from "@/client/components/file-icon";
-import { overlaidTabTitleMaskStyle } from "@/client/lib/tab-title-mask";
 import { cn } from "@/client/lib/utils";
 import { TaskPane } from "@instrument-org/workspace/client";
 import { GlobeIcon, XIcon } from "@phosphor-icons/react";
@@ -127,7 +126,7 @@ function PaneTab({
     // share what is left and truncate, which is also what gives the name a box
     // wider than itself to fade into -- without it the name's box ends where
     // the text does and the fade lands mid-filename.
-    isFixed ? "shrink-0" : "w-full max-w-48 min-w-0 flex-1",
+    isFixed ? "shrink-0" : "max-w-48 min-w-0 shrink",
     isSelected
       ? "bg-accent text-accent-foreground"
       : "text-muted-foreground hover:bg-accent/50",
@@ -163,10 +162,16 @@ function PaneTab({
           control is drawn, which is what keeps it from showing through. */}
       <span
         className={cn(
-          "min-w-0 flex-1",
+          "min-w-0",
           isFixed ? "whitespace-nowrap" : "truncate",
+          // Only while the control is actually drawn. The tab is the width of
+          // its name, so an always-on fade would clip the tail of a name that
+          // fits.
+          isClosable &&
+            (isSelected
+              ? "tab-title-fade"
+              : "group-hover/pane-tab:tab-title-fade"),
         )}
-        style={isClosable ? overlaidTabTitleMaskStyle : undefined}
       >
         {filename}
       </span>

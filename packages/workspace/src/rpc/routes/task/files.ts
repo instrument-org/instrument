@@ -28,7 +28,7 @@ const list = base
     return result.value;
   });
 
-const fileInfo = base
+const info = base
   .input(
     z.object({
       filePath: WorkspaceFilePathSchema,
@@ -50,7 +50,7 @@ const fileInfo = base
   });
 
 export const taskFiles = {
-  fileInfo,
+  info,
   list,
   live: {
     // One file, watched while something is looking at it. The only live thing

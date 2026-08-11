@@ -132,7 +132,7 @@ export function TaskChat({
   }
 
   const messagesQuery = useQuery(
-    rpcClient.workspace.message.live.listWithParts.experimental_liveOptions({
+    rpcClient.workspace.message.live.list.experimental_liveOptions({
       input: selectedSessionId
         ? {
             id,

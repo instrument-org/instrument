@@ -200,7 +200,7 @@ const count = base
   });
 
 const live = {
-  listWithParts: base
+  list: base
     .input(
       z.object({
         id: TaskIdSchema,

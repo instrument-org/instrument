@@ -182,9 +182,9 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
         ? seedLiveQuery({
             queryClient,
             queryKey:
-              rpcClient.workspace.message.live.listWithParts.experimental_liveKey(
-                { input: { id, sessionId: selectedSessionId } },
-              ),
+              rpcClient.workspace.message.live.list.experimental_liveKey({
+                input: { id, sessionId: selectedSessionId },
+              }),
             read: () =>
               rpcClient.workspace.message.list.call({
                 id,

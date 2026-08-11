@@ -46,9 +46,9 @@ function SessionStatusText({
 
   // Only stream full message parts while the agent is live. Idle/completed rows
   // render "Done" without opening a per-row session stream, which otherwise
-  // fans out to one full listWithParts subscription per visible table row.
+  // fans out to one full message subscription per visible table row.
   const { data: messages = [] } = useQuery(
-    rpcClient.workspace.message.live.listWithParts.experimental_liveOptions({
+    rpcClient.workspace.message.live.list.experimental_liveOptions({
       input: isAgentAlive ? { id, sessionId } : skipToken,
     }),
   );

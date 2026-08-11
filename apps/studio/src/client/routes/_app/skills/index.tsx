@@ -122,7 +122,9 @@ function SkillsPage() {
   const { q } = Route.useSearch();
   const navigate = Route.useNavigate();
   const deferredQuery = useDeferredValue(q);
-  const matches = matchSkills(skills, deferredQuery);
+  const matches = matchSkills(skills, deferredQuery, {
+    scope: "name-and-description",
+  });
   const matchBySkill = new Map(matches.map((match) => [match.skill, match]));
   const groups = groupSkills(matches.map((match) => match.skill));
 

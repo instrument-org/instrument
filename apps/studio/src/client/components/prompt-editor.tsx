@@ -120,7 +120,10 @@ const menuEntries = (
     ...match,
     type: "action" as const,
   })),
-  ...matchSkills(skills, query, SKILL_MENU_LIMIT).map((match) => ({
+  ...matchSkills(skills, query, {
+    limit: SKILL_MENU_LIMIT,
+    scope: "name",
+  }).map((match) => ({
     match,
     type: "skill" as const,
   })),

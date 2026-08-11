@@ -77,7 +77,6 @@ export function FilesGrid({
   const pane = useTaskPane(taskId);
   const { openFiles } = useTaskPaneActions(taskId);
   const releaseAutoScroll = useReleaseAutoScroll();
-  const selectedTab = TaskPane.selectedTab(pane);
 
   const handleFileClick = (file: TaskFileViewerFile) => {
     openFiles([file.filePath]);
@@ -157,7 +156,7 @@ export function FilesGrid({
               <div className={mediaTileWidth} key={file.filePath}>
                 <FilePreviewCard
                   file={file}
-                  isSelected={isPaneFileSelected(file, selectedTab)}
+                  isSelected={isPaneFileSelected(file, pane.selected)}
                   onClick={() => {
                     handleFileClick(file);
                   }}
@@ -184,7 +183,7 @@ export function FilesGrid({
             {rowCardFiles.map((file) => (
               <FilePreviewCard
                 file={file}
-                isSelected={isPaneFileSelected(file, selectedTab)}
+                isSelected={isPaneFileSelected(file, pane.selected)}
                 key={file.filePath}
                 onClick={() => {
                   handleFileClick(file);
@@ -206,7 +205,7 @@ export function FilesGrid({
             <div className="h-12 max-w-48 min-w-0" key={file.filePath}>
               <FilePreviewListItem
                 file={file}
-                isSelected={isPaneFileSelected(file, selectedTab)}
+                isSelected={isPaneFileSelected(file, pane.selected)}
                 onClick={() => {
                   handleFileClick(file);
                 }}
@@ -347,11 +346,16 @@ function hasRowCardPreview(file: TaskFileViewerFile) {
 // Which card the pane is showing. The path decides it: an mtime in the
 // comparison meant a card lost its own highlight the moment the file it points
 // at changed underneath it.
+//
+// Against the stored key rather than `selectedTab`, whose fallback to the last
+// tab is right for deciding what to render and wrong for deciding what looks
+// chosen: with the browser selected it names a file tab, and a card would sit
+// highlighted while the pane showed a web page.
 function isPaneFileSelected(
   file: TaskFileViewerFile,
-  selectedTab: TaskPane.Tab | undefined,
+  selectedKey: string | undefined,
 ) {
-  return selectedTab?.type === "file" && file.filePath === selectedTab.filePath;
+  return selectedKey === TaskPane.tabKey(TaskPane.fileTab(file.filePath));
 }
 
 function sortByRichPreview(files: TaskFileViewerFile[]) {

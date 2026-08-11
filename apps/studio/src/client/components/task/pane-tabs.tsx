@@ -33,6 +33,25 @@ export function PaneTabs({
   taskId: Parameters<typeof PaneToggle>[0]["taskId"];
 }) {
   const fileKeys = fileTabs.map((tab) => TaskPane.tabKey(tab));
+  // The browser is always drawn and always first, so the strip's order is the
+  // fixed tab followed by the stored ones. Arrow keys walk this.
+  const orderedKeys = ["browser", ...fileKeys];
+
+  const selectRelative = (from: string, direction: -1 | 1) => {
+    const index = orderedKeys.indexOf(from);
+    if (index === -1) {
+      return;
+    }
+    // Wraps, which is what a tab strip does: the set is small and bounded, and
+    // stopping at the end makes the last tab feel broken.
+    const next =
+      orderedKeys[
+        (index + direction + orderedKeys.length) % orderedKeys.length
+      ];
+    if (next !== undefined) {
+      onSelect(next);
+    }
+  };
 
   return (
     // `h-10 px-2` matches `FileViewerHeader` and `ViewerToolbar`, the rows that
@@ -43,11 +62,18 @@ export function PaneTabs({
       {/* No horizontal scroll. Tabs share the row and truncate as they fill it,
           the way the window's do; a strip that scrolls hides tabs behind an
           interaction nobody looks for in a space this small. */}
-      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+      <div
+        aria-label="Open tabs"
+        className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
+        role="tablist"
+      >
         <PaneTab
           isSelected={selectedKey === "browser"}
           onSelect={() => {
             onSelect("browser");
+          }}
+          onSelectRelative={(direction) => {
+            selectRelative("browser", direction);
           }}
           // A rule between the fixed tab and the task's own, drawn once rather
           // than between every pair. Unconditional: hiding it beside a selected
@@ -58,11 +84,14 @@ export function PaneTabs({
           tab={{ type: "browser" }}
         />
 
+        {/* Presentational, so the tabs inside it are exposed as children of the
+            tablist above rather than nested in an anonymous group. */}
         <Reorder.Group
           as="div"
           axis="x"
           className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
           onReorder={onReorder}
+          role="none"
           values={fileKeys}
         >
           {fileTabs.map((tab) => {
@@ -76,6 +105,9 @@ export function PaneTabs({
                 }}
                 onSelect={() => {
                   onSelect(key);
+                }}
+                onSelectRelative={(direction) => {
+                  selectRelative(key, direction);
                 }}
                 showSeparator={false}
                 tab={tab}
@@ -91,10 +123,28 @@ export function PaneTabs({
   );
 }
 
+/** Move focus one tab along the strip, wrapping, to match the selection. */
+function focusSiblingTab(from: Element, direction: -1 | 1) {
+  const strip = from.closest('[role="tablist"]');
+  if (!strip) {
+    return;
+  }
+  const tabs = [...strip.querySelectorAll('[role="tab"]')];
+  const index = tabs.indexOf(from);
+  if (index === -1) {
+    return;
+  }
+  const next = tabs[(index + direction + tabs.length) % tabs.length];
+  if (next instanceof HTMLElement) {
+    next.focus();
+  }
+}
+
 function PaneTab({
   isSelected,
   onClose,
   onSelect,
+  onSelectRelative,
   showSeparator,
   tab,
   value,
@@ -102,6 +152,7 @@ function PaneTab({
   isSelected: boolean;
   onClose?: () => void;
   onSelect: () => void;
+  onSelectRelative: (direction: -1 | 1) => void;
   showSeparator: boolean;
   tab: TaskPane.Tab;
   // Present for a tab inside the group that can be dragged, which is every
@@ -205,16 +256,32 @@ function PaneTab({
   );
 
   const handlers = {
+    "aria-selected": isSelected,
     className,
     onKeyDown: (event: React.KeyboardEvent) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
         onSelect();
+        return;
+      }
+      // Selecting as focus moves, which is right when showing a tab costs
+      // nothing and is the only thing arrowing onto it could mean.
+      if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+        event.preventDefault();
+        const direction = event.key === "ArrowRight" ? 1 : -1;
+        onSelectRelative(direction);
+        // Selection is the parent's, focus is the DOM's, and the two have to
+        // move together or the ring is left on the tab that was showing a
+        // moment ago. Read from the rendered strip so the order is whatever
+        // was actually drawn, dragged tabs included.
+        focusSiblingTab(event.currentTarget, direction);
       }
     },
     onPointerDown,
     role: "tab",
-    tabIndex: 0,
+    // Roving: the strip is one stop in the page's tab order, and arrows move
+    // within it. Otherwise every open file is another press of Tab to get past.
+    tabIndex: isSelected ? 0 : -1,
   };
 
   // A div rather than a button, because the close control sits inside it and a

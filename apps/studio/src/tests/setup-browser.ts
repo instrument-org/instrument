@@ -30,6 +30,12 @@ installWindowStubs();
 // This covers CSS only. Animation driven from JavaScript -- the scroller's
 // spring, anything stepping a value per frame -- runs at full length, and a
 // test that depends on where it lands has to wait for it.
+//
+// The corollary is worth knowing before writing an assertion: a CSS reveal is
+// instantaneous here, so anything fading in reads as fully opaque from its
+// first frame and no test can observe the fade. Assert on whatever the fade is
+// keeping in step with instead -- a timer, a state flag, `pointer-events` --
+// rather than on opacity, which will agree with you whatever the code does.
 const style = document.createElement("style");
 style.textContent = `*, *::before, *::after {
   animation-delay: 0s !important;

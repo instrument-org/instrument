@@ -60,25 +60,55 @@ function wait(ms: number) {
 /**
  * The delays exist so that arriving at a card and pressing in one motion opens
  * the card, rather than pressing whichever action happens to be materialising
- * under the cursor. Asserted with real input, because a dispatched `click`
- * skips hit-testing and hit-testing is the whole subject.
+ * under the cursor.
  *
- * Both waits are chosen to land well clear of the moment the controls arm, not
- * beside it: a `setTimeout` overruns by around 80ms here and the press itself
- * costs another 35, so a case aimed at the last 150ms of the window measures
- * the scheduler rather than the card. That is also why the back half of the
- * reveal has no case of its own -- there is no way to aim a press into it that
- * holds under load, and a case that cannot fail is worse than no case.
+ * Note what cannot be asserted here: the browser project zeroes transition
+ * durations (`tests/setup-browser.ts`), so the reveal is instant and the box
+ * reads as fully opaque from the first frame. Nothing about the fade is
+ * observable. What is observable is the moment the controls begin answering the
+ * pointer, which a timer drives rather than CSS -- and that is the moment the
+ * bug was in.
  */
 describe("MediaCardShell before its controls are armed", () => {
-  it.each([
-    // Nothing has begun to arrive yet.
-    { after: 60, when: "the controls have not appeared" },
-    // The window the controls used to take the pointer in while still fully
-    // transparent, which is what made a quick press open a file in its native
-    // app instead of opening the card.
-    { after: 330, when: "the controls are armed early but still invisible" },
-  ])("opens the card when pressed while $when", async ({ after }) => {
+  it("does not answer the pointer until the reveal has had time to finish", async () => {
+    // The regression guard. Measuring when the controls arm, rather than aiming
+    // a press at a moment, is what makes this robust: a busy scheduler can only
+    // push that moment later, never earlier, so load makes it pass harder
+    // instead of flaking. Aiming a press has the opposite property, which is
+    // how the first version of this drifted into the armed window under a full
+    // run.
+    //
+    // No real pointer either. `pointer-events` here follows React state, not
+    // the CSS `:hover` the fade follows, so the dispatched enter that starts
+    // the timer is the whole input this needs -- and a real one would carry the
+    // previous test's cursor position into this one, since a file's tests share
+    // a page.
+    const onClick = vi.fn();
+    const { container } = await renderCard(onClick);
+    const download = container.querySelector<HTMLElement>(
+      "[data-testid='download']",
+    );
+    if (!download) {
+      throw new Error("card did not render");
+    }
+
+    const start = performance.now();
+    let armedAfter: null | number = null;
+    while (armedAfter === null && performance.now() - start < 2000) {
+      if (globalThis.getComputedStyle(download).pointerEvents === "auto") {
+        armedAfter = performance.now() - start;
+      }
+      await wait(20);
+    }
+
+    expect(armedAfter).not.toBeNull();
+    // The reveal runs 400ms of delay then 200ms of fade. Anything under that is
+    // a control taking presses aimed at the card behind it; the slack below is
+    // only for the sampling interval.
+    expect(armedAfter).toBeGreaterThan(500);
+  });
+
+  it("opens the card when pressed before anything has appeared", async () => {
     const onClick = vi.fn();
     const onOverlayClick = vi.fn();
     const { container } = await renderInBrowser(
@@ -111,10 +141,11 @@ describe("MediaCardShell before its controls are armed", () => {
       throw new Error("card did not render");
     }
 
-    // Arrive at the card, then press where the action is about to be, the way a
-    // pointer crossing the card in one motion does.
+    // Arrive at the card and press where the action is about to be, the way a
+    // pointer crossing the card in one motion does. End to end, through real
+    // hit-testing, which is what a dispatched `click` would skip.
     await userEvent.hover(card);
-    await wait(after);
+    await wait(60);
     const box = download.getBoundingClientRect();
     await userEvent.click(document.body, {
       position: { x: box.left + box.width / 2, y: box.top + box.height / 2 },

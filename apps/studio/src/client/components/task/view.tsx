@@ -60,7 +60,6 @@ const paneContentClassName = "rounded-none bg-transparent shadow-none";
 
 export function TaskView({
   attachedFolders,
-  files,
   pane,
   promptDraft,
   selectedModelURI,
@@ -69,7 +68,6 @@ export function TaskView({
   task,
 }: {
   attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
-  files: RPCOutput["workspace"]["task"]["files"]["list"] | undefined;
   pane: TaskPane.Type;
   promptDraft: string;
   selectedModelURI: AIGatewayModelURI.Type | undefined;
@@ -191,7 +189,6 @@ export function TaskView({
             activeFilePath={filePanel?.filePath ?? null}
             attachedFolders={attachedFolders}
             chatProps={chatProps}
-            files={files}
             onFileSelect={handleFileSelect}
             selectedSessionId={selectedSessionId}
             task={task}

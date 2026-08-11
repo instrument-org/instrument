@@ -178,13 +178,6 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
         }),
         read: () => rpcClient.workspace.task.state.get.call({ id }),
       }),
-      seedLiveQuery({
-        queryClient,
-        queryKey: rpcClient.workspace.task.files.live.list.experimental_liveKey(
-          { input: { taskId: id } },
-        ),
-        read: () => rpcClient.workspace.task.files.list.call({ taskId: id }),
-      }),
       selectedSessionId
         ? seedLiveQuery({
             queryClient,
@@ -256,12 +249,6 @@ function RouteComponent() {
     }),
   );
 
-  const { data: files } = useQuery(
-    rpcClient.workspace.task.files.live.list.experimental_liveOptions({
-      input: { taskId: id },
-    }),
-  );
-
   // Presence is scoped to the foreground tab, not to mount: every tab stays
   // mounted in the background, so gating on the active tab lets the server's
   // taskBrowser machine reap an unviewed task's browser after its grace period.
@@ -293,7 +280,6 @@ function RouteComponent() {
     <>
       <TaskView
         attachedFolders={taskState.attachedFolders}
-        files={files}
         pane={taskState.pane ?? TaskPane.EMPTY}
         promptDraft={taskState.promptDraft ?? ""}
         selectedModelURI={taskState.selectedModelURI}

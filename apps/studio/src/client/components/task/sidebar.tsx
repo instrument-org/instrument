@@ -10,7 +10,6 @@ export function TaskSidebar({
   activeFilePath,
   attachedFolders,
   chatProps,
-  files,
   onFileSelect,
   selectedSessionId,
   task,
@@ -18,7 +17,6 @@ export function TaskSidebar({
   activeFilePath: null | string;
   attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
   chatProps: ComponentProps<typeof TaskChat>;
-  files: RPCOutput["workspace"]["task"]["files"]["list"] | undefined;
   onFileSelect: (file: TaskFileViewerFile) => void;
   selectedSessionId?: StoreId.Session;
   task: Task;
@@ -28,7 +26,6 @@ export function TaskSidebar({
       <TaskToolbar
         activeFilePath={activeFilePath}
         attachedFolders={attachedFolders}
-        files={files}
         onFileSelect={onFileSelect}
         selectedSessionId={selectedSessionId}
         task={task}

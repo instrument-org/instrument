@@ -55,9 +55,6 @@ export const publisher = new EventPublisher<{
    * deleted. Carries no payload because every listener re-reads the list.
    */
   "skill.changed": null;
-  "task.files.changed": {
-    id: TaskId;
-  };
   "task.removed": {
     id: TaskId;
   };

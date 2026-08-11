@@ -22,7 +22,7 @@ import {
   DotsThreeOutlineVerticalIcon,
   FolderSimpleIcon,
 } from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -65,19 +65,34 @@ type FileTreeNode =
   | { children: FileTreeNode[]; kind: "dir"; name: string }
   | { file: TaskFileViewerFile; kind: "file" };
 
+/**
+ * How often the list re-walks the task directory while it is on screen.
+ *
+ * The panel is the only thing that wants this list, so it is the only thing
+ * that asks for it: mounted means open, and a closed panel costs nothing. That
+ * is what makes a poll affordable here where a standing watcher was not, and it
+ * is the shape that survives the list being pointed at a folder the user picked
+ * rather than one we laid out.
+ */
+const REFETCH_INTERVAL_MS = 5000;
+
 export function TaskFiles({
   activeFilePath,
   attachedFolders,
-  files,
   onFileSelect,
   task,
 }: {
   activeFilePath: null | string;
   attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
-  files: RPCOutput["workspace"]["task"]["files"]["list"] | undefined;
   onFileSelect: (file: TaskFileViewerFile) => void;
   task: Task;
 }) {
+  const { data: files } = useQuery(
+    rpcClient.workspace.task.files.list.queryOptions({
+      input: { taskId: task.id },
+      refetchInterval: REFETCH_INTERVAL_MS,
+    }),
+  );
   const assetBaseUrl = getAssetBaseUrl(task.id);
 
   const computed = useMemo(() => {

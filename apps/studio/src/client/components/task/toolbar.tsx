@@ -6,7 +6,6 @@ import { toolbarClassName } from "@/client/components/ui/toggle";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useInlineRename } from "@/client/hooks/use-inline-rename";
 import { useTaskPane } from "@/client/hooks/use-task-pane";
-import { hasVisibleTaskFiles } from "@/client/lib/task-file-groups";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type StoreId, type Task } from "@instrument-org/workspace/client";
 import { FoldersIcon } from "@phosphor-icons/react";
@@ -27,14 +26,12 @@ import { TaskUsageSummary } from "./usage-summary";
 export function TaskToolbar({
   activeFilePath,
   attachedFolders,
-  files,
   onFileSelect,
   selectedSessionId,
   task,
 }: {
   activeFilePath: null | string;
   attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
-  files: RPCOutput["workspace"]["task"]["files"]["list"] | undefined;
   onFileSelect: (file: TaskFileViewerFile) => void;
   selectedSessionId?: StoreId.Session;
   task: Task;
@@ -46,13 +43,6 @@ export function TaskToolbar({
 
   const isDeveloperMode = useDeveloperMode();
   const pane = useTaskPane(task.id);
-
-  // The trigger is the only way into this list, so it comes and goes with the
-  // list: a task with nothing to browse gets no button rather than a button
-  // onto "There are no files yet."
-  const hasFilesToBrowse =
-    hasVisibleTaskFiles(files) ||
-    (attachedFolders ? Object.keys(attachedFolders).length > 0 : false);
 
   // Inline rename is the quick path from clicking the title itself. The
   // menus open the dialog instead: swapping the title for an input as a menu
@@ -128,40 +118,42 @@ export function TaskToolbar({
             )}
             {/* Stays open across selections: picking a file only swaps what the
                 artifact panel shows, and browsing a few in a row is the point
-                of opening the list. Escape or a click outside dismisses it. */}
-            {hasFilesToBrowse && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    aria-label="Files"
-                    className={toolbarClassName({
-                      className:
-                        "shrink-0 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
-                      pressed: false,
-                    })}
-                    size="icon-sm"
-                    variant="ghost"
-                  >
-                    <FoldersIcon className="size-4" />
-                  </Button>
-                </PopoverTrigger>
-                {/* The panel scrolls, not the list inside it: height is whatever
-                    the files need, capped by the space Radix measured under the
-                    trigger, divided into this content's own zoomed pixels. */}
-                <PopoverContent
-                  align="end"
-                  className="max-h-[min(560px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] w-100 overflow-y-auto p-0"
+                of opening the list. Escape or a click outside dismisses it.
+
+                Always here, on every task. Nothing outside the panel knows what
+                is on disk, and a trigger that waits to find out is a trigger
+                that appears late; an empty task gets "There are no files yet."
+                inside the panel instead. */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  aria-label="Files"
+                  className={toolbarClassName({
+                    className:
+                      "shrink-0 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+                    pressed: false,
+                  })}
+                  size="icon-sm"
+                  variant="ghost"
                 >
-                  <TaskFiles
-                    activeFilePath={activeFilePath}
-                    attachedFolders={attachedFolders}
-                    files={files}
-                    onFileSelect={onFileSelect}
-                    task={task}
-                  />
-                </PopoverContent>
-              </Popover>
-            )}
+                  <FoldersIcon className="size-4" />
+                </Button>
+              </PopoverTrigger>
+              {/* The panel scrolls, not the list inside it: height is whatever
+                  the files need, capped by the space Radix measured under the
+                  trigger, divided into this content's own zoomed pixels. */}
+              <PopoverContent
+                align="end"
+                className="max-h-[min(560px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] w-100 overflow-y-auto p-0"
+              >
+                <TaskFiles
+                  activeFilePath={activeFilePath}
+                  attachedFolders={attachedFolders}
+                  onFileSelect={onFileSelect}
+                  task={task}
+                />
+              </PopoverContent>
+            </Popover>
 
             {/* Unlike the files trigger, this does not come and go with what
                 the task holds: it is how the pane is reopened after being

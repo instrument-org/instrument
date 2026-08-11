@@ -34,6 +34,7 @@ const UNREACHABLE_TOOLS = new Set([
  * ships with. Git itself is a C program and contributes no shared library to
  * these directories, so nothing outside the credential manager loads these.
  */
+// cspell:ignore Avalonia HarfBuzz Skia Sharp clrgc clrjit coreclr hostfxr hostpolicy mscor libclrgc libclrjit libcoreclr libexec libhostfxr libhostpolicy libmscor
 const DOTNET_RUNTIME_PREFIXES = [
   "libAvaloniaNative",
   "libHarfBuzzSharp",

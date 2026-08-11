@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 
 import { pruneGitTooling, verifyGitSurvived } from "./prune-git-tooling";
 
+// cspell:ignore Avalonia HarfBuzz Skia Sharp clrgc clrjit coreclr hostfxr hostpolicy mscor libclrgc libclrjit libcoreclr libexec libhostfxr libhostpolicy libmscor runtimeconfig libmscordaccore libmscordbi
 /** A trimmed sample of what dugite ships in `libexec/git-core` on macOS. */
 const GIT_CORE_FILES = [
   "git",
@@ -40,6 +41,7 @@ const GIT_CORE_FILES = [
   "scalar",
 ];
 
+// cspell:ignore cvsserver
 const BIN_FILES = ["git", "git-cvsserver", "git-receive-pack", "scalar"];
 
 function makeUnpackedFixture() {

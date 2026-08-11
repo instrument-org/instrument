@@ -5,6 +5,8 @@ Core AI agents, workflow logic, RPC, tools, and runtime.
 ## Structure
 
 - **RPC**: Router in `src/rpc/index.ts` (browser, debug, message, pin, project, replay, runtime, server, session, skill, storage, task). Handlers in `src/rpc/routes/`. Base and `toORPCError` in `src/rpc/base.ts`. Exposed to Studio as `workspaceRouter` via `@instrument-org/workspace/electron`.
+- **Streaming segments**: every `eventIterator` procedure sits under `live.*` or `events.*`, and nothing else does. `live.*` yields a snapshot on subscribe and re-yields it on change, so a caller can render it. `events.*` only speaks when something happens, so there is nothing to render until it does. Nothing enforces the split but the name: `experimental_liveOptions` is declared on every procedure and quietly degrades to `never` on a non-streaming one, so the segment is the check.
+- A `live.*` procedure that mirrors a non-live one **shares its leaf name** (`task.byId` / `task.live.byId`). Studio seeds a live query's cache from a one-shot read of that sibling and pairs them by name.
 - **Tools**: `src/tools/`. Build with `setupTool()` from `create-tool.ts`; register in `all.ts`. Use neverthrow `Result` for fallible logic; map to tool output or throw for oRPC.
 - **Agents**: `src/agents/`. `main` is the only agent (`all.ts`); it runs the session and picks its tools from `TOOLS` in `main.ts`, wired by `create-agent.ts`.
 - **Workspace server**: Hono app in `src/logic/server/index.ts`. Serves shim script/iframe, assets, heartbeat, redirect, and proxies app traffic. AI gateway is mounted at `AI_GATEWAY_API_PATH` when provided.

@@ -260,6 +260,8 @@ It should reuse the same prompt component as user-initiated folder attachment, s
 6. **Folderless by default.** On-demand scratch, `~/Documents/Instrument/` for deliverables, and agent-requested folder access with the in-chat permission prompt.
 7. **The file tree.** Browsing the working folder as an expandable tree, with lazy per-directory reads and a poll while it is on screen. Attached folders expand in it too, so one tree answers "what can I open" regardless of which mount a file sits on.
 
+   **Separable from the six phases above, and the only one that is.** Most of it already exists: [task-files.tsx](../../../apps/studio/src/client/components/task/task-files.tsx) builds an expandable tree, polls itself while open, and already lists attached folders. What is missing is expanding an attached folder's *contents* rather than naming it as a row, and reading a directory when it is opened rather than walking the whole task up front. Neither waits on the working-folder concept: they are improvements to a surface that ships today, and doing them first is what makes this phase small when the rest arrives.
+
 Phases 1 through 3 are invisible to the user and are most of the work. That is the honest shape of this: the feature is a folder picker, the cost is a refactor of what a task directory means.
 
 ## Decisions taken

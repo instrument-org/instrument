@@ -182,15 +182,6 @@ importers:
       '@electron-toolkit/utils':
         specifier: ^4.0.0
         version: 4.0.0(electron@42.3.3)
-      '@fontsource-variable/jetbrains-mono':
-        specifier: ^5.2.8
-        version: 5.2.8
-      '@fontsource/roboto-serif':
-        specifier: ^5.2.9
-        version: 5.2.9
-      '@fontsource/work-sans':
-        specifier: ^5.2.8
-        version: 5.2.8
       '@hono/node-server':
         specifier: ^2.0.11
         version: 2.0.11(hono@4.12.32)
@@ -360,6 +351,15 @@ importers:
       '@extend-ai/react-xlsx':
         specifier: 0.15.0
         version: 0.15.0(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+      '@fontsource-variable/jetbrains-mono':
+        specifier: ^5.2.8
+        version: 5.2.8
+      '@fontsource/roboto-serif':
+        specifier: ^5.2.9
+        version: 5.2.9
+      '@fontsource/work-sans':
+        specifier: ^5.2.8
+        version: 5.2.8
       '@instrument-org/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config

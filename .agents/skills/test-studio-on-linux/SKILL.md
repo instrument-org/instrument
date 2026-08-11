@@ -3,6 +3,8 @@ name: test-studio-on-linux
 description: Start, inspect, stop, and drive an installed Instrument Studio build on a preconfigured Linux desktop host through SSH and loopback-only CDP. Use for Linux-specific Electron validation, remote Studio smoke tests, installed-product checks, or any request to test Studio on a Linux machine from another host.
 ---
 
+<!-- cspell:ignore noninteractively preconfigured unwritable -->
+
 # Test Studio on Linux
 
 Use the host profile and helper rather than embedding a machine's paths, unit names, or ports in prompts or repo files.
@@ -75,6 +77,14 @@ node "$DRIVE" shot /tmp/linux-installed.png --port 49171
 ```
 
 Do not use `state`, `goto`, or `modal`. They wait for a dev-only handle that packaged builds intentionally omit.
+
+`rpc` is the exception, and it is why enumerating the DOM should not be the first move on this target. It goes through a different handle (`window.__studioDebug`) that does ship in a packaged build, so the installed product can be asked what it holds rather than read off what it painted:
+
+```bash
+node "$DRIVE" rpc workspace.task.list '{}' --port 49171
+```
+
+Two things it needs on a remote host. Developer Mode has to be on in that machine's own settings, because the preference is checked per call and the bridge cannot turn itself on; a call made while it is off says exactly that. And `wait --idle`, which blocks until a task's agent goes quiet, needs an explicit `--task` here, since without one it asks the dev-only handle which task the active tab is showing.
 
 Treat screenshots as supporting evidence. Also assert the expected DOM or state, inspect relevant logs, and include the installed version in the result.
 

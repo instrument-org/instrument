@@ -1,6 +1,8 @@
 import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:net";
 
+// cspell:ignore Xauthority cmdline expanduser isdigit listdir ltnp rsplit splitlines urlopen -- Python builtins, ss flags and proc entries inside the generated host script
+
 const PROFILE_RELATIVE_PATH = ".instrument/studio-host.json";
 const PROFILE_KEYS = {
   installed: "installed",

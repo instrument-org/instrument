@@ -1,3 +1,5 @@
+<!-- cspell:ignore XAUTHORITY -->
+
 # Linux host enrollment
 
 Use this only when `linux-studio-host.mjs status` reports a missing profile or unit. Host enrollment changes persistent machine state, so inspect the host first and keep all debugging endpoints on loopback.

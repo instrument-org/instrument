@@ -46,6 +46,15 @@ const open = base
     return { targetId: target.targetId };
   });
 
+/**
+ * A hold, not a query: subscribing acquires presence and aborting releases it,
+ * so the subscription's lifetime is the whole payload. A viewer keeps the task's
+ * browser alive; drop the subscription and the taskBrowser machine starts its
+ * grace period.
+ *
+ * The yielded value carries nothing, so the caller subscribes and ignores the
+ * result. That is correct here and would be a bug on anything else under `live`.
+ */
 const presence = base
   .input(z.object({ id: TaskIdSchema }))
   .output(eventIterator(PresenceSchema))

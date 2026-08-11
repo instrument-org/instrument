@@ -252,6 +252,8 @@ function RouteComponent() {
   // Presence is scoped to the foreground tab, not to mount: every tab stays
   // mounted in the background, so gating on the active tab lets the server's
   // taskBrowser machine reap an unviewed task's browser after its grace period.
+  // The subscription is the whole point and it yields nothing worth reading, so
+  // this result goes unused on purpose.
   const isActiveTab = useIsActiveTab();
   useQuery(
     rpcClient.workspace.browser.live.presence.experimental_liveOptions({

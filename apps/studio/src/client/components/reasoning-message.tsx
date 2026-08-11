@@ -11,6 +11,7 @@ import { PlanningDotSlot } from "./planning-dot-slot";
 import { reasoningDisplayText } from "./reasoning-utils";
 import { RunRowChevron } from "./run-row-chevron";
 import { SessionMarkdown } from "./session-markdown";
+import { useReleaseAutoScroll } from "./transcript-scroll-context";
 import {
   Collapsible,
   CollapsibleContent,
@@ -44,21 +45,28 @@ export const ReasoningMessage = memo(function ReasoningMessage({
   text,
 }: ReasoningMessageProps) {
   const group = useTranscriptGroup();
+  const releaseAutoScroll = useReleaseAutoScroll();
   const [isExpanded, setIsExpanded] = useState(false);
 
   // As a group's head line the row's click opens and shuts the group rather
   // than this row's own reasoning; see `TranscriptGroup`.
   const groupHead = group?.isHead === true && group.canExpand ? group : null;
-  const [, setTick] = useState(0);
 
-  // Re-render once a second so a running duration counts up. Only while
-  // loading: a finished one is fixed, and its end is what it reads against.
+  // The clock a running duration reads against, held as state and advanced once
+  // a second. Reading it during render instead would leave the row's output no
+  // longer a function of its inputs, and memoization would then serve the same
+  // instant back forever while the row claims to be counting.
+  const [now, setNow] = useState(() => Date.now());
+
+  // Only while loading: a finished thought is fixed, and its end is what it
+  // reads against.
   useEffect(() => {
     if (!isLoading) {
       return;
     }
+    setNow(Date.now());
     const interval = setInterval(() => {
-      setTick((previous) => previous + 1);
+      setNow(Date.now());
     }, 1000);
     return () => {
       clearInterval(interval);
@@ -82,8 +90,8 @@ export const ReasoningMessage = memo(function ReasoningMessage({
   // duration floors at one rather than reporting milliseconds. A finished row
   // measures to its end; a running one measures to now, and the timer above is
   // what makes it climb.
-  const endsAt = endedAt ?? (isLoading ? new Date() : undefined);
-  const elapsedMs = endsAt ? endsAt.getTime() - createdAt.getTime() : 0;
+  const endsAtMs = endedAt?.getTime() ?? (isLoading ? now : undefined);
+  const elapsedMs = endsAtMs === undefined ? 0 : endsAtMs - createdAt.getTime();
   const duration = formatDuration(Math.max(elapsedMs, 1000));
 
   // A clock on a row that is still going invites the reader to watch it, and for
@@ -96,9 +104,9 @@ export const ReasoningMessage = memo(function ReasoningMessage({
     ? elapsedMs < COUNT_UP_AFTER_MS
       ? "Thinking"
       : `Thinking for ${duration}`
-    : endsAt
-      ? `Thought for ${duration}`
-      : "Thought";
+    : endsAtMs === undefined
+      ? "Thought"
+      : `Thought for ${duration}`;
 
   // Only the head line of a group carries the live indicator, so there is one
   // thing moving per group; see `TranscriptGroup`.
@@ -111,7 +119,14 @@ export const ReasoningMessage = memo(function ReasoningMessage({
         !isStandIn && "animate-in fill-mode-both fade-in",
         !isStandIn && !hasText && "delay-500",
       )}
-      onOpenChange={groupHead === null ? setIsExpanded : groupHead.toggle}
+      onOpenChange={
+        groupHead === null
+          ? (open) => {
+              releaseAutoScroll();
+              setIsExpanded(open);
+            }
+          : groupHead.toggle
+      }
       open={groupHead === null ? isExpanded : groupHead.isExpanded}
     >
       <CollapsibleTrigger

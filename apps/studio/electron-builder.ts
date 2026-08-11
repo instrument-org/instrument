@@ -67,6 +67,16 @@ const config: Configuration = {
   // from package.json `name`, which sanitizes "@instrument-org/studio" into the
   // ugly "@instrument-orgstudio". Override the metadata name so the install
   // folder matches the product name ("Instrument") instead.
+  // Chromium carries a locale bundle per language it has ever been translated
+  // into, which is ~48MB of the macOS app across 220 `.lproj` directories.
+  // Studio's own UI is English-only, so only English survives.
+  //
+  // The name is region-qualified because the match runs both ways: "en-US"
+  // keeps macOS's bare `en.lproj` as well as the `en-US.pak` Windows and Linux
+  // ship. electron-builder skips the cleanup entirely rather than leave a
+  // locales directory empty, so a name that matches nothing cannot produce an
+  // app that fails to boot.
+  electronLanguages: ["en-US"],
   extraMetadata: {
     name: APP_NAME,
   },

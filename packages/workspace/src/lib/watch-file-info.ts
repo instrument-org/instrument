@@ -75,7 +75,7 @@ export async function* watchFileInfo({
   // Handed out before each read and resolved by the next change, so a write
   // that lands while the consumer still holds the previous value resolves the
   // promise this loop is about to await rather than one nobody is waiting on.
-  // Losing that wakeup would strand a file that is written once.
+  // Losing that signal would strand a file that is written once.
   let announce: () => void;
   let changed = new Promise<void>((resolve) => {
     announce = resolve;

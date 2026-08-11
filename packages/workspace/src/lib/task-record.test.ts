@@ -8,8 +8,12 @@ import { type TaskId, TaskIdSchema } from "../schemas/task-id";
 import { TaskPane } from "../schemas/task-pane";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { getTaskPrivateDir, taskDir } from "./task-dir-utils";
-import { readTaskRecord, updateTaskRecord } from "./task-record";
-import { setTaskState, updateTaskPane } from "./task-state-store";
+import {
+  readTaskRecord,
+  setTaskState,
+  updateTaskPane,
+  updateTaskRecord,
+} from "./task-record";
 
 const id = TaskIdSchema.parse("task-record-test");
 

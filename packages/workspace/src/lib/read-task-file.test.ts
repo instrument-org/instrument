@@ -8,7 +8,7 @@ import { AbsolutePathSchema, TaskDirSchema } from "../schemas/paths";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
 import { readTaskFile } from "./read-task-file";
-import { setTaskState } from "./task-state-store";
+import { setTaskState } from "./task-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 describe("readTaskFile", () => {

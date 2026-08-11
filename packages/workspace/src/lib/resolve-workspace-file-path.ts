@@ -3,7 +3,7 @@ import { type TaskId } from "../schemas/task-id";
 import { resolveExistingFilePath } from "./resolve-agent-path";
 import { taskDir } from "./task-dir-utils";
 import { resolveTaskProjectFolder } from "./task-project-folder";
-import { getTaskState } from "./task-state-store";
+import { getTaskState } from "./task-record";
 import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
 
 /**

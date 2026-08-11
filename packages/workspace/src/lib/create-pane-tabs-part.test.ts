@@ -11,7 +11,7 @@ import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { createPaneTabsPart } from "./create-pane-tabs-part";
 import { disposeSessionsStoreStorage } from "./session-store-storage";
 import { taskDir } from "./task-dir-utils";
-import { setTaskState } from "./task-state-store";
+import { setTaskState } from "./task-record";
 
 const id = TaskIdSchema.parse("pane-tabs-part-test");
 const sessionId = StoreId.newSessionId();

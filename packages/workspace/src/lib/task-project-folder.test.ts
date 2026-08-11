@@ -11,8 +11,8 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { createProject, updateProject } from "./project";
 import { taskDir } from "./task-dir-utils";
 import { resolveTaskProjectFolder } from "./task-project-folder";
+import { getTaskState, setTaskState } from "./task-record";
 import { updateTaskSettings } from "./task-settings";
-import { getTaskState, setTaskState } from "./task-state-store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 const taskId = TaskIdSchema.parse("mount-task");

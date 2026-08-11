@@ -25,7 +25,7 @@ import { runToolCall } from "./run-tool-call";
 import { type SpawnAgentFunction } from "./spawn-agent";
 import { Store } from "./store";
 import { taskDir } from "./task-dir-utils";
-import { setTaskState } from "./task-state-store";
+import { setTaskState } from "./task-record";
 
 const DEFAULT_REPLAY_TIMING = {
   assistantStartDelayMs: 1500,

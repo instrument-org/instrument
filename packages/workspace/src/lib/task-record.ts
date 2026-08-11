@@ -2,6 +2,7 @@ import { TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
+import { TaskPane } from "../schemas/task-pane";
 import {
   type TaskSettings,
   TaskSettingsSchema,
@@ -59,6 +60,18 @@ export interface TaskRecord {
 }
 
 /**
+ * Where the user left off in a task.
+ *
+ * Total rather than optional, unlike the settings view: an empty state means
+ * nothing has been set, where an absent settings means the file could not be
+ * read. Both callers depend on their half's answer to that.
+ */
+export async function getTaskState(dir: TaskDir): Promise<TaskState> {
+  const record = await readTaskRecord(dir);
+  return record.state;
+}
+
+/**
  * Reads both views, each tolerant of the other failing.
  *
  * They are parsed separately on purpose. A pane written by a newer build, or a
@@ -80,32 +93,32 @@ export async function readTaskRecord(dir: TaskDir): Promise<TaskRecord> {
   return recordFrom(parsed);
 }
 
+export async function setTaskState(
+  dir: TaskDir,
+  state: Partial<TaskState>,
+): Promise<void> {
+  await updateTaskRecord(dir, (record) => recordWithState(record, state));
+}
+
 /**
- * A record with `changes` applied to its state half, ready to be written.
+ * Apply a change to the pane, reading the current one inside the write queue.
  *
- * The raw state is spread *under* the parsed one, which is the whole point of
- * this existing: `StoredTaskStateSchema` is a plain object schema and strips
- * keys it does not know, so writing the parsed view back would quietly delete a
- * field a newer build had written. The top level is protected by spreading
- * `raw`, and this is the same protection one level down -- which is where it
- * matters more, since the top level is a closed set and `state` is the half
- * that keeps growing.
- *
- * The parsed view still wins over raw, so a value `migrateTaskState` rewrote is
- * not overwritten by the old shape sitting beneath it.
+ * The tab actions are read-modify-write on top of a read-modify-write, and the
+ * whole point of queueing is lost if the read happens before the queue: two
+ * `show` calls in one command line would each append to the tabs they saw and
+ * the second would drop the first's.
  */
-export function recordWithState(
-  record: TaskRecord,
-  changes: Partial<TaskState>,
-): Record<string, unknown> {
-  return {
-    ...record.raw,
-    state: {
-      ...(isRecord(record.raw.state) ? record.raw.state : {}),
-      ...record.state,
-      ...changes,
-    },
-  };
+export async function updateTaskPane(
+  dir: TaskDir,
+  update: (pane: TaskPane.Type) => TaskPane.Type,
+): Promise<TaskPane.Type> {
+  const written = await updateTaskRecord(dir, (record) =>
+    recordWithState(record, {
+      pane: update(record.state.pane ?? TaskPane.EMPTY),
+    }),
+  );
+
+  return written.state.pane ?? TaskPane.EMPTY;
 }
 
 /**
@@ -156,6 +169,34 @@ function recordFrom(parsed: unknown): TaskRecord {
 
 function recordPath(dir: TaskDir): AbsolutePath {
   return absolutePathJoin(getTaskPrivateDir(dir), TASK_SETTINGS_FILE_NAME);
+}
+
+/**
+ * A record with `changes` applied to its state half, ready to be written.
+ *
+ * The raw state is spread *under* the parsed one, which is the whole point of
+ * this existing: `StoredTaskStateSchema` is a plain object schema and strips
+ * keys it does not know, so writing the parsed view back would quietly delete a
+ * field a newer build had written. The top level is protected by spreading
+ * `raw`, and this is the same protection one level down -- which is where it
+ * matters more, since the top level is a closed set and `state` is the half
+ * that keeps growing.
+ *
+ * The parsed view still wins over raw, so a value `migrateTaskState` rewrote is
+ * not overwritten by the old shape sitting beneath it.
+ */
+function recordWithState(
+  record: TaskRecord,
+  changes: Partial<TaskState>,
+): Record<string, unknown> {
+  return {
+    ...record.raw,
+    state: {
+      ...(isRecord(record.raw.state) ? record.raw.state : {}),
+      ...record.state,
+      ...changes,
+    },
+  };
 }
 
 /**

@@ -9,7 +9,7 @@ import { getSessionsStoreStorage } from "./session-store-storage";
 import { setParsedStorageItem } from "./set-parsed-storage-item";
 import { StorageKey } from "./storage-key";
 import { taskDir } from "./task-dir-utils";
-import { getTaskState } from "./task-state-store";
+import { getTaskState } from "./task-record";
 import { getWorkspaceConfig } from "./workspace-config";
 
 const ReportedTabsSchema = z.array(z.string());

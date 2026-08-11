@@ -52,7 +52,7 @@ Two OS processes matter: Electron **main** and the **renderer**. Almost all serv
 
 Rooted at the workspace folder ([`get-workspace-folder`](../../apps/studio/src/electron-main/lib/get-workspace-folder.ts)):
 
-- `tasks/<id>/` — one folder per task, with `.instrument/{task.db, state.json}` (per-task SQLite plus serialized state). Legacy layouts are normalized on boot by `migrateWorkspaceLayout`.
+- `tasks/<id>/` — one folder per task, with `.instrument/{task.db, settings.json}` (per-task SQLite plus one JSON record: what the app knows about the task at the top level, where the user left off under `state`). Legacy layouts are normalized on boot by `migrateWorkspaceLayout`.
 - `projects/` — project folders tasks reference.
 - `skills/` — user-authored and imported skills, mounted writable into the agent at `/skills`. Distinct from the read-only registry below; skills discovered elsewhere on the machine stay where they are.
 - `registry/` — the skills submodule (read-only; never edited here).

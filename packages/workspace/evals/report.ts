@@ -5,7 +5,7 @@ import { getTasks } from "../src/lib/get-tasks";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
 import { taskDir } from "../src/lib/task-dir-utils";
-import { getTaskState } from "../src/lib/task-state-store";
+import { getTaskState } from "../src/lib/task-record";
 import { getTaskUsageSummary } from "../src/lib/usage-summary";
 import {
   hasWorkspaceConfig,

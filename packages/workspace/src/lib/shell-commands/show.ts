@@ -8,7 +8,7 @@ import { TaskPane } from "../../schemas/task-pane";
 import { recordBrowserUse } from "../browser-state";
 import { isTaskId } from "../is-task-id";
 import { getBrowserSessionDir, taskDir } from "../task-dir-utils";
-import { updateTaskPane } from "../task-state-store";
+import { updateTaskPane } from "../task-record";
 import { getWorkspaceConfig } from "../workspace-config";
 import { privateMountPoint, TASK_MOUNT_POINT } from "../workspace-fs-layout";
 

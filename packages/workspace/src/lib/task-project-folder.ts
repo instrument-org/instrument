@@ -1,8 +1,8 @@
 import { type TaskId } from "../schemas/task-id";
 import { resolveProjectFolder } from "./project";
 import { taskDir } from "./task-dir-utils";
+import { getTaskState, setTaskState } from "./task-record";
 import { getTaskSettings } from "./task-settings";
-import { getTaskState, setTaskState } from "./task-state-store";
 
 /**
  * The folder under `projects/` this task's project lives in, or undefined when

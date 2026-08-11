@@ -5,8 +5,8 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createProject } from "../../../lib/project";
+import { setTaskState } from "../../../lib/task-record";
 import { updateTaskSettings } from "../../../lib/task-settings";
-import { setTaskState } from "../../../lib/task-state-store";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,

@@ -13,7 +13,7 @@ import { getProject } from "./project";
 import { normalizeProjectInstructions } from "./project-instructions";
 import { Store } from "./store";
 import { taskDir } from "./task-dir-utils";
-import { getTaskState, setTaskState } from "./task-state-store";
+import { getTaskState, setTaskState } from "./task-record";
 import { effectiveFolderAccess } from "./workspace-fs-layout";
 
 /**

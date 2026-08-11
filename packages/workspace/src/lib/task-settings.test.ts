@@ -7,8 +7,8 @@ import { TASKS_DIR_NAME } from "../constants";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { getTaskPrivateDir, taskDir } from "./task-dir-utils";
+import { getTaskState, setTaskState } from "./task-record";
 import { getTaskSettings, updateTaskSettings } from "./task-settings";
-import { getTaskState, setTaskState } from "./task-state-store";
 
 const id = TaskIdSchema.parse("task-settings-test");
 

@@ -11,7 +11,7 @@ import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { systemNote } from "../lib/system-note";
 import { taskDir } from "../lib/task-dir-utils";
 import { resolveTaskProjectFolder } from "../lib/task-project-folder";
-import { getTaskState } from "../lib/task-state-store";
+import { getTaskState } from "../lib/task-record";
 import {
   TRUNCATE_HEAD_BYTES,
   TRUNCATE_TAIL_BYTES,

@@ -10,7 +10,7 @@ import { type SpawnAgentFunction } from "./spawn-agent";
 import { Store } from "./store";
 import { streamTool } from "./stream-tool";
 import { taskDir } from "./task-dir-utils";
-import { getTaskState } from "./task-state-store";
+import { getTaskState } from "./task-record";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export async function runToolCall({

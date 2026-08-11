@@ -11,8 +11,8 @@ import { getCurrentDate } from "./get-current-date";
 import { pathExists } from "./path-exists";
 import { Store } from "./store";
 import { getTaskPrivateDir, sessionStorePath, taskDir } from "./task-dir-utils";
+import { getTaskState, setTaskState } from "./task-record";
 import { getTaskSettings, updateTaskSettings } from "./task-settings";
-import { getTaskState, setTaskState } from "./task-state-store";
 
 interface BranchTaskOptions {
   // When set, the branch keeps the conversation only up to and including this

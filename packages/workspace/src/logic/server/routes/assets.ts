@@ -4,7 +4,7 @@ import { cors } from "hono/cors";
 import { PROJECT_MOUNT_POINT, TASK_FOLDER_NAMES } from "../../../constants";
 import { taskDir } from "../../../lib/task-dir-utils";
 import { resolveTaskProjectFolder } from "../../../lib/task-project-folder";
-import { getTaskState } from "../../../lib/task-state-store";
+import { getTaskState } from "../../../lib/task-record";
 import {
   buildWorkspaceFsLayout,
   hostPathEscapesMount,

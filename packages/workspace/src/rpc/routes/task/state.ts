@@ -8,7 +8,7 @@ import {
   getTaskState,
   setTaskState,
   updateTaskPane,
-} from "../../../lib/task-state-store";
+} from "../../../lib/task-record";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { TaskPane } from "../../../schemas/task-pane";
 import { TaskStateSchema } from "../../../schemas/task-state";

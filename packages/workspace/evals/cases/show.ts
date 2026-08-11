@@ -14,7 +14,7 @@
 import path from "node:path";
 
 import { taskDir } from "../../src/lib/task-dir-utils";
-import { getTaskState } from "../../src/lib/task-state-store";
+import { getTaskState } from "../../src/lib/task-record";
 import { TaskPane } from "../../src/schemas/task-pane";
 import { type Assertion, defineEval } from "../harness";
 

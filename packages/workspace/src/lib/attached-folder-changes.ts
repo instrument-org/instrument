@@ -8,7 +8,7 @@ import {
   setAttachedFoldersBaseline,
 } from "./attached-folders-baseline";
 import { taskDir } from "./task-dir-utils";
-import { getTaskState } from "./task-state-store";
+import { getTaskState } from "./task-record";
 import { effectiveFolderAccess } from "./workspace-fs-layout";
 
 /**

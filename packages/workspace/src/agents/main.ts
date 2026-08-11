@@ -26,7 +26,7 @@ import { TS_COMMAND } from "../lib/shell-commands/ts";
 import { TSC_COMMAND } from "../lib/shell-commands/tsc";
 import { Store } from "../lib/store";
 import { taskDir } from "../lib/task-dir-utils";
-import { getTaskState } from "../lib/task-state-store";
+import { getTaskState } from "../lib/task-record";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import {
   effectiveFolderAccess,

@@ -8,16 +8,16 @@ import { type TaskId, TaskIdSchema } from "../schemas/task-id";
 import { TaskPane } from "../schemas/task-pane";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { getTaskPrivateDir, taskDir } from "./task-dir-utils";
+import { getTaskState, setTaskState, updateTaskPane } from "./task-record";
 import { getTaskSettings, updateTaskSettings } from "./task-settings";
-import { getTaskState, setTaskState, updateTaskPane } from "./task-state-store";
 
-const id = TaskIdSchema.parse("task-state-store-test");
+const id = TaskIdSchema.parse("task-record-state-test");
 
 let taskId: TaskId;
 let root: string;
 
 beforeEach(async () => {
-  root = await fs.mkdtemp(path.join(os.tmpdir(), "task-state-store-test-"));
+  root = await fs.mkdtemp(path.join(os.tmpdir(), "task-record-state-test-"));
   const tasksDir = path.join(root, TASKS_DIR_NAME);
   taskId = createMockTaskConfigForDir(path.join(tasksDir, id));
   await fs.mkdir(taskDir(taskId), { recursive: true });

@@ -12,7 +12,7 @@ import {
 import { type TaskId } from "../schemas/task-id";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { resolveWorkspaceFilePath } from "./resolve-workspace-file-path";
-import { setTaskState } from "./task-state-store";
+import { setTaskState } from "./task-record";
 
 describe("resolveWorkspaceFilePath", () => {
   let photosRoot: string;

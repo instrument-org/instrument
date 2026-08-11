@@ -26,7 +26,7 @@ import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
 import { sanitizeFilename } from "./sanitize-filename";
 import { getTaskAttachmentsDir } from "./task-dir-utils";
-import { getTaskState, setTaskState } from "./task-state-store";
+import { getTaskState, setTaskState } from "./task-record";
 
 type PathFileUpload = Extract<FileUpload.Type, { path: string }>;
 interface PreparedUploadedFile {

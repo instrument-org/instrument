@@ -17,7 +17,7 @@ import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createPaneTabsPart } from "./create-pane-tabs-part";
 import { detectProjectChanges } from "./detect-project-changes";
 import { taskDir } from "./task-dir-utils";
-import { setTaskState } from "./task-state-store";
+import { setTaskState } from "./task-record";
 import { getWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 

@@ -76,7 +76,7 @@ async function waitUntilArmed(control: HTMLElement) {
 
 /**
  * The delays exist so that arriving at a card and pressing in one motion opens
- * the card, rather than pressing whichever action happens to be materialising
+ * the card, rather than pressing whichever action happens to be materializing
  * under the cursor.
  *
  * Note what cannot be asserted here: the browser project zeroes transition

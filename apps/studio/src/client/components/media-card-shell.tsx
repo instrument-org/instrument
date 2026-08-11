@@ -12,8 +12,15 @@ import {
 import { contextMenuComponents } from "./ui/menu-components";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
-const INTERACTIVE_DELAY_MS = 300;
-const VISIBLE_DELAY_MS = 400;
+// When the overlay controls may take the pointer, derived from when they finish
+// arriving rather than picked separately -- the two numbers disagreeing is the
+// bug this is shaped to prevent. A card is usually crossed rather than aimed at,
+// and a press during that crossing means "open this", so a control that is not
+// yet on screen must not be able to answer for one. Both must match the reveal
+// spelled out on the overlay box below (`delay-400 duration-200`).
+const REVEAL_DELAY_MS = 400;
+const REVEAL_DURATION_MS = 200;
+const ARMED_DELAY_MS = REVEAL_DELAY_MS + REVEAL_DURATION_MS;
 
 export function MediaCardShell({
   bottomBar,
@@ -48,7 +55,7 @@ export function MediaCardShell({
     hoverStartRef.current = Date.now();
     timerRef.current = window.setTimeout(() => {
       setInteractive(true);
-    }, INTERACTIVE_DELAY_MS);
+    }, ARMED_DELAY_MS);
     onMouseEnter?.();
   };
 
@@ -135,10 +142,12 @@ export function MediaCardShell({
                 "group-has-[button[data-state=open]]/media:[&>*]:pointer-events-auto",
               )}
               onClickCapture={(e) => {
-                // block mouseup-race clicks that started before the protection window
+                // The press and the release straddle the moment above: a button
+                // pressed while nothing was armed still releases over one that
+                // now is, and the click belongs to neither.
                 if (
                   hoverStartRef.current !== null &&
-                  Date.now() - hoverStartRef.current < VISIBLE_DELAY_MS
+                  Date.now() - hoverStartRef.current < ARMED_DELAY_MS
                 ) {
                   e.stopPropagation();
                 }

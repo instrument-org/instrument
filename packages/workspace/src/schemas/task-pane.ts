@@ -155,4 +155,51 @@ export namespace TaskPane {
   export function tabKey(tab: Tab): string {
     return tab.type === "file" ? `file:${tab.filePath}` : "browser";
   }
+
+  /**
+   * What the user did, rather than what the pane should become.
+   *
+   * The distinction is the whole point. A client that computes the next pane
+   * from the one it last saw and sends that snapshot will erase anything that
+   * landed in between -- and something does land in between, because `show`
+   * writes this same field from the agent's turn. Sending the intent instead
+   * lets the server replay it against whatever is current, inside the same
+   * write queue `show` uses, so the two interleave instead of racing.
+   */
+  export const OperationSchema = z.discriminatedUnion("type", [
+    z.object({ type: z.literal("close") }),
+    z.object({ type: z.literal("toggle") }),
+    z.object({ key: z.string(), type: z.literal("closeTab") }),
+    z.object({ key: z.string(), type: z.literal("selectTab") }),
+    z.object({ keys: z.array(z.string()), type: z.literal("reorderTabs") }),
+    z.object({
+      filePaths: z.array(FilePathSchema),
+      type: z.literal("openFiles"),
+    }),
+  ]);
+
+  export type Operation = z.output<typeof OperationSchema>;
+
+  export function applyOperation(pane: Type, operation: Operation): Type {
+    switch (operation.type) {
+      case "close": {
+        return { ...pane, open: false };
+      }
+      case "closeTab": {
+        return closeTab(pane, operation.key);
+      }
+      case "openFiles": {
+        return openTabs(pane, operation.filePaths.map(fileTab));
+      }
+      case "reorderTabs": {
+        return reorderTabs(pane, operation.keys);
+      }
+      case "selectTab": {
+        return selectTab(pane, operation.key);
+      }
+      case "toggle": {
+        return { ...pane, open: !pane.open };
+      }
+    }
+  }
 }

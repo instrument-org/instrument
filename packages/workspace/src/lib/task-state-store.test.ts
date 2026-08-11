@@ -154,4 +154,52 @@ describe("the pane", () => {
       "file:b.png",
     ]);
   });
+
+  /**
+   * The reason the client sends an operation rather than a pane.
+   *
+   * A user clicking a file reference reads the pane it can see, and the agent's
+   * `show` can land between that read and the resulting write. Replaying the
+   * intent against current state keeps both; writing the computed snapshot
+   * would silently drop whichever landed in between.
+   */
+  it("keeps a tab the agent opened while the user was clicking", async () => {
+    await updateTaskPane(taskDir(taskId), (pane) =>
+      TaskPane.openTabs(pane, [TaskPane.fileTab("already-open.png")]),
+    );
+
+    // What the client can see at the moment of the click.
+    const atClickTime = await getTaskState(taskDir(taskId));
+    const seenByClient = atClickTime.pane;
+    expect(seenByClient?.tabs).toHaveLength(1);
+
+    // The agent shows something while that click is in flight.
+    await updateTaskPane(taskDir(taskId), (pane) =>
+      TaskPane.openTabs(pane, [TaskPane.fileTab("agent-opened.png")]),
+    );
+
+    // The click arrives, carrying what the user did rather than what they saw.
+    await updateTaskPane(taskDir(taskId), (pane) =>
+      TaskPane.applyOperation(pane, {
+        filePaths: ["user-clicked.png"],
+        type: "openFiles",
+      }),
+    );
+
+    const state = await getTaskState(taskDir(taskId));
+    expect(state.pane?.tabs.map((tab) => TaskPane.tabKey(tab))).toEqual([
+      "file:already-open.png",
+      "file:agent-opened.png",
+      "file:user-clicked.png",
+    ]);
+
+    // And had it sent the pane it saw, this is what would have been lost.
+    const fromSnapshot = TaskPane.openTabs(seenByClient ?? TaskPane.EMPTY, [
+      TaskPane.fileTab("user-clicked.png"),
+    ]);
+    expect(fromSnapshot.tabs.map((tab) => TaskPane.tabKey(tab))).toEqual([
+      "file:already-open.png",
+      "file:user-clicked.png",
+    ]);
+  });
 });

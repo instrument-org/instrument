@@ -36,51 +36,73 @@ export function useTaskPane(taskId: TaskId | undefined): TaskPane.Type {
 export function useTaskPaneActions(taskId: TaskId | undefined) {
   const queryClient = useQueryClient();
 
-  const update = (change: (pane: TaskPane.Type) => TaskPane.Type) => {
+  /**
+   * Send what the user did, and paint what it will look like.
+   *
+   * The operation goes to the server rather than the resulting pane, because
+   * `show` writes this same field from the agent's turn: a snapshot computed
+   * here would erase a tab the agent opened between this read and this write.
+   * The same reducer runs locally for the optimistic paint, where being a
+   * moment stale costs a frame rather than a tab.
+   */
+  const apply = (operation: TaskPane.Operation) => {
     if (!taskId) {
       return;
     }
 
     const key = paneQueryKey(taskId);
     const current = queryClient.getQueryData<TaskState>(key);
-    const next = change(current?.pane ?? TaskPane.EMPTY);
+    const optimistic = TaskPane.applyOperation(
+      current?.pane ?? TaskPane.EMPTY,
+      operation,
+    );
 
-    // Paint from the click rather than from the round trip. The write comes
-    // back through the live query and the two converge; an agent `show` that
-    // lands in between arrives the same way and wins, which is the behavior
-    // wanted anyway.
+    // Paint from the click rather than from the round trip.
     queryClient.setQueryData<TaskState>(key, (prev) =>
-      prev ? { ...prev, pane: next } : prev,
+      prev ? { ...prev, pane: optimistic } : prev,
     );
 
-    void safe(
-      rpcClient.workspace.task.state.set.call({
-        id: taskId,
-        state: { pane: next },
-      }),
-    );
+    void (async () => {
+      const { data, error } = await safe(
+        rpcClient.workspace.task.state.applyPaneOperation.call({
+          id: taskId,
+          operation,
+        }),
+      );
+
+      // The server's answer is authoritative: it applied this operation to
+      // whatever the pane actually was, which is not necessarily what was
+      // painted. On failure the optimistic paint is a lie, so drop it and let
+      // the live query re-establish the truth.
+      if (error) {
+        void queryClient.invalidateQueries({ queryKey: key });
+        return;
+      }
+
+      queryClient.setQueryData<TaskState>(key, (prev) =>
+        prev ? { ...prev, pane: data } : prev,
+      );
+    })();
   };
 
   return {
     close: () => {
-      update((pane) => ({ ...pane, open: false }));
+      apply({ type: "close" });
     },
     closeTab: (key: string) => {
-      update((pane) => TaskPane.closeTab(pane, key));
+      apply({ key, type: "closeTab" });
     },
     openFiles: (filePaths: string[]) => {
-      update((pane) =>
-        TaskPane.openTabs(pane, filePaths.map(TaskPane.fileTab)),
-      );
+      apply({ filePaths, type: "openFiles" });
     },
     reorderTabs: (keys: string[]) => {
-      update((pane) => TaskPane.reorderTabs(pane, keys));
+      apply({ keys, type: "reorderTabs" });
     },
     selectTab: (key: string) => {
-      update((pane) => TaskPane.selectTab(pane, key));
+      apply({ key, type: "selectTab" });
     },
     toggle: () => {
-      update((pane) => ({ ...pane, open: !pane.open }));
+      apply({ type: "toggle" });
     },
   };
 }

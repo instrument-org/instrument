@@ -8,8 +8,10 @@ import {
   getTaskState,
   setTaskState,
   TaskStateSchema,
+  updateTaskPane,
 } from "../../../lib/task-state-store";
 import { TaskIdSchema } from "../../../schemas/task-id";
+import { TaskPane } from "../../../schemas/task-pane";
 import { base } from "../../base";
 import { publisher } from "../../publisher";
 
@@ -51,6 +53,33 @@ const set = base
     if (Object.keys(stateToSave).some((key) => key !== "promptDraft")) {
       publisher.publish("task.stateUpdated", { id: taskId });
     }
+  });
+
+/**
+ * Apply one pane operation to whatever the pane currently is.
+ *
+ * Deliberately not `set` with a pane: the client computes from the pane it last
+ * saw, and `show` writes the same field from the agent's turn, so a snapshot
+ * would erase a tab the agent opened between the client's read and its write.
+ * `updateTaskPane` runs the reducer inside the per-task write queue, which is
+ * the same queue `show` goes through, so the two serialize.
+ */
+const applyPaneOperation = base
+  .input(
+    z.object({
+      id: TaskIdSchema,
+      operation: TaskPane.OperationSchema,
+    }),
+  )
+  .output(TaskPane.Schema)
+  .handler(async ({ input }) => {
+    const pane = await updateTaskPane(taskDir(input.id), (current) =>
+      TaskPane.applyOperation(current, input.operation),
+    );
+
+    publisher.publish("task.stateUpdated", { id: input.id });
+
+    return pane;
   });
 
 const removeFolder = base
@@ -95,6 +124,7 @@ const live = {
 };
 
 export const taskState = {
+  applyPaneOperation,
   get,
   live,
   removeFolder,

@@ -1,6 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { TaskIdSchema } from "../schemas/task-id";
+import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
+import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { runTool } from "../test/helpers/run-tool";
 import { WebSearch } from "./web-search";
+
+/** The documented model-visible budget for one search's retrieved text. */
+const SEARCH_TEXT_BUDGET = 16_000;
 
 function render(
   text: string,
@@ -45,6 +52,13 @@ function renderExcerpts(
       toolCallId: "test",
     }),
   );
+}
+
+/** Every `[Shortened: kept of total ...]` marker the rendering carries. */
+function shortenings(value: string) {
+  return [
+    ...value.matchAll(/\[Shortened: (\d+) of (\d+) characters shown\.\]/g),
+  ].map(([, kept, total]) => ({ kept: Number(kept), total: Number(total) }));
 }
 
 /** Pin the boundary nonce so the rest of the rendering stays stable across runs. */
@@ -177,6 +191,98 @@ describe("WebSearch model output", () => {
     `);
   });
 
+  it("leaves results that fit the budget exactly as they were", () => {
+    const value = renderExcerpts([
+      { text: "x".repeat(SEARCH_TEXT_BUDGET), url: "https://example.com/one" },
+    ]);
+
+    expect(value).toContain("x".repeat(SEARCH_TEXT_BUDGET));
+    expect(shortenings(value)).toEqual([]);
+    expect(value).not.toContain("shortened");
+  });
+
+  it("shares the budget so one long excerpt cannot erase the rest", () => {
+    const value = renderExcerpts([
+      { text: "L".repeat(50_000), title: "Long", url: "https://long.test" },
+      { text: "The short one.", title: "Short", url: "https://short.test" },
+    ]);
+
+    // The short excerpt is whole; only the long one paid for the overage.
+    expect(value).toContain("The short one.");
+    expect(shortenings(value)).toEqual([
+      { kept: SEARCH_TEXT_BUDGET - "The short one.".length, total: 50_000 },
+    ]);
+  });
+
+  it("shortens every oversized excerpt rather than dropping later ones", () => {
+    const value = renderExcerpts(
+      Array.from({ length: 6 }, (_, index) => ({
+        text: `${index}`.repeat(10_000),
+        title: `Source ${index + 1}`,
+        url: `https://example.com/${index + 1}`,
+      })),
+    );
+
+    const marks = shortenings(value);
+    expect(marks).toHaveLength(6);
+    expect(marks.map((mark) => mark.kept)).toEqual([
+      2667, 2667, 2667, 2667, 2666, 2666,
+    ]);
+    expect(marks.reduce((total, mark) => total + mark.kept, 0)).toBe(
+      SEARCH_TEXT_BUDGET,
+    );
+  });
+
+  it("keeps every source's title, URL, and metadata when excerpts are cut", () => {
+    const value = renderExcerpts(
+      Array.from({ length: 6 }, (_, index) => ({
+        author: `Author ${index + 1}`,
+        publishedDate: `2026-0${index + 1}-01`,
+        text: "y".repeat(10_000),
+        title: `Source ${index + 1}`,
+        url: `https://example.com/${index + 1}`,
+      })),
+    );
+
+    for (let index = 1; index <= 6; index += 1) {
+      expect(value).toContain(`### ${index}. Source ${index}`);
+      expect(value).toContain(`Author: Author ${index}`);
+      expect(value).toContain(`Published or updated: 2026-0${index}-01`);
+      expect(value).toContain(
+        `- [Source ${index}](https://example.com/${index})`,
+      );
+    }
+  });
+
+  it("says text was shortened and how to get the rest of a page", () => {
+    const value = renderExcerpts([
+      { text: "z".repeat(20_000), title: "Long", url: "https://long.test" },
+    ]);
+
+    expect(value).toContain(
+      "Some retrieved text below was shortened so that one search cannot fill the context window.",
+    );
+    expect(value).toContain("web_fetch");
+    // Inside the boundary, where the results it describes are.
+    expect(value.indexOf("BEGIN_WEB_SEARCH_RESULTS")).toBeLessThan(
+      value.indexOf("Some retrieved text below was shortened"),
+    );
+  });
+
+  it("cuts a long summary without splitting a character", () => {
+    const value = render(`${"a".repeat(SEARCH_TEXT_BUDGET - 1)}😀`, [
+      { title: "One", url: "https://one.test" },
+    ]);
+
+    expect(shortenings(value)).toEqual([
+      { kept: SEARCH_TEXT_BUDGET - 1, total: SEARCH_TEXT_BUDGET + 1 },
+    ]);
+    // A high surrogate whose partner was cut away would be sent as invalid
+    // UTF-8 and rejected by the provider.
+    expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(value)).toBe(false);
+    expect(value).toContain("- [One](https://one.test)");
+  });
+
   it("passes an error straight through without a boundary", () => {
     const result = WebSearch.toModelOutput({
       input: { query: "anything" },
@@ -195,4 +301,32 @@ describe("WebSearch model output", () => {
       }
     `);
   });
+});
+
+describe("WebSearch execution", () => {
+  const model = createMockAIGatewayModel();
+  const taskId = createMockTaskConfig(TaskIdSchema.parse("web-search-test"), {
+    model,
+  });
+
+  it.each(["noop", "NOOP", "  noop  "])(
+    "does not search for the placeholder query %o",
+    async (query) => {
+      const result = await runTool(WebSearch, {
+        agentName: "main",
+        input: { query },
+        model,
+        signal: new AbortController().signal,
+        spawnAgent: vi.fn(),
+        taskId,
+        taskState: {},
+      });
+
+      expect(result._unsafeUnwrap()).toEqual({
+        errorMessage: `No search was performed: "${query}" does not name anything to look for. Call web_search again with the question you actually want answered, or skip the call.`,
+        errorType: "invalid-query",
+        state: "failure",
+      });
+    },
+  );
 });

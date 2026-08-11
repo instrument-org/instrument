@@ -41,6 +41,13 @@ export namespace StorageKey {
     return [MESSAGES_KEY, sessionId].join(SEPARATOR);
   }
 
+  // Per-session record of the pane tabs the agent was last told about, so a
+  // turn only carries the list when it has changed. Keyed by session because
+  // what a given conversation has been told is a fact about that conversation.
+  export function paneTabsReported(sessionId: StoreId.Session) {
+    return ["pane-tabs-reported", sessionId].join(SEPARATOR);
+  }
+
   export function part(
     sessionId: StoreId.Session,
     messageId: StoreId.Message,

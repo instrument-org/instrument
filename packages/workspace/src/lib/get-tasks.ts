@@ -11,6 +11,7 @@ import {
 } from "../schemas/paths";
 import { type Task } from "../schemas/task";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
+import { type TaskSettings } from "../schemas/task-settings";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { getTaskDirTimestamps } from "./get-task-dir-timestamps";
@@ -99,17 +100,10 @@ async function readTask({ dir }: { dir: TaskDir }) {
   }
 
   const id = taskIdResult.data;
-  const [settings, timestamps] = await Promise.all([
-    getTaskSettings(dir),
-    getTaskDirTimestamps(dir),
-  ]);
+  const settings = await getTaskSettings(dir);
 
   const task: Task = {
-    ...timestamps,
-    // A recorded stamp beats an observed one wherever there is one. Tasks from
-    // before it was recorded keep the filesystem answer, which is right often
-    // enough and settles the first time anything happens in them.
-    ...(settings?.lastActivityAt ? { updatedAt: settings.lastActivityAt } : {}),
+    ...(await taskTimestamps(dir, settings)),
     id,
     pinnedAt: settings?.pinnedAt,
     projectId: settings?.projectId,
@@ -118,6 +112,7 @@ async function readTask({ dir }: { dir: TaskDir }) {
   };
   return ok(task);
 }
+
 async function taskDirsInRootDir(rootDir: AbsolutePath): Promise<TaskDir[]> {
   // First check if the root dir exists
   const rootDirExists = await fs
@@ -139,4 +134,29 @@ async function taskDirsInRootDir(rootDir: AbsolutePath): Promise<TaskDir[]> {
     console.error("Error reading apps folder", error);
     return [];
   }
+}
+/**
+ * When the task was made and when something last happened in it.
+ *
+ * Both are written to settings when the task is created and backfilled for
+ * older tasks at boot, so the usual answer is the file already read above and
+ * the folder is never touched. It is consulted only for a task missing one of
+ * them: one restored by hand, or one whose settings cannot be read.
+ */
+async function taskTimestamps(
+  dir: TaskDir,
+  settings: TaskSettings | undefined,
+): Promise<{ createdAt: Date; updatedAt: Date }> {
+  if (settings?.createdAt && settings.lastActivityAt) {
+    return {
+      createdAt: settings.createdAt,
+      updatedAt: settings.lastActivityAt,
+    };
+  }
+
+  const observed = await getTaskDirTimestamps(dir);
+  return {
+    createdAt: settings?.createdAt ?? observed.createdAt,
+    updatedAt: settings?.lastActivityAt ?? observed.updatedAt,
+  };
 }

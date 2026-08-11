@@ -1,6 +1,6 @@
 # The task list ordered itself by a file mtime, so reading a task counted as changing it
 
-**Status:** fixed going forward 2026-08-10; existing tasks still fall back until something happens in them. See [What is left](#what-is-left).
+**Status:** fixed 2026-08-11. Both timestamps are recorded in `settings.json`; older tasks are stamped by the boot migration.
 
 `updatedAt` on a task was the mtime of `.instrument/task.db`, read by `getTaskDirTimestamps` and sorted on by `getTasks`. That is not when the task was last worked on. It is when the file was last written, and **opening a task writes it**: the session store is a SQLite database, and opening it checkpoints. Measured directly, with no message sent and nothing typed:
 
@@ -26,18 +26,21 @@ after    17:03:54  .instrument   17:03:54  task.db   17:03:56  state.json
 
 ## The fix
 
-Two independent changes, either of which would have hidden the symptom and only both of which address it.
+Three independent changes, any one of which would have hidden the symptom and only all of which address it.
 
-- **`lastActivityAt` in `settings.json`**, written when a message is created and when a task is initialized, and preferred over the filesystem answer in `readTask`. Activity is now recorded rather than observed. `settings.json` was already read once per task by the list, so it costs no extra syscall, and it is the file that already holds the other per-task facts the list needs (pin, unread, name).
+- **`lastActivityAt` in `settings.json`**, written when a message is created and when a task is initialized. Activity is now recorded rather than observed. `settings.json` was already read once per task by the list, so it costs no extra syscall, and it is the file that already holds the other per-task facts the list needs (pin, unread, name).
+- **`createdAt` beside it**, written at creation, at branch, and at import. The observable answer was the database's birth time, which is when the task was first *opened*, and for a branch or an import it is when the copy happened. With both stamps recorded, `readTask` reads one file and the ordering path never asks the filesystem what time it is.
 - **`task.stateUpdated`**, a publisher channel separate from `task.updated`. Pane and draft writes use it, so the surface that reads task state wakes and the task list does not. A panel opening is not activity in a task, and it should not be able to reorder anything.
 
-The private directory also stopped being the timestamp fallback for a task with no database: it holds the pane and the draft, and adding a file to a directory does bump its mtime, so a task with no conversation would have climbed the list on its first pane write. The task's own directory is the fallback instead.
+`getTaskDirTimestamps` survives as the answer for a task that arrives with neither stamp: one restored by hand, or one whose settings cannot be parsed. It stats the task folder and nothing inside it, so it cannot be moved by a database checkpoint or by a pane write into the private directory.
 
-## What is left
+## Migrating without moving anyone's list
 
-Tasks created before this keep the filesystem fallback until their next message, so an old task opened today can still jump once. New tasks are stamped at creation and are correct from the start.
+Existing tasks are stamped by `migrateWorkspaceLayout`, which already walks every task folder at boot and is idempotent, so an unstamped task that appears later is picked up by the next run. Measured against a 596-task workspace, reading and parsing every `settings.json` costs 26ms warm, against the ~73ms that pass already spends on its `existsSync` probes.
 
-Closing that gap means backfilling `lastActivityAt` for every existing task, which is a one-time pass over the workspace at startup rather than something the list should do while reading. It is deliberately not done here: the fallback is what shipped for months, so leaving it in place is not a regression, and a migration that stamps hundreds of tasks deserves its own change.
+The seed values are the ones the old code produced: the session database's mtime and birth time, falling back to the task folder. That makes the migration a snapshot of the order a workspace already has rather than a re-sort, so nothing rearranges itself on the upgrade. It inherits the flaw it replaces, since a task merely *opened* last week is stamped last week, but that is what its owner already sees, and the drift stops there.
+
+Stamping the current time instead would flatten every task in the workspace to one value and scramble the list. That is the failure mode this migration exists to avoid, which is why it is written down here and in the code.
 
 ## What else it fixed
 
@@ -46,9 +49,15 @@ Two reorderings that were never intentional went with it, because both are setti
 - **Marking a task read or unread** no longer moves it. It publishes `task.updated`, so the list re-reads, but the sort key does not change.
 - **Renaming a task** no longer moves it either. It arguably never did on its own -- but you have to open a task to rename it, and opening it is what bumped the timestamp, so the re-read that followed the rename carried it to the top.
 
-Both are subject to the same backfill gap: a task with no stamp still falls back to the timestamp its own opening moved.
+## Why `settings.json` and `state.json` stay separate
 
-The split between `settings.json` and `state.json` was already partly about keeping this kind of bookkeeping away from the ordering, and this finishes the thought: settings hold what the task *is*, state holds what the user is *doing with it*, and only recorded activity orders the list.
+Worth writing down, because the obvious guess is wrong and someone will make it. The split is **not** about keeping machine-local values out of an exported task: `exportTaskZip` takes the whole task folder apart from `.git`, `node_modules` and the browser profile, so `state.json` ships already. `projectFolderName` is stored as a folder name rather than an absolute path precisely *because* the file travels.
+
+The split is the publisher channel made structural. `updateTaskSettings` publishes `task.updated`, which wakes the list and re-reads every task in the workspace; `setTaskState` publishes `task.stateUpdated`, which wakes only whoever has that task open. Merged into one file, a single writer would have to classify by key to choose a channel, and a field added without being classified would either stop updating the list or reintroduce the bug above. Today the file you write *is* the classification, which is the cheapest form of correct.
+
+Size is not the argument either way. Across a 596-task workspace, `settings.json` runs a median of 82 bytes and `state.json` 112, so merging would change no read counts on the list path. Blast radius is: `getTaskState` answers with empty state when a parse fails and the next write persists that, which today costs the pane and the folder list. Merged, it would cost the name, the pin, the unread flag and the sort key.
+
+So: settings hold what the task *is* and order the list; state holds what the user is *doing with it* and never does.
 
 ## The general shape
 

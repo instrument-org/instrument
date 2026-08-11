@@ -4,6 +4,11 @@ import { ProjectIdSchema } from "./project-id";
 import { TaskIndicatorSchema } from "./task-indicator";
 
 export const TaskSettingsSchema = z.object({
+  // When the task was made, recorded for the same reason as `lastActivityAt`:
+  // the observable answer is the session database's birth time, which is when
+  // the task was first opened, and for a branched or imported task it is when
+  // the copy happened.
+  createdAt: z.coerce.date().optional(),
   createdWithAppVersion: z.string().optional(),
   // When something happened in this task, as opposed to when a file under it
   // was last written. It orders the task list, and it is recorded rather than

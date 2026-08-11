@@ -7,6 +7,7 @@ import { type WorkspaceConfig } from "../types";
 import { copyTask } from "./copy-task";
 import { TypedError } from "./errors";
 import { generateBranchFolderName } from "./generate-task-folder-name";
+import { getCurrentDate } from "./get-current-date";
 import { pathExists } from "./path-exists";
 import { Store } from "./store";
 import { getTaskPrivateDir, sessionStorePath, taskDir } from "./task-dir-utils";
@@ -110,8 +111,15 @@ export async function branchTask(
 
     await setTaskState(taskDir(taskId), await getTaskState(taskDir(sourceId)));
 
+    // A branch is its own task from this moment, so it is stamped now rather
+    // than from the source: carrying those over would file a branch under the
+    // conversation it forked from and bury it in the list.
+    const branchedAt = getCurrentDate();
+
     yield* updateTaskSettings(taskId, {
+      createdAt: branchedAt,
       createdWithAppVersion: sourceSettings?.createdWithAppVersion,
+      lastActivityAt: branchedAt,
       name: branchName,
       projectId: sourceSettings?.projectId,
     });

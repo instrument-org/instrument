@@ -249,6 +249,9 @@ function normalizeTasks(tasksDir: string) {
     const taskFolder = path.join(tasksDir, entry.name);
     normalizeTaskPrivateFiles(taskFolder);
     normalizeTaskSettingsFile(taskFolder);
+    // After both, so the settings file is where this expects it and the db has
+    // its current name.
+    stampTaskTimestamps(taskFolder);
     normalizeTaskWorkLayout(taskFolder);
     normalizeTaskAttachments(taskFolder);
     // After the work/ move, so a pre-work-layout task's clones are found at
@@ -277,6 +280,30 @@ function normalizeTaskWorkLayout(taskFolder: string) {
   }
 }
 
+// What the list saw before the stamps existed: the session database's
+// timestamps, falling back to the task folder's for a task that never opened
+// one.
+function observedTaskTimestamps(taskFolder: string) {
+  const targets = [
+    path.join(taskFolder, TASK_PRIVATE_FOLDER_NAME, TASK_DB_FILE_NAME),
+    taskFolder,
+  ];
+
+  for (const target of targets) {
+    try {
+      const stats = fs.statSync(target);
+      return {
+        createdAt: stats.birthtime.toISOString(),
+        lastActivityAt: stats.mtime.toISOString(),
+      };
+    } catch {
+      continue;
+    }
+  }
+
+  return;
+}
+
 // Deletes any cloned Chrome profile sitting in the task's temp dir. See
 // BROWSER_PROFILE_CLONE_PREFIX.
 function removeBrowserProfileClones(taskFolder: string) {
@@ -302,4 +329,63 @@ function removeBrowserProfileClones(taskFolder: string) {
     }
   }
   return removed;
+}
+
+/**
+ * Records a task's timestamps in its settings, for one made before they were
+ * written there.
+ *
+ * Seeded from the session database, which is exactly where the list read them
+ * from before, so a workspace's order survives the move to recorded stamps and
+ * nobody's list rearranges itself on the upgrade. That inherits the flaw it is
+ * replacing -- a task merely opened last week is stamped last week -- but that
+ * is what its owner already sees, and the mtime stops drifting from here.
+ *
+ * Stamping the current time instead would flatten every task in the workspace
+ * to one value and scramble the list, which is the failure worth naming.
+ */
+function stampTaskTimestamps(taskFolder: string) {
+  const settingsPath = path.join(
+    taskFolder,
+    TASK_PRIVATE_FOLDER_NAME,
+    TASK_SETTINGS_FILE_NAME,
+  );
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+  } catch {
+    // No settings, or none this can read. Nothing to preserve, and the task
+    // folder still answers for it when the list asks.
+    return;
+  }
+
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return;
+  }
+
+  const settings: Record<string, unknown> = { ...parsed };
+
+  // A project folder that ended up under tasks/ carries its own createdAt and
+  // has no activity to record.
+  if (ProjectIdSchema.safeParse(settings.id).success) {
+    return;
+  }
+
+  if (
+    settings.createdAt !== undefined &&
+    settings.lastActivityAt !== undefined
+  ) {
+    return;
+  }
+
+  const observed = observedTaskTimestamps(taskFolder);
+  if (!observed) {
+    return;
+  }
+
+  settings.createdAt ??= observed.createdAt;
+  settings.lastActivityAt ??= observed.lastActivityAt;
+
+  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
 }

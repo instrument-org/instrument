@@ -56,13 +56,16 @@ export async function initializeTask(
       targetDir: taskDir(taskId),
     });
 
+    const createdAt = getCurrentDate();
+
     yield* updateTaskSettings(taskId, {
       ...initialSettings,
-      createdWithAppVersion: workspaceConfig.appVersion,
       // Stamped from the start so a task that has never been messaged still
-      // orders by when it was made rather than by whatever last touched a file
+      // lists by when it was made rather than by whatever last touched a file
       // beneath it.
-      lastActivityAt: getCurrentDate(),
+      createdAt,
+      createdWithAppVersion: workspaceConfig.appVersion,
+      lastActivityAt: createdAt,
     });
 
     // Create standard directories so they appear in the file tree. Avoids agent

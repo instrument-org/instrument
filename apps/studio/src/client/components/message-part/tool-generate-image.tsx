@@ -82,7 +82,6 @@ export function SourceImagesChip({
         const src = getAssetUrl({
           assetBase: assetBaseUrl,
           filePath: file.filePath,
-          version: file.modifiedAt,
         });
         return (
           <ImageWithFallback
@@ -503,7 +502,6 @@ function StreamingImagePreview({
           src={getAssetUrl({
             assetBase: assetBaseUrl,
             filePath: image.filePath,
-            version: image.modifiedAt,
           })}
         />
       ) : (

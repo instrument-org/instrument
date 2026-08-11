@@ -40,11 +40,7 @@ export function AttachmentsCard({
       modifiedAt,
       size: file.size,
       taskId,
-      url: getAssetUrl({
-        assetBase: assetBaseUrl,
-        filePath,
-        version: modifiedAt,
-      }),
+      url: getAssetUrl({ assetBase: assetBaseUrl, filePath }),
     };
   });
 

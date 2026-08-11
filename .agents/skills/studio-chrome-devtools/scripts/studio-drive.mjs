@@ -89,6 +89,7 @@ const COMMANDS = new Set([
   "press",
   "rpc",
   "shot",
+  "snapshot",
   "state",
   "stop",
   "wait",
@@ -887,6 +888,91 @@ async function cmdShot(cdp, file, { pad, selector, text }) {
   };
 }
 
+/**
+ * The accessibility tree under a subject, as indented `role "name"` lines.
+ *
+ * This is the read to reach for before `eval`-ing your way around the DOM. It
+ * answers what is on screen and what each thing is called, in the same terms
+ * `click --text` matches on, at roughly a tenth the size of the equivalent
+ * HTML. A control that comes back as a bare `button` has no accessible name at
+ * all, which is worth knowing directly: it cannot be clicked by text, a screen
+ * reader gets the same nothing, and marking it with `eval` is a workaround for
+ * a labelling bug rather than a technique.
+ *
+ * Ignored nodes are dropped rather than rendered, so what is left is what a
+ * consumer of the tree can actually reach. Depth is bounded because the app
+ * page is thousands of nodes and a whole-page dump helps nobody; pass
+ * `--selector` to scope to a pane and raise `--depth` from there.
+ */
+async function cmdSnapshot(cdp, { depth, selector }) {
+  await assertRenderable(cdp);
+  await cdp.send("Accessibility.enable");
+
+  const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+  const byId = new Map(nodes.map((node) => [node.nodeId, node]));
+
+  let rootId = nodes[0]?.nodeId;
+  if (selector) {
+    const { root } = await cdp.send("DOM.getDocument", { depth: -1 });
+    const { nodeId } = await cdp.send("DOM.querySelector", {
+      nodeId: root.nodeId,
+      selector,
+    });
+    if (!nodeId) {
+      fail(`No element matches ${JSON.stringify(selector)}.`);
+    }
+    const { nodes: partial } = await cdp.send(
+      "Accessibility.getPartialAXTree",
+      {
+        fetchRelatives: false,
+        nodeId,
+      },
+    );
+    rootId = partial[0]?.nodeId;
+    for (const node of partial) {
+      byId.set(node.nodeId, node);
+    }
+  }
+
+  const lines = [];
+  const walk = (nodeId, level, parentName) => {
+    const node = byId.get(nodeId);
+    if (!node || level > depth) {
+      return;
+    }
+    const role = node.role?.value;
+    const name = node.name?.value;
+
+    // Three kinds of node carry no information a caller can act on. An ignored
+    // one is not in the tree at all; `none`/`generic` is the div a layout is
+    // built from, which Chrome exposes and nothing can address; and a
+    // `StaticText` whose words are already the name of the thing above it is
+    // that name a second time. Their children can still matter, so each is
+    // descended through at the parent's level rather than dropped.
+    const isPassthrough =
+      node.ignored ||
+      role === "none" ||
+      role === "generic" ||
+      (role === "StaticText" && Boolean(parentName?.includes(name ?? "")));
+
+    if (!isPassthrough) {
+      lines.push(
+        `${"  ".repeat(level)}- ${role ?? "unknown"}${name ? ` ${JSON.stringify(name)}` : ""}`,
+      );
+    }
+    for (const childId of node.childIds ?? []) {
+      walk(
+        childId,
+        isPassthrough ? level : level + 1,
+        isPassthrough ? parentName : name,
+      );
+    }
+  };
+  walk(rootId, 0);
+
+  return { depth, nodes: lines.length, selector, tree: lines.join("\n") };
+}
+
 const IDLE_POLL_MS = 500;
 
 /**
@@ -987,6 +1073,14 @@ function flag(argv, name, fallback) {
 }
 
 function report(result) {
+  // A tree is the one result worth more as text than as a field: JSON would
+  // render it as one line of `\n`, which is the shape it is here to avoid.
+  if (result && typeof result === "object" && "tree" in result) {
+    const { tree, ...rest } = result;
+    console.log(JSON.stringify(rest, undefined, 2));
+    console.log(tree);
+    return;
+  }
   console.log(JSON.stringify(result, undefined, 2));
 }
 
@@ -1068,6 +1162,13 @@ async function dispatch(cdp) {
         pad: Number(flag(argv, "--pad", "0")),
         selector: flag(argv, "--selector"),
         text: flag(argv, "--text"),
+      });
+      break;
+    }
+    case "snapshot": {
+      result = await cmdSnapshot(cdp, {
+        depth: Number(flag(argv, "--depth", "12")),
+        selector: flag(argv, "--selector") ?? positional[0],
       });
       break;
     }

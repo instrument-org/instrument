@@ -15,6 +15,7 @@ DRIVE=.agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs
 node $DRIVE boot                                     # your own instance
 node $DRIVE goto /release-notes
 node $DRIVE state
+node $DRIVE snapshot --selector '[role=dialog]'
 node $DRIVE click --text "New skill"
 node $DRIVE shot out.png --selector '[role=dialog]' --pad 8
 node $DRIVE rpc workspace.task.list '{}'
@@ -23,7 +24,9 @@ node $DRIVE stop
 
 Also `press`, `wait`, `modal`, `eval`. It speaks CDP directly, so there is no daemon to go stale and no reconnect to invalidate page ids, and it handles the things that otherwise fail quietly: real input, visible-only element matching, browser-side screenshot cropping, and a check that something is mounted before capturing.
 
-For a control with no distinguishing text, mark it in one `eval` and click the mark, which keeps the real input path rather than falling back to `element.click()`:
+`snapshot` is the read to reach for before deciding how to address anything. It prints the accessibility tree as indented `role "name"` lines, in the same terms `click --text` matches on and at a fraction of the size of the DOM, so one call answers what is on screen and what each thing is called. Scope it with `--selector` and go deeper with `--depth` (12 by default); an unscoped app page is a few hundred lines.
+
+A control that comes back as a bare `button`, with no name after it, cannot be reached by text at all. That is a labelling bug rather than a fact about the tool, and a screen reader gets the same nothing, so it is worth reporting. To get past one in the meantime, mark it in an `eval` and click the mark, which keeps the real input path rather than falling back to `element.click()`:
 
 ```bash
 node $DRIVE eval 'document.querySelectorAll("button[aria-haspopup=menu]")[3].setAttribute("data-probe", "kebab")'

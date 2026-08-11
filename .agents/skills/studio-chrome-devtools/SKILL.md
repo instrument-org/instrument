@@ -17,6 +17,7 @@ node $DRIVE goto /release-notes
 node $DRIVE state
 node $DRIVE click --text "New skill"
 node $DRIVE shot out.png --selector '[role=dialog]' --pad 8
+node $DRIVE rpc workspace.task.list '{}'
 node $DRIVE stop
 ```
 
@@ -47,6 +48,52 @@ node $DRIVE goto /tasks/generated-pdf --workspace documents
 ```
 
 It seeds when the fixture is absent or has changed (`--fresh` forces a rebuild) and reports the seeded task ids, so a script addresses a task by name instead of grepping for one. `--workspace` belongs on every command of the run: it picks the port and the instance record, so a fixture run and a plain dev run can both be up. `pnpm workspace:seed --list` shows what exists; `fixtures/workspaces/README.md` covers adding one.
+
+## Asking the app instead of reading the page
+
+`rpc` calls any oRPC route on the renderer's real client, through `window.__studioDebug` (`client/lib/debug-rpc-bridge.ts`):
+
+```bash
+node $DRIVE rpc workspace.task.list '{}'
+node $DRIVE rpc workspace.task.agentStatus.byIds '{"ids":["generated-pdf"]}'
+node $DRIVE rpc gateway.models.list
+```
+
+The input is one JSON argument, and the routes are the ones in `packages/workspace/src/rpc/routes/` under `workspace.`, plus Studio's own (`apps/studio/src/electron-main/rpc/routes/`) at the top level.
+
+Reach for this before the DOM whenever the question is about state rather than about pixels. Scraping `document.body.innerText` for a status answers what the UI painted; the route answers what the UI painted _from_, which is the thing under test, and it does not move when a component does.
+
+- It is gated on the **Developer Mode** preference, checked per call. Fixture workspaces pin it on; the shared dev workspace depends on what was last set in Settings > General, and the bridge cannot turn it on for you.
+- `live.*` routes are event iterators and cannot come back through a single evaluation. Call the plain sibling in a loop instead (`task.agentStatus.byIds`, not `task.agentStatus.live.byId`).
+- Errors come back as data, so a Zod failure prints its issues rather than a stack.
+
+## Running a task without touching the UI
+
+One route creates the task and sends the first prompt, and no part of this has to go through the composer (whose React-controlled textarea is its own trap, see [references/repro-recipes.md](references/repro-recipes.md)):
+
+```bash
+node $DRIVE rpc gateway.models.list                  # pick one; build <author>/<canonicalId>?provider=…&providerConfigId=…
+node $DRIVE rpc workspace.task.create '{"modelURI":"<uri>","prompt":"…","name":"smoke"}'
+node $DRIVE wait --idle --task <task-id>
+node $DRIVE rpc workspace.message.list '{"id":"<task-id>","sessionId":"<session-id>"}'
+```
+
+`task.create` returns `{id, sessionId}`; `message.create` takes both and sends a follow-up into the same session. A seeded fixture workspace holds no credentials, so a live turn needs a plain `boot` against the dev workspace.
+
+### Waiting for a turn
+
+`wait --idle` polls `task.agentStatus.byIds` until the task has no live agent, which is the signal the app itself uses. Without `--task` it takes the task the active tab is showing.
+
+```bash
+node $DRIVE wait --idle --task <task-id>     # blocks for the turn, default timeout 10m
+```
+
+Two things about that status are worth knowing before trusting a wait built on it by hand:
+
+- Busy is the `agent.alive` tag, carried by every non-final state of the session machine. A task whose turn is over reports **no sessions at all** rather than `agent.done`, because the workspace machine drops the ref when the session finishes.
+- Which makes "no sessions" also what a task reports _before_ its turn starts. `wait --idle` covers that by requiring idle to hold for `--settle` (2s) until it has seen the task busy, and reports `sawBusy` so you can tell which happened. `sawBusy: false` on a wait that was meant to follow a prompt means the prompt never started an agent.
+
+A **replay** is not an agent turn and none of this sees it: it runs its own loop outside the session machine. Poll `workspace.replay.status '{"sessionId":"…"}'` for that one.
 
 ## Page model
 

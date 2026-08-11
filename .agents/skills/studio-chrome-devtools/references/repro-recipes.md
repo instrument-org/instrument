@@ -24,6 +24,8 @@ If what you need isn't visible there, that's a signal the debug page could be ex
 
 ## Driving the chat input
 
+Only type into the composer when the composer _is_ the thing under test. To get a prompt in front of an agent, `rpc workspace.message.create` (main SKILL.md) skips the entire input path and hands back the session id you will want afterwards.
+
 `chrome-devtools fill <uid> <text>` sets the DOM value directly. Studio's composer textarea is React-controlled, so a raw DOM write does **not** update the component's state -- the send button stays disabled even though the textarea visually shows your text. Symptom: `fill` "succeeds" but nothing is sent and the button reports `disabled: true`.
 
 Working recipe (real keyboard events, so React sees the change):
@@ -43,7 +45,13 @@ Other CLI gotchas hit along the way:
 
 ## Waiting for a turn to finish
 
-There's no push signal exposed to devtools for "this turn is done" today, so polling with `sleep` + `take_snapshot` is the current option. Prefer short sleeps (10-20s) with a snapshot check for the final assistant message over one long sleep -- turns vary widely in length and you want to fail fast on a stuck turn rather than wait out a worst-case guess.
+Never `sleep` for this, and never regex the page text for a spinner. Both are guesses about how long a turn takes, and a guess that comes back short produces a half-written transcript that reads like a bug in what you were testing.
+
+```bash
+node $DRIVE wait --idle --task <task-id>
+```
+
+It blocks on the same status the app's own indicators read (`task.agentStatus.byIds`) and returns when the task has no live agent. The main SKILL.md covers what "no live agent" means, the `sawBusy` field, and why a replay needs `workspace.replay.status` instead.
 
 ## Inspecting a `<webview>` guest's real internal state
 

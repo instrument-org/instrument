@@ -109,7 +109,7 @@ const throwError = devOnly
     throw error;
   });
 
-const live = {
+const events = {
   testNotification: devOnly.handler(async function* ({ signal }) {
     for await (const _payload of publisher.subscribe("test-notification", {
       signal,
@@ -272,9 +272,9 @@ const setQuitGuardForced = devOnly
 
 export const debug = {
   browserViewManager: browserViewManagerDebugRoutes,
+  events,
   getAppEnvironment,
   getQuitGuardForced,
-  live,
   openAuthTestPage,
   openOnboarding,
   openUserDataFolder,

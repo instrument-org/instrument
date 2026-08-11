@@ -10,13 +10,13 @@ export function useLiveUser({
       input: input ?? {},
     }),
   );
-  const { data: onWindowFocus } = useQuery(
-    rpcClient.utils.live.onWindowFocus.experimental_liveOptions(),
+  const { data: windowFocusChanged } = useQuery(
+    rpcClient.utils.events.windowFocusChanged.experimental_liveOptions(),
   );
 
   useEffect(() => {
     void refetch();
-  }, [onWindowFocus, refetch]);
+  }, [windowFocusChanged, refetch]);
 
   return { ...rest, refetch };
 }

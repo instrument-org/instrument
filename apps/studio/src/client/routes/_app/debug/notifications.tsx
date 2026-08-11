@@ -41,7 +41,7 @@ function RouteComponent() {
     rpcClient.debug.trigger.testErrorNotification.mutationOptions(),
   );
   const { data: testNotification } = useQuery(
-    rpcClient.debug.live.testNotification.experimental_streamedOptions(),
+    rpcClient.debug.events.testNotification.experimental_streamedOptions(),
   );
 
   useEffect(() => {

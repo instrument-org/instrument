@@ -20,7 +20,7 @@ import { useEffect } from "react";
 export function useRefreshSkillsOnChange() {
   const queryClient = useQueryClient();
   const { data } = useQuery(
-    rpcClient.workspace.skill.live.changed.experimental_liveOptions(),
+    rpcClient.workspace.skill.events.changed.experimental_liveOptions(),
   );
   const revision = data?.revision;
 

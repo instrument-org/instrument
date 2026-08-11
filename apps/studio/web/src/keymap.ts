@@ -2,7 +2,7 @@
  * Stands in for the native application menu.
  *
  * Every app-wide shortcut in Studio is a menu accelerator: the main process
- * turns it into an `AppCommand` and publishes it on `appCommands.live.commands`
+ * turns it into an `AppCommand` and publishes it on `appCommands.events.command`
  * (see `shared/app-command.ts`). A browser has no menu, so nothing produces
  * those commands and the shortcuts appear dead. This listens for the same
  * chords and pushes the same commands onto that stream.
@@ -14,7 +14,7 @@ import { type AppCommand } from "@/shared/app-command";
 
 import { pushLive } from "./mock-rpc";
 
-const COMMAND_PATH = "appCommands.live.commands";
+const COMMAND_PATH = "appCommands.events.command";
 
 const CHORDS: Record<string, AppCommand> = {
   "mod+0": { type: "zoomReset" },

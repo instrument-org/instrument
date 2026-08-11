@@ -568,10 +568,11 @@ const closeWindow = base.input(z.void()).handler(() => {
   closeMainWindow();
 });
 
-const live = {
-  // Current maximized state, so the custom controls can toggle the
-  // maximize/restore glyph. Re-yields on OS-driven maximize/unmaximize.
-  onWindowFocus: base.handler(async function* ({ signal }) {
+const events = {
+  // Fires whenever the window gains or loses focus. The payload is a timestamp
+  // rather than the focus state: subscribers refetch on it, and a value that
+  // differs every time is what makes the second focus in a row observable.
+  windowFocusChanged: base.handler(async function* ({ signal }) {
     for await (const _ of publisher.subscribe("window.focus-changed", {
       signal,
     })) {
@@ -580,6 +581,9 @@ const live = {
       };
     }
   }),
+};
+
+const live = {
   serverExceptions: base
     .output(
       eventIterator(
@@ -604,6 +608,8 @@ const live = {
         yield getServerExceptions();
       }
     }),
+  // Current maximized state, so the custom controls can toggle the
+  // maximize/restore glyph. Re-yields on OS-driven maximize/unmaximize.
   windowMaximized: base
     .output(eventIterator(z.object({ maximized: z.boolean() })))
     .handler(async function* ({ signal }) {
@@ -728,6 +734,7 @@ export const utils = {
   copyFileToClipboard,
   copyProjectPathToClipboard,
   copyTaskPathToClipboard,
+  events,
   exportZip,
   getSupportedEditors,
   getTaskFileOpenCandidates,

@@ -67,7 +67,7 @@ export function useAppCommands() {
           return;
         }
         try {
-          const commands = await rpcClient.appCommands.live.commands.call(
+          const commands = await rpcClient.appCommands.events.command.call(
             undefined,
             { signal },
           );

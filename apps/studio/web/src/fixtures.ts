@@ -2,7 +2,7 @@
  * Canned RPC responses, keyed by dotted procedure path.
  *
  * Only what a screen actually reads needs an entry. Anything missing resolves
- * to `undefined` (or an idle stream, under a `live` segment) and is logged, so
+ * to `undefined` (or an idle stream, under a streaming segment) and is logged, so
  * growing this file is driven by `window.__rpcCalls.report()` rather than by
  * reading the routers.
  *
@@ -206,11 +206,11 @@ const byId = (input: unknown) =>
 
 export const FIXTURES: Record<string, unknown> = {
   // No command at rest; the browser keymap pushes into this stream.
-  "appCommands.live.commands": undefined,
+  "appCommands.events.command": undefined,
   "auth.live.hasToken": true,
   // The browser panel's `<webview>` pool has nothing to reconcile against in a
   // real browser, so it stays empty rather than mounting guests that cannot exist.
-  "browser.live.restoreHostFocus": undefined,
+  "browser.events.restoreHostFocus": undefined,
   "browser.live.targets": [],
   "debug.getAppEnvironment": { isPackaged: false },
   // Skills on, so the composer's menu carries the group a typed slash reaches.
@@ -230,7 +230,7 @@ export const FIXTURES: Record<string, unknown> = {
   "updates.live.status": { status: "idle" },
   "user.live.me": null,
   "user.live.subscriptionStatus": null,
-  "utils.live.onWindowFocus": undefined,
+  "utils.events.windowFocusChanged": undefined,
   "utils.live.serverExceptions": undefined,
   "utils.live.windowMaximized": false,
   // A browser cannot raise the native folder panel, so picking one always
@@ -244,8 +244,8 @@ export const FIXTURES: Record<string, unknown> = {
   // has to be an array. Empty means the task opens with no session rather than
   // pulling a whole transcript fixture in behind it.
   "workspace.session.list": [],
+  "workspace.skill.events.changed": undefined,
   "workspace.skill.list": skills,
-  "workspace.skill.live.changed": undefined,
   // Keyed by task, so this one reads its input: no task has a running agent.
   "workspace.task.agentStatus.live.byId": (input: unknown) => ({
     sessionActors: [],

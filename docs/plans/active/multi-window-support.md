@@ -44,7 +44,7 @@ These are why this is not a from-scratch job:
 
 ### 3. The menu command bus broadcasts to every main renderer
 
-Menu accelerators call `sendAppCommand` → `commandPublisher.publish("app.command", …)` (`apps/studio/src/electron-main/app-command.ts`, `apps/studio/src/electron-main/rpc/publisher.ts`), and every main renderer subscribes via `appCommands.live.commands` (`apps/studio/src/client/hooks/use-app-commands.ts`). With two windows, `Cmd+T` / `Cmd+W` / navigate would fire in **both**.
+Menu accelerators call `sendAppCommand` → `commandPublisher.publish("app.command", …)` (`apps/studio/src/electron-main/app-command.ts`, `apps/studio/src/electron-main/rpc/publisher.ts`), and every main renderer subscribes via `appCommands.events.command` (`apps/studio/src/client/hooks/use-app-commands.ts`). With two windows, `Cmd+T` / `Cmd+W` / navigate would fire in **both**.
 
 **Fix:** stamp the focused window's `webContentsId` onto the command and filter in the renderer subscription (or publish per-webContents). Well-contained.
 

@@ -31,7 +31,7 @@ export function OnboardingZoomRoot({ children }: { children: ReactNode }) {
     async function run() {
       while (!signal.aborted) {
         try {
-          const commands = await rpcClient.appCommands.live.commands.call(
+          const commands = await rpcClient.appCommands.events.command.call(
             undefined,
             { signal },
           );

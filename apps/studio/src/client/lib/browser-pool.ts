@@ -196,10 +196,10 @@ export function initBrowserPool(): () => void {
         return;
       }
       try {
-        const subscription = await rpcClient.browser.live.restoreHostFocus.call(
-          undefined,
-          { signal },
-        );
+        const subscription =
+          await rpcClient.browser.events.restoreHostFocus.call(undefined, {
+            signal,
+          });
         for await (const _ of subscription) {
           restoreHostFocus();
         }

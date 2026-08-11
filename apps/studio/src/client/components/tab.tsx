@@ -126,6 +126,10 @@ export const Tab = ({
           </div>
         ) : null}
         <button
+          // A tab with no title yet is still closable, and "Close" alone reads
+          // as a control with no object, so it falls back the way the tooltip
+          // above does rather than to an empty name.
+          aria-label={`Close ${item.title || "tab"}`}
           className={cn(
             "rounded-md p-1 opacity-70 ring-offset-background hover:bg-muted/80 hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none",
             isSelected ? "flex" : "hidden group-hover:flex",

@@ -56,7 +56,14 @@ export function FileActionsMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size="sm" variant={variant}>
+        {/* Named after the file it acts on: several of these can be on screen
+            at once, one per card, so "File actions" alone would give every one
+            of them the same name. */}
+        <Button
+          aria-label={`Actions for ${file.filename}`}
+          size="sm"
+          variant={variant}
+        >
           <DotsThreeOutlineVerticalIcon className="size-4" weight="fill" />
         </Button>
       </DropdownMenuTrigger>

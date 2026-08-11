@@ -90,7 +90,12 @@ export function MediaCardShell({
             {scrim}
           </div>
 
+          {/* The card itself. Everything drawn above is either the media or an
+              overlay control, so this is the only thing that names the card to
+              a screen reader or to a script driving the app -- unlabelled it is
+              a bare `button` reachable by position and nothing else. */}
           <button
+            aria-label={`Open ${file.filename}`}
             className="absolute inset-0 z-0 size-full"
             onClick={onClick}
             type="button"
@@ -98,11 +103,18 @@ export function MediaCardShell({
 
           {!hideActionsMenu && (
             <button
+              // Same `onClick` as the card: this is the affordance that says the
+              // card opens, not a second thing to do. Exposing it would put two
+              // identically named controls and two tab stops on one action, so
+              // it stays out of the tree and out of the tab order, and the card
+              // behind it answers for both.
+              aria-hidden
               className={cn(
                 "absolute top-3 right-3 z-10 flex size-7 items-center justify-center",
                 "text-white opacity-0 drop-shadow-sm transition-opacity duration-200 group-hover/media:opacity-100 group-has-[button[data-state=open]]/media:opacity-100",
               )}
               onClick={onClick}
+              tabIndex={-1}
               type="button"
             >
               <ArrowsOutSimpleIcon className="size-3.5" />

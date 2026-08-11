@@ -40,6 +40,7 @@ export default function TabBar() {
         </AnimatePresence>
         <li className="flex shrink-0 items-center self-stretch pl-0.5">
           <motion.button
+            aria-label="New tab"
             className="group inline-flex shrink-0 items-center justify-center rounded-xl px-3 py-2 [-webkit-app-region:no-drag] hover:bg-muted/60"
             onClick={() => {
               addTab({ pathname: NEW_TAB_PATH });

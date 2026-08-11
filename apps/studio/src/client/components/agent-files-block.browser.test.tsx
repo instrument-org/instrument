@@ -19,7 +19,8 @@ import { MarkdownTaskContext } from "./markdown-task-context";
  * grid is drawn in a message column, a pane, and a card.
  *
  * The third thing is not a measurement at all: what the grid *is*, to anything
- * that reads structure rather than pixels.
+ * that reads structure rather than pixels -- a screen reader, or a script
+ * driving the app.
  */
 
 // Either side of the grid's two container breakpoints: @md at 28rem and @xl at
@@ -62,32 +63,26 @@ async function tileWidths(content: string, width: number) {
   );
 }
 
-test("reads as a set of anonymous controls to anything but a pointer", async () => {
+test("names every file it draws, in the tree and not just on screen", async () => {
   // Not a measurement: the roles and accessible names a screen reader is handed,
   // and the same tree a script driving the app has to find its way around by.
+  // A card whose name goes missing lays out exactly as it did before, so it is
+  // a failure neither the heights above nor the widths below can see.
   //
-  // The fence below names three files and the tree names none of them. Only
-  // `notes.md` appears, and only because a non-media card writes its filename
-  // out as text; the image and the video are a bare `img` and two bare
-  // `button`s each, addressable by position and nothing else. That is what this
-  // records -- the grid lays out correctly and is unreadable, which is a state
-  // neither the heights above nor the widths below can distinguish from a
-  // working one.
+  // The bare `img` before each card is the icon standing in for media that has
+  // no bytes here; in the app that is the media itself, carrying its filename
+  // as `alt`.
   const { locator } = await drawFence(
     "output/revenue.png\noutput/notes.md\noutput/clip.mp4",
   );
 
   await expect(ariaSnapshot(locator)).resolves.toMatchInlineSnapshot(`
     "- img
-    - button
-    - button:
-      - img
+    - button "Open revenue.png"
     - img
-    - button
-    - button:
-      - img
+    - button "Open clip.mp4"
     - text: notes.md Markdown
-    - button:
+    - button "Actions for notes.md":
       - img"
   `);
 });

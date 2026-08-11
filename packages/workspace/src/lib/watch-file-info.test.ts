@@ -4,10 +4,12 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
-import { WorkspaceFilePathSchema } from "../schemas/paths";
+import { FolderAttachment } from "../schemas/folder-attachment";
+import { AbsolutePathSchema, WorkspaceFilePathSchema } from "../schemas/paths";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { taskDir } from "./task-dir-utils";
+import { setTaskState } from "./task-state-store";
 import { watchFileInfo } from "./watch-file-info";
 
 const id = TaskIdSchema.parse("watch-file-info-test");
@@ -87,6 +89,42 @@ describe("watchFileInfo", () => {
 
     expect(seen[0]).toBeNull();
     expect(seen.at(-1)).toMatchObject({ filename: "late.md" });
+  });
+
+  // The pane can be showing a file from an attached folder when the user
+  // detaches it. Going on reporting that file's size and mtime would be
+  // reporting out of a folder the task no longer has.
+  it("stops when the folder the file came from is detached", async () => {
+    const shared = await fs.mkdtemp(path.join(root, "shared-"));
+    await fs.writeFile(path.join(shared, "note.md"), "hello");
+    await setTaskState(taskDir(taskId), {
+      attachedFolders: {
+        Shared: {
+          access: "read-only",
+          createdAt: 0,
+          id: FolderAttachment.IdSchema.parse("folder-1"),
+          mountName: "Shared",
+          path: AbsolutePathSchema.parse(shared),
+          source: "user",
+        },
+      },
+    });
+
+    const controller = new AbortController();
+    const seen: unknown[] = [];
+
+    for await (const value of watch("/mnt/Shared/note.md", controller.signal)) {
+      seen.push(value);
+      if (value !== null) {
+        await setTaskState(taskDir(taskId), { attachedFolders: {} });
+        await fs.writeFile(path.join(shared, "note.md"), "changed");
+      }
+    }
+
+    expect(seen[0]).toMatchObject({ filename: "note.md" });
+    // Ended on its own, without the caller aborting.
+    expect(seen.at(-1)).toBeNull();
+    expect(controller.signal.aborted).toBe(false);
   });
 
   it("reports a deletion as the file being gone", async () => {

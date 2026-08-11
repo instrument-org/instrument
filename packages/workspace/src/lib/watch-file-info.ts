@@ -7,6 +7,10 @@ import { type TaskId } from "../schemas/task-id";
 import { CurrentFileInfoSchema } from "./get-file-info";
 import { getMimeType } from "./get-mime-type";
 import { resolveWorkspaceFilePath } from "./resolve-workspace-file-path";
+import { taskDir } from "./task-dir-utils";
+import { resolveTaskProjectFolder } from "./task-project-folder";
+import { getTaskState } from "./task-state-store";
+import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
 
 /**
  * How often the stat runs. A file the user is looking at changing "within a
@@ -55,6 +59,37 @@ export async function* watchFileInfo({
     return;
   }
 
+  /**
+   * Whether the task can still reach this path at all.
+   *
+   * A task-relative path is reachable for as long as the task is, and never
+   * needs asking. A path under a mount is reachable only while the user keeps
+   * that folder attached or that project assigned, and either can be revoked
+   * while the pane is showing one of its files -- after which this would go on
+   * reporting a file's size and mtime out of a folder the task no longer has.
+   *
+   * Asked of the mount rather than of the file, so that a deleted-and-restored
+   * file still reports both, which is the whole point of watching a path.
+   */
+  const isMountPath = filePath.startsWith("/");
+  const stillReachable = async () => {
+    if (!isMountPath) {
+      return true;
+    }
+    const { attachedFolders } = await getTaskState(taskDir(taskId));
+    const layout = buildWorkspaceFsLayout({
+      attachedFolders,
+      projectFolderName: await resolveTaskProjectFolder(taskId),
+      taskHostRoot: taskDir(taskId),
+    });
+    return [...layout.attached, layout.project].some(
+      (mount) =>
+        mount !== undefined &&
+        (filePath === mount.mountPoint ||
+          filePath.startsWith(`${mount.mountPoint}/`)),
+    );
+  };
+
   const filename = path.basename(filePath);
   const read = async () => {
     try {
@@ -97,6 +132,13 @@ export async function* watchFileInfo({
   try {
     while (signal?.aborted !== true) {
       const next = changed;
+      // Checked before each report rather than only at the start: the access
+      // this reads through can be taken away while the pane is open, and the
+      // honest answer then is the same one an unreachable path gets.
+      if (!(await stillReachable())) {
+        yield null;
+        return;
+      }
       yield await read();
       await next;
     }

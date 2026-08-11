@@ -94,13 +94,21 @@ describe("createPaneTabsPart", () => {
     expect(await build()).toBeUndefined();
   });
 
-  // Closing everything is not worth a line of its own, but the agent was told
-  // the file was open, so the next thing opened has to be reported again.
-  it("reports again after the pane is emptied", async () => {
+  // The part naming the open file stays in the session's history and keeps
+  // being injected, so silence here would leave the agent believing the file
+  // is still on screen for the rest of the session. The empty list is what
+  // supersedes it.
+  it("says so when the pane is emptied", async () => {
     await openTabs("a.png");
     await build();
 
     await setTaskState(taskDir(taskId), { pane: TaskPane.EMPTY });
+    expect(await build()).toMatchObject({
+      data: { tabs: [] },
+      type: "data-paneTabs",
+    });
+
+    // ...and having said it, does not say it again.
     expect(await build()).toBeUndefined();
 
     await openTabs("a.png");

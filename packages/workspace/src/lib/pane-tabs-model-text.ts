@@ -4,6 +4,15 @@ import { systemNote } from "./system-note";
 export function paneTabsModelNote(
   data: SessionMessageDataPart.PaneTabsDataPart,
 ) {
+  // Said plainly rather than by omission. This note supersedes an earlier one
+  // naming open files, and both stay in the history the model reads, so the
+  // later note has to contradict the earlier one outright.
+  if (data.tabs.length === 0) {
+    return systemNote`
+      The panel beside the conversation no longer has anything open. Nothing named earlier is still on screen.
+    `;
+  }
+
   const names = data.tabs.map((tab) =>
     tab.type === "file" ? `\`${tab.filePath}\`` : "the browser",
   );

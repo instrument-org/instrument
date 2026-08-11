@@ -75,12 +75,11 @@ export async function createPaneTabsPart({
       storage.value,
     );
 
-    // Nothing open and nothing open last time is the common case and returns
-    // above; nothing open after something was is a change worth one line.
-    if (tabs.length === 0) {
-      return undefined;
-    }
-
+    // Nothing open and nothing open last time is the common case, and it
+    // returned above. Reaching here with no tabs means the user closed the
+    // last one, which has to be said: the part the session was told before is
+    // still in its history and still being injected, so staying quiet leaves
+    // the agent believing a file is on screen for the rest of the session.
     return {
       data: { tabs },
       metadata: {

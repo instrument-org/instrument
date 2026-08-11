@@ -79,7 +79,9 @@ export function TaskView({
 }) {
   const openFileViewer = useSetAtom(openFileViewerAtom);
   const assetBaseUrl = getAssetBaseUrl(task.id);
-  const { closeTab, openFiles, selectTab } = useTaskPaneActions(task.id);
+  const { closeTab, openFiles, reorderTabs, selectTab } = useTaskPaneActions(
+    task.id,
+  );
 
   // Whether a live browser exists for this session, used to show the guest vs a
   // placeholder in the browser panel.
@@ -95,11 +97,10 @@ export function TaskView({
   // what the pane opens onto when nothing else is in it, which is what keeps
   // "open the pane" from ever being a request that lands on nothing -- and with
   // a tab always present, the strip always has somewhere to put the control
-  // that closes it again.
-  const tabs: TaskPane.Tab[] = [
-    { type: "browser" },
-    ...pane.tabs.filter((tab) => tab.type !== "browser"),
-  ];
+  // that closes it again. Nothing writes one any more; the filter is for a task
+  // whose state was written when something did.
+  const fileTabs = pane.tabs.filter((tab) => tab.type !== "browser");
+  const tabs: TaskPane.Tab[] = [{ type: "browser" }, ...fileTabs];
 
   const selected = TaskPane.selectedTab({ ...pane, tabs });
   const filePanel = selected?.type === "file" ? selected : undefined;
@@ -225,12 +226,13 @@ export function TaskView({
                     pane on the task's own background. */}
                 <div className={paneSurfaceClassName}>
                   <PaneTabs
+                    fileTabs={fileTabs}
                     onClose={closeTab}
+                    onReorder={reorderTabs}
                     onSelect={selectTab}
                     selectedKey={
                       selected ? TaskPane.tabKey(selected) : undefined
                     }
-                    tabs={tabs}
                     taskId={task.id}
                   />
 

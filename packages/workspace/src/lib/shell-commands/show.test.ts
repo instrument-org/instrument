@@ -124,13 +124,16 @@ describe("show", () => {
     expect(result.stderr).toContain("private directory");
   });
 
-  it("opens a URL as the browser tab", async () => {
+  // The pane always draws the browser, so showing a URL focuses it rather than
+  // storing a tab that would then sit in the order the user can drag.
+  it("focuses the browser for a URL without storing a tab", async () => {
     const result = await run("https://example.com");
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("Showing https://example.com\n");
     const pane = await storedPane();
-    expect(pane?.tabs).toEqual([{ type: "browser" }]);
+    expect(pane?.selected).toBe("browser");
+    expect(pane?.tabs).toEqual([]);
   });
 
   it("asks for an argument", async () => {

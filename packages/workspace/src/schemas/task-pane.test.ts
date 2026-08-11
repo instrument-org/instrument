@@ -76,16 +76,27 @@ describe("TaskPane.openTabs", () => {
   it("focuses an already-open tab instead of duplicating it", () => {
     const first = TaskPane.openTabs(TaskPane.EMPTY, [
       TaskPane.fileTab("a.png"),
-      browser,
     ]);
     const again = TaskPane.openTabs(first, [TaskPane.fileTab("a.png")]);
 
-    expect(again.tabs).toHaveLength(2);
+    expect(again.tabs).toHaveLength(1);
     expect(again.selected).toBe("file:a.png");
   });
 
+  // The pane always draws it, so storing one would put something in the order
+  // that reordering has to work around.
+  it("focuses the browser without storing a tab for it", () => {
+    const pane = TaskPane.openTabs(TaskPane.EMPTY, [
+      TaskPane.fileTab("a.png"),
+      browser,
+    ]);
+
+    expect(pane.selected).toBe("browser");
+    expect(pane.tabs).toEqual([{ filePath: "a.png", type: "file" }]);
+  });
+
   it("reopens a closed pane rather than leaving the tab hidden", () => {
-    const closed = { ...TaskPane.EMPTY, open: false, tabs: [browser] };
+    const closed = { ...TaskPane.EMPTY, open: false, tabs: [] };
     expect(TaskPane.openTabs(closed, [browser]).open).toBe(true);
   });
 });
@@ -128,16 +139,68 @@ describe("TaskPane.closeTab", () => {
   });
 });
 
+describe("TaskPane.reorderTabs", () => {
+  const opened = () =>
+    TaskPane.openTabs(TaskPane.EMPTY, [
+      TaskPane.fileTab("a.png"),
+      TaskPane.fileTab("b.png"),
+      TaskPane.fileTab("c.png"),
+    ]);
+
+  it("puts the tabs in the order it is given", () => {
+    const pane = TaskPane.reorderTabs(opened(), [
+      "file:c.png",
+      "file:a.png",
+      "file:b.png",
+    ]);
+
+    expect(pane.tabs.map((tab) => TaskPane.tabKey(tab))).toEqual([
+      "file:c.png",
+      "file:a.png",
+      "file:b.png",
+    ]);
+  });
+
+  it("keeps a tab the caller never named", () => {
+    const pane = TaskPane.reorderTabs(opened(), ["file:c.png"]);
+
+    expect(pane.tabs.map((tab) => TaskPane.tabKey(tab))).toEqual([
+      "file:c.png",
+      "file:a.png",
+      "file:b.png",
+    ]);
+  });
+
+  it("ignores a key naming nothing open", () => {
+    const pane = TaskPane.reorderTabs(opened(), [
+      "file:gone.png",
+      "file:b.png",
+    ]);
+
+    expect(pane.tabs.map((tab) => TaskPane.tabKey(tab))).toEqual([
+      "file:b.png",
+      "file:a.png",
+      "file:c.png",
+    ]);
+  });
+
+  it("leaves the selection alone", () => {
+    expect(TaskPane.reorderTabs(opened(), ["file:a.png"]).selected).toBe(
+      "file:c.png",
+    );
+  });
+});
+
 describe("TaskPane.selectedTab", () => {
   it("falls back to the last tab when the selection names nothing open", () => {
     const pane = TaskPane.openTabs(TaskPane.EMPTY, [
       TaskPane.fileTab("a.png"),
-      browser,
+      TaskPane.fileTab("b.png"),
     ]);
 
     expect(
       TaskPane.selectedTab({ ...pane, selected: "file:gone.png" }),
-    ).toEqual(browser);
+    ).toEqual({ filePath: "b.png", type: "file" });
   });
 
   it("is undefined with no tabs", () => {

@@ -76,6 +76,9 @@ export function useTaskPaneActions(taskId: TaskId | undefined) {
         TaskPane.openTabs(pane, filePaths.map(TaskPane.fileTab)),
       );
     },
+    reorderTabs: (keys: string[]) => {
+      update((pane) => TaskPane.reorderTabs(pane, keys));
+    },
     selectTab: (key: string) => {
       update((pane) => TaskPane.selectTab(pane, key));
     },

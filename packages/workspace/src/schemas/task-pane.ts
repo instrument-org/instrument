@@ -87,6 +87,11 @@ export namespace TaskPane {
    * Already open means focus rather than duplicate, which is what makes `show`
    * idempotent from the agent's side and what keeps clicking the same file
    * reference twice from growing the strip.
+   *
+   * Only files are stored. The browser is a fixed tab the pane always draws, so
+   * opening it is a selection and never an insertion -- which is also what lets
+   * the stored order be reordered freely, with nothing in it that has to stay
+   * where it is.
    */
   export function openTabs(pane: Type, opening: Tab[]): Type {
     const last = opening.at(-1);
@@ -97,7 +102,7 @@ export namespace TaskPane {
     const existing = new Set(pane.tabs.map((tab) => tabKey(tab)));
     const added = opening.filter((tab) => {
       const key = tabKey(tab);
-      if (existing.has(key)) {
+      if (tab.type !== "file" || existing.has(key)) {
         return false;
       }
       existing.add(key);
@@ -109,6 +114,26 @@ export namespace TaskPane {
       selected: tabKey(last),
       tabs: [...pane.tabs, ...added],
     };
+  }
+
+  /**
+   * Put the stored tabs in a new order, named by key.
+   *
+   * Anything the caller does not name keeps its place at the end, so an order
+   * computed against a stale view drops nothing.
+   */
+  export function reorderTabs(pane: Type, keys: string[]): Type {
+    const remaining = new Map(pane.tabs.map((tab) => [tabKey(tab), tab]));
+    const ordered = keys.flatMap((key) => {
+      const tab = remaining.get(key);
+      if (!tab) {
+        return [];
+      }
+      remaining.delete(key);
+      return [tab];
+    });
+
+    return { ...pane, tabs: [...ordered, ...remaining.values()] };
   }
 
   /**

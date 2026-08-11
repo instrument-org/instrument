@@ -119,12 +119,14 @@ Worth measuring alongside: whether the open-tabs context line actually restrains
 ## Deferred
 
 - **Opening in the user's native app.** Named `open`, expected shortly after this; the file row in the pane is where the action goes.
-- **More than one browser.** Tabs do not depend on it -- the dependency runs the other way -- so this lands first and [lazy-browser-targets-and-multiple-tabs.md](./lazy-browser-targets-and-multiple-tabs.md) fills in the second target later. Until it does, `show <url>` moves the agent's own browser and the user's view follows it.
-- **Drag to reorder.** The state shape supports it; the interaction is not needed to land.
+- **More than one browser.** Tabs do not depend on it -- the dependency runs the other way -- so this lands first and [lazy-browser-targets-and-multiple-tabs.md](../active/lazy-browser-targets-and-multiple-tabs.md) fills in the second target later. Until it does, `show <url>` moves the agent's own browser and the user's view follows it.
+
+  What that will need, since the data model was checked against it: the ordered list of a discriminated union is already the right shape, and files and browsers can intermingle in it by construction. The gap is identity -- `{ type: "browser" }` carries no id and `tabKey` returns the constant `"browser"` -- and closing it is additive: an optional `targetId`, with the key falling back for anything written before it. Nothing has to migrate, because nothing persists a browser tab at all. The real work is the three places that treat the browser as fixed and singleton (`openTabs` skips it, `view.tsx` puts it at the front, the strip draws it outside the reorder group), and undoing that trades away the zero state below.
+- ~~**Drag to reorder.**~~ Landed, along with middle-click to close: the same `Reorder.Group`/`Reorder.Item` primitives and the same pointer-down button handling as the window's tab bar, though not the same component -- that one is bound to `TabData`, task icons, unread dots and status icons, almost none of which has a counterpart here.
 
 ## What landed, where it differed
 
-The design above held. Five things are worth recording because the code reads differently from the plan.
+The design above held. Six things are worth recording because the code reads differently from the plan.
 
 **The browser tab is fixed, not stored.** The plan gated its presence on a feature flag, falling back to "appears once the browser is in use". Both were wrong for the same reason: with no tab, an open pane renders nothing, the tab strip that carries the close control never appears, and the toggle has already left the header -- so opening the pane on a task with no files was a dead end with no way back. The browser is now the pane's zero state: always the first tab, never closable, drawn ahead of the stored ones. The flag is gone rather than repurposed, since nothing is left for it to gate.
 
@@ -133,6 +135,10 @@ The design above held. Five things are worth recording because the code reads di
 **Tab writes are immediate, not debounced.** The plan asked for a debounce on the grounds that tab switches are frequent. What that would buy is not worth what it costs: a write still inside its window can be reverted on screen by any unrelated `task.updated` push, and there is one of those per message. Each tab action is a discrete user act rather than a keystroke, the write is a small JSON file behind a per-task queue, and an optimistic cache update already covers the latency.
 
 **`setTaskState` gained `updateTaskPane` alongside the promise chain.** Serializing the file write is not enough on its own: the tab reducers are a read-modify-write on top of one, so a read taken before the queue reintroduces exactly the clobber the queue exists to prevent. `updateTaskPane` runs the reducer inside the queue, which is what makes two `show` calls on one command line both land.
+
+**The browser tab is never stored.** `show <url>` could once append one, which would have put a fixed thing inside an order the user can drag. `openTabs` treats opening the browser as a selection and never an insertion, so `pane.tabs` holds only the task's own files and the whole list is free to move. The schema keeps the variant because the view still builds one as a runtime value and `selected: "browser"` is persisted.
+
+**The open-tabs turn line only speaks when it has news.** Written every turn at first, which restates an unchanged fact and reads in the transcript as though something happened. It now follows `createBrowserStatusPart` and is created only when the answer has changed since this session was last told, compared as a set so a drag is silent -- the agent is being told what it need not open, and order has nothing to do with that.
 
 **Pane writes publish `task.stateUpdated`, not `task.updated`.** They have to push, because the pane is read back off that stream, but `task.updated` is what the task list subscribes to and the list is ordered by a filesystem timestamp. See [task-list-order-followed-file-mtimes.md](../../findings/task-list-order-followed-file-mtimes.md) for what that turned out to be hiding.
 

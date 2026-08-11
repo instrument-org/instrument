@@ -39,6 +39,17 @@ Tasks created before this keep the filesystem fallback until their next message,
 
 Closing that gap means backfilling `lastActivityAt` for every existing task, which is a one-time pass over the workspace at startup rather than something the list should do while reading. It is deliberately not done here: the fallback is what shipped for months, so leaving it in place is not a regression, and a migration that stamps hundreds of tasks deserves its own change.
 
+## What else it fixed
+
+Two reorderings that were never intentional went with it, because both are settings writes and neither touches the recorded stamp:
+
+- **Marking a task read or unread** no longer moves it. It publishes `task.updated`, so the list re-reads, but the sort key does not change.
+- **Renaming a task** no longer moves it either. It arguably never did on its own -- but you have to open a task to rename it, and opening it is what bumped the timestamp, so the re-read that followed the rename carried it to the top.
+
+Both are subject to the same backfill gap: a task with no stamp still falls back to the timestamp its own opening moved.
+
+The split between `settings.json` and `state.json` was already partly about keeping this kind of bookkeeping away from the ordering, and this finishes the thought: settings hold what the task *is*, state holds what the user is *doing with it*, and only recorded activity orders the list.
+
 ## The general shape
 
 A filesystem timestamp answers "when were these bytes last written", and almost every question a product asks is a different question. The two diverge silently, in the direction of "more recent than the truth", and the divergence only becomes visible when something else forces a re-read. Where the answer matters, record it.

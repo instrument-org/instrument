@@ -6,6 +6,25 @@ import { ProjectIdSchema } from "../project-id";
 import { TaskPane } from "../task-pane";
 
 export namespace SessionMessageDataPart {
+  /**
+   * Every part below is one of three cadences, and which one it is decides
+   * whether it needs to guard against repeating itself.
+   *
+   * - **Event**: something that happened on this turn -- `attachments`,
+   *   `intent`, `maxSteps`, `skillChanges`, `skillMentions`, `fileChanges`,
+   *   and `projectContext`, which is written once at creation. A repeat is
+   *   impossible by construction; nothing to guard.
+   * - **Diff**: what changed since last time -- `projectChanges`,
+   *   `attachedFolderChanges`. Self-limiting: no change, no part.
+   * - **State**: the whole current picture -- `browserStatus`, `paneTabs`.
+   *   These are the ones that will restate an unchanged fact on every single
+   *   turn unless their producer compares against what this session was last
+   *   told. `createBrowserStatusPart` and `createPaneTabsPart` each do, by
+   *   different means; a new state part that forgets is not a failure anyone
+   *   sees, it just quietly spends context.
+   *
+   * Adding a part? Decide which of the three it is first.
+   */
   export const NameSchema = z.enum([
     "attachedFolderChanges",
     "attachments",

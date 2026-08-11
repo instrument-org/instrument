@@ -15,12 +15,14 @@ import {
   resolveUnpackedDir,
 } from "./paths";
 import { pruneForeignBinaries } from "./prune-foreign-binaries";
+import { pruneGitTooling, verifyGitSurvived } from "./prune-git-tooling";
 import { verifyFfmpegBinary } from "./verify-ffmpeg";
 import { verifyRipgrepBinary } from "./verify-ripgrep";
 import { verifyUvBinary } from "./verify-uv";
 
 export function runAfterPack(context: AfterPackContext) {
   pruneForeignPackagedBinaries(context);
+  pruneUnreachableGitTooling(context);
   verifyPackagedRipgrep(context);
   verifyPackagedUv(context);
   verifyPackagedPnpm(context);
@@ -71,6 +73,27 @@ function pruneForeignPackagedBinaries(context: AfterPackContext) {
   if (removed.length > 0) {
     console.log(
       `afterPack: pruned ${removed.length} foreign binaries: ${removed.join(", ")}`,
+    );
+  }
+}
+
+function pruneUnreachableGitTooling(context: AfterPackContext) {
+  const platformName = context.electronPlatformName;
+  if (!isElectronPlatform(platformName)) {
+    return;
+  }
+
+  const unpackedDir = resolveUnpackedDir(context.appOutDir, platformName);
+  if (!existsSync(unpackedDir)) {
+    return;
+  }
+
+  const removed = pruneGitTooling({ unpackedDir });
+  verifyGitSurvived({ unpackedDir });
+
+  if (removed.length > 0) {
+    console.log(
+      `afterPack: pruned ${removed.length} unreachable git files: ${removed.join(", ")}`,
     );
   }
 }

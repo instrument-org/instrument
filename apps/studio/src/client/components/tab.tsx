@@ -1,6 +1,7 @@
 import { TaskStatusIcon } from "@/client/components/session-status-icon";
 import { TaskIcon } from "@/client/components/task-icon";
 import { UnreadDot } from "@/client/components/unread-dot";
+import { tabTitleMaskStyle } from "@/client/lib/tab-title-mask";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Tab as TabData } from "@/shared/tabs";
@@ -15,13 +16,6 @@ const SkeletonTitle = () => {
     </div>
   );
 };
-
-const tabTitleMaskStyle = {
-  maskImage:
-    "linear-gradient(to right, #000 0%, #000 calc(100% - 1.5rem), transparent 100%)",
-  WebkitMaskImage:
-    "linear-gradient(to right, #000 0%, #000 calc(100% - 1.5rem), transparent 100%)",
-} as const;
 
 export const Tab = ({
   isSelected,

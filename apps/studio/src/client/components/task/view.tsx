@@ -27,7 +27,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
-import { type ReactNode, useState } from "react";
+import { type ReactNode } from "react";
 
 import { FileLoading } from "../file-loading";
 import { TaskBrowserPanel } from "./browser-panel";
@@ -80,11 +80,6 @@ export function TaskView({
   const openFileViewer = useSetAtom(openFileViewerAtom);
   const assetBaseUrl = getAssetBaseUrl(task.id);
   const { closeTab, openFiles, selectTab } = useTaskPaneActions(task.id);
-
-  // Bumped to force the file viewer to remount when the user re-opens the
-  // already-active artifact, snapping an HTML preview back to its entry page
-  // after an in-iframe link navigated it away.
-  const [artifactReloadNonce, setArtifactReloadNonce] = useState(0);
 
   // Whether a live browser exists for this session, used to show the guest vs a
   // placeholder in the browser panel.
@@ -178,9 +173,6 @@ export function TaskView({
     (fileInfo !== undefined && currentModifiedAt === undefined);
 
   const handleFileSelect = (file: TaskFileViewerFile) => {
-    if (filePanel?.filePath === file.filePath) {
-      setArtifactReloadNonce((nonce) => nonce + 1);
-    }
     openFiles([file.filePath]);
   };
 
@@ -234,14 +226,7 @@ export function TaskView({
                 <div className={paneSurfaceClassName}>
                   <PaneTabs
                     onClose={closeTab}
-                    onSelect={(key) => {
-                      if (
-                        key === TaskPane.tabKey(selected ?? { type: "browser" })
-                      ) {
-                        setArtifactReloadNonce((nonce) => nonce + 1);
-                      }
-                      selectTab(key);
-                    }}
+                    onSelect={selectTab}
                     selectedKey={
                       selected ? TaskPane.tabKey(selected) : undefined
                     }
@@ -261,7 +246,7 @@ export function TaskView({
                       <FileViewer
                         className={paneContentClassName}
                         file={currentFile}
-                        key={`${currentFile.url}#${artifactReloadNonce}`}
+                        key={currentFile.url}
                         onExpand={() => {
                           openFileViewer({ files: [currentFile] });
                         }}

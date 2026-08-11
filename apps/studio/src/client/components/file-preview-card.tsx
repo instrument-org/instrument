@@ -152,12 +152,23 @@ function FileRowCard({
         prefetchOpenTarget(file);
       }}
     >
+      {/* The row is what opens the file, and a row is not a control: without
+          this it could be clicked and nothing else -- no tab stop, no name, no
+          Enter. It carries no handler of its own, so a press here activates the
+          same way a press on the filename does, by reaching the row's `onClick`
+          on the way up. Below the text column in paint order, so the tooltip
+          and the actions menu still take the pointer first. */}
+      <button
+        aria-label={`Open ${filename}`}
+        className="absolute inset-0 z-0 size-full rounded-2xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+        type="button"
+      />
       <FileThumbnail
         file={file}
         isActive={isSelected ?? false}
         variant="primary"
       />
-      <div className="flex min-w-0 flex-1 flex-col justify-center text-left">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col justify-center text-left">
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="truncate text-sm leading-5 text-foreground">
@@ -174,7 +185,7 @@ function FileRowCard({
       </div>
       {!hideActionsMenu && hasFileActions && (
         <div
-          className="flex shrink-0 items-center opacity-0 group-hover:opacity-100"
+          className="relative z-10 flex shrink-0 items-center opacity-0 group-hover:opacity-100"
           onClick={(e) => {
             e.stopPropagation();
           }}

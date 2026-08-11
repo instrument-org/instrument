@@ -41,7 +41,10 @@ export function PaneTabs({
     // the row below draws its own, and two hairlines a row apart break the band
     // into pieces rather than separating anything.
     <div className="flex h-10 shrink-0 items-center gap-1 px-2">
-      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+      {/* No horizontal scroll. Tabs share the row and truncate as they fill it,
+          the way the window's do; a strip that scrolls hides tabs behind an
+          interaction nobody looks for in a space this small. */}
+      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
         <PaneTab
           isSelected={selectedKey === "browser"}
           onSelect={() => {
@@ -59,7 +62,7 @@ export function PaneTabs({
         <Reorder.Group
           as="div"
           axis="x"
-          className="flex min-w-0 items-center gap-1"
+          className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
           onReorder={onReorder}
           values={fileKeys}
         >
@@ -110,15 +113,21 @@ function PaneTab({
     tab.type === "file"
       ? tab.filePath.slice(tab.filePath.lastIndexOf("/") + 1)
       : "Browser";
+  const isFixed = tab.type === "browser";
   const isClosable = tab.type === "file" && onClose !== undefined;
 
   const className = cn(
-    "group/pane-tab relative flex h-7 max-w-48 min-w-0 shrink cursor-default items-center gap-1.5 rounded-md px-2 text-xs select-none",
-    // A floor on the width of a closable tab, which is what gives the name a
-    // box wider than itself to fade into. Without it the name's box ends where
-    // the text does, and the fade lands in the middle of a short filename
-    // instead of under the control it is making room for.
-    isClosable && "min-w-28",
+    "group/pane-tab relative flex h-7 cursor-default items-center gap-1.5 rounded-md px-2 text-xs select-none",
+    // Drawn inside the tab rather than around it. The strip is a 40px row with
+    // 28px tabs and clips its overflow so the tabs can compress, which leaves
+    // an outset ring shaved off top and bottom.
+    "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
+    // The browser keeps its full width whatever else is open: it is the one tab
+    // that is always there, so it is the one that has to stay legible. The rest
+    // share what is left and truncate, which is also what gives the name a box
+    // wider than itself to fade into -- without it the name's box ends where
+    // the text does and the fade lands mid-filename.
+    isFixed ? "shrink-0" : "w-full max-w-48 min-w-0 flex-1",
     isSelected
       ? "bg-accent text-accent-foreground"
       : "text-muted-foreground hover:bg-accent/50",
@@ -153,7 +162,10 @@ function PaneTab({
           not the cursor is on it. The name is fully transparent everywhere the
           control is drawn, which is what keeps it from showing through. */}
       <span
-        className="min-w-0 flex-1 truncate"
+        className={cn(
+          "min-w-0 flex-1",
+          isFixed ? "whitespace-nowrap" : "truncate",
+        )}
         style={isClosable ? overlaidTabTitleMaskStyle : undefined}
       >
         {filename}
@@ -167,6 +179,7 @@ function PaneTab({
           aria-label={`Close ${filename}`}
           className={cn(
             "absolute top-1/2 right-1 size-4 -translate-y-1/2 items-center justify-center rounded-sm hover:bg-foreground/10",
+            "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
             isSelected ? "flex" : "hidden group-hover/pane-tab:flex",
           )}
           onClick={(event) => {

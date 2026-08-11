@@ -48,7 +48,7 @@ describe("createBashDescription", () => {
         show - Show a file or a URL to the user, in the panel beside the conversation. Takes several arguments and opens one tab each, focusing the last.
       Use it for something the user should look at now: a chart just rendered, a report just written, a page worth seeing. It composes with the command that produced the thing, so \`python build.py && show output/chart.png\` is one call.
       It does NOT replace the \`\`\`files fence, which is how a reply hands files over and leaves a record in the conversation. A closed panel must not erase what the reply said it produced, so name deliverables in the fence whether or not you show them.
-      Paths are yours as you write them elsewhere: task-relative (\`output/report.pdf\`) or under \`/mnt/\`. An argument starting with http:// or https:// is a URL, and steers the browsing session you already drive rather than opening a separate window.
+      Paths are yours as you write them elsewhere: task-relative (\`output/report.pdf\`) or under \`/mnt/\`. An argument starting with http:// or https:// is a URL, and steers the browsing session you already drive rather than opening a separate window. There is one such session, so at most one URL per call; any others are refused.
       It does not open the file in the user's own applications, does not download anything, and does not raise or focus the app's window.
         ffmpeg - Process audio and video files using FFmpeg.
         ffprobe - Probe and inspect audio and video files using FFprobe.

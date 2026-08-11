@@ -17,7 +17,7 @@ export const SHOW_COMMAND = {
     `Show a file or a URL to the user, in the panel beside the conversation. Takes several arguments and opens one tab each, focusing the last.`,
     `Use it for something the user should look at now: a chart just rendered, a report just written, a page worth seeing. It composes with the command that produced the thing, so \`python build.py && show output/chart.png\` is one call.`,
     `It does NOT replace the \`\`\`files fence, which is how a reply hands files over and leaves a record in the conversation. A closed panel must not erase what the reply said it produced, so name deliverables in the fence whether or not you show them.`,
-    `Paths are yours as you write them elsewhere: task-relative (\`output/report.pdf\`) or under \`${ATTACHED_FOLDERS_MOUNT_ROOT}/\`. An argument starting with http:// or https:// is a URL, and steers the browsing session you already drive rather than opening a separate window.`,
+    `Paths are yours as you write them elsewhere: task-relative (\`output/report.pdf\`) or under \`${ATTACHED_FOLDERS_MOUNT_ROOT}/\`. An argument starting with http:// or https:// is a URL, and steers the browsing session you already drive rather than opening a separate window. There is one such session, so at most one URL per call; any others are refused.`,
     `It does not open the file in the user's own applications, does not download anything, and does not raise or focus the app's window.`,
   ].join("\n"),
   name: "show",
@@ -54,9 +54,17 @@ export function createShowCommand({
 
     for (const arg of args) {
       if (isUrl(arg)) {
+        // One browsing session means one page. Silently navigating to the last
+        // of several would report every one as shown while showing one, so the
+        // extras are refused rather than absorbed.
+        if (browserUrl !== undefined) {
+          failures.push(
+            `${SHOW_COMMAND.name}: "${arg}" not shown. There is one browser, so only one URL can be shown at a time.`,
+          );
+          continue;
+        }
         tabs.push({ type: "browser" });
         browserUrl = arg;
-        shown.push(arg);
         continue;
       }
 
@@ -89,7 +97,25 @@ export function createShowCommand({
       });
       if (navigated) {
         failures.push(`${SHOW_COMMAND.name}: ${navigated}`);
+        // Focusing the browser on a page that did not load shows the user the
+        // previous page and calls it the requested one.
+        const index = tabs.findIndex((tab) => tab.type === "browser");
+        if (index !== -1) {
+          tabs.splice(index, 1);
+        }
+      } else {
+        shown.push(browserUrl);
       }
+    }
+
+    // Everything asked for failed, including a navigation that failed after
+    // its path-resolving siblings succeeded.
+    if (tabs.length === 0) {
+      return {
+        exitCode: 1,
+        stderr: `${failures.join("\n")}\n`,
+        stdout: "",
+      };
     }
 
     await updateTaskPane(taskDir(taskId), (pane) =>
@@ -134,7 +160,16 @@ async function navigateTaskBrowser({
       sessionId,
       getBrowserSessionDir(),
     );
-    await browser.sendCommand(targetId, "Page.navigate", { url });
+    // A navigation that never starts resolves rather than throwing, reporting
+    // why in `errorText` -- an unresolvable host, a refused connection. Without
+    // this the command reports success for a page nobody can see.
+    const navigation = await browser.sendCommand(targetId, "Page.navigate", {
+      url,
+    });
+    const errorText = navigationErrorText(navigation);
+    if (errorText !== undefined) {
+      return `could not open ${url}: ${errorText}`;
+    }
     const result = await recordBrowserUse({ sessionId, taskId, url });
     if (result.isErr()) {
       getWorkspaceConfig().captureException(result.error);
@@ -143,6 +178,17 @@ async function navigateTaskBrowser({
   } catch (error) {
     return `could not open ${url}: ${error instanceof Error ? error.message : String(error)}`;
   }
+}
+
+/** `Page.navigate`'s failure channel, which is a field rather than a throw. */
+function navigationErrorText(navigation: unknown): string | undefined {
+  if (typeof navigation !== "object" || navigation === null) {
+    return undefined;
+  }
+  const { errorText } = navigation as { errorText?: unknown };
+  return typeof errorText === "string" && errorText !== ""
+    ? errorText
+    : undefined;
 }
 
 /**

@@ -136,6 +136,66 @@ describe("show", () => {
     expect(pane?.tabs).toEqual([]);
   });
 
+  // One browsing session means one page, so absorbing the extras would report
+  // three URLs shown while showing the third.
+  it("refuses more than one URL rather than navigating to the last", async () => {
+    const result = await run("https://example.com", "https://example.org");
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("Showing https://example.com\n");
+    expect(result.stderr).toContain("only one URL");
+  });
+
+  it("does not claim to have shown a page that failed to load", async () => {
+    const config = getWorkspaceConfig();
+    setWorkspaceConfig({
+      ...config,
+      browser: {
+        ...config.browser,
+        // `Page.navigate` reports a navigation that never started here rather
+        // than by throwing.
+        sendCommand: () =>
+          Promise.resolve({ errorText: "net::ERR_NAME_NOT_RESOLVED" }),
+      },
+    });
+
+    try {
+      const result = await run("https://nowhere.invalid");
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("ERR_NAME_NOT_RESOLVED");
+      // Focusing the browser would show the user the previous page and call it
+      // the one they asked for.
+      expect(await storedPane()).toBeUndefined();
+    } finally {
+      setWorkspaceConfig(config);
+    }
+  });
+
+  it("still shows a file when the URL beside it fails", async () => {
+    const config = getWorkspaceConfig();
+    setWorkspaceConfig({
+      ...config,
+      browser: {
+        ...config.browser,
+        sendCommand: () =>
+          Promise.resolve({ errorText: "net::ERR_NAME_NOT_RESOLVED" }),
+      },
+    });
+
+    try {
+      const result = await run("output/report.pdf", "https://nowhere.invalid");
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe("Showing output/report.pdf\n");
+      const pane = await storedPane();
+      expect(pane?.selected).toBe("file:output/report.pdf");
+    } finally {
+      setWorkspaceConfig(config);
+    }
+  });
+
   it("asks for an argument", async () => {
     const result = await run();
 

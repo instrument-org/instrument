@@ -9,6 +9,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import { CopyButton } from "./copy-button";
 import { RelativeTime } from "./relative-time";
 import { SkillMentionText } from "./skill-mention-text";
+import { useReleaseAutoScroll } from "./transcript-scroll-context";
 import {
   Collapsible,
   CollapsibleContent,
@@ -31,6 +32,7 @@ const COLLAPSED_MAX_HEIGHT_PX = 216;
 export const UserMessage = memo(function UserMessage({
   part,
 }: UserMessageProps) {
+  const releaseAutoScroll = useReleaseAutoScroll();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -70,7 +72,13 @@ export const UserMessage = memo(function UserMessage({
   return (
     <div className="group flex w-full flex-col items-end">
       <div className="relative max-w-[80%] rounded-tl-xl rounded-tr rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-2 text-foreground shadow-sm dark:from-card dark:to-card">
-        <Collapsible onOpenChange={setIsExpanded} open={isExpanded}>
+        <Collapsible
+          onOpenChange={(open) => {
+            releaseAutoScroll();
+            setIsExpanded(open);
+          }}
+          open={isExpanded}
+        >
           <div
             className={cn(
               isExpanded ? "max-h-128 overflow-y-auto" : "overflow-hidden",
@@ -104,6 +112,7 @@ export const UserMessage = memo(function UserMessage({
             <div
               className="flex cursor-pointer items-center justify-center gap-1 pt-2 text-xs text-muted-foreground hover:text-foreground"
               onClick={() => {
+                releaseAutoScroll();
                 setIsExpanded(false);
               }}
               title="Click to collapse"

@@ -16,6 +16,7 @@ import {
 import { cn } from "../../lib/utils";
 import { PlanningDotIcon } from "../icons/planning-dot";
 import { RunRowChevron } from "../run-row-chevron";
+import { useReleaseAutoScroll } from "../transcript-scroll-context";
 import {
   Collapsible,
   CollapsibleContent,
@@ -42,6 +43,7 @@ export function ToolCallSummary({
   const features = useAtomValue(featuresAtom);
   const { isRunning, isStreaming } = useToolCallSession();
   const group = useTranscriptGroup();
+  const releaseAutoScroll = useReleaseAutoScroll();
   const [isOpen, setIsOpen] = useState(false);
 
   // Non-null when this row is the head line of a group with something behind
@@ -164,7 +166,13 @@ export function ToolCallSummary({
   }
 
   return (
-    <Collapsible onOpenChange={setIsOpen} open={isOpen}>
+    <Collapsible
+      onOpenChange={(open) => {
+        releaseAutoScroll();
+        setIsOpen(open);
+      }}
+      open={isOpen}
+    >
       <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
       <CollapsibleContent animated>{children}</CollapsibleContent>
     </Collapsible>

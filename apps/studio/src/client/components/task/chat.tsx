@@ -9,6 +9,7 @@ import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { usePromptQueue } from "@/client/hooks/use-prompt-queue";
+import { useTurnSettleWindow } from "@/client/hooks/use-turn-settle-window";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
@@ -33,6 +34,7 @@ import { toast } from "sonner";
 
 import { ChatStream } from "../chat-stream";
 import { PromptInput, type PromptInputRef } from "../prompt-input";
+import { TranscriptScrollContext } from "../transcript-scroll-context";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
 import {
@@ -159,6 +161,8 @@ export function TaskChat({
   if (isFollowingSubmit && isAgentAlive) {
     setIsFollowingSubmit(false);
   }
+
+  const isSettlingTurn = useTurnSettleWindow(isAgentAlive);
 
   // A submit that never becomes a turn would otherwise leave an idle transcript
   // following forever.
@@ -352,14 +356,17 @@ export function TaskChat({
   // gradient overlay at the scroll frame's bottom edge eases the transcript into
   // the composer; pb-8 keeps the last turn's text clear of the fade band.
   //
-  // autoScroll only while the session is alive, or while a just-submitted prompt
-  // is waiting for one: follow-bottom cannot tell new output from content the
-  // reader grew themselves, so on an idle transcript it reads a collapsible
-  // expanding as output and yanks the row out from under the click. Alive rather
-  // than running, so a turn paused for approval still follows.
+  // autoScroll while the session is alive, while a just-submitted prompt is
+  // waiting for one, and through the moment a turn takes to settle: past that,
+  // on a transcript nothing is arriving into, follow-bottom has only the
+  // reader's own clicks left to read as output. What it would misread there is
+  // narrowed by `TranscriptScrollContext`, which the controls that open
+  // something call first -- so the window can stay open long enough for the end
+  // of a turn to land. Alive rather than running, so a turn paused for approval
+  // still follows.
   return (
     <MessageScrollerProvider
-      autoScroll={isAgentAlive || isFollowingSubmit}
+      autoScroll={isAgentAlive || isFollowingSubmit || isSettlingTurn}
       defaultScrollPosition="end"
       key={selectedSessionId}
       scrollPreviousItemPeek={TRANSCRIPT_PREVIOUS_TURN_PEEK}
@@ -491,19 +498,14 @@ function ScrollToEndBridge({ signal }: { signal: number }) {
 // outside one (nested tool-agent streams) where useMessageScroller throws, so
 // reading the scroll commands is this wrapper's job rather than its own.
 function TranscriptStream(
-  props: Omit<
-    ComponentProps<typeof ChatStream>,
-    "onReleaseAutoScroll" | "renderAsItems"
-  >,
+  props: Omit<ComponentProps<typeof ChatStream>, "renderAsItems">,
 ) {
   const { releaseAutoScroll } = useMessageScroller();
 
   return (
-    <ChatStream
-      {...props}
-      onReleaseAutoScroll={releaseAutoScroll}
-      renderAsItems
-    />
+    <TranscriptScrollContext value={releaseAutoScroll}>
+      <ChatStream {...props} renderAsItems />
+    </TranscriptScrollContext>
   );
 }
 

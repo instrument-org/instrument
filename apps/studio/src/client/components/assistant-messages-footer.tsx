@@ -18,6 +18,7 @@ import { ModelChip } from "./model-chip";
 import { RelativeTime } from "./relative-time";
 import { SourceLink } from "./source-link";
 import { BranchTaskModal } from "./task/branch-modal";
+import { useReleaseAutoScroll } from "./transcript-scroll-context";
 import { Button } from "./ui/button";
 import {
   Collapsible,
@@ -63,6 +64,7 @@ export function AssistantMessagesFooter({
   const [isExpanded, setIsExpanded] = useState(false);
   const [isBranchOpen, setIsBranchOpen] = useState(false);
   const isDeveloperMode = useDeveloperMode();
+  const releaseAutoScroll = useReleaseAutoScroll();
 
   // Branch from the last message of this assistant turn: the new task keeps the
   // conversation through here and drops everything after.
@@ -158,7 +160,10 @@ export function AssistantMessagesFooter({
       )}
       <Collapsible
         className="mt-2 flex flex-col gap-2"
-        onOpenChange={setIsExpanded}
+        onOpenChange={(open) => {
+          releaseAutoScroll();
+          setIsExpanded(open);
+        }}
         open={isExpanded}
       >
         <div

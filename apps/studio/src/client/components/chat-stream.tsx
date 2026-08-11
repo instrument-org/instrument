@@ -41,6 +41,7 @@ import {
   type TranscriptGroup as TranscriptGroupData,
   type TranscriptRow,
 } from "./transcript-layout";
+import { useReleaseAutoScroll } from "./transcript-scroll-context";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
 import { MessageScrollerItem } from "./ui/message-scroller";
@@ -95,13 +96,6 @@ interface ChatStreamProps {
   messages: SessionMessage.WithParts[];
   onContinue: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
-  /**
-   * Hands scrolling back to the reader, called before the transcript grows
-   * because they asked it to. The scroller cannot tell content a click opened
-   * from output the agent produced, so without this it follows the growth and
-   * takes the row out from under the pointer. Absent outside a scroller.
-   */
-  onReleaseAutoScroll?: () => void;
   onRetry: (prompt: string) => void;
   onStartNewTask: () => void;
   // Wrap each turn in a MessageScrollerItem so the transcript scroller can
@@ -129,13 +123,13 @@ export function ChatStream({
   messages,
   onContinue,
   onModelChange,
-  onReleaseAutoScroll,
   onRetry,
   onStartNewTask,
   renderAsItems = false,
   task,
 }: ChatStreamProps) {
   const assetBaseUrl = getAssetBaseUrl(task.id);
+  const releaseAutoScroll = useReleaseAutoScroll();
 
   // Every group starts closed, a reopened task included: what a finished task
   // did is a list of the phases it went through, and the steps inside a phase
@@ -145,9 +139,7 @@ export function ChatStream({
   >(() => new Set());
 
   const toggleGroup = (groupId: StoreId.Part) => {
-    // Before the state change, so the scroller is already out of follow when
-    // the rows it opens are measured.
-    onReleaseAutoScroll?.();
+    releaseAutoScroll();
     setExpandedGroupIds((current) => {
       const next = new Set(current);
       if (!next.delete(groupId)) {

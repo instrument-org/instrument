@@ -1,4 +1,5 @@
 import "@/client/styles/globals.css";
+import { useTurnSettleWindow } from "@/client/hooks/use-turn-settle-window";
 import {
   type SessionMessage,
   StoreId,
@@ -6,12 +7,19 @@ import {
   TaskIdSchema,
 } from "@instrument-org/workspace/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+  RouterContextProvider,
+} from "@tanstack/react-router";
 import { useState } from "react";
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 
 import { ChatStream } from "./chat-stream";
+import { TranscriptScrollContext } from "./transcript-scroll-context";
 import {
   MessageScroller,
   MessageScrollerContent,
@@ -33,6 +41,11 @@ const VIEWPORT_HEIGHT = 320;
 
 const sessionId = StoreId.newSessionId();
 
+const router = createRouter({
+  history: createMemoryHistory({ initialEntries: ["/"] }),
+  routeTree: createRootRoute(),
+});
+
 const task: Task = {
   createdAt: new Date(0),
   id: TaskIdSchema.parse("quarterly-numbers"),
@@ -40,7 +53,11 @@ const task: Task = {
   updatedAt: new Date(0),
 };
 
-function message(role: "assistant" | "user", text: string) {
+function message(
+  role: "assistant" | "user",
+  text: string,
+  { isStreaming = false }: { isStreaming?: boolean } = {},
+) {
   return {
     id: StoreId.newMessageId(),
     metadata: { createdAt: new Date(0), sessionId },
@@ -52,7 +69,7 @@ function message(role: "assistant" | "user", text: string) {
           messageId: StoreId.newMessageId(),
           sessionId,
         },
-        state: "done",
+        state: isStreaming ? "streaming" : "done",
         text,
         type: "text",
       },
@@ -121,6 +138,21 @@ function anchorOffset() {
   );
 }
 
+// How far the transcript still has to travel to reach its own end.
+function distanceFromEnd() {
+  const viewport = document.querySelector<HTMLElement>(
+    "[data-slot=message-scroller-viewport]",
+  );
+
+  if (!viewport) {
+    throw new Error("no scroller viewport");
+  }
+
+  return Math.round(
+    viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop,
+  );
+}
+
 /**
  * The turn as the reader sees it arrive: sent, then answered.
  *
@@ -132,42 +164,59 @@ function Harness({
   isAgentRunning = true,
   steps,
 }: {
-  isAgentRunning?: boolean;
+  /** One value per step where a turn ends partway through the run. */
+  isAgentRunning?: boolean | boolean[];
   steps: unknown[][];
 }) {
   const [index, setIndex] = useState(0);
+  const isRunning = Array.isArray(isAgentRunning)
+    ? (isAgentRunning[index] ?? false)
+    : isAgentRunning;
+  // The same composition the task chat follows the transcript by, so a step
+  // that ends the turn is still followed for as long as it takes to settle.
+  const isSettlingTurn = useTurnSettleWindow(isRunning);
 
   return (
     <QueryClientProvider client={new QueryClient()}>
-      <TooltipProvider>
-        <div className="flex flex-col" style={{ width: 640 }}>
-          <button
-            onClick={() => {
-              setIndex((current) => current + 1);
-            }}
-            type="button"
-          >
-            step
-          </button>
-          <MessageScrollerProvider
-            autoScroll={isAgentRunning}
-            defaultScrollPosition="end"
-          >
-            <MessageScroller>
-              <MessageScrollerViewport style={{ height: VIEWPORT_HEIGHT }}>
-                <MessageScrollerContent className="gap-2 p-4">
-                  <Transcript
-                    isAgentRunning={isAgentRunning}
-                    messages={steps[index] ?? []}
-                  />
-                </MessageScrollerContent>
-              </MessageScrollerViewport>
-            </MessageScroller>
-          </MessageScrollerProvider>
-        </div>
-      </TooltipProvider>
+      {/* A file card asks the route which task it is in, and answers "none"
+          outside one -- but it has to have a router to ask. */}
+      <RouterContextProvider router={router}>
+        <TooltipProvider>
+          <div className="flex flex-col" style={{ width: 640 }}>
+            <button
+              onClick={() => {
+                setIndex((current) => current + 1);
+              }}
+              type="button"
+            >
+              step
+            </button>
+            <MessageScrollerProvider
+              autoScroll={isRunning || isSettlingTurn}
+              defaultScrollPosition="end"
+            >
+              <MessageScroller>
+                <MessageScrollerViewport style={{ height: VIEWPORT_HEIGHT }}>
+                  <MessageScrollerContent className="gap-2 p-4">
+                    <Transcript
+                      isAgentRunning={isRunning}
+                      messages={steps[index] ?? []}
+                    />
+                  </MessageScrollerContent>
+                </MessageScrollerViewport>
+              </MessageScroller>
+            </MessageScrollerProvider>
+          </div>
+        </TooltipProvider>
+      </RouterContextProvider>
     </QueryClientProvider>
   );
+}
+
+// The media tiles a ```files fence drew, found by the group each card names
+// itself with; a card whose bytes 404 still draws one.
+function mediaCardCount() {
+  return document.querySelectorAll('[class*="group/media"]').length;
 }
 
 function rowCount() {
@@ -208,18 +257,19 @@ function Transcript({
   const { releaseAutoScroll } = useMessageScroller();
 
   return (
-    <ChatStream
-      isAgentRunning={isAgentRunning}
-      isDeveloperMode={false}
-      messages={messages as SessionMessage.WithParts[]}
-      onContinue={vi.fn()}
-      onModelChange={vi.fn()}
-      onReleaseAutoScroll={releaseAutoScroll}
-      onRetry={vi.fn()}
-      onStartNewTask={vi.fn()}
-      renderAsItems
-      task={task}
-    />
+    <TranscriptScrollContext value={releaseAutoScroll}>
+      <ChatStream
+        isAgentRunning={isAgentRunning}
+        isDeveloperMode={false}
+        messages={messages as SessionMessage.WithParts[]}
+        onContinue={vi.fn()}
+        onModelChange={vi.fn()}
+        onRetry={vi.fn()}
+        onStartNewTask={vi.fn()}
+        renderAsItems
+        task={task}
+      />
+    </TranscriptScrollContext>
   );
 }
 
@@ -267,6 +317,51 @@ test("holds the turn in place when the wordmark gives way to the reply", async (
   // testing the append path instead and would pass without meaning anything.
   expect(rowCount()).toBe(placedRowCount);
   expect(anchorOffset()).toBe(placed);
+});
+
+test("holds the end of a turn in view when its last rows land with the session", async () => {
+  // The turn's last content and the session's own report of having stopped
+  // come from two live queries, so the reply can finish arriving in the frame
+  // the transcript is told there is nothing more coming. Everything that lands
+  // there lands with follow already being withdrawn.
+  const sent = [...history, message("user", "Show me the outputs")];
+  const streaming = [
+    ...sent,
+    message("assistant", "Here is what I found.", { isStreaming: true }),
+  ];
+  const settled = [
+    ...sent,
+    message("assistant", "Here is what I found."),
+    message(
+      "assistant",
+      "```files\noutput/clip.mp4\noutput/one.png\noutput/two.png\noutput/three.png\n```",
+    ),
+  ];
+
+  await render(
+    <Harness
+      isAgentRunning={[true, true, false]}
+      steps={[sent, streaming, settled]}
+    />,
+  );
+  await settle();
+
+  const step = page.getByRole("button", { name: "step" });
+
+  await step.click();
+  await settle();
+
+  const streamingRowCount = rowCount();
+  expect(distanceFromEnd()).toBe(0);
+
+  await step.click();
+  await settle();
+
+  // The premise: a row really does arrive here. Without one the transcript has
+  // nothing left to follow, and this would pass whatever the scroller did.
+  expect(rowCount()).toBeGreaterThan(streamingRowCount);
+  expect(mediaCardCount()).toBeGreaterThan(0);
+  expect(distanceFromEnd()).toBe(0);
 });
 
 test("leaves an idle transcript where it is when a folded run is opened", async () => {

@@ -6,9 +6,11 @@ import {
   TaskIdSchema,
 } from "@instrument-org/workspace/client";
 import { fireEvent, screen } from "@testing-library/react";
+import { noop } from "radashi";
 import { describe, expect, it, vi } from "vitest";
 
 import { ChatStream } from "./chat-stream";
+import { TranscriptScrollContext } from "./transcript-scroll-context";
 import {
   MessageScroller,
   MessageScrollerContent,
@@ -31,7 +33,7 @@ interface RenderOptions {
   alwaysShowFooter?: boolean;
   isAgentRunning?: boolean;
   isDeveloperMode?: boolean;
-  onReleaseAutoScroll?: () => void;
+  releaseAutoScroll?: () => void;
   renderAsItems?: boolean;
 }
 
@@ -153,24 +155,25 @@ function renderMessages(
     alwaysShowFooter = false,
     isAgentRunning = false,
     isDeveloperMode = false,
-    onReleaseAutoScroll,
+    releaseAutoScroll,
     renderAsItems = false,
   }: RenderOptions = {},
 ) {
   const stream = (
-    <ChatStream
-      alwaysShowFooter={alwaysShowFooter}
-      isAgentRunning={isAgentRunning}
-      isDeveloperMode={isDeveloperMode}
-      messages={messages as SessionMessage.WithParts[]}
-      onContinue={vi.fn()}
-      onModelChange={vi.fn()}
-      onReleaseAutoScroll={onReleaseAutoScroll}
-      onRetry={vi.fn()}
-      onStartNewTask={vi.fn()}
-      renderAsItems={renderAsItems}
-      task={task}
-    />
+    <TranscriptScrollContext value={releaseAutoScroll ?? noop}>
+      <ChatStream
+        alwaysShowFooter={alwaysShowFooter}
+        isAgentRunning={isAgentRunning}
+        isDeveloperMode={isDeveloperMode}
+        messages={messages as SessionMessage.WithParts[]}
+        onContinue={vi.fn()}
+        onModelChange={vi.fn()}
+        onRetry={vi.fn()}
+        onStartNewTask={vi.fn()}
+        renderAsItems={renderAsItems}
+        task={task}
+      />
+    </TranscriptScrollContext>
   );
 
   return renderWithProviders(
@@ -213,7 +216,7 @@ function renderSteps(steps: unknown[][], options?: RenderOptions) {
 function renderTranscript({
   isAgentRunning = true,
   isDeveloperMode = false,
-  onReleaseAutoScroll,
+  releaseAutoScroll,
   withActivity = true,
 }: RenderOptions & { withActivity?: boolean } = {}) {
   return renderParts(
@@ -223,7 +226,7 @@ function renderTranscript({
       read({ explanation: "Reading the second quarter", running: true }),
       queued("Reading the third quarter"),
     ],
-    { isAgentRunning, isDeveloperMode, onReleaseAutoScroll },
+    { isAgentRunning, isDeveloperMode, releaseAutoScroll },
   );
 }
 
@@ -715,12 +718,12 @@ describe("ChatStream and the turn the scroller anchors", () => {
   });
 
   it("hands scrolling back to the reader before opening a group under them", () => {
-    const onReleaseAutoScroll = vi.fn();
-    renderTranscript({ onReleaseAutoScroll });
+    const releaseAutoScroll = vi.fn();
+    renderTranscript({ releaseAutoScroll });
 
     clickRow("Reading each quarter");
 
-    expect(onReleaseAutoScroll).toHaveBeenCalledOnce();
+    expect(releaseAutoScroll).toHaveBeenCalledOnce();
   });
 });
 

@@ -1099,6 +1099,15 @@ async function resolveTaskId(cdp, explicit) {
   if (explicit) {
     return explicit;
   }
+  // Reading the active tab needs the dev-only handle, though the wait itself
+  // does not. Say so here rather than spending the handle's timeout to report
+  // a missing dev build, which is not what a packaged build is missing.
+  if (!(await evaluate(cdp, "Boolean(window.__studioDrive)"))) {
+    fail(
+      "Pass --task. Taking the task from the active tab needs the dev-only handle, " +
+        "which a packaged build omits; the wait itself does not.",
+    );
+  }
   const { path: routePath } = await drive(cdp, "state()");
   const match = /^\/tasks\/([^/]+)/.exec(routePath ?? "");
   if (!match) {

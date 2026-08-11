@@ -68,9 +68,6 @@ export function useTaskPaneActions(taskId: TaskId | undefined) {
     closeTab: (key: string) => {
       update((pane) => TaskPane.closeTab(pane, key));
     },
-    openBrowser: () => {
-      update((pane) => TaskPane.openTabs(pane, [{ type: "browser" }]));
-    },
     openFiles: (filePaths: string[]) => {
       update((pane) =>
         TaskPane.openTabs(pane, filePaths.map(TaskPane.fileTab)),

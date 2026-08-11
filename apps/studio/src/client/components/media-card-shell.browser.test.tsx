@@ -16,9 +16,6 @@ const FILE = {
   url: "blob:none",
 };
 
-// Past the moment the overlay controls finish arriving and may be pressed.
-const ARMED_MS = 800;
-
 async function renderCard(onClick: () => void) {
   const { container } = await renderInBrowser(
     <div style={{ width: 320 }}>
@@ -55,6 +52,26 @@ function wait(ms: number) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+/**
+ * Resolve once the overlay controls will answer the pointer.
+ *
+ * Polled rather than waited out. The controls arm on a timer 600ms after the
+ * pointer arrives, and a fixed wait long enough to clear that on an idle
+ * machine is not long enough on a busy one -- the timer slips, React re-renders
+ * late, and a test that assumed it had happened fails for reasons that have
+ * nothing to do with the card.
+ */
+async function waitUntilArmed(control: HTMLElement) {
+  const start = performance.now();
+  while (performance.now() - start < 5000) {
+    if (globalThis.getComputedStyle(control).pointerEvents === "auto") {
+      return;
+    }
+    await wait(20);
+  }
+  throw new Error("the overlay controls never armed");
 }
 
 /**
@@ -145,7 +162,6 @@ describe("MediaCardShell before its controls are armed", () => {
     // pointer crossing the card in one motion does. End to end, through real
     // hit-testing, which is what a dispatched `click` would skip.
     await userEvent.hover(card);
-    await wait(60);
     const box = download.getBoundingClientRect();
     await userEvent.click(document.body, {
       position: { x: box.left + box.width / 2, y: box.top + box.height / 2 },
@@ -160,14 +176,15 @@ describe("MediaCardShell overlay hit testing", () => {
   it("lets a press through the empty space beside the overlay controls", async () => {
     const onClick = vi.fn();
     const { container, overlay } = await renderCard(onClick);
-    await wait(ARMED_MS);
 
-    const download = container.querySelector("[data-testid='download']");
-    const controlBox = download?.getBoundingClientRect();
-    expect(controlBox).toBeTruthy();
-    if (!controlBox) {
-      return;
+    const download = container.querySelector<HTMLElement>(
+      "[data-testid='download']",
+    );
+    if (!download) {
+      throw new Error("card did not render");
     }
+    await waitUntilArmed(download);
+    const controlBox = download.getBoundingClientRect();
 
     // Just past the control's right edge, still well inside the box that spans
     // the card. The box must not answer here: the card's own open button must.
@@ -185,15 +202,15 @@ describe("MediaCardShell overlay hit testing", () => {
   it("still routes a press on an overlay control to that control", async () => {
     const onClick = vi.fn();
     const { container } = await renderCard(onClick);
-    await wait(ARMED_MS);
 
-    const download = container.querySelector("[data-testid='download']");
-    expect(download).toBeTruthy();
-    const box = download?.getBoundingClientRect();
-    expect(box).toBeTruthy();
-    if (!box) {
-      return;
+    const download = container.querySelector<HTMLElement>(
+      "[data-testid='download']",
+    );
+    if (!download) {
+      throw new Error("card did not render");
     }
+    await waitUntilArmed(download);
+    const box = download.getBoundingClientRect();
 
     const hit = document.elementFromPoint(
       box.left + box.width / 2,

@@ -1,18 +1,9 @@
-import "@/client/styles/globals.css";
+import { renderInBrowser } from "@/tests/render-browser";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  createMemoryHistory,
-  createRootRoute,
-  createRouter,
-  RouterContextProvider,
-} from "@tanstack/react-router";
 import { expect, test } from "vitest";
-import { render } from "vitest-browser-react";
 
 import { AgentFilesBlock } from "./agent-files-block";
 import { MarkdownTaskContext } from "./markdown-task-context";
-import { TooltipProvider } from "./ui/tooltip";
 
 /**
  * What a ```files fence lays out, which jsdom cannot answer: with no layout
@@ -27,53 +18,40 @@ import { TooltipProvider } from "./ui/tooltip";
  * grid is drawn in a message column, a pane, and a card.
  */
 
-const router = createRouter({
-  history: createMemoryHistory({ initialEntries: ["/"] }),
-  routeTree: createRootRoute(),
-});
-
 // Either side of the grid's two container breakpoints: @md at 28rem and @xl at
 // 36rem. The message column sits at the widest of the three.
 const NARROW = 380;
 const MEDIUM = 500;
 const WIDE = 640;
 
-async function drawFence(
+function drawFence(
   content: string,
   { isStreaming = false, width = WIDE } = {},
 ) {
-  const { container } = await render(
-    <QueryClientProvider client={new QueryClient()}>
-      <RouterContextProvider router={router}>
-        <TooltipProvider>
-          <div style={{ width }}>
-            <MarkdownTaskContext
-              value={{
-                assetBaseUrl: "http://assets.example.test",
-                isStreaming,
-                taskId: TaskIdSchema.parse("quarterly-numbers"),
-              }}
-            >
-              <AgentFilesBlock content={content} />
-            </MarkdownTaskContext>
-          </div>
-        </TooltipProvider>
-      </RouterContextProvider>
-    </QueryClientProvider>,
+  return renderInBrowser(
+    <div style={{ width }}>
+      <MarkdownTaskContext
+        value={{
+          assetBaseUrl: "http://assets.example.test",
+          isStreaming,
+          taskId: TaskIdSchema.parse("quarterly-numbers"),
+        }}
+      >
+        <AgentFilesBlock content={content} />
+      </MarkdownTaskContext>
+    </div>,
   );
-
-  return container;
 }
 
 async function fenceHeight(content: string, isStreaming: boolean) {
-  const container = await drawFence(content, { isStreaming });
+  const { container } = await drawFence(content, { isStreaming });
 
   return Math.round(container.getBoundingClientRect().height);
 }
 
 // Every media tile in the grid, drawn or reserved, by the shape they share.
 async function tileWidths(content: string, width: number) {
-  const container = await drawFence(content, { width });
+  const { container } = await drawFence(content, { width });
 
   return [...container.querySelectorAll<HTMLElement>(".aspect-square")].map(
     (tile) => Math.round(tile.getBoundingClientRect().width),

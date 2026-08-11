@@ -64,6 +64,10 @@ Three Vitest projects, chosen by extension so a file declares which it wants by 
 
 Render jsdom tests through `renderWithProviders` (`src/tests/render.tsx`), which supplies a **fresh** Jotai store and query cache per call, so module-level atom families don't carry a value between tests. It returns the store for seeding or reading atoms. Its sibling `renderWithDefaultStore` mounts no Jotai `Provider`, the way the app itself runs — read the docblock before testing anything that writes through `getDefaultStore()`. Neither supplies a router: anything with an `InternalLink` needs one per test.
 
+Render browser tests through `renderInBrowser` (`src/tests/render-browser.tsx`), the same idea for the browser project: fresh store and query cache per call, plus the tooltip provider Radix requires and a context-only router, which nearly everything worth rendering here needs. It's async, and it returns the render result (locators included) alongside the store and query client. Don't import `globals.css` or install `window.electron`/`window.api` per file — `src/tests/setup-browser.ts` does both for the project, along with pinning the platform to darwin and cutting CSS animations and transitions to zero. The viewport is pinned at 1280x900.
+
+A failing browser test writes a Playwright trace next to itself under `__traces__/` (gitignored, `retain-on-failure`): a DOM snapshot per action plus console and network, openable at [trace.playwright.dev](https://trace.playwright.dev). Read that before reproducing a failure by hand.
+
 jsdom has no layout engine and never delivers `selectionchange`, so anything measured, scrolled, or driven by the browser's own selection is invisible to it — a test written that way passes whether the code works or not. That is what the browser project is for. It is slower and needs `pnpm exec playwright install chromium`, so send a test there only when jsdom genuinely cannot see the behavior.
 
 Whatever you assert, confirm it fails against the unfixed code before keeping it. This matters more here than in node tests: a DOM test can easily pass for reasons that have nothing to do with what it claims to cover.

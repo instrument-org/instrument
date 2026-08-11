@@ -1,12 +1,10 @@
+import { renderInBrowser } from "@/tests/render-browser";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { describe, expect, it, vi } from "vitest";
-import { render } from "vitest-browser-react";
 
 // Every assertion here is about what the pointer can reach, which is a question
 // only the real stylesheet can answer: unstyled, none of these boxes overlap.
-import "../styles/globals.css";
 import { MediaCardShell } from "./media-card-shell";
-import { TooltipProvider } from "./ui/tooltip";
 
 const FILE = {
   filename: "clip.mp4",
@@ -21,24 +19,20 @@ const FILE = {
 const ARMED_MS = 500;
 
 async function renderCard(onClick: () => void) {
-  const { container } = await render(
-    // Radix throws without one, and a test rendering a single component is
-    // the app root it is asking for.
-    <TooltipProvider>
-      <div style={{ width: 320 }}>
-        <MediaCardShell
-          file={FILE}
-          onClick={onClick}
-          overlayActions={
-            <button data-testid="download" type="button">
-              Download
-            </button>
-          }
-        >
-          <div data-testid="media" style={{ height: "100%", width: "100%" }} />
-        </MediaCardShell>
-      </div>
-    </TooltipProvider>,
+  const { container } = await renderInBrowser(
+    <div style={{ width: 320 }}>
+      <MediaCardShell
+        file={FILE}
+        onClick={onClick}
+        overlayActions={
+          <button data-testid="download" type="button">
+            Download
+          </button>
+        }
+      >
+        <div data-testid="media" style={{ height: "100%", width: "100%" }} />
+      </MediaCardShell>
+    </div>,
   );
 
   const card = container.querySelector("[data-testid='media']")?.parentElement;

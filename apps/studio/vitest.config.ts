@@ -112,6 +112,18 @@ export default defineConfig({
             headless: true,
             instances: [{ browser: "chromium" }],
             provider: playwright(),
+            // A trace carries a DOM snapshot per action, plus console and
+            // network, and is written next to the test only when one fails. It
+            // is what makes a failure here readable without reproducing it,
+            // which matters most for the failures that are expensive to
+            // reproduce. Open one at https://trace.playwright.dev.
+            trace: "retain-on-failure",
+            // Vitest's default is a phone, which is not a size any part of this
+            // app is designed against: anything not given a width by its test
+            // would lay itself out for one. Pinned rather than left to follow
+            // the default so a measured result does not move under a Vitest
+            // upgrade.
+            viewport: { height: 900, width: 1280 },
           },
           exclude: SHARED_EXCLUDE,
           include: ["**/*.browser.test.tsx"],
@@ -119,6 +131,7 @@ export default defineConfig({
           // A real browser brings real timing. Locally a flake is worth seeing;
           // on CI it is worth a second look before failing the run.
           retry: process.env.CI ? 2 : 0,
+          setupFiles: ["src/tests/setup-browser.ts"],
         },
       },
     ],

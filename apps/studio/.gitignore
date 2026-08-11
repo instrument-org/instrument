@@ -35,10 +35,12 @@ electron.vite.config*.mjs
 .logs/
 
 # Written by the browser test project when a test fails: a screenshot of the
-# page, and the attachments the reporter links from its output. Both are
-# reproduced by re-running the failure, so neither is worth keeping.
+# page, the Playwright trace of the run that failed, and the attachments the
+# reporter links from its output. All are reproduced by re-running the failure,
+# so none is worth keeping.
 .vitest-attachments/
 __screenshots__/
+__traces__/
 
 # Written by the smoke test on every run, and uploaded from here as a CI
 # artifact rather than read back from the checkout.

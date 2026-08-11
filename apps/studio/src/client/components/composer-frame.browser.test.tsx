@@ -3,7 +3,6 @@
 // about it there would pass whatever the classes said. The editor here is the
 // real one: what overflowed the box was a long draft rendered by ProseMirror,
 // not a stand-in of a known height.
-import "@/client/styles/globals.css";
 import { describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
 

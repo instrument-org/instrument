@@ -2,6 +2,8 @@ import { resetStudioModals } from "@/client/atoms/studio-modal";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
+import { installWindowStubs } from "./window-stubs";
+
 // Loaded only by the `dom` project (see `vitest.config.ts`), on top of the
 // shared node setup.
 
@@ -56,21 +58,4 @@ Object.defineProperty(window, "IntersectionObserver", {
   },
 });
 
-// The preload bridge every `isMacOS()`-style check reads. Pinned to darwin so a
-// component that renders a chord (or any other per-platform copy) reads the
-// same on every machine the suite runs on, rather than following the host.
-Object.defineProperty(window, "electron", {
-  configurable: true,
-  value: { process: { platform: "darwin" } },
-});
-
-// The other half of that bridge. `homeDir` is pinned for the same reason as the
-// platform: anything shortening a path to `~` has to read the same wherever the
-// suite runs, rather than following the machine's own home directory.
-Object.defineProperty(window, "api", {
-  configurable: true,
-  value: {
-    getFilePath: (file: File) => file.name,
-    homeDir: "/Users/sam",
-  },
-});
+installWindowStubs();

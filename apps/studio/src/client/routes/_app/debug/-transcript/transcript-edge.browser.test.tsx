@@ -1,4 +1,3 @@
-import "@/client/styles/globals.css";
 import {
   MessageScroller,
   MessageScrollerContent,

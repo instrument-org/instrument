@@ -1,4 +1,3 @@
-import "@/client/styles/globals.css";
 import { describe, expect, it } from "vitest";
 
 import { renderMermaid, toDiagramImageUrl } from "./mermaid";

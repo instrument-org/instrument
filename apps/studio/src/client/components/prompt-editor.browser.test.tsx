@@ -1,6 +1,5 @@
 // The scroll fade is a real stylesheet rule driven by a real scroll timeline,
 // so this file needs the app's CSS rather than bare markup.
-import "@/client/styles/globals.css";
 import { type ComponentProps, createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";

@@ -1,21 +1,13 @@
-import "@/client/styles/globals.css";
 import { useTurnSettleWindow } from "@/client/hooks/use-turn-settle-window";
+import { renderInBrowser } from "@/tests/render-browser";
 import {
   type SessionMessage,
   StoreId,
   type Task,
   TaskIdSchema,
 } from "@instrument-org/workspace/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  createMemoryHistory,
-  createRootRoute,
-  createRouter,
-  RouterContextProvider,
-} from "@tanstack/react-router";
 import { useState } from "react";
 import { expect, test, vi } from "vitest";
-import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 
 import { ChatStream } from "./chat-stream";
@@ -27,7 +19,6 @@ import {
   MessageScrollerViewport,
   useMessageScroller,
 } from "./ui/message-scroller";
-import { TooltipProvider } from "./ui/tooltip";
 
 /**
  * Where an anchored turn comes to rest, and whether it stays there.
@@ -40,11 +31,6 @@ import { TooltipProvider } from "./ui/tooltip";
 const VIEWPORT_HEIGHT = 320;
 
 const sessionId = StoreId.newSessionId();
-
-const router = createRouter({
-  history: createMemoryHistory({ initialEntries: ["/"] }),
-  routeTree: createRootRoute(),
-});
 
 const task: Task = {
   createdAt: new Date(0),
@@ -177,39 +163,31 @@ function Harness({
   const isSettlingTurn = useTurnSettleWindow(isRunning);
 
   return (
-    <QueryClientProvider client={new QueryClient()}>
-      {/* A file card asks the route which task it is in, and answers "none"
-          outside one -- but it has to have a router to ask. */}
-      <RouterContextProvider router={router}>
-        <TooltipProvider>
-          <div className="flex flex-col" style={{ width: 640 }}>
-            <button
-              onClick={() => {
-                setIndex((current) => current + 1);
-              }}
-              type="button"
-            >
-              step
-            </button>
-            <MessageScrollerProvider
-              autoScroll={isRunning || isSettlingTurn}
-              defaultScrollPosition="end"
-            >
-              <MessageScroller>
-                <MessageScrollerViewport style={{ height: VIEWPORT_HEIGHT }}>
-                  <MessageScrollerContent className="gap-2 p-4">
-                    <Transcript
-                      isAgentRunning={isRunning}
-                      messages={steps[index] ?? []}
-                    />
-                  </MessageScrollerContent>
-                </MessageScrollerViewport>
-              </MessageScroller>
-            </MessageScrollerProvider>
-          </div>
-        </TooltipProvider>
-      </RouterContextProvider>
-    </QueryClientProvider>
+    <div className="flex flex-col" style={{ width: 640 }}>
+      <button
+        onClick={() => {
+          setIndex((current) => current + 1);
+        }}
+        type="button"
+      >
+        step
+      </button>
+      <MessageScrollerProvider
+        autoScroll={isRunning || isSettlingTurn}
+        defaultScrollPosition="end"
+      >
+        <MessageScroller>
+          <MessageScrollerViewport style={{ height: VIEWPORT_HEIGHT }}>
+            <MessageScrollerContent className="gap-2 p-4">
+              <Transcript
+                isAgentRunning={isRunning}
+                messages={steps[index] ?? []}
+              />
+            </MessageScrollerContent>
+          </MessageScrollerViewport>
+        </MessageScroller>
+      </MessageScrollerProvider>
+    </div>
   );
 }
 
@@ -291,7 +269,7 @@ test("holds the turn in place when the wordmark gives way to the reply", async (
   const sent = [...history, message("user", "How did we do?")];
   const answered = [...sent, message("assistant", "Revenue grew.")];
 
-  await render(<Harness steps={[history, sent, answered]} />);
+  await renderInBrowser(<Harness steps={[history, sent, answered]} />);
   await settle();
 
   const step = page.getByRole("button", { name: "step" });
@@ -338,7 +316,7 @@ test("holds the end of a turn in view when its last rows land with the session",
     ),
   ];
 
-  await render(
+  await renderInBrowser(
     <Harness
       isAgentRunning={[true, true, false]}
       steps={[sent, streaming, settled]}
@@ -380,7 +358,7 @@ test("leaves an idle transcript where it is when a folded run is opened", async 
     message("assistant", "It kept growing."),
   ];
 
-  await render(<Harness isAgentRunning={false} steps={[messages]} />);
+  await renderInBrowser(<Harness isAgentRunning={false} steps={[messages]} />);
   await settle();
 
   const head = [...document.querySelectorAll("*")].find(

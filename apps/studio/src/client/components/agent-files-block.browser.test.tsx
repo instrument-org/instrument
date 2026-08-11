@@ -78,6 +78,7 @@ test("names every file it draws, in the tree and not just on screen", async () =
   await expect(ariaSnapshot(locator)).resolves.toMatchInlineSnapshot(`
     "- button "Open revenue.png"
     - button "Open clip.mp4"
+    - button "Open notes.md"
     - text: notes.md Markdown
     - button "Actions for notes.md""
   `);

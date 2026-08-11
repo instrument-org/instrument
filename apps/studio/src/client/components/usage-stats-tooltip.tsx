@@ -113,11 +113,8 @@ export function UsageSummaryText({
   onClick?: () => void;
   totalTokens: number;
 }) {
-  return (
-    <span
-      className={cn("inline-flex items-center gap-2 truncate", className)}
-      onClick={onClick}
-    >
+  const counts = (
+    <>
       <span className="inline-flex shrink-0 items-center gap-1">
         <ChatCircleTextIcon className="size-3 shrink-0" weight="fill" />
         <span className="tabular-nums">{formatNumber(messageCount)}</span>
@@ -128,6 +125,31 @@ export function UsageSummaryText({
           <span className="tabular-nums">{formatNumber(totalTokens)}</span>
         </span>
       )}
-    </span>
+    </>
+  );
+
+  // Two counts to read, and sometimes something to press. Only the second is a
+  // control, so only the second is rendered as one -- as a `span` it took a
+  // click that no keyboard could reach and announced nothing to say it was
+  // there at all.
+  if (!onClick) {
+    return (
+      <span
+        className={cn("inline-flex items-center gap-2 truncate", className)}
+      >
+        {counts}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      aria-label="Debug this chat"
+      className={cn("inline-flex items-center gap-2 truncate", className)}
+      onClick={onClick}
+      type="button"
+    >
+      {counts}
+    </button>
   );
 }

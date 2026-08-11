@@ -7,6 +7,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/client/components/ui/command";
+import { Label } from "@/client/components/ui/label";
 import {
   Popover,
   PopoverContent,
@@ -35,7 +36,7 @@ import {
   WarningIcon,
 } from "@phosphor-icons/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 const fuzzy = new uFuzzy({ intraMode: 1 });
@@ -365,6 +366,8 @@ function AutoModeSwitch({
   onCheckedChange: (checked: boolean) => void;
   selectedName: null | string;
 }) {
+  const switchId = useId();
+
   if (!autoModel) {
     return null;
   }
@@ -404,28 +407,35 @@ function AutoModeSwitch({
   }
 
   return (
-    <div
-      className="flex flex-col gap-1 px-4 py-3 select-none hover:bg-accent"
+    // The whole row toggles, which is the point of it, and a `Label` is how a
+    // row does that without claiming to be a control it is not: it was a `div`
+    // with `role="button"` and no way to focus or press it, so it announced a
+    // button that a keyboard could not reach and wrapped a switch in the
+    // bargain. The switch is the control; the label is its hit area and its
+    // name. Same shape as the row checkboxes in `tasks-data-table/columns.tsx`.
+    <Label
+      className="flex flex-col items-stretch gap-1 px-4 py-3 select-none hover:bg-accent"
+      htmlFor={switchId}
       onClick={(e) => {
+        // The label would otherwise activate the switch itself, on top of this.
+        e.preventDefault();
         e.stopPropagation();
         onCheckedChange(!checked);
       }}
-      role="button"
     >
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">Auto</span>
         <Switch
           checked={checked}
+          className="pointer-events-none"
+          id={switchId}
           onCheckedChange={onCheckedChange}
-          onClick={(e) => {
-            e.stopPropagation();
-          }}
         />
       </div>
-      <span className="text-xs text-muted-foreground">
+      <span className="text-xs font-normal text-muted-foreground">
         Selects the best model for your task
       </span>
-    </div>
+    </Label>
   );
 }
 

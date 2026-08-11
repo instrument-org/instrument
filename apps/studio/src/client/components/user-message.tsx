@@ -96,7 +96,12 @@ export const UserMessage = memo(function UserMessage({
 
           {!isExpanded && isOverflowing && (
             <CollapsibleTrigger asChild>
+              {/* Covers the clipped message so a press anywhere on it expands.
+                  It draws nothing, so the label is the only thing it is: with
+                  no children and no `aria-label` it announced as a button with
+                  no name at all. */}
               <button
+                aria-label="Show the full message"
                 className="absolute inset-0 cursor-pointer"
                 data-slot="user-message-expand"
                 type="button"
@@ -109,17 +114,20 @@ export const UserMessage = memo(function UserMessage({
           )}
 
           <CollapsibleContent>
-            <div
-              className="flex cursor-pointer items-center justify-center gap-1 pt-2 text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                releaseAutoScroll();
-                setIsExpanded(false);
-              }}
-              title="Click to collapse"
-            >
-              <span>Collapse</span>
-              <CaretUpIcon className="size-3" />
-            </div>
+            {/* The other half of the pair above, and it has to be a control for
+                the same reason: expanding was reachable and collapsing was not,
+                so a message opened from the keyboard could not be closed again.
+                The trigger carries the state, so no handler of its own. */}
+            <CollapsibleTrigger asChild>
+              <button
+                className="flex w-full cursor-pointer items-center justify-center gap-1 pt-2 text-xs text-muted-foreground hover:text-foreground"
+                data-slot="user-message-collapse"
+                type="button"
+              >
+                <span>Collapse</span>
+                <CaretUpIcon className="size-3" />
+              </button>
+            </CollapsibleTrigger>
           </CollapsibleContent>
         </Collapsible>
       </div>

@@ -22,6 +22,7 @@ Renderer: React 19, TanStack Router file routes, shadcn UI, oRPC to main process
 - `rpcClient` `.call()` throws unless wrapped with `safe` from `@orpc/client`; use only for imperative calls outside React.
 - Queries: `useQuery` + `rpcClient.method.name.queryOptions({ input })`. Skip conditionally with `skipToken`.
 - External links: `<ExternalLink href="..." />` or `rpcClient.utils.openExternalLink`.
+- Icons are decorative: both window roots render Phosphor under `ICON_CONTEXT_VALUE` (`lib/icon-context.ts`), which sets `aria-hidden`. Name the **control**, not the icon — an icon-only button needs its own `aria-label`, or it has no accessible name at all.
 - Route matching: `useMatchRoute`, never pathname strings.
 - After adding/removing/renaming files under `src/client/routes`, run `pnpm --filter @instrument-org/studio run routes:generate`. Don't hand-edit `routeTree.gen.ts`.
 - RPC types: `RPCInput`/`RPCOutput` from `@/client/rpc/client`. Never redeclare inferable types.

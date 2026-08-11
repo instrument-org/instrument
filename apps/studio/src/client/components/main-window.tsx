@@ -13,6 +13,7 @@ import { useMouseBackForward } from "@/client/hooks/use-mouse-back-forward";
 import { PortalContainerProvider } from "@/client/hooks/use-portal-container";
 import { useShortcutGuideHotkey } from "@/client/hooks/use-shortcut-guide-hotkey";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
+import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
 import { readRouterTabMeta } from "@/client/lib/router-tab-meta";
 import {
   createTabRouter,
@@ -32,7 +33,7 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Tab } from "@/shared/tabs";
 import { safe } from "@orpc/client";
-import { IconContext, type IconProps } from "@phosphor-icons/react";
+import { IconContext } from "@phosphor-icons/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
   CatchBoundary,
@@ -44,10 +45,6 @@ import { useEffect } from "react";
 
 import { ThemeProvider } from "./theme-provider";
 import { TooltipProvider } from "./ui/tooltip";
-
-const IconContextValue: IconProps = {
-  weight: "bold",
-};
 
 /**
  * The whole main-window UI in a single web contents. The chrome (toolbar, tab
@@ -86,7 +83,7 @@ export function MainWindow() {
             getResetKey={() => "app"}
             onCatch={captureComponentError}
           >
-            <IconContext.Provider value={IconContextValue}>
+            <IconContext.Provider value={ICON_CONTEXT_VALUE}>
               <ZoomRoot>
                 {activeRouter ? (
                   <RouterContextProvider router={activeRouter}>

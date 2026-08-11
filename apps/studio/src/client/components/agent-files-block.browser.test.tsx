@@ -69,21 +69,17 @@ test("names every file it draws, in the tree and not just on screen", async () =
   // A card whose name goes missing lays out exactly as it did before, so it is
   // a failure neither the heights above nor the widths below can see.
   //
-  // The bare `img` before each card is the icon standing in for media that has
-  // no bytes here; in the app that is the media itself, carrying its filename
-  // as `alt`.
+  // One line per file and nothing else. The icons are decorative and hidden as
+  // such, so what is left is exactly the set of things that can be addressed.
   const { locator } = await drawFence(
     "output/revenue.png\noutput/notes.md\noutput/clip.mp4",
   );
 
   await expect(ariaSnapshot(locator)).resolves.toMatchInlineSnapshot(`
-    "- img
-    - button "Open revenue.png"
-    - img
+    "- button "Open revenue.png"
     - button "Open clip.mp4"
     - text: notes.md Markdown
-    - button "Actions for notes.md":
-      - img"
+    - button "Actions for notes.md""
   `);
 });
 

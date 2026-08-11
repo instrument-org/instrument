@@ -1,4 +1,6 @@
 import { TooltipProvider } from "@/client/components/ui/tooltip";
+import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
+import { IconContext } from "@phosphor-icons/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
@@ -40,6 +42,10 @@ const router = createRouter({
  * families do not carry a value from one test into the next. Pass `store` to
  * share one across renders within a test.
  *
+ * The icon context is here for the same reason as the stylesheet: without it
+ * icons render undecorated, and an accessibility-tree assertion would then be
+ * reading a tree the app never produces.
+ *
  * The result is the render result itself, locators included, plus the store and
  * query client for tests that seed or read them.
  */
@@ -60,7 +66,9 @@ export async function renderInBrowser(
     <QueryClientProvider client={queryClient}>
       <JotaiProvider store={store}>
         <RouterContextProvider router={router}>
-          <TooltipProvider>{children}</TooltipProvider>
+          <IconContext.Provider value={ICON_CONTEXT_VALUE}>
+            <TooltipProvider>{children}</TooltipProvider>
+          </IconContext.Provider>
         </RouterContextProvider>
       </JotaiProvider>
     </QueryClientProvider>

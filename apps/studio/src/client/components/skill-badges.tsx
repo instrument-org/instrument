@@ -4,19 +4,29 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import { isProvidedSource, type SkillSource } from "@/client/lib/skill-source";
+import { APP_NAME } from "@instrument-org/shared";
+
+interface BadgedSkill {
+  modelInvocable: boolean;
+  source: SkillSource;
+  userInvocable: boolean;
+}
 
 const SKILL_BADGES = [
   {
-    active: (skill: { userInvocable: boolean }) => !skill.userInvocable,
+    active: (skill: BadgedSkill) => !skill.userInvocable,
     label: "Automatic",
-    tooltip:
-      "Set by `user-invocable: false` in the frontmatter. This keeps the skill out of the slash menu and other direct pickers, so it is only available for automatic use.",
+    tooltip: (skill: BadgedSkill) =>
+      isProvidedSource(skill.source)
+        ? `${APP_NAME} loads the skills it ships when they fit the work, so they stay out of the slash menu and other direct pickers.`
+        : "Set by `user-invocable: false` in the frontmatter. This keeps the skill out of the slash menu and other direct pickers, so it is only available for automatic use.",
     variant: "outline",
   },
   {
-    active: (skill: { modelInvocable: boolean }) => !skill.modelInvocable,
+    active: (skill: BadgedSkill) => !skill.modelInvocable,
     label: "User invoked",
-    tooltip:
+    tooltip: () =>
       "Set by `disable-model-invocation: true` in the frontmatter. This keeps the skill from being loaded automatically, so someone has to choose it on purpose.",
     variant: "outline",
   },
@@ -27,10 +37,7 @@ export function SkillBadges({
   skill,
 }: {
   className?: string;
-  skill: {
-    modelInvocable: boolean;
-    userInvocable: boolean;
-  };
+  skill: BadgedSkill;
 }) {
   const badges = getSkillBadges(skill);
   if (badges.length === 0) {
@@ -46,16 +53,13 @@ export function SkillBadges({
               <Badge variant={badge.variant}>{badge.label}</Badge>
             </span>
           </TooltipTrigger>
-          <TooltipContent>{badge.tooltip}</TooltipContent>
+          <TooltipContent>{badge.tooltip(skill)}</TooltipContent>
         </Tooltip>
       ))}
     </div>
   );
 }
 
-function getSkillBadges(skill: {
-  modelInvocable: boolean;
-  userInvocable: boolean;
-}) {
+function getSkillBadges(skill: BadgedSkill) {
   return SKILL_BADGES.filter((badge) => badge.active(skill));
 }

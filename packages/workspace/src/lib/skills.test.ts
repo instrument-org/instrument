@@ -463,6 +463,77 @@ describe("skill discovery", () => {
     ]);
   });
 
+  it("keeps the skills we ship out of user invocation", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-bundled-"));
+    temporaryDirs.push(root);
+    const home = path.join(root, "home");
+    const system = path.join(root, "system");
+    const registry = path.join(root, "registry");
+
+    await writeSkill(path.join(system, "creator"), "System");
+    await writeSkill(path.join(registry, "skills", "pdf"), "Ours");
+    await writeSkill(path.join(home, ".claude", "skills", "review"), "Theirs");
+
+    const skills = await findSkills(
+      getSkillSources(
+        {
+          registryDir: AbsolutePathSchema.parse(registry),
+          rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
+          systemSkillsDir: AbsolutePathSchema.parse(system),
+        },
+        AbsolutePathSchema.parse(home),
+      ),
+    );
+
+    // Neither shipped skill says so in its frontmatter, since the same packages
+    // install into agents that do offer them by name.
+    expect(
+      skills.map(({ id, userInvocable }) => ({ id, userInvocable })),
+    ).toEqual([
+      { id: "system:creator", userInvocable: false },
+      { id: "instrument:pdf", userInvocable: false },
+      { id: "claude:review", userInvocable: true },
+    ]);
+  });
+
+  it("keeps a separately installed copy of a shipped skill automatic", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-installed-"));
+    temporaryDirs.push(root);
+    const home = path.join(root, "home");
+    const registry = path.join(root, "registry");
+
+    await writeSkill(path.join(registry, "skills", "pdf"), "Ours");
+    await writeSkill(path.join(home, ".claude", "skills", "pdf"), "Ours");
+
+    const skills = await findSkills(
+      getSkillSources(
+        {
+          registryDir: AbsolutePathSchema.parse(registry),
+          rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
+          systemSkillsDir: AbsolutePathSchema.parse(path.join(root, "system")),
+        },
+        AbsolutePathSchema.parse(home),
+      ),
+    );
+
+    // Installing our package into another agent's folder is the same skill, so
+    // it collapses into the one we ship rather than reappearing as a slash
+    // command beside it.
+    expect(
+      skills.map(({ aliases, id, userInvocable }) => ({
+        aliases,
+        id,
+        userInvocable,
+      })),
+    ).toEqual([
+      {
+        aliases: ["instrument:pdf", "claude:pdf"],
+        id: "instrument:pdf",
+        userInvocable: false,
+      },
+    ]);
+  });
+
   it("invalidates a cached package fingerprint when an authored file changes", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-cache-"));
     temporaryDirs.push(root);

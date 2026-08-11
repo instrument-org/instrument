@@ -6,7 +6,7 @@
 
 An agent names the files it produced in prose, and markdown renders those references as chips that open the file in the artifact panel. Existence is gated before the chip is drawn: [`TaskFileLink`](../../apps/studio/src/client/components/markdown.tsx) resolves the path first and falls back to plain text when nothing answers, so a hallucinated path degrades to ordinary prose instead of a button that does nothing.
 
-Two sources can answer "does this path exist, and when did it change." The live task-file index is already in context and costs nothing to read. The `workspace.task.files.fileInfo` RPC costs one call per path. The index walks the task directory only, so a file under `/mnt` (a folder the user shared) can only come from the RPC.
+Two sources can answer "does this path exist, and when did it change." The live task-file index is already in context and costs nothing to read. The `workspace.task.files.info` RPC costs one call per path. The index walks the task directory only, so a file under `/mnt` (a folder the user shared) can only come from the RPC.
 
 Recorded because the per-link RPC reads as a small detail of one component and is really a choice about when file references resolve, which every surface that renders them inherits.
 

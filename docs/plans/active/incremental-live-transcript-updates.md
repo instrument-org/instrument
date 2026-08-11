@@ -6,7 +6,7 @@ Status: proposed, not started. Follow-up to the live message subscription rework
 
 ## Background / why
 
-The live transcript is `message.live.listWithParts` ([message.ts](../../../packages/workspace/src/rpc/routes/message.ts)) → `experimental_liveOptions` on the client ([chat.tsx](../../../apps/studio/src/client/components/task/chat.tsx)). After the rework, each streaming event now re-reads only the changed messages on the server. Two costs per yield are still proportional to the whole session, not the change:
+The live transcript is `message.live.list` ([message.ts](../../../packages/workspace/src/rpc/routes/message.ts)) → `experimental_liveOptions` on the client ([chat.tsx](../../../apps/studio/src/client/components/task/chat.tsx)). After the rework, each streaming event now re-reads only the changed messages on the server. Two costs per yield are still proportional to the whole session, not the change:
 
 1. **Wire serialization.** Every yield serializes the entire `SessionMessage.WithParts[]` across the MessagePort, even when one message changed.
 2. **Client re-render.** `experimental_liveQuery` does a plain `setQueryData(queryKey, chunk)` (full replace), so `messagesQuery.data` is a brand-new array each yield. `chat-stream.tsx` then rebuilds its entire `chatElements` in one `useMemo` over that array.

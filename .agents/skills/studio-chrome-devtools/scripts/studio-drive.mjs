@@ -943,9 +943,11 @@ async function cmdSnapshot(cdp, { depth, selector }) {
     const role = node.role?.value;
     const name = node.name?.value;
 
-    // Three kinds of node carry no information a caller can act on. An ignored
+    // Four kinds of node carry no information a caller can act on. An ignored
     // one is not in the tree at all; `none`/`generic` is the div a layout is
-    // built from, which Chrome exposes and nothing can address; and a
+    // built from, which Chrome exposes and nothing can address; an
+    // `InlineTextBox` is one line box of the text above it, an artefact of how
+    // the text was laid out rather than anything in the page; and a
     // `StaticText` whose words are already the name of the thing above it is
     // that name a second time. Their children can still matter, so each is
     // descended through at the parent's level rather than dropped.
@@ -953,6 +955,7 @@ async function cmdSnapshot(cdp, { depth, selector }) {
       node.ignored ||
       role === "none" ||
       role === "generic" ||
+      role === "InlineTextBox" ||
       (role === "StaticText" && Boolean(parentName?.includes(name ?? "")));
 
     if (!isPassthrough) {

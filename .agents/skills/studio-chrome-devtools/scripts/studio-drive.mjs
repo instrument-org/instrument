@@ -14,10 +14,19 @@
 //   node studio-drive.mjs press ?
 //   node studio-drive.mjs shot out.png --selector '[role=dialog]'
 //   node studio-drive.mjs wait 'document.querySelectorAll("webview").length > 0'
+//   node studio-drive.mjs rpc workspace.task.list '{}'
+//   node studio-drive.mjs wait --idle --task <id>
 //   node studio-drive.mjs stop
 //
 // Route/modal commands go through `window.__studioDrive`, the dev-only handle
-// the renderer attaches (client/lib/studio-drive.ts). Everything else is CDP.
+// the renderer attaches (client/lib/studio-drive.ts). `rpc` goes through
+// `window.__studioDebug`, the Developer-Mode-gated bridge onto the real oRPC
+// client (client/lib/debug-rpc-bridge.ts). Everything else is CDP.
+//
+// Reach for `rpc` before the DOM whenever the question is about state rather
+// than about pixels: whether a turn is still running, what a task holds, what a
+// route would return. Reading it out of `document.body.innerText` is a guess
+// about rendering; the route is the thing the UI itself renders from.
 //
 // `boot` starts an instance on a port derived from this checkout's path, and
 // every other command reads the record it writes. Two things it deliberately
@@ -78,6 +87,7 @@ const COMMANDS = new Set([
   "goto",
   "modal",
   "press",
+  "rpc",
   "shot",
   "state",
   "stop",
@@ -229,6 +239,66 @@ async function evaluate(cdp, source) {
   return result.value;
 }
 
+/**
+ * Call an oRPC route through the renderer's debug bridge.
+ *
+ * The value is stringified inside the page rather than left to CDP's
+ * `returnByValue`, which renders a `Date` as `{}`. A route's timestamps would
+ * come back present but empty, which reads as the route having nothing to say
+ * rather than as an artefact of how it was fetched.
+ *
+ * Errors are caught in the page and returned as data for the same reason: oRPC
+ * puts the part worth reading on the error object (`code`, and the Zod issues
+ * under `data`), and none of that survives being reported as the description of
+ * a thrown exception.
+ */
+async function callRpc(cdp, route, input) {
+  await waitForDebugBridge(cdp);
+
+  const outcome = await evaluate(
+    cdp,
+    `(async () => {
+      try {
+        const value = await window.__studioDebug.rpc(${JSON.stringify(route)}, ${JSON.stringify(input) ?? "undefined"});
+        if (value && typeof value[Symbol.asyncIterator] === "function") {
+          return { iterator: true };
+        }
+        return { json: JSON.stringify(value) ?? "null" };
+      } catch (error) {
+        return {
+          error: {
+            code: error?.code,
+            data: error?.data,
+            message: error?.message ?? String(error),
+          },
+        };
+      }
+    })()`,
+  );
+
+  if (outcome.iterator) {
+    fail(
+      `"${route}" is an event iterator, and one cannot be carried back through a single evaluation.\n` +
+        `Poll its plain counterpart instead: task.agentStatus.byIds for task.agentStatus.live.byId.`,
+    );
+  }
+
+  if (outcome.error) {
+    const { code, data, message } = outcome.error;
+    if (message.includes("Developer Mode")) {
+      fail(
+        `${message}\nOr boot a fixture workspace, which pins the preference: --workspace <fixture>.`,
+      );
+    }
+    fail(
+      `${route} failed: ${message}${code ? ` (${code})` : ""}` +
+        (data === undefined ? "" : `\n${JSON.stringify(data, undefined, 2)}`),
+    );
+  }
+
+  return JSON.parse(outcome.json);
+}
+
 async function isPortLive(port) {
   try {
     const response = await fetch(`http://127.0.0.1:${port}/json/version`, {
@@ -315,6 +385,28 @@ async function waitForDriveHandle(cdp) {
       fail(
         "window.__studioDrive never appeared. Expected on the main window of a dev build " +
           "(client/lib/studio-drive.ts); a packaged build drops it.",
+      );
+    }
+    await sleep(50);
+  }
+}
+
+/**
+ * Same race as {@link waitForDriveHandle}, against the bridge the renderer entry
+ * attaches before it mounts anything. Unlike that one this handle also ships in
+ * a packaged build, so its absence means the renderer has not run its entry
+ * yet rather than that the build dropped it.
+ */
+async function waitForDebugBridge(cdp) {
+  const deadline = Date.now() + 20_000;
+  for (;;) {
+    if (await evaluate(cdp, "Boolean(window.__studioDebug)")) {
+      return;
+    }
+    if (Date.now() > deadline) {
+      fail(
+        "window.__studioDebug never appeared. The renderer entry attaches it " +
+          "(client/lib/debug-rpc-bridge.ts) before it mounts.",
       );
     }
     await sleep(50);
@@ -637,6 +729,30 @@ async function cmdModal(cdp, name) {
   return drive(cdp, "state()");
 }
 
+async function cmdRpc(cdp, route, rawInput) {
+  if (!route) {
+    fail(
+      `Usage: rpc <route> [json]\n` +
+        `  rpc workspace.task.list '{}'\n` +
+        `  rpc workspace.task.agentStatus.byIds '{"ids":["<task-id>"]}'`,
+    );
+  }
+
+  let input;
+  if (rawInput !== undefined) {
+    try {
+      input = JSON.parse(rawInput);
+    } catch (error) {
+      fail(
+        `Input is not JSON: ${error.message}\n` +
+          `Quote it as one shell argument: rpc ${route} '{"id":"..."}'`,
+      );
+    }
+  }
+
+  return callRpc(cdp, route, input);
+}
+
 async function cmdState(cdp) {
   return drive(cdp, "state()");
 }
@@ -771,6 +887,76 @@ async function cmdShot(cdp, file, { pad, selector, text }) {
   };
 }
 
+const IDLE_POLL_MS = 500;
+
+/**
+ * Wait for a task's agent to stop working, read from `task.agentStatus.byIds`
+ * rather than from whatever the page is currently painting.
+ *
+ * Busy is the `agent.alive` tag: every non-final state of the session machine
+ * carries it, so this covers running, paused and mid-tool-call without
+ * enumerating them, and it keeps covering them when those states change.
+ *
+ * Completion is the *absence* of a session, not an `agent.done` tag. The
+ * workspace machine drops a session's ref when it finishes, so a task whose
+ * turn is over reports no session actors at all -- which is also what a task
+ * that has not started one reports. Hence `settleMs`: until the task has been
+ * seen busy, idle has to hold rather than count immediately, so a wait issued
+ * in the same breath as `message.create` does not return before the session
+ * has been spawned.
+ *
+ * A subagent outliving its parent keeps this waiting, because a status reports
+ * tags per session and not which of them is the root.
+ */
+async function cmdWaitIdle(cdp, { settleMs, taskId, timeoutMs }) {
+  // Reads the task first so a wrong id fails saying so, rather than waiting out
+  // the whole timeout on a task that was never going to report anything.
+  await callRpc(cdp, "workspace.task.byId", { id: taskId });
+
+  const startedAt = Date.now();
+  const deadline = startedAt + timeoutMs;
+  let idleSince;
+  let sawBusy = false;
+  let sessions = [];
+
+  for (;;) {
+    const [status] = await callRpc(cdp, "workspace.task.agentStatus.byIds", {
+      ids: [taskId],
+    });
+    sessions = status?.sessionActors ?? [];
+    const busy = sessions.some((session) =>
+      session.tags.includes("agent.alive"),
+    );
+
+    if (busy) {
+      idleSince = undefined;
+      sawBusy = true;
+    } else {
+      idleSince ??= Date.now();
+      if (sawBusy || Date.now() - idleSince >= settleMs) {
+        return {
+          idle: true,
+          // Whether the turn was watched or merely found finished. `false` on a
+          // wait that was meant to follow a prompt means the prompt never
+          // started an agent, and the idle being reported is the state from
+          // before it.
+          sawBusy,
+          taskId,
+          waitedMs: Date.now() - startedAt,
+        };
+      }
+    }
+
+    if (Date.now() > deadline) {
+      fail(
+        `Timed out after ${timeoutMs}ms waiting for ${taskId} to go idle.\n` +
+          `Sessions: ${JSON.stringify(sessions)}`,
+      );
+    }
+    await sleep(IDLE_POLL_MS);
+  }
+}
+
 async function cmdWait(cdp, expression, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
@@ -873,6 +1059,10 @@ async function dispatch(cdp) {
       result = await cmdPress(cdp, positional[0]);
       break;
     }
+    case "rpc": {
+      result = await cmdRpc(cdp, positional[0], positional[1]);
+      break;
+    }
     case "shot": {
       result = await cmdShot(cdp, positional[0], {
         pad: Number(flag(argv, "--pad", "0")),
@@ -886,15 +1076,37 @@ async function dispatch(cdp) {
       break;
     }
     case "wait": {
-      result = await cmdWait(
-        cdp,
-        positional.join(" "),
-        Number(flag(argv, "--timeout", "15000")),
-      );
+      result = argv.includes("--idle")
+        ? await cmdWaitIdle(cdp, {
+            settleMs: Number(flag(argv, "--settle", "2000")),
+            taskId: await resolveTaskId(cdp, flag(argv, "--task")),
+            // A turn is minutes of work, not the seconds a DOM predicate waits.
+            timeoutMs: Number(flag(argv, "--timeout", "600000")),
+          })
+        : await cmdWait(
+            cdp,
+            positional.join(" "),
+            Number(flag(argv, "--timeout", "15000")),
+          );
       break;
     }
   }
   return result;
+}
+
+/** The task named on the command line, or the one the active tab is showing. */
+async function resolveTaskId(cdp, explicit) {
+  if (explicit) {
+    return explicit;
+  }
+  const { path: routePath } = await drive(cdp, "state()");
+  const match = /^\/tasks\/([^/]+)/.exec(routePath ?? "");
+  if (!match) {
+    fail(
+      `No --task, and the active tab is not a task (path: ${routePath ?? "none"}).`,
+    );
+  }
+  return match[1];
 }
 
 async function runAgainstInstance() {

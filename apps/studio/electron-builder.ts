@@ -112,7 +112,14 @@ const config: Configuration = {
     "node_modules/**",
     "!**/node_modules/**/*.md",
     "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
-    "!**/node_modules/*.d.ts",
+    // Type declarations are never loaded at runtime. The single-star form
+    // electron-builder documents only matches a `.d.ts` sitting directly in a
+    // `node_modules` directory rather than inside a package, which is nothing.
+    "!**/node_modules/**/*.d.{ts,mts,cts}",
+    // Packages occasionally publish their own Yarn install state. Nothing
+    // reads it, and `.yarn-integrity` below is the only part of it that
+    // electron-builder excludes on its own.
+    "!**/node_modules/**/.yarn/**",
     "!**/node_modules/.bin",
     // sql.js backs just-bash's `sqlite3`. Only the wasm build's loader and its
     // .wasm are reachable from Node; the asm.js, browser, and debug variants are

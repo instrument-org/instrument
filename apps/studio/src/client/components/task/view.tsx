@@ -233,7 +233,15 @@ export function TaskView({
                       <FileViewer
                         className={paneContentClassName}
                         file={currentFile}
-                        key={currentFile.url}
+                        // The path, not the URL. The URL carries the file's
+                        // mtime, so keying on it tore the viewer down and
+                        // rebuilt it every time the file was saved -- losing
+                        // the scroll position, the raw/preview toggle, and
+                        // whatever was on screen, for a file the user is
+                        // watching precisely because it keeps changing. A
+                        // remount is for a different file; new bytes of the
+                        // same one are a content change.
+                        key={currentFile.filePath}
                         onExpand={() => {
                           openFileViewer({ files: [currentFile] });
                         }}

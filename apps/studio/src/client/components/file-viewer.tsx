@@ -29,7 +29,7 @@ import {
   EyeIcon,
   XIcon,
 } from "@phosphor-icons/react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -215,6 +215,12 @@ function PlainTextView({
 
 function useFileText(url: string) {
   return useQuery({
+    // The URL carries the file's mtime, so a save is a new key and a new
+    // fetch. Holding the last text through it is what keeps the pane from
+    // blanking to a loading state on every save of a file someone is editing
+    // outside the app: the old bytes stay up, and the new ones replace them
+    // when they arrive.
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const response = await fetch(url);
       if (!response.ok) {
@@ -279,7 +285,7 @@ const VIEWERS = {
   archive: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
         <LazyArchiveViewer url={file.url} />
       </ViewerSurface>
     ),
@@ -292,7 +298,7 @@ const VIEWERS = {
         <audio
           className="w-full max-w-2xl"
           controls
-          key={file.url}
+          key={file.filePath}
           onError={() => {
             onMediaError("mp3");
           }}
@@ -306,7 +312,7 @@ const VIEWERS = {
   csv: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
         <LazyCsvViewer filename={file.filename} url={file.url} />
       </ViewerSurface>
     ),
@@ -315,7 +321,7 @@ const VIEWERS = {
   docx: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
         <LazyDocxViewer filename={file.filename} url={file.url} />
       </ViewerSurface>
     ),
@@ -348,7 +354,7 @@ const VIEWERS = {
           <ContextMenuTrigger className="size-full">
             <ImageViewer
               filename={file.filename}
-              key={file.url}
+              key={file.filePath}
               onError={onImageError}
               url={file.url}
             />
@@ -366,7 +372,7 @@ const VIEWERS = {
   iwork: {
     hasToolbar: false,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
         <LazyIWorkViewer filename={file.filename} url={file.url} />
       </ViewerSurface>
     ),
@@ -375,7 +381,7 @@ const VIEWERS = {
   jsonl: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
         <LazyJsonlViewer url={file.url} />
       </ViewerSurface>
     ),
@@ -394,7 +400,7 @@ const VIEWERS = {
   parquet: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
         <LazyParquetViewer url={file.url} />
       </ViewerSurface>
     ),
@@ -404,7 +410,7 @@ const VIEWERS = {
   pptx: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
         <LazyPptxViewer filename={file.filename} url={file.url} />
       </ViewerSurface>
     ),
@@ -413,7 +419,7 @@ const VIEWERS = {
   sqlite: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
         <LazySqliteViewer url={file.url} />
       </ViewerSurface>
     ),
@@ -447,7 +453,7 @@ const VIEWERS = {
             autoPlay
             className="size-full object-contain"
             controls
-            key={file.url}
+            key={file.filePath}
             muted
             onError={() => {
               onMediaError("mp4");
@@ -469,7 +475,7 @@ const VIEWERS = {
   xlsx: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
         <LazyXlsxViewer filename={file.filename} url={file.url} />
       </ViewerSurface>
     ),
@@ -485,7 +491,7 @@ function renderCode({ file, wrapLines }: ViewerContext) {
 
 function renderPdf({ fallback, file }: ViewerContext) {
   return (
-    <ViewerSurface fallback={fallback} resetKey={file.url}>
+    <ViewerSurface fallback={fallback} resetKey={file.filePath}>
       <LazyPdfViewer filename={file.filename} url={file.url} />
     </ViewerSurface>
   );

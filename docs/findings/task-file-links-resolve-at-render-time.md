@@ -1,6 +1,6 @@
 # Task file links resolve at render time, once per link
 
-**Status:** resolved 2026-08-06. Recorded 2026-08-05. Both questions below were answered the same way: a reference draws from its path, nothing resolves at render, and the click establishes truth. The design is [file-references-without-a-watcher.md](../plans/active/file-references-without-a-watcher.md); what is left of it is the watcher, not the resolution model. Kept because the reasoning still explains why the platform layer is not where a task file link belongs, and the guardrails below are all still live.
+**Status:** resolved 2026-08-06. Recorded 2026-08-05. Both questions below were answered the same way: a reference draws from its path, nothing resolves at render, and the click establishes truth. The design is [file-references-without-a-watcher.md](../plans/completed/file-references-without-a-watcher.md), which has since landed in full. Kept because the reasoning still explains why the platform layer is not where a task file link belongs, and the guardrails below are all still live.
 
 ## Context
 

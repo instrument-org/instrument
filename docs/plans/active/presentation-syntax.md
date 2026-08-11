@@ -175,7 +175,7 @@ Syntax is the surface. What is built parses to a list of paths, and the shape it
 
 ## Resolution
 
-**Nothing resolves over the network while rendering.** A card draws from its path: the basename is the label, the extension gives the type and icon, and `assetBase + path` is the URL. Truth is established when someone clicks. The reasoning is in [file-references-without-a-watcher.md](file-references-without-a-watcher.md), whose first step this is; what remains here is what the fence itself does with a path.
+**Nothing resolves over the network while rendering.** A card draws from its path: the basename is the label, the extension gives the type and icon, and `assetBase + path` is the URL. Truth is established when someone clicks. The reasoning is in [file-references-without-a-watcher.md](../completed/file-references-without-a-watcher.md), whose first step this is; what remains here is what the fence itself does with a path.
 
 A line is drawn only if it is **addressable** — task-relative or under the attached-folder mount root, never traversing — because the lines come from model output and a host path among them has to read as prose rather than as an affordance that cannot work ([task-file-path.ts](../../../packages/workspace/src/lib/task-file-path.ts), shared with the chip so one path grammar covers both).
 

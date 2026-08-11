@@ -114,9 +114,11 @@ Still required regardless, because they are not user-visible decisions:
 
 Today one mechanism does both jobs, because we own the directory: scan it, and whatever changed is what the agent did. That inference dies the moment the user can edit the same folder mid-run. Split it deliberately.
 
-**The watcher survives, for browsing.** A live file tree over the working folder is a genuinely good affordance, and it needs the watcher. [get-task-files.ts](../../../packages/workspace/src/lib/get-task-files.ts) ignores `node_modules`, `.venv`, and friends because a Python scientific stack alone runs past the index cap; that ignore list was tuned for a directory whose shape we knew. Pointed at a monorepo it needs a cap strategy and probably lazy per-directory expansion rather than a whole-tree index.
+**Browsing is polled, not watched.** A file tree over the working folder is a genuinely good affordance, and it does not need a watcher: the tree polls itself while it is on screen, which is what the file-list panel already does ([file-references-without-a-watcher.md](../completed/file-references-without-a-watcher.md)). The reason that scales here and a watcher does not is what each one's cost is proportional to. A poll costs what is expanded; a watcher costs the tree, and the tree is now one the user picked.
 
-**Attribution comes from somewhere else.** "What did the agent change this turn" cannot come from the watcher any more, because a user edit and an agent edit are the same inotify event. It has to come from the agent's own actions.
+That points at lazy per-directory reads rather than the whole-tree index. [get-task-files.ts](../../../packages/workspace/src/lib/get-task-files.ts) ignores `node_modules`, `.venv`, and friends because a Python scientific stack alone runs past the index cap, and that ignore list was tuned for a directory whose shape we knew. Pointed at a monorepo, an ignore list is a guess about someone else's repository; expanding only what the user opened is not a guess at all, and it makes the cap a per-directory concern rather than a global one.
+
+**Attribution comes from somewhere else.** "What did the agent change this turn" was never going to come from watching the directory, because a user edit and an agent edit are the same filesystem event. It has to come from the agent's own actions.
 
 **We can attribute more than "tool calls" implies, because our bash is not a real shell.** just-bash executes against a virtual `IFileSystem` we supply, so every mutation a shell command makes goes through an interface we control. The mechanism already exists and is already in production: [skill-write-tracking-fs.ts](../../../packages/workspace/src/lib/skill-write-tracking-fs.ts) wraps a filesystem and records `writeFile`, `appendFile`, `mkdir`, `rm`, `mv`, `cp`, `link`, `symlink`, `chmod`, and `utimes` without changing behavior, and it is already mounted on `/skills` in [workspace-fs-layout.ts](../../../packages/workspace/src/lib/workspace-fs-layout.ts). Wrapping `/work` in the same tracker gives per-turn attribution across the file tools and the entire shell surface, for a small fraction of the cost of snapshot-and-diff.
 
@@ -126,7 +128,7 @@ Recommended posture:
 
 - Track the virtual filesystem, which covers file tools and shell built-ins. This is the primary record and it is cheap.
 - Treat native-subprocess output as unattributed. Where a turn ran one, the record can say so rather than pretending completeness.
-- Keep the watcher as the backstop: it sees everything, attributes nothing, and is the right substrate for a browsable tree and for a debug view of what actually moved on disk during a run.
+- Let the browsable tree be the backstop: it reads the directory, so it shows everything including what a subprocess wrote, and it attributes none of it. That is the honest division. A tree the user can look at answers "what is there" without ever claiming to answer "who put it there".
 
 Neither mechanism alone is complete, and saying so in the interface is better than a change list that quietly omits what a build step did.
 
@@ -157,7 +159,7 @@ What actually has to change is four things.
 
 The hazard this brings forward is real and currently theoretical: a reserved prefix shadows a real directory of the same name. Today a task containing `mnt/` would be unreachable there, and nobody has hit it because we own the directory and never make one. A folder the user picked is a different proposition — `scratch/` is an ordinary directory name in a real repository. Options are to accept and document the shadowing (longest mount wins, which is at least consistent with the bash sandbox), or to make the reserved roots collision-proof. Do not solve it by renaming `/mnt`: that string is in the agent prompt, in stored `MountedWorkspacePath` values inside message parts, and in the file tools' path grammar.
 
-**Cache policy must key on ownership, not on "is it a mount."** The rule today is `!isMountedFile && versionMatches` for a year of `immutable`, with everything else `no-store`. That reads as "task files are ours, mounts are theirs", and the folder plan breaks the equation: `/work` may be a directory the user edits in another application while the task is closed and our watcher is not running. Restate it as **immutable only for mounts we own** — `/scratch`, and `/work` when it is backed by a private directory — and `no-store` for anything user-owned, which is what `/mnt` already gets. One condition, and it avoids serving a year-stale artifact from a folder that changed under us.
+**Cache policy must key on ownership, not on "is it a mount."** The rule today is `!isMountedFile && versionMatches` for a year of `immutable`, with everything else `no-store`. That reads as "task files are ours, mounts are theirs", and the folder plan breaks the equation: `/work` may be a directory the user edits in another application while the task is closed and nothing of ours is looking at it. Restate it as **immutable only for mounts we own** — `/scratch`, and `/work` when it is backed by a private directory — and `no-store` for anything user-owned, which is what `/mnt` already gets. One condition, and it avoids serving a year-stale artifact from a folder that changed under us.
 
 **Existence stops being guaranteed.** `taskDir(id)` is a pure join and the route calls it unconditionally, then reads `state.json` beside it. A task that never materializes a directory (change 5) has neither. The route needs to tolerate a layout with no working mount and answer 404 rather than throw, and `buildWorkspaceFsLayout` needs to be able to express that absence rather than requiring a `TaskDir`. This is small but it is on the critical path: it is the same signature change as the `WorkingDir` brand in change 1.
 
@@ -256,7 +258,7 @@ It should reuse the same prompt component as user-initiated folder attachment, s
 4. **Safety.** Write containment, the change record, restore story. Depends on the bash-attribution decision. The asset origin's unguessable label and non-wildcard CORS belong here, and gate phase 5 rather than following it.
 5. **The picker.** Folder connection, recent folders, project grouping, persistence.
 6. **Folderless by default.** On-demand scratch, `~/Documents/Instrument/` for deliverables, and agent-requested folder access with the in-chat permission prompt.
-7. **The file tree.** Watcher-backed live browsing of the working folder, with a cap strategy for large trees.
+7. **The file tree.** Browsing the working folder as an expandable tree, with lazy per-directory reads and a poll while it is on screen. Attached folders expand in it too, so one tree answers "what can I open" regardless of which mount a file sits on.
 
 Phases 1 through 3 are invisible to the user and are most of the work. That is the honest shape of this: the feature is a folder picker, the cost is a refactor of what a task directory means.
 

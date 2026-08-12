@@ -36,7 +36,7 @@ export function AttachedItemPreview({
           <TooltipTrigger asChild>{button}</TooltipTrigger>
           <TooltipContent
             className="wrap-break-word"
-          collisionPadding={10}
+            collisionPadding={10}
             maxWidth="500px"
           >
             {tooltip}

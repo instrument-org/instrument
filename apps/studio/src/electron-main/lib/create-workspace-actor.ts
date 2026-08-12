@@ -15,6 +15,7 @@ import { APP_NAME } from "@instrument-org/shared";
 import {
   clearOrphanedProjectRefs,
   closeAllAgentBrowserSessions,
+  killAllBackgroundProcesses,
   migrateWorkspaceLayout,
   pruneExternalBrowserTmp,
   stopWorkspaceSkillWatcher,
@@ -353,9 +354,12 @@ export function createWorkspaceActor({
           // is torn down while Node frees the environment, so stop the skills
           // watcher and await its unsubscribe before app.exit. Bounded so a
           // stuck unsubscribe can't wedge the quit.
-          const forceFinalize = setTimeout(finalize, 2000);
+          const forceFinalize = setTimeout(finalize, 7000);
           void Promise.all([
             stopWorkspaceSkillWatcher().catch(noop),
+            // Agent-started servers and watchers outlive the turn that started
+            // them, so quitting is what ends them.
+            killAllBackgroundProcesses().catch(noop),
             telemetryFinalized,
           ]).finally(() => {
             logger.info("Quit teardown: skills watcher and telemetry settled");

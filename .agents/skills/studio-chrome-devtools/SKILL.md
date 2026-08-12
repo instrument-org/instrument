@@ -5,7 +5,9 @@ description: Use when working with Chrome DevTools against the Studio Electron a
 
 # Studio Chrome DevTools
 
-How to drive and inspect the Studio Electron app. Use it alongside the generic `chrome-devtools` or `chrome-devtools-cli` skill for command syntax.
+How to drive and inspect the Studio Electron app.
+
+`studio-drive.mjs` is the way in. The generic `chrome-devtools` / `chrome-devtools-cli` skills describe a tool that has never heard of Studio: it cannot derive this checkout's port, cannot tell a restart from a crash, and reports both as "Could not connect to Chrome. Check if Chrome is running", which sends a run off to hunt for a browser that was never involved. Read them when you need the profiler's own syntax ([The CLI, for what it alone can do](#the-cli-for-what-it-alone-can-do)), not to decide how to reach the app.
 
 ## Driving: `studio-drive.mjs`
 
@@ -22,7 +24,7 @@ node $DRIVE rpc workspace.task.list '{}'
 node $DRIVE stop
 ```
 
-Also `press`, `wait`, `modal`, `eval`. It speaks CDP directly, so there is no daemon to go stale and no reconnect to invalidate page ids, and it handles the things that otherwise fail quietly: real input, visible-only element matching, browser-side screenshot cropping, and a check that something is mounted before capturing.
+Also `press`, `wait`, `modal`, `eval`, and `port` (the bare number, for pointing another tool at this instance). It speaks CDP directly, so there is no daemon to go stale and no reconnect to invalidate page ids, and it handles the things that otherwise fail quietly: real input, visible-only element matching, browser-side screenshot cropping, and a check that something is mounted before capturing.
 
 `snapshot` is the read to reach for before deciding how to address anything. It prints the accessibility tree as indented `role "name"` lines, in the same terms `click --text` matches on and at a fraction of the size of the DOM, so one call answers what is on screen and what each thing is called. Scope it with `--selector` and go deeper with `--depth` (12 by default); an unscoped app page is a few hundred lines.
 
@@ -138,18 +140,25 @@ The quit prompt is a native `showMessageBox`, outside the web contents. CDP cann
 - After a main-process edit, the relaunched Electron can lose the debug port to the dying instance (`bind() failed: Address already in use`) and come back with no endpoint. Restart the dev server.
 - Studio sets Chromium's `allow-pre-commit-input` so CDP mouse input works against `<webview>` guests.
 
-## The CLI, for interactive inspection
+## The CLI, for what it alone can do
+
+Performance traces, Lighthouse, heap snapshots. Not driving: for anything `studio-drive` covers, it is the same job through a daemon that goes stale, on a port it guesses wrong.
 
 ```bash
-CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS=1 pnpm exec chrome-devtools start --browserUrl http://127.0.0.1:<port>
+CDT=.agents/skills/studio-chrome-devtools/scripts/cdt
+
+$CDT list_pages
+$CDT performance_start_trace --reload true --autoStop true
 ```
 
-`bash .agents/skills/studio-chrome-devtools/scripts/connect-cli.sh [browserUrl] [urlFragment]` wraps the probe, start and page selection.
+`cdt` resolves this checkout's port through `studio-drive.mjs port`, starts the daemon against it, and sets both quieting variables, so output is the answer rather than the answer plus an update nag. Reaching for `pnpm exec chrome-devtools` directly means picking the port and remembering the variables yourself, and 48160 is almost certainly someone else's window.
+
+`bash .agents/skills/studio-chrome-devtools/scripts/connect-cli.sh [browserUrl] [urlFragment]` does the same and then selects a page by URL fragment, which is worth it when the profiler has to attach to a specific webview guest rather than the app page.
 
 - `--browserUrl` belongs on `start`; later subcommands talk to the daemon.
 - The daemon outlives invocations and keeps its old version after a package upgrade. `stop` then `start` to pick up a new one, or to clear a stale socket behind an `ENOENT`.
 - `evaluate_script` requires an anonymous `function () { ... }` string, not an arrow or a bare expression. (`studio-drive eval` accepts either.)
-- Input commands exist beyond the obvious ones: `press_key` takes combinations like `Control+Shift+R`, plus `type_text`, `handle_dialog`, `upload_file`, `screencast_start`.
+- Input commands exist beyond the obvious ones: `press_key` takes combinations like `Control+Shift+R`, plus `type_text`, `handle_dialog`, `upload_file`, `screencast_start`. `studio-drive` covers the same ground without the daemon.
 
 ## Reference
 

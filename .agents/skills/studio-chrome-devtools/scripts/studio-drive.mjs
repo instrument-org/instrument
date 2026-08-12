@@ -86,6 +86,7 @@ const COMMANDS = new Set([
   "eval",
   "goto",
   "modal",
+  "port",
   "press",
   "rpc",
   "shot",
@@ -1161,14 +1162,32 @@ try {
     );
   }
   // Lifecycle commands manage the instance rather than talk to one.
-  if (command === "boot") {
-    report(
-      await cmdBoot(flag(argv, "--port"), { fresh: argv.includes("--fresh") }),
-    );
-  } else if (command === "stop") {
-    report(cmdStop());
-  } else {
-    report(await runAgainstInstance());
+  switch (command) {
+    case "boot": {
+      report(
+        await cmdBoot(flag(argv, "--port"), {
+          fresh: argv.includes("--fresh"),
+        }),
+      );
+
+      break;
+    }
+    case "port": {
+      // The bare number rather than a JSON field: this exists so another script
+      // can point itself at this checkout's instance in one substitution, and
+      // there is one derivation of that port rather than a copy per tool.
+      console.log(String(await resolvePort(flag(argv, "--port"))));
+
+      break;
+    }
+    case "stop": {
+      report(cmdStop());
+
+      break;
+    }
+    default: {
+      report(await runAgainstInstance());
+    }
   }
 } catch (error) {
   console.error(`studio-drive: ${error.message}`);

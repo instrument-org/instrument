@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+#
+# The chrome-devtools CLI, pointed at this checkout's Studio instance and quiet.
+#
+# Reach for it for the things `studio-drive.mjs` does not do: performance
+# traces, Lighthouse, heap snapshots. Driving the app goes through studio-drive,
+# which owns the instance and reports when it moves.
+#
+# Two reasons this exists rather than a documented invocation. The port is
+# derived per checkout, so the CLI's own default and the conventional 48160 are
+# both wrong here and land on someone else's window. And clean output needs two
+# environment variables on every call, which is a contract nobody keeps: 293 of
+# 1105 recorded invocations forgot one, and 156 outputs carried an update nag or
+# a telemetry banner the agent then had to read around.
+#
+#   cdt list_pages
+#   cdt performance_start_trace --reload true --autoStop true
+#
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+CDT=(
+  env
+  CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS=1
+  CHROME_DEVTOOLS_MCP_NO_USAGE_STATISTICS=1
+  pnpm exec chrome-devtools
+)
+
+# Fails with its own message when nothing is running for this checkout, which is
+# the right place for that to be answered.
+browser_url="http://127.0.0.1:$(node "${HERE}/studio-drive.mjs" port)"
+
+# The daemon outlives invocations, so this is usually a no-op and its failure is
+# usually "already running". Held back rather than swallowed: if the command
+# below also fails, the reason is probably here.
+start_failed=""
+start_output="$("${CDT[@]}" start --browserUrl "${browser_url}" 2>&1)" || start_failed=1
+
+status=0
+"${CDT[@]}" "$@" || status=$?
+
+if [[ ${status} -ne 0 && -n "${start_failed}" ]]; then
+  printf '%s\n' "${start_output}" >&2
+fi
+
+exit "${status}"

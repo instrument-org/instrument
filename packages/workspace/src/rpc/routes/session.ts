@@ -1,3 +1,4 @@
+import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { call } from "@orpc/server";
 import { z } from "zod";
@@ -6,6 +7,7 @@ import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { createSession } from "../../lib/create-session";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { Store } from "../../lib/store";
+import { recordTaskActivity } from "../../lib/task-settings";
 import { Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
@@ -116,6 +118,51 @@ const create = base
     }
 
     return sessionResult.value;
+  });
+
+// Run the agent over the session as it stands, with nothing added to it. What
+// the agent answers is the request already in the transcript, so a turn that
+// failed on its way to the model is asked for again exactly as it was sent the
+// first time, and the user is not made to say something to get it.
+const run = base
+  .input(
+    z.object({
+      id: TaskIdSchema,
+      modelURI: AIGatewayModelURI.Schema,
+      sessionId: StoreId.SessionSchema,
+    }),
+  )
+  .output(z.void())
+  .handler(async ({ context, errors, input }) => {
+    const { id, modelURI, sessionId } = input;
+    const taskId = id;
+
+    const modelResult = await fetchModel({
+      captureException: context.workspaceConfig.captureException,
+      configs: context.workspaceConfig.getAIProviderConfigs(),
+      modelCache: context.workspaceConfig.modelCache,
+      modelURI,
+    });
+
+    if (!modelResult.ok) {
+      context.workspaceConfig.captureException(modelResult.error);
+      throw toORPCError(modelResult.error, errors);
+    }
+
+    context.workspaceRef.send({
+      type: "runTurn",
+      value: {
+        agentName: "main",
+        id,
+        model: modelResult.value,
+        sessionId,
+      },
+    });
+
+    // Publishes `task.updated` itself, which is what moves the task in the list.
+    await recordTaskActivity(taskId);
+
+    context.workspaceConfig.captureEvent("session.run");
   });
 
 const stop = base
@@ -246,6 +293,7 @@ export const session = {
   list,
   live,
   remove,
+  run,
   stop,
   toMarkdown,
 };

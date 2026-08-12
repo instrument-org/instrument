@@ -14,15 +14,17 @@ import { updateTaskPane } from "../task-record";
 import { getWorkspaceConfig } from "../workspace-config";
 import { privateMountPoint } from "../workspace-fs-layout";
 
+const SHOW_NAME = "show";
+
 export const SHOW_COMMAND = {
   description: [
     `Show a file or a URL to the user, in the panel beside the conversation. Takes several arguments and opens one tab each, focusing the last.`,
-    `Use it for something the user should look at now: a chart just rendered, a report just written, a page worth seeing. It composes with the command that produced the thing, so \`python build.py && show output/chart.png\` is one call.`,
+    `Use it for something the user should look at now: a chart just rendered, a report just written, a page worth seeing. It composes with the command that produced the thing, so \`python build.py && ${SHOW_NAME} output/chart.png\` is one call.`,
     `It does NOT replace the \`\`\`${AGENT_FILES_LANGUAGE} fence, which is how a reply hands files over and leaves a record in the conversation. A closed panel must not erase what the reply said it produced, so name deliverables in the fence whether or not you show them.`,
     `Paths are yours as you write them elsewhere: task-relative (\`output/report.pdf\`) or under \`${MOUNT.attachedFolders}/\`. An argument starting with http:// or https:// is a URL, and steers the browsing session you already drive rather than opening a separate window. There is one such session, so at most one URL per call; any others are refused.`,
     `It does not open the file in the user's own applications, does not download anything, and does not raise or focus the app's window.`,
   ].join("\n"),
-  name: "show",
+  name: SHOW_NAME,
 } as const;
 
 export function createShowCommand({

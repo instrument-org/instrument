@@ -9,7 +9,13 @@ import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { addCacheControlToMessages } from "./add-cache-control";
+import {
+  computeContextBudget,
+  contextOccupancyFromMessages,
+} from "./context-budget";
+import { contextBudgetNotice } from "./context-budget-notice";
 import { dropTrailingFailedMessages } from "./drop-trailing-failed-messages";
+import { effectiveContextLength } from "./effective-context-length";
 import { filterUnsupportedMedia } from "./filter-unsupported-media";
 import { normalizeModelImages } from "./normalize-model-images";
 import { normalizeToolCallIds } from "./normalize-tool-call-ids";
@@ -184,10 +190,26 @@ export async function prepareModelMessages({
     model,
   });
 
-  return ok(
-    normalizeToolCallIds({
-      messages: cachedModelMessages,
-      model,
+  const preparedMessages = normalizeToolCallIds({
+    messages: cachedModelMessages,
+    model,
+  });
+
+  // Appended last, after the cache breakpoints have been placed, so a notice
+  // whose numbers move every turn sits behind the cached prefix instead of
+  // rewriting it. Nothing here is saved: the notice is recomputed from the
+  // budget on each request, so it disappears on its own once there is room
+  // again and never accumulates in the transcript.
+  const notice = contextBudgetNotice(
+    computeContextBudget({
+      contextLength: effectiveContextLength(model),
+      occupied: contextOccupancyFromMessages(messages),
     }),
   );
+
+  if (notice !== undefined) {
+    preparedMessages.push({ content: notice, role: "user" });
+  }
+
+  return ok(preparedMessages);
 }

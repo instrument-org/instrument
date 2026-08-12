@@ -324,6 +324,31 @@ describe("migrateWorkspaceLayout", () => {
     expect(read("tasks", "abc", "output", "report.md")).toBe("out");
   });
 
+  it("folds a work/ package up to the task root", () => {
+    const workDir = path.join(rootDir, "tasks", "abc", "work");
+    fs.mkdirSync(path.join(workDir, "skills", "instrument", "pdf"), {
+      recursive: true,
+    });
+    fs.writeFileSync(path.join(workDir, "package.json"), `{"name":"task"}`);
+    fs.writeFileSync(
+      path.join(workDir, "pnpm-workspace.yaml"),
+      "packages:\n  - skills/*\n  - skills/*/*\n",
+    );
+    fs.writeFileSync(path.join(workDir, "draft.md"), "scratch");
+
+    migrateWorkspaceLayout({ rootDir });
+
+    expect(read("tasks", "abc", "package.json")).toBe(`{"name":"task"}`);
+    expect(read("tasks", "abc", "pnpm-workspace.yaml")).toBe(
+      "packages:\n  - work/skills/*\n  - work/skills/*/*\nignoreWorkspaceRootCheck: true\n",
+    );
+    // The skills the globs now point at, and the agent's scratch, stay put.
+    expect(exists("tasks", "abc", "work", "skills", "instrument", "pdf")).toBe(
+      true,
+    );
+    expect(read("tasks", "abc", "work", "draft.md")).toBe("scratch");
+  });
+
   it("leaves a legacy .state dir in place (db references point at it)", () => {
     const taskRoot = path.join(rootDir, "tasks", "abc");
     fs.mkdirSync(path.join(taskRoot, ".state", "agent-browser"), {
@@ -351,10 +376,11 @@ describe("migrateWorkspaceLayout", () => {
     migrateWorkspaceLayout({ rootDir });
 
     expect(
-      exists("tasks", "abc", "work", "tmp", "agent-browser-profile-abc-123"),
+      exists("tasks", "abc", ".tmp", "agent-browser-profile-abc-123"),
     ).toBe(false);
-    // The agent's own temp files are the point of work/tmp; only the clone goes.
-    expect(read("tasks", "abc", "work", "tmp", "scratch.csv")).toBe("a,b");
+    // Only the clone goes. The agent's own temp files are the point of the temp
+    // dir, and they come up to the task root with the rest of it.
+    expect(read("tasks", "abc", ".tmp", "scratch.csv")).toBe("a,b");
   });
 
   describe("layout version marker", () => {

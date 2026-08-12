@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { PROJECT_MOUNT_POINT } from "../constants";
+import { MOUNT } from "../mount-points";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import {
   AbsolutePathSchema,
@@ -21,8 +21,6 @@ import {
   buildBashFs,
   buildWorkspaceFsLayout,
   effectiveFolderAccess,
-  SKILLS_MOUNT_POINT,
-  TASK_MOUNT_POINT,
 } from "./workspace-fs-layout";
 import {
   beginSkillChangeTracking,
@@ -62,7 +60,7 @@ describe("buildBashFs", () => {
     const bashFs = await buildBashFs(layout, {
       maxFileReadSize: 1024 * 1024,
     });
-    return new Bash({ cwd: TASK_MOUNT_POINT, fs: bashFs });
+    return new Bash({ cwd: MOUNT.task, fs: bashFs });
   }
 
   // just-bash raises some filesystem refusals as thrown errors rather than exit
@@ -170,7 +168,7 @@ describe("buildBashFs", () => {
   });
 
   it.each([
-    ["absolute", `cat ${TASK_MOUNT_POINT}/.instrument/state.json`],
+    ["absolute", `cat ${MOUNT.task}/.instrument/state.json`],
     ["traversal", "cat work/../.instrument/state.json"],
     ["from a subdirectory", "cd work && cat ../.instrument/state.json"],
     ["assembled at runtime", 'd=.instrument; f=state.json; cat "$d/$f"'],
@@ -249,12 +247,12 @@ describe("buildBashFs", () => {
       const bashFs = await buildBashFs(layout, {
         maxFileReadSize: 1024 * 1024,
       });
-      return new Bash({ cwd: TASK_MOUNT_POINT, fs: bashFs });
+      return new Bash({ cwd: MOUNT.task, fs: bashFs });
     }
 
     it("reads the project's instructions at its mount point", async () => {
       const bash = await makeProjectBash();
-      const result = await bash.exec(`cat ${PROJECT_MOUNT_POINT}/AGENTS.md`);
+      const result = await bash.exec(`cat ${MOUNT.project}/AGENTS.md`);
       expect(result.stdout).toBe("Use British spelling.");
       expect(result.exitCode).toBe(0);
     });
@@ -262,7 +260,7 @@ describe("buildBashFs", () => {
     it("writes through to the real project folder", async () => {
       const bash = await makeProjectBash();
       const result = await bash.exec(
-        `echo 'Prefer pnpm.' >> ${PROJECT_MOUNT_POINT}/AGENTS.md`,
+        `echo 'Prefer pnpm.' >> ${MOUNT.project}/AGENTS.md`,
       );
       expect(result.exitCode).toBe(0);
       await expect(
@@ -273,21 +271,18 @@ describe("buildBashFs", () => {
     it("masks the project's private dir against reads", async () => {
       const bash = await makeProjectBash();
       expect(
-        await stdoutOf(
-          bash,
-          `cat ${PROJECT_MOUNT_POINT}/.instrument/settings.json`,
-        ),
+        await stdoutOf(bash, `cat ${MOUNT.project}/.instrument/settings.json`),
       ).not.toContain("secret");
-      expect(
-        await stdoutOf(bash, `ls -a ${PROJECT_MOUNT_POINT}`),
-      ).not.toContain(".instrument");
+      expect(await stdoutOf(bash, `ls -a ${MOUNT.project}`)).not.toContain(
+        ".instrument",
+      );
     });
 
     it("refuses writes into the project's private dir", async () => {
       const bash = await makeProjectBash();
       await stdoutOf(
         bash,
-        `echo '{"folders":[{"access":"read-write","path":"/"}]}' > ${PROJECT_MOUNT_POINT}/.instrument/settings.json`,
+        `echo '{"folders":[{"access":"read-write","path":"/"}]}' > ${MOUNT.project}/.instrument/settings.json`,
       );
       await expect(
         fs.readFile(
@@ -379,13 +374,13 @@ describe("buildBashFs skills mount", () => {
       taskHostRoot: TaskDirSchema.parse(path.join(tmpDir, "task")),
     });
     const bashFs = await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 });
-    return new Bash({ cwd: TASK_MOUNT_POINT, fs: bashFs });
+    return new Bash({ cwd: MOUNT.task, fs: bashFs });
   }
 
   it("mounts the workspace skills dir writable", async () => {
     const bash = await makeBash();
     const result = await bash.exec(
-      `mkdir -p ${SKILLS_MOUNT_POINT}/made-up && echo body > ${SKILLS_MOUNT_POINT}/made-up/SKILL.md`,
+      `mkdir -p ${MOUNT.skills}/made-up && echo body > ${MOUNT.skills}/made-up/SKILL.md`,
     );
     expect(result.exitCode).toBe(0);
     await expect(
@@ -403,7 +398,7 @@ describe("buildBashFs skills mount", () => {
 
     await withTurnContext(turn, () =>
       bash.exec(
-        `mkdir -p ${SKILLS_MOUNT_POINT}/tracked && echo body > ${SKILLS_MOUNT_POINT}/tracked/SKILL.md`,
+        `mkdir -p ${MOUNT.skills}/tracked && echo body > ${MOUNT.skills}/tracked/SKILL.md`,
       ),
     );
 
@@ -427,10 +422,10 @@ describe("buildBashFs skills mount", () => {
     const bash = await makeBash();
     // The prompt advertises /skills unconditionally, so it has to be there to
     // write to even before the first skill exists.
-    const listed = await bash.exec(`ls ${SKILLS_MOUNT_POINT}`);
+    const listed = await bash.exec(`ls ${MOUNT.skills}`);
     expect(listed.exitCode).toBe(0);
     const written = await bash.exec(
-      `mkdir -p ${SKILLS_MOUNT_POINT}/first && echo body > ${SKILLS_MOUNT_POINT}/first/SKILL.md`,
+      `mkdir -p ${MOUNT.skills}/first && echo body > ${MOUNT.skills}/first/SKILL.md`,
     );
     expect(written.exitCode).toBe(0);
     await expect(

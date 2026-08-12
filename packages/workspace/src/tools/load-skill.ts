@@ -31,7 +31,7 @@ import {
 } from "../lib/skills";
 import { getTaskWorkDir, taskDir } from "../lib/task-dir-utils";
 import { getWorkspaceConfig } from "../lib/workspace-config";
-import { SKILLS_MOUNT_POINT } from "../lib/workspace-fs-layout";
+import { MOUNT } from "../mount-points";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { TOOL_NAMES } from "./name";
@@ -304,12 +304,12 @@ export const LoadSkill = setupTool({
       fileSection = `\n\n${fileSectionText}\n\n${fileListXml}${truncationNote}`;
     }
 
-    const customizeHint = `Copy it into \`${SKILLS_MOUNT_POINT}/\` to change it.`;
+    const customizeHint = `Copy it into \`${MOUNT.skills}/\` to change it.`;
     const originSection =
       output.origin === "workspace"
-        ? `\n\nThis skill lives at \`${SKILLS_MOUNT_POINT}/${output.skillName}\`; edit it there to change the skill for future tasks (the \`${TASK_FOLDER_NAMES.work}/\` copy is only for this task).`
+        ? `\n\nThis skill lives at \`${MOUNT.skills}/${output.skillName}\`; edit it there to change the skill for future tasks (the \`${TASK_FOLDER_NAMES.work}/\` copy is only for this task).`
         : output.origin === "in-repo"
-          ? `\n\nThis skill lives in this project at \`.agents/skills/${output.skillName}\`, outside the writable \`${SKILLS_MOUNT_POINT}/\` mount, so you cannot edit it in place from here. ${customizeHint}`
+          ? `\n\nThis skill lives in this project at \`.agents/skills/${output.skillName}\`, outside the writable \`${MOUNT.skills}/\` mount, so you cannot edit it in place from here. ${customizeHint}`
           : output.origin === "instrument"
             ? `\n\nThis skill is provided by ${APP_NAME} and is read-only. ${customizeHint}`
             : `\n\nThis skill comes from a skills folder elsewhere on this machine and is read-only. ${customizeHint}`;

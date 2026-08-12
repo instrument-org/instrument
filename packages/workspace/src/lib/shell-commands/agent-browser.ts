@@ -10,7 +10,7 @@ import { dedent, sleep } from "radashi";
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { CDP_PAGE_PATH_PREFIX } from "../../logic/server/constants";
 import { getWorkspaceServerPort } from "../../logic/server/url";
-import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../../schemas/paths";
+import { MOUNT } from "../../mount-points";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { WebSearch } from "../../tools/web-search";
@@ -41,7 +41,6 @@ import { getWorkspaceConfig } from "../workspace-config";
 import {
   privateMountPoint,
   resolveNativeHostPath,
-  TASK_MOUNT_POINT,
 } from "../workspace-fs-layout";
 import {
   agentBrowserFlagName,
@@ -389,13 +388,13 @@ export async function resolveAgentBrowserPathArgs(
     const virtualPath = ctx.fs.resolvePath(ctx.cwd, value);
 
     if (
-      virtualPath === ATTACHED_FOLDERS_MOUNT_ROOT ||
-      virtualPath.startsWith(`${ATTACHED_FOLDERS_MOUNT_ROOT}/`)
+      virtualPath === MOUNT.attachedFolders ||
+      virtualPath.startsWith(`${MOUNT.attachedFolders}/`)
     ) {
       return { error: attachedMountLiteralError("Upload") };
     }
 
-    const privateDir = privateMountPoint(TASK_MOUNT_POINT);
+    const privateDir = privateMountPoint(MOUNT.task);
     if (
       virtualPath === privateDir ||
       virtualPath.startsWith(`${privateDir}/`)
@@ -404,12 +403,12 @@ export async function resolveAgentBrowserPathArgs(
     }
 
     if (
-      virtualPath !== TASK_MOUNT_POINT &&
-      !virtualPath.startsWith(`${TASK_MOUNT_POINT}/`)
+      virtualPath !== MOUNT.task &&
+      !virtualPath.startsWith(`${MOUNT.task}/`)
     ) {
       return {
         error:
-          `Upload file "${virtualPath}" is outside ${TASK_MOUNT_POINT}. ` +
+          `Upload file "${virtualPath}" is outside ${MOUNT.task}. ` +
           `Copy the file into the task first and use a task-relative path.`,
       };
     }

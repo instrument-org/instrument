@@ -5,7 +5,6 @@ import { dedent, pick } from "radashi";
 import {
   AGENT_FILES_LANGUAGE,
   TASK_FOLDER_NAMES as F,
-  PROJECT_MOUNT_POINT,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "../constants";
 import { assignAttachedMounts } from "../lib/attached-folder-mounts";
@@ -28,14 +27,12 @@ import { Store } from "../lib/store";
 import { taskDir } from "../lib/task-dir-utils";
 import { getTaskState } from "../lib/task-record";
 import { getWorkspaceConfig } from "../lib/workspace-config";
-import {
-  effectiveFolderAccess,
-  SKILLS_MOUNT_POINT,
-} from "../lib/workspace-fs-layout";
+import { effectiveFolderAccess } from "../lib/workspace-fs-layout";
 import {
   beginSkillChangeTracking,
   consumeSkillChanges,
 } from "../lib/workspace-skill-index";
+import { MOUNT } from "../mount-points";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { StoreId } from "../schemas/store-id";
@@ -161,7 +158,7 @@ export const mainAgent = setupAgent({
 
     # Understanding ${APP_NAME}
     - Users upload files in a message, or attach a folder from their computer with the attachment button in the chat input. When a task needs local files or folders you don't have, point them at that button.
-    - If the user asks where a deliverable is or how to reach it on their computer, point them to the preview you showed them, which can reveal the file in their folder; \`${F.output}/\` files live in the task's folder on their machine. Do not run \`pwd\` or quote an internal path -- your working directory is a sandbox root (\`/task\`), not their real location, and reporting it misleads them.
+    - If the user asks where a deliverable is or how to reach it on their computer, point them to the preview you showed them, which can reveal the file in their folder; \`${F.output}/\` files live in the task's folder on their machine. Do not run \`pwd\` or quote an internal path -- your working directory is a sandbox root (\`${MOUNT.task}\`), not their real location, and reporting it misleads them.
 
     # Tone and Style
     Communicate in plain, approachable language. Keep responses concise and focused on the user's outcome, and avoid technical or implementation details unless asked.
@@ -201,16 +198,16 @@ export const mainAgent = setupAgent({
     - \`${F.output}/\` -- finished deliverables. Write final results here.
     - \`${F.downloads}/\` -- files you download (e.g. via the browser) land here. Move one to \`${F.output}/\` when it's a finished deliverable.
 
-    Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`, everything else in \`${F.work}/\`. Your working directory is the task root (\`/task\`); use relative paths for task files (\`${F.work}/...\`, \`${F.output}/...\`). The only absolute paths you use are virtual mount paths: \`/mnt/...\` for attached folders, \`${SKILLS_MOUNT_POINT}/...\` for the workspace's own skills, and \`${PROJECT_MOUNT_POINT}/...\` for the folder of the project a task belongs to. Never use host paths like \`/Users/...\`.
-    - Folders the user attaches are mounted under \`/mnt/\` and reflect the user's real files, each either read-only or read-and-write; the attached-folders list says which. They are NOT under the task root, so reach them by their \`/mnt/...\` path and never a relative one -- including from agent-authored HTML or CSS, where that absolute path is what lets the static asset origin resolve them.
+    Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`, everything else in \`${F.work}/\`. Your working directory is the task root (\`${MOUNT.task}\`); use relative paths for task files (\`${F.work}/...\`, \`${F.output}/...\`). The only absolute paths you use are virtual mount paths: \`${MOUNT.attachedFolders}/...\` for attached folders, \`${MOUNT.skills}/...\` for the workspace's own skills, and \`${MOUNT.project}/...\` for the folder of the project a task belongs to. Never use host paths like \`/Users/...\`.
+    - Folders the user attaches are mounted under \`${MOUNT.attachedFolders}/\` and reflect the user's real files, each either read-only or read-and-write; the attached-folders list says which. They are NOT under the task root, so reach them by their \`${MOUNT.attachedFolders}/...\` path and never a relative one -- including from agent-authored HTML or CSS, where that absolute path is what lets the static asset origin resolve them.
     - If needed files aren't available, tell the user they can upload them or attach the containing folder.
-    - \`${SKILLS_MOUNT_POINT}/\` is the workspace's own skills folder, mounted writable.
+    - \`${MOUNT.skills}/\` is the workspace's own skills folder, mounted writable.
       Each skill is a directory holding \`SKILL.md\` plus optional \`scripts/\`,
       \`references/\`, and \`assets/\`. Create and edit skills here with your normal file
       tools; a skill saved here is immediately available to \`${agentTools.LoadSkill.name}\`.
       Skills that came from elsewhere on the machine are not under
-      \`${SKILLS_MOUNT_POINT}/\` and cannot be edited -- load them by name instead.
-      Like \`/mnt/\`, this is outside the task root, so native tools (python, ffmpeg,
+      \`${MOUNT.skills}/\` and cannot be edited -- load them by name instead.
+      Like \`${MOUNT.attachedFolders}/\`, this is outside the task root, so native tools (python, ffmpeg,
       scripts) cannot reach it; to run a skill's script, load the skill and run the
       copy under \`${F.work}/${F.skills}/\`.
 

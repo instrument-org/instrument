@@ -1,7 +1,8 @@
 import { defineCommand } from "just-bash";
 
+import { AGENT_FILES_LANGUAGE } from "../../constants";
+import { MOUNT } from "../../mount-points";
 import { publisher } from "../../rpc/publisher";
-import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../../schemas/paths";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { TaskPane } from "../../schemas/task-pane";
@@ -10,14 +11,14 @@ import { isTaskId } from "../is-task-id";
 import { getBrowserSessionDir, taskDir } from "../task-dir-utils";
 import { updateTaskPane } from "../task-record";
 import { getWorkspaceConfig } from "../workspace-config";
-import { privateMountPoint, TASK_MOUNT_POINT } from "../workspace-fs-layout";
+import { privateMountPoint } from "../workspace-fs-layout";
 
 export const SHOW_COMMAND = {
   description: [
     `Show a file or a URL to the user, in the panel beside the conversation. Takes several arguments and opens one tab each, focusing the last.`,
     `Use it for something the user should look at now: a chart just rendered, a report just written, a page worth seeing. It composes with the command that produced the thing, so \`python build.py && show output/chart.png\` is one call.`,
-    `It does NOT replace the \`\`\`files fence, which is how a reply hands files over and leaves a record in the conversation. A closed panel must not erase what the reply said it produced, so name deliverables in the fence whether or not you show them.`,
-    `Paths are yours as you write them elsewhere: task-relative (\`output/report.pdf\`) or under \`${ATTACHED_FOLDERS_MOUNT_ROOT}/\`. An argument starting with http:// or https:// is a URL, and steers the browsing session you already drive rather than opening a separate window. There is one such session, so at most one URL per call; any others are refused.`,
+    `It does NOT replace the \`\`\`${AGENT_FILES_LANGUAGE} fence, which is how a reply hands files over and leaves a record in the conversation. A closed panel must not erase what the reply said it produced, so name deliverables in the fence whether or not you show them.`,
+    `Paths are yours as you write them elsewhere: task-relative (\`output/report.pdf\`) or under \`${MOUNT.attachedFolders}/\`. An argument starting with http:// or https:// is a URL, and steers the browsing session you already drive rather than opening a separate window. There is one such session, so at most one URL per call; any others are refused.`,
     `It does not open the file in the user's own applications, does not download anything, and does not raise or focus the app's window.`,
   ].join("\n"),
   name: "show",
@@ -212,13 +213,13 @@ async function resolveShowPath(
 ): Promise<{ error: string } | { filePath: string }> {
   const virtualPath = ctx.fs.resolvePath(ctx.cwd, arg);
 
-  const privateDir = privateMountPoint(TASK_MOUNT_POINT);
+  const privateDir = privateMountPoint(MOUNT.task);
   if (virtualPath === privateDir || virtualPath.startsWith(`${privateDir}/`)) {
     return { error: `"${arg}" is inside the task's private directory.` };
   }
 
-  const isTaskFile = virtualPath.startsWith(`${TASK_MOUNT_POINT}/`);
-  const isMountFile = virtualPath.startsWith(`${ATTACHED_FOLDERS_MOUNT_ROOT}/`);
+  const isTaskFile = virtualPath.startsWith(`${MOUNT.task}/`);
+  const isMountFile = virtualPath.startsWith(`${MOUNT.attachedFolders}/`);
   if (!isTaskFile && !isMountFile) {
     return {
       error: `"${arg}" is outside the task and the folders the user shared, so there is nothing to show it in.`,
@@ -231,7 +232,7 @@ async function resolveShowPath(
 
   return {
     filePath: isTaskFile
-      ? virtualPath.slice(TASK_MOUNT_POINT.length + 1)
+      ? virtualPath.slice(MOUNT.task.length + 1)
       : virtualPath,
   };
 }

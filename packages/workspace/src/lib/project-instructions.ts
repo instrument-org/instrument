@@ -1,8 +1,8 @@
 import {
   MAX_PROJECT_INSTRUCTIONS_LENGTH,
   PROJECT_INSTRUCTIONS_FILE_NAME,
-  PROJECT_MOUNT_POINT,
 } from "../constants";
+import { MOUNT } from "../mount-points";
 
 /**
  * The model-facing form of a project's instructions: trimmed, whitespace-only
@@ -46,5 +46,5 @@ export function normalizeProjectInstructions(
   const kept =
     lastBreak > 0 ? withinBudget.slice(0, lastBreak) : withinBudget.trimEnd();
 
-  return `${kept}\n\n[Cut off here: these instructions are too long to include in full. The rest is in ${PROJECT_MOUNT_POINT}/${PROJECT_INSTRUCTIONS_FILE_NAME} -- read that file if you need it.]`;
+  return `${kept}\n\n[Cut off here: these instructions are too long to include in full. The rest is in ${MOUNT.project}/${PROJECT_INSTRUCTIONS_FILE_NAME} -- read that file if you need it.]`;
 }

@@ -5,7 +5,7 @@ import path from "node:path";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
-import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../../schemas/paths";
+import { MOUNT } from "../../mount-points";
 import { type TaskId } from "../../schemas/task-id";
 import { gitSubprocessEnv } from "../git";
 import { normalizePath } from "../normalize-path";
@@ -15,16 +15,15 @@ import { getWorkspaceConfig } from "../workspace-config";
 import {
   privateMountPoint,
   resolveNativeHostPath,
-  TASK_MOUNT_POINT,
 } from "../workspace-fs-layout";
 
 /** Copy-first guidance for a `/mnt/...` reference; subject names the source. */
 export function attachedMountLiteralError(subject: string): string {
   return (
-    `${subject} references a ${ATTACHED_FOLDERS_MOUNT_ROOT}/... path. ` +
+    `${subject} references a ${MOUNT.attachedFolders}/... path. ` +
     `Attached-folder mounts are only visible to the sandbox shell and file tools, ` +
     `never to real interpreter processes. Copy the file into the task first ` +
-    `(cp '${ATTACHED_FOLDERS_MOUNT_ROOT}/<folder>/<file>' attachments/) and ` +
+    `(cp '${MOUNT.attachedFolders}/<folder>/<file>' attachments/) and ` +
     `reference the copy with a task-relative path (attachments/<file>).`
   );
 }
@@ -67,7 +66,7 @@ export function bridgeInlineCodePaths(
   taskId: TaskId,
   taskCwd: string,
 ): { code: string } | { error: string } {
-  if (quotedMountPattern(ATTACHED_FOLDERS_MOUNT_ROOT).test(code)) {
+  if (quotedMountPattern(MOUNT.attachedFolders).test(code)) {
     return { error: attachedMountLiteralError("Inline script code") };
   }
 
@@ -75,7 +74,7 @@ export function bridgeInlineCodePaths(
   // literals too so a real interpreter can't be steered into task.db/state.json
   // via a quoted `/task/.instrument/...` string. Best-effort, like the /mnt
   // guard above.
-  if (quotedMountPattern(privateMountPoint(TASK_MOUNT_POINT)).test(code)) {
+  if (quotedMountPattern(privateMountPoint(MOUNT.task)).test(code)) {
     return { error: privateDirLiteralError("Inline script code") };
   }
 
@@ -83,7 +82,7 @@ export function bridgeInlineCodePaths(
     path.relative(taskCwd, taskDir(taskId)).replaceAll("\\", "/") || ".";
   return {
     code: code.replaceAll(
-      quotedMountPattern(TASK_MOUNT_POINT),
+      quotedMountPattern(MOUNT.task),
       (_match, quote: string) => `${quote}${relativeTaskRoot}`,
     ),
   };
@@ -284,19 +283,19 @@ export async function scanScriptFileForVirtualPaths(
  * match, so regex literals and paths embedded mid-string are left alone.
  */
 export function scriptFileVirtualPathError(source: string): string | undefined {
-  if (quotedMountPattern(ATTACHED_FOLDERS_MOUNT_ROOT).test(source)) {
+  if (quotedMountPattern(MOUNT.attachedFolders).test(source)) {
     return attachedMountLiteralError("This script file");
   }
-  if (quotedMountPattern(privateMountPoint(TASK_MOUNT_POINT)).test(source)) {
+  if (quotedMountPattern(privateMountPoint(MOUNT.task)).test(source)) {
     return privateDirLiteralError("This script file");
   }
-  if (quotedMountPattern(TASK_MOUNT_POINT).test(source)) {
+  if (quotedMountPattern(MOUNT.task).test(source)) {
     return (
-      `This script file references a ${TASK_MOUNT_POINT}/... absolute path, which ` +
-      `real interpreter processes cannot resolve: ${TASK_MOUNT_POINT} is a virtual ` +
+      `This script file references a ${MOUNT.task}/... absolute path, which ` +
+      `real interpreter processes cannot resolve: ${MOUNT.task} is a virtual ` +
       `path only the sandbox shell and file tools see, and scripts run from the ` +
       `task root. Use a task-relative path instead (output/report.txt, ` +
-      `work/data.csv). Command-line path arguments and quoted ${TASK_MOUNT_POINT}/... ` +
+      `work/data.csv). Command-line path arguments and quoted ${MOUNT.task}/... ` +
       `strings in inline -e/-c code are translated automatically; paths written ` +
       `inside script files are not.`
     );

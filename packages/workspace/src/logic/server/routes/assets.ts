@@ -1,7 +1,7 @@
 import { Hono, type MiddlewareHandler } from "hono";
 import { cors } from "hono/cors";
 
-import { PROJECT_MOUNT_POINT, TASK_FOLDER_NAMES } from "../../../constants";
+import { TASK_FOLDER_NAMES } from "../../../constants";
 import { taskDir } from "../../../lib/task-dir-utils";
 import { resolveTaskProjectFolder } from "../../../lib/task-project-folder";
 import { getTaskState } from "../../../lib/task-record";
@@ -9,9 +9,8 @@ import {
   buildWorkspaceFsLayout,
   hostPathEscapesMount,
   resolveHostPath,
-  TASK_MOUNT_POINT,
 } from "../../../lib/workspace-fs-layout";
-import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../../../schemas/paths";
+import { MOUNT } from "../../../mount-points";
 import { serveStaticFile } from "../serve-static";
 import { type WorkspaceServerEnv } from "../types";
 import { uriDetailsForHost } from "../uri-details-for-host";
@@ -112,11 +111,11 @@ app.all("/*", async (c, next) => {
   // the task have to be listed, or an agent-authored page linking to one gets
   // the path resolved inside the task folder and a 404 that looks like a missing
   // file rather than an unserved mount.
-  const virtualPath = [ATTACHED_FOLDERS_MOUNT_ROOT, PROJECT_MOUNT_POINT].some(
+  const virtualPath = [MOUNT.attachedFolders, MOUNT.project].some(
     (root) => assetPath === root || assetPath.startsWith(`${root}/`),
   )
     ? assetPath
-    : `${TASK_MOUNT_POINT}${assetPath}`;
+    : `${MOUNT.task}${assetPath}`;
   const resolved = resolveHostPath(layout, virtualPath);
 
   if (resolved === null) {

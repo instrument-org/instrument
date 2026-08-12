@@ -11,6 +11,7 @@ import {
 } from "just-bash";
 import { dedent } from "radashi";
 
+import { MOUNT } from "../mount-points";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
@@ -60,12 +61,7 @@ import {
 } from "./shell-commands/validate-skill";
 import { createWhichCommand } from "./shell-commands/which";
 import { taskDir } from "./task-dir-utils";
-import {
-  buildBashFs,
-  buildWorkspaceFsLayout,
-  SKILLS_MOUNT_POINT,
-  TASK_MOUNT_POINT,
-} from "./workspace-fs-layout";
+import { buildBashFs, buildWorkspaceFsLayout } from "./workspace-fs-layout";
 
 /** FS reads, HTTP bodies, maxStringLength/maxOutputSize; maxHeredocSize unchanged (64 MiB). */
 const SANDBOX_MAX_BYTES = 256 * 1024 * 1024;
@@ -325,11 +321,11 @@ export function createBashDescription() {
   return dedent`
     Execute bash commands in the task directory.
 
-    IMPORTANT: Folders the user attaches appear as mounts under \`/mnt/\`, each read-only or read-and-write; the attached-folders list in your context says which. A write into a read-only one fails with EROFS. A write into a read-and-write one lands on the user's real files immediately, so treat \`rm\` there as permanent. \`rg\` searches mount paths directly, but the interpreter hatches (python, node, ffmpeg, pnpm) cannot resolve one: copy the file into the task first (e.g. \`cp '/mnt/<folder>/file' attachments/\`), work on the copy, and \`mv\` the result back if it belongs in the folder.
+    IMPORTANT: Folders the user attaches appear as mounts under \`${MOUNT.attachedFolders}/\`, each read-only or read-and-write; the attached-folders list in your context says which. A write into a read-only one fails with EROFS. A write into a read-and-write one lands on the user's real files immediately, so treat \`rm\` there as permanent. \`rg\` searches mount paths directly, but the interpreter hatches (python, node, ffmpeg, pnpm) cannot resolve one: copy the file into the task first (e.g. \`cp '${MOUNT.attachedFolders}/<folder>/file' attachments/\`), work on the copy, and \`mv\` the result back if it belongs in the folder.
 
-    IMPORTANT: Python is available via the specialized \`${PYTHON_COMMAND.name}\`/\`${PYTHON3_COMMAND.name}\`/\`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` commands below (backed by a per-task virtualenv in work/.venv), TypeScript/JavaScript via \`${TS_COMMAND.name}\`, and package management via \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside script code run by these commands, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`${TASK_MOUNT_POINT}/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`/mnt/...\` never is (copy attached files into the task first) and paths inside script FILES on disk are never translated.
+    IMPORTANT: Python is available via the specialized \`${PYTHON_COMMAND.name}\`/\`${PYTHON3_COMMAND.name}\`/\`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` commands below (backed by a per-task virtualenv in work/.venv), TypeScript/JavaScript via \`${TS_COMMAND.name}\`, and package management via \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside script code run by these commands, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`${MOUNT.task}/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`${MOUNT.attachedFolders}/...\` never is (copy attached files into the task first) and paths inside script FILES on disk are never translated.
 
-    IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`${TASK_MOUNT_POINT}\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`${TASK_MOUNT_POINT}\`, the \`/mnt\` mounts, and \`${SKILLS_MOUNT_POINT}\` exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
+    IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`${MOUNT.task}\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`${MOUNT.task}\`, the \`${MOUNT.attachedFolders}\` mounts, and \`${MOUNT.skills}\` exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
     IMPORTANT: Backgrounding is NOT supported. Each call must complete within \`timeoutMs\`.
 
@@ -410,7 +406,7 @@ export async function createBashEnv({
       ),
       ...STATIC_STUB_COMMANDS,
     ],
-    cwd: TASK_MOUNT_POINT,
+    cwd: MOUNT.task,
     executionLimits: {
       maxOutputSize: SANDBOX_MAX_BYTES,
       maxStringLength: SANDBOX_MAX_BYTES,

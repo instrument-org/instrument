@@ -9,7 +9,8 @@ import { realpathSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import nodePath from "node:path";
 
-import { PROJECT_MOUNT_POINT, TASK_FOLDER_NAMES } from "../constants";
+import { TASK_FOLDER_NAMES } from "../constants";
+import { MOUNT } from "../mount-points";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
@@ -34,7 +35,6 @@ export { getWorkspaceSkillsDir } from "./workspace-skills-dir";
  * are unaffected since the working directory is this mount. Every virtual<->real
  * translator routes through the layout, so this is the single value to change.
  */
-export const TASK_MOUNT_POINT = "/task";
 
 /**
  * Virtual mount point of the device files.
@@ -54,7 +54,6 @@ const DEV_MOUNT_POINT = "/dev";
  * discovered in a co-installed agent's home directory stay readable through
  * `load_skill` and are never exposed for writing.
  */
-export const SKILLS_MOUNT_POINT = "/skills";
 
 /**
  * The complete virtual filesystem layout for a task: the writable task mount,
@@ -233,19 +232,19 @@ export function buildWorkspaceFsLayout({
               getWorkspaceConfig().projectsDir,
               projectFolderName,
             ),
-            mountPoint: PROJECT_MOUNT_POINT,
+            mountPoint: MOUNT.project,
             readOnly: false as const,
           },
         }
       : {}),
     skills: {
       hostRoot: getWorkspaceSkillsDir(),
-      mountPoint: SKILLS_MOUNT_POINT,
+      mountPoint: MOUNT.skills,
       readOnly: false,
     },
     task: {
       hostRoot: taskHostRoot,
-      mountPoint: TASK_MOUNT_POINT,
+      mountPoint: MOUNT.task,
       readOnly: false,
     },
   };
@@ -395,7 +394,7 @@ export function resolveNativeHostPath(
   virtualAbsPath: string,
 ): AbsolutePath {
   const normalized = normalizePath(virtualAbsPath);
-  const relative = relativeWithin(TASK_MOUNT_POINT, normalized);
+  const relative = relativeWithin(MOUNT.task, normalized);
   if (relative !== null && !isPrivateRelative(relative)) {
     return absolutePathJoin(
       taskHostRoot,
@@ -438,10 +437,7 @@ export function resolveReadOnlyHostPath(
   const { hostPath, mount } = resolved;
 
   if (mount === layout.task) {
-    const relative = relativeWithin(
-      TASK_MOUNT_POINT,
-      normalizePath(virtualAbsPath),
-    );
+    const relative = relativeWithin(MOUNT.task, normalizePath(virtualAbsPath));
     if (relative === null || isPrivateRelative(relative)) {
       return null;
     }

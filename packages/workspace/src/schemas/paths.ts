@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { MOUNT } from "../mount-points";
+
 // These schemas are shared with the renderer, so they cannot reach for
 // `node:path`. Matches `path.isAbsolute` for both posix (`/foo`) and win32
 // (`\foo`, `C:\foo`, `C:/foo`) shapes regardless of the host platform.
@@ -45,11 +47,10 @@ export const RelativeTaskPathSchema = RelativePathSchema.refine(
  * schema, the attached-folder mount points, and the asset server all derive
  * from it.
  */
-export const ATTACHED_FOLDERS_MOUNT_ROOT = "/mnt";
 
 const MountedWorkspacePathSchema = z
   .string()
-  .startsWith(`${ATTACHED_FOLDERS_MOUNT_ROOT}/`)
+  .startsWith(`${MOUNT.attachedFolders}/`)
   .brand("MountedWorkspacePath")
   .refine(
     (val) =>

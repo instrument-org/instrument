@@ -1,5 +1,5 @@
+import { MOUNT } from "../mount-points";
 import { type FolderAttachment } from "../schemas/folder-attachment";
-import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../schemas/paths";
 
 /**
  * Mount points for every attached folder, in iteration order.
@@ -45,5 +45,5 @@ export function attachedFolderMountPoint(name: string) {
   const segment = name.replaceAll("/", "-").trim();
   const safe =
     segment === "" || segment === "." || segment === ".." ? "folder" : segment;
-  return `${ATTACHED_FOLDERS_MOUNT_ROOT}/${safe}`;
+  return `${MOUNT.attachedFolders}/${safe}`;
 }

@@ -1,4 +1,4 @@
-import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../schemas/paths";
+import { MOUNT } from "../mount-points";
 
 /**
  * Whether a path is one this app can address at all: somewhere inside the task,
@@ -22,7 +22,5 @@ export function isAddressableTaskFilePath(path: string): boolean {
     return false;
   }
 
-  return (
-    !path.startsWith("/") || path.startsWith(`${ATTACHED_FOLDERS_MOUNT_ROOT}/`)
-  );
+  return !path.startsWith("/") || path.startsWith(`${MOUNT.attachedFolders}/`);
 }

@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { TASK_FOLDER_NAMES } from "../constants";
+import { MOUNT } from "../mount-points";
 import {
   type AbsolutePath,
   AbsolutePathSchema,
@@ -20,7 +21,6 @@ import {
   hostPathEscapesMount,
   nonTaskMounts,
   resolveHostPath,
-  TASK_MOUNT_POINT,
   type WorkspaceFsLayout,
 } from "./workspace-fs-layout";
 
@@ -307,7 +307,7 @@ function resolveVirtualAbsolutePath(
         : "";
     return executeError(
       `The absolute path "${virtualPath}" is outside the task. ` +
-        `Use a task-relative path (or ${TASK_MOUNT_POINT}/...)${mountHint}.`,
+        `Use a task-relative path (or ${MOUNT.task}/...)${mountHint}.`,
     );
   }
 
@@ -321,9 +321,9 @@ function resolveVirtualAbsolutePath(
     // input so display paths stay consistent across tools.
     const normalized = normalizePath(virtualPath);
     const relative =
-      normalized === TASK_MOUNT_POINT
+      normalized === MOUNT.task
         ? "./"
-        : `./${normalized.slice(TASK_MOUNT_POINT.length + 1)}`;
+        : `./${normalized.slice(MOUNT.task.length + 1)}`;
     return ok({
       absolutePath: hostPath,
       displayPath: RelativePathSchema.parse(relative),

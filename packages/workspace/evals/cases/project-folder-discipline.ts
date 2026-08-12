@@ -1,8 +1,6 @@
-import {
-  PROJECT_INSTRUCTIONS_FILE_NAME,
-  PROJECT_MOUNT_POINT,
-} from "../../src/constants";
+import { PROJECT_INSTRUCTIONS_FILE_NAME } from "../../src/constants";
 import { isToolPart } from "../../src/lib/is-tool-part";
+import { MOUNT } from "../../src/mount-points";
 import { type SessionMessagePart } from "../../src/schemas/session/message-part";
 import { type Assertion, defineEval } from "../harness";
 
@@ -14,7 +12,7 @@ interface ToolCall {
   tool: string;
 }
 
-const INSTRUCTIONS_PATH = `${PROJECT_MOUNT_POINT}/${PROJECT_INSTRUCTIONS_FILE_NAME}`;
+const INSTRUCTIONS_PATH = `${MOUNT.project}/${PROJECT_INSTRUCTIONS_FILE_NAME}`;
 
 /** A shell redirect that replaces a file rather than appending to it. */
 const TRUNCATING_REDIRECT = /(?<![>\d])>\s*['"]?\/project/;
@@ -140,7 +138,7 @@ function projectWrites(sessions: Sessions): ToolCall[] {
     />\s*['"]?\/project|(?:^|\s)(?:cp|mv|mkdir|touch|tee|rsync|install)\b[^|]*\/project|\/project\S*\s*<<|python[^|]*>\s*\/project/i;
 
   return toolCalls(sessions).filter(({ input, tool }) => {
-    if (!input.includes(PROJECT_MOUNT_POINT)) {
+    if (!input.includes(MOUNT.project)) {
       return false;
     }
     if (
@@ -184,7 +182,7 @@ function wroteIntoTheProjectFolder(text: string): Assertion {
       return {
         evidence:
           writes.length === 0
-            ? `Nothing was written into ${PROJECT_MOUNT_POINT}`
+            ? `Nothing was written into ${MOUNT.project}`
             : describeWrites(writes),
         passed: writes.length > 0,
         text,

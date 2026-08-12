@@ -63,6 +63,7 @@ export function registerTelemetry(app: Electron.App) {
       return;
     }
     event.preventDefault();
+    logger.info("Quit teardown started from will-quit");
 
     // Bounded so a stuck flush can't wedge the quit.
     const forceQuit = setTimeout(() => {

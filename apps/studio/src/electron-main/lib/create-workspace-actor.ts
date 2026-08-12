@@ -319,6 +319,10 @@ export function createWorkspaceActor({
         }
 
         isQuitInProgress = true;
+        // Teardown runs to `app.exit`, which logs nothing on its way out, so
+        // each stage announces itself: a quit that never finishes is otherwise
+        // indistinguishable from one that did, and the log is all there is.
+        logger.info("Quit teardown started");
         // The app.exit below skips `will-quit`, where the telemetry flush and
         // crash-marker cleanup would otherwise run, so drive them from here.
         // Started now so they overlap the rest of the teardown instead of
@@ -331,6 +335,7 @@ export function createWorkspaceActor({
             return;
           }
           hasExited = true;
+          logger.info("Quit teardown: tearing down browser views");
           browserViewManager.teardown();
 
           let finalized = false;
@@ -339,7 +344,9 @@ export function createWorkspaceActor({
               return;
             }
             finalized = true;
+            logger.info("Quit teardown: stopping the workspace actor");
             actor.stop();
+            logger.info("Quit teardown: exiting");
             app.exit(0);
           };
           // @parcel/watcher aborts the process (SIGABRT) if a live subscription
@@ -351,6 +358,7 @@ export function createWorkspaceActor({
             stopWorkspaceSkillWatcher().catch(noop),
             telemetryFinalized,
           ]).finally(() => {
+            logger.info("Quit teardown: skills watcher and telemetry settled");
             clearTimeout(forceFinalize);
             finalize();
           });

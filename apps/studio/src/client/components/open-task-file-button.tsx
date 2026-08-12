@@ -50,7 +50,10 @@ export function OpenTaskFileButton({
         className={cn(
           "min-w-0 shrink",
           className,
-          control.showOpenWithDropdown && "rounded-r-none",
+          // `peer/open-file` carries no style of its own: it lets a caller whose
+          // variant is transparent at rest tint the caret while this segment is
+          // hovered, so the group still reads as one control.
+          control.showOpenWithDropdown && "peer/open-file rounded-r-none",
         )}
         onClick={handlePrimaryClick}
         size={size}

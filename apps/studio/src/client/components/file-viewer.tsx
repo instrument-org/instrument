@@ -513,9 +513,16 @@ const fileViewerHeaderMenuTriggerClassName = toolbarClassName({
   pressed: false,
 });
 
+// Both segments of the open button are transparent until hovered, so hovering
+// the label alone leaves the caret invisible and the control reads as having no
+// menu. Tint the caret at a fraction of the hover fill instead: enough to show
+// the two are one control, light enough to stay subordinate to the half the
+// pointer is actually on. Alpha over the same token covers both themes, since
+// dark's `muted` is already white at low opacity. Only while the menu is closed
+// -- an open menu's fill says more than the neighbor's hover does.
 const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
   className:
-    "h-7 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+    "h-7 peer-hover/open-file:data-[state=closed]:bg-muted/60 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
   pressed: false,
 });
 

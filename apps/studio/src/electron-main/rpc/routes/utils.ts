@@ -590,10 +590,10 @@ const live = {
         z.array(
           z.object({
             code: z.string().optional(),
+            details: z.string().optional(),
             id: z.string(),
             message: z.string(),
             rpcPath: z.string().optional(),
-            stack: z.string().optional(),
             timestamp: z.number(),
           }),
         ),

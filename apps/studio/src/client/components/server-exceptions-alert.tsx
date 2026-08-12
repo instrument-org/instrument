@@ -41,7 +41,7 @@ export function ServerExceptionsAlert() {
     const groups: GroupedExceptionItem[] = [];
 
     for (const exception of serverExceptions) {
-      const content = exception.stack || exception.message;
+      const content = exception.details || exception.message;
       const firstLine = content.split("\n")[0] || content;
       const firstLineWithoutErrorPrefix = firstLine.replace(/^Error:\s*/i, "");
 

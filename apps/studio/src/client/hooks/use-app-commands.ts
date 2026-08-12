@@ -1,5 +1,4 @@
 import { toggleCommandMenu } from "@/client/atoms/command-menu";
-import { preferencesAtom } from "@/client/atoms/preferences";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
@@ -177,19 +176,13 @@ export function useAppCommands() {
                 break;
               }
               case "reload": {
-                // A browser on screen is what "reload" means to whoever pressed
-                // it, so that page reloads and the app does not. With no page in
-                // front of them the chord does nothing at all: reloading the app
-                // destroys every task's browser along with the document that
-                // hosts their `<webview>` guests, which is far more than anyone
-                // pressing Cmd+R is asking for. Developer mode keeps the app
-                // reload, as does the button an app crash puts on screen.
-                if (
-                  !requestBrowserReload() &&
-                  store.get(preferencesAtom).developerMode
-                ) {
-                  window.location.reload();
-                }
+                // This chord reloads the page in front of the user and nothing
+                // else, so it does nothing at all when no browser is showing
+                // one. Reloading the app destroys every task's browser along
+                // with the document that hosts their `<webview>` guests, which
+                // is why that lives on its own chord (`reloadApp`, bound only in
+                // developer mode) and on the button an app crash puts up.
+                requestBrowserReload();
                 break;
               }
               case "reopen": {

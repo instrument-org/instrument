@@ -7,8 +7,8 @@
 # instead.
 
 [default]
-# Makes the American English rule in AGENTS.md executable: `behaviour`,
-# `labelled`, `honour`, and friends are corrections, not preferences.
+# Makes the standing American English rule executable: `behaviour`, `labelled`,
+# `honour`, and friends are corrections, not preferences.
 locale = "en-us"
 # Abbreviated git hashes, which docs and comments cite constantly. Without this
 # every `1242ba1` reads as a misspelled `by`.

@@ -243,6 +243,14 @@ export function createAppUpdater({
       phase.pendingNewer = null;
       if (phase.installing) {
         installFailure = error.message;
+        // The request that started this install is holding the latch on an
+        // outcome of `installing`, which only stays true if the app is on its
+        // way out. It is not: this is the failure saying so, and on macOS it
+        // arrives after `updater.install()` has already returned, so nothing
+        // downstream of that call will correct the outcome. Releasing here is
+        // what re-arms the install button; without it the update stays staged
+        // and every later click joins a request that resolved long ago.
+        installRequest = null;
       }
       // Published before the latch clears, so a failed install surfaces as an
       // error instead of collapsing back into the staged-update status.

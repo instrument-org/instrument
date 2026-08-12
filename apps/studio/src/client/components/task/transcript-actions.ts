@@ -6,11 +6,6 @@ import { toast } from "sonner";
 
 export type TranscriptFormat = RPCInput["debug"]["sessionTranscript"]["format"];
 
-export const TRANSCRIPT_FORMAT_LABEL = {
-  json: "JSON",
-  markdown: "Markdown",
-} satisfies Record<TranscriptFormat, string>;
-
 /**
  * Copy and save for a session's transcript, in whichever format is asked for.
  *

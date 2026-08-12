@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { MOUNT } from "../mount-points";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { AbsolutePathSchema, TaskDirSchema } from "../schemas/paths";
 import {
@@ -12,7 +13,10 @@ import {
   resolveToolPath,
   resolveWritableToolPath,
 } from "./resolve-agent-path";
-import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
+import {
+  buildWorkspaceFsLayout,
+  resolveReadOnlyHostPath,
+} from "./workspace-fs-layout";
 
 function abs(filePath: string) {
   return AbsolutePathSchema.parse(filePath);
@@ -206,6 +210,73 @@ describe("private-dir (.instrument) restriction", () => {
       expect(resolveToolPath(layout, input).isOk()).toBe(true);
     },
   );
+
+  // The project mount is writable, and its private dir names the folders the
+  // project contributes to every task in it, with the access granted to each.
+  // The mask over that dir belongs to the bash filesystem, which none of these
+  // resolvers goes through.
+  describe("the project mount's private dir", () => {
+    const projectLayout = buildWorkspaceFsLayout({
+      projectFolderName: "Acme",
+      taskHostRoot: dir,
+    });
+    const settings = `${MOUNT.project}/.instrument/settings.json`;
+
+    it("is refused for reading", () => {
+      const result = resolveAgentPath({
+        inputPath: settings,
+        layout: projectLayout,
+      });
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toMatch(/private .* directory/);
+      }
+    });
+
+    it("is refused for writing", () => {
+      expect(
+        resolveWritableToolPath({
+          inputPath: settings,
+          layout: projectLayout,
+        }).isErr(),
+      ).toBe(true);
+    });
+
+    it("is refused to the read-only host path a real binary receives", () => {
+      expect(resolveReadOnlyHostPath(projectLayout, settings)).toBeNull();
+    });
+
+    it("leaves the project's own files reachable", () => {
+      const instructions = `${MOUNT.project}/AGENTS.md`;
+
+      expect(
+        resolveAgentPath({
+          inputPath: instructions,
+          layout: projectLayout,
+        }).isOk(),
+      ).toBe(true);
+      expect(
+        resolveReadOnlyHostPath(projectLayout, instructions),
+      ).not.toBeNull();
+    });
+
+    // A folder the user attached is theirs, and a directory of that name in it
+    // is an ordinary one rather than ours to hide.
+    it("leaves an attached folder's own .instrument dir alone", () => {
+      const attachedLayout = buildWorkspaceFsLayout({
+        attachedFolders: { a: attachment("id-a", "Docs", "/ext/one/Docs") },
+        taskHostRoot: dir,
+      });
+
+      expect(
+        resolveAgentPath({
+          inputPath: `${MOUNT.attachedFolders}/Docs/.instrument/notes.md`,
+          layout: attachedLayout,
+        }).isOk(),
+      ).toBe(true);
+    });
+  });
 });
 
 describe("resolveAgentPath (virtual layout paths)", () => {

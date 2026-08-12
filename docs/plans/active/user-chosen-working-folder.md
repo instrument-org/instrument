@@ -90,7 +90,7 @@ The value of this shape is that **writability is a property of which root you ar
 
 **Decided: read-only attachment stays exactly as it is, as "sources." A separate affordance is added for working in a folder, which is writable.**
 
-The two differ in cardinality and lifetime, not just in access level. Sources are many, added and dropped freely, often per message, and read-only is correct for them. A working folder is one (or a small set owned by a project), chosen deliberately, stable for the life of the work, and it orients the agent. Modelling that as an item in the attachment list with a write toggle would make every reference attachment a decision about write access that nobody wanted to make.
+The two differ in cardinality and lifetime, not just in access level. Sources are many, added and dropped freely, often per message, and read-only is correct for them. A working folder is one (or a small set owned by a project), chosen deliberately, stable for the life of the work, and it orients the agent. Modeling that as an item in the attachment list with a write toggle would make every reference attachment a decision about write access that nobody wanted to make.
 
 Three consequences worth having in the plan:
 

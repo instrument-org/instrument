@@ -25,7 +25,7 @@ The fix is to let ProseMirror own the document and demote the atom to a mirror.
 - External writers reach the editor through an imperative handle, not by setting an atom the editor watches.
 - Inserting text lands **at the caret**, not at the end.
 - The three existing prompt-editor test files still pass, plus a new browser test proving caret-position insertion.
-- No behaviour change to: draft persistence, the slash menu, skill chips, submit, or the skill-page prefill.
+- No behavior change to: draft persistence, the slash menu, skill chips, submit, or the skill-page prefill.
 
 ## What is already done (do not redo)
 

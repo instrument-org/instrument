@@ -7,13 +7,13 @@ Status: proposal, not started. Owner: TBD. Written after two frozen-clock bugs t
 React Compiler is on for Studio (`reactCompilerPreset()` in `electron.vite.config.ts`). It rewrites components and hooks so their outputs are cached against the inputs it can see. Two consequences follow, and neither is visible in the source:
 
 1. **A render that reads something the compiler cannot see gets frozen at its first value.** `ReasoningMessage` measured a running thought against a `new Date()` read during render; the compiler keyed that read on `endedAt` and `isLoading`, neither of which moves while a thought runs, so the row said "Thinking" for the whole run and only ever showed a number once it was over. `useRelativeTime` had the same shape with `getSharedNow()`, freezing each instance's tick cadence at whatever its age was on mount.
-2. **The compiler only rewrites what it recognises as a component or a hook** — a capitalised name, or one prefixed `use`. Everything else it walks past, however much JSX it builds. That is a naming convention silently deciding whether code is optimised.
+2. **The compiler only rewrites what it recognizes as a component or a hook** — a capitalized name, or one prefixed `use`. Everything else it walks past, however much JSX it builds. That is a naming convention silently deciding whether code is optimized.
 
 Both are fixed where they were found. This plan is about the rest of the surface.
 
 ## What the audit found
 
-Every `.tsx` under `apps/studio/src/client` was parsed for top-level functions that build JSX but carry neither a capitalised nor a `use`-prefixed name, then compiled to confirm the compiler skipped them. Test helpers are excluded below: they build JSX too, but nothing there is on a render path.
+Every `.tsx` under `apps/studio/src/client` was parsed for top-level functions that build JSX but carry neither a capitalized nor a `use`-prefixed name, then compiled to confirm the compiler skipped them. Test helpers are excluded below: they build JSX too, but nothing there is on a render path.
 
 ### A. Components in disguise — worth fixing, mechanically safe
 
@@ -27,11 +27,11 @@ Every `.tsx` under `apps/studio/src/client` was parsed for top-level functions t
 
 React calls these through `createElement` exactly as it calls any component. They are components in every respect except the capital letter, and that letter is the whole difference: two functions with identical bodies compile differently on casing alone, the lowercase one emitting no cache at all.
 
-`MarkdownLink` in the same file is already capitalised and already compiled, so the convention is half-applied here rather than absent.
+`MarkdownLink` in the same file is already capitalized and already compiled, so the convention is half-applied here rather than absent.
 
 The `img` override is an arrow function written inline in the `components={{...}}` object. It is inside the compiled `Markdown` component, so its identity is cached, but its body is never compiled as a component either.
 
-**Fix:** rename to `MarkdownPre`, `MarkdownOrderedList`, `MarkdownCode`; lift `img` to a named capitalised component. No behaviour changes — the compiler starts caching bodies that currently rebuild per element. This is the highest value for the lowest risk in this plan, and markdown renders on every message in every transcript.
+**Fix:** rename to `MarkdownPre`, `MarkdownOrderedList`, `MarkdownCode`; lift `img` to a named capitalized component. No behavior changes — the compiler starts caching bodies that currently rebuild per element. This is the highest value for the lowest risk in this plan, and markdown renders on every message in every transcript.
 
 ### B. Render helpers on the transcript path — needs measurement before changing
 
@@ -41,7 +41,7 @@ The cost is bounded but real. `chat-stream.tsx` *is* compiled, and it calls thes
 
 That would be harmless if the rows themselves stopped there. They do not — see C.
 
-**Fix:** turning these into components would give each row its own cache and its own bail-out. It also changes reconciliation identity, so mount and unmount behaviour around groups and stand-in rows needs checking, and the transcript is the app's hottest path. Measure first.
+**Fix:** turning these into components would give each row its own cache and its own bail-out. It also changes reconciliation identity, so mount and unmount behavior around groups and stand-in rows needs checking, and the transcript is the app's hottest path. Measure first.
 
 ### C. `memo()` on the transcript rows cannot fire
 
@@ -55,7 +55,7 @@ Five components use `memo`. Four of them take a `part`, `message`, or `task` obj
 | `UserMessage` | `part` | no |
 | `NavTaskItem` | `task` | no |
 
-The cause is one line of TanStack Query behaviour. Structural sharing preserves object identity by recursing through plain objects and arrays, but a `Date` is neither, so `replaceEqualDeep` returns the new instance, marks the parent changed, and the change propagates to the root. Every message and every part gets a fresh object on every update:
+The cause is one line of TanStack Query behavior. Structural sharing preserves object identity by recursing through plain objects and arrays, but a `Date` is neither, so `replaceEqualDeep` returns the new instance, marks the parent changed, and the change propagates to the root. Every message and every part gets a fresh object on every update:
 
 | `metadata.createdAt` | message identity kept | part identity kept |
 | --- | --- | --- |
@@ -76,7 +76,7 @@ These are called from inside compiled components, and their results are cached a
 
 ## Order
 
-1. **A**, on its own. Mechanical, no behaviour change, no measurement needed.
+1. **A**, on its own. Mechanical, no behavior change, no measurement needed.
 2. **C**, measured. Fixing timestamp identity is the single change that makes four existing memos start working; do it before B, because it may make B unnecessary.
 3. **B**, only if measurement after C still shows the transcript rebuilding more than it needs to.
 

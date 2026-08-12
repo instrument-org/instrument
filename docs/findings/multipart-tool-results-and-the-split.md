@@ -68,7 +68,7 @@ The first check has been run on the types most likely to be used. It settles fou
 
 `JSON.stringify` is worse than the split, not merely different: it puts the base64 payload into the transcript as prose, so the image's bytes are spent as text tokens, the model learns nothing from them, and the result is saved and replayed on every later turn.
 
-`@ai-sdk/openai-compatible` is also the fallback for any provider type with no explicit mapping, so its behaviour covers more than the three rows above.
+`@ai-sdk/openai-compatible` is also the fallback for any provider type with no explicit mapping, so its behavior covers more than the three rows above.
 
 `vercel` is the one the code cannot answer: `@ai-sdk/gateway` forwards the prompt and lets the service convert per upstream. A live check got a correct answer unsplit from one model on one upstream, which is a hint and not a clearance; the free tier rate-limited the rest of the run. It needs a paid key and a spread of upstreams before it moves.
 

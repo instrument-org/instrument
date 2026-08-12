@@ -16,13 +16,13 @@ Skill discovery reads from nine sources: the skills we bundle, the registry, the
 
 **Budget the catalog.** `renderSkillCatalog` renders within a character budget, degrading in three steps: every description in full, then descriptions shortened to a fair share of the remaining budget, then names alone with a count of what was dropped. Ordering puts bundled and workspace skills ahead of another agent's home directory, so those are the last to lose detail.
 
-**Honour `disable-model-invocation`.** A skill whose frontmatter sets it is kept out of the agent's catalog but stays listed in Studio and invocable by name.
+**Honor `disable-model-invocation`.** A skill whose frontmatter sets it is kept out of the agent's catalog but stays listed in Studio and invocable by name.
 
 ## Why
 
 The mount abstraction already carried the invariant a dedicated tool was re-implementing. `resolveWritableToolPath` decides writability from a mount's `readOnly` flag; `hostPathEscapesMount` rejects symlink escapes; the bash sandbox refuses to traverse out of a mount at all. `save_skill`'s path validation was a second, weaker copy of containment the layout already enforces for every tool at once.
 
-The tool was also a poor fit for the work. It could create one skill from a fully-formed payload and nothing else. Revising a skill, renaming one, splitting a reference file out of an overlong body, or fixing six skills in a sweep all required either widening the tool until it was a file API or falling back to tools the agent could not reach. Editing a package of Markdown and scripts is file editing; modelling it as anything else costs a tool description in every request and buys a narrower capability.
+The tool was also a poor fit for the work. It could create one skill from a fully-formed payload and nothing else. Revising a skill, renaming one, splitting a reference file out of an overlong body, or fixing six skills in a sweep all required either widening the tool until it was a file API or falling back to tools the agent could not reach. Editing a package of Markdown and scripts is file editing; modeling it as anything else costs a tool description in every request and buys a narrower capability.
 
 What the tool did better, we gave up deliberately: staging-dir-then-rename meant a skill was never half-written, and the duplicate check was enforced rather than advised. A partial `SKILL.md` fails frontmatter parsing and simply does not appear in the catalog, so the failure is quiet rather than corrupting, and the "check before you overwrite" rule moved into `skill-creator`.
 

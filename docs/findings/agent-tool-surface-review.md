@@ -283,7 +283,7 @@ That lands us at **position 1** -- codex's -- for search specifically, while kee
 
 The routing guidance is now the thing to keep honest. There is exactly one way to search, and the bash description says so; the failure mode to watch for is the opencode one, where two prompt files drift into contradicting each other.
 
-**Where the remaining tools sit.** The bash description tells the model to prefer `read_file` over `cat`/`head`/`tail` and `edit_file`/`write_file` over `sed`/`awk`/redirects. Those are the routing claims still worth auditing: the usage data shows the model ran `head` 254 times and `cat` 51 times anyway, which is real evidence that a prompt line alone does not move behaviour much.
+**Where the remaining tools sit.** The bash description tells the model to prefer `read_file` over `cat`/`head`/`tail` and `edit_file`/`write_file` over `sed`/`awk`/redirects. Those are the routing claims still worth auditing: the usage data shows the model ran `head` 254 times and `cat` 51 times anyway, which is real evidence that a prompt line alone does not move behavior much.
 
 How each tool was judged, which is the reusable part:
 

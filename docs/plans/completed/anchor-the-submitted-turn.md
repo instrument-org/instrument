@@ -10,7 +10,7 @@ A fourth fork change followed in 0.2.4: the plan fixed the equal-count branch (d
 
 When the user submits, their message should move to the top of the transcript and the reply should fill in beneath it, against space the scroller reserves for exactly that. It is what other agent UIs do, and the reason to want it is not novelty: a transcript pinned to its own bottom moves on every frame the agent draws, and a transcript pinned to the turn you sent holds still while the reply grows into reserved space. It absorbs the height oscillation described in [transcript-column-jumps-while-a-turn-runs.md](../../findings/transcript-column-jumps-while-a-turn-runs.md) rather than requiring each source of it to be found and removed.
 
-The scroller we already ship implements the whole behaviour. We have it turned off, on the strength of a diagnosis that turns out to be wrong.
+The scroller we already ship implements the whole behavior. We have it turned off, on the strength of a diagnosis that turns out to be wrong.
 
 ## What the primitive already does
 
@@ -154,7 +154,7 @@ By hand, once, in one session rather than six: a real turn at zoom 0.5, 1, and 2
 
 `chat-stream.test.tsx` covers which rows carry the anchor, and that a group toggle releases follow before it grows anything. Both are DOM facts rather than measurements, so they belong in jsdom.
 
-A real turn was driven in the running app at 1x and 2x and held at the reading line while the reply streamed; the placement alone was probed at 0.5x and 1.5x. Not covered by a test: the handoff to follow-bottom when a reply outgrows the viewport, and the footer at the end of a long turn. Both are the scroller's own behaviour and both have coverage in the fork's suite, but neither has been seen through Studio's wiring.
+A real turn was driven in the running app at 1x and 2x and held at the reading line while the reply streamed; the placement alone was probed at 0.5x and 1.5x. Not covered by a test: the handoff to follow-bottom when a reply outgrows the viewport, and the footer at the end of a long turn. Both are the scroller's own behavior and both have coverage in the fork's suite, but neither has been seen through Studio's wiring.
 
 ## Risks and open questions
 
@@ -162,7 +162,7 @@ A real turn was driven in the running app at 1x and 2x and held at the reading l
 - **The composer moving inside the viewport now conflicts.** [full-height-transcript-scrollbar.md](full-height-transcript-scrollbar.md) proposes a sticky composer inside `MessageScrollerViewport`. This landed first, so that plan is the one that has to account for it, and the arithmetic is worked out under "What anchoring costs this plan" there.
 - **A batch of user messages.** `hasMultipleNewScrollAnchors` deliberately keeps following the end rather than anchoring the first of a batch. Worth confirming that a queue dispatch that lands two prompts in one commit behaves sensibly.
 - **`ScrollToEndBridge` on submit.** It forces the end (spacer to 0, mode to following-bottom) and then the arriving user message anchors, so there are two movements in quick succession. Keep it at first, since it is the only thing that recovers a reader scrolled far back if the message never arrives, and watch whether the double move reads badly.
-- **`defaultScrollPosition="last-anchor"`.** Reopening a task on the last turn rather than the last pixel is a real improvement and is one prop, but it changes restore behaviour for every task. Take it as a follow-up with its own look, not folded in here.
+- **`defaultScrollPosition="last-anchor"`.** Reopening a task on the last turn rather than the last pixel is a real improvement and is one prop, but it changes restore behavior for every task. Take it as a follow-up with its own look, not folded in here.
 - **Turn model.** [chat-stream-turn-model-refactor.md](chat-stream-turn-model-refactor.md) would make a turn a single row, at which point the anchor is the turn rather than the user message inside it. Nothing here blocks that, and the `scrollAnchor` opt-in moves with the row.
 
 ## Non-goals

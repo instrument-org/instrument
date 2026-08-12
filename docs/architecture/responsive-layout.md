@@ -53,7 +53,7 @@ The general shape: when a responsive change looks structural, check whether grid
 
 Radix portals to `document.body`, outside the zoom root, so floating content self-applies `zoom` via `useAppZoomStyle` (`apps/studio/src/client/hooks/use-app-zoom.ts`). On a self-zoomed element, units do not all behave the same way, and getting this backwards is silent:
 
-| Unit         | Behaviour on a self-zoomed element                | Rule                            |
+| Unit         | Behavior on a self-zoomed element                | Rule                            |
 | ------------ | ------------------------------------------------- | ------------------------------- |
 | `vw` / `vh`  | not rescaled; `100vh` renders `zoom x` the window | divide by `var(--content-zoom)` |
 | `%`          | already resolved in the element's own units       | do **not** divide               |

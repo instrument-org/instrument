@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make installed Agent Skills discoverable, inspectable, and manually invokable from Studio without adding skill creation or import flows.
+Make installed Agent Skills discoverable, inspectable, and manually invocable from Studio without adding skill creation or import flows.
 
 ## Scope
 

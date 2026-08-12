@@ -20,14 +20,14 @@ Recorded because the instrument is worth knowing about before anyone re-derives 
 - what that height did **since the previous frame**, keyed by frame index rather than by the last resize — a frame measures several times as fonts, images and the scroller settle, and only the last of those is that frame's answer
 - the gap from the last row to the bottom of the frame, which is what "scrolled to the end" actually means
 
-A negative delta is the event being hunted. It is coloured for that reason and nothing else.
+A negative delta is the event being hunted. It is colored for that reason and nothing else.
 
 Two things about the measurement that cost time to find:
 
 - **It reads the content box less its own padding, not the last child.** The scroller puts elements of its own at the end of the content, so `lastElementChild` is not the last row. The first version did that and reported a height of `-24px`.
 - **Its tests are browser tests, not jsdom.** jsdom has no layout engine, so every box is zero tall and every measurement agrees with every other: a jsdom test here passes whether or not the code works. This is the case `apps/studio/CLAUDE.md` reserves the browser project for, and it caught the bug above on first run.
 
-**A finished turn's footer can be drawn rather than revealed on hover**, via `alwaysShowFooter` on `ChatStream` threaded to `alwaysVisible` on `AssistantMessagesFooter`. The transcript page sets it. The product still reveals on hover — this is a prop and not a change of behaviour, because a page measuring column height cannot hover, and a band of blank it cannot fill in reads as a bug in the transcript.
+**A finished turn's footer can be drawn rather than revealed on hover**, via `alwaysShowFooter` on `ChatStream` threaded to `alwaysVisible` on `AssistantMessagesFooter`. The transcript page sets it. The product still reveals on hover — this is a prop and not a change of behavior, because a page measuring column height cannot hover, and a band of blank it cannot fill in reads as a bug in the transcript.
 
 **A scenario that starts with the screen already full**, "A real turn, already scrolled". Reach for this one rather than "A real turn", because the transcript only follows its own end when there is an end to follow: on a fresh task nothing overflows, so nothing moves, and the jumping cannot happen at all. It replays the same acts — the two share `REAL_TURN` rather than copying it — after an earlier turn that lands whole in a single frame, so the screen is in the state under test by the second frame rather than the fiftieth.
 
@@ -75,4 +75,4 @@ Getting that boundary right is most of the work in any automated check, and it s
 ## Related
 
 - [grouped-activities.md](../plans/active/grouped-activities.md) — the folding rules the heights come from, and the transcript page itself
-- [full-height-transcript-scrollbar.md](../plans/active/full-height-transcript-scrollbar.md) — separate goal, same scroller, and it carries the constraint that follow-bottom behaviour must not regress
+- [full-height-transcript-scrollbar.md](../plans/active/full-height-transcript-scrollbar.md) — separate goal, same scroller, and it carries the constraint that follow-bottom behavior must not regress

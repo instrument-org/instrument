@@ -14,6 +14,7 @@ import {
 } from "../schemas/task-state";
 import { absolutePathJoin } from "./absolute-path-join";
 import { createWriteQueue } from "./create-write-queue";
+import { TypedError } from "./errors";
 import { getTaskPrivateDir } from "./task-dir-utils";
 
 const enqueue = createWriteQueue();
@@ -57,6 +58,17 @@ export interface TaskRecord {
   /** Undefined when the file is missing or its settings cannot be read. */
   settings: TaskSettings | undefined;
   state: TaskState;
+  /**
+   * The file is there and could not be read: truncated JSON, something that is
+   * not an object, a permission error.
+   *
+   * Reads answer empty for it, the same answer a task with no file gets, since
+   * a caller asking for a title has nothing better to show. Writes must not:
+   * that empty answer plus whatever the caller is changing *becomes* the file,
+   * so a draft keystroke would replace a title, a project, a pin and every open
+   * tab with one field.
+   */
+  unreadable: boolean;
 }
 
 /**
@@ -80,17 +92,21 @@ export async function getTaskState(dir: TaskDir): Promise<TaskState> {
  * attached folders that decide what the agent can reach.
  */
 export async function readTaskRecord(dir: TaskDir): Promise<TaskRecord> {
-  let parsed: unknown;
+  let contents: string;
 
   try {
-    parsed = JSON.parse(await fs.readFile(recordPath(dir), "utf8"));
-  } catch {
-    // Missing, unreadable, or not JSON at all. An empty record is the same
-    // answer a task with no file gets, and nothing here writes on a read.
-    return emptyRecord();
+    contents = await fs.readFile(recordPath(dir), "utf8");
+  } catch (error) {
+    // A task nobody has written a record for yet is the one case a write may
+    // create from nothing; anything else is a file we have but cannot read.
+    return emptyRecord(!isNotFound(error));
   }
 
-  return recordFrom(parsed);
+  try {
+    return recordFrom(JSON.parse(contents));
+  } catch {
+    return emptyRecord(true);
+  }
 }
 
 export async function setTaskState(
@@ -134,18 +150,33 @@ export async function updateTaskRecord(
   update: (record: TaskRecord) => Record<string, unknown>,
 ): Promise<TaskRecord> {
   return enqueue(dir, async () => {
-    const next = update(await readTaskRecord(dir));
+    const current = await readTaskRecord(dir);
+    if (current.unreadable) {
+      // The write builds on what was read, and what was read is empty. Failing
+      // the caller costs a draft or a tab; going ahead costs everything the
+      // file holds, and leaves nothing to repair it from.
+      throw new TypedError.FileSystem(
+        `Refusing to overwrite an unreadable task record at ${recordPath(dir)}`,
+      );
+    }
+
+    const next = update(current);
     await writeTaskRecord(dir, next);
     return recordFrom(next);
   });
 }
 
-function emptyRecord(): TaskRecord {
+function emptyRecord(unreadable: boolean): TaskRecord {
   return {
     raw: {},
     settings: undefined,
     state: StoredTaskStateSchema.parse({}),
+    unreadable,
   };
+}
+
+function isNotFound(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -154,7 +185,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function recordFrom(parsed: unknown): TaskRecord {
   if (!isRecord(parsed)) {
-    return emptyRecord();
+    // Valid JSON holding an array, a number, `null`: a record we cannot merge
+    // into, which is the same position a truncated file leaves us in.
+    return emptyRecord(true);
   }
 
   const settings = TaskSettingsSchema.safeParse(parsed);
@@ -164,6 +197,7 @@ function recordFrom(parsed: unknown): TaskRecord {
     raw: parsed,
     settings: settings.success ? settings.data : undefined,
     state: state.success ? state.data : StoredTaskStateSchema.parse({}),
+    unreadable: false,
   };
 }
 

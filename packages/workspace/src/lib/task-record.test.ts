@@ -86,6 +86,24 @@ describe("readTaskRecord", () => {
       settings: undefined,
     });
   });
+
+  it("reports a task with no file as readable, since a write may create it", async () => {
+    const record = await readTaskRecord(taskDir(taskId));
+
+    expect(record.unreadable).toBe(false);
+  });
+
+  it.each([
+    ["truncated JSON", "{ truncated mid-wr"],
+    ["JSON that is not an object", "[1, 2, 3]"],
+  ])("reports %s as unreadable", async (_name, contents) => {
+    await fs.mkdir(getTaskPrivateDir(taskDir(taskId)), { recursive: true });
+    await fs.writeFile(recordPath(), contents, "utf8");
+
+    const record = await readTaskRecord(taskDir(taskId));
+
+    expect(record.unreadable).toBe(true);
+  });
 });
 
 describe("updateTaskRecord", () => {
@@ -147,6 +165,59 @@ describe("updateTaskRecord", () => {
     expect(written).toMatchObject({
       state: { futureNested: "keep me" },
     });
+  });
+
+  // What the empty answer to a failed read costs if a write is allowed to build
+  // on it: the record read as though the task had nothing, so the write would
+  // have been the title, the pin and the tabs replaced by one draft.
+  it("refuses to replace a record it could not read", async () => {
+    await fs.mkdir(getTaskPrivateDir(taskDir(taskId)), { recursive: true });
+    await fs.writeFile(recordPath(), '{ "name": "Test task", "state', "utf8");
+
+    await expect(
+      setTaskState(taskDir(taskId), { promptDraft: "new draft" }),
+    ).rejects.toThrow(/unreadable task record/);
+
+    expect(await fs.readFile(recordPath(), "utf8")).toBe(
+      '{ "name": "Test task", "state',
+    );
+  });
+
+  it("refuses a pane change against a record it could not read", async () => {
+    await fs.mkdir(getTaskPrivateDir(taskDir(taskId)), { recursive: true });
+    await fs.writeFile(recordPath(), "not json", "utf8");
+
+    await expect(
+      updateTaskPane(taskDir(taskId), (pane) =>
+        TaskPane.openTabs(pane, [TaskPane.fileTab("output/report.pdf")]),
+      ),
+    ).rejects.toThrow(/unreadable task record/);
+  });
+
+  // The other half of the same rule: nothing to lose is not the same as
+  // something we cannot read, and a task's first write has to land.
+  it("creates the record for a task that has no file yet", async () => {
+    await setTaskState(taskDir(taskId), { promptDraft: "first draft" });
+
+    const record = await readTaskRecord(taskDir(taskId));
+
+    expect(record.state.promptDraft).toBe("first draft");
+  });
+
+  it("takes writes again once the unreadable record is repaired", async () => {
+    await fs.mkdir(getTaskPrivateDir(taskDir(taskId)), { recursive: true });
+    await fs.writeFile(recordPath(), "{ truncated", "utf8");
+    await expect(
+      setTaskState(taskDir(taskId), { promptDraft: "refused" }),
+    ).rejects.toThrow();
+
+    await writeRecordFile({ name: "Repaired" });
+    await setTaskState(taskDir(taskId), { promptDraft: "accepted" });
+
+    const record = await readTaskRecord(taskDir(taskId));
+
+    expect(record.settings?.name).toBe("Repaired");
+    expect(record.state.promptDraft).toBe("accepted");
   });
 
   it("leaves no temporary file behind", async () => {

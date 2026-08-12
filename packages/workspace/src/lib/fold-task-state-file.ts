@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { TASK_STATE_FILE_NAME } from "../constants";
+import { writeJsonFileSync } from "./write-json-file-sync";
 
 /**
  * Folds a task's separate `state.json` into its settings file and removes it.
@@ -61,18 +62,10 @@ export function foldTaskStateFile(taskFolder: string): boolean {
   // what has been written since.
   const folded = { ...settings, state: settings.state ?? state };
 
-  // Through a temporary file, for the reason writeTaskRecord does it: this runs
-  // over every task at boot, which is the moment the app is least likely to be
-  // shut down cleanly, and a truncated settings file does not read as damaged.
-  // It reads as a task with no name and no place in the list, and the next
-  // boot's fold correctly refuses to touch it, so it stays that way.
-  //
-  // A crash between the rename and the delete is already survivable: the state
-  // file is still there, and the settings file has won by then, which is what
-  // the check above is for.
-  const temporary = `${settingsPath}.${process.pid}.tmp`;
-  fs.writeFileSync(temporary, JSON.stringify(folded, null, 2));
-  fs.renameSync(temporary, settingsPath);
+  // A crash between the write and the delete is survivable: the state file is
+  // still there, and the settings file has won by then, which is what the check
+  // above is for.
+  writeJsonFileSync(settingsPath, folded);
   fs.rmSync(statePath, { force: true });
 
   return true;

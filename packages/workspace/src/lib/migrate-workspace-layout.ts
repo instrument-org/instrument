@@ -13,6 +13,7 @@ import {
 } from "../constants";
 import { ProjectIdSchema } from "../schemas/project-id";
 import { foldTaskStateFile } from "./fold-task-state-file";
+import { writeJsonFileSync } from "./write-json-file-sync";
 
 // Legacy on-disk names this migration renames to their current equivalents.
 const LEGACY_TASKS_DIR_NAME = "projects";
@@ -390,5 +391,5 @@ function stampTaskTimestamps(taskFolder: string) {
   settings.createdAt ??= observed.createdAt;
   settings.lastActivityAt ??= observed.lastActivityAt;
 
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+  writeJsonFileSync(settingsPath, settings);
 }

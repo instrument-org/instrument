@@ -1,3 +1,4 @@
+import { MOUNT } from "../mount-points";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { normalizeProjectInstructions } from "./project-instructions";
 import { systemNote } from "./system-note";
@@ -29,7 +30,7 @@ export function projectChangesModelNote(
       )
       .join("\n");
     lines.push(
-      `These folders were added to the "${data.projectName}" project and are now mounted under /mnt/ with the access shown (the attached-folders context lists the exact paths):\n${added}`,
+      `These folders were added to the "${data.projectName}" project and are now mounted under ${MOUNT.attachedFolders}/ with the access shown (the attached-folders context lists the exact paths):\n${added}`,
     );
   }
 

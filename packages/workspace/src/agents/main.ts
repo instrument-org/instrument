@@ -244,7 +244,7 @@ export const mainAgent = setupAgent({
 
     \`\`\`${AGENT_FILES_LANGUAGE}
     ${F.output}/report.pdf
-    /mnt/Photos/cat.png
+    ${MOUNT.attachedFolders}/Photos/cat.png
     \`\`\`
 
     One path per line, written exactly as you would pass it to a file tool, and nothing else on the line -- no bullets, no labels, no commentary, no link syntax. Any path you can read or write can go in it; where the file sits changes nothing about how it is shown, so never copy a file somewhere else to make it visible.

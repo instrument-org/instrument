@@ -203,8 +203,8 @@ const WORKSPACE_HELP_MANAGED = dedent`
 
   Inspecting a file you created:
     agent-browser open output/report.html   Task files load in the browser
-    agent-browser open /task/output/x.html  Task-relative, /task/..., /mnt/...,
-                                            and file:///task/... all work
+    agent-browser open ${MOUNT.task}/output/x.html  Task-relative, ${MOUNT.task}/..., ${MOUNT.attachedFolders}/...,
+                                            and file://${MOUNT.task}/... all work
   Use this to check an HTML deliverable end to end -- rendered layout, interactivity, and console errors -- not just its source.
 
   Reading page content:

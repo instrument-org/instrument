@@ -27,6 +27,7 @@ import { getWorkspaceConfig } from "../lib/workspace-config";
 import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { getWorkspaceServerURL } from "../logic/server/url";
+import { MOUNT } from "../mount-points";
 import { RelativePathSchema } from "../schemas/paths";
 import {
   BaseInputSchema,
@@ -81,10 +82,12 @@ export const GenerateImage = setupTool({
     [INPUT_PARAMS.prompt]: z.string().meta({
       description: "Detailed description of the image to generate",
     }),
-    [INPUT_PARAMS.sourceImages]: z.array(z.string()).optional().meta({
-      description:
-        "Paths to images used for image-to-image (img2img) conditioning: task-relative, or an attached folder's mount path (/mnt/<name>/...). Use when the user wants to edit, transform, or use an existing image as a visual reference or style source.",
-    }),
+    [INPUT_PARAMS.sourceImages]: z
+      .array(z.string())
+      .optional()
+      .meta({
+        description: `Paths to images used for image-to-image (img2img) conditioning: task-relative, or an attached folder's mount path (${MOUNT.attachedFolders}/<name>/...). Use when the user wants to edit, transform, or use an existing image as a visual reference or style source.`,
+      }),
   }),
   name: "generate_image",
   outputSchema: z.discriminatedUnion("state", [

@@ -1,5 +1,6 @@
 import { folderNameFromPath } from "@instrument-org/shared";
 
+import { MOUNT } from "../mount-points";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { attachedFolderMountPoint } from "./attached-folder-mounts";
 import { systemNote } from "./system-note";
@@ -25,7 +26,7 @@ export function attachedFolderChangesModelNote(
       )
       .join("\n");
     lines.push(
-      `The user removed these attached folders from this task since your last activity. Their /mnt mounts are gone, so do not attempt to read or search them:\n${removed}`,
+      `The user removed these attached folders from this task since your last activity. Their ${MOUNT.attachedFolders} mounts are gone, so do not attempt to read or search them:\n${removed}`,
     );
   }
 

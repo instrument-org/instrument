@@ -12,6 +12,7 @@ Core AI agents, workflow logic, RPC, tools, and runtime.
 - **Schemas**: `src/schemas/` (paths, project, session, store-id, subdomain-part, task, task-settings, file-upload, folder-attachment, etc.). Use for RPC/tool I/O where applicable.
 - **Machines**: XState in `src/machines/` (workspace, session, agent, runtime, task-browser). `WorkspaceActorRef` is the main-process handle; RPC context gets `workspaceRef` and `workspaceConfig`.
 - **Skills**: `src/lib/skills.ts` discovers them across the bundled set, the registry, co-installed agent homes, and the workspace `skills/` dir, deduping symlinks by canonical directory and copies by package fingerprint. `skill-catalog.ts` renders the budgeted catalog into `LoadSkill`'s description; `validate-skill.ts` holds the rules the runtime enforces. The workspace `skills/` dir also mounts writable at `/skills` for the agent (see `docs/architecture/agent-sandbox.md`).
+- **Mount paths**: `src/mount-points.ts` holds `MOUNT`, the four virtual paths the agent works in. Interpolate it into prompts, tool descriptions, and command help rather than typing a path out, so what the agent is told cannot disagree with what it gets; `no-bare-mount-path` (`eslint-rules.ts`) fails the lint on a literal anywhere under `src/`.
 
 ## Context messages
 

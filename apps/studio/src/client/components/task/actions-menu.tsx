@@ -14,7 +14,8 @@ import {
 } from "@instrument-org/workspace/client";
 import {
   ArrowCounterClockwiseIcon,
-  BugIcon,
+  ArrowLineDownIcon,
+  ArticleIcon,
   CopyIcon,
   DotsThreeOutlineVerticalIcon,
   FileArchiveIcon,
@@ -33,6 +34,7 @@ import {
   type MenuComponents,
 } from "../ui/menu-components";
 import { TaskOpenInSubmenu } from "./open-in-submenu";
+import { useTranscriptActions } from "./transcript-actions";
 
 export function TaskActionsMenu({
   renderMenuItems,
@@ -69,21 +71,21 @@ export function TaskActionsMenu({
 export function TaskActionsMenuItems({
   id,
   menuComponents,
-  onDebugClick,
   onDelete,
   onExportZip,
   onRename,
   onReplayClick,
+  onViewTranscript,
   projectId,
   selectedSessionId,
 }: {
   id: TaskId;
   menuComponents: MenuComponents;
-  onDebugClick: () => void;
   onDelete: () => void;
   onExportZip: () => void;
   onRename: () => void;
   onReplayClick: () => void;
+  onViewTranscript: () => void;
   projectId: null | ProjectId | undefined;
   selectedSessionId?: StoreId.Session;
 }) {
@@ -124,12 +126,7 @@ export function TaskActionsMenuItems({
     }),
   );
 
-  const handleDebugChat = () => {
-    if (!selectedSessionId) {
-      return;
-    }
-    onDebugClick();
-  };
+  const transcript = useTranscriptActions({ id, sessionId: selectedSessionId });
 
   return (
     <>
@@ -166,13 +163,35 @@ export function TaskActionsMenuItems({
       {isDeveloperMode && (
         <>
           <Separator />
+          {/* Copy and save come first and act without opening anything: the
+              transcript is nearly always on its way to somewhere else. */}
           <Item
             className="text-dev-700 dark:text-dev-300"
             disabled={!selectedSessionId}
-            onSelect={handleDebugChat}
+            onSelect={() => {
+              transcript.copy("markdown");
+            }}
           >
-            <BugIcon className="size-4 text-dev-700 dark:text-dev-300" />
-            Debug chat
+            <CopyIcon className="size-4 text-dev-700 dark:text-dev-300" />
+            Copy transcript
+          </Item>
+          <Item
+            className="text-dev-700 dark:text-dev-300"
+            disabled={!selectedSessionId}
+            onSelect={() => {
+              transcript.save("markdown");
+            }}
+          >
+            <ArrowLineDownIcon className="size-4 text-dev-700 dark:text-dev-300" />
+            Save transcript
+          </Item>
+          <Item
+            className="text-dev-700 dark:text-dev-300"
+            disabled={!selectedSessionId}
+            onSelect={onViewTranscript}
+          >
+            <ArticleIcon className="size-4 text-dev-700 dark:text-dev-300" />
+            View transcript
           </Item>
           <Item
             className="text-dev-700 dark:text-dev-300"

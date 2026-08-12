@@ -144,7 +144,7 @@ export function UsageSummaryText({
 
   return (
     <button
-      aria-label="Debug this chat"
+      aria-label="View transcript"
       className={cn("inline-flex items-center gap-2 truncate", className)}
       onClick={onClick}
       type="button"

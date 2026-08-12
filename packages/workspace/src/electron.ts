@@ -3,6 +3,7 @@ export {
   pruneExternalBrowserTmp,
 } from "./lib/agent-browser-cleanup";
 export { applyCommandLineToolsEnv } from "./lib/command-line-tools-env";
+export { findAvailableName } from "./lib/find-available-name";
 export {
   migrateWorkspaceLayout,
   type WorkspaceLayoutMigration,

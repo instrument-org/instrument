@@ -17,10 +17,10 @@ import { ExportZipModal } from "../export-zip-modal";
 import { type MenuComponents } from "../ui/menu-components";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { TaskActionsMenu, TaskActionsMenuItems } from "./actions-menu";
-import { TaskDebugDialog } from "./debug-dialog";
 import { PaneToggle } from "./pane-toggle";
 import { TaskBreadcrumb } from "./task-breadcrumb";
 import { TaskFiles } from "./task-files";
+import { TaskTranscriptViewer } from "./transcript-viewer";
 import { TaskUsageSummary } from "./usage-summary";
 
 export function TaskToolbar({
@@ -38,7 +38,7 @@ export function TaskToolbar({
 }) {
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [exportZipModalOpen, setExportZipModalOpen] = useState(false);
-  const [debugDialogOpen, setDebugDialogOpen] = useState(false);
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [replayModalOpen, setReplayModalOpen] = useState(false);
 
   const isDeveloperMode = useDeveloperMode();
@@ -62,9 +62,6 @@ export function TaskToolbar({
     <TaskActionsMenuItems
       id={task.id}
       menuComponents={menuComponents}
-      onDebugClick={() => {
-        setDebugDialogOpen(true);
-      }}
       onDelete={() => {
         openDeleteTask(task);
       }}
@@ -76,6 +73,9 @@ export function TaskToolbar({
       }}
       onReplayClick={() => {
         setReplayModalOpen(true);
+      }}
+      onViewTranscript={() => {
+        setTranscriptOpen(true);
       }}
       projectId={task.projectId}
       selectedSessionId={selectedSessionId}
@@ -118,7 +118,7 @@ export function TaskToolbar({
                 <TaskUsageSummary
                   id={task.id}
                   onClick={() => {
-                    setDebugDialogOpen(true);
+                    setTranscriptOpen(true);
                   }}
                 />
               </div>
@@ -186,9 +186,9 @@ export function TaskToolbar({
         task={task}
       />
 
-      <TaskDebugDialog
-        onOpenChange={setDebugDialogOpen}
-        open={debugDialogOpen}
+      <TaskTranscriptViewer
+        onOpenChange={setTranscriptOpen}
+        open={transcriptOpen}
         selectedSessionId={selectedSessionId}
         task={task}
       />

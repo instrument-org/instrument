@@ -5,7 +5,6 @@ import { useTaskPaneActions } from "@/client/hooks/use-task-pane";
 import {
   AGENT_FILES_LANGUAGE,
   isAddressableTaskFilePath,
-  normalizeTaskFilePath,
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { ImageIcon } from "@phosphor-icons/react";
@@ -36,6 +35,7 @@ import {
   prefetchMermaid,
 } from "../lib/mermaid";
 import { rehypeAnimateWords } from "../lib/rehype-animate-words";
+import { isTaskFileHref, taskFilePathFromHref } from "../lib/task-file-href";
 import { cn } from "../lib/utils";
 import { AgentFilesBlock } from "./agent-files-block";
 import { CodeBlock, CodeWithCopy } from "./code-block";
@@ -154,25 +154,6 @@ const markdownCode: Components["code"] = ({
       <CodeBlock code={codeString} language={language} />
     </CodeWithCopy>
   );
-};
-
-// A schemeless, non-anchor href is a candidate task-file reference (e.g. the
-// agent's `[Download](output/report.xml)`). Real URLs carry a scheme
-// (`https:`, `mailto:`, `data:`) or are protocol-relative (`//host`); those go
-// to ExternalLink instead.
-const isTaskFileHref = (href: string): boolean =>
-  !href.startsWith("#") &&
-  !href.startsWith("//") &&
-  !/^[a-z][a-z0-9+.-]*:/i.test(href);
-
-const taskFilePathFromHref = (href: string): string => {
-  let path = href;
-  try {
-    path = decodeURIComponent(href);
-  } catch {
-    // Keep the raw href when it isn't valid percent-encoding.
-  }
-  return normalizeTaskFilePath(path);
 };
 
 // Renders a link to a file the agent produced as an interactive chip that opens

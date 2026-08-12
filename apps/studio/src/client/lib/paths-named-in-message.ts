@@ -1,19 +1,20 @@
 import {
   AGENT_FILES_LANGUAGE,
-  normalizeTaskFilePath,
   type SessionMessage,
 } from "@instrument-org/workspace/client";
 
 import { parseFilesBlock } from "./parse-files-block";
+import { isTaskFileHref, taskFilePathFromHref } from "./task-file-href";
 
 const FENCE = new RegExp(
   String.raw`^[ \t]*\x60{3,}[ \t]*${AGENT_FILES_LANGUAGE}[ \t]*$([\s\S]*?)^[ \t]*\x60{3,}[ \t]*$`,
   "gmu",
 );
 
-// A Markdown link whose target names a file rather than a web page. Only a
-// link: a path sitting in prose is text, and the renderer draws no chip for it.
-const FILE_LINK = /\[[^\]]*\]\(\s*(?![a-z][a-z0-9+.-]*:|#|\/\/)([^)\s]+)/giu;
+// A Markdown link target. Only a link: a path sitting in prose is text, and the
+// renderer draws no chip for it. Which targets name a file rather than a web
+// page is `isTaskFileHref`'s to say, the same as it is for the renderer.
+const LINK_TARGET = /\[[^\]]*\]\(\s*([^)\s]+)/gu;
 
 /**
  * Every file path the message already puts on screen as something to click.
@@ -58,10 +59,10 @@ function collectPaths(message: SessionMessage.WithParts): Set<string> {
     }
   }
 
-  for (const match of text.matchAll(FILE_LINK)) {
+  for (const match of text.matchAll(LINK_TARGET)) {
     const target = match[1];
-    if (target !== undefined && target !== "") {
-      named.add(normalizeTaskFilePath(decodeURI(target)));
+    if (target !== undefined && isTaskFileHref(target)) {
+      named.add(taskFilePathFromHref(target));
     }
   }
 

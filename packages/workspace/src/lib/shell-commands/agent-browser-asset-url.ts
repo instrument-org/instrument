@@ -4,6 +4,7 @@ import { getWorkspaceServerURL } from "../../logic/server/url";
 import { MOUNT } from "../../mount-points";
 import { type TaskId } from "../../schemas/task-id";
 import { normalizePath } from "../normalize-path";
+import { isAtOrUnder, relativeWithin } from "../path-containment";
 import { parseAgentBrowserArgs } from "./agent-browser-args";
 
 /**
@@ -68,19 +69,13 @@ export async function rewriteNavigationArgToAssetUrl(
  * their `/mnt/...` path, matching the assets route.
  */
 function assetPathForVirtualPath(virtualPath: string): string | undefined {
-  if (virtualPath === MOUNT.task) {
-    return "/";
+  const taskRelative = relativeWithin(MOUNT.task, virtualPath);
+  if (taskRelative !== null) {
+    return taskRelative;
   }
-  if (virtualPath.startsWith(`${MOUNT.task}/`)) {
-    return virtualPath.slice(MOUNT.task.length);
-  }
-  if (
-    virtualPath === MOUNT.attachedFolders ||
-    virtualPath.startsWith(`${MOUNT.attachedFolders}/`)
-  ) {
-    return virtualPath;
-  }
-  return undefined;
+  return isAtOrUnder(MOUNT.attachedFolders, virtualPath)
+    ? virtualPath
+    : undefined;
 }
 
 async function assetUrlForSandboxPath(

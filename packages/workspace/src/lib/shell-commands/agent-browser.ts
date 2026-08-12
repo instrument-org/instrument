@@ -30,6 +30,7 @@ import {
 import { recordBrowserUse } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isTaskId } from "../is-task-id";
+import { isAtOrUnder } from "../path-containment";
 import {
   getBrowserSessionDir,
   getDownloadsDir,
@@ -387,25 +388,15 @@ export async function resolveAgentBrowserPathArgs(
   for (const { index, value } of subArgs.slice(2)) {
     const virtualPath = ctx.fs.resolvePath(ctx.cwd, value);
 
-    if (
-      virtualPath === MOUNT.attachedFolders ||
-      virtualPath.startsWith(`${MOUNT.attachedFolders}/`)
-    ) {
+    if (isAtOrUnder(MOUNT.attachedFolders, virtualPath)) {
       return { error: attachedMountLiteralError("Upload") };
     }
 
-    const privateDir = privateMountPoint(MOUNT.task);
-    if (
-      virtualPath === privateDir ||
-      virtualPath.startsWith(`${privateDir}/`)
-    ) {
+    if (isAtOrUnder(privateMountPoint(MOUNT.task), virtualPath)) {
       return { error: privateDirLiteralError("Upload") };
     }
 
-    if (
-      virtualPath !== MOUNT.task &&
-      !virtualPath.startsWith(`${MOUNT.task}/`)
-    ) {
+    if (!isAtOrUnder(MOUNT.task, virtualPath)) {
       return {
         error:
           `Upload file "${virtualPath}" is outside ${MOUNT.task}. ` +

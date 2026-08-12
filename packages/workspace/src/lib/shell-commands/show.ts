@@ -8,6 +8,7 @@ import { type TaskId } from "../../schemas/task-id";
 import { TaskPane } from "../../schemas/task-pane";
 import { recordBrowserUse } from "../browser-state";
 import { isTaskId } from "../is-task-id";
+import { isAtOrUnder, isUnder } from "../path-containment";
 import { getBrowserSessionDir, taskDir } from "../task-dir-utils";
 import { updateTaskPane } from "../task-record";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -213,14 +214,19 @@ async function resolveShowPath(
 ): Promise<{ error: string } | { filePath: string }> {
   const virtualPath = ctx.fs.resolvePath(ctx.cwd, arg);
 
-  const privateDir = privateMountPoint(MOUNT.task);
-  if (virtualPath === privateDir || virtualPath.startsWith(`${privateDir}/`)) {
+  if (isAtOrUnder(privateMountPoint(MOUNT.task), virtualPath)) {
     return { error: `"${arg}" is inside the task's private directory.` };
   }
 
-  const isTaskFile = virtualPath.startsWith(`${MOUNT.task}/`);
-  const isMountFile = virtualPath.startsWith(`${MOUNT.attachedFolders}/`);
-  if (!isTaskFile && !isMountFile) {
+  // Both questions at once, so the form the path is stored in cannot disagree
+  // with the reason it was accepted. A mount's own root is a directory rather
+  // than something to show, hence `isUnder` rather than `isAtOrUnder`.
+  const filePath = isUnder(MOUNT.task, virtualPath)
+    ? virtualPath.slice(MOUNT.task.length + 1)
+    : isUnder(MOUNT.attachedFolders, virtualPath)
+      ? virtualPath
+      : null;
+  if (filePath === null) {
     return {
       error: `"${arg}" is outside the task and the folders the user shared, so there is nothing to show it in.`,
     };
@@ -230,9 +236,5 @@ async function resolveShowPath(
     return { error: `"${arg}" does not exist.` };
   }
 
-  return {
-    filePath: isTaskFile
-      ? virtualPath.slice(MOUNT.task.length + 1)
-      : virtualPath,
-  };
+  return { filePath };
 }

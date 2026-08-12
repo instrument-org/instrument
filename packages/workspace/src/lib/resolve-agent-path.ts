@@ -14,6 +14,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { ensureRelativePath } from "./ensure-relative-path";
 import { executeError } from "./execute-error";
 import { normalizePath } from "./normalize-path";
+import { relativeWithin } from "./path-containment";
 import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { resolvePathWithinTaskDir } from "./resolve-path-within-task-dir";
@@ -319,14 +320,10 @@ function resolveVirtualAbsolutePath(
     }
     // Normalize /task/... input into the same task-relative form as relative
     // input so display paths stay consistent across tools.
-    const normalized = normalizePath(virtualPath);
-    const relative =
-      normalized === MOUNT.task
-        ? "./"
-        : `./${normalized.slice(MOUNT.task.length + 1)}`;
+    const relative = relativeWithin(MOUNT.task, normalizePath(virtualPath));
     return ok({
       absolutePath: hostPath,
-      displayPath: RelativePathSchema.parse(relative),
+      displayPath: RelativePathSchema.parse(`.${relative ?? "/"}`),
       mount: null,
     });
   }

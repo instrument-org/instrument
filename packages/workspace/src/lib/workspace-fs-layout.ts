@@ -17,6 +17,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { assignAttachedMounts } from "./attached-folder-mounts";
 import { isPrivateRelative, maskPrivateDirFs } from "./mask-private-dir-fs";
 import { normalizePath } from "./normalize-path";
+import { relativeWithin } from "./path-containment";
 import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { ReadOnlyBaseFs } from "./read-only-base-fs";
@@ -489,19 +490,4 @@ function canonicalizeThroughMissing(hostPath: string): null | string {
 
 function isEnoent(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
-}
-
-/**
- * Relative path of `virtualAbs` within `mountPoint`, or null if not contained.
- * Mirrors just-bash MountableFs routing: an exact match yields "/" and a child
- * yields the remainder including its leading slash.
- */
-function relativeWithin(mountPoint: string, virtualAbs: string): null | string {
-  if (virtualAbs === mountPoint) {
-    return "/";
-  }
-  if (virtualAbs.startsWith(`${mountPoint}/`)) {
-    return virtualAbs.slice(mountPoint.length);
-  }
-  return null;
 }

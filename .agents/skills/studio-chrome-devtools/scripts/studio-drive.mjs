@@ -55,7 +55,7 @@
 // The repo does not lint `.agents`, so these only ever fire when a changed-file
 // pass runs without ignores. None is worth reshaping this file for:
 // `sort-modules` would order the declarations alphabetically and leave the
-// section banners labelling whatever landed under them; the cache-location
+// section banners labeling whatever landed under them; the cache-location
 // variables belong to a standalone CLI rather than a turbo task; and `dir` is
 // how a path is named everywhere this script reaches, from `taskDir` through
 // `workspaceConfig.tasksDir` to the `ELECTRON_USER_DATA_DIR` it sets.
@@ -248,7 +248,7 @@ async function evaluate(cdp, source) {
  * The value is stringified inside the page rather than left to CDP's
  * `returnByValue`, which renders a `Date` as `{}`. A route's timestamps would
  * come back present but empty, which reads as the route having nothing to say
- * rather than as an artefact of how it was fetched.
+ * rather than as an artifact of how it was fetched.
  *
  * Errors are caught in the page and returned as data for the same reason: oRPC
  * puts the part worth reading on the error object (`code`, and the Zod issues
@@ -897,7 +897,7 @@ async function cmdPress(cdp, key) {
  * rather than after the fact -- converting a screenshot's device pixels back to
  * the CSS pixels a rect is measured in is where this usually goes wrong.
  *
- * `clip` is only honoured on the surface path, which is why that mode is used
+ * `clip` is only honored on the surface path, which is why that mode is used
  * even though an occluded window can return a uniform frame through it. That is
  * what {@link assertRenderable} covers.
  */
@@ -946,7 +946,7 @@ async function cmdShot(cdp, file, { pad, selector, text }) {
  * HTML. A control that comes back as a bare `button` has no accessible name at
  * all, which is worth knowing directly: it cannot be clicked by text, a screen
  * reader gets the same nothing, and marking it with `eval` is a workaround for
- * a labelling bug rather than a technique.
+ * a labeling bug rather than a technique.
  *
  * Ignored nodes are dropped rather than rendered, so what is left is what a
  * consumer of the tree can actually reach. Depth is bounded because the app
@@ -995,7 +995,7 @@ async function cmdSnapshot(cdp, { depth, selector }) {
     // Four kinds of node carry no information a caller can act on. An ignored
     // one is not in the tree at all; `none`/`generic` is the div a layout is
     // built from, which Chrome exposes and nothing can address; an
-    // `InlineTextBox` is one line box of the text above it, an artefact of how
+    // `InlineTextBox` is one line box of the text above it, an artifact of how
     // the text was laid out rather than anything in the page; and a
     // `StaticText` whose words are already the name of the thing above it is
     // that name a second time. Their children can still matter, so each is

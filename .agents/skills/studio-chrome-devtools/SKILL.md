@@ -26,7 +26,7 @@ Also `press`, `wait`, `modal`, `eval`. It speaks CDP directly, so there is no da
 
 `snapshot` is the read to reach for before deciding how to address anything. It prints the accessibility tree as indented `role "name"` lines, in the same terms `click --text` matches on and at a fraction of the size of the DOM, so one call answers what is on screen and what each thing is called. Scope it with `--selector` and go deeper with `--depth` (12 by default); an unscoped app page is a few hundred lines.
 
-A control that comes back as a bare `button`, with no name after it, cannot be reached by text at all. That is a labelling bug rather than a fact about the tool, and a screen reader gets the same nothing, so it is worth reporting. To get past one in the meantime, mark it in an `eval` and click the mark, which keeps the real input path rather than falling back to `element.click()`:
+A control that comes back as a bare `button`, with no name after it, cannot be reached by text at all. That is a labeling bug rather than a fact about the tool, and a screen reader gets the same nothing, so it is worth reporting. To get past one in the meantime, mark it in an `eval` and click the mark, which keeps the real input path rather than falling back to `element.click()`:
 
 ```bash
 node $DRIVE eval 'document.querySelectorAll("button[aria-haspopup=menu]")[3].setAttribute("data-probe", "kebab")'

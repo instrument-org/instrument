@@ -89,14 +89,12 @@ function LoginModalContent({
     <DialogContent
       aria-describedby={undefined}
       className={cn(
-        `w-full max-w-[min(472px,calc(96vw/var(--content-zoom)))] gap-0
-        overflow-hidden border-0 p-0 shadow-2xl outline-none focus:outline-none
-        focus-visible:outline-none
-        sm:max-w-[min(472px,calc(96vw/var(--content-zoom)))]`,
-        FIXED_HEIGHT_PAGES.has(page) &&
-          "h-[640px] max-h-[calc(85vh/var(--content-zoom))]",
+        `w-full gap-0 overflow-hidden border-0 p-0 shadow-2xl outline-none
+        focus:outline-none focus-visible:outline-none`,
+        FIXED_HEIGHT_PAGES.has(page) && "h-[640px]",
         page === "add-provider" ? SHARED.subtleGradient : SHARED.brandGradient,
       )}
+      maxWidth="472px"
       onExitComplete={onExitComplete}
       // Radix auto-focuses the first focusable element on open, painting a
       // focus ring the user never asked for. Prevent it (the focus trap still

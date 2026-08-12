@@ -205,12 +205,11 @@ function WelcomeModalContent({
     <DialogContent
       aria-describedby={undefined}
       className={cn(
-        `flex max-h-[calc((100vh-3rem)/var(--content-zoom))]
-        w-[calc((100vw-2.5rem)/var(--content-zoom))] max-w-xl flex-col gap-0
-        overflow-hidden border-0 bg-gray-25 p-0 shadow-2xl outline-none
-        focus:outline-none focus-visible:outline-none
-        sm:max-w-xl dark:bg-gray-800`,
+        `flex w-full flex-col gap-0 overflow-hidden border-0 bg-gray-25 p-0
+        shadow-2xl outline-none focus:outline-none focus-visible:outline-none
+        dark:bg-gray-800`,
       )}
+      maxWidth="36rem"
       onEscapeKeyDown={(event) => {
         event.preventDefault();
       }}

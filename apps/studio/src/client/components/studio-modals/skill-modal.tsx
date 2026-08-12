@@ -92,7 +92,7 @@ export function SkillModal() {
       }}
       open={isOpen}
     >
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent maxWidth="42rem">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit skill" : "Create a skill"}</DialogTitle>
           <DialogDescription>

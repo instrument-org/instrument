@@ -1,6 +1,6 @@
 "use client";
 
-import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
+import { useAppZoomStyle, zoomMaxSize } from "@/client/hooks/use-app-zoom";
 import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
@@ -17,12 +17,15 @@ function TooltipContent({
   arrowClassName,
   children,
   className,
+  maxWidth = "20rem",
   sideOffset = 0,
   style,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content> & {
   arrow?: React.ReactNode;
   arrowClassName?: string;
+  /** Intrinsic width the tooltip wants, capped by the window. */
+  maxWidth?: string;
 }) {
   const container = usePortalContainer();
 
@@ -30,15 +33,18 @@ function TooltipContent({
     <TooltipPrimitive.Portal container={container}>
       <TooltipPrimitive.Content
         // Wrapping stays plain rather than balanced: `w-fit` resolves to the
-        // `max-w-xs` cap before lines are balanced, so a tooltip that wraps at
+        // max-width cap before lines are balanced, so a tooltip that wraps at
         // all keeps the full width with half of it left empty.
         className={cn(
-          "z-50 w-fit max-w-xs origin-(--radix-tooltip-content-transform-origin) animate-in rounded-md bg-foreground px-3 py-1.5 text-xs text-pretty text-background fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
+          "z-50 w-fit origin-(--radix-tooltip-content-transform-origin) animate-in rounded-md bg-foreground px-3 py-1.5 text-xs text-pretty text-background fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           className,
         )}
         data-slot="tooltip-content"
         sideOffset={sideOffset}
-        style={useAppZoomStyle(style)}
+        style={useAppZoomStyle({
+          ...style,
+          maxWidth: zoomMaxSize("width", maxWidth),
+        })}
         {...props}
       >
         {children}

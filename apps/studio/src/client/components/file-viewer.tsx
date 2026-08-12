@@ -851,8 +851,9 @@ export function FileViewerHeader({
             </span>
           </TooltipTrigger>
           <TooltipContent
-            className="max-w-[min(500px,90vw)] wrap-break-word"
-            collisionPadding={10}
+            className="wrap-break-word"
+          collisionPadding={10}
+            maxWidth="500px"
           >
             {filePath}
           </TooltipContent>

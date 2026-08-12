@@ -98,7 +98,7 @@ function ProjectModalContent({
 
   if (projectId && isLoading) {
     return (
-      <DialogContent className="max-w-lg" onExitComplete={onExitComplete}>
+      <DialogContent maxWidth="32rem" onExitComplete={onExitComplete}>
         <DialogTitle className="sr-only">Edit project</DialogTitle>
         <DialogDescription className="sr-only">
           Loading project
@@ -112,7 +112,7 @@ function ProjectModalContent({
 
   if (projectId && !editProject) {
     return (
-      <DialogContent className="max-w-lg" onExitComplete={onExitComplete}>
+      <DialogContent maxWidth="32rem" onExitComplete={onExitComplete}>
         <DialogHeader>
           <DialogTitle className="text-center font-serif text-2xl font-medium">
             Project not found
@@ -270,7 +270,7 @@ function ProjectModalForm({
 
   return (
     <DialogContent
-      className="max-w-lg"
+      maxWidth="32rem"
       onExitComplete={onExitComplete}
       onOpenAutoFocus={(e) => {
         e.preventDefault();

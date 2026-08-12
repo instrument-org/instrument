@@ -79,7 +79,8 @@ function ShortcutGuideContent({
 
   return (
     <DialogContent
-      className="max-w-[min(38rem,calc((100vw-2rem)/var(--content-zoom)))] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0"
+      className="grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0"
+      maxWidth="38rem"
       onExitComplete={onExitComplete}
     >
       <div className="flex flex-col gap-3 px-6 pt-6 pb-4">

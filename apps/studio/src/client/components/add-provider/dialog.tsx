@@ -23,7 +23,7 @@ export function AddProviderDialog({
 }) {
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="transition-none sm:max-w-lg">
+      <DialogContent className="transition-none" maxWidth="32rem">
         <DialogTitle className="sr-only">Add provider</DialogTitle>
         <DialogDescription className="sr-only">
           Select a provider to add for AI model usage.

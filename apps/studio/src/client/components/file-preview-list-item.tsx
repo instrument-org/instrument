@@ -62,8 +62,9 @@ export function FilePreviewListItem({
           </Button>
         </TooltipTrigger>
         <TooltipContent
-          className="max-w-[min(500px,90vw)] wrap-break-word"
+          className="wrap-break-word"
           collisionPadding={10}
+          maxWidth="500px"
         >
           {filePath}
         </TooltipContent>

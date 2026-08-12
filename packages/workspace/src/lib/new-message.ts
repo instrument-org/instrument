@@ -3,7 +3,7 @@ import {
   type AIGatewayModelURI,
 } from "@instrument-org/ai-gateway";
 import { extractSkillMentions } from "@instrument-org/shared/skill-mention";
-import { ok } from "neverthrow";
+import { err, ok } from "neverthrow";
 
 import { type FileUpload } from "../schemas/file-upload";
 import { type FolderAttachment } from "../schemas/folder-attachment";
@@ -99,7 +99,7 @@ export async function newMessage({
     });
 
     if (uploadResult.isErr()) {
-      return uploadResult;
+      return err(uploadResult.error);
     }
 
     parts.push(uploadResult.value.part);

@@ -9,11 +9,13 @@ import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
 import { getTaskProjectName } from "../../lib/project";
+import { restartFromMessage } from "../../lib/restart-from-message";
 import { Store } from "../../lib/store";
 import { recordTaskActivity } from "../../lib/task-settings";
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
 import { FolderAttachment } from "../../schemas/folder-attachment";
+import { RelativeTaskPathSchema } from "../../schemas/paths";
 import { SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
@@ -199,6 +201,87 @@ const count = base
     return messageIds.value.length;
   });
 
+const restartFrom = base
+  .input(
+    z.object({
+      files: z.array(FileUpload.Schema).optional(),
+      folders: z
+        .array(
+          z.object({
+            access: FolderAttachment.AccessSchema,
+            path: z.string(),
+          }),
+        )
+        .optional(),
+      id: TaskIdSchema,
+      keepFilePaths: z.array(RelativeTaskPathSchema).optional(),
+      messageId: StoreId.MessageSchema,
+      modelURI: AIGatewayModelURI.Schema,
+      prompt: z.string(),
+      sessionId: StoreId.SessionSchema,
+    }),
+  )
+  .output(z.object({ sessionId: StoreId.SessionSchema }))
+  .handler(
+    async ({
+      context,
+      errors,
+      input: {
+        files,
+        folders,
+        id,
+        keepFilePaths,
+        messageId,
+        modelURI,
+        prompt,
+        sessionId,
+      },
+    }) => {
+      const taskId = id;
+
+      const modelResult = await fetchModel({
+        captureException: context.workspaceConfig.captureException,
+        configs: context.workspaceConfig.getAIProviderConfigs(),
+        modelCache: context.workspaceConfig.modelCache,
+        modelURI,
+      });
+
+      if (!modelResult.ok) {
+        const error = modelResult.error;
+        context.workspaceConfig.captureException(error);
+        throw toORPCError(error, errors);
+      }
+
+      const result = await restartFromMessage({
+        files,
+        folders,
+        keepFilePaths,
+        messageId,
+        model: modelResult.value,
+        modelURI,
+        prompt,
+        sessionId,
+        taskId,
+        workspaceRef: context.workspaceRef,
+      });
+
+      if (result.isErr()) {
+        context.workspaceConfig.captureException(result.error);
+        throw toORPCError(result.error, errors);
+      }
+
+      await recordTaskActivity(taskId);
+
+      context.workspaceConfig.captureEvent("message.restarted", {
+        files_count: (files?.length ?? 0) + (keepFilePaths?.length ?? 0),
+        modelId: modelResult.value.canonicalId,
+        providerId: modelResult.value.params.provider,
+      });
+
+      return result.value;
+    },
+  );
+
 const live = {
   list: base
     .input(
@@ -299,4 +382,5 @@ export const message = {
   create,
   list: listWithParts,
   live,
+  restartFrom,
 };

@@ -11,6 +11,7 @@ export interface WorkspaceRPCContext {
 }
 
 const ORPC_ERRORS = {
+  CONFLICT: {},
   FILE_SYSTEM_ERROR: {},
   GATEWAY_FETCH_ERROR: {},
   GIT_ERROR: {},
@@ -39,6 +40,9 @@ export function toORPCError(
     case "gateway-parse-error":
     case "workspace-parse-error": {
       return orpcErrors.PARSE_ERROR({ message: error.message });
+    }
+    case "workspace-conflict-error": {
+      return orpcErrors.CONFLICT({ message: error.message });
     }
     case "workspace-filesystem-error": {
       return orpcErrors.FILE_SYSTEM_ERROR({ message: error.message });

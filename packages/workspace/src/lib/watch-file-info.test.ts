@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
+import { publisher } from "../rpc/publisher";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { AbsolutePathSchema, WorkspaceFilePathSchema } from "../schemas/paths";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
@@ -38,6 +39,30 @@ function watch(filePath: string, signal: AbortSignal) {
 }
 
 const hostPath = (filePath: string) => path.join(taskDir(taskId), filePath);
+
+// A fresh directory attached under `mountName`, replacing whatever was there.
+// Called twice with one name to stand a different folder behind a mount point
+// the task already has.
+let folderCount = 0;
+async function attachFolder(mountName: string): Promise<string> {
+  const folder = await fs.mkdtemp(path.join(root, `${mountName}-`));
+  folderCount += 1;
+
+  await setTaskState(taskDir(taskId), {
+    attachedFolders: {
+      [mountName]: {
+        access: "read-only",
+        createdAt: 0,
+        id: FolderAttachment.IdSchema.parse(`folder-${folderCount}`),
+        mountName,
+        path: AbsolutePathSchema.parse(folder),
+        source: "user",
+      },
+    },
+  });
+
+  return folder;
+}
 
 describe("watchFileInfo", () => {
   // A mount the task does not have. Traversal never gets this far -- the
@@ -125,6 +150,74 @@ describe("watchFileInfo", () => {
     // Ended on its own, without the caller aborting.
     expect(seen.at(-1)).toBeNull();
     expect(controller.signal.aborted).toBe(false);
+  });
+
+  // The detach the test above performs is noticed because the write after it
+  // wakes the stat. A real detach touches nothing, so the task's own change
+  // event has to be what wakes it.
+  it("stops on a detach that never touches the file", async () => {
+    const shared = await attachFolder("Shared");
+    await fs.writeFile(path.join(shared, "note.md"), "hello");
+
+    const controller = new AbortController();
+    const seen: unknown[] = [];
+
+    for await (const value of watch("/mnt/Shared/note.md", controller.signal)) {
+      seen.push(value);
+      if (value !== null) {
+        await setTaskState(taskDir(taskId), { attachedFolders: {} });
+        publisher.publish("task.updated", { id: taskId });
+      }
+    }
+
+    expect(seen[0]).toMatchObject({ filename: "note.md" });
+    expect(seen.at(-1)).toBeNull();
+    expect(controller.signal.aborted).toBe(false);
+  });
+
+  // Same mount point, someone else's directory behind it. The path still
+  // resolves, so asking only whether the mount exists says yes, while the stat
+  // goes on reading the folder the user took away.
+  it("stops when the mount name is reused for a different folder", async () => {
+    const shared = await attachFolder("Shared");
+    await fs.writeFile(path.join(shared, "note.md"), "hello");
+
+    const controller = new AbortController();
+    const seen: unknown[] = [];
+
+    for await (const value of watch("/mnt/Shared/note.md", controller.signal)) {
+      seen.push(value);
+      if (value !== null) {
+        const replacement = await attachFolder("Shared");
+        await fs.writeFile(path.join(replacement, "note.md"), "someone else's");
+        publisher.publish("task.updated", { id: taskId });
+      }
+    }
+
+    expect(seen[0]).toMatchObject({ filename: "note.md" });
+    expect(seen.at(-1)).toBeNull();
+  });
+
+  // A tab opening publishes on the same channel the detach does, and says
+  // nothing about this file.
+  it("keeps reporting through a task change that leaves the folder attached", async () => {
+    const shared = await attachFolder("Shared");
+    await fs.writeFile(path.join(shared, "note.md"), "hello");
+
+    const controller = new AbortController();
+    const seen: unknown[] = [];
+
+    for await (const value of watch("/mnt/Shared/note.md", controller.signal)) {
+      seen.push(value);
+      if (seen.length === 1) {
+        publisher.publish("task.stateUpdated", { id: taskId });
+        await fs.writeFile(path.join(shared, "note.md"), "changed");
+      } else {
+        controller.abort();
+      }
+    }
+
+    expect(seen.at(-1)).toMatchObject({ filename: "note.md" });
   });
 
   it("reports a deletion as the file being gone", async () => {

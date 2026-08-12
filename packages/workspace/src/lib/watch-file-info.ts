@@ -1,7 +1,9 @@
+import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { publisher } from "../rpc/publisher";
 import { type WorkspaceFilePath } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { CurrentFileInfoSchema } from "./get-file-info";
@@ -10,7 +12,7 @@ import { resolveWorkspaceFilePath } from "./resolve-workspace-file-path";
 import { taskDir } from "./task-dir-utils";
 import { resolveTaskProjectFolder } from "./task-project-folder";
 import { getTaskState } from "./task-record";
-import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
+import { buildWorkspaceFsLayout, resolveHostPath } from "./workspace-fs-layout";
 
 /**
  * How often the stat runs. A file the user is looking at changing "within a
@@ -60,7 +62,26 @@ export async function* watchFileInfo({
   }
 
   /**
-   * Whether the task can still reach this path at all.
+   * The real directory currently behind this path, or undefined if nothing is.
+   *
+   * Asked of the mount rather than of the file: a deleted-and-restored file
+   * still reports both, which is the whole point of watching a path, and a file
+   * that has not been written yet is the pane's normal case rather than an
+   * unreachable one.
+   */
+  const mountHostRoot = async () => {
+    const { attachedFolders } = await getTaskState(taskDir(taskId));
+    const layout = buildWorkspaceFsLayout({
+      attachedFolders,
+      projectFolderName: await resolveTaskProjectFolder(taskId),
+      taskHostRoot: taskDir(taskId),
+    });
+    return resolveHostPath(layout, filePath)?.mount.hostRoot;
+  };
+
+  /**
+   * Whether the task can still reach this path, through the same folder it did
+   * when the watch started.
    *
    * A task-relative path is reachable for as long as the task is, and never
    * needs asking. A path under a mount is reachable only while the user keeps
@@ -68,26 +89,19 @@ export async function* watchFileInfo({
    * while the pane is showing one of its files -- after which this would go on
    * reporting a file's size and mtime out of a folder the task no longer has.
    *
-   * Asked of the mount rather than of the file, so that a deleted-and-restored
-   * file still reports both, which is the whole point of watching a path.
+   * The mount point is not the question, the directory under it is: attaching a
+   * different folder under the name the old one had leaves `/mnt/Shared/note.md`
+   * resolving, to a file in somebody else's directory, while the stat below
+   * still reads the folder the user took away.
    */
   const isMountPath = filePath.startsWith("/");
+  const grantedHostRoot = isMountPath ? await mountHostRoot() : undefined;
   const stillReachable = async () => {
     if (!isMountPath) {
       return true;
     }
-    const { attachedFolders } = await getTaskState(taskDir(taskId));
-    const layout = buildWorkspaceFsLayout({
-      attachedFolders,
-      projectFolderName: await resolveTaskProjectFolder(taskId),
-      taskHostRoot: taskDir(taskId),
-    });
-    return [...layout.attached, layout.project].some(
-      (mount) =>
-        mount !== undefined &&
-        (filePath === mount.mountPoint ||
-          filePath.startsWith(`${mount.mountPoint}/`)),
-    );
+    const current = await mountHostRoot();
+    return current !== undefined && current === grantedHostRoot;
   };
 
   const filename = path.basename(filePath);
@@ -129,6 +143,32 @@ export async function* watchFileInfo({
   fsSync.watchFile(hostPath, { interval: intervalMs }, listener);
   signal?.addEventListener("abort", notify, { once: true });
 
+  // Losing a folder is not a change to the file, so the stat that wakes this
+  // loop never fires for one: a detached folder would sit here reporting its
+  // files until something happened to write one of them. The task's own change
+  // events are what a revoked mount arrives as, so they wake it too -- and only
+  // when the access is actually gone, since a tab opening publishes on the same
+  // channel and has nothing to say about this file.
+  const watchingTask = new AbortController();
+  if (isMountPath) {
+    void (async () => {
+      const updates = mergeGenerators([
+        publisher.subscribe("task.updated", { signal: watchingTask.signal }),
+        publisher.subscribe("task.stateUpdated", {
+          signal: watchingTask.signal,
+        }),
+      ]);
+      for await (const payload of updates) {
+        if (payload.id === taskId && !(await stillReachable())) {
+          notify();
+        }
+      }
+    })().catch(() => {
+      // The subscription ends with the watch, which aborts it; nothing here
+      // outlives the loop below to report to.
+    });
+  }
+
   try {
     while (signal?.aborted !== true) {
       const next = changed;
@@ -145,5 +185,6 @@ export async function* watchFileInfo({
   } finally {
     fsSync.unwatchFile(hostPath, listener);
     signal?.removeEventListener("abort", notify);
+    watchingTask.abort();
   }
 }

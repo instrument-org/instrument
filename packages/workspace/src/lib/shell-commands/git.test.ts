@@ -86,6 +86,13 @@ describe("createGitCommand arg policy", () => {
     },
     { args: ["config", "--add", "core.editor", "sh"], key: "core.editor" },
     { args: ["config", "diff.x.command", "sh"], key: "diff.x.command" },
+    // git 2.46's subcommand form: `set` sits where the key would be.
+    { args: ["config", "set", "alias.pwn", "!sh"], key: "alias.pwn" },
+    // So does the value of any flag that takes one.
+    {
+      args: ["config", "--file", ".git/config", "alias.pwn", "!sh"],
+      key: "alias.pwn",
+    },
   ])("rejects writing $key to a repo's own config", async ({ args, key }) => {
     const result = await command.execute(args, mockCtx);
 

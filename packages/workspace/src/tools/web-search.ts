@@ -353,7 +353,6 @@ function reportBudget({
   }
 
   getWorkspaceConfig().captureEvent("llm.tool_result_clipped", {
-    limit: "tool",
     modelId: model.canonicalId,
     original_characters: budgeted.originalCharacters,
     providerId: model.params.provider,

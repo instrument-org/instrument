@@ -40,27 +40,6 @@ export function sanitizeSurrogates(text: string) {
 }
 
 /**
- * Keep the last `maxLength` code units without splitting a character.
- *
- * The other end of `truncateWithoutSplitting`, for the callers that keep a head
- * and a tail: a cut that lands inside a character leaves this half orphaned
- * just as readily as the one before it.
- */
-export function takeEndWithoutSplitting(text: string, maxLength: number) {
-  if (text.length <= maxLength) {
-    return text;
-  }
-  const cut = text.slice(text.length - Math.max(0, maxLength));
-  // A low surrogate first is the second half of a character whose first half
-  // stayed behind in the part being dropped. Nothing precedes it to pair with,
-  // so the code point read here is the bare half.
-  const first = cut.codePointAt(0);
-  const startsMidCharacter =
-    first !== undefined && first >= 0xdc_00 && first <= 0xdf_ff;
-  return startsMidCharacter ? cut.slice(1) : cut;
-}
-
-/**
  * Truncate to a length in UTF-16 code units without splitting a character.
  *
  * Slicing at a fixed index is how a lone surrogate gets made in the first

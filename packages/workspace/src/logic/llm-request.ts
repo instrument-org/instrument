@@ -678,7 +678,9 @@ export const llmRequestLogic = fromPromise<
         break;
       }
       case APICallError.isInstance(error): {
+        const classification = classifyProviderError(error);
         assistantMessage.metadata.error = {
+          classification: classification.kind,
           kind: "api-call",
           message: error.message,
           name: error.name,
@@ -686,10 +688,6 @@ export const llmRequestLogic = fromPromise<
           statusCode: error.statusCode,
           url: error.url,
         };
-        // Recorded rather than acted on. Which rejections actually reach us,
-        // and which layer of evidence names them, is what decides where
-        // recovery is worth building and when the message patterns have rotted.
-        const classification = classifyProviderError(error);
         captureEvent("llm.error", {
           error_classification: classification.kind,
           error_classification_evidence: classification.evidence,
@@ -729,14 +727,31 @@ export const llmRequestLogic = fromPromise<
         break;
       }
       default: {
+        // A provider that fails inside a 200 stream lands here rather than in
+        // the `APICallError` case above, because the request itself succeeded
+        // and the failure arrived as one chunk. The classifier reads that shape
+        // too, so an upstream throttle is named here instead of being reported
+        // as an error nobody can identify.
+        const classification = classifyProviderError(error);
         assistantMessage.metadata.error = {
+          classification: classification.kind,
           kind: "unknown",
           message:
             error instanceof Error ? error.message : JSON.stringify(error),
         };
-        getWorkspaceConfig().captureException(error, {
-          scopes: ["workspace", "llm-request"],
-        });
+        if (classification.kind === "unknown") {
+          getWorkspaceConfig().captureException(error, {
+            scopes: ["workspace", "llm-request"],
+          });
+        } else {
+          captureEvent("llm.error", {
+            error_classification: classification.kind,
+            error_classification_evidence: classification.evidence,
+            error_type: "streamed",
+            modelId,
+            providerId,
+          });
+        }
       }
     }
 

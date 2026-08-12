@@ -19,6 +19,16 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
     return { type: "stop" };
   }
 
+  // Waiting is the whole fix for these two, and the machine already knows how
+  // to wait. Checked ahead of `kind`, which says how the rejection reached us
+  // rather than what it was: an upstream throttle reported inside a 200 stream
+  // is recorded as `unknown` and would otherwise end the turn on first sight.
+  const classification =
+    "classification" in error ? error.classification : undefined;
+  if (classification === "rate-limit" || classification === "transient") {
+    return { type: "retry" };
+  }
+
   if (error.kind === "unknown") {
     return { error: new Error(error.message), type: "error" };
   }

@@ -1,5 +1,8 @@
 import { AIGatewayModel } from "@instrument-org/ai-gateway";
-import { type SyntheticModelId } from "@instrument-org/shared";
+import {
+  ProviderErrorKindSchema,
+  type SyntheticModelId,
+} from "@instrument-org/shared";
 import {
   renderSkillMentionsAsText,
   skillMentionLabel,
@@ -31,6 +34,11 @@ export namespace SessionMessage {
   // -----
   // Error
   // -----
+  // What the rejection was about, as opposed to `kind`, which says which shape
+  // it arrived in. Only the two kinds a provider produces carry one, and it is
+  // optional because messages recorded before it existed do not have it.
+  const ClassificationSchema = ProviderErrorKindSchema.optional();
+
   const ErrorSchema = z.discriminatedUnion("kind", [
     z.object({
       kind: z.literal("api-key"),
@@ -41,10 +49,12 @@ export namespace SessionMessage {
       message: z.string(),
     }),
     z.object({
+      classification: ClassificationSchema,
       kind: z.literal("unknown"),
       message: z.string(),
     }),
     z.object({
+      classification: ClassificationSchema,
       kind: z.literal("api-call"),
       message: z.string(),
       name: z.string(),

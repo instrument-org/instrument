@@ -2,7 +2,7 @@ import { type AIProviderType } from "../schemas/ai-gateway";
 import {
   type ProviderErrorEvidence,
   type ProviderErrorKind,
-} from "./provider-error";
+} from "../schemas/provider-error";
 
 export interface AnalyticsEvents {
   // Using snake_case for property names because they show with spaces in the UI
@@ -175,6 +175,15 @@ type LLMAnalyticsError =
       error_classification: ProviderErrorKind;
       error_classification_evidence: ProviderErrorEvidence;
       error_type: "api-call";
+    }
+  // A rejection reported inside a 200 stream, which raises no `APICallError`
+  // and so is counted apart from one. Held separately because the split is the
+  // whole point: an upstream throttle arrives here, not above, and reading only
+  // `api-call` makes it look as though throttling never happens.
+  | {
+      error_classification: ProviderErrorKind;
+      error_classification_evidence: ProviderErrorEvidence;
+      error_type: "streamed";
     }
   | {
       error_message: string;

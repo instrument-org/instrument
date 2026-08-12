@@ -1329,6 +1329,7 @@ describe("llmRequestLogic", () => {
             "id": "msg_00000000ZM8888888888888888",
             "metadata": {
               "error": {
+                "classification": "transient",
                 "kind": "api-call",
                 "message": "Failed to process error response",
                 "name": "AI_APICallError",
@@ -1462,6 +1463,7 @@ describe("llmRequestLogic", () => {
             "id": "msg_00000000ZP8888888888888888",
             "metadata": {
               "error": {
+                "classification": "unknown",
                 "kind": "unknown",
                 "message": "Unknown error",
               },
@@ -1483,6 +1485,35 @@ describe("llmRequestLogic", () => {
             "role": "assistant",
           },
         ]
+      `);
+    });
+
+    it("should name a throttle reported inside a 200 stream", async () => {
+      // Recorded verbatim from a task that hit this. The request succeeded, so
+      // no `APICallError` is ever raised: the whole rejection is one chunk.
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          {
+            error: {
+              code: 429,
+              message:
+                "openai/gpt-5.6-luna is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+              metadata: { error_type: "rate_limit_exceeded" },
+            },
+            type: "error",
+          },
+        ],
+      });
+
+      const assistantMessage = messages.findLast(
+        (message) => message.role === "assistant",
+      );
+      expect(assistantMessage?.metadata.error).toMatchInlineSnapshot(`
+        {
+          "classification": "rate-limit",
+          "kind": "unknown",
+          "message": "{"code":429,"message":"openai/gpt-5.6-luna is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations","metadata":{"error_type":"rate_limit_exceeded"}}",
+        }
       `);
     });
   });

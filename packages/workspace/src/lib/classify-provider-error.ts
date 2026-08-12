@@ -99,11 +99,11 @@ const NOT_CONTEXT_OVERFLOW_PATTERNS = [/rate limit/i, /too many requests/i];
 /**
  * Say what a provider's rejection was about.
  *
- * Evidence is weighed in order of how long it lasts. The status code first,
- * where it is decisive on its own: no provider answers a context overflow with
- * a 429, and none answers throttling with a 401. Then codes out of the response
- * body, which are meant to be read by programs. Only then the message text,
- * which is a sentence a human wrote and another human may rewrite.
+ * Two shapes arrive, and both are provider verdicts. A failed request reaches
+ * the SDK as an `APICallError` carrying a status and a body. A request that
+ * succeeded and then failed part-way through the stream reaches us as a bare
+ * object, because by then the status was already 200; see `readStreamedError`.
+ * Both are reduced to the same evidence and weighed the same way.
  *
  * `unknown` is a real answer and the common one. It means the caller should do
  * exactly what it did before this module existed.
@@ -111,51 +111,22 @@ const NOT_CONTEXT_OVERFLOW_PATTERNS = [/rate limit/i, /too many requests/i];
 export function classifyProviderError(
   error: unknown,
 ): ProviderErrorClassification {
-  if (!APICallError.isInstance(error)) {
-    return { evidence: "none", kind: "unknown" };
+  if (APICallError.isInstance(error)) {
+    return weighEvidence({
+      // The SDK's own verdict, computed from the status: 408, 409, or 5xx. 429
+      // is in its set too, but the status check answers that first.
+      codes: structuredCodes(error.responseBody),
+      isRetryable: error.isRetryable,
+      statusCode: error.statusCode,
+      // Providers disagree about which of these carries the sentence, and the
+      // SDK's message is sometimes the status line alone, so both are searched.
+      text: [error.message, error.responseBody].filter(Boolean).join("\n"),
+    });
   }
 
-  const { statusCode } = error;
-  // 402 is an account that cannot pay for the request rather than one that may
-  // not make it, but the session is in the same position either way: nothing it
-  // can send will help, and a human has to act before the next turn works. Not
-  // `rate-limit`, which promises that waiting is the fix.
-  if (statusCode === 401 || statusCode === 402 || statusCode === 403) {
-    return { evidence: "status", kind: "auth" };
-  }
-  if (statusCode === 429) {
-    return { evidence: "status", kind: "rate-limit" };
-  }
-  if (statusCode === 413) {
-    return { evidence: "status", kind: "context-overflow" };
-  }
-
-  for (const code of structuredCodes(error.responseBody)) {
-    const kind = KIND_BY_CODE.get(code);
-    if (kind) {
-      return { evidence: "structured", kind };
-    }
-  }
-
-  // Providers disagree about which of these carries the sentence, and the SDK's
-  // message is sometimes the status line alone, so both are searched.
-  const text = [error.message, error.responseBody].filter(Boolean).join("\n");
-
-  if (UNSENDABLE_CONTENT_PATTERNS.some((pattern) => pattern.test(text))) {
-    return { evidence: "prose", kind: "unsendable-content" };
-  }
-
-  if (
-    !NOT_CONTEXT_OVERFLOW_PATTERNS.some((pattern) => pattern.test(text)) &&
-    CONTEXT_OVERFLOW_PATTERNS.some((pattern) => pattern.test(text))
-  ) {
-    return { evidence: "prose", kind: "context-overflow" };
-  }
-
-  // The SDK's own verdict, computed from the status: 408, 409, or 5xx. 429 is
-  // in its set too, but that was answered above.
-  if (error.isRetryable) {
-    return { evidence: "status", kind: "transient" };
+  const streamed = readStreamedError(error);
+  if (streamed) {
+    return weighEvidence(streamed);
   }
 
   return { evidence: "none", kind: "unknown" };
@@ -182,6 +153,50 @@ function property(value: unknown, key: string): unknown {
 }
 
 /**
+ * A rejection a provider reported inside an otherwise successful stream.
+ *
+ * The request was accepted, so there is no failed HTTP response for the SDK to
+ * raise an `APICallError` from: the status was 200 and the headers were sent
+ * before anything went wrong. What arrives instead is one chunk carrying an
+ * `error` object, which the provider's stream transform re-emits as an `error`
+ * part and the caller throws verbatim. It is a bare object, not an `Error`.
+ *
+ * OpenRouter reports upstream throttling this way, so this is the shape a
+ * user hits most often when a shared key is rate-limited:
+ *
+ * ```json
+ * { "code": 429, "message": "... is temporarily rate-limited upstream ...",
+ *   "metadata": { "error_type": "rate_limit_exceeded" } }
+ * ```
+ *
+ * `code` is the HTTP status the upstream provider gave, as a number, so it is
+ * read as a status rather than as one of the string codes in `KIND_BY_CODE`.
+ * Anything without both a message and one machine-readable field is left alone:
+ * a plain `Error` from our own code has no business being matched against
+ * provider prose.
+ */
+function readStreamedError(error: unknown) {
+  const message = asString(property(error, "message"));
+  if (message === undefined) {
+    return;
+  }
+
+  const code: unknown = property(error, "code");
+  const codes = [
+    asString(code),
+    asString(property(error, "type")),
+    asString(property(property(error, "metadata"), "error_type")),
+  ].filter((value) => value !== undefined);
+  const statusCode = typeof code === "number" ? code : undefined;
+
+  if (codes.length === 0 && statusCode === undefined) {
+    return;
+  }
+
+  return { codes, isRetryable: false, statusCode, text: message };
+}
+
+/**
  * Every field a provider might have put a code in, in the order they are worth
  * trusting. OpenAI uses `error.code`, Anthropic uses `error.type`, and the
  * top-level `type` is the last place left to look.
@@ -204,4 +219,61 @@ function structuredCodes(responseBody: string | undefined) {
     asString(property(error, "type")),
     asString(property(body, "type")),
   ].filter((value) => value !== undefined);
+}
+
+/**
+ * Weigh evidence in order of how long it lasts. The status code first, where it
+ * is decisive on its own: no provider answers a context overflow with a 429, and
+ * none answers throttling with a 401. Then codes meant to be read by programs.
+ * Only then the message text, which is a sentence a human wrote and another
+ * human may rewrite.
+ */
+function weighEvidence({
+  codes,
+  isRetryable,
+  statusCode,
+  text,
+}: {
+  codes: string[];
+  isRetryable: boolean;
+  statusCode: number | undefined;
+  text: string;
+}): ProviderErrorClassification {
+  // 402 is an account that cannot pay for the request rather than one that may
+  // not make it, but the session is in the same position either way: nothing it
+  // can send will help, and a human has to act before the next turn works. Not
+  // `rate-limit`, which promises that waiting is the fix.
+  if (statusCode === 401 || statusCode === 402 || statusCode === 403) {
+    return { evidence: "status", kind: "auth" };
+  }
+  if (statusCode === 429) {
+    return { evidence: "status", kind: "rate-limit" };
+  }
+  if (statusCode === 413) {
+    return { evidence: "status", kind: "context-overflow" };
+  }
+
+  for (const code of codes) {
+    const kind = KIND_BY_CODE.get(code);
+    if (kind) {
+      return { evidence: "structured", kind };
+    }
+  }
+
+  if (UNSENDABLE_CONTENT_PATTERNS.some((pattern) => pattern.test(text))) {
+    return { evidence: "prose", kind: "unsendable-content" };
+  }
+
+  if (
+    !NOT_CONTEXT_OVERFLOW_PATTERNS.some((pattern) => pattern.test(text)) &&
+    CONTEXT_OVERFLOW_PATTERNS.some((pattern) => pattern.test(text))
+  ) {
+    return { evidence: "prose", kind: "context-overflow" };
+  }
+
+  if (isRetryable) {
+    return { evidence: "status", kind: "transient" };
+  }
+
+  return { evidence: "none", kind: "unknown" };
 }

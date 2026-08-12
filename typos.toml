@@ -41,7 +41,14 @@ erro = "erro"
 truncat = "truncat"
 
 [files]
+# Dotted directories are content too: workflows, agent skills, editor config.
+# Without this the checker silently skips .github, .agents, .vscode and .claude.
+ignore-hidden = false
+
 extend-exclude = [
+  # Reachable once hidden files are in scope, and none of it is ours: sample
+  # hooks, rerere caches, and staged patches.
+  ".git/",
   # Git submodule, owned upstream.
   "registry/",
   # Generated or vendored, and not ours to spell.

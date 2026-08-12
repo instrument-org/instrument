@@ -59,7 +59,7 @@ cspell flagged `behaviour`, `colour`, `favourite`, `capitalised`, `realise`, but
 | | cspell | typos |
 | --- | --- | --- |
 | Wall time, whole repo | 5.2s | 0.08s |
-| Allowlist entries | 233 plus 99 inline directives | 10 words, 1 identifier |
+| Allowlist entries | 233 plus 99 inline directives | 6 words, 5 identifiers |
 | Checks `docs/` | no | yes |
 | Catches `labelled`, `honour`, `judgement`, `centred` | no | yes |
 | Output | "unknown word" | "`labelled` should be `labeled`" |
@@ -74,6 +74,7 @@ We accepted that gap because what it protects is narrow. A misspelled identifier
 
 - `typos.toml` at the root, and `scripts/typos.ts`, which fetches the pinned checksum-verified binary from crate-ci's GitHub releases into `node_modules/.cache` on first use. There is no first-party npm package, and the third-party wrapper would have needed a postinstall allowance in [pnpm-workspace.yaml](../../pnpm-workspace.yaml) for a single-maintainer package that downloads binaries.
 - `check:spelling` now runs it, and unlike its predecessor it runs in CI. `fix:spelling` applies the corrections.
+- `ignore-hidden = false`, because typos skips dotted directories by default and the workflows, agent skills, and editor config in them are content like anything else. `.git/` comes into scope with them and is excluded.
 - `check:unused-words` is gone.
 - 154 corrections across the tree, including `unparseable` to `unparsable` (a discriminated-union member, its producer, and its snapshots) and one genuine typo cspell had never seen (`macoS`).
 

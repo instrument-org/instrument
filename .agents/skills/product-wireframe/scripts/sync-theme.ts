@@ -1,7 +1,7 @@
 /**
  * Regenerate the `@theme` block that wireframes compile Tailwind against, from
  * Studio's own stylesheet, so a wireframe drawn a year ago still shows the
- * colours the product actually ships.
+ * colors the product actually ships.
  *
  * Wireframes cannot import globals.css: it pulls @fontsource packages and the
  * Tailwind entry through the bundler, and these files have to open from disk
@@ -39,7 +39,7 @@ const RAMPS = [
   "brown",
 ];
 
-/** Semantic aliases worth having as Tailwind colours in a wireframe. */
+/** Semantic aliases worth having as Tailwind colors in a wireframe. */
 const SEMANTIC = [
   "background",
   "foreground",

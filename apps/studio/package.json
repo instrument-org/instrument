@@ -72,7 +72,6 @@
     "@zkochan/cmd-shim": "^7.0.0",
     "arctic": "^3.6.0",
     "better-auth": "catalog:",
-    "detect-port": "^2.1.0",
     "dugite": "3.0.0-rc11",
     "electron-context-menu": "^4.1.2",
     "electron-dl": "^4.0.0",

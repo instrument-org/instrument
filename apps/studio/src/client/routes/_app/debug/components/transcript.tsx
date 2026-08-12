@@ -423,6 +423,7 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
                     onContinue={noop}
                     onModelChange={noop}
                     onRetry={noop}
+                    onRunAgain={noop}
                     onStartNewTask={noop}
                     renderAsItems
                     task={task}

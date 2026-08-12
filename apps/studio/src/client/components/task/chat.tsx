@@ -100,6 +100,13 @@ export function TaskChat({
       },
     }),
   );
+  const runTurn = useMutation(
+    rpcClient.workspace.session.run.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to try again", { description: error.message });
+      },
+    }),
+  );
   const stopSessions = useMutation(
     rpcClient.workspace.session.stop.mutationOptions(),
   );
@@ -199,6 +206,24 @@ export function TaskChat({
       id,
       modelURI: selectedModelURI,
       prompt,
+      sessionId: selectedSessionId,
+    });
+  };
+
+  // The failed turn again, with nothing said on the user's behalf: the agent
+  // runs over the session as it stands and answers the request already in it.
+  const handleRunAgain = () => {
+    if (!selectedSessionId) {
+      // No retry UI is shown when no session is selected
+      return;
+    }
+    if (!selectedModelURI) {
+      toast.error("Failed to try again", { description: "No model selected" });
+      return;
+    }
+    runTurn.mutate({
+      id,
+      modelURI: selectedModelURI,
       sessionId: selectedSessionId,
     });
   };
@@ -428,6 +453,7 @@ export function TaskChat({
                     onContinue={handleContinue}
                     onModelChange={setSelectedModelURI}
                     onRetry={handleRetry}
+                    onRunAgain={handleRunAgain}
                     onStartNewTask={handleStartNewTask}
                     task={task}
                   />

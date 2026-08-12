@@ -57,6 +57,7 @@ function draw(frame: Frame) {
           onContinue={vi.fn()}
           onModelChange={vi.fn()}
           onRetry={vi.fn()}
+          onRunAgain={vi.fn()}
           onStartNewTask={vi.fn()}
           task={task}
         />

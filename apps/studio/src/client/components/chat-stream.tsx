@@ -108,6 +108,7 @@ interface ChatStreamProps {
   onContinue: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
+  onRunAgain: () => void;
   onStartNewTask: () => void;
   // Wrap each turn in a MessageScrollerItem so the transcript scroller can
   // anchor turns. Only the top-level transcript sets this; nested tool-agent
@@ -135,6 +136,7 @@ export function ChatStream({
   onContinue,
   onModelChange,
   onRetry,
+  onRunAgain,
   onStartNewTask,
   renderAsItems = false,
   task,
@@ -461,7 +463,7 @@ export function ChatStream({
             message={message}
             onContinue={onContinue}
             onModelChange={onModelChange}
-            onRetry={onRetry}
+            onRunAgain={onRunAgain}
             onStartNewTask={onStartNewTask}
           />,
         );

@@ -35,7 +35,7 @@ interface MessageErrorProps {
   message: SessionMessage.Assistant;
   onContinue: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
-  onRetry: (prompt: string) => void;
+  onRunAgain: () => void;
   onStartNewTask?: () => void;
 }
 
@@ -46,7 +46,7 @@ export function MessageError({
   message,
   onContinue,
   onModelChange,
-  onRetry,
+  onRunAgain,
   onStartNewTask,
 }: MessageErrorProps) {
   const error = message.metadata.error;
@@ -201,12 +201,7 @@ export function MessageError({
                       <p>Starts a new task</p>
                     </TooltipContent>
                   </Tooltip>
-                  <Button
-                    onClick={() => {
-                      onRetry("Try that again.");
-                    }}
-                    size="sm"
-                  >
+                  <Button onClick={onRunAgain} size="sm">
                     Try again
                   </Button>
                 </div>

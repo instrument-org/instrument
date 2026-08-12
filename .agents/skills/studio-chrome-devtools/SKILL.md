@@ -43,6 +43,14 @@ Route and modal commands go through `window.__studioDrive`, a dev-only handle th
 node $DRIVE wait 'document.querySelectorAll("[data-slot]").length > 40'
 ```
 
+Hot reload is on in every instance this boots, so any write in the checkout — another agent's edit, a commit, a formatter — relaunches the app or hot-updates the renderer, and takes the state a run navigated to with it. When that has happened since the previous command, the next one says so on stderr:
+
+```plaintext
+studio-drive: the app reloaded since the last command. Whatever was navigated to, opened, or typed is gone; ...
+```
+
+Believe it. A result that disagrees with the one before it, after that line, is describing the reload and not the code. Re-establish the state and take the reading again rather than explaining the difference.
+
 A plain `boot` uses the shared dev application-data directory, so what a run can reach depends on what that machine did last. `--workspace <fixture>` boots against a disposable one built from a committed description:
 
 ```bash

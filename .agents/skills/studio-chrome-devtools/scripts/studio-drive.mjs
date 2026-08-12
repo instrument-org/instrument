@@ -670,7 +670,15 @@ async function cmdBoot(explicitPort, { fresh }) {
         const cdp = await connect(`http://127.0.0.1:${port}`);
         try {
           await waitForDriveHandle(cdp);
-          return { ...session, reused: false };
+          // Seeded here so the first command after a boot compares against this
+          // load rather than reporting it as a reload.
+          const load = await evaluate(
+            cdp,
+            "window.__studioDrive?.load?.() ?? null",
+          );
+          const booted = { ...session, ...(load && { load }) };
+          writeSession(booted);
+          return { ...booted, reused: false };
         } finally {
           cdp.close();
         }
@@ -1222,11 +1230,56 @@ async function resolveTaskId(cdp, explicit) {
   return match[1];
 }
 
+/**
+ * Says so when the app has reloaded since the last command ran against it.
+ *
+ * Any write in the checkout relaunches the main process or hot-updates the
+ * renderer, so an instance can be reset by another agent, a commit, or a
+ * formatter mid-run. Unreported, that arrives as a click that stopped working
+ * or a screenshot of a route nobody left, and the time goes into debugging the
+ * app rather than the harness.
+ *
+ * On stderr, so it cannot be mistaken for the command's own output. Only
+ * tracked for an instance this script booted, since the last-seen values live
+ * in its session record, and concurrent runs share that record: the report goes
+ * to whichever command reads it first.
+ */
+async function reportReload(cdp) {
+  const session = readSession();
+  if (!session) {
+    return;
+  }
+  // Absent on a packaged build, and mid-reload before the renderer re-attaches
+  // it. Neither is worth a message of its own here.
+  const load = await evaluate(cdp, "window.__studioDrive?.load?.() ?? null");
+  if (!load) {
+    return;
+  }
+
+  const seen = session.load;
+  if (seen && load.id !== seen.id) {
+    console.error(
+      "studio-drive: the app reloaded since the last command. Whatever was " +
+        "navigated to, opened, or typed is gone; a result that disagrees with " +
+        "the last one may be reporting that rather than the change.",
+    );
+  } else if (seen && load.updates > seen.updates) {
+    const count = load.updates - seen.updates;
+    console.error(
+      `studio-drive: ${count} hot update${count === 1 ? "" : "s"} landed since ` +
+        "the last command. Component state under them was rebuilt.",
+    );
+  }
+
+  writeSession({ ...session, load });
+}
+
 async function runAgainstInstance() {
   const cdp = await connect(
     `http://127.0.0.1:${await resolvePort(flag(argv, "--port"))}`,
   );
   try {
+    await reportReload(cdp);
     return await dispatch(cdp);
   } finally {
     cdp.close();

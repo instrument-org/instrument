@@ -191,9 +191,10 @@ export function createPnpmCommand(taskId: TaskId) {
     // runs in the right place regardless of where the task is mounted.
     const { taskCwd: cwd } = resolveCommandContext(taskId, ctx);
 
-    // The runnable workspace lives in `work/`; there is no manifest at the task
-    // root. Fail fast with guidance instead of pnpm's opaque
-    // ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND when run from the wrong directory.
+    // The manifest is at the task root, which is also where the agent starts,
+    // so reaching this means it ran the command from somewhere else. Fail fast
+    // with guidance instead of pnpm's opaque
+    // ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND.
     const isInformational =
       !subcommand || subcommand.startsWith("-") || subcommand === "help";
     const hasManifest =

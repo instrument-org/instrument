@@ -198,7 +198,11 @@ export function MessageError({
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Starts a new task</p>
+                      <p>
+                        Opens a blank task. Nothing carries over, but this one
+                        stays in your list, so you can copy over anything you
+                        still need.
+                      </p>
                     </TooltipContent>
                   </Tooltip>
                   <Button onClick={onRunAgain} size="sm">

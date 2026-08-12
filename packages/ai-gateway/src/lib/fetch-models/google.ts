@@ -69,6 +69,7 @@ export function fetchAndParseGoogleModels(
         {
           author,
           canonicalId: canonicalModelId,
+          contextLength: model.inputTokenLimit,
           features,
           name: model.displayName,
           params,

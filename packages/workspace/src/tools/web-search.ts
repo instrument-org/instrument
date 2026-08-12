@@ -104,6 +104,8 @@ export const WebSearch = setupTool({
     - Any topic where recent information would improve your response
 
     Prefer this over navigating the browser manually when the goal is to discover URLs or find ranked/popular results for a topic.
+
+    Results close with a \`Sources:\` list of \`[Title](URL)\`. Carry the ones you relied on into your reply, as links on what they describe or as a \`Sources:\` list of your own.
   `,
   async *execute({ input, model, signal }) {
     for await (const result of webSearch({

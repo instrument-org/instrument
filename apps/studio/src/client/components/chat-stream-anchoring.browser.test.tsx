@@ -197,6 +197,8 @@ function mediaCardCount() {
   return document.querySelectorAll('[class*="group/media"]').length;
 }
 
+// The rows the scroller knows about: what the reader sent, and the whole of the
+// reply to it. Not the steps inside a reply -- those are `stepRowCount`.
 function rowCount() {
   return document.querySelectorAll("[data-slot=message-scroller-item]").length;
 }
@@ -223,6 +225,12 @@ function spacerHeight() {
   );
 
   return spacer ? Math.round(spacer.getBoundingClientRect().height) : 0;
+}
+
+// Every line the transcript drew inside those rows, found by the group each one
+// names itself with.
+function stepRowCount() {
+  return document.querySelectorAll('[class*="group/run-row"]').length;
 }
 
 function Transcript({
@@ -297,6 +305,46 @@ test("holds the turn in place when the wordmark gives way to the reply", async (
   expect(anchorOffset()).toBe(placed);
 });
 
+/**
+ * A turn is one row however many steps it takes, so a step landing is a row
+ * growing and not a row arriving: the content's child list does not change from
+ * one step to the next, and following the end is left to the size of the
+ * transcript rather than the count of what is in it.
+ */
+test("follows the end through a run of steps that never adds a row", async () => {
+  const sent = [...history, message("user", "Read every quarter")];
+  const steps = [
+    sent,
+    [...sent, readStep("q1.csv")],
+    [...sent, readStep("q1.csv"), readStep("q2.csv")],
+    [...sent, readStep("q1.csv"), readStep("q2.csv"), readStep("q3.csv")],
+  ];
+
+  await renderInBrowser(<Harness steps={steps} />);
+  await settle();
+
+  const step = page.getByRole("button", { name: "step" });
+
+  await step.click();
+  await settle();
+
+  const firstStepRowCount = rowCount();
+
+  for (let remaining = 2; remaining > 0; remaining--) {
+    await step.click();
+    await settle();
+
+    // Half the premise: the scroller's own list of rows does not change from one
+    // step to the next, so nothing here is being carried by an append.
+    expect(rowCount()).toBe(firstStepRowCount);
+    expect(distanceFromEnd()).toBe(0);
+  }
+
+  // The other half: the steps really did land. The run heads itself with the one
+  // in flight, so the last file read is what the transcript is showing.
+  expect(document.body.textContent).toContain("Reading q3.csv");
+});
+
 test("holds the end of a turn in view when its last rows land with the session", async () => {
   // The turn's last content and the session's own report of having stopped
   // come from two live queries, so the reply can finish arriving in the frame
@@ -330,23 +378,26 @@ test("holds the end of a turn in view when its last rows land with the session",
   await settle();
 
   const streamingRowCount = rowCount();
+  expect(mediaCardCount()).toBe(0);
   expect(distanceFromEnd()).toBe(0);
 
   await step.click();
   await settle();
 
-  // The premise: a row really does arrive here. Without one the transcript has
-  // nothing left to follow, and this would pass whatever the scroller did.
-  expect(rowCount()).toBeGreaterThan(streamingRowCount);
+  // The premise: content really does arrive here. Without any the transcript
+  // has nothing left to follow, and this would pass whatever the scroller did.
+  // It arrives into the row the turn already had -- a step is not a row of its
+  // own -- so what the scroller is following is a row growing under it.
   expect(mediaCardCount()).toBeGreaterThan(0);
+  expect(rowCount()).toBe(streamingRowCount);
   expect(distanceFromEnd()).toBe(0);
 });
 
 test("leaves an idle transcript where it is when a folded run is opened", async () => {
   // A run with a turn after it. Folded, the steps behind the head line draw
-  // nothing, so the messages holding them are not rows at all -- opening the
-  // run puts them back, in the middle of the list, which is the part the
-  // scroller must not read as a turn arriving.
+  // nothing; opening the run puts them back, halfway up a transcript with
+  // another turn under it, which is the growth the scroller must not read as a
+  // turn arriving.
   const messages = [
     ...history,
     message("user", "Check the numbers"),
@@ -374,16 +425,19 @@ test("leaves an idle transcript where it is when a folded run is opened", async 
   // view first, which is the movement under test.
   const closed = viewportOffset(head);
   const closedRowCount = rowCount();
+  const closedStepCount = stepRowCount();
   expect(closed).toBeGreaterThan(0);
   expect(closed).toBeLessThan(VIEWPORT_HEIGHT);
 
   (head as HTMLElement).click();
   await settle();
 
-  // The premise: opening really does put rows back into the middle of the list.
-  // Without that the scroller never sees an append here and this would pass
-  // whether or not the bug was fixed.
-  expect(rowCount()).toBeGreaterThan(closedRowCount);
+  // The premise: opening really does put steps back. Without that there is no
+  // growth here at all and this would pass whether or not the bug was fixed.
+  // They land inside the row their turn already had, so the list the scroller
+  // walks is the same list it walked before the click.
+  expect(stepRowCount()).toBeGreaterThan(closedStepCount);
+  expect(rowCount()).toBe(closedRowCount);
 
   // Nothing was pinned, so nothing reserved room under the last turn for it,
   // and the row that was clicked is still under the pointer.

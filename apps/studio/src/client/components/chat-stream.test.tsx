@@ -681,6 +681,9 @@ describe("ChatStream and the turn the scroller anchors", () => {
         `${item.dataset.scrollAnchor ?? ""} ${item.textContent.slice(0, 20)}`,
     );
 
+  // Two rows for a two-message reply would be two rows the scroller has to
+  // agree about; the reply is one thing that grows. So the run of steps is one
+  // row whatever it is spread over, and only what the reader sent is a start.
   it("starts a turn at what the user sent and nowhere else", () => {
     const { container } = renderMessages(
       [
@@ -695,7 +698,6 @@ describe("ChatStream and the turn the scroller anchors", () => {
       [
         "true How did we do?Dec 31",
         "false Reading the first qu",
-        "false Revenue grew in the ",
       ]
     `);
   });

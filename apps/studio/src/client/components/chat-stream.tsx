@@ -75,6 +75,17 @@ const PROSE_GAP = "mt-4";
 // margin here would be resolved against it rather than added to it.
 const PROSE_GAP_IN_GROUP = "pt-4";
 
+// The box a whole turn is drawn in, and the box a message the reader sent is
+// drawn in. `gap-2` is the transcript's own rhythm, restated inside the box so
+// that rows are 8px apart whether or not a boundary falls between them.
+//
+// `group/assistant-turn` is what a turn's footer answers to. It is the whole of
+// what the agent produced -- the wordmark, every step, the footer itself -- so
+// the row comes up wherever in the reply the pointer is, and a reader is never
+// asked to find the footer in order to reveal it.
+const TURN_BOX = "group/assistant-turn flex flex-col gap-2";
+const SENT_BOX = "flex flex-col gap-2";
+
 interface AssistantMessageCheck {
   isDeveloperMode: boolean;
   isToolStreaming: (
@@ -271,6 +282,13 @@ export function ChatStream({
     let lastFooterIndex = 0;
     let previousBrowserStatusNote: string | undefined;
     let visibleAssistantContentCount = 0;
+
+    // The turn being built. A turn is one message per step, so its rows arrive
+    // over several passes of the loop below and are held here until the run
+    // ends: everything the agent produced for one prompt goes in one box, named
+    // by the message that opened it.
+    let turnRows: React.ReactNode[] = [];
+    let turnId: StoreId.Message | undefined;
 
     for (const [messageIndex, message] of regularMessages.entries()) {
       const messageRows: MessageRow[] = [];
@@ -485,26 +503,55 @@ export function ChatStream({
         visibleAssistantContentCount = 0;
       }
 
-      if (renderAsItems) {
-        if (messageElements.length > 0) {
-          // The user's message is where a turn starts, and it is the one row per
-          // turn that says so: the agent's side arrives as a message per step.
-          // Anchoring it moves it to the reading line on arrival and holds it
-          // there while the reply grows into the room the scroller reserves
-          // below, so the column stops moving under whatever is being read.
-          elements.push(
+      if (message.role === "assistant") {
+        turnId ??= message.id;
+        turnRows.push(...messageElements);
+
+        // The run is over, so the turn is whole and can be drawn. A turn that
+        // produced nothing draws no box at all.
+        if (isLastInConsecutiveAssistantGroup) {
+          if (turnRows.length > 0) {
+            elements.push(
+              renderAsItems ? (
+                <MessageScrollerItem
+                  className={TURN_BOX}
+                  key={turnId}
+                  messageId={turnId}
+                >
+                  {turnRows}
+                </MessageScrollerItem>
+              ) : (
+                <div className={TURN_BOX} key={turnId}>
+                  {turnRows}
+                </div>
+              ),
+            );
+          }
+          turnRows = [];
+          turnId = undefined;
+        }
+      } else if (messageElements.length > 0) {
+        // What the reader sent is where a turn starts, and it is the one row per
+        // turn that says so. Anchoring it moves it to the reading line on
+        // arrival and holds it there while the reply grows into the room the
+        // scroller reserves below, so the column stops moving under whatever is
+        // being read.
+        elements.push(
+          renderAsItems ? (
             <MessageScrollerItem
-              className="flex flex-col gap-2"
+              className={SENT_BOX}
               key={message.id}
               messageId={message.id}
-              scrollAnchor={message.role === "user"}
+              scrollAnchor
             >
               {messageElements}
-            </MessageScrollerItem>,
-          );
-        }
-      } else {
-        elements.push(...messageElements);
+            </MessageScrollerItem>
+          ) : (
+            <div className={SENT_BOX} key={message.id}>
+              {messageElements}
+            </div>
+          ),
+        );
       }
     }
 
@@ -572,12 +619,7 @@ export function ChatStream({
   }
 
   return (
-    <div
-      className={cn(
-        "group/assistant-message-footer",
-        "flex w-full flex-col gap-2",
-      )}
-    >
+    <div className="flex w-full flex-col gap-2">
       <div className="flex flex-col gap-2">{chatElements}</div>
       {continueNode}
     </div>

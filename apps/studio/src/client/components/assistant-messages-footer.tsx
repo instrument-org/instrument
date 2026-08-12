@@ -176,7 +176,7 @@ export function AssistantMessagesFooter({
               ? "invisible"
               : alwaysVisible || sources.length > 0
                 ? "opacity-100"
-                : "opacity-0 group-hover/assistant-message-footer:opacity-100",
+                : "opacity-0 group-hover/assistant-turn:opacity-100",
           )}
         >
           {/* The negative margins cancel the buttons' own padding so their icons

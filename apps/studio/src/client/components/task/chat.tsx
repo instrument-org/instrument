@@ -375,7 +375,7 @@ export function TaskChat({
       <div className="flex h-full min-h-0 flex-col">
         <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport>
-            <MessageScrollerContent className="group/assistant-message-footer mx-auto w-full max-w-2xl gap-2 p-4 pb-8">
+            <MessageScrollerContent className="mx-auto w-full max-w-2xl gap-2 p-4 pb-8">
               {selectedSessionId ? (
                 isLoadingMessages ? (
                   <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">

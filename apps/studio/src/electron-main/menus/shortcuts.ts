@@ -81,12 +81,12 @@ const SHORTCUT_ACTIONS: Record<ShortcutId, null | ShortcutAction> = {
   newTask: () => {
     sendAppCommand({ to: "/new-tab", type: "navigate" });
   },
+  reloadApp: () => {
+    // The whole tabbed app is one web contents, so this reloads it.
+    getMainWindow()?.webContents.reload();
+  },
   reloadPage: () => {
     reload();
-  },
-  reloadWebViews: () => {
-    // The whole tabbed app is one web contents now, so this reloads it.
-    getMainWindow()?.webContents.reload();
   },
   reopenTab: () => {
     sendAppCommand({ type: "reopen" });

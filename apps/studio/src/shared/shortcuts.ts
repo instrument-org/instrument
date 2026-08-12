@@ -107,16 +107,21 @@ export const SHORTCUTS = {
     label: "New Task",
     owner: "menu",
   },
+  // The app reload, which only developer mode offers: the whole tabbed app is
+  // one web contents, and reloading it destroys every task's browser with the
+  // document their guests are mounted in.
+  reloadApp: {
+    accelerator: "CmdOrCtrl+Shift+R",
+    group: "Developer",
+    label: "Reload App",
+    owner: "menu",
+  },
+  // The page in front of the user, which is the browser panel's when one is
+  // showing. Outside developer mode there is nothing else it can reload.
   reloadPage: {
     accelerator: "CmdOrCtrl+R",
     group: "Navigation",
     label: "Reload Page",
-    owner: "menu",
-  },
-  reloadWebViews: {
-    accelerator: "CmdOrCtrl+Shift+R",
-    group: "Developer",
-    label: "Reload All Web Views",
     owner: "menu",
   },
   reopenTab: {

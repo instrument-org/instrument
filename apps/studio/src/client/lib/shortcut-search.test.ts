@@ -50,10 +50,10 @@ describe("matchShortcuts", () => {
   it("matches on the group a shortcut belongs to", () => {
     expect(highlighted("developer")).toMatchInlineSnapshot(`
       [
+        "Reload App",
         "Set Theme: Dark",
         "Set Theme: Light",
         "Set Theme: System",
-        "Reload All Web Views",
       ]
     `);
   });

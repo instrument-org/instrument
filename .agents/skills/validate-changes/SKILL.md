@@ -26,8 +26,9 @@ description, or choose the right arguments. Only rung 3 answers that.
 
 - **A pure function, a schema, an XState machine** -> rung 1.
 - **A shell command, a shim, sandbox paths, network policy** -> rung 2.
-- **A tool's inputs, output, or `toModelOutput` text** -> rung 3, because that
-  text only matters if a model acts on it correctly.
+- **A tool's inputs, output, or `toModelOutput` text** -> rung 1 for the text
+  itself, then rung 3, because that text only matters if a model acts on it
+  correctly.
 - **A tool description, a system prompt, a skill, tool selection** -> rung 3
   only. There is nothing below it that involves a model, so nothing below it can
   answer the question.

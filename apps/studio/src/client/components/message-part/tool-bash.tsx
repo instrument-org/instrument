@@ -4,6 +4,7 @@ import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
 import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
 import { Favicon } from "../favicon";
+import { isFailedBashExitCode } from "./bash-exit-status";
 import { useToolCallSession } from "./tool-call-session";
 import {
   ToolCard,
@@ -80,7 +81,7 @@ export function ToolBash({ part }: { part: BashPart }) {
       ? `Error: ${part.errorText || "Command failed"}`
       : "";
 
-  const hasExitError = hasOutput && part.output.exitCode !== 0;
+  const hasExitError = hasOutput && isFailedBashExitCode(part.output.exitCode);
   const isFailed = isError || hasExitError;
   const label = isStreaming
     ? getToolStreamingLabel("bash")

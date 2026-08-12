@@ -9,7 +9,10 @@ import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { addCacheControlToMessages } from "./add-cache-control";
-import { applyContextRollover } from "./apply-context-rollover";
+import {
+  applyContextRollover,
+  contextRolloverWouldReclaim,
+} from "./apply-context-rollover";
 import {
   computeContextBudget,
   contextOccupancyFromMessages,
@@ -89,7 +92,10 @@ export async function prepareModelMessages({
     occupied: contextOccupancyFromMessages(nonContextMessages),
   });
 
-  if (budget.status === "exhausted") {
+  if (
+    budget.status === "exhausted" &&
+    contextRolloverWouldReclaim(nonContextMessages)
+  ) {
     // Reset here rather than after assembling, so the request this call is
     // building is the smaller one. The boundary is the newest message the task
     // has: everything before it stops being sent, the user's own messages are

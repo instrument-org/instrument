@@ -21,6 +21,18 @@ export const DEFAULT_CONTEXT_RESERVE_TOKENS = 32_000;
 /** Fraction of the usable window at which the agent is told it is running out. */
 const WARN_AT_FRACTION = 0.85;
 
+/**
+ * Most of a window the reserve may ever claim.
+ *
+ * The reserve is a flat token count because the reply it protects is one, but a
+ * flat count is nonsense once the window is smaller than it: subtracting it
+ * would leave nothing to measure and quietly turn the feature off. That is not
+ * a hypothetical, it is what a shrunken development window looks like, so the
+ * case that exists to make this testable would be the one case it refused to
+ * measure.
+ */
+const MAX_RESERVE_FRACTION = 0.2;
+
 export interface ContextBudget {
   /** Tokens the most recent request occupied. */
   occupied: number;
@@ -66,11 +78,13 @@ export function computeContextBudget({
     return UNKNOWN;
   }
 
-  const usable = Math.max(0, Math.floor(contextLength - reserveTokens));
+  const reserve = Math.min(
+    reserveTokens,
+    Math.floor(contextLength * MAX_RESERVE_FRACTION),
+  );
+  const usable = Math.max(0, Math.floor(contextLength - reserve));
   if (usable === 0) {
-    // A window no larger than the reserve leaves nothing to measure against,
-    // so treat it as unknown rather than reporting a session permanently
-    // exhausted and warning on every turn it can never get out of.
+    // Only reachable for a window of zero or less, which is not a window.
     return UNKNOWN;
   }
 

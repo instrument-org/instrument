@@ -14,16 +14,7 @@ describe("computeContextBudget", () => {
       name: "context length is NaN",
       occupied: 50_000,
     },
-    {
-      contextLength: 32_000,
-      name: "window is exactly the reserve",
-      occupied: 0,
-    },
-    {
-      contextLength: 1000,
-      name: "window is smaller than the reserve",
-      occupied: 0,
-    },
+    { contextLength: 0, name: "the window is zero", occupied: 0 },
   ])("reports unknown when $name", ({ contextLength, occupied }) => {
     expect(computeContextBudget({ contextLength, occupied })).toEqual({
       occupied: 0,
@@ -65,17 +56,29 @@ describe("computeContextBudget", () => {
 
   it("subtracts the reserve so the model keeps room to answer", () => {
     expect(
-      computeContextBudget({
-        contextLength: 100_000,
-        occupied: 10_000,
-        reserveTokens: 40_000,
-      }),
+      computeContextBudget({ contextLength: 200_000, occupied: 10_000 }),
     ).toMatchInlineSnapshot(`
       {
         "occupied": 10000,
-        "remaining": 50000,
+        "remaining": 158000,
         "status": "ok",
-        "usable": 60000,
+        "usable": 168000,
+      }
+    `);
+  });
+
+  it("caps the reserve at a fraction of the window so a small one still measures", () => {
+    // A flat 32,000 reserve would leave this window at zero and report unknown,
+    // which would silently switch the feature off in exactly the setup that
+    // exists to exercise it.
+    expect(
+      computeContextBudget({ contextLength: 6000, occupied: 5000 }),
+    ).toMatchInlineSnapshot(`
+      {
+        "occupied": 5000,
+        "remaining": 0,
+        "status": "exhausted",
+        "usable": 4800,
       }
     `);
   });

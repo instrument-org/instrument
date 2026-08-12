@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
-import { applyContextRollover } from "./apply-context-rollover";
+import {
+  applyContextRollover,
+  contextRolloverWouldReclaim,
+} from "./apply-context-rollover";
 
 const id = (value: string) => value as StoreId.Message;
 
@@ -88,6 +91,32 @@ describe("applyContextRollover", () => {
     // Both would be 60,000 characters against a 40,000 budget, so the older one
     // goes and the newest survives whole.
     expect(ids(rolled)).toEqual(["u2"]);
+  });
+
+  it("reclaims nothing worth having until model turns have built up", () => {
+    // The loop this prevents: a task whose fixed parts already fill the window
+    // is exhausted on every step, so without a floor it resets on every step,
+    // deleting the work the model just did and making it repeat itself.
+    expect(contextRolloverWouldReclaim([])).toBe(false);
+    expect(
+      contextRolloverWouldReclaim([
+        message("u1", "user"),
+        message("a1", "assistant"),
+        message("a2", "assistant"),
+        message("a3", "assistant"),
+      ]),
+    ).toBe(false);
+  });
+
+  it("is worth doing once enough model turns have built up", () => {
+    expect(
+      contextRolloverWouldReclaim([
+        message("a1", "assistant"),
+        message("a2", "assistant"),
+        message("a3", "assistant"),
+        message("a4", "assistant"),
+      ]),
+    ).toBe(true);
   });
 
   it("never splits a retained user message", () => {

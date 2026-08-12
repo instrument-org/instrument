@@ -33,6 +33,23 @@ import { type StoreId } from "../schemas/store-id";
  */
 const RETAINED_USER_TEXT_CHARACTERS = 40_000;
 
+/**
+ * Model turns that must have accumulated before a reset is worth doing.
+ *
+ * A rollover only reclaims assistant turns, so when there are barely any to
+ * reclaim it costs a rebuilt prefix and returns nothing. Without this floor a
+ * task whose irreducible parts already fill the window resets on every single
+ * step: each reset deletes the work the model just did, the model does it
+ * again, and the run burns turns making the same discovery forever. That is not
+ * a hypothetical failure mode, it is what a window smaller than the system
+ * prompt produces, and the symptom is cost rather than an error.
+ *
+ * The floor is why this is safe to leave on. In a real window the count is far
+ * past it long before the budget runs out, so it only ever binds in the case it
+ * exists for.
+ */
+const MIN_ASSISTANT_TURNS_TO_RECLAIM = 4;
+
 export function applyContextRollover({
   messages,
   rolledOverAfterMessageId,
@@ -60,6 +77,28 @@ export function applyContextRollover({
   const retained = retainNewestUserMessages(messages.slice(0, boundary + 1));
 
   return [...retained, ...withinWindow];
+}
+
+/**
+ * Whether resetting the window now would actually free anything.
+ *
+ * Answered against the messages already inside the current window, so it reads
+ * as "how much has built up since the last reset" rather than over the whole
+ * task.
+ */
+export function contextRolloverWouldReclaim(
+  messagesInWindow: readonly SessionMessage.WithParts[],
+): boolean {
+  let assistantTurns = 0;
+  for (const message of messagesInWindow) {
+    if (message.role === "assistant") {
+      assistantTurns += 1;
+      if (assistantTurns >= MIN_ASSISTANT_TURNS_TO_RECLAIM) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 /**

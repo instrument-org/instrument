@@ -35,6 +35,10 @@ node $DRIVE click --selector '[data-probe=kebab]'
 
 `boot` starts an instance on a port derived from the checkout you are standing in. It will not fall back to 48160 — that is the conventional port and almost always a window a person is using, so driving it means their clicks fight yours and their quit ends your run. Pass `--port` to target one deliberately.
 
+It also clears `ELECTRON_RUN_AS_NODE` from the app's environment, so there is no need to unset it first. Some editor integrations set it, and with it set Electron runs as plain Node and exits without ever opening a window.
+
+`modal` takes its names from the running app (`modal` with none prints them), so the list cannot drift from the openers the renderer has.
+
 Route and modal commands go through `window.__studioDrive`, a dev-only handle the renderer attaches (`client/lib/studio-drive.ts`). A packaged build, and any checkout without that file, will not have it.
 
 `boot` returns as soon as that handle exists, which is when the app can be driven — not when the restored route has finished loading. A `shot` fired straight after `boot` can therefore catch a task pane still filling in. When a command depends on route content rather than on the chrome, wait for the thing itself:
@@ -50,6 +54,8 @@ studio-drive: the app reloaded since the last command. Whatever was navigated to
 ```
 
 Believe it. A result that disagrees with the one before it, after that line, is describing the reload and not the code. Re-establish the state and take the reading again rather than explaining the difference.
+
+A command that arrives while the app is still restarting waits for it to come back, so a rebuild landing mid-run costs a pause rather than a failure. "Nothing is running for this checkout" means the instance is gone, not that it is busy.
 
 A plain `boot` uses the shared dev application-data directory, so what a run can reach depends on what that machine did last. `--workspace <fixture>` boots against a disposable one built from a committed description:
 

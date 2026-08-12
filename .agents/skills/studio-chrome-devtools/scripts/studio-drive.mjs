@@ -95,6 +95,8 @@ const COMMANDS = new Set([
   "wait",
 ]);
 const CONVENTIONAL_PORT = 48_160;
+/** How long a command waits on an instance that is mid-relaunch. */
+const RESTART_GRACE_MS = 30_000;
 
 /**
  * The checkout to drive is the one the caller is standing in, not the one this
@@ -358,6 +360,31 @@ async function resolvePort(explicit) {
   const session = readSession();
   if (session && (await isPortLive(session.port))) {
     return session.port;
+  }
+
+  // A main-process rebuild relaunches the app: the pid recorded here belongs to
+  // the dev server and survives, while the debug port stops answering for a few
+  // seconds. That is not "nothing is running", and saying so sends a run off to
+  // boot a second instance of what it already has. Wait it out instead, which
+  // is also the only alternative to the caller sleeping and retrying by hand.
+  if (session && isAlive(session.pid)) {
+    console.error(
+      `studio-drive: the instance on port ${session.port} is restarting; waiting for it.`,
+    );
+    const deadline = Date.now() + RESTART_GRACE_MS;
+    while (Date.now() < deadline) {
+      await sleep(200);
+      if (await isPortLive(session.port)) {
+        return session.port;
+      }
+      if (!isAlive(session.pid)) {
+        break;
+      }
+    }
+    fail(
+      `The instance for this checkout (pid ${session.pid}) stopped answering on port ${session.port} and did not come back.\n` +
+        `Its log is ${session.logFile}. Or \`studio-drive.mjs stop\` and boot again.`,
+    );
   }
 
   const target = WORKSPACE ? `workspace "${WORKSPACE}"` : "this checkout";
@@ -731,9 +758,23 @@ async function cmdGoto(cdp, path, newTab) {
 // --- commands ----------------------------------------------------------
 
 async function cmdModal(cdp, name) {
-  await (name === "--close"
-    ? drive(cdp, "closeModal()")
-    : drive(cdp, `openModal(${JSON.stringify(name)})`));
+  if (name === "--close") {
+    await drive(cdp, "closeModal()");
+  } else {
+    // Checked against the openers the renderer actually has, rather than a
+    // copy kept here that would go stale the first time one is added. An
+    // unchecked name reaches the app as `MODAL_OPENERS[name] is not a
+    // function`, which reads like a bug in the app and is not one.
+    const names = await drive(cdp, "modals()");
+    if (name === undefined || !names.includes(name)) {
+      fail(
+        `${name === undefined ? "Which modal?" : `No modal named ${JSON.stringify(name)}.`}\n` +
+          `Names: ${names.join(", ")}\n` +
+          `Close the open one with \`modal --close\`.`,
+      );
+    }
+    await drive(cdp, `openModal(${JSON.stringify(name)})`);
+  }
   await settle(cdp);
   return drive(cdp, "state()");
 }

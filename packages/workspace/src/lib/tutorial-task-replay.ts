@@ -13,6 +13,7 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { SubdomainPartSchema } from "../schemas/subdomain-part";
 import { type TaskId } from "../schemas/task-id";
+import { TaskPane } from "../schemas/task-pane";
 import { type WorkspaceConfig } from "../types";
 import { ActiveReplays } from "./active-replays";
 import {
@@ -25,7 +26,7 @@ import { runToolCall } from "./run-tool-call";
 import { type SpawnAgentFunction } from "./spawn-agent";
 import { Store } from "./store";
 import { taskDir } from "./task-dir-utils";
-import { setTaskState } from "./task-record";
+import { setTaskState, updateTaskPane } from "./task-record";
 
 const DEFAULT_REPLAY_TIMING = {
   assistantStartDelayMs: 1500,
@@ -309,6 +310,11 @@ async function runTutorialTaskReplay({
         toolInputDurationMs: timing.toolInputDurationMs,
       });
 
+      await showTutorialFile({
+        filePath: writeGuideFileStep.filePath,
+        taskId,
+      });
+
       await streamAssistantText({
         messageId: toolMessageId,
         sessionId,
@@ -533,6 +539,29 @@ async function saveUserMessage({
     ),
   );
   return messageId;
+}
+
+/**
+ * Open the file the replay just wrote in the pane, as `show` does for a turn a
+ * model drives.
+ *
+ * The replay runs no shell, so it writes the pane state that command writes
+ * rather than calling it: the same reducer over the same field, followed by the
+ * same event, for a path the write step created a moment ago. The fence in the
+ * closing message is the other half and not a substitute -- one leaves the file
+ * in the conversation, this one puts it on screen.
+ */
+async function showTutorialFile({
+  filePath,
+  taskId,
+}: {
+  filePath: string;
+  taskId: TaskId;
+}) {
+  await updateTaskPane(taskDir(taskId), (pane) =>
+    TaskPane.openTabs(pane, [TaskPane.fileTab(filePath)]),
+  );
+  publisher.publish("task.stateUpdated", { id: taskId });
 }
 
 async function streamAssistantText({

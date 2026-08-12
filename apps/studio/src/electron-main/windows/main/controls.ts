@@ -54,8 +54,9 @@ export function minimizeMainWindow() {
 }
 
 export function reload() {
-  // A focused agent-browser guest reloads its own page; otherwise reload the
-  // whole main-window app in the renderer.
+  // A focused agent-browser guest reloads its own page. Otherwise the renderer
+  // decides: it reloads the guest of a browser panel the user is looking at (a
+  // visible guest need not hold keyboard focus), and the app only when none is.
   if (getBrowserViewManager()?.reloadFocusedGuest()) {
     return;
   }

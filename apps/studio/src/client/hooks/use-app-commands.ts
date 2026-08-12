@@ -1,11 +1,15 @@
 import { toggleCommandMenu } from "@/client/atoms/command-menu";
+import { preferencesAtom } from "@/client/atoms/preferences";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
 import { tabsAtom } from "@/client/atoms/tabs";
 import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
 import { toggleSidebar } from "@/client/hooks/use-sidebar";
-import { requestBrowserFind } from "@/client/lib/browser-find-registry";
+import {
+  requestBrowserFind,
+  requestBrowserReload,
+} from "@/client/lib/foreground-browser-registry";
 import { closeSelectedTab, openTab, reopenTab } from "@/client/lib/tab-actions";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import {
@@ -173,7 +177,19 @@ export function useAppCommands() {
                 break;
               }
               case "reload": {
-                window.location.reload();
+                // A browser on screen is what "reload" means to whoever pressed
+                // it, so that page reloads and the app does not. With no page in
+                // front of them the chord does nothing at all: reloading the app
+                // destroys every task's browser along with the document that
+                // hosts their `<webview>` guests, which is far more than anyone
+                // pressing Cmd+R is asking for. Developer mode keeps the app
+                // reload, as does the button an app crash puts on screen.
+                if (
+                  !requestBrowserReload() &&
+                  store.get(preferencesAtom).developerMode
+                ) {
+                  window.location.reload();
+                }
                 break;
               }
               case "reopen": {

@@ -1,5 +1,5 @@
-import { setBrowserFindOpener } from "@/client/lib/browser-find-registry";
 import { getWebviewElement } from "@/client/lib/browser-pool";
+import { registerForegroundBrowser } from "@/client/lib/foreground-browser-registry";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { useEffect, useRef, useState } from "react";
 
@@ -74,19 +74,24 @@ export function useBrowserFind({
     };
   }, [targetId]);
 
-  // Register this panel as the find target while it's the foreground browser, so
-  // the Cmd+F app command opens (and re-focuses) its find bar. See
-  // browser-find-registry for why Cmd+F can't be a renderer keydown.
+  // Register this panel as the foreground browser, so the Cmd+F app command
+  // opens (and re-focuses) its find bar and Cmd+R reloads its guest. The find
+  // opener is what has to be handed over, which is why the registration lives in
+  // this hook; see foreground-browser-registry for why neither chord can be a
+  // renderer keydown.
   useEffect(() => {
     if (!active || !isActiveTab || covered) {
       return;
     }
-    return setBrowserFindOpener(() => {
-      setFindOpen(true);
-      findInputRef.current?.focus();
-      findInputRef.current?.select();
+    return registerForegroundBrowser({
+      openFind: () => {
+        setFindOpen(true);
+        findInputRef.current?.focus();
+        findInputRef.current?.select();
+      },
+      targetId,
     });
-  }, [active, covered, isActiveTab]);
+  }, [active, covered, isActiveTab, targetId]);
 
   // Focus the find input when the bar opens (its first render, when the opener
   // above couldn't focus it yet). Deferred a frame so it wins over Radix

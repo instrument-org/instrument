@@ -2,16 +2,8 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { encodeBrowserTargetId } from "../types";
-import { getBrowserState } from "./browser-state";
+import { BLANK_PAGE_URL, getBrowserState } from "./browser-state";
 import { getWorkspaceConfig } from "./workspace-config";
-
-// A browser sitting on the blank page is not news, in either direction: it has
-// no state to tell the model about and nothing to resume. agent-browser creates
-// a page for any command that needs one, including commands that only read
-// state, so a target can exist for a whole session without a page ever being
-// asked for -- and telling the model "a browser tab is already open" about that
-// invites it to keep addressing a browser that has nothing in it.
-const BLANK_PAGE_URL = "about:blank";
 
 export async function createBrowserStatusPart({
   createdAt,
@@ -31,6 +23,8 @@ export async function createBrowserStatusPart({
     );
 
     if (target) {
+      // Telling the model "a browser tab is already open" about a blank one
+      // invites it to keep addressing a browser that has nothing in it.
       if (target.url === BLANK_PAGE_URL) {
         return undefined;
       }

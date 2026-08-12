@@ -136,6 +136,18 @@ describe("show", () => {
     expect(pane?.tabs).toEqual([]);
   });
 
+  // Navigating reveals the browser on its own, so the last argument has to win
+  // afterwards or a URL anywhere in the line would drag focus off the file the
+  // user was told they would end on.
+  it("ends on the last argument when a URL comes before a file", async () => {
+    const result = await run("https://example.com", "output/report.pdf");
+
+    expect(result.exitCode).toBe(0);
+    expect(await storedPane()).toMatchObject({
+      selected: "file:output/report.pdf",
+    });
+  });
+
   // One browsing session means one page, so absorbing the extras would report
   // three URLs shown while showing the third.
   it("refuses more than one URL rather than navigating to the last", async () => {

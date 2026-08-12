@@ -91,7 +91,7 @@ describe("MermaidDiagram", () => {
     });
     observer.observe(container, { childList: true, subtree: true });
 
-    // A re-render whose source has regressed to something unparseable must not
+    // A re-render whose source has regressed to something unparsable must not
     // blank the diagram out; nothing on screen should ever go backwards.
     await rerender(
       <ThemeProvider>

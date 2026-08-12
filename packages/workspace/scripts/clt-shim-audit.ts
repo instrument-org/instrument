@@ -66,8 +66,6 @@ import {
 } from "./lib/clt-shims";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
 
-// cspell:ignore dylib libpython numpy
-
 const MODES = ["shadow", "developer-dir", "guarded"] as const;
 type Mode = (typeof MODES)[number];
 

@@ -78,12 +78,12 @@ describe("parseFrontmatter", () => {
           {
             "detail": "Flow sequence in block collection must be sufficiently indented and end with a ] at line 2, column 15",
             "ok": false,
-            "reason": "unparseable",
+            "reason": "unparsable",
           },
           {
             "detail": "Flow sequence in block collection must be sufficiently indented and end with a ] at line 2, column 15",
             "ok": false,
-            "reason": "unparseable",
+            "reason": "unparsable",
           },
         ]
       `);

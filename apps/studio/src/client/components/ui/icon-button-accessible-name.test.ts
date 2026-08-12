@@ -7,7 +7,7 @@ const CLIENT_ROOT = path.join(import.meta.dirname, "../..");
 /**
  * A `<TooltipContent>` is not an accessible name. It is rendered into a
  * separate portal, is not referenced by the trigger, and never reaches an
- * assistive client -- so an icon-only button labelled that way announces as
+ * assistive client -- so an icon-only button labeled that way announces as
  * nothing, and shows up in a devtools accessibility snapshot as a bare
  * `button`. That second part is why this is a test rather than a review note:
  * the scripts that drive Studio for smoke and capture runs pick controls by

@@ -13,7 +13,7 @@
  * Separate from `EVALS` because of what it prints, not because it is
  * provisional: the counts are a guard rail, and the timeline at the end is the
  * finding. Whether "Charting the monthly growth" is the right boundary for the
- * six calls beneath it is a judgement no assertion makes for you.
+ * six calls beneath it is a judgment no assertion makes for you.
  */
 import "../scripts/lib/define-globals-apply";
 
@@ -178,10 +178,10 @@ const assertExplanationVoice: Assertion = {
             ? `All ${explanations.length} in the third person`
             : `${firstPerson.length}/${explanations.length} first person: ${firstPerson.slice(0, 3).join(" | ")}`,
       passed: explanations.length > 0 && firstPerson.length === 0,
-      text: "Labelled every call without narrating in the first person",
+      text: "Labeled every call without narrating in the first person",
     };
   },
-  text: "Labelled every call without narrating in the first person",
+  text: "Labeled every call without narrating in the first person",
 };
 
 const assertNoActivity: Assertion = {

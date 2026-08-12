@@ -1,5 +1,3 @@
-// cspell:ignore colour colours favourite
-
 import { isToolPart } from "../../src/lib/is-tool-part";
 import { type SessionMessagePart } from "../../src/schemas/session/message-part";
 import { type Assertion, defineEval } from "../harness";

@@ -211,7 +211,7 @@ const PROJECT = {
  *
  * Deliberately says nothing about reuse. An earlier draft asked to "keep the
  * script around so we can reuse it for this project", which under guidance that
- * permits deliberate cross-task files is a reasonable thing to honour -- it
+ * permits deliberate cross-task files is a reasonable thing to honor -- it
  * tested the wording of the permission rather than the default.
  */
 const projectFolderNotAScratchpad = defineEval({

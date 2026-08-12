@@ -99,7 +99,7 @@ export function MediaCardShell({
 
           {/* The card itself. Everything drawn above is either the media or an
               overlay control, so this is the only thing that names the card to
-              a screen reader or to a script driving the app -- unlabelled it is
+              a screen reader or to a script driving the app -- unlabeled it is
               a bare `button` reachable by position and nothing else. */}
           <button
             aria-label={`Open ${file.filename}`}

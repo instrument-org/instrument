@@ -322,7 +322,6 @@ const require = __cjs_mod__.createRequire(import.meta.url);
         // Excluding a package stops its CommonJS-only imports from being
         // converted to ESM, so those are pre-bundled on their own.
         include: [
-          // cspell:ignore utif regl
           "@extend-ai/react-docx > utif",
           "@extend-ai/react-pptx > regl",
           "@extend-ai/react-xlsx > regl",

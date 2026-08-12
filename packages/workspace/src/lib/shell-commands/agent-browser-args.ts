@@ -87,7 +87,7 @@ const RESTORE_INLINE_PREFIX = `${RESTORE_FLAG}=`;
 /**
  * The long-form name a flag token carries, ignoring any inline `=value`.
  *
- * Used for gating rather than parsing: the CLI honours `--cdp <value>` but not
+ * Used for gating rather than parsing: the CLI honors `--cdp <value>` but not
  * `--cdp=<value>`, so both forms resolve to the same name here and a rejection
  * covers the form the CLI ignores too.
  */

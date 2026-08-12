@@ -17,14 +17,14 @@ describe("getFileIconToken", () => {
     ["export.ndjson", "code"],
     ["analysis.ipynb", "code"],
     ["shape.geojson", "code"],
-    ["budget.xlsb", "spreadsheet"], // cspell:ignore xlsb
+    ["budget.xlsb", "spreadsheet"],
     ["budget.xlsm", "spreadsheet"],
     ["budget.xlt", "spreadsheet"],
     ["budget.xltm", "spreadsheet"],
     ["budget.xltx", "spreadsheet"],
     ["memo.docm", "word"],
     ["memo.dot", "word"],
-    ["memo.dotm", "word"], // cspell:ignore dotm
+    ["memo.dotm", "word"],
     ["memo.dotx", "word"],
     ["deck.pot", "presentation"],
     ["deck.potm", "presentation"],
@@ -53,8 +53,8 @@ describe("getFileIconToken", () => {
     ["card.vcf", "contact"],
     ["thread.eml", "email"],
     ["thread.msg", "email"],
-    ["novel.mobi", "ebook"], // cspell:ignore mobi
-    ["page.mhtml", "html"], // cspell:ignore mhtml
+    ["novel.mobi", "ebook"],
+    ["page.mhtml", "html"],
     ["run.log", "text"],
     ["refs.bib", "text"],
     ["refs.ris", "text"],

@@ -62,7 +62,6 @@ export function applyUnicodeFallbacks(
     return AbsolutePathSchema.parse(curlyVariant);
   }
 
-  // cspell:ignore d'écran
   // Combined NFD + curly quote (e.g. French macOS: "Capture d'écran")
   const nfdCurlyVariant = nfdVariant.replaceAll("'", "\u2019");
   if (nfdCurlyVariant !== resolvedPath && fileExistsSync(nfdCurlyVariant)) {

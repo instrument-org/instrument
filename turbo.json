@@ -117,10 +117,6 @@
     "check:electron-node-version": {
       "dependsOn": ["transit"]
     },
-    "check:unused-words": {
-      "dependsOn": ["transit"]
-    },
-    "//#check:unused-words": {},
     "//#check:packages:install": {
       "inputs": ["pnpm-lock.yaml", "**/package.json"]
     },

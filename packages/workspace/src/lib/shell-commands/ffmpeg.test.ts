@@ -71,7 +71,6 @@ describe("ffmpegCommand", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       expect.any(String),
-      // cspell:ignore nostdin
       ["-nostdin", "-version"],
       expect.anything(),
     );

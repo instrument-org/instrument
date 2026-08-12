@@ -203,7 +203,6 @@ describe("migrateWorkspaceLayout", () => {
     });
 
     it("leaves a project folder that ended up under tasks/ untouched", () => {
-      // cspell:ignore prj_01ARZ3NDEKTSV4RRFFQ69G5FAV
       writeTaskSettings("my-project", {
         createdAt: "2020-01-01T00:00:00.000Z",
         id: "prj_01ARZ3NDEKTSV4RRFFQ69G5FAV",
@@ -286,7 +285,6 @@ describe("migrateWorkspaceLayout", () => {
   });
 
   it("never moves a real project folder, even with the marker absent", () => {
-    // cspell:ignore prj_01ARZ3NDEKTSV4RRFFQ69G5FAV
     // The regression: a populated projects/ with no marker yet. The content
     // guard must keep the real project in place regardless of the marker.
     writeProjectFolder("My Project", "prj_01ARZ3NDEKTSV4RRFFQ69G5FAV");

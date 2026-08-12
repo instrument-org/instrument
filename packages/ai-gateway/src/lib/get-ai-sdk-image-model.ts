@@ -154,7 +154,6 @@ async function getAISDKImageModel({
     case "fireworks": {
       const sdk = await createFireworksSDK(config, workspaceServerURL);
       const model = sdk.imageModel(
-        // cspell:ignore schnell
         "accounts/fireworks/models/flux-1-schnell-fp8",
       );
       return Result.ok({ model, type: "image" as const });

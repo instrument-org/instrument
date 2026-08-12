@@ -20,7 +20,6 @@ export default defineConfig({
       "@extend-ai/react-xlsx",
     ],
     include: [
-      // cspell:ignore utif regl
       "@extend-ai/react-docx > utif",
       "@extend-ai/react-pptx > regl",
       "@extend-ai/react-xlsx > regl",

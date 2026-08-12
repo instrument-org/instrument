@@ -117,7 +117,6 @@ const models = [
   model("anthropic", "claude-haiku-4-5", "Claude Haiku 4.5", ["new"]),
 ];
 
-// cspell:ignore BFNX XNFB -- letter runs inside the fixture project ULIDs
 const projects = [
   {
     createdAt: new Date("2026-06-02T10:00:00Z"),
@@ -223,7 +222,7 @@ export const FIXTURES: Record<string, unknown> = {
   // land in the cache without ever re-rendering.
   "preferences.get": () => ({ ...preferences }),
   "preferences.getAppVersion": { version: "0.0.0-web" },
-  // React Query rejects an undefined result, so absence is modelled as null.
+  // React Query rejects an undefined result, so absence is modeled as null.
   "preferences.getRecentUpdate": null,
   "preferences.live.defaultModelURI": models[1]?.uri,
   "preferences.live.get": () => ({ ...preferences }),

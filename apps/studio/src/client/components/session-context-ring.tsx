@@ -34,12 +34,10 @@ const MODEL_CONTEXT_WINDOW_PREFIXES: [string, number][] = [
   ["qwen3-max", 256_000],
   ["qwen-3-coder", 262_000],
   // Mistral
-  // cspell:ignore devstral
   ["devstral", 131_000],
   // MiniMax
   ["minimax-m1", 1_000_000],
   ["minimax-m2", 196_000],
-  // cspell:ignore Zhipu
   // ZhipuAI / GLM (4.5–4.7 range ~128–202k; use 200k as reasonable default)
   ["glm-4", 200_000],
 ];

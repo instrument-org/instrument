@@ -72,12 +72,10 @@ const NAMED_CODES: Record<string, string> = {
   home: "Home",
   insert: "Insert",
   left: "ArrowLeft",
-  // cspell:ignore medianexttrack mediaplaypause mediaprevioustrack mediastop
   medianexttrack: "MediaTrackNext",
   mediaplaypause: "MediaPlayPause",
   mediaprevioustrack: "MediaTrackPrevious",
   mediastop: "MediaStop",
-  // cspell:ignore numadd numdec numdiv numlock nummult numsub
   numadd: "NumpadAdd",
   numdec: "NumpadDecimal",
   numdiv: "NumpadDivide",
@@ -89,7 +87,6 @@ const NAMED_CODES: Record<string, string> = {
   printscreen: "PrintScreen",
   return: "Enter",
   right: "ArrowRight",
-  // cspell:ignore scrolllock
   scrolllock: "ScrollLock",
   space: "Space",
   tab: "Tab",
@@ -180,7 +177,6 @@ export function parseAccelerator(
         meta = true;
         break;
       }
-      // cspell:ignore cmdorctrl commandorcontrol
       case "cmdorctrl":
       case "commandorcontrol": {
         if (isMac) {

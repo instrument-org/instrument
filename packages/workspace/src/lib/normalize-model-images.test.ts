@@ -182,7 +182,6 @@ describe("normalizeModelImages", () => {
       name: "an error page saved with an image name",
     },
     {
-      // cspell:ignore AAAANS -- a base64 PNG header, not prose
       data: Buffer.from("iVBORw0KGgoAAAANSUhEUg", "base64").toString("base64"),
       name: "a truncated write",
     },

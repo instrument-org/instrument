@@ -62,7 +62,6 @@ const config: Configuration = {
     // DMG volume icons still use .icns even when the app bundle uses .icon (macOS 26+).
     icon: "icon.icns",
   },
-  // cspell:ignore orgstudio lproj
   // NSIS derives the Windows install folder (%LOCALAPPDATA%\Programs\<name>)
   // from package.json `name`, which sanitizes "@instrument-org/studio" into the
   // ugly "@instrument-orgstudio". Override the metadata name so the install
@@ -130,7 +129,6 @@ const config: Configuration = {
     "**/node_modules/date-fns/locale/_lib/**",
     "**/node_modules/date-fns/locale/en-US/**",
     "**/node_modules/date-fns/locale/en-US.*",
-    // cspell:ignore quickjs
     // just-bash declares quickjs-emscripten to back its `js-exec` command and
     // turndown (which pulls domino) to back `html-to-markdown`. Neither
     // command can run here: `js-exec` is absent from the command registry
@@ -138,9 +136,7 @@ const config: Configuration = {
     // BROKEN_COMMANDS in create-bash-env. Both are required from inside the
     // command body, so excluding them removes 9.4MB nothing can reach.
     "!**/node_modules/{quickjs-emscripten,turndown}/**",
-    // cspell:ignore jitl
     "!**/node_modules/@jitl/quickjs-*/**",
-    // cspell:ignore mixmark
     "!**/node_modules/@mixmark-io/domino/**",
     // These two are last among the node_modules rules because a later pattern
     // wins: they have to apply to whatever the package-specific rules above
@@ -155,7 +151,6 @@ const config: Configuration = {
     // electron-builder excludes on its own.
     "!**/node_modules/**/.yarn/**",
     "!**/*.map", // someday we may want to keep these for debugging
-    /* cspell:disable */
     "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
     "!.editorconfig",
     "!**/._*",
@@ -164,7 +159,6 @@ const config: Configuration = {
     "!**/{appveyor.yml,.travis.yml,circle.yml}",
     "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}",
     "!**/*.local/**",
-    /* cspell:enable */
   ],
   generateUpdatesFilesForAllChannels: true,
   linux: {

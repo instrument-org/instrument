@@ -15,8 +15,6 @@ import { createPipCommand } from "./pip";
 import { createPythonCommand } from "./python";
 import { createUvCommand } from "./uv";
 
-// cspell:ignore cowsay uvsmoke
-
 const mockCtx = createCommandContext({
   cwd: "/",
   env: new Map<string, string>(),

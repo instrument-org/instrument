@@ -38,7 +38,6 @@ const openAppManagementSettings = base
     if (process.platform !== "darwin") {
       return { opened: false };
     }
-    // cspell:ignore systempreferences
     await shell.openExternal(
       "x-apple.systempreferences:com.apple.preference.security?Privacy_AppBundles",
     );

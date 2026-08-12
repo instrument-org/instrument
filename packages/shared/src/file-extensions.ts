@@ -3,11 +3,10 @@
 // resolve to `application/octet-stream` unless something says otherwise.
 //
 // Two readers, deriving different things from the same knowledge. The workspace
-// server consults it ahead of the mime database when labelling a response's
+// server consults it ahead of the mime database when labeling a response's
 // `Content-Type`. The renderer consults it when it has a filename and no mime
 // type, which is every file reference drawn from a path alone.
 //
-// cspell:ignore abap, glsl, haml, haxe, objc, styl
 export const CODE_EXTENSION_MIME_TYPES: Record<string, string> = {
   abap: "text/plain",
   ada: "text/plain",

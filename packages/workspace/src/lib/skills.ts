@@ -39,7 +39,7 @@ export type FrontmatterResult =
       title: string | undefined;
       userInvocable: boolean;
     }
-  | { detail: string; ok: false; reason: "unparseable" }
+  | { detail: string; ok: false; reason: "unparsable" }
   | { keys: string[]; ok: false; reason: "no-description" }
   | { ok: false; reason: "no-frontmatter" | "unterminated" };
 
@@ -381,7 +381,7 @@ export function parseFrontmatter(raw: string): FrontmatterResult {
       return {
         detail: describeYamlError(error),
         ok: false,
-        reason: "unparseable",
+        reason: "unparsable",
       };
     }
   }
@@ -470,7 +470,7 @@ export function resolveSkillName(
  * CRLF and strands its `\r` on the last line of the block. YAML reads that
  * stray `\r` as a second scalar once the value it follows is quoted, so a
  * CRLF-encoded skill whose last frontmatter line is `description: "..."` is
- * rejected as unparseable and never discovered.
+ * rejected as unparsable and never discovered.
  */
 export function splitFrontmatter(raw: string): FrontmatterSplit {
   // A leading byte-order mark would hide the opening fence.

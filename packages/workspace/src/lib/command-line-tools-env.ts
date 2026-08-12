@@ -1,8 +1,6 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 
-// cspell:ignore libpython ranlib
-
 // macOS ships ~110 binaries in /usr/bin -- `cc`, `git`, `make`, `python3`,
 // `install_name_tool`, `strip`, `ranlib`, and the rest -- as xcode-select stubs
 // rather than real tools. Each one resolves the active developer directory

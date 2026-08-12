@@ -1,4 +1,3 @@
-// cspell:ignore downsampled
 // Rendered at 2x by the compositor, then downsampled to the menu's 64px by
 // storeFileOpenIcon. Asking macOS for the icon's native size instead produces
 // ~1.6MB of base64 per app.
@@ -56,7 +55,6 @@ function run(argv) {
 }
 `;
 
-// cspell:ignore NSURL LSUI
 // Enumerates every app that can open the file (default flagged). Structurally
 // unusable candidates are dropped before deduping, so an app that also has a
 // copy in a cache directory is still offered from its real location. Product

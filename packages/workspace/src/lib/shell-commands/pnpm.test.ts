@@ -270,7 +270,6 @@ describe("createPnpmCommand", () => {
 
   it.each([
     {
-      // cspell:ignore cowsay
       args: ["cowsay", "hello"],
       createCommand: createNpxCommand,
       expectedArgs: ["dlx", "cowsay", "hello"],

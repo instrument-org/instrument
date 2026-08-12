@@ -11,7 +11,7 @@ import { type ShortcutId, SHORTCUTS } from "@/shared/shortcuts";
  * Tooltip for the toolbar's icon controls: the shortcut table's own label and
  * chord, so a control reads the same here as it does in the native menu, the
  * command menu, and the shortcut guide. The label doubles as the button's
- * accessible name, since these are unlabelled icons.
+ * accessible name, since these are unlabeled icons.
  *
  * Opens faster than the app default; the whole row is on the path to everything
  * else.

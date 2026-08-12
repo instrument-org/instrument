@@ -86,7 +86,6 @@ export function toggleMaximizeMainWindow() {
   if (!window) {
     return;
   }
-  // cspell:ignore unmaximize
   if (window.isMaximized()) {
     window.unmaximize();
   } else {

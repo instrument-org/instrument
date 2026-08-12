@@ -81,7 +81,6 @@ describe("applyUnicodeFallbacks", () => {
   );
 
   it("resolves NFD-encoded filename (macOS decomposed Unicode)", async () => {
-    // cspell:ignore APFS
     // Write a file using the NFD form of the name. On APFS the OS normalizes
     // it to NFC on disk, so the NFC input path finds it directly. On HFS+ the
     // OS preserves NFD and the fallback is needed. Either way the returned
@@ -95,7 +94,6 @@ describe("applyUnicodeFallbacks", () => {
   });
 
   it("resolves curly apostrophe in filename (macOS U+2019)", async () => {
-    // cspell:ignore d'écran cran
     // macOS uses U+2019 in names like "Capture d'écran"
     const diskName = "Capture d\u2019\u00E9cran.png";
     const inputName = "Capture d'écran.png";

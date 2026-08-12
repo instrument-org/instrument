@@ -150,10 +150,10 @@ export async function validateSkill({
 
   const frontmatter = parseFrontmatter(raw);
   if (!frontmatter.ok) {
-    if (frontmatter.reason === "unparseable") {
+    if (frontmatter.reason === "unparsable") {
       add(
         "error",
-        "unparseable",
+        "unparsable",
         `Invalid YAML: ${frontmatter.detail}. ${SKIPPED}`,
         "SKILL.md",
       );

@@ -35,7 +35,6 @@ export function RecoveryOverlay({
             </h3>
           </div>
           <p className="text-sm text-muted-foreground">
-            {/* cspell:ignore didn */}
             This application didn&apos;t render any content. You can try
             reloading the page, or ask the agent to look into the issue.
           </p>

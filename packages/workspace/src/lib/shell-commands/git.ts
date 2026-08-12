@@ -14,8 +14,6 @@ import {
 } from "./utils";
 
 // Git config keys, spelled as git spells them.
-// cspell:ignore askpass fsmonitor gitproxy hookspath includeif
-// cspell:ignore quotepath receivepack sshcommand uploadpack
 
 export const GIT_COMMAND = {
   description:
@@ -68,7 +66,6 @@ const BLOCKED_CONFIG_LEAVES = new Set([
   "proxy",
   "receivepack",
   "sshcommand",
-  // cspell:ignore templatedir
   "templatedir", // Seeds .git/hooks from a directory of the agent's choosing.
   "uploadpack",
   "worktree",
@@ -94,7 +91,6 @@ const FORCED_CONFIG = [
   // An empty helper resets the list built from config files, so a
   // `git config credential.helper store` cannot reach the user's saved tokens
   // (nor osxkeychain, nor the credential manager dugite ships on GIT_EXEC_PATH).
-  // cspell:ignore osxkeychain
   "credential.helper=",
 ];
 

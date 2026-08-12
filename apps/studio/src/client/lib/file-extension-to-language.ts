@@ -2,7 +2,6 @@ import type { RPCOutput } from "@/client/rpc/client";
 
 type SupportedLanguage = RPCOutput["syntax"]["supportedLanguages"][number];
 
-// cspell:ignore abap, gdscript, glsl, haml, haxe, objc, styl
 export const EXTENSION_MAP = {
   abap: "abap",
   ada: "ada",

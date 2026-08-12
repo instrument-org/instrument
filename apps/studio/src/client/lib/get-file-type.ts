@@ -81,7 +81,6 @@ function fileKindLabel(fileType: FileType): string {
   }
 }
 
-// cspell:ignore dotm ipynb mhtml mobi xlsb zstandard
 const EXTENSION_KIND_LABELS: Record<string, string> = {
   "7z": "7Z archive",
   ass: "Subtitle file",
@@ -160,7 +159,6 @@ const EXTENSION_KIND_LABELS: Record<string, string> = {
   zst: "Zstandard archive",
 };
 
-// cspell:ignore subrip vcard
 const MIME_KIND_LABELS: Record<string, string> = {
   "application/epub+zip": "E-book",
   "application/geo+json": "GeoJSON data",
@@ -236,7 +234,6 @@ export function getFileKindLabel({
 // than their OOXML equivalents but more than the "preview unavailable" card,
 // and a hard parse failure still degrades to it. `.doc` is absent because
 // `@extend-ai/react-docx` reads OOXML only.
-// cspell:ignore docm pptm xlsm
 const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
   csv: "csv",
   // A database has no registered mime type of its own, so the extension is the
@@ -270,7 +267,7 @@ const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
   xlsx: "xlsx",
   // Only zip. The other archive formats in the kind-label table (7z, rar, tar
   // and the compressed tarballs) are different containers that this reader
-  // cannot open, and they keep their labelled download card.
+  // cannot open, and they keep their labeled download card.
   zip: "archive",
 };
 
@@ -280,7 +277,6 @@ const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
 // `ts` is deliberately absent. It is a registered video extension (MPEG
 // transport stream) and a TypeScript file everywhere it actually turns up here,
 // so it belongs to the code table instead.
-// cspell:ignore avif, heic, heif
 const MEDIA_EXTENSIONS: Record<string, FileType> = {
   aac: "audio",
   aiff: "audio",
@@ -417,7 +413,6 @@ function isMarkdown({
 }
 
 function isMarkupFile(filename: string): boolean {
-  // cspell:disable-next-line
   return /\.(?:rst|rest|adoc|asciidoc|textile|org|wiki|mediawiki|creole)$/i.test(
     filename.toLowerCase(),
   );

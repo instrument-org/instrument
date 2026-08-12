@@ -7,7 +7,7 @@
  * For a read-modify-write against a file, which is what both task stores do:
  * two overlapping updates each merge onto the state the other has not written
  * yet, and the later write wins outright, dropping the earlier change with no
- * error anywhere. Queueing on the file makes the read and the write one step.
+ * error anywhere. Queuing on the file makes the read and the write one step.
  *
  * Keys are plain strings and each queue owns its own map, so a caller picks
  * whatever identifies the thing it is writing -- a task id, a task directory --

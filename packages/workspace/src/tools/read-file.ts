@@ -66,7 +66,7 @@ type MediaFileState = "audio" | "image" | "pdf" | "video";
 /**
  * Whether a rectangle names a place, judged without knowing the image.
  *
- * The full judgement needs the pixel space the model was shown and so belongs
+ * The full judgment needs the pixel space the model was shown and so belongs
  * in `cropRegion`. This is the part of it available before a file has been read
  * at all, and it exists for one case: a model that fills the parameter in on
  * every `read_file` call reaches text files too, and failing that read over a

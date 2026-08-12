@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 /**
- * Generates all platform icon outputs from two source PNGs in icons/source/.
+ * Generates all platform icon outputs from two source ONGs in icons/source/.
  * Requires: magick (ImageMagick) and iconutil (macOS).
  *
  * Usage:

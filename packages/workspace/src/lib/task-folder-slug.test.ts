@@ -7,7 +7,6 @@ describe("taskFolderSlug", () => {
     ["Add a dark mode toggle", "add-a-dark-mode-toggle"],
     ["  Fix the login bug!!! ", "fix-the-login-bug"],
     ["Refactor user_service.ts (v2)", "refactor-user-service-ts-v2"],
-    // cspell:ignore café crème brûlée
     ["café crème brûlée", "cafe-creme-brulee"],
     ["Already-kebab-case", "already-kebab-case"],
     ["Build API v3 endpoint", "build-api-v3-endpoint"],
@@ -16,7 +15,6 @@ describe("taskFolderSlug", () => {
     ["🚀🔥✨", ""],
     ["", ""],
     ["   ", ""],
-    // cspell:ignore slugifies
   ])("slugifies %j -> %j", (input, expected) => {
     expect(taskFolderSlug(input)).toBe(expected);
   });

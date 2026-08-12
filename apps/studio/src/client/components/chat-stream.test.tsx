@@ -83,7 +83,7 @@ function assistantMessage(
 function clickRow(text: string) {
   const [row] = screen.getAllByText(text);
   if (!row) {
-    throw new Error(`no row labelled ${text}`);
+    throw new Error(`no row labeled ${text}`);
   }
   fireEvent.click(row);
 }

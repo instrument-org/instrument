@@ -4,7 +4,6 @@ import { type AIGatewayModel } from "../schemas/model";
 
 export function generateModelName(modelId: AIGatewayModel.CanonicalId): string {
   const replacements: Record<string, string> = {
-    // cspell:disable
     chatgpt: "ChatGPT",
     codellama: "CodeLLaMa",
     deephermes: "DeepHermes",
@@ -17,7 +16,6 @@ export function generateModelName(modelId: AIGatewayModel.CanonicalId): string {
     qwq: "QwQ",
     vl: "VL",
     xl: "XL",
-    // cspell:enable
   };
 
   const rawParts: string[] = [];

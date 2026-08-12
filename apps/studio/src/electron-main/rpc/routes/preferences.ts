@@ -77,7 +77,6 @@ const sendTestNotification = base
 function notificationSettingsUrl(): string | undefined {
   switch (process.platform) {
     case "darwin": {
-      // cspell:ignore systempreferences
       return `x-apple.systempreferences:com.apple.preference.notifications?id=${APP_BUNDLE_ID}`;
     }
     case "win32": {

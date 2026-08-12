@@ -408,7 +408,6 @@ describe("generateTitleFromUserMessage", () => {
   });
 
   it("should handle non-English characters", async () => {
-    // cspell:ignore تطبيق المهام اليومية
     const { generate } = setupTest("تطبيق المهام اليومية");
 
     const result = await generate();

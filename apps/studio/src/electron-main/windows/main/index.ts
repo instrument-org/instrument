@@ -265,7 +265,7 @@ function setupWindowEventListeners({
   onResize: () => void;
 }) {
   // Required on macOS and Linux
-  // On macoS, unfocused resizes (e.g. Amethyst) won't be tracked
+  // On macOS, unfocused resizes (e.g. Amethyst) won't be tracked
   // On Linux, maximize / unmaximize may not fire reliably
   mainWindow.on("will-resize", () => {
     onResize();
@@ -285,7 +285,6 @@ function setupWindowEventListeners({
     onResize();
     publisher.publish("window.maximized-changed", null);
   });
-  // cspell:ignore unmaximize
   mainWindow.on("unmaximize", () => {
     onResize();
     publisher.publish("window.maximized-changed", null);

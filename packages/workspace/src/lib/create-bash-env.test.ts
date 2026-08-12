@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { createBashDescription } from "./create-bash-env";
 
 describe("createBashDescription", () => {
-  // cspell:ignore unexpand fgrep zcat
   it("matches snapshot", () => {
     expect(createBashDescription()).toMatchInlineSnapshot(`
       "Execute bash commands in the task directory.

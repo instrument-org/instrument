@@ -150,7 +150,7 @@ describe("types a viewer exists for", () => {
   });
 
   // Only zip. The other archive containers have no reader here and keep their
-  // labelled download card.
+  // labeled download card.
   it.each(["bundle.7z", "bundle.rar", "bundle.tar", "bundle.tgz"] as const)(
     "leaves %s on the fallback card",
     (filename) => {

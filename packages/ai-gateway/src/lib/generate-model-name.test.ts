@@ -23,7 +23,6 @@ describe("generateModelName", () => {
     },
     {
       expected: "DeepSeek V3",
-      // cspell:disable-next-line
       modelId: "deepseek-v3",
     },
     {

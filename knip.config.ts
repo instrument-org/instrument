@@ -21,7 +21,7 @@ const config: KnipConfig = {
   workspaces: {
     ".": {
       entry: ["scripts/*.ts!"],
-      ignoreBinaries: ["actionlint", "electron"],
+      ignoreBinaries: ["actionlint", "electron", "powershell.exe"],
       ignoreDependencies: [
         "@instrument-org/agent-hooks", // Used in .codex/hooks.json and .claude/settings.json hook commands
         "tailwindcss", // Runtime dependency of oxlint-tailwindcss

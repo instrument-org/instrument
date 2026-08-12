@@ -122,6 +122,5 @@ export function platformFailure({
  * built.
  */
 export const PROJECT_ID = ProjectIdSchema.parse(
-  // cspell:ignore XGJWBWBAQ
   "prj_01H8XGJWBWBAQ4ZQ9NG0R8FZ0G",
 );

@@ -12,7 +12,6 @@ import { getWorkspaceConfig } from "./workspace-config";
 // task and stays isolated from other tasks.
 const VENV_DIR_NAME = ".venv";
 
-// cspell:ignore numba torch scipy unbuildable rembg huggingface pyright
 // Pin the managed interpreter to a stable version. Without this, uv
 // (`only-managed` + `automatic` downloads) provisions the newest CPython it can
 // fetch, which is too new for much of the scientific/ML ecosystem (numba, torch,

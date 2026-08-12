@@ -73,7 +73,6 @@ export function UpgradeSubscriptionAlertView({
         <AlertTitle>Unable to load subscription status</AlertTitle>
         <AlertDescription className="flex flex-col gap-3">
           <span>
-            {/* cspell:ignore couldn */}
             We couldn&apos;t load your subscription information. Please try
             again later.
           </span>

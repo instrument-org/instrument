@@ -116,7 +116,6 @@ export const GenerateImage = setupTool({
     }),
   ]),
 }).create({
-  // cspell:ignore img2img, inpainting
   description: ({ model }) => dedent`
     AI image synthesis and semantic image editing. This is not the general tool for creating image files.
 

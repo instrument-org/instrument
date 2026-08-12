@@ -100,7 +100,7 @@ const EXTENSION_TOKENS: Record<string, FileIconToken> = {
   markdown: "markdown",
   md: "markdown",
   mdx: "markdown",
-  mhtml: "html", // cspell:ignore mhtml
+  mhtml: "html",
   pdf: "pdf",
   ris: "text",
   rtf: "richtext",
@@ -111,7 +111,7 @@ const EXTENSION_TOKENS: Record<string, FileIconToken> = {
   docm: "word",
   docx: "word",
   dot: "word",
-  dotm: "word", // cspell:ignore dotm
+  dotm: "word",
   dotx: "word",
   key: "slides",
   numbers: "table",
@@ -131,7 +131,7 @@ const EXTENSION_TOKENS: Record<string, FileIconToken> = {
   pptm: "presentation",
   pptx: "presentation",
   xls: "spreadsheet",
-  xlsb: "spreadsheet", // cspell:ignore xlsb
+  xlsb: "spreadsheet",
   xlsm: "spreadsheet",
   xlsx: "spreadsheet",
   xlt: "spreadsheet",
@@ -214,7 +214,7 @@ const EXTENSION_TOKENS: Record<string, FileIconToken> = {
 
   // --- E-books ---
   epub: "ebook",
-  mobi: "ebook", // cspell:ignore mobi
+  mobi: "ebook",
 
   // --- Fonts ---
   otf: "font",
@@ -224,7 +224,6 @@ const EXTENSION_TOKENS: Record<string, FileIconToken> = {
 
   // --- Binary / executable ---
   dll: "binary",
-  // cspell:ignore dylib
   dylib: "binary",
   exe: "binary",
   so: "binary",

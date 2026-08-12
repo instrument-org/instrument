@@ -13,7 +13,7 @@ import { type TranscriptEdge } from "./use-transcript-edge";
  */
 export function TranscriptEdgeOverlay({ edge }: { edge: TranscriptEdge }) {
   // Growth is what a transcript does; shrinking is the thing being hunted, so
-  // only that is coloured. A step that neither grew nor shrank still reports,
+  // only that is colored. A step that neither grew nor shrank still reports,
   // because "0" is the answer to "did this frame move anything".
   const shrank = edge.delta !== undefined && edge.delta < 0;
 

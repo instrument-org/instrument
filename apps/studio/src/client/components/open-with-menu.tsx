@@ -95,7 +95,6 @@ function OpenWithCandidates({
 
   if (isError) {
     return (
-      // cspell:ignore Couldn
       <Item disabled>
         <span>Couldn&apos;t load apps</span>
       </Item>

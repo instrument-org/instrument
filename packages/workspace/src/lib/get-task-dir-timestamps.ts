@@ -9,7 +9,6 @@ import { getCurrentDate } from "./get-current-date";
  * The folder and not the session database inside it: opening a task checkpoints
  * that database, so its mtime says a task was worked on when it was only read.
  *
- * cspell:ignore mtimes
  * See docs/findings/task-list-order-followed-file-mtimes.md.
  */
 export async function getTaskDirTimestamps(dir: TaskDir) {

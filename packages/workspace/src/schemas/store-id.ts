@@ -10,7 +10,6 @@ const PREFIXES = {
 } as const;
 
 // via https://github.com/colinhacks/zod/blob/2c333e268c316deef829c736b8c46ec95ee03e39/packages/zod/src/v4/core/regexes.ts#L3
-// cspell:ignore HJKMNP
 const ULID_REGEX = /^[0-9A-HJKMNP-TV-Z]{26}$/i;
 
 function createIdSchema<T extends string>(prefix: string, brandName: T) {

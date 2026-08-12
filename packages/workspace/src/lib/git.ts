@@ -3,7 +3,6 @@ import { resolveGitBinary, setupEnvironment } from "dugite";
 import path from "node:path";
 
 // Git config keys and env vars, spelled as git spells them.
-// cspell:ignore askpass nosystem
 
 let gitPath: string | undefined;
 

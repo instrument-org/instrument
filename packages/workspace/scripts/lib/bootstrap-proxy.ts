@@ -1,6 +1,5 @@
 import { ProxyAgent, setGlobalDispatcher } from "undici";
 
-// cspell:ignore proxyman
 // Opt-in HTTP/HTTPS proxy bootstrap so tools like Proxyman can capture
 // outbound requests from this script. Set GLOBAL_AGENT_HTTP_PROXY
 // (e.g. http://127.0.0.1:9090) to enable; without it this is a no-op.

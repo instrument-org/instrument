@@ -188,7 +188,6 @@ const PROXY_ENV_VARS = new Set([
   "https_proxy",
 ]);
 
-// cspell:ignore networkidle scrollintoview
 const WORKSPACE_HELP_MANAGED = dedent`
   agent-browser - Control the task's managed browser.
 
@@ -427,7 +426,7 @@ export async function resolveAgentBrowserPathArgs(
 /**
  * Refuse `--executable-path`. It is the one flag whose value the CLI runs as a
  * program, and an external invocation runs on the host with the user's own
- * environment rather than the sandbox's, so honouring it would let a file the
+ * environment rather than the sandbox's, so honoring it would let a file the
  * agent wrote in the task execute outside every boundary the rest of this
  * environment keeps -- with the user's credentials in its env. Nothing legitimate
  * needs it: the app ships the browser it drives, and `--profile` covers acting
@@ -855,7 +854,7 @@ export function createAgentBrowserCommand({
  */
 export function isExternalBrowserInvocation(args: string[]): boolean {
   // Reads the flags the CLI will actually consume as globals, so an inline
-  // `--cdp=9222` -- which upstream does not honour, leaving it to be read as
+  // `--cdp=9222` -- which upstream does not honor, leaving it to be read as
   // the subcommand -- does not route anywhere the CLI would not go.
   const { globalFlags } = parseAgentBrowserArgs(args);
   let providerName: string | undefined;

@@ -4,7 +4,6 @@ import { unique } from "radashi";
 import { type AIGatewayModel } from "../schemas/model";
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 
-// cspell:ignore devstral
 const MODEL_TAGS: Record<string, AIGatewayModel.ModelTag[]> = {
   "claude-sonnet-4.6": ["default"],
   "devstral-2512": ["coding", "recommended"],

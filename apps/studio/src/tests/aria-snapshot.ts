@@ -16,7 +16,7 @@ declare module "vitest/browser" {
  * things that change what the UI *is* -- a control that lost its label, a
  * heading that changed level, a list that gained a row.
  *
- * It is also the honest test for an icon-only control. A button labelled only
+ * It is also the honest test for an icon-only control. A button labeled only
  * by its tooltip has no accessible name, so it arrives here as a bare
  * `- button`: the same nothing a screen reader gets, and the same nothing a
  * script driving the app has to guess its way around.

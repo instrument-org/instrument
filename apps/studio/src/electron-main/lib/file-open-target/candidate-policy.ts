@@ -46,7 +46,6 @@ const RESTRICTED_BUNDLE_IDS = new Map([
       ".xib",
     ]),
   ],
-  // cspell:ignore ibooks
   ["com.apple.iBooksX", new Set([".epub", ".ibooks", ".pdf"])],
   // Both iWork apps claim public.plain-text, putting them in front of Markdown,
   // logs and source files they would import as prose or a table.

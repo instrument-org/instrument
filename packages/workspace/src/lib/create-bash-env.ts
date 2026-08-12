@@ -67,8 +67,6 @@ import {
   TASK_MOUNT_POINT,
 } from "./workspace-fs-layout";
 
-// cspell:ignore mixmark
-
 /** FS reads, HTTP bodies, maxStringLength/maxOutputSize; maxHeredocSize unchanged (64 MiB). */
 const SANDBOX_MAX_BYTES = 256 * 1024 * 1024;
 
@@ -124,7 +122,6 @@ const commandOrderPlugin: TransformPlugin<{ commands: string[] }> = {
       }
     }
 
-    // cspell:ignore Subshell
     function walkCommand(node: CommandNode) {
       switch (node.type) {
         case "For":

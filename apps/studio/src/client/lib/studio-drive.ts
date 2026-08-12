@@ -161,9 +161,9 @@ function readOpenDialogTitle(): null | string {
   if (!dialog) {
     return null;
   }
-  const labelledBy = dialog.getAttribute("aria-labelledby");
-  const title = labelledBy
-    ? document.querySelector(`#${CSS.escape(labelledBy)}`)?.textContent
+  const labeledBy = dialog.getAttribute("aria-labelledby");
+  const title = labeledBy
+    ? document.querySelector(`#${CSS.escape(labeledBy)}`)?.textContent
     : dialog.getAttribute("aria-label");
   return title?.trim() ?? null;
 }

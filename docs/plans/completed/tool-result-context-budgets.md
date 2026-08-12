@@ -1,6 +1,6 @@
 # Bound tool results before they consume the context window
 
-Status: **complete**. All three phases landed: the per-search budget in [web-search.ts](../../../packages/workspace/src/tools/web-search.ts), the per-step budget in [budget-step-tool-results.ts](../../../packages/workspace/src/lib/budget-step-tool-results.ts), and the lower fetch default. Kept for the audit evidence and the reasoning behind the numbers, which the code does not state; where the implementation went a different way, "As built" at the end says so.
+Status: **complete, two phases of three**. The per-search budget in [web-search.ts](../../../packages/workspace/src/tools/web-search.ts) and the lower fetch default landed. The per-step aggregate was built, then declined before merge: [decision](../../decisions/2026-08-12-no-always-on-per-step-tool-result-budget.md). Kept for the audit evidence and the reasoning behind the numbers, which the code does not state; where the implementation went a different way, "As built" at the end says so.
 
 ## Problem
 
@@ -50,6 +50,8 @@ Apply the limit in `WebSearch.toModelOutput`, after [readWebSearchResults](../..
 
 ## Phase 2: cap the combined text returned by one assistant step
 
+**Not built. Built, then reverted before merge; see [the decision](../../decisions/2026-08-12-no-always-on-per-step-tool-result-budget.md).** The mechanism below is sound and other harnesses use it, but as an unconditional pass keyed to a fixed constant it charged every session for a risk only a few of them ran. If it returns it belongs in the context-fit path, triggered by the model's real window. The rest of this section is the original proposal, kept because the fit work will want it.
+
 A per-search limit alone leaves the observed five-search pattern able to stack five maximum-sized results. Add an aggregate model-visible text budget after tool-specific `toModelOutput` transformations and before messages are handed to the provider.
 
 1. Introduce a provider-neutral character budget for text tool results produced by one assistant message. Start at 32 KB, which permits one full capped bash result plus useful output from another call without allowing five retrieval calls to consume an open-ended amount of context.
@@ -67,50 +69,43 @@ This is evidence-backed but not required to land the web-search fix. The current
 2. Keep the existing spill file behavior and tell the agent it can request a larger prefix or read the spill file when the first 20,000 characters are insufficient.
 3. Measure whether agents immediately repeat fetches at 50,000. If they do, improve the retrieval guidance or add focused extraction rather than silently lowering the cap again.
 
-No current evidence justifies lowering `read_file`, skill-content, bash, or image limits. The aggregate phase covers their stacking behavior without making ordinary single calls less useful.
+No current evidence justifies lowering `read_file`, skill-content, bash, or image limits. Nothing covers their stacking behavior, which is the gap Phase 2 was going to close and no longer does.
 
 ## Telemetry
 
-Record one event whenever either budget clips model-visible content. Include only numeric and structural fields: tool name, result count in the assistant step, original characters, retained characters, per-result versus aggregate reason, whether a spill path existed, provider, and model identifier. Do not record commands, queries, excerpts, URLs, file paths, or output text.
-
-The event should distinguish `web_search`'s own limit from the step aggregate limit. Otherwise a later audit cannot tell whether the individual budget is too high or whether the model is batching too many otherwise reasonable calls.
+Record one event whenever a budget clips model-visible content. Include only numeric fields: tool name, original characters, retained characters, provider, and model identifier. Do not record commands, queries, excerpts, URLs, file paths, or output text.
 
 ## Validation
 
 1. Add focused `web-search.test.ts` cases for excerpt and summary results below and above the budget, fair allocation across sources, complete source metadata, Unicode-safe truncation, the untrusted-content boundary, legacy persisted shapes, and the exact `noop` short circuit.
-2. Add model-message preparation tests with several tool calls in one assistant message. Cover all-short results, one dominant result, several maximum-sized results, mixed tools, existing spill notices, multipart output, and preservation of tool-call/result pairing.
-3. Verify that full outputs remain persisted while the model-visible form is bounded.
-4. Reproduce the five-search shape with synthetic results and prove that its combined text stays within the aggregate budget.
-5. Run the focused Workspace tests, then Workspace type and lint checks through Turbo. A real-session smoke test should query the resulting task database and confirm that the next assistant call's reported input-token increase is consistent with the configured character budget.
+2. Verify that full outputs remain persisted while the model-visible form is bounded.
+3. Run the focused Workspace tests, then Workspace type and lint checks through Turbo. A real-session smoke test should query the resulting task database and confirm that the next assistant call's reported input-token increase is consistent with the configured character budget.
 
 ## Risks and decisions
 
 - **Character budgets are only token approximations.** This matches the existing project-instruction, skill, fetch, file, and bash policies and is provider-neutral. Reported provider usage remains the authority for validating the chosen numbers.
 - **Truncating search excerpts can hide the useful passage.** Fair allocation, complete source URLs, and explicit follow-up guidance reduce this risk. Do not keep only a global head of the concatenated result.
-- **Aggregate budgeting can hide a late result.** Fair sharing is required. A first-come budget would reward whichever tool happened to execute first and could make the last result useless.
 - **Provider tool protocol is strict.** Replace content inside every result; never drop or reorder tool result messages.
 - **Hosted search may follow a different replay path.** Cover it with an explicit test or record it as not governed by this plan rather than claiming a universal limit.
-- **Budgets can become magic constants.** Name them, explain their intended context cost, emit truncation telemetry, and adjust from observed usage instead of adding provider-specific guesses.
+- **Budgets can become magic constants.** Name them, explain their intended context cost, emit truncation telemetry, and adjust from observed usage instead of adding provider-specific guesses. This is what sank Phase 2: the constant was defensible and the trigger was not.
 
 ## As built
 
-Five things came out differently from the plan above.
+Phases 1 and 3 landed. Phase 2 did not, for the reasons in [its decision record](../../decisions/2026-08-12-no-always-on-per-step-tool-result-budget.md). Three things in what shipped differ from the proposal.
 
-- **A trimmed step result keeps a tail, not only a head.** Several tools put the thing that makes a partial result recoverable at the end: the path a spilled output was written to, and, for anything delivered inside a content boundary, the marker that closes the block. A head-only cut would drop that marker and leave every later message reading as quoted page content, so the last 512 characters are retained alongside the head, with the omission notice between them.
-- **The clipping telemetry omits `had_spill_path`.** The step pass sees transformed text and cannot tell whether a spill file exists behind it, and `web_search` deliberately has none, so the field would have been either a guess or a constant `false`. The event carries tool name, which limit clipped, original and retained characters, the step's result count, provider, and model.
-- **The step limit reports only the step that just ran.** An earlier step is clipped identically on every later request, so counting all of them would have made the totals a function of session length rather than of how often the budget binds. `web_search`'s own limit is counted when the search finishes, for the same reason: `toModelOutput` runs on every replay.
+- **The clipping telemetry omits `had_spill_path`.** `web_search` deliberately has no spill file, so the field would have been a constant `false`. The event carries tool name, original and retained characters, provider, and model.
+- **A clipped search is counted when the search finishes, not when it is rendered.** `toModelOutput` runs on every replay, so counting there would report one search once per request for the rest of the session.
 - **The placeholder query gets its own `errorType`, `invalid-query`.** It is not a backend failure and has no provider guard in the UI, so it reads as an ordinary tool error with a message naming what to do instead.
-- **Provider-executed search is out of scope, and the code says so.** A hosted result rides on the assistant message rather than in a `tool` message, so the step pass never sees it. That is asserted by a test rather than left to be discovered.
 
-Both budgets are allocated by [allocateFairShare](../../../packages/workspace/src/lib/fair-share.ts), which is the same max-min split in both places: short pieces stay whole, and what they do not use goes back to the long ones.
+Excerpt allocation uses [allocateFairShare](../../../packages/workspace/src/lib/fair-share.ts): short pieces stay whole, and what they do not use goes back to the long ones.
 
 ### What a real session showed
 
-A single ad-hoc run (compare per-TB storage prices across three cloud providers, one frontier model) exercised all three phases:
+A single ad-hoc run (compare per-TB storage prices across three cloud providers, one frontier model):
 
-- Three parallel searches in one step returned 11,841 characters between them and tripped neither budget. The per-search ceiling is well above what an ordinary search costs, which is what it was meant to be.
-- Three parallel fetches in the next step returned 55,714 characters, so the step budget bound and removed roughly 23,000 characters from the following request. The turn still produced a correct, fully sourced answer, so trimming the middle of three pages did not cost the model what it needed.
-- The model raised `maxCharacters` to 50,000 and re-fetched one of the three pages. This is the repeat-at-the-maximum behavior Phase 3 says to watch: one page in three needed more than 20,000 characters, and the other two did not, which is the trade the lower default was chosen for. It is worth re-measuring across models before concluding anything from one run.
+- Three parallel searches in one step returned 11,841 characters between them and tripped the per-search budget nowhere near. The ceiling sits at roughly four times what an ordinary search costs, so it is an outlier guard rather than a routine cost.
+- Three parallel fetches in the next step returned 55,714 characters. Nothing now trims that, which is the accepted consequence of dropping Phase 2.
+- The model raised `maxCharacters` to 50,000 and re-fetched one of the three pages. This is the repeat-at-the-maximum behavior Phase 3 says to watch: one page in three needed more than 20,000 characters and the other two did not, which is the trade the lower default was chosen for. Worth re-measuring across models before concluding anything from one run.
 - It also produced a wording bug worth keeping in mind for any similar note: a fetch already at the 50,000 maximum was being told it could raise the parameter to 50,000. The note now offers only recovery paths that exist.
 
 ## Related

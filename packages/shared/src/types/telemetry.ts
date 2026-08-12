@@ -57,17 +57,12 @@ export interface AnalyticsEvents {
     success: boolean;
     tool_name: string;
   }>;
-  // Numbers and structure only: how much was clipped and by which limit, never
-  // any of the clipped content. `step` counts a whole assistant step's results
-  // against one budget, `tool` is a single tool's own ceiling, and telling them
-  // apart is what says whether a per-tool limit is too high or the model is
-  // simply batching too many otherwise reasonable calls.
+  // Numbers and structure only: how much a tool's own ceiling removed from what
+  // the model was shown, never any of the removed content. What it is for is
+  // deciding whether that ceiling is set anywhere near the right place.
   "llm.tool_result_clipped": WithModelProperties<{
-    limit: "step" | "tool";
     original_characters: number;
     retained_characters: number;
-    /** Results sharing the step budget. Absent for a tool's own limit. */
-    step_result_count?: number;
     tool_name: string;
   }>;
   "message.created": WithModelProperties<{

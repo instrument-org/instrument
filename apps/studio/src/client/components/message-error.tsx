@@ -131,6 +131,16 @@ export function MessageError({
 
   const { detail, summary } = describeMessageError(error);
 
+  // A model on the user's own key answers about an account they hold. Its
+  // rejection names the tier, the reset window, or the key that was refused,
+  // and every one of those is something they can go and fix -- so it is shown,
+  // not buried. Only our own provider writes about an account they have no part
+  // in. A message that never recorded a provider counts as ours, so an unknown
+  // errs toward saying less rather than leaking more.
+  const provider = message.metadata.aiGatewayModel?.params.provider;
+  const isOwnKeyProvider =
+    provider !== undefined && provider !== OUR_MODELS.providerType;
+
   const getErrorTitle = () => {
     switch (error.kind) {
       case "api-call":
@@ -206,11 +216,12 @@ export function MessageError({
             <div className="mb-2">{detail}</div>
 
             {/* Everything below is the provider's own account of the failure,
-                written for whoever integrates against it. It names upstream
-                models, cites vendor dashboards, and suggests remedies that
-                belong to an account the user has no part in, so it is shown
-                only to someone who asked to see that layer. */}
-            {isDeveloperMode && (
+                written for whoever integrates against it. On our own provider
+                that means upstream models the user never chose and remedies on
+                a vendor account they have no part in, so it is shown only to
+                someone who asked for that layer. On their own key it is the
+                truer answer and the one they can act on. */}
+            {(isDeveloperMode || isOwnKeyProvider) && (
               <>
                 <div className="mb-2">
                   <div className="mb-1 font-semibold">Error:</div>

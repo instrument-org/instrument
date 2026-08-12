@@ -32,17 +32,18 @@ vi.mock("@/client/rpc/client", () => ({
 const UPSTREAM_THROTTLE_TEXT =
   '{"code":429,"message":"openai/gpt-5.6-luna is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations","metadata":{"error_type":"rate_limit_exceeded"}}';
 
-// The model matters: `parsePlatformApiError` only reads a body as one of ours
-// when the turn ran against our own provider, and that verdict is what used to
-// decide whether the card got any controls.
-function messageWithError(error: MessageError) {
+// The provider decides two separate things: whether a body reads as one of our
+// own platform errors, and whose account the provider's message is about.
+// `null` stands for a message that recorded no model at all, which must not be
+// mistaken for the user's own key.
+function messageWithError(error: MessageError, provider: null | string) {
   return {
     id: "msg_test",
     metadata: {
-      aiGatewayModel: {
-        name: "Instrument: Auto",
-        params: { provider: OUR_MODELS.providerType },
-      },
+      aiGatewayModel:
+        provider === null
+          ? undefined
+          : { name: "Test Model", params: { provider } },
       createdAt: new Date(),
       error,
       sessionId: "ses_test",
@@ -59,10 +60,12 @@ function renderError({
   },
   isDeveloperMode = false,
   isLastMessage = true,
+  provider = OUR_MODELS.providerType,
 }: {
   error?: MessageError;
   isDeveloperMode?: boolean;
   isLastMessage?: boolean;
+  provider?: null | string;
 }) {
   return renderWithProviders(
     <TooltipProvider>
@@ -70,7 +73,7 @@ function renderError({
         isAgentRunning={false}
         isDeveloperMode={isDeveloperMode}
         isLastMessage={isLastMessage}
-        message={messageWithError(error)}
+        message={messageWithError(error, provider)}
         onContinue={vi.fn()}
         onModelChange={vi.fn()}
         onRetry={vi.fn()}
@@ -93,6 +96,40 @@ describe("MessageError", () => {
     const { container } = renderError({ isDeveloperMode: true });
 
     expect(container.textContent).toContain("openrouter.ai");
+  });
+
+  it("shows the provider's text on the user's own key", () => {
+    // Their account, their limit: the provider's message names the tier and
+    // the reset, and both are things they can go and fix.
+    const { container } = renderError({
+      error: {
+        classification: "rate-limit",
+        kind: "api-call",
+        message: "Rate limit reached for gpt-5.2 in organization org-abc",
+        name: "AI_APICallError",
+        responseBody: JSON.stringify({
+          error: {
+            code: "rate_limit_exceeded",
+            message:
+              "Rate limit reached for gpt-5.2 in organization org-abc on tokens per min. Limit: 30000, Used: 30000. Please try again in 2s.",
+          },
+        }),
+        statusCode: 429,
+        url: "https://api.openai.com/v1/chat/completions",
+      },
+      provider: "openai",
+    });
+
+    expect(container.textContent).toContain("Limit: 30000");
+    expect(container.textContent).toContain("organization org-abc");
+    // Ours still comes first, because it is the sentence that says what to do.
+    expect(container.textContent).toContain("The model is busy right now");
+  });
+
+  it("treats a turn with no recorded provider as ours", () => {
+    const { container } = renderError({ provider: null });
+
+    expect(container.textContent).not.toContain("openrouter");
   });
 
   it("offers a way forward on a throttle from our own gateway", () => {

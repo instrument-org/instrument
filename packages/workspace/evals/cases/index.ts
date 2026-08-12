@@ -6,6 +6,7 @@ import { PDF_SKILL_EVALS } from "./pdf-skill";
 import { PROJECT_FOLDER_DISCIPLINE_EVALS } from "./project-folder-discipline";
 import { PROJECT_INSTRUCTIONS_EVALS } from "./project-instructions";
 import { SHOW_EVALS } from "./show";
+import { SOURCE_LINKS_EVALS } from "./source-links";
 import { UNREADABLE_MEDIA_EVALS } from "./unreadable-media";
 import { WEB_SEARCH_EVALS } from "./web-search";
 
@@ -18,6 +19,7 @@ export const EVALS = [
   ...PROJECT_FOLDER_DISCIPLINE_EVALS,
   ...PROJECT_INSTRUCTIONS_EVALS,
   ...SHOW_EVALS,
+  ...SOURCE_LINKS_EVALS,
   ...UNREADABLE_MEDIA_EVALS,
   ...WEB_SEARCH_EVALS,
 ];

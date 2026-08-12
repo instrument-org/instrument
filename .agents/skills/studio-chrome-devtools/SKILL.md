@@ -155,6 +155,14 @@ $CDT performance_start_trace --reload true --autoStop true
 
 `bash .agents/skills/studio-chrome-devtools/scripts/connect-cli.sh [browserUrl] [urlFragment]` does the same and then selects a page by URL fragment, which is worth it when the profiler has to attach to a specific webview guest rather than the app page.
 
+Know this before reaching for a trace, because it is a dead end that costs several minutes to find: **the CLI profiles page loads, not interactions.** Its report is organized as insight sets split by navigations, so a trace with no navigation in it has nothing to report, and on 1.6.0 `performance_stop_trace` returns nothing at all either way, `--filePath` included. The one path that reports is:
+
+```bash
+$CDT performance_start_trace --reload true --autoStop true    # prints its summary
+```
+
+Which reloads the app, and therefore cannot answer what an in-page interaction costs: opening a modal, switching tabs, rendering a task. For those, drive CDP's `Tracing` domain directly (`Tracing.start`, do the thing, `Tracing.end`, collect `Tracing.dataCollected`), the way `studio-drive` already speaks CDP. Mark the interaction with `performance.mark` so the window is findable in the events afterward.
+
 - `--browserUrl` belongs on `start`; later subcommands talk to the daemon.
 - The daemon outlives invocations and keeps its old version after a package upgrade. `stop` then `start` to pick up a new one, or to clear a stale socket behind an `ENOENT`.
 - `evaluate_script` requires an anonymous `function () { ... }` string, not an arrow or a bare expression. (`studio-drive eval` accepts either.)

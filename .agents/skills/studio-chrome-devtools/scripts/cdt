@@ -34,8 +34,17 @@ browser_url="http://127.0.0.1:$(node "${HERE}/studio-drive.mjs" port)"
 # The daemon outlives invocations, so this is usually a no-op and its failure is
 # usually "already running". Held back rather than swallowed: if the command
 # below also fails, the reason is probably here.
+#
+# `--allowUnrestrictedPaths` because without it every file-writing tool is
+# confined to the OS temp directory, which is not where anything here writes:
+# a trace saved to a scratchpad or to the repo comes back "not within any of the
+# configured workspace roots", and the tool that produced it has already thrown
+# the trace away. The restriction is there for a client reached over a network;
+# this one is a local shell driving a local dev build.
 start_failed=""
-start_output="$("${CDT[@]}" start --browserUrl "${browser_url}" 2>&1)" || start_failed=1
+start_output="$("${CDT[@]}" start \
+  --browserUrl "${browser_url}" \
+  --allowUnrestrictedPaths 2>&1)" || start_failed=1
 
 status=0
 "${CDT[@]}" "$@" || status=$?

@@ -20,7 +20,7 @@ describe("computeContextBudget", () => {
       occupied: 0,
     },
     {
-      contextLength: 1_000,
+      contextLength: 1000,
       name: "window is smaller than the reserve",
       occupied: 0,
     },
@@ -95,9 +95,9 @@ describe("computeContextBudget", () => {
   it("treats a shrunken development window as a real one, so the path is reachable cheaply", () => {
     expect(
       computeContextBudget({
-        contextLength: 8_000,
-        occupied: 7_000,
-        reserveTokens: 1_000,
+        contextLength: 8000,
+        occupied: 7000,
+        reserveTokens: 1000,
       }),
     ).toMatchInlineSnapshot(`
       {

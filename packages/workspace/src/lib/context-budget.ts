@@ -21,7 +21,7 @@ export const DEFAULT_CONTEXT_RESERVE_TOKENS = 32_000;
 /** Fraction of the usable window at which the agent is told it is running out. */
 const WARN_AT_FRACTION = 0.85;
 
-export type ContextBudget = {
+export interface ContextBudget {
   /** Tokens the most recent request occupied. */
   occupied: number;
   /** Tokens still available before the reserve is spent. */
@@ -29,7 +29,7 @@ export type ContextBudget = {
   status: ContextBudgetStatus;
   /** Window minus the reserve: what the transcript may actually use. */
   usable: number;
-};
+}
 
 export type ContextBudgetStatus =
   /** Past the usable window. Nothing more fits without giving something up. */

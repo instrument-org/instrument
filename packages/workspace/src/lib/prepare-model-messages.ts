@@ -9,6 +9,7 @@ import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { addCacheControlToMessages } from "./add-cache-control";
+import { applyContextRollover } from "./apply-context-rollover";
 import {
   computeContextBudget,
   contextOccupancyFromMessages,
@@ -64,9 +65,62 @@ export async function prepareModelMessages({
     isSessionContextMessage,
   );
 
-  const nonContextMessages = messages.filter(
+  const allNonContextMessages = messages.filter(
     (message) => !isSessionContextMessage(message),
   );
+
+  // The window this task is actually running in. Read before anything is
+  // measured, because occupancy has to come from turns inside the current
+  // window: a reported count from before a reset describes a request that is no
+  // longer being sent, and taking it at face value would roll the session over
+  // again on every turn, eating another slice of history each time.
+  const sessionResult = await Store.getSession(sessionId, taskId, { signal });
+  const rolledOverAfterMessageId = sessionResult.isOk()
+    ? sessionResult.value.rolledOverAfterMessageId
+    : undefined;
+
+  let nonContextMessages = applyContextRollover({
+    messages: allNonContextMessages,
+    rolledOverAfterMessageId,
+  });
+
+  let budget = computeContextBudget({
+    contextLength: effectiveContextLength(model),
+    occupied: contextOccupancyFromMessages(nonContextMessages),
+  });
+
+  if (budget.status === "exhausted") {
+    // Reset here rather than after assembling, so the request this call is
+    // building is the smaller one. The boundary is the newest message the task
+    // has: everything before it stops being sent, the user's own messages are
+    // carried across, and the task continues in the same session rather than
+    // failing the turn.
+    const newest = allNonContextMessages.at(-1);
+    const session = sessionResult.isOk() ? sessionResult.value : undefined;
+
+    if (newest && session) {
+      const saveResult = await Store.saveSession(
+        { ...session, rolledOverAfterMessageId: newest.id },
+        taskId,
+        { signal },
+      );
+
+      // A boundary we could not record is one that would not survive the next
+      // turn, so the session keeps the history it had. The request may well be
+      // refused for size, which is the behavior this feature is replacing
+      // rather than a regression it introduces.
+      if (saveResult.isOk()) {
+        nonContextMessages = applyContextRollover({
+          messages: allNonContextMessages,
+          rolledOverAfterMessageId: newest.id,
+        });
+        budget = computeContextBudget({
+          contextLength: effectiveContextLength(model),
+          occupied: contextOccupancyFromMessages(nonContextMessages),
+        });
+      }
+    }
+  }
 
   let contextMessages: SessionMessage.ContextWithParts[];
 
@@ -200,12 +254,7 @@ export async function prepareModelMessages({
   // rewriting it. Nothing here is saved: the notice is recomputed from the
   // budget on each request, so it disappears on its own once there is room
   // again and never accumulates in the transcript.
-  const notice = contextBudgetNotice(
-    computeContextBudget({
-      contextLength: effectiveContextLength(model),
-      occupied: contextOccupancyFromMessages(messages),
-    }),
-  );
+  const notice = contextBudgetNotice(budget);
 
   if (notice !== undefined) {
     preparedMessages.push({ content: notice, role: "user" });

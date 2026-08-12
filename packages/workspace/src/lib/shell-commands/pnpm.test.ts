@@ -51,29 +51,28 @@ describe("createPnpmCommand", () => {
     expect(result.stderr).toContain("`cd work && pnpm add lodash`");
   });
 
-  it.each([{ subcommand: "dev" }, { subcommand: "start" }])(
-    "errors when trying to run pnpm $subcommand",
-    async ({ subcommand }) => {
-      const result = await command.execute([subcommand], mockCtx);
+  // `dev` and `start` were refused while the runtime was the only thing allowed
+  // to serve an app. A long-running command is now a background process, so they
+  // run like any other script.
+  it.each([
+    { args: ["dev"] },
+    { args: ["start"] },
+    { args: ["run", "dev"] },
+    { args: ["run", "start"] },
+  ])("runs pnpm $args instead of refusing it", async ({ args }) => {
+    const { execaNodeForTask } = await import("../execa-node-for-task");
+    // Two calls: the auto-install that precedes any non-package-management
+    // subcommand, then the script itself.
+    vi.mocked(execaNodeForTask).mockResolvedValue({
+      all: "dev server listening",
+      exitCode: 0,
+    });
 
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain(
-        `'${PNPM_COMMAND.name} ${subcommand}' is not needed here`,
-      );
-    },
-  );
+    const result = await command.execute(args, mockCtx);
 
-  it.each([{ subcommand: "dev" }, { subcommand: "start" }])(
-    "errors when trying to run pnpm run $subcommand",
-    async ({ subcommand }) => {
-      const result = await command.execute(["run", subcommand], mockCtx);
-
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain(
-        `'${PNPM_COMMAND.name} run ${subcommand}' is not needed here`,
-      );
-    },
-  );
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("dev server listening");
+  });
 
   it("refuses pnpm exec for a binary that is not installed locally", async () => {
     const result = await command.execute(

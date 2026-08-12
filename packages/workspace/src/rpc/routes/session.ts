@@ -2,6 +2,7 @@ import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { call } from "@orpc/server";
 import { z } from "zod";
 
+import { killSessionBackgroundProcesses } from "../../lib/background-processes";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { createSession } from "../../lib/create-session";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
@@ -90,6 +91,29 @@ const remove = base
   .handler(async ({ context, errors, input }) => {
     const { id, sessionId } = input;
     const taskId = id;
+    const sessions = await Store.getSessions(taskId, {
+      includeChildSessions: true,
+    });
+    if (sessions.isErr()) {
+      throw toORPCError(sessions.error, errors);
+    }
+    const removedSessionIds = sessions.value
+      .filter(
+        (session) => session.id === sessionId || session.parentId === sessionId,
+      )
+      .map((session) => session.id);
+    // Cleanup is already bounded, and a process that will not confirm it stopped
+    // must not make its session undeletable: record it and remove the session
+    // anyway, so the stuck process is the only thing left to deal with.
+    await Promise.all(
+      removedSessionIds.map((removedSessionId) =>
+        killSessionBackgroundProcesses(removedSessionId).catch(
+          (error: unknown) => {
+            context.workspaceConfig.captureException(error);
+          },
+        ),
+      ),
+    );
     const result = await Store.removeSession(sessionId, taskId);
     if (result.isErr()) {
       context.workspaceConfig.captureException(result.error);

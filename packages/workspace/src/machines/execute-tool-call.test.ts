@@ -1,4 +1,5 @@
 import mockFs from "mock-fs";
+import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createActor, waitFor } from "xstate";
 
@@ -20,6 +21,23 @@ vi.mock(import("../lib/execa-node-for-task"), () => ({
   execaNodeForTask: vi.fn(),
 }));
 
+interface MockExecResult {
+  all: string;
+  exitCode: number;
+  stderr: string;
+  stdout: string;
+}
+
+/**
+ * execa returns a subprocess that is both awaitable and exposes its output as a
+ * stream, and it returns it synchronously. `runPnpmCommand` reads that stream so
+ * a background run can follow the output live, so the mock has to be both things
+ * -- and must not be wrapped in an extra promise, which would hide `.all`.
+ */
+function mockSubprocess(outcome: Promise<MockExecResult>, all: string) {
+  return Object.assign(outcome, { all: Readable.from([all]) });
+}
+
 describe("executeToolCallMachine", () => {
   const model = createMockAIGatewayModel();
   const taskConfig = createMockTaskConfig(TaskIdSchema.parse("test"), {
@@ -36,33 +54,36 @@ describe("executeToolCallMachine", () => {
 
     const { execaNodeForTask: execaElectronNode } =
       await import("../lib/execa-node-for-task");
+    const mockResult: MockExecResult = {
+      all: "mocked all",
+      exitCode: 0,
+      stderr: "mocked stderr",
+      stdout: "mocked stdout",
+    };
     vi.mocked(execaElectronNode).mockImplementation(
-      async (_taskConfig, file, args, _options) => {
+      (_taskConfig, file, args, _options) => {
         const command = [file, ...(args ?? [])].join(" ");
 
         if (command.includes("throw-error")) {
-          throw new Error("Shell command failed");
+          // A spawn failure surfaces as the subprocess promise rejecting.
+          return mockSubprocess(
+            Promise.reject(new Error("Shell command failed")),
+            "",
+          );
         }
 
         if (command.includes("hang-command")) {
-          return new Promise((resolve) => {
-            setTimeout(() => {
-              resolve({
-                all: "mocked all",
-                exitCode: 0,
-                stderr: "mocked stderr",
-                stdout: "mocked stdout",
-              });
-            }, 100);
-          });
+          return mockSubprocess(
+            new Promise((resolve) => {
+              setTimeout(() => {
+                resolve(mockResult);
+              }, 100);
+            }),
+            mockResult.all,
+          );
         }
 
-        return {
-          all: "mocked all",
-          exitCode: 0,
-          stderr: "mocked stderr",
-          stdout: "mocked stdout",
-        };
+        return mockSubprocess(Promise.resolve(mockResult), mockResult.all);
       },
     );
 
@@ -137,13 +158,13 @@ describe("executeToolCallMachine", () => {
 
   function createShellCommandPart(
     command: string,
-    timeoutMs = 1000,
+    yieldMs = 1000,
   ): SessionMessagePart.ToolPartInputAvailable {
     return {
       input: {
         command,
         explanation: "Installing packages",
-        timeoutMs,
+        yieldMs,
       },
       metadata: {
         createdAt: mockDate,
@@ -182,11 +203,11 @@ describe("executeToolCallMachine", () => {
           "input": {
             "command": "pnpm install",
             "explanation": "Installing packages",
-            "timeoutMs": 1000,
+            "yieldMs": 1000,
           },
           "metadata": {
             "createdAt": 2025-01-01T00:00:00.000Z,
-            "endedAt": 2013-08-31T12:00:01.000Z,
+            "endedAt": 2013-08-31T12:00:02.000Z,
             "id": "prt_00000000Z88888888888888888",
             "messageId": "msg_00000000018888888888888889",
             "sessionId": "ses_00000000018888888888888888",
@@ -199,6 +220,7 @@ describe("executeToolCallMachine", () => {
             ],
             "durationMs": 0,
             "exitCode": 0,
+            "omittedBytes": 0,
             "output": "mocked all",
             "spillFilePath": undefined,
           },
@@ -236,11 +258,11 @@ describe("executeToolCallMachine", () => {
           "input": {
             "command": "pnpm throw-error",
             "explanation": "Installing packages",
-            "timeoutMs": 1000,
+            "yieldMs": 1000,
           },
           "metadata": {
             "createdAt": 2025-01-01T00:00:00.000Z,
-            "endedAt": 2013-08-31T12:00:01.000Z,
+            "endedAt": 2013-08-31T12:00:02.000Z,
             "id": "prt_00000000Z98888888888888888",
             "messageId": "msg_00000000018888888888888889",
             "sessionId": "ses_00000000018888888888888888",
@@ -253,6 +275,7 @@ describe("executeToolCallMachine", () => {
             ],
             "durationMs": 0,
             "exitCode": 1,
+            "omittedBytes": 0,
             "output": "pnpm: Shell command failed
         ",
             "spillFilePath": undefined,
@@ -288,21 +311,32 @@ describe("executeToolCallMachine", () => {
 
       expect(updatedPart).toMatchInlineSnapshot(`
         {
-          "errorText": "This action was stopped because it took too long.",
           "input": {
             "command": "pnpm hang-command",
             "explanation": "Installing packages",
-            "timeoutMs": 10,
+            "yieldMs": 10,
           },
           "metadata": {
             "createdAt": 2025-01-01T00:00:00.000Z,
-            "endedAt": 2013-08-31T12:00:01.000Z,
+            "endedAt": 2013-08-31T12:00:02.000Z,
             "id": "prt_00000000ZA8888888888888888",
             "messageId": "msg_00000000018888888888888889",
             "sessionId": "ses_00000000018888888888888888",
             "startedAt": 2013-08-31T12:00:00.000Z,
           },
-          "state": "output-error",
+          "output": {
+            "command": "pnpm hang-command",
+            "commands": [
+              "pnpm",
+            ],
+            "durationMs": 0,
+            "exitCode": 0,
+            "omittedBytes": 0,
+            "output": "mocked all",
+            "spillFilePath": undefined,
+          },
+          "preliminary": false,
+          "state": "output-available",
           "toolCallId": "test_tool_call_1",
           "type": "tool-bash",
         }
@@ -458,162 +492,43 @@ describe("executeToolCallMachine", () => {
     });
   });
 
-  describe("with blocked pnpm commands", () => {
-    async function testBlockedCommand(command: string) {
-      const part = createShellCommandPart(command);
-      await Store.savePart(part, taskConfig);
-      const actor = createTestActor({ part });
+  describe("with pnpm dev and start", () => {
+    async function runShellCommand(command: string) {
+      const requestPart = createShellCommandPart(command);
+      await Store.savePart(requestPart, taskConfig);
+      const actor = createTestActor({ part: requestPart });
       await runTestMachine(actor);
       const sessionResult = await Store.getSessionWithMessagesAndParts(
         sessionId,
         taskConfig,
       );
       const session = sessionResult._unsafeUnwrap();
-      return session.messages
+      const part = session.messages
         .flatMap((m) => m.parts)
         .find(
           (p) => p.type === "tool-bash" && p.toolCallId === "test_tool_call_1",
         );
+      if (part?.type !== "tool-bash") {
+        throw new Error(`No bash part recorded for "${command}"`);
+      }
+      return part;
     }
 
-    it("should block pnpm dev command", async () => {
-      expect(await testBlockedCommand("pnpm dev")).toMatchInlineSnapshot(`
-        {
-          "input": {
-            "command": "pnpm dev",
-            "explanation": "Installing packages",
-            "timeoutMs": 1000,
-          },
-          "metadata": {
-            "createdAt": 2025-01-01T00:00:00.000Z,
-            "endedAt": 2013-08-31T12:00:01.000Z,
-            "id": "prt_00000000ZC8888888888888889",
-            "messageId": "msg_00000000018888888888888889",
-            "sessionId": "ses_00000000018888888888888888",
-            "startedAt": 2013-08-31T12:00:00.000Z,
-          },
-          "output": {
-            "command": "pnpm dev",
-            "commands": [
-              "pnpm",
-            ],
-            "durationMs": 0,
-            "exitCode": 1,
-            "output": "'pnpm dev' is not needed here.
-        The app is already started and running in the sandboxed environment.",
-            "spillFilePath": undefined,
-          },
-          "preliminary": false,
-          "state": "output-available",
-          "toolCallId": "test_tool_call_1",
-          "type": "tool-bash",
+    // These were refused while the runtime was the only thing allowed to serve an
+    // app. A long-running command is now a background process instead, so there
+    // is nothing to refuse.
+    it.each(["pnpm dev", "pnpm run dev", "pnpm start", "pnpm run start"])(
+      "runs %s instead of refusing it",
+      async (command) => {
+        const part = await runShellCommand(command);
+        if (part.state !== "output-available") {
+          throw new Error(`Expected output, got state "${part.state}"`);
         }
-      `);
-    });
-
-    it("should block pnpm start command", async () => {
-      expect(await testBlockedCommand("pnpm start")).toMatchInlineSnapshot(`
-        {
-          "input": {
-            "command": "pnpm start",
-            "explanation": "Installing packages",
-            "timeoutMs": 1000,
-          },
-          "metadata": {
-            "createdAt": 2025-01-01T00:00:00.000Z,
-            "endedAt": 2013-08-31T12:00:01.000Z,
-            "id": "prt_00000000ZD8888888888888888",
-            "messageId": "msg_00000000018888888888888889",
-            "sessionId": "ses_00000000018888888888888888",
-            "startedAt": 2013-08-31T12:00:00.000Z,
-          },
-          "output": {
-            "command": "pnpm start",
-            "commands": [
-              "pnpm",
-            ],
-            "durationMs": 0,
-            "exitCode": 1,
-            "output": "'pnpm start' is not needed here.
-        The app is already started and running in the sandboxed environment.",
-            "spillFilePath": undefined,
-          },
-          "preliminary": false,
-          "state": "output-available",
-          "toolCallId": "test_tool_call_1",
-          "type": "tool-bash",
-        }
-      `);
-    });
-
-    it("should block pnpm run dev command", async () => {
-      expect(await testBlockedCommand("pnpm run dev")).toMatchInlineSnapshot(`
-        {
-          "input": {
-            "command": "pnpm run dev",
-            "explanation": "Installing packages",
-            "timeoutMs": 1000,
-          },
-          "metadata": {
-            "createdAt": 2025-01-01T00:00:00.000Z,
-            "endedAt": 2013-08-31T12:00:01.000Z,
-            "id": "prt_00000000ZE8888888888888888",
-            "messageId": "msg_00000000018888888888888889",
-            "sessionId": "ses_00000000018888888888888888",
-            "startedAt": 2013-08-31T12:00:00.000Z,
-          },
-          "output": {
-            "command": "pnpm run dev",
-            "commands": [
-              "pnpm",
-            ],
-            "durationMs": 0,
-            "exitCode": 1,
-            "output": "'pnpm run dev' is not needed here.
-        The app is already started and running in the sandboxed environment.",
-            "spillFilePath": undefined,
-          },
-          "preliminary": false,
-          "state": "output-available",
-          "toolCallId": "test_tool_call_1",
-          "type": "tool-bash",
-        }
-      `);
-    });
-
-    it("should block pnpm run start command", async () => {
-      expect(await testBlockedCommand("pnpm run start")).toMatchInlineSnapshot(`
-        {
-          "input": {
-            "command": "pnpm run start",
-            "explanation": "Installing packages",
-            "timeoutMs": 1000,
-          },
-          "metadata": {
-            "createdAt": 2025-01-01T00:00:00.000Z,
-            "endedAt": 2013-08-31T12:00:01.000Z,
-            "id": "prt_00000000ZF8888888888888888",
-            "messageId": "msg_00000000018888888888888889",
-            "sessionId": "ses_00000000018888888888888888",
-            "startedAt": 2013-08-31T12:00:00.000Z,
-          },
-          "output": {
-            "command": "pnpm run start",
-            "commands": [
-              "pnpm",
-            ],
-            "durationMs": 0,
-            "exitCode": 1,
-            "output": "'pnpm run start' is not needed here.
-        The app is already started and running in the sandboxed environment.",
-            "spillFilePath": undefined,
-          },
-          "preliminary": false,
-          "state": "output-available",
-          "toolCallId": "test_tool_call_1",
-          "type": "tool-bash",
-        }
-      `);
-    });
+        expect(part.output).toMatchObject({
+          exitCode: 0,
+          output: "mocked all",
+        });
+      },
+    );
   });
 });

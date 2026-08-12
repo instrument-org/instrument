@@ -21,6 +21,14 @@ import {
   agentBrowserCommandDescription,
   createAgentBrowserCommand,
 } from "./shell-commands/agent-browser";
+import {
+  createFgCommand,
+  createJobsCommand,
+  createKillCommand,
+  FG_COMMAND,
+  JOBS_COMMAND,
+  KILL_COMMAND,
+} from "./shell-commands/background-jobs";
 import { createFfmpegCommand, FFMPEG_COMMAND } from "./shell-commands/ffmpeg";
 import {
   createFfprobeCommand,
@@ -151,9 +159,20 @@ const commandOrderPlugin: TransformPlugin<{ commands: string[] }> = {
         }
         case "SimpleCommand": {
           const part = node.name?.parts[0];
-          if (part?.type === "Literal" && !seen.has(part.value)) {
-            seen.add(part.value);
-            commands.push(part.value);
+          if (part?.type === "Literal") {
+            // `wait` is an interpreter builtin, so a custom command cannot
+            // shadow it the way `jobs` and `kill` are shadowed. Left alone it
+            // exits 0 with no output, which reads as "the process finished and
+            // wrote nothing" -- the one wrong answer here that looks right.
+            // Nothing can legitimately reach it either, since `&` is
+            // unsupported and there are never shell jobs to wait for.
+            if (part.value === "wait") {
+              part.value = FG_COMMAND.name;
+            }
+            if (!seen.has(part.value)) {
+              seen.add(part.value);
+              commands.push(part.value);
+            }
           }
           for (const arg of node.args) {
             for (const p of arg.parts) {
@@ -191,6 +210,33 @@ interface CustomCommandDef {
   listInDescription: boolean;
   name: string;
 }
+
+/**
+ * Commands built with the session id rather than the task id. Background
+ * processes are owned by the session that started them, so the commands that
+ * list, wait on and stop them have to be keyed the way the registry is.
+ */
+const SESSION_COMMAND_DEFS: {
+  description: string;
+  factory: (sessionId: StoreId.Session) => ReturnType<typeof defineCommand>;
+  name: string;
+}[] = [
+  {
+    description: JOBS_COMMAND.description,
+    factory: createJobsCommand,
+    name: JOBS_COMMAND.name,
+  },
+  {
+    description: FG_COMMAND.description,
+    factory: createFgCommand,
+    name: FG_COMMAND.name,
+  },
+  {
+    description: KILL_COMMAND.description,
+    factory: createKillCommand,
+    name: KILL_COMMAND.name,
+  },
+];
 
 const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   {
@@ -314,6 +360,7 @@ export function createBashDescription() {
     ...CUSTOM_COMMAND_DEFS.filter((cmd) => cmd.listInDescription).map(
       (cmd) => `  ${cmd.name} - ${cmd.description}`,
     ),
+    ...SESSION_COMMAND_DEFS.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
   ];
 
   const specializedCommands = [...described, ...customLines].join("\n");
@@ -327,7 +374,12 @@ export function createBashDescription() {
 
     IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`${MOUNT.task}\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`${MOUNT.task}\`, the \`${MOUNT.attachedFolders}\` mounts, and \`${MOUNT.skills}\` exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
-    IMPORTANT: Backgrounding is NOT supported. Each call must complete within \`timeoutMs\`.
+    IMPORTANT: Interactive input is not supported -- there is no terminal, so a command that waits at a prompt waits forever. Pass non-interactive flags (\`-y\`, \`--yes\`, \`--no-input\`) instead.
+    A command goes to the background by outliving \`yieldMs\`, NOT by \`&\` (\`&\`, \`nohup\` and \`disown\` are unsupported). A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`${JOBS_COMMAND.name}\`, \`${FG_COMMAND.name}\` and \`${KILL_COMMAND.name}\` manage it from there. Start a server or watcher with a small \`yieldMs\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
+    Those three are ordinary commands, so they compose: \`${FG_COMMAND.name} bg_1 | rg -i error\` filters before you pay for the output, \`${FG_COMMAND.name} bg_1 && ${PNPM_COMMAND.name} test\` runs only on success, and \`${KILL_COMMAND.name} bg_1 bg_2; ${JOBS_COMMAND.name}\` cleans up and confirms in one call.
+    Only output written by real binaries (\`${PNPM_COMMAND.name}\`, \`${TS_COMMAND.name}\`, \`${PYTHON_COMMAND.name}\`, \`${UV_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, ...) streams while a process runs; a long shell pipeline of builtins reports its output only when it finishes.
+
+    IMPORTANT: \`curl\`/\`wget\` refuse private and loopback addresses, so they cannot reach a server you started, and they fail with a bare exit 7 and no message. Make that request from a real process instead: a \`${TS_COMMAND.name}\` or \`${PYTHON_COMMAND.name}\` script fetching \`http://127.0.0.1:<port>/\`. Pick an explicit port when you start the server so you know which one to call.
 
     Prefer specialized tools over shell equivalents:
       - Use the \`${TOOL_NAMES.readFile}\` tool instead of \`cat\`/\`head\`/\`tail\`.
@@ -396,12 +448,16 @@ export async function createBashEnv({
       createRgCommand({ attachedFolders, projectFolderName, taskId }),
       createShowCommand({ sessionId, taskId }),
       ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(taskId)),
+      // After the bundled commands so these shadow just-bash's own `kill` and
+      // `wait`, which act on host pids this sandbox deliberately cannot name.
+      ...SESSION_COMMAND_DEFS.map((cmd) => cmd.factory(sessionId)),
       createWhichCommand(
         new Set([
           AGENT_BROWSER_COMMAND.name,
           SHOW_COMMAND.name,
           ...allowedCommands,
           ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.name),
+          ...SESSION_COMMAND_DEFS.map((cmd) => cmd.name),
         ]),
       ),
       ...STATIC_STUB_COMMANDS,

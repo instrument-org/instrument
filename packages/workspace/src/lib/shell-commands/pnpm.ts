@@ -73,8 +73,6 @@ const PACKAGE_MANAGEMENT_SUBCOMMANDS = new Set([
   "update",
 ]);
 
-const DEV_OR_START = new Set(["dev", "start"]);
-
 export function createNpxCommand(taskId: TaskId) {
   return createDlxAliasCommand(
     NPX_COMMAND.name,
@@ -97,24 +95,6 @@ export function createPnpmCommand(taskId: TaskId) {
     }
     if (subcommand === TS_COMMAND.name) {
       return tsCommand.execute(args.slice(1), ctx);
-    }
-
-    if (
-      DEV_OR_START.has(subcommand ?? "") ||
-      (subcommand === "run" && DEV_OR_START.has(secondArg ?? ""))
-    ) {
-      const fullCmd =
-        subcommand === "run"
-          ? `${PNPM_COMMAND.name} run ${secondArg ?? ""}`
-          : `${PNPM_COMMAND.name} ${subcommand ?? ""}`;
-      return {
-        exitCode: 1,
-        stderr: dedent`
-          '${fullCmd}' is not needed here.
-          The app is already started and running in the sandboxed environment.
-        `,
-        stdout: "",
-      };
     }
 
     if (subcommand === "exec") {

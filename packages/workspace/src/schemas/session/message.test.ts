@@ -158,7 +158,7 @@ describe("SessionMessage.toModelMessages", () => {
             input: {
               command: "sleep 5",
               explanation: "Test command",
-              timeoutMs: 5000,
+              yieldMs: 5000,
             },
             metadata: {
               createdAt: mockDate,
@@ -173,6 +173,7 @@ describe("SessionMessage.toModelMessages", () => {
               commands: ["sleep"],
               durationMs: 0,
               exitCode: 0,
+              omittedBytes: 0,
               output: "",
             },
             preliminary: true,
@@ -199,7 +200,7 @@ describe("SessionMessage.toModelMessages", () => {
               "input": {
                 "command": "sleep 5",
                 "explanation": "Test command",
-                "timeoutMs": 5000,
+                "yieldMs": 5000,
               },
               "providerExecuted": true,
               "toolCallId": "call_789",

@@ -13,7 +13,12 @@ describe("createBashDescription", () => {
 
       IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`/task\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`/task\`, the \`/mnt\` mounts, and \`/skills\` exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
-      IMPORTANT: Backgrounding is NOT supported. Each call must complete within \`timeoutMs\`.
+      IMPORTANT: Interactive input is not supported -- there is no terminal, so a command that waits at a prompt waits forever. Pass non-interactive flags (\`-y\`, \`--yes\`, \`--no-input\`) instead.
+      A command goes to the background by outliving \`yieldMs\`, NOT by \`&\` (\`&\`, \`nohup\` and \`disown\` are unsupported). A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`jobs\`, \`fg\` and \`kill\` manage it from there. Start a server or watcher with a small \`yieldMs\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
+      Those three are ordinary commands, so they compose: \`fg bg_1 | rg -i error\` filters before you pay for the output, \`fg bg_1 && pnpm test\` runs only on success, and \`kill bg_1 bg_2; jobs\` cleans up and confirms in one call.
+      Only output written by real binaries (\`pnpm\`, \`tsx\`, \`python\`, \`uv\`, \`ffmpeg\`, ...) streams while a process runs; a long shell pipeline of builtins reports its output only when it finishes.
+
+      IMPORTANT: \`curl\`/\`wget\` refuse private and loopback addresses, so they cannot reach a server you started, and they fail with a bare exit 7 and no message. Make that request from a real process instead: a \`tsx\` or \`python\` script fetching \`http://127.0.0.1:<port>/\`. Pick an explicit port when you start the server so you know which one to call.
 
       Prefer specialized tools over shell equivalents:
         - Use the \`read_file\` tool instead of \`cat\`/\`head\`/\`tail\`.
@@ -51,7 +56,7 @@ describe("createBashDescription", () => {
       It does not open the file in the user's own applications, does not download anything, and does not raise or focus the app's window.
         ffmpeg - Process audio and video files using FFmpeg.
         ffprobe - Probe and inspect audio and video files using FFprobe.
-        git - Clone and fetch public repositories over http(s), inspect history, branch, and commit locally. No credentials are configured, so private repositories, pushing, and ssh:// remotes are unavailable. Pass commit messages with -m or -F; there is no editor. A large clone may need a raised timeoutMs, and leaves a partial directory to delete if it is cut short.
+        git - Clone and fetch public repositories over http(s), inspect history, branch, and commit locally. No credentials are configured, so private repositories, pushing, and ssh:// remotes are unavailable. Pass commit messages with -m or -F; there is no editor. A large clone that outlives the call keeps running in the background rather than failing, and leaves a partial directory to delete if it is stopped.
         pnpm - CLI tool for managing JavaScript packages. Global installs (--global / -g) are not supported; packages must be installed locally.
         pnx - Alias for pnpm dlx.
         tsx - Execute a TypeScript or JavaScript file. In -e code: relative paths resolve from cwd, quoted "/task/..." strings are bridged; /mnt paths are not available.
@@ -62,7 +67,18 @@ describe("createBashDescription", () => {
         validate-skill - Check a skill written under \`/skills/\` and report what is wrong with it.
       Errors are what the runtime already acts on: a skill that is never discovered, or one \`load_skill\` refuses. Warnings are authoring rules and context budgets.
       Run it after writing or editing a skill -- a skill with broken frontmatter fails silently, by simply never appearing anywhere.
-      Usage: \`validate-skill [<name>...] [--json]\`. With no name it checks every skill in the workspace. Exits non-zero when there are errors."
+      Usage: \`validate-skill [<name>...] [--json]\`. With no name it checks every skill in the workspace. Exits non-zero when there are errors.
+        jobs - List the background processes this session started, with their status, run time and command.
+      Unlike the rest of the shell, this survives across calls: a process started by an earlier call is still listed here. Use it at the start of a turn to find what is already running instead of starting a second copy.
+      Usage: \`jobs [--json]\`.
+        fg - Bring a background process to the foreground: print what it has written since your last read, and block until it exits.
+      Usage: \`fg [<id>...] [--timeout <ms>]\`. With no id it takes everything still running. Exits with the process's own exit code once it finishes, so \`fg bg_1 && pnpm test\` runs the tests only on success.
+      \`--timeout 0\` returns immediately with whatever is pending, which is how you glance at a server that never exits. Otherwise it blocks until the process exits (up to 600000ms), so this is how you wait out a build in one call rather than polling.
+      IMPORTANT: waiting is bounded by this call's own \`yieldMs\` -- to wait longer than that, raise \`yieldMs\` on the \`bash\` call.
+      IMPORTANT: reading consumes -- each call returns only what arrived since the last one, so piping into a filter (\`fg bg_1 | rg error\`) discards the rest. The complete output is always in the process's log file.
+        kill - Stop background processes started by \`bash\`, waiting until each has really exited.
+      Usage: \`kill <id>...\`, where each id is one \`jobs\` reports (\`bg_1\`). A signal flag (\`-9\`) is accepted and ignored; termination always escalates on its own. Killing one that already finished is harmless.
+      Only these ids can be stopped -- there is no access to the machine's own processes, so a bare number is refused."
     `);
   });
 

@@ -20,7 +20,7 @@ export const GIT_COMMAND = {
     `Clone and fetch public repositories over http(s), inspect history, branch, and commit locally. ` +
     `No credentials are configured, so private repositories, pushing, and ssh:// remotes are unavailable. ` +
     `Pass commit messages with -m or -F; there is no editor. ` +
-    `A large clone may need a raised timeoutMs, and leaves a partial directory to delete if it is cut short.`,
+    `A large clone that outlives the call keeps running in the background rather than failing, and leaves a partial directory to delete if it is stopped.`,
   name: "git",
 } as const;
 

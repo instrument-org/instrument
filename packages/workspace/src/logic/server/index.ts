@@ -6,6 +6,7 @@ import {
 import {
   AI_GATEWAY_API_PATH,
   APP_CLIENT_NAME_STUDIO,
+  listenWithPortFallback,
 } from "@instrument-org/shared";
 import { Hono } from "hono";
 import invariant from "tiny-invariant";
@@ -26,7 +27,7 @@ import {
   type WorkspaceServerEnv,
   type WorkspaceServerParentRef,
 } from "./types";
-import { generateWorkspaceServerPort } from "./url";
+import { setWorkspaceServerPort } from "./url";
 import { setupWebSocketProxy } from "./websocket-proxy";
 
 export const workspaceServerLogic = fromCallback<
@@ -86,27 +87,49 @@ export const workspaceServerLogic = fromCallback<
 
   let server: null | ServerType = null;
 
-  void generateWorkspaceServerPort()
-    .then((port) => {
+  void listenWithPortFallback({
+    basePort: DEFAULT_APPS_SERVER_PORT,
+    listen: (port) =>
+      serve({ fetch: app.fetch, hostname: LOOPBACK_HOST, port }),
+  })
+    .then(({ port, server: startedServer }) => {
+      server = startedServer;
+      setWorkspaceServerPort(port);
+
       if (port !== DEFAULT_APPS_SERVER_PORT) {
         input.workspaceConfig.captureEvent("workspace.non_default_port", {
           apps_server_port: port,
         });
       }
-      server = serve({ fetch: app.fetch, hostname: LOOPBACK_HOST, port });
 
-      setupWebSocketProxy(server, input.parentRef);
-      setupCdpWebSocketBridge(server, input.workspaceConfig, input.parentRef);
+      // A socket error on a listening server is otherwise unhandled, and an
+      // unhandled one in the main process takes the app down with it.
+      startedServer.on("error", (error) => {
+        input.workspaceConfig.captureException(
+          new Error("Workspace server error", { cause: error }),
+        );
+      });
+
+      setupWebSocketProxy(startedServer, input.parentRef);
+      setupCdpWebSocketBridge(
+        startedServer,
+        input.workspaceConfig,
+        input.parentRef,
+      );
 
       input.parentRef.send({
         type: "workspaceServer.started",
         value: { port },
       });
     })
-    .catch(() => {
+    .catch((error: unknown) => {
       input.parentRef.send({
         type: "workspaceServer.error",
-        value: { error: new Error("Failed to generate workspace server port") },
+        value: {
+          error: new Error("Failed to start the workspace server", {
+            cause: error,
+          }),
+        },
       });
     });
 

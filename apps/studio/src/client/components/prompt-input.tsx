@@ -71,7 +71,34 @@ import { PromptEditor, type PromptEditorRef } from "./prompt-editor";
 import { SessionContextRing } from "./session-context-ring";
 import { Spinner } from "./ui/spinner";
 
+/** Seed the composer with attachments already on a message being edited. */
+export type PromptInputInitialItem =
+  | {
+      access: FolderAttachment.Access;
+      path: string;
+      type: "folder";
+    }
+  | {
+      mimeType: string;
+      name: string;
+      relativePath: string;
+      size: number;
+      type: "file";
+      url?: string;
+    };
+
 type AttachedItem =
+  | {
+      // A file already on the message being edited. Submitting keeps it by
+      // relative path rather than re-uploading.
+      id: string;
+      mimeType: string;
+      name: string;
+      relativePath: string;
+      size: number;
+      type: "file";
+      url?: string;
+    }
   | {
       access: FolderAttachment.Access;
       id: string;
@@ -127,21 +154,29 @@ interface PromptInputProps {
   className?: string;
   disabled?: boolean;
   draftKey: PromptDraftKey;
+  // Window-level drag-and-drop. Off for an inline edit composer so drops still
+  // land on the main task composer (and only one overlay paints).
+  enableWindowFileDrop?: boolean;
   // Which side of the composer the attached folders are listed on. Below on the
   // surfaces a prompt is composed from scratch; above where the composer is
   // already pinned to the bottom of the window.
   folderTrayPlacement?: "above" | "below";
   id?: TaskId;
+  // Attachments to show when the composer mounts (edit-message rehydration).
+  initialItems?: PromptInputInitialItem[];
   isLoading: boolean;
   isStoppable?: boolean;
   isSubmittable?: boolean;
   modelURI?: AIGatewayModelURI.Type;
+  onCancel?: () => void;
+  onFocus?: () => void;
   onFolderCountChange?: (count: number) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onStop?: () => void;
   onSubmit: (value: {
     files?: FileUpload.Input[];
     folders?: { access: FolderAttachment.Access; path: string }[];
+    keepFilePaths?: string[];
     modelURI: AIGatewayModelURI.Type;
     openInNewTab?: boolean;
     projectId?: null | ProjectId;
@@ -165,12 +200,16 @@ export const PromptInput = ({
   className,
   disabled = false,
   draftKey,
+  enableWindowFileDrop = true,
   folderTrayPlacement = "below",
   id,
+  initialItems,
   isLoading,
   isStoppable = false,
   isSubmittable = true,
   modelURI,
+  onCancel,
+  onFocus,
   onFolderCountChange,
   onModelChange,
   onStop,
@@ -183,7 +222,13 @@ export const PromptInput = ({
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
   const focusSignal = useAtomValue(promptFocusSignalAtom(useTabId()));
-  const [attachedItems, setAttachedItems] = useState<AttachedItem[]>([]);
+  const [attachedItems, setAttachedItems] = useState<AttachedItem[]>(() =>
+    (initialItems ?? []).map((item) =>
+      item.type === "folder"
+        ? { ...item, id: ulid() }
+        : { ...item, id: ulid() },
+    ),
+  );
   const [selectedProjectId, setSelectedProjectId] = useState<null | ProjectId>(
     null,
   );
@@ -362,7 +407,7 @@ export const PromptInput = ({
   };
 
   const { isDragging } = useWindowFileDrop({
-    enabled: isActiveTab,
+    enabled: enableWindowFileDrop && isActiveTab,
     onFilesDropped: processFiles,
     onFoldersDropped: (folders: DroppedFolder[]) => {
       // Split the drop against the rendered list so the toast happens here,
@@ -501,6 +546,18 @@ export const PromptInput = ({
 
   const attachedFiles = attachedItems.filter((i) => i.type === "file");
   const attachedFolders = attachedItems.filter((i) => i.type === "folder");
+  const keptFiles = attachedFiles.filter(
+    (file): file is Extract<AttachedItem, { relativePath: string }> =>
+      "relativePath" in file,
+  );
+  const newAttachedFiles = attachedFiles.filter(
+    (
+      file,
+    ): file is Exclude<
+      Extract<AttachedItem, { type: "file" }>,
+      { relativePath: string }
+    > => !("relativePath" in file),
+  );
   const folderAccessList: FolderAccess[] = attachedFolders.map((folder) => ({
     access: folder.access,
     path: folder.path,
@@ -615,8 +672,8 @@ export const PromptInput = ({
 
     onSubmit({
       files:
-        attachedFiles.length > 0
-          ? attachedFiles.map((f) => ({
+        newAttachedFiles.length > 0
+          ? newAttachedFiles.map((f) => ({
               filename: f.name,
               ...("path" in f
                 ? {
@@ -633,6 +690,10 @@ export const PromptInput = ({
               access: folder.access,
               path: folder.path,
             }))
+          : undefined,
+      keepFilePaths:
+        keptFiles.length > 0
+          ? keptFiles.map((file) => file.relativePath)
           : undefined,
       modelURI,
       openInNewTab,
@@ -916,7 +977,9 @@ export const PromptInput = ({
           defaultValue={value}
           disabled={disabled || isLoading}
           key={draftKeyString(draftKey)}
+          onCancel={onCancel}
           onChange={setValue}
+          onFocus={onFocus}
           onPaste={handlePaste}
           onSubmit={(modifierPressed) => {
             handleSubmit(allowOpenInNewTab && modifierPressed);

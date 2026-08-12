@@ -163,7 +163,9 @@ export function PromptEditor({
   autoFocus,
   defaultValue,
   disabled,
+  onCancel,
   onChange,
+  onFocus,
   onPaste,
   onSubmit,
   placeholder,
@@ -176,7 +178,9 @@ export function PromptEditor({
   /** Read once, when the document is built. Later changes are ignored. */
   defaultValue: string;
   disabled: boolean;
+  onCancel?: () => void;
   onChange: (value: string) => void;
+  onFocus?: () => void;
   onPaste: (event: ClipboardEvent) => boolean;
   onSubmit: (openInNewTab: boolean) => void;
   placeholder?: string;
@@ -190,7 +194,9 @@ export function PromptEditor({
   const menuRef = useRef<null | { from: number; query: string; to: number }>(
     null,
   );
+  const onCancelRef = useRef(onCancel);
   const onChangeRef = useRef(onChange);
+  const onFocusRef = useRef(onFocus);
   const onPasteRef = useRef(onPaste);
   const onSubmitRef = useRef(onSubmit);
   const [menu, setMenu] = useState<null | {
@@ -223,11 +229,22 @@ export function PromptEditor({
   useEffect(() => {
     actionsRef.current = actions;
     skillsRef.current = skills;
+    onCancelRef.current = onCancel;
     onChangeRef.current = onChange;
+    onFocusRef.current = onFocus;
     onPasteRef.current = onPaste;
     onSubmitRef.current = onSubmit;
     selectedIndexRef.current = selectedIndex;
-  }, [actions, onChange, onPaste, onSubmit, selectedIndex, skills]);
+  }, [
+    actions,
+    onCancel,
+    onChange,
+    onFocus,
+    onPaste,
+    onSubmit,
+    selectedIndex,
+    skills,
+  ]);
   const entries = menu ? menuEntries(actions, skills, menu.query) : [];
   // Where the skills start, so the rule that names them is drawn once and only
   // when there is something above it to separate them from.
@@ -298,6 +315,10 @@ export function PromptEditor({
           setMenu(null);
           return false;
         },
+        focus: () => {
+          onFocusRef.current?.();
+          return false;
+        },
         paste: (_view, event) => onPasteRef.current(event),
       },
       handleKeyDown: (_view, event) => {
@@ -337,6 +358,11 @@ export function PromptEditor({
             }
             return true;
           }
+        }
+        if (event.key === "Escape" && onCancelRef.current) {
+          event.preventDefault();
+          onCancelRef.current();
+          return true;
         }
         if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
           event.preventDefault();

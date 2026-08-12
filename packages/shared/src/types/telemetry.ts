@@ -60,6 +60,9 @@ export interface AnalyticsEvents {
   "message.created": WithModelProperties<{
     files_count: number;
   }>;
+  "message.restarted": WithModelProperties<{
+    files_count: number;
+  }>;
   "model_picker.model_selected": WithModelProperties;
   "model_picker.opened": never;
   "model_picker.searched": {

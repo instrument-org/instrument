@@ -45,6 +45,7 @@ import { useReleaseAutoScroll } from "./transcript-scroll-context";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
 import { MessageScrollerItem } from "./ui/message-scroller";
+import { type UserMessageEditSubmit } from "./user-message";
 import { Wordmark } from "./wordmark";
 
 // How far the rows a group holds sit inside its head line: one step in, enough
@@ -102,17 +103,27 @@ interface ChatStreamProps {
    * or not anything is in it -- the playback page measures exactly that.
    */
   alwaysShowFooter?: boolean;
+  editingMessageId?: StoreId.Message;
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
+  isEditPending?: boolean;
   messages: SessionMessage.WithParts[];
+  modelURI?: AIGatewayModelURI.Type;
+  onCancelEdit?: () => void;
   onContinue: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
+  onStartEdit?: (message: SessionMessage.UserWithParts) => void;
   onStartNewTask: () => void;
+  onSubmitEdit?: (
+    message: SessionMessage.UserWithParts,
+    value: UserMessageEditSubmit,
+  ) => void;
   // Wrap each turn in a MessageScrollerItem so the transcript scroller can
   // anchor turns. Only the top-level transcript sets this; nested tool-agent
   // streams render flat.
   renderAsItems?: boolean;
+  selectedSessionId?: StoreId.Session;
   task: Task;
 }
 
@@ -129,14 +140,21 @@ interface MessageRow {
 
 export function ChatStream({
   alwaysShowFooter = false,
+  editingMessageId,
   isAgentRunning,
   isDeveloperMode,
+  isEditPending = false,
   messages,
+  modelURI,
+  onCancelEdit,
   onContinue,
   onModelChange,
   onRetry,
+  onStartEdit,
   onStartNewTask,
+  onSubmitEdit,
   renderAsItems = false,
+  selectedSessionId,
   task,
 }: ChatStreamProps) {
   const assetBaseUrl = getAssetBaseUrl(task.id);
@@ -205,11 +223,28 @@ export function ChatStream({
 
   const renderCtx: RenderPartContext = {
     assetBaseUrl,
+    discardCountForMessage: (messageId) => {
+      const index = regularMessages.findIndex(
+        (message) => message.id === messageId,
+      );
+      if (index === -1) {
+        return 0;
+      }
+      return regularMessages.length - index - 1;
+    },
+    editingMessageId,
     isAgentRunning,
     isDeveloperMode,
+    isEditPending,
     isToolStreaming,
     lastMessageId,
+    modelURI,
+    onCancelEdit,
+    onModelChange,
     onRetry,
+    onStartEdit,
+    onSubmitEdit,
+    selectedSessionId,
     task,
   };
 
@@ -290,7 +325,18 @@ export function ChatStream({
     let turnRows: React.ReactNode[] = [];
     let turnId: StoreId.Message | undefined;
 
+    const editingMessageIndex = editingMessageId
+      ? regularMessages.findIndex((message) => message.id === editingMessageId)
+      : -1;
+
     for (const [messageIndex, message] of regularMessages.entries()) {
+      // While a past prompt is being edited, everything after it is about to
+      // go away — keep it readable but clearly secondary.
+      const isDimmed =
+        editingMessageIndex !== -1 && messageIndex > editingMessageIndex;
+      const dimClass = isDimmed
+        ? "pointer-events-none opacity-60 transition-opacity"
+        : undefined;
       const messageRows: MessageRow[] = [];
 
       const nextMessage = regularMessages[messageIndex + 1];
@@ -394,6 +440,7 @@ export function ChatStream({
       }
 
       if (message.role === "user") {
+        const isEditingThisMessage = editingMessageId === message.id;
         const fileAttachmentsPart = fileAttachments.find(
           (part) => part.type === "data-attachments",
         );
@@ -418,7 +465,9 @@ export function ChatStream({
         );
         const files = attachmentsData?.files ?? [];
 
-        if (files.length > 0) {
+        // While editing, the inline composer carries files and folders itself,
+        // so the read-only cards above the bubble would double them.
+        if (!isEditingThisMessage && files.length > 0) {
           messageElements.unshift(
             <AttachmentsCard
               assetBaseUrl={assetBaseUrl}
@@ -431,7 +480,7 @@ export function ChatStream({
 
         // Above the files, matching the composer, where the folder tray sits
         // over the prompt and its attachments.
-        if (userFolders.length > 0) {
+        if (!isEditingThisMessage && userFolders.length > 0) {
           messageElements.unshift(
             <FolderAttachmentsCard
               folders={userFolders}
@@ -440,7 +489,7 @@ export function ChatStream({
           );
         }
 
-        if (projectData) {
+        if (!isEditingThisMessage && projectData) {
           messageElements.unshift(
             <ProjectContextNote
               data={projectData}
@@ -514,14 +563,14 @@ export function ChatStream({
             elements.push(
               renderAsItems ? (
                 <MessageScrollerItem
-                  className={TURN_BOX}
+                  className={cn(TURN_BOX, dimClass)}
                   key={turnId}
                   messageId={turnId}
                 >
                   {turnRows}
                 </MessageScrollerItem>
               ) : (
-                <div className={TURN_BOX} key={turnId}>
+                <div className={cn(TURN_BOX, dimClass)} key={turnId}>
                   {turnRows}
                 </div>
               ),
@@ -539,7 +588,7 @@ export function ChatStream({
         elements.push(
           renderAsItems ? (
             <MessageScrollerItem
-              className={SENT_BOX}
+              className={cn(SENT_BOX, dimClass)}
               key={message.id}
               messageId={message.id}
               scrollAnchor
@@ -547,7 +596,7 @@ export function ChatStream({
               {messageElements}
             </MessageScrollerItem>
           ) : (
-            <div className={SENT_BOX} key={message.id}>
+            <div className={cn(SENT_BOX, dimClass)} key={message.id}>
               {messageElements}
             </div>
           ),

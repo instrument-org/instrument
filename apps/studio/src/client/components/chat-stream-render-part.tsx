@@ -1,8 +1,10 @@
 import { pathsNamedInMessage } from "@/client/lib/paths-named-in-message";
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   isToolPart,
   type SessionMessage,
   type SessionMessagePart,
+  type StoreId,
   type Task,
 } from "@instrument-org/workspace/client";
 
@@ -16,18 +18,30 @@ import {
 import { ReasoningMessage } from "./reasoning-message";
 import { isReasoningPartVisible } from "./reasoning-utils";
 import { UnknownPart } from "./unknown-part";
-import { UserMessage } from "./user-message";
+import { UserMessage, type UserMessageEditSubmit } from "./user-message";
 
 export interface RenderPartContext {
   assetBaseUrl: string;
+  discardCountForMessage?: (messageId: StoreId.Message) => number;
+  editingMessageId?: StoreId.Message;
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
+  isEditPending?: boolean;
   isToolStreaming: (
     part: SessionMessagePart.ToolPart,
     message: SessionMessage.WithParts,
   ) => boolean;
   lastMessageId: string | undefined;
+  modelURI?: AIGatewayModelURI.Type;
+  onCancelEdit?: () => void;
+  onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
+  onStartEdit?: (message: SessionMessage.UserWithParts) => void;
+  onSubmitEdit?: (
+    message: SessionMessage.UserWithParts,
+    value: UserMessageEditSubmit,
+  ) => void;
+  selectedSessionId?: StoreId.Session;
   task: Task;
 }
 
@@ -74,7 +88,30 @@ export function renderChatPart({
         );
       }
       case "user": {
-        return <UserMessage key={part.metadata.id} part={part} />;
+        return (
+          <UserMessage
+            assetBaseUrl={ctx.assetBaseUrl}
+            discardCount={ctx.discardCountForMessage?.(message.id) ?? 0}
+            isEditing={ctx.editingMessageId === message.id}
+            isEditPending={ctx.isEditPending}
+            key={part.metadata.id}
+            message={message}
+            modelURI={ctx.modelURI}
+            onCancelEdit={ctx.onCancelEdit}
+            onModelChange={ctx.onModelChange}
+            onStartEdit={
+              ctx.onStartEdit ? () => ctx.onStartEdit?.(message) : undefined
+            }
+            onSubmitEdit={
+              ctx.onSubmitEdit
+                ? (value) => ctx.onSubmitEdit?.(message, value)
+                : undefined
+            }
+            part={part}
+            selectedSessionId={ctx.selectedSessionId}
+            taskId={ctx.task.id}
+          />
+        );
       }
       // session-context messages are filtered out before this loop, so they
       // never reach here.

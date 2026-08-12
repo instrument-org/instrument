@@ -14,16 +14,29 @@ import { UserMessage } from "./user-message";
 // whether it is clipping anything and requires the affordance to agree, which
 // keeps holding if the clamp is ever retuned.
 
-const messagePart = (text: string) => ({
-  metadata: {
-    createdAt: new Date("2026-01-01T00:00:00Z"),
-    id: StoreId.newPartId(),
-    messageId: StoreId.newMessageId(),
-    sessionId: StoreId.newSessionId(),
-  },
-  text,
-  type: "text" as const,
-});
+const messagePart = (text: string) => {
+  const messageId = StoreId.newMessageId();
+  const sessionId = StoreId.newSessionId();
+  const part = {
+    metadata: {
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      id: StoreId.newPartId(),
+      messageId,
+      sessionId,
+    },
+    text,
+    type: "text" as const,
+  };
+  return {
+    message: {
+      id: messageId,
+      metadata: { createdAt: part.metadata.createdAt, sessionId },
+      parts: [part],
+      role: "user" as const,
+    },
+    part,
+  };
+};
 
 // One line of copy per line of text, so a case's height follows its line count
 // instead of where the words happen to wrap.
@@ -31,11 +44,12 @@ const lines = (count: number) =>
   Array.from({ length: count }, (_, index) => `line ${index + 1}`).join("\n");
 
 async function renderMessage(text: string) {
+  const { message, part } = messagePart(text);
   await renderInBrowser(
     // The bubble is sized as a share of its parent, so the parent needs a width
     // before any of it can be measured.
     <div style={{ width: 600 }}>
-      <UserMessage part={messagePart(text)} />
+      <UserMessage message={message} part={part} />
     </div>,
   );
 

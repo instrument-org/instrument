@@ -2,6 +2,7 @@ import { featuresAtom } from "@/client/atoms/features";
 import {
   promptDraftRefAtom,
   promptFocusSignalAtom,
+  setPromptDraftAtom,
   useHydrateTaskDraft,
 } from "@/client/atoms/prompt-value";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
@@ -14,7 +15,11 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { type StoreId, type Task } from "@instrument-org/workspace/client";
+import {
+  type SessionMessage,
+  type StoreId,
+  type Task,
+} from "@instrument-org/workspace/client";
 import {
   skipToken,
   useMutation,
@@ -22,7 +27,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useAtomValue } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import {
   type ComponentProps,
   useEffect,
@@ -48,6 +53,7 @@ import {
 } from "../ui/message-scroller";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { type UserMessageEditSubmit } from "../user-message";
 import { ChatZeroState } from "./chat-zero-state";
 import { QueuedPrompts } from "./queued-prompts";
 import { TutorialPromptCard } from "./tutorial-prompt-card";
@@ -100,6 +106,15 @@ export function TaskChat({
       },
     }),
   );
+  const restartFromMessage = useMutation(
+    rpcClient.workspace.message.restartFrom.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to restart from edit", {
+          description: error.message,
+        });
+      },
+    }),
+  );
   const stopSessions = useMutation(
     rpcClient.workspace.session.stop.mutationOptions(),
   );
@@ -125,6 +140,10 @@ export function TaskChat({
   >(initialSelectedModelURI);
   const [lastInitialSelectedModelURI, setLastInitialSelectedModelURI] =
     useState(initialSelectedModelURI);
+  const [editingMessageId, setEditingMessageId] = useState<
+    StoreId.Message | undefined
+  >();
+  const setPromptDraft = useSetAtom(setPromptDraftAtom);
 
   if (initialSelectedModelURI !== lastInitialSelectedModelURI) {
     setLastInitialSelectedModelURI(initialSelectedModelURI);
@@ -203,6 +222,19 @@ export function TaskChat({
     });
   };
 
+  const handleStartEdit = (message: SessionMessage.UserWithParts) => {
+    const textPart = message.parts.find((part) => part.type === "text");
+    setPromptDraft({
+      key: { id: `edit:${message.id}`, scope: "transient" },
+      update: textPart?.type === "text" ? textPart.text : "",
+    });
+    setEditingMessageId(message.id);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(undefined);
+  };
+
   const handleStartNewTask = () => {
     if (task.projectId) {
       void navigate({
@@ -233,17 +265,55 @@ export function TaskChat({
     },
   });
 
+  const handleSubmitEdit = (
+    message: SessionMessage.UserWithParts,
+    value: UserMessageEditSubmit,
+  ) => {
+    if (!selectedSessionId) {
+      return;
+    }
+    // A restart replaces everything from this message forward, so a queued
+    // follow-up would land on a transcript that no longer matches it.
+    clear();
+    restartFromMessage.mutate(
+      {
+        files: value.files,
+        folders: value.folders,
+        id,
+        keepFilePaths: value.keepFilePaths,
+        messageId: message.id,
+        modelURI: value.modelURI,
+        prompt: value.prompt,
+        sessionId: selectedSessionId,
+      },
+      {
+        onSuccess: () => {
+          setEditingMessageId(undefined);
+          setSelectedModelURI(value.modelURI);
+          setIsFollowingSubmit(true);
+          setScrollToEndSignal((signal) => signal + 1);
+        },
+      },
+    );
+  };
+
   const isActiveTab = useIsActiveTab();
   const focusSignal = useAtomValue(promptFocusSignalAtom(useTabId()));
   const draftKey = { scope: "task", taskId: id } as const;
   const promptEditor = useAtomValue(promptDraftRefAtom(draftKey));
   useLayoutEffect(() => {
-    if (!isActiveTab) {
+    if (!isActiveTab || editingMessageId) {
       return;
     }
     promptEditor?.focus();
     promptEditor?.moveCaretToEnd();
-  }, [isActiveTab, focusSignal, selectedSessionId, promptEditor]);
+  }, [
+    isActiveTab,
+    focusSignal,
+    selectedSessionId,
+    promptEditor,
+    editingMessageId,
+  ]);
 
   const [isTutorialDismissed, setIsTutorialDismissed] = useState(false);
   const [composerFolderCount, setComposerFolderCount] = useState(0);
@@ -266,7 +336,7 @@ export function TaskChat({
 
   const promptInput = (
     <PromptInput
-      autoFocus
+      autoFocus={!editingMessageId}
       className="relative z-10"
       draftKey={draftKey}
       folderTrayPlacement="above"
@@ -275,6 +345,13 @@ export function TaskChat({
       isStoppable={isAgentAlive}
       isSubmittable={isQueueEnabled ? true : !isAgentAlive}
       modelURI={selectedModelURI}
+      onFocus={() => {
+        // Focusing the follow-up composer is choosing it over an in-progress
+        // edit, so leave edit mode rather than keep two composers live.
+        if (editingMessageId) {
+          handleCancelEdit();
+        }
+      }}
       onFolderCountChange={setComposerFolderCount}
       onModelChange={setSelectedModelURI}
       onStop={() => {
@@ -422,13 +499,20 @@ export function TaskChat({
                   />
                 ) : (
                   <TranscriptStream
+                    editingMessageId={editingMessageId}
                     isAgentRunning={isAgentRunning}
                     isDeveloperMode={isDeveloperMode}
+                    isEditPending={restartFromMessage.isPending}
                     messages={messages}
+                    modelURI={selectedModelURI}
+                    onCancelEdit={handleCancelEdit}
                     onContinue={handleContinue}
                     onModelChange={setSelectedModelURI}
                     onRetry={handleRetry}
+                    onStartEdit={handleStartEdit}
                     onStartNewTask={handleStartNewTask}
+                    onSubmitEdit={handleSubmitEdit}
+                    selectedSessionId={selectedSessionId}
                     task={task}
                   />
                 )

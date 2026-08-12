@@ -320,11 +320,18 @@ describe("Studio Smoke Test", () => {
       );
     }
 
+    // Some editor integrations export ELECTRON_RUN_AS_NODE, and a GUI launch
+    // that inherits it runs as plain Node: no window, no output, no crash
+    // report, which reads like a signing or bundle failure rather than an
+    // environment one.
+    const appEnv: NodeJS.ProcessEnv = { ...process.env };
+    delete appEnv.ELECTRON_RUN_AS_NODE;
+
     const electronApp = await electron.launch({
       args:
         process.platform === "linux" ? ["--no-sandbox", "--disable-gpu"] : [],
       env: {
-        ...(process.env as Record<string, string>),
+        ...(appEnv as Record<string, string>),
         DISABLE_AUTO_UPDATE_POLLING: "true",
         ELECTRON_ENABLE_CONSOLE_LOGGING: "true",
         ELECTRON_USER_DATA_DIR: tempUserDataDir,

@@ -117,7 +117,7 @@ function SettingsModalContent({
       <DialogTitle className="sr-only">Settings</DialogTitle>
       <div className="absolute top-3 right-3 z-10">
         <DialogClose asChild>
-          <Button aria-label="Close" type="button" variant="outline">
+          <Button aria-label="Close" type="button" variant="outline-opaque">
             <XIcon className="size-4" />
           </Button>
         </DialogClose>

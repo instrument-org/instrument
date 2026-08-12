@@ -88,8 +88,10 @@ Worth separating, because the intuition that they are the same kind of waste doe
 
 20 `perfectionist` sort rules are on via `recommended-natural`, plus `yml/sort-keys`, `yml/sort-sequence-values`, and `jsonc/sort-keys`. All are auto-fixable, and the `Stop` hook in [.claude/settings.json](../../.claude/settings.json) runs `eslint --fix` over changed files. Agents are not paying for these; the hook is.
 
-The evidence that they are not fighting the code: **3 `eslint-disable` comments for perfectionist rules in the entire repo**. A rule set that needed constant escape hatches would show it here. The real cost is diff noise and the "the file changed after I wrote it" surprise, which AGENTS.md already warns about.
+The evidence that they are not fighting the code: **4 `eslint-disable` comments for perfectionist rules in the entire repo**. A rule set that needed constant escape hatches would show it here. The real cost is diff noise and the "the file changed after I wrote it" surprise, which AGENTS.md already warns about.
 
-One rule is worth a second look. `perfectionist/sort-modules` orders top-level declarations, which forbids narrative ordering (entry point first, helpers below). It is the only sort rule that overrides a meaningful ordering rather than imposing one where none existed; the rest sort things with no natural order, which is exactly where alphabetization pays. `sort-objects` is already mitigated with `partitionByComment: true`.
+All four disable `sort-objects`, and each marks an object whose key order carries meaning: route option objects, and [write-file.ts](../../packages/workspace/src/tools/write-file.ts), where the path key goes first so the model emits it first. That is the rule's known failure mode and `partitionByComment: true` already absorbs most of it; four hand-written exceptions is a fair price.
+
+`sort-modules` is the rule to suspect on paper, since ordering top-level declarations forbids narrative order (entry point first, helpers below). It has no disables anywhere in the repo, so on the evidence it is not costing anything. Left alone.
 
 `knip` and the type-aware oxlint rules are not in this category at all. They find real defects and should stay as they are.

@@ -85,12 +85,19 @@ export function TaskToolbar({
   return (
     <>
       <div className="group/task-header w-full bg-background p-3">
-        <div className="flex min-w-0 items-center gap-x-2 overflow-hidden">
+        {/*
+          Neither row on the title's side clips. The title's hover surface is
+          pulled out past its text by its own padding, and the title is the
+          first thing in the row, so a clip here shaves that bleed off against
+          the header's left edge -- leaving a square corner with the fill flush
+          against the first letter. Every crumb truncates itself instead.
+        */}
+        <div className="flex min-w-0 items-center gap-x-2">
           {/*
             The title and its overflow menu travel together, so the menu reads
             as acting on the task named beside it rather than on the view.
           */}
-          <div className="flex min-w-0 flex-1 items-center gap-x-2 overflow-hidden">
+          <div className="flex min-w-0 flex-1 items-center gap-x-2">
             <TaskBreadcrumb
               rename={rename}
               renderMenuItems={renderMenuItems}

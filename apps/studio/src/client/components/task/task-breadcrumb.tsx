@@ -51,9 +51,9 @@ export function TaskBreadcrumb({
       // not a rect: the app scales with CSS zoom, and only layout px can be
       // handed straight back to a style width.
       //
-      // Its focus ring is inset for the same reason the toolbar buttons inset
-      // theirs: the row around it clips an outward one, and here the row is
-      // exactly as tall as the input's own line.
+      // Its focus ring is inset, like the toolbar buttons beside it: the row
+      // is exactly as tall as the input's own line, so an outward ring would
+      // sit on whatever shares the row rather than around the field.
       <div
         className="flex h-8 max-w-96 min-w-0 shrink items-center px-1"
         style={{ width: fieldWidth ?? RENAME_FIELD_DEFAULT_WIDTH }}

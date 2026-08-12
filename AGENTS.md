@@ -76,7 +76,7 @@ A format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`) runs oxfm
 
 After a manual `git worktree add`, run `.claude/hooks/worktree-setup.sh <path-to-worktree>`: copies the gitignored env files (required to boot Studio), inits `registry/`, installs deps. Idempotent. Hooks do this automatically only for sessions started inside a worktree or via EnterWorktree.
 
-Multiple worktrees can run Studio at once (`pnpm dev:studio` from the root, or `pnpm dev` inside `apps/studio`): dev skips the single-instance lock, shares one dev userData dir, and all server ports fall back to free ones. For CDP, give each instance a distinct `REMOTE_DEBUGGING_PORT`.
+Multiple worktrees can run Studio at once: dev skips the single-instance lock, and the servers an instance binds fall back past the ports another one holds. Start one with `studio-drive.mjs boot` (`studio-chrome-devtools` skill) rather than `pnpm dev` directly, so a checkout that already has an instance reuses it and the CDP port comes from the checkout path instead of from a guess. They all share one dev userData dir, so two instances are also two writers of one set of preferences and one workspace; `boot --workspace <fixture>` gets a disposable one instead.
 
 ## Tests
 

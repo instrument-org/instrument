@@ -90,15 +90,36 @@ behavior is worth guarding permanently. Details in
 ## Rung 4: the running app
 
 ```bash
-pnpm dev:studio
+node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs boot
 ```
 
-Hot reloads all three targets, including main-process changes. Then:
+Start it this way and no other. `boot` reuses the instance already running for
+this checkout instead of adding a second one, takes a debug port derived from
+the checkout path so two checkouts never contend for one, and records what it
+started so it can be stopped again. It runs the same `electron-vite dev`
+underneath, so main-process edits still relaunch the app and renderer edits
+still hot reload: an edit landing mid-run resets the state you navigated to.
 
-- Drive it or inspect the DOM: `studio-chrome-devtools` skill (CDP on port
-  48160).
+- Drive it, inspect the DOM, or call an RPC route: `studio-chrome-devtools`
+  skill.
 - Read main-process logs: `studio-dev-logs` skill.
 - Headless or in a VM: `.agents/cloud-dev.md`.
+- `studio-drive.mjs stop` when the check is done, unless you booted it for
+  someone to look at.
+
+Three things not to do, each of which costs someone else their session:
+
+- **`pnpm dev` or `pnpm dev:studio` with a `REMOTE_DEBUGGING_PORT` you picked.**
+  A hand-picked port is either already a window someone is using, and you will
+  connect to their app and report confidently about the wrong code, or it is
+  nobody's, and nothing can drive what you just started. Either way it is a
+  second copy of an app that was probably already running.
+- **`pkill -f electron-vite`, `pkill -f Electron`, or any sweep naming neither a
+  pid nor a checkout.** Agents and a human share this machine, and those
+  patterns kill every instance on it. `stop` targets the one it started.
+- **`pnpm dev:web` as a stand-in.** It serves the renderer with the Electron
+  boundary replaced by fixtures, for design work. Nothing behind that boundary
+  runs, so it can neither confirm nor deny that a change works.
 
 ## Inspecting a run afterwards
 

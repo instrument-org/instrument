@@ -675,10 +675,18 @@ describe("ChatStream and the footer of a finished turn", () => {
  * rest is layout, and jsdom has none; this is only the marking.
  */
 describe("ChatStream and the turn the scroller anchors", () => {
+  // A row is labeled by its message rather than by everything under it: the
+  // hover footer carries a timestamp, and which day an instant falls on depends
+  // on the time zone the suite runs in.
   const anchoring = (container: HTMLElement) =>
     [...container.querySelectorAll<HTMLElement>("[data-scroll-anchor]")].map(
-      (item) =>
-        `${item.dataset.scrollAnchor ?? ""} ${item.textContent.slice(0, 20)}`,
+      (item) => {
+        const message =
+          item.querySelector<HTMLElement>(
+            '[data-slot="user-message-content"]',
+          ) ?? item;
+        return `${item.dataset.scrollAnchor ?? ""} ${message.textContent.slice(0, 20)}`;
+      },
     );
 
   // Two rows for a two-message reply would be two rows the scroller has to
@@ -696,7 +704,7 @@ describe("ChatStream and the turn the scroller anchors", () => {
 
     expect(anchoring(container)).toMatchInlineSnapshot(`
       [
-        "true How did we do?Dec 31",
+        "true How did we do?",
         "false Reading the first qu",
       ]
     `);
@@ -713,7 +721,7 @@ describe("ChatStream and the turn the scroller anchors", () => {
 
     expect(anchoring(container)).toMatchInlineSnapshot(`
       [
-        "true How did we do?Dec 31",
+        "true How did we do?",
         "false Planning",
       ]
     `);

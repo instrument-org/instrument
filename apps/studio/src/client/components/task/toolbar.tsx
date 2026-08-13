@@ -18,6 +18,7 @@ import { type MenuComponents } from "../ui/menu-components";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { TaskActionsMenu, TaskActionsMenuItems } from "./actions-menu";
 import { PaneToggle } from "./pane-toggle";
+import { TaskBackgroundProcesses } from "./task-background-processes";
 import { TaskBreadcrumb } from "./task-breadcrumb";
 import { TaskFiles } from "./task-files";
 import { TaskTranscriptViewer } from "./transcript-viewer";
@@ -107,6 +108,11 @@ export function TaskToolbar({
             <div className="shrink-0">
               <TaskActionsMenu renderMenuItems={renderMenuItems} />
             </div>
+
+            {/* After the title's own menu, so it reads as a fact about the
+                task rather than an action on it. Absent whenever nothing is
+                running, which is almost always. */}
+            <TaskBackgroundProcesses taskId={task.id} />
           </div>
 
           <div className="flex min-w-8 shrink items-center justify-end gap-x-2 overflow-hidden">

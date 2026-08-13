@@ -40,6 +40,28 @@ describe("coercing a stored data part", () => {
     expect(part).toHaveProperty("data.accessChanged", []);
   });
 
+  it("fills in an attachment's modifiedAt, added after the part was written", () => {
+    // modifiedAt shipped as a cache-buster for asset URLs. Without a default,
+    // every attachment a pre-2026-06-18 build stored fails its schema, the part
+    // becomes data-unknown, and the transcript loses the files the user sent.
+    const part = SessionMessagePart.coerce(
+      storedPart("data-attachments", {
+        files: [
+          {
+            filename: "budget.xlsx",
+            filePath: "attachments/budget.xlsx",
+            mimeType:
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            size: 4096,
+          },
+        ],
+      }),
+    );
+
+    expect(part.type).toBe("data-attachments");
+    expect(part).toHaveProperty("data.files.0.modifiedAt", 0);
+  });
+
   it("keeps a type this build has no schema for, as unknown", () => {
     // data-gitCommit outlived git-based file versioning and is still sitting in
     // tasks. It used to reach the renderer, which returned the part itself.

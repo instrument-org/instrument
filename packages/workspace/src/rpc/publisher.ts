@@ -6,6 +6,15 @@ import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 
 export const publisher = new EventPublisher<{
+  /**
+   * A background process in this task appeared, ended, or was removed. Carries
+   * no detail because every listener re-reads the list, and deliberately not
+   * published per chunk of output: what a viewer needs is whether the process
+   * is still there, not what it just printed.
+   */
+  "backgroundProcesses.changed": {
+    id: TaskId;
+  };
   "message.removed": {
     id: TaskId;
     messageId: StoreId.Message;

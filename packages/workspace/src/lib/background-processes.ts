@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { TASK_FOLDER_NAMES } from "../constants";
+import { publisher } from "../rpc/publisher";
 import { type RelativePath, RelativePathSchema } from "../schemas/paths";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
@@ -246,7 +247,13 @@ export function killSessionBackgroundProcesses(
           `Could not confirm that every background process for session ${sessionId} stopped.`,
         );
       }
+      const taskIds = new Set(
+        [...records.values()].map(({ taskId }) => taskId),
+      );
       recordsBySession.delete(sessionId);
+      for (const taskId of taskIds) {
+        publishChanged(taskId);
+      }
     } finally {
       cleanupBySession.delete(sessionId);
     }
@@ -277,6 +284,26 @@ export function listBackgroundProcesses(
   }
   return [...records.values()]
     .map((record) => toInfo(record))
+    .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
+}
+
+/**
+ * Everything running in one task, across every session in it.
+ *
+ * Ownership stays per-session -- a session may only read and kill its own -- but
+ * a user looking at a task does not know sessions exist, and the subagents of a
+ * turn each have one. What they left running is the task's, so the surfaces that
+ * show it and the cap that bounds it are both task-wide.
+ */
+export function listTaskBackgroundProcesses(
+  taskId: TaskId,
+): (BackgroundProcessInfo & { sessionId: StoreId.Session })[] {
+  return [...recordsBySession.entries()]
+    .flatMap(([sessionId, records]) =>
+      [...records.values()]
+        .filter((record) => record.taskId === taskId)
+        .map((record) => ({ ...toInfo(record), sessionId })),
+    )
     .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
 }
 
@@ -407,6 +434,7 @@ export function promoteBackgroundProcess({
     finish({ outcome, record });
   });
 
+  publishChanged(taskId);
   return { info: toInfo(record) };
 }
 
@@ -691,6 +719,7 @@ function finish({
       }
       record.status = record.stopRequested ? "killed" : "failed";
       notify(record);
+      publishChanged(record.taskId);
     }
     return;
   }
@@ -717,6 +746,7 @@ function finish({
 
   record.logWriter.close();
   notify(record);
+  publishChanged(record.taskId);
 }
 
 function notify(record: BackgroundProcessRecord) {
@@ -754,6 +784,18 @@ function openLogFile({ id, taskId }: { id: string; taskId: TaskId }):
       error: `Could not open a log file for the background process: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
+}
+
+/**
+ * Tells the surfaces showing this to the user that the set changed.
+ *
+ * Deliberately not in `notify`, which fires on every chunk of output: a process
+ * printing ten lines a second would publish ten times a second, and what a
+ * viewer needs is only whether the process is still there. Appearing, ending
+ * and being removed are the only three moments that answer that.
+ */
+function publishChanged(taskId: TaskId) {
+  publisher.publish("backgroundProcesses.changed", { id: taskId });
 }
 
 /** Drops stale finished records. */

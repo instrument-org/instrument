@@ -49,6 +49,7 @@ import { TaskSettingsUpdateSchema } from "../../../schemas/task-settings";
 import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
 import { taskAgentStatus } from "./agent-status";
+import { taskBackgroundProcesses } from "./background-processes";
 import { taskFiles } from "./files";
 import { taskState } from "./state";
 
@@ -718,6 +719,7 @@ const liveUsageSummary = base
 
 export const task = {
   agentStatus: taskAgentStatus,
+  backgroundProcesses: taskBackgroundProcesses,
   branch,
   byId,
   byIds,

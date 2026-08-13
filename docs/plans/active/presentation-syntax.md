@@ -197,7 +197,9 @@ Still to build:
 
 Four situations, `openai/gpt-5.6-luna` (what the auto model resolves to) and `anthropic/claude-haiku-4.5`, three prompt revisions. The cases are committed as [files-fence.ts](../../../packages/workspace/evals/cases/files-fence.ts) and run with `pnpm eval run files-fence`, so re-measuring after a prompt change is one command against the harness's current `MODELS` rather than a rerun of the numbers below.
 
-**The syntax is not the problem.** Every fence either model emitted, across all three revisions, was well formed: bare paths, one per line, a single fence per reply, and every path resolving to a real file. Not one bullet, label, comment, or markdown link appeared inside a fence, and neither model ever emitted one for a reply with no files in it. The renderer's tolerance for those near-misses has yet to be needed.
+A later sweep ran the same cases at n=3 against the harness's full default set, 68 tasks in all, and its results are folded in below where they revise these. The prompt has moved since both, so neither is a reading of what ships today.
+
+**The syntax is not the problem.** Every fence either model emitted, across all three revisions, was well formed: bare paths, one per line, a single fence per reply, and every path resolving to a real file. Not one bullet, label, comment, or markdown link appeared inside a fence, and neither model ever emitted one for a reply with no files in it. The renderer's tolerance for those near-misses has yet to be needed. The wider sweep held this across all 68 tasks, and "showed each file only in the fence" has never failed, so the link-and-fence duplication below is not a live risk on any measured model.
 
 **Whether the model reaches for it is entirely a prompt question**, and it moved a long way on wording alone:
 
@@ -208,7 +210,11 @@ Four situations, `openai/gpt-5.6-luna` (what the auto model resolves to) and `an
 | A file found while answering a question  | both ✗    | both ✗ | luna ✓ | luna ✓       |
 | An answer with no files                  | both ✓    | both ✓ | both ✓ | both ✓       |
 
-The retrieval case is the finding worth keeping. Both models answered "the note is `travel.md`" in one line, naming the file and showing nothing, under two revisions that said the fence was for files "you made or found". What fixed it was making the trigger unconditional and about the reply rather than the work: **any reply that names a file ends with the fence, a one-line answer included.** A short factual answer does not read as a turn that "produces" anything, so guidance phrased around deliverables never engages.
+The retrieval case is the finding worth keeping, and it is still open. Both models answered "the note is `travel.md`" in one line, naming the file and showing nothing, under two revisions that said the fence was for files "you made or found". The reading that followed was that a short factual answer does not read as a turn that "produces" anything, so guidance phrased around deliverables never engages, and that the fix was to make the trigger unconditional and about the reply rather than the work: **any reply that names a file ends with the fence, a one-line answer included.**
+
+A wider sweep falsified that. Four models at n=3 against the wording above: kimi 3/3, gemini-pro 3/3, **gpt-5.6-luna 0/3, claude-sonnet 0/3**. The revision before it, phrased around what a turn produces, scored luna 1/3 and claude 0/3, so rewording the trigger moved nothing on the two models that fail. The failing transcript is 45 output tokens with no reasoning tokens, which says the rule is not reaching the generation on a short reply rather than losing an argument inside it. **Placement is the untested variable**: this guidance sat in `# Tone and Style` when the case passed and now sits between `# Producing Deliverables` and `# Scripts and Running Code`, surrounded by artifact-making. Treat the earlier pass as weak evidence either way; it was n=1 per model, and kimi passed the same case at n=1 before failing it on the next single run.
+
+Luna is what the auto model resolves to, so this is the default path, not an edge.
 
 Then real use turned up the opposite failure: **models did the new thing and the old thing at once.** One reply carried a Markdown link and a fence for the same file; another carried a bulleted list of seven filenames above a fence naming the same seven. Both are worse than either mechanism alone. The cause was in the prompt, which taught a file link and a fence in adjacent sentences and never said to pick one. v4 makes files a single-mechanism subject: the link instruction is gone, and "show each file once and only there" is stated as a rule with its two failure shapes named. The renderer still renders a file link, so old transcripts keep working; it is only no longer taught.
 
@@ -219,14 +225,14 @@ Haiku is unreliable here run to run — it dropped the fence on cases it had pas
 1. ~~**Parser and node schema.** A flat group of paths.~~ Built: [parse-files-block.ts](../../../apps/studio/src/client/lib/parse-files-block.ts), [agent-files-block.tsx](../../../apps/studio/src/client/components/agent-files-block.tsx).
 2. **Component family.** Built only as far as the existing grid, which now takes `preserveOrder` so an agent-chosen set is shown as given rather than bucketed by task folder. Card, list, snippets, tree, compare are unbuilt.
 3. **Resolution.** Per-path resolution is built; globs, directories, caps, and persisted results are not.
-4. ~~**Prompt.** Describe the vocabulary.~~ Built. **Deleting the automatic `output/` preview rule is not**, and is deliberately deferred: the fence and the change list currently both fire for a deliverable in `output/`, which is duplication a user can see.
+4. ~~**Prompt.** Describe the vocabulary.~~ Built, including deleting the automatic `output/` preview rule. It had been claiming in four places that writing to `output/` is how a file reaches the user, which cost a measured failure: a model copied a file out of a shared folder into `output/` "for preview" rather than fencing it where it lay.
 5. **Actions.** Opening into the artifact panel.
 6. **Skills as a source**, replacing the bespoke card path with the shared one.
 7. **Connector records**, when the first connector needs them.
 
 ## Open questions
 
-- **Does the fence duplicate the change list?** For a file in `output/` both now fire. Either the automatic rule goes (phase 4) or the change list learns to drop what the reply already showed.
+- ~~**Does the fence duplicate the change list?**~~ Settled both ways: the automatic rule went (phase 4), and what replaced the change list draws only `output/` files the reply did not already fence or link ([2026-08-11-retired-parts-are-read-not-migrated.md](../../decisions/2026-08-11-retired-parts-are-read-not-migrated.md)).
 - Does a group need a title of its own, beyond per-item labels?
 - How much should the renderer infer? Inference is friendly to the model and unpredictable to the designer.
 - Does `compare` extend to text and PDF diffs in the first version, or only images?

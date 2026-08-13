@@ -127,6 +127,7 @@ const actor = createActor(workspaceMachine, {
     pnpmBinPath: await execa({ reject: false })`which pnpm`.then(
       (result) => result.stdout.trim() || "pnpm",
     ),
+    preparedSkillsDir: path.resolve("../../../workspace.local/prepared-skills"),
     registryDir,
     // Sibling directory to monorepo to avoid using same pnpm and git
     rootDir: path.resolve("../../../workspace.local"),

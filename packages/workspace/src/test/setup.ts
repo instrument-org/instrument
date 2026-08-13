@@ -53,6 +53,9 @@ setWorkspaceConfig({
   modelCache: noopModelCache,
   nodeExecEnv: {},
   pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
+  preparedSkillsDir: AbsolutePathSchema.parse(
+    path.join(rootDir, "prepared-skills"),
+  ),
   projectsDir: AbsolutePathSchema.parse(path.join(rootDir, "projects")),
   registryDir: AbsolutePathSchema.parse(path.join(rootDir, "registry")),
   rootDir: WorkspaceDirSchema.parse(rootDir),

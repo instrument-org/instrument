@@ -127,6 +127,9 @@ setWorkspaceConfig({
       ({ stdout }) => stdout.trim() || "/usr/bin/pnpm",
     ),
   ),
+  preparedSkillsDir: AbsolutePathSchema.parse(
+    path.join(rootDir, "prepared-skills"),
+  ),
   projectsDir: AbsolutePathSchema.parse(path.join(rootDir, "projects")),
   registryDir: WorkspaceDirSchema.parse(path.join(rootDir, "registry")),
   rootDir: WorkspaceDirSchema.parse(rootDir),

@@ -128,6 +128,9 @@ export function createMockTaskConfig(
       : noopModelCache,
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/tmp/pnpm"),
+    preparedSkillsDir: AbsolutePathSchema.parse(
+      `${MOCK_WORKSPACE_DIR}/prepared-skills`,
+    ),
     projectsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.projects),
     registryDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.registry),
     rootDir: WorkspaceDirSchema.parse(MOCK_WORKSPACE_DIR),

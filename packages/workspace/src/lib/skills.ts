@@ -106,7 +106,6 @@ export type SkillSourceId =
   | "goose"
   | "kiro"
   | "opencode"
-  | "project"
   | "system"
   | "windsurf"
   | "workspace"
@@ -180,6 +179,12 @@ const SOURCE_RANK: Record<SkillSourceKind, number> = {
  * before this applies, so this decides that copy too.
  */
 const BUNDLED_SOURCES = new Set<SkillSourceKind>([APP_NAME_SLUG, "system"]);
+
+/** The same set as {@link BUNDLED_SOURCES}, by the id that names a mount. */
+export const BUNDLED_SOURCE_IDS = new Set<SkillSourceId>([
+  APP_NAME_SLUG,
+  "system",
+]);
 
 /** A skill as its own directory describes it, before aliases are made unique. */
 type DiscoveredSkill = Omit<SkillInfo, "qualifiedName">;
@@ -300,11 +305,6 @@ export function getSkillSources(
     {
       dir: absolutePathJoin(rootDir, REGISTRY_FOLDER_NAMES.skills),
       id: "workspace",
-      source: "workspace",
-    },
-    {
-      dir: absolutePathJoin(rootDir, ".agents", REGISTRY_FOLDER_NAMES.skills),
-      id: "project",
       source: "workspace",
     },
   ];
@@ -459,6 +459,19 @@ export function resolveSkillName(
   }
 
   return { suggestions: [] };
+}
+
+/**
+ * The segment a source's skills appear under in the skills mount.
+ *
+ * Both bundled sources answer to one segment because they materialize into one
+ * flat prepared directory: they are the app's own skills either way, and
+ * nothing downstream has a reason to tell them apart. Every other source keeps
+ * its own id, which is what carries provenance and writability in the path
+ * itself, so the agent never has to infer either.
+ */
+export function skillsMountSegment(sourceId: SkillSourceId): string {
+  return BUNDLED_SOURCE_IDS.has(sourceId) ? APP_NAME_SLUG : sourceId;
 }
 
 /**

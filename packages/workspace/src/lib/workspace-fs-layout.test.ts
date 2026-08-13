@@ -6,6 +6,9 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MOUNT } from "../mount-points";
+
+/** The workspace's own skills, now one source segment among several. */
+const WORKSPACE_SKILLS = `${MOUNT.skills}/workspace`;
 import { FolderAttachment } from "../schemas/folder-attachment";
 import {
   AbsolutePathSchema,
@@ -380,7 +383,7 @@ describe("buildBashFs skills mount", () => {
   it("mounts the workspace skills dir writable", async () => {
     const bash = await makeBash();
     const result = await bash.exec(
-      `mkdir -p ${MOUNT.skills}/made-up && echo body > ${MOUNT.skills}/made-up/SKILL.md`,
+      `mkdir -p ${WORKSPACE_SKILLS}/made-up && echo body > ${WORKSPACE_SKILLS}/made-up/SKILL.md`,
     );
     expect(result.exitCode).toBe(0);
     await expect(
@@ -398,7 +401,7 @@ describe("buildBashFs skills mount", () => {
 
     await withTurnContext(turn, () =>
       bash.exec(
-        `mkdir -p ${MOUNT.skills}/tracked && echo body > ${MOUNT.skills}/tracked/SKILL.md`,
+        `mkdir -p ${WORKSPACE_SKILLS}/tracked && echo body > ${WORKSPACE_SKILLS}/tracked/SKILL.md`,
       ),
     );
 
@@ -422,10 +425,10 @@ describe("buildBashFs skills mount", () => {
     const bash = await makeBash();
     // The prompt advertises /skills unconditionally, so it has to be there to
     // write to even before the first skill exists.
-    const listed = await bash.exec(`ls ${MOUNT.skills}`);
+    const listed = await bash.exec(`ls ${WORKSPACE_SKILLS}`);
     expect(listed.exitCode).toBe(0);
     const written = await bash.exec(
-      `mkdir -p ${MOUNT.skills}/first && echo body > ${MOUNT.skills}/first/SKILL.md`,
+      `mkdir -p ${WORKSPACE_SKILLS}/first && echo body > ${WORKSPACE_SKILLS}/first/SKILL.md`,
     );
     expect(written.exitCode).toBe(0);
     await expect(

@@ -25,7 +25,9 @@ const usedSessionIds: StoreId.Session[] = [];
  * A run the test drives by hand: it emits through the sink the registry installs
  * (which is how the real native-binary shims stream) and finishes when told to.
  */
-function controllableRun() {
+function controllableRun({
+  settleOnAbort = true,
+}: { settleOnAbort?: boolean } = {}) {
   let settle: (value: { exitCode: number; output: string }) => void = () => {
     return;
   };
@@ -59,8 +61,11 @@ function controllableRun() {
       signal.addEventListener("abort", () => {
         aborted = true;
         // A real killed subprocess settles: execa rejects once the child is gone.
-        // Without this the double would look like a process ignoring SIGTERM.
-        fail(new Error("aborted"));
+        // Without this the double would look like a process ignoring SIGTERM,
+        // which is what `settleOnAbort: false` is for.
+        if (settleOnAbort) {
+          fail(new Error("aborted"));
+        }
       });
       return new Promise<{ exitCode: number; output: string }>(
         (resolve, reject) => {
@@ -95,8 +100,12 @@ function makeOwner(name: string) {
   return { sessionId, taskId };
 }
 
-function promote(owner: ReturnType<typeof makeOwner>, command: string) {
-  const controllable = controllableRun();
+function promote(
+  owner: ReturnType<typeof makeOwner>,
+  command: string,
+  options?: { settleOnAbort?: boolean },
+) {
+  const controllable = controllableRun(options);
   const handle = startBackgroundRun({
     callerSignal: new AbortController().signal,
     command,
@@ -226,6 +235,77 @@ describe("background processes", () => {
     });
     expect(again?.info.status).toBe("killed");
     expect(again?.stoppedByThisCall).toBe(false);
+  });
+
+  it("takes the real result of a process that outlives its own kill", async () => {
+    const owner = makeOwner("stubborn");
+    const { controllable, info } = promote(owner, "node work/server.js", {
+      settleOnAbort: false,
+    });
+
+    // Nothing settles, so the stop gives up and says so rather than claiming a
+    // process it could not confirm was gone.
+    const killed = await killBackgroundProcess({
+      id: info.id,
+      sessionId: owner.sessionId,
+    });
+    expect(killed?.info.status).toBe("termination-uncertain");
+    expect(killed?.terminationConfirmed).toBe(false);
+
+    controllable.finish({ exitCode: 3, output: "wrote this on the way out\n" });
+    await vi.waitFor(() => {
+      expect(listBackgroundProcesses(owner.sessionId)[0]?.status).toBe(
+        "killed",
+      );
+    });
+
+    // The exit code and the last output are the answer the kill could not give.
+    const read = await readBackgroundProcess({
+      id: info.id,
+      sessionId: owner.sessionId,
+      signal: new AbortController().signal,
+      waitMs: 0,
+    });
+    expect(read?.info.exitCode).toBe(3);
+    expect(read?.output).toContain("wrote this on the way out");
+  }, 30_000);
+
+  it("refuses to promote when the log file cannot be opened", async () => {
+    const owner = makeOwner("nolog");
+    // A regular file where the log directory belongs, so creating it fails the
+    // way a permission or layout problem on the real disk would.
+    const toolOutput = absolutePathJoin(
+      taskDir(owner.taskId),
+      `${TASK_FOLDER_NAMES.work}/${TASK_FOLDER_NAMES.toolOutput}`,
+    );
+    await fs.mkdir(
+      absolutePathJoin(taskDir(owner.taskId), TASK_FOLDER_NAMES.work),
+      {
+        recursive: true,
+      },
+    );
+    await fs.writeFile(toolOutput, "not a directory", "utf8");
+
+    const controllable = controllableRun();
+    const caller = new AbortController();
+    const handle = startBackgroundRun({
+      callerSignal: caller.signal,
+      command: "node work/server.js",
+      run: controllable.run,
+      taskId: owner.taskId,
+    });
+    const promoted = promoteBackgroundProcess({ handle, ...owner });
+
+    // Returned, not thrown: a throw here would escape with the caller's signal
+    // already past the point of stopping it, leaving a process nothing lists.
+    expect("error" in promoted && promoted.error).toContain(
+      "Could not open a log file",
+    );
+    expect(listBackgroundProcesses(owner.sessionId)).toHaveLength(0);
+
+    // The caller still holds the run, so it is stoppable.
+    handle.abort();
+    expect(controllable.aborted).toBe(true);
   });
 
   it("reports nothing for an unknown id", async () => {

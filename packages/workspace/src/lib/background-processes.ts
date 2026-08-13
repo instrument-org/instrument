@@ -343,15 +343,11 @@ export function promoteBackgroundProcess({
 
   const id = allocateId(taskId);
 
-  const logFilePath = RelativePathSchema.parse(
-    path.posix.join(
-      TASK_FOLDER_NAMES.work,
-      TASK_FOLDER_NAMES.toolOutput,
-      `${id}.log`,
-    ),
-  );
-  const logFileAbsolutePath = absolutePathJoin(taskDir(taskId), logFilePath);
-  fs.mkdirSync(path.dirname(logFileAbsolutePath), { recursive: true });
+  const log = openLogFile({ id, taskId });
+  if ("error" in log) {
+    return { error: log.error };
+  }
+  const { logFileAbsolutePath, logFilePath } = log;
 
   const logWriter = new BoundedLogWriter({
     maxContentBytes: LOG_CONTENT_CAP_BYTES,
@@ -685,6 +681,14 @@ function finish({
       record.status === "termination-uncertain" &&
       (!("errorMessage" in outcome) || outcome.terminationConfirmed)
     ) {
+      // A stop that timed out settled the record already; the process running
+      // on and then exiting is the answer the agent was actually owed, so take
+      // its code and its last output now. The log closed with the first pass,
+      // so that output reaches the buffer alone.
+      if (!("errorMessage" in outcome)) {
+        record.exitCode = outcome.exitCode;
+        appendFinalOutput({ output: outcome.output, record });
+      }
       record.status = record.stopRequested ? "killed" : "failed";
       notify(record);
     }
@@ -720,6 +724,36 @@ function notify(record: BackgroundProcessRecord) {
     waiter();
   }
   record.waiters.clear();
+}
+
+/**
+ * Opens the log a promoted process writes to. Failure is returned rather than
+ * thrown: this runs before the record is registered and before the caller's
+ * signal is detached, so a throw here would leave a detached process that
+ * nothing lists, nothing can stop, and quit cleanup cannot reach.
+ */
+function openLogFile({ id, taskId }: { id: string; taskId: TaskId }):
+  | { error: string }
+  | {
+      logFileAbsolutePath: ReturnType<typeof absolutePathJoin>;
+      logFilePath: ReturnType<typeof RelativePathSchema.parse>;
+    } {
+  try {
+    const logFilePath = RelativePathSchema.parse(
+      path.posix.join(
+        TASK_FOLDER_NAMES.work,
+        TASK_FOLDER_NAMES.toolOutput,
+        `${id}.log`,
+      ),
+    );
+    const logFileAbsolutePath = absolutePathJoin(taskDir(taskId), logFilePath);
+    fs.mkdirSync(path.dirname(logFileAbsolutePath), { recursive: true });
+    return { logFileAbsolutePath, logFilePath };
+  } catch (error) {
+    return {
+      error: `Could not open a log file for the background process: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 }
 
 /** Drops stale finished records. */

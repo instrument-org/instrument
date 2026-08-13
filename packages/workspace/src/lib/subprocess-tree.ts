@@ -1,6 +1,7 @@
 import { execa } from "execa";
 import ms from "ms";
 import { setTimeout as setTimeoutPromise } from "node:timers/promises";
+import { noop } from "radashi";
 
 import { getCurrentDate } from "./get-current-date";
 
@@ -24,14 +25,20 @@ export function watchSubprocessTree({
 }) {
   let termination: Promise<void> | undefined;
   const terminate = () => {
-    if (pid === undefined) {
+    if (pid === undefined || termination) {
       return;
     }
-    termination ??= terminateSubprocessTree(pid).then((confirmed) => {
+    termination = terminateSubprocessTree(pid).then((confirmed) => {
       if (!confirmed) {
         throw new SubprocessTreeTerminationError(pid);
       }
     });
+    // The only way this rejects is with the tree still alive, which is the one
+    // case where the finalizer has not been reached: callers await it after the
+    // subprocess settles, and it has not. Observing the rejection here keeps it
+    // off the process-wide unhandled-rejection path, where it would surface as
+    // an app error; awaiting the same promise below still re-raises it.
+    termination.catch(noop);
   };
 
   signal?.addEventListener("abort", terminate, { once: true });

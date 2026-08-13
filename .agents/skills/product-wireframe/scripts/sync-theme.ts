@@ -1,27 +1,30 @@
 /**
- * Regenerate the `@theme` block that wireframes compile Tailwind against, from
- * Studio's own stylesheet, so a wireframe drawn a year ago still shows the
- * colors the product actually ships.
+ * Regenerate the `@theme` block that visual artifacts compile Tailwind against,
+ * from Studio's own stylesheet, so an artifact drawn a year ago still shows
+ * the colors the product actually ships.
  *
- * Wireframes cannot import globals.css: it pulls @fontsource packages and the
- * Tailwind entry through the bundler, and these files have to open from disk
- * and from a sandboxed Notion iframe with no build step. So the tokens are
+ * These artifacts cannot import globals.css: it pulls @fontsource packages and
+ * the Tailwind entry through the bundler, and these files have to open from
+ * disk and from a sandboxed Notion iframe with no build step. So the tokens are
  * copied in, and this script is what keeps the copy honest.
  *
  *   node .agents/skills/product-wireframe/scripts/sync-theme.ts
  *   node .agents/skills/product-wireframe/scripts/sync-theme.ts --check
  *   node .agents/skills/product-wireframe/scripts/sync-theme.ts path/to/one.html
  *
- * Targets the template plus every docs/plans/active/wireframes-*.html unless
- * paths are given. `--check` writes nothing and exits non-zero when a file is
- * stale.
+ * Targets both skill templates plus every docs/plans/active/wireframes-*.html
+ * unless paths are given. Explicit paths may live outside the repository.
+ * `--check` writes nothing and exits non-zero when a file is stale.
  */
 import { globSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../../..");
 const GLOBALS = "apps/studio/src/client/styles/globals.css";
-const TEMPLATE = ".agents/skills/product-wireframe/template.html";
+const TEMPLATES = [
+  ".agents/skills/product-wireframe/template.html",
+  ".agents/skills/visual-explanation/template.html",
+];
 const WIREFRAMES = "docs/plans/active/wireframes-*.html";
 
 const START = "/* sync:start */";
@@ -60,7 +63,7 @@ const SEMANTIC = [
 ];
 
 function applyTo(file: string, block: string, check: boolean): boolean {
-  const absolute = path.join(REPO_ROOT, file);
+  const absolute = path.isAbsolute(file) ? file : path.join(REPO_ROOT, file);
   const source = readFileSync(absolute, "utf8");
   const from = source.indexOf(START);
   const to = source.indexOf(END);
@@ -161,7 +164,7 @@ function declarations(css: string): Map<string, string> {
   return out;
 }
 
-/** Follow `var(--x)` indirection so wireframes carry literal values. */
+/** Follow `var(--x)` indirection so visual artifacts carry literal values. */
 function resolve(value: string, vals: Map<string, string>, depth = 0): string {
   const match = /^var\((--[a-z0-9-]+)\)$/.exec(value.trim());
   const target = match?.[1] && vals.get(match[1]);
@@ -187,7 +190,7 @@ const explicit = args.filter((arg) => !arg.startsWith("--"));
 const targets =
   explicit.length > 0
     ? explicit
-    : [TEMPLATE, ...globSync(WIREFRAMES, { cwd: REPO_ROOT })];
+    : [...TEMPLATES, ...globSync(WIREFRAMES, { cwd: REPO_ROOT })];
 
 const block = buildThemeBlock(
   readFileSync(path.join(REPO_ROOT, GLOBALS), "utf8"),

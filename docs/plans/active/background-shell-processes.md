@@ -261,16 +261,29 @@ it created, but that result is a message in history, and nothing tells a *later*
 turn that `bg_1` is still serving on port 3000. So an agent may start a duplicate,
 or tell the user to open a URL for a process it cannot confirm is alive.
 
-The fix is the pattern [`workspace/CLAUDE.md`](../../../packages/workspace/CLAUDE.md)
-describes for need-it-now values: a per-turn `data-*` part on the user message
-listing live processes, rendered into a model note. Deliberately not built yet
-because it is the piece most worth designing against a real transcript rather than
-guessing at.
+The fix is a `data-backgroundProcesses` part, and `browserStatus` is the working
+precedent for exactly this shape: a **State** part in the taxonomy at the top of
+[`message-data-part.ts`](../../../packages/workspace/src/schemas/session/message-data-part.ts),
+which means it must compare against what this session was last told or it will
+restate an unchanged fact every turn. `createBrowserStatusPart` already handles
+both halves this needs -- the "still open, here it is" case and the "it is gone,
+here is what it was" case, the second of which is what a restart produces.
+
+The one piece it does not inherit: the registry is in memory, so after a restart
+there is nothing to read. Saying "the server you started is gone" requires
+persisting what the session was last told, the way browser state persists
+`lastUrl`.
+
+The eval transcripts now say this is worth building. Models do end turns with
+processes running and say so in the reply, and a later turn has no way to learn
+whether that is still true.
 
 **No user-visible surface.** A user cannot see that a server is running, or stop
-it, and the processes persist across turns until explicit or lifecycle cleanup. Accepted for now: the
-alternative is chrome that a non-technical user reads as clutter. If it becomes a
-problem the cheapest honest version is an indicator on the task, not a panel.
+it, and the processes persist across turns until explicit or lifecycle cleanup.
+Four placements are drawn in [wireframes-background-processes.html](wireframes-background-processes.html):
+above the prompt input, inline in the transcript, in the task header, and in the
+sidebar. The inline one is the only placement that cannot stay correct, because a
+transcript is a log and this is live state.
 
 **UI.** Headless by choice. Managing a process is a shell command, so it renders as an ordinary bash card like anything else the agent runs, and a promoted `bash` call does too. That is one thing the move to commands bought for free: there is no second part type to design. A live-tailing output pane on the promoted card is the obvious first piece; a per-task process list with kill buttons only becomes necessary if processes outlive turns.
 

@@ -22,9 +22,9 @@ import {
 import uFuzzy from "@leeoniya/ufuzzy";
 import {
   ArrowsClockwiseIcon,
-  BugIcon,
   CardsThreeIcon,
   ChatCircleIcon,
+  CodeIcon,
   PlusIcon,
   PushPinIcon,
   SidebarSimpleIcon,
@@ -599,7 +599,7 @@ function CommandResultsList({
                   }}
                   value={`debug:${row.matched.item.key}`}
                 >
-                  <BugIcon className="size-4 shrink-0 opacity-50" />
+                  <CodeIcon className="size-4 shrink-0 opacity-50" />
                   <span className="flex-1 truncate text-sm">
                     <FuzzyHighlight
                       ranges={row.matched.labelRanges}

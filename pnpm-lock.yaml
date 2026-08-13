@@ -421,8 +421,8 @@ importers:
         specifier: ^0.2.0
         version: 0.2.3(@babel/core@7.29.0)(@babel/runtime@7.29.7)(rolldown@1.2.1)(vite@8.2.0(@types/node@24.13.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.39.0)(tsx@4.20.3)(yaml@2.9.0))
       '@shadcn/react':
-        specifier: github:mutewinter/ui#5a6daaa99769c203c6909c03f36665d3d558ee21
-        version: https://codeload.github.com/mutewinter/ui/tar.gz/5a6daaa99769c203c6909c03f36665d3d558ee21(@types/react@19.2.7)(react@19.2.1)
+        specifier: github:mutewinter/ui#6bf567454444f55f4e698f7a812ff395aea02625
+        version: https://codeload.github.com/mutewinter/ui/tar.gz/6bf567454444f55f4e698f7a812ff395aea02625(@types/react@19.2.7)(react@19.2.1)
       '@sqlite.org/sqlite-wasm':
         specifier: 3.53.0-build1
         version: 3.53.0-build1
@@ -4093,9 +4093,9 @@ packages:
   '@sec-ant/readable-stream@0.4.1':
     resolution: {integrity: sha512-831qok9r2t8AlxLko40y2ebgSDhenenCatLVeW/uBtnHPyhHOvG0C7TvfgecV+wHzIm5KUICgzmVpWS+IMEAeg==}
 
-  '@shadcn/react@https://codeload.github.com/mutewinter/ui/tar.gz/5a6daaa99769c203c6909c03f36665d3d558ee21':
-    resolution: {gitHosted: true, integrity: sha512-ASwv/m6cfij/L5g37Ntv2K+EkjhgGqpMoQHc3dVIGDXPirOeLTX4mlTT8027cFfq7ovNWNjbhKi6wld8rStuNw==, tarball: https://codeload.github.com/mutewinter/ui/tar.gz/5a6daaa99769c203c6909c03f36665d3d558ee21}
-    version: 0.2.5
+  '@shadcn/react@https://codeload.github.com/mutewinter/ui/tar.gz/6bf567454444f55f4e698f7a812ff395aea02625':
+    resolution: {gitHosted: true, integrity: sha512-mvCAiP6u7O1ISwEymQaBGU7VJtW07wNE2jHvxf/PVJUlNnYQ0n7BlwkvL1uUJ3WiUmpaL43WSwmQ/0Tvr1u5Pw==, tarball: https://codeload.github.com/mutewinter/ui/tar.gz/6bf567454444f55f4e698f7a812ff395aea02625}
+    version: 0.2.6
     peerDependencies:
       '@types/react': '>=19'
       react: '>=19'
@@ -13167,7 +13167,7 @@ snapshots:
 
   '@sec-ant/readable-stream@0.4.1': {}
 
-  '@shadcn/react@https://codeload.github.com/mutewinter/ui/tar.gz/5a6daaa99769c203c6909c03f36665d3d558ee21(@types/react@19.2.7)(react@19.2.1)':
+  '@shadcn/react@https://codeload.github.com/mutewinter/ui/tar.gz/6bf567454444f55f4e698f7a812ff395aea02625(@types/react@19.2.7)(react@19.2.1)':
     optionalDependencies:
       '@types/react': 19.2.7
       react: 19.2.1

@@ -1,6 +1,6 @@
 import { renderWithProviders } from "@/tests/render";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Markdown } from "./markdown";
@@ -97,6 +97,35 @@ describe("Markdown links", () => {
 
 // What the transform does to a tree has its own tests; these are about the
 // attribute surviving the trip through the rehype pipeline and out of
+describe("Markdown images", () => {
+  it("names the image that could not be drawn, rather than breaking", () => {
+    renderMarkdown("![The chart](output/chart.png)");
+
+    fireEvent.error(screen.getByRole("img"));
+
+    expect(screen.getByText("The chart")).toBeTruthy();
+    expect(screen.getByText(`${ASSET_BASE}/output/chart.png`)).toBeTruthy();
+  });
+
+  // A reply routinely names the file it is still writing, so mid-turn a miss
+  // says nothing about whether the image will be there.
+  it("says nothing of an image the reply has not finished writing", () => {
+    renderWithProviders(
+      <Markdown
+        assetBaseUrl={ASSET_BASE}
+        isStreaming
+        markdown="![The chart](output/chart.png)"
+        taskId={TASK_ID}
+      />,
+    );
+
+    fireEvent.error(screen.getByRole("img"));
+
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.queryByText("The chart")).toBeNull();
+  });
+});
+
 // react-markdown under the name the stylesheet looks for.
 describe("Markdown streaming words", () => {
   const streamingWords = (markdown: string) => {

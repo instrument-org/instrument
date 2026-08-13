@@ -331,6 +331,43 @@ const ImagePlaceholder = ({ alt, src }: { alt?: string; src?: string }) => (
   </div>
 );
 
+/**
+ * An image the message points at, which can turn out not to be there: an asset
+ * pruned with its task, a path the model wrote from memory. Left alone that
+ * draws as the browser's broken-image glyph, which names neither the image nor
+ * what went wrong; the placeholder a blocked image already gets says both.
+ *
+ * The failure is held against the source that produced it, so a URL still
+ * growing clears it as it goes.
+ */
+const MarkdownImage = ({
+  alt,
+  className,
+  src,
+  ...props
+}: React.ImgHTMLAttributes<HTMLImageElement>) => {
+  const { isStreaming } = useContext(MarkdownTaskContext);
+  const [failedSrc, setFailedSrc] = useState<null | string>(null);
+
+  if (src !== undefined && src === failedSrc) {
+    // Half a URL fails the same way a missing file does, and until the text
+    // settles there is no telling which this is.
+    return isStreaming ? null : <ImagePlaceholder alt={alt} src={src} />;
+  }
+
+  return (
+    <img
+      {...props}
+      alt={alt}
+      className={cn("max-w-full cursor-pointer! rounded-md", className)}
+      onError={() => {
+        setFailedSrc(src ?? null);
+      }}
+      src={src}
+    />
+  );
+};
+
 const resolveImageSrc = (
   src: string | undefined,
   assetBaseUrl: string | undefined,
@@ -458,13 +495,10 @@ export const Markdown = memo(
                 );
               }
               return (
-                <img
+                <MarkdownImage
                   {...props}
                   alt={alt}
-                  className={cn(
-                    "max-w-full cursor-pointer! rounded-md",
-                    className,
-                  )}
+                  className={className}
                   onClick={handleImageClick}
                   src={resolvedSrc}
                 />

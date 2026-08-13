@@ -12,7 +12,7 @@ export const Route = createFileRoute("/_app/debug")({
   head: () => ({
     meta: [{ title: "Debug" }],
   }),
-  staticData: { tabIcon: "bug" },
+  staticData: { tabIcon: "code" },
 });
 
 function RouteComponent() {

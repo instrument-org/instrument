@@ -87,6 +87,28 @@ describe("background job commands", () => {
     expect(filtered.output.trim()).toMatch(/^\d+$/);
   }, 30_000);
 
+  it("bounds an open-ended wait by the call it is running inside", async () => {
+    const processId = await startTicker();
+
+    // No `--timeout`, on a process that never exits, inside a short call. Left
+    // to its own ten-minute default the wait would outlive the call and be
+    // promoted itself, answering with a second process id instead of output.
+    const waited = await bash(`fg ${processId}`, 3000);
+    expect(waited.processId).toBeUndefined();
+    expect(waited.output).toContain(`${processId} is still running`);
+    expect(waited.exitCode).toBe(0);
+  }, 30_000);
+
+  it("lowers an explicit timeout to what the call has left", async () => {
+    const processId = await startTicker();
+
+    // Asking for ten minutes inside a two-second call is the same trap wearing
+    // an argument, so the window still wins.
+    const waited = await bash(`fg ${processId} --timeout 600000`, 2000);
+    expect(waited.processId).toBeUndefined();
+    expect(waited.output).toContain(`${processId} is still running`);
+  }, 30_000);
+
   it("reports jobs as json for a machine to read", async () => {
     const processId = await startTicker();
 

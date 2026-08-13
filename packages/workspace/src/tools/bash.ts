@@ -132,14 +132,18 @@ export const BashTool = setupTool({
   description: () => createBashDescription(),
   async execute({ input, partId, sessionId, signal, taskId }) {
     const taskState = await getTaskState(taskDir(taskId));
+    const yieldMs = clampYieldMs(input.yieldMs);
+    const startedAt = performance.now();
     const bash = await createBashEnv({
       attachedFolders: taskState.attachedFolders,
       projectFolderName: await resolveTaskProjectFolder(taskId),
+      // `fg` waits inside this call, so what is left of the window is its
+      // ceiling. Measured from here rather than from the race below, which only
+      // makes it return sooner than it strictly has to.
+      remainingYieldMs: () => yieldMs - (performance.now() - startedAt),
       sessionId,
       taskId,
     });
-    const yieldMs = clampYieldMs(input.yieldMs);
-    const startedAt = performance.now();
     // Interpreter metadata, only available once the run finishes. A promoted
     // command reports none, which is what the empty default stands for.
     let commands: string[] = [];

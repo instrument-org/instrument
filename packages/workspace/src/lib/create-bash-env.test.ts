@@ -73,8 +73,8 @@ describe("createBashDescription", () => {
       Usage: \`jobs [--json]\`.
         fg - Bring a background process to the foreground: print what it has written since your last read, and block until it exits.
       Usage: \`fg [<id>...] [--timeout <ms>]\`. With no id it takes everything still running. Exits with the process's own exit code once it finishes, so \`fg bg_1 && pnpm test\` runs the tests only on success.
-      \`--timeout 0\` returns immediately with whatever is pending, which is how you glance at a server that never exits. Otherwise it blocks until the process exits (up to 600000ms), so this is how you wait out a build in one call rather than polling.
-      IMPORTANT: waiting is bounded by this call's own \`yieldMs\` -- to wait longer than that, raise \`yieldMs\` on the \`bash\` call.
+      \`--timeout 0\` returns immediately with whatever is pending, which is how you glance at a server that never exits. Otherwise it blocks until the process exits, so this is how you wait out a build in one call rather than polling.
+      IMPORTANT: it never waits past this \`bash\` call's own \`yieldMs\`; it returns what has arrived by then instead. To wait out something longer, raise \`yieldMs\` on the \`bash\` call rather than the timeout here.
       IMPORTANT: reading consumes -- each call returns only what arrived since the last one, so piping into a filter (\`fg bg_1 | rg error\`) discards the rest. The complete output is always in the process's log file.
         kill - Stop background processes started by \`bash\`, waiting until each has really exited.
       Usage: \`kill <id>...\`, where each id is one \`jobs\` reports (\`bg_1\`). A signal flag (\`-9\`) is accepted and ignored; termination always escalates on its own. Killing one that already finished is harmless.

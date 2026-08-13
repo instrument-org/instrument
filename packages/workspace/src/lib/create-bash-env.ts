@@ -28,6 +28,7 @@ import {
   FG_COMMAND,
   JOBS_COMMAND,
   KILL_COMMAND,
+  type SessionCommandContext,
 } from "./shell-commands/background-jobs";
 import { createFfmpegCommand, FFMPEG_COMMAND } from "./shell-commands/ffmpeg";
 import {
@@ -218,7 +219,7 @@ interface CustomCommandDef {
  */
 const SESSION_COMMAND_DEFS: {
   description: string;
-  factory: (sessionId: StoreId.Session) => ReturnType<typeof defineCommand>;
+  factory: (context: SessionCommandContext) => ReturnType<typeof defineCommand>;
   name: string;
 }[] = [
   {
@@ -406,11 +407,15 @@ export function createBashDescription() {
 export async function createBashEnv({
   attachedFolders,
   projectFolderName,
+  // Defaulted so the callers that never wait -- skill validation, tests, the
+  // sandbox script -- do not have to describe a yield window they do not have.
+  remainingYieldMs = () => Number.POSITIVE_INFINITY,
   sessionId,
   taskId,
 }: {
   attachedFolders?: Record<string, FolderAttachment.Type>;
   projectFolderName?: string;
+  remainingYieldMs?: () => number;
   sessionId: StoreId.Session;
   taskId: TaskId;
 }) {
@@ -450,7 +455,9 @@ export async function createBashEnv({
       ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(taskId)),
       // After the bundled commands so these shadow just-bash's own `kill` and
       // `wait`, which act on host pids this sandbox deliberately cannot name.
-      ...SESSION_COMMAND_DEFS.map((cmd) => cmd.factory(sessionId)),
+      ...SESSION_COMMAND_DEFS.map((cmd) =>
+        cmd.factory({ remainingYieldMs, sessionId }),
+      ),
       createWhichCommand(
         new Set([
           AGENT_BROWSER_COMMAND.name,

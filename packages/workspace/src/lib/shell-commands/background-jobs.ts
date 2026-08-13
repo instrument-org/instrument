@@ -10,8 +10,23 @@ import {
   readBackgroundProcess,
 } from "../background-processes";
 
+/** What the job commands need from the `bash` call they are running inside. */
+export interface SessionCommandContext {
+  /** What is left of the enclosing call's yield window, read when a wait starts. */
+  remainingYieldMs: () => number;
+  /** Owns the processes these commands can see, list and stop. */
+  sessionId: StoreId.Session;
+}
+
 /** Ceiling on one `fg`, matching the longest a single tool call may run. */
 const MAX_WAIT_MS = ms("10 minutes");
+
+/**
+ * Held back from the enclosing call's yield window so `fg` returns inside it.
+ * Waiting right up to the edge is a race the wait loses: the call yields, and
+ * the answer becomes a second process id instead of the output asked for.
+ */
+const YIELD_MARGIN_MS = 500;
 
 export const JOBS_COMMAND = {
   description: dedent`
@@ -35,19 +50,32 @@ export const FG_COMMAND = {
   description: dedent`
     Bring a background process to the foreground: print what it has written since your last read, and block until it exits.
     Usage: \`fg [<id>...] [--timeout <ms>]\`. With no id it takes everything still running. Exits with the process's own exit code once it finishes, so \`fg bg_1 && pnpm test\` runs the tests only on success.
-    \`--timeout 0\` returns immediately with whatever is pending, which is how you glance at a server that never exits. Otherwise it blocks until the process exits (up to ${MAX_WAIT_MS}ms), so this is how you wait out a build in one call rather than polling.
-    IMPORTANT: waiting is bounded by this call's own \`yieldMs\` -- to wait longer than that, raise \`yieldMs\` on the \`bash\` call.
+    \`--timeout 0\` returns immediately with whatever is pending, which is how you glance at a server that never exits. Otherwise it blocks until the process exits, so this is how you wait out a build in one call rather than polling.
+    IMPORTANT: it never waits past this \`bash\` call's own \`yieldMs\`; it returns what has arrived by then instead. To wait out something longer, raise \`yieldMs\` on the \`bash\` call rather than the timeout here.
     IMPORTANT: reading consumes -- each call returns only what arrived since the last one, so piping into a filter (\`fg bg_1 | rg error\`) discards the rest. The complete output is always in the process's log file.
   `.trim(),
   name: "fg",
 } as const;
 
-export function createFgCommand(sessionId: StoreId.Session) {
+export function createFgCommand({
+  remainingYieldMs,
+  sessionId,
+}: SessionCommandContext) {
   return defineCommand(FG_COMMAND.name, async (args, ctx) => {
-    const { ids, timeoutMs } = parseFgArgs(args);
-    if (timeoutMs === undefined) {
+    const { ids, timeoutMs: requested } = parseFgArgs(args);
+    if (requested === "invalid") {
       return fail(FG_COMMAND.name, "--timeout takes a number of milliseconds.");
     }
+    // The wait lives inside a tool call that yields on its own schedule, and a
+    // wait that outlasts it gets the whole call promoted: the agent asked to
+    // look at bg_1 and is handed bg_2, blocked on bg_1, answering nothing. So
+    // the window is the ceiling, and an explicit --timeout can only lower it.
+    const budget = Math.max(
+      0,
+      Math.min(MAX_WAIT_MS, remainingYieldMs() - YIELD_MARGIN_MS),
+    );
+    const timeoutMs =
+      requested === undefined ? budget : Math.min(requested, budget);
 
     const targets =
       ids.length > 0
@@ -94,7 +122,7 @@ export function createFgCommand(sessionId: StoreId.Session) {
   });
 }
 
-export function createJobsCommand(sessionId: StoreId.Session) {
+export function createJobsCommand({ sessionId }: SessionCommandContext) {
   // Wrapped rather than declared `async`: listing is synchronous, and an async
   // function with nothing to await advertises a suspension that never happens.
   return defineCommand(JOBS_COMMAND.name, (args) =>
@@ -102,7 +130,7 @@ export function createJobsCommand(sessionId: StoreId.Session) {
   );
 }
 
-export function createKillCommand(sessionId: StoreId.Session) {
+export function createKillCommand({ sessionId }: SessionCommandContext) {
   return defineCommand(KILL_COMMAND.name, async (args) => {
     // A signal flag is what a shell user would reach for and changes nothing
     // here, so it is accepted rather than made into an error to recover from.
@@ -258,22 +286,19 @@ function ok(stdout: string) {
 
 function parseFgArgs(args: string[]) {
   const ids: string[] = [];
-  let timeoutMs: number | undefined = MAX_WAIT_MS;
+  // `undefined` means none was given, which is not the same as one that could
+  // not be read: the first takes the call's remaining window, the second is an
+  // error worth telling the agent about.
+  let timeoutMs: "invalid" | number | undefined;
   for (let index = 0; index < args.length; index++) {
     const argument = args[index] ?? "";
     if (argument === "--timeout") {
-      const value = Number(args[++index]);
-      timeoutMs = Number.isFinite(value)
-        ? Math.min(MAX_WAIT_MS, Math.max(0, value))
-        : undefined;
+      timeoutMs = readTimeout(args[++index]);
       continue;
     }
     const inline = /^--timeout=(.*)$/.exec(argument);
     if (inline) {
-      const value = Number(inline[1]);
-      timeoutMs = Number.isFinite(value)
-        ? Math.min(MAX_WAIT_MS, Math.max(0, value))
-        : undefined;
+      timeoutMs = readTimeout(inline[1]);
       continue;
     }
     if (!argument.startsWith("-")) {
@@ -281,6 +306,13 @@ function parseFgArgs(args: string[]) {
     }
   }
   return { ids, timeoutMs };
+}
+
+function readTimeout(raw: string | undefined) {
+  const value = Number(raw);
+  return raw !== undefined && raw !== "" && Number.isFinite(value)
+    ? Math.min(MAX_WAIT_MS, Math.max(0, value))
+    : ("invalid" as const);
 }
 
 function toJson(process: BackgroundProcessInfo) {

@@ -156,7 +156,7 @@ export function FilesGrid({
               <div className={mediaTileWidth} key={file.filePath}>
                 <FilePreviewCard
                   file={file}
-                  isSelected={isPaneFileSelected(file, pane.selected)}
+                  isSelected={isPaneFileSelected(file, pane)}
                   onClick={() => {
                     handleFileClick(file);
                   }}
@@ -183,7 +183,7 @@ export function FilesGrid({
             {rowCardFiles.map((file) => (
               <FilePreviewCard
                 file={file}
-                isSelected={isPaneFileSelected(file, pane.selected)}
+                isSelected={isPaneFileSelected(file, pane)}
                 key={file.filePath}
                 onClick={() => {
                   handleFileClick(file);
@@ -205,7 +205,7 @@ export function FilesGrid({
             <div className="h-12 max-w-48 min-w-0" key={file.filePath}>
               <FilePreviewListItem
                 file={file}
-                isSelected={isPaneFileSelected(file, pane.selected)}
+                isSelected={isPaneFileSelected(file, pane)}
                 onClick={() => {
                   handleFileClick(file);
                 }}
@@ -347,15 +347,18 @@ function hasRowCardPreview(file: TaskFileViewerFile) {
 // comparison meant a card lost its own highlight the moment the file it points
 // at changed underneath it.
 //
+// A closed pane shows nothing, so nothing is highlighted -- its selection is
+// kept for the reopen, not a claim about what the user is looking at.
+//
 // Against the stored key rather than `selectedTab`, whose fallback to the last
 // tab is right for deciding what to render and wrong for deciding what looks
 // chosen: with the browser selected it names a file tab, and a card would sit
 // highlighted while the pane showed a web page.
-function isPaneFileSelected(
-  file: TaskFileViewerFile,
-  selectedKey: string | undefined,
-) {
-  return selectedKey === TaskPane.tabKey(TaskPane.fileTab(file.filePath));
+function isPaneFileSelected(file: TaskFileViewerFile, pane: TaskPane.Type) {
+  return (
+    pane.open &&
+    pane.selected === TaskPane.tabKey(TaskPane.fileTab(file.filePath))
+  );
 }
 
 function sortByRichPreview(files: TaskFileViewerFile[]) {

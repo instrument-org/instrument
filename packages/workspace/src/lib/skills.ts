@@ -24,6 +24,8 @@ export const FILE_LIST_LIMIT = 50;
  * inlining it whole is the one place a single file can spend the context window
  * before the task starts. Past this the agent is pointed at the copy in its
  * task, which it can read the way it reads any other file.
+ *
+ * Roughly 8,500 tokens of Markdown.
  */
 export const SKILL_CONTENT_LIMIT = 40_000;
 

@@ -6,6 +6,7 @@ export {
   TOOL_EXPLANATION_PARAM_NAME,
 } from "./constants";
 export { attachedFolderChangesModelNote } from "./lib/attached-folder-changes-model-text";
+export { backgroundProcessesModelNote } from "./lib/background-processes-model-text";
 export { browserStatusModelNote } from "./lib/browser-status-model-text";
 export { formatBytes } from "./lib/format-bytes";
 export { getToolNameByType } from "./lib/get-tool-name-by-type";

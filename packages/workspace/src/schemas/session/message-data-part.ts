@@ -16,7 +16,8 @@ export namespace SessionMessageDataPart {
    *   impossible by construction; nothing to guard.
    * - **Diff**: what changed since last time -- `projectChanges`,
    *   `attachedFolderChanges`. Self-limiting: no change, no part.
-   * - **State**: the whole current picture -- `browserStatus`, `paneTabs`.
+   * - **State**: the whole current picture -- `backgroundProcesses`,
+   *   `browserStatus`, `paneTabs`.
    *   These are the ones that will restate an unchanged fact on every single
    *   turn unless their producer compares against what this session was last
    *   told. `createBrowserStatusPart` and `createPaneTabsPart` each do, by
@@ -31,6 +32,7 @@ export namespace SessionMessageDataPart {
   export const NameSchema = z.enum([
     "attachedFolderChanges",
     "attachments",
+    "backgroundProcesses",
     "browserStatus",
     "fileChanges",
     "intent",
@@ -131,6 +133,31 @@ export namespace SessionMessageDataPart {
 
   export type ProjectChangesDataPart = z.output<
     typeof ProjectChangesDataPartSchema
+  >;
+
+  /**
+   * What this session still has running at the start of a turn.
+   *
+   * The registry is in memory and the transcript is not, so without this the
+   * only record of `bg_1` is a tool result from an earlier turn that said it was
+   * running then. A turn twenty minutes later cannot tell whether that is still
+   * true, and after a restart it is definitely false -- which is why `ended`
+   * exists rather than the part simply going absent.
+   */
+  const BackgroundProcessesDataPartSchema = z.object({
+    /** Ids the session was told about that are no longer there. */
+    ended: z.array(z.object({ command: z.string(), id: z.string() })),
+    running: z.array(
+      z.object({
+        command: z.string(),
+        id: z.string(),
+        runningForMs: z.number(),
+      }),
+    ),
+  });
+
+  export type BackgroundProcessesDataPart = z.output<
+    typeof BackgroundProcessesDataPartSchema
   >;
 
   const BrowserTargetSchema = z.object({
@@ -289,6 +316,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.attachedFolderChanges]:
       AttachedFolderChangesDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
+    [NameSchema.enum.backgroundProcesses]: BackgroundProcessesDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,

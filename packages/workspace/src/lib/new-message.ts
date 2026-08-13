@@ -13,6 +13,7 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { detectAttachedFolderChanges } from "./attached-folder-changes";
+import { createBackgroundProcessesPart } from "./create-background-processes-part";
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createPaneTabsPart } from "./create-pane-tabs-part";
 import { detectProjectChanges } from "./detect-project-changes";
@@ -116,6 +117,16 @@ export async function newMessage({
       },
       type: "data-projectContext",
     });
+  }
+
+  const backgroundProcessesPart = await createBackgroundProcessesPart({
+    createdAt,
+    messageId,
+    sessionId,
+    taskId,
+  });
+  if (backgroundProcessesPart) {
+    parts.push(backgroundProcessesPart);
   }
 
   const browserStatusPart = await createBrowserStatusPart({

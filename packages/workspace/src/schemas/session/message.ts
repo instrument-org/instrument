@@ -19,6 +19,7 @@ import { z } from "zod";
 import { type AgentName } from "../../agents/types";
 import { attachedFolderChangesModelNote } from "../../lib/attached-folder-changes-model-text";
 import { attachedFolderMountPoint } from "../../lib/attached-folder-mounts";
+import { backgroundProcessesModelNote } from "../../lib/background-processes-model-text";
 import { browserStatusModelNote } from "../../lib/browser-status-model-text";
 import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text";
 import { formatBytes } from "../../lib/format-bytes";
@@ -222,6 +223,7 @@ export namespace SessionMessage {
     messages: WithParts[],
     tools: ToolSet,
   ): Promise<ModelMessage[]> {
+    let previousBackgroundProcessesNote: string | undefined;
     let previousBrowserStatusNote: string | undefined;
     let previousPaneTabsNote: string | undefined;
     // A max-steps stop is recorded on the assistant message where the run
@@ -308,6 +310,19 @@ export namespace SessionMessage {
 
             injectedParts.push({ text: folderAttachmentText, type: "text" });
           }
+        }
+
+        const backgroundProcessesPart = message.parts.find(
+          (part) => part.type === "data-backgroundProcesses",
+        );
+        if (backgroundProcessesPart) {
+          const note = backgroundProcessesModelNote(
+            backgroundProcessesPart.data,
+          );
+          if (note !== previousBackgroundProcessesNote) {
+            injectedParts.push({ text: note, type: "text" });
+          }
+          previousBackgroundProcessesNote = note;
         }
 
         const browserStatusPart = message.parts.find(

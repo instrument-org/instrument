@@ -159,6 +159,7 @@ export function TaskFileViewerModal() {
               {hasMultipleFiles && (
                 <>
                   <Button
+                    aria-label="Previous file"
                     className="absolute top-1/2 left-3 z-10 -translate-y-1/2"
                     onClick={goToPrevious}
                     size="icon"
@@ -167,6 +168,7 @@ export function TaskFileViewerModal() {
                     <CaretLeftIcon className="size-6" />
                   </Button>
                   <Button
+                    aria-label="Next file"
                     className="absolute top-1/2 right-3 z-10 -translate-y-1/2"
                     onClick={goToNext}
                     size="icon"

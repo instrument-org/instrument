@@ -46,6 +46,7 @@ export function TaskActionsMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
+          aria-label="Task actions"
           className={toolbarClassName({
             // 4px around a 16px glyph: the button hugs the title it acts on
             // rather than reading as its own toolbar slot.

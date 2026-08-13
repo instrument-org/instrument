@@ -222,6 +222,7 @@ export function ModelPicker({
       <PopoverTrigger asChild>
         <Button
           aria-expanded={open}
+          aria-label="Model"
           className={cn(
             "flex h-auto items-center justify-between gap-2 rounded-lg px-1.5! py-1 text-left",
             "text-gray-400 hover:text-gray-400 dark:text-gray-500 dark:hover:text-gray-500",

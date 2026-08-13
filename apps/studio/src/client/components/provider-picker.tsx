@@ -64,6 +64,7 @@ export function ProviderPicker({
       <PopoverTrigger asChild>
         <Button
           aria-expanded={open}
+          aria-label="Provider"
           className="justify-between"
           role="combobox"
           type="button"

@@ -53,7 +53,10 @@ export function ThemeToggle() {
       }}
       value={theme}
     >
-      <SelectTrigger className="bg-card bg-none dark:bg-gray-700">
+      <SelectTrigger
+        aria-label="Theme"
+        className="bg-card bg-none dark:bg-gray-700"
+      >
         {getThemeIcon()}
         {getThemeName()}
       </SelectTrigger>

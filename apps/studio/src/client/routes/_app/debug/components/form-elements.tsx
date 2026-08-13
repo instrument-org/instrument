@@ -125,7 +125,7 @@ function RouteComponent() {
 
         <Section description="Radix-backed dropdown." title="Select">
           <Select>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Fruit">
               <SelectValue placeholder="Pick a fruit" />
             </SelectTrigger>
             <SelectContent>

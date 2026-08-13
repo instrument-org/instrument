@@ -65,6 +65,15 @@ That path is written down in more places than `load_skill`, and all of them have
 - `load_skill`'s origin note and its "copy it here to change it" hint.
 - Studio's skill modal, which shows the user where a skill they create will live.
 
+### Addressing a file the agent names
+
+A reply names its files itself, in a fence and in links, and nothing walks the task to find them. That is what makes a skill path reach the renderer at all, and it lands on two surfaces built when everything outside the task was either an attached folder or the project:
+
+- `isAddressableTaskFilePath` accepts a relative path or one under the attached-folders mount, and nothing else. A skill path fails it, so the reply draws it as prose rather than something to click, and `show` rejects it with "outside the task and its mounts".
+- The assets route prefixes the task mount to any path not already under the attached-folders or project mount, so a linked skill file resolves inside the task folder and 404s. Its own comment names this failure: a path under an unserved mount reads as a missing file rather than an unserved one.
+
+Both need the skills mount added. Neither is load-bearing today, because `work/skills/` is task-relative and reaches both surfaces as an ordinary task path. The move is what surfaces them, and a skill file the agent cannot link to is a worse answer than the copy it replaces.
+
 Bundled skills cannot run from the app bundle: `registry/skills` ships via `extraResources` into a signed, hardened-runtime, notarized bundle that the updater replaces wholesale, so nothing may write a `node_modules` there. They are materialized once per machine instead, into `userData/skills/<name>/`, beside the existing app-managed `bin` and `uv`. That is outside the workspace deliberately, so several workspaces or a workspace the user relocates all source from one prepared set.
 
 Third-party skills are mounted with whatever dependency state they already have. We do not install for skills we do not ship, and the ecosystem rarely needs it: `anthropic-skills` contains no `package.json` at all, and one large real-world skill audited for this plan has zero dependencies across 147 files and already documents running its scripts from a base directory the harness reports.

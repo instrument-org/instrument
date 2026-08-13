@@ -286,17 +286,41 @@ export function searched({
       results: {
         costDollars: 0.01,
         kind: "excerpts",
+        // A real host apiece, and enough of them to fill the summary chip's
+        // stack. The chip draws one favicon per distinct hostname, so sources
+        // sharing a domain collapse to a single icon; a reserved domain draws
+        // the favicon service's placeholder, which is the one icon that never
+        // looks like the site it stands for. Between them that is the whole of
+        // what the row's favicons do -- a request apiece, each landing when it
+        // answers -- so a scenario that keeps them is a scenario the treatment
+        // can be watched in.
         sources: [
           {
             text: "Legends belong outside the plot area when the series count is small.",
-            title: "Chart legends",
-            url: "https://example.com/legends",
+            title: "Color legend",
+            url: "https://observablehq.com/@d3/color-legend",
           },
           {
             publishedDate: "2026-02-11",
             text: "A stacked bar chart answers a different question from a grouped one, and the two are not interchangeable.",
-            title: "Choosing a bar chart",
-            url: "https://example.com/bars",
+            title: "Stacked shapes",
+            url: "https://d3js.org/d3-shape/stack",
+          },
+          {
+            text: "An axis that does not start at zero is honest only when the baseline is labeled.",
+            title: "Misleading graph",
+            url: "https://en.wikipedia.org/wiki/Misleading_graph",
+          },
+          {
+            publishedDate: "2026-01-04",
+            text: "Color alone cannot carry a distinction, which puts a ceiling on how many series one categorical palette can separate.",
+            title: "Use of color",
+            url: "https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html",
+          },
+          {
+            text: "A gridline is there to be measured against, which means it belongs behind the data and below it in contrast.",
+            title: "Styling axes",
+            url: "https://www.chartjs.org/docs/latest/axes/styling.html",
           },
         ],
       },
@@ -324,7 +348,10 @@ export function searchedForSummary({
         modelId: OUR_MODELS.text.id,
         provider: OUR_PROVIDER,
         sources: [
-          { title: "Chart legends", url: "https://example.com/legends" },
+          {
+            title: "Color legend",
+            url: "https://observablehq.com/@d3/color-legend",
+          },
         ],
         text,
         usage: { inputTokens: 50, outputTokens: 80, totalTokens: 130 },

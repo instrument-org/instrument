@@ -86,6 +86,7 @@ export function SourceImagesChip({
         return (
           <ImageWithFallback
             alt="Reference"
+            arrival="icon"
             className="-ml-0.5 size-4 rounded-full border border-border/50 object-cover first:ml-0"
             fallback={fallback}
             filename={filenameFromFilePath(file.filePath)}

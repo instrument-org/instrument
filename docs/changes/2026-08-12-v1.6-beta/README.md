@@ -54,7 +54,7 @@ These are review-worthy product surfaces rather than a chronological changelog. 
 
   ![Reply ending in a grid of two file cards, each with a type icon, filename, and file kind](images/agent-file-handoff-fence.png)
 
-  A reply whose fence names two files. The first card carries the highlight a grid gives a file the task pane has open. Both files here are the same kind, so the type-aware label is shown but not contrasted.
+  A reply whose fence names two files. Both are the same kind, so the type-aware label is shown but not contrasted. The first card is brand-colored with the pane closed, which is a defect in this build rather than a state to review: the pane keeps its selection through a close so reopening restores the tab, and the grid read that key as what the user is looking at. Fixed after this range in [fa6090dcc](https://github.com/instrument-org/instrument/commit/fa6090dcc).
 
   ![Reply from a pre-fence task whose Markdown file links render as type-aware chips](images/agent-file-handoff.png)
 

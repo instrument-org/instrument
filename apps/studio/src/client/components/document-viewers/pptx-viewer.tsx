@@ -6,6 +6,7 @@ import {
 } from "@extend-ai/react-pptx";
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 
+import { FileLoading } from "../file-loading";
 import { useFitWidth } from "./use-fit-width";
 import { useVisiblePage } from "./use-visible-page";
 import { ViewerBody } from "./viewer-surface";
@@ -41,8 +42,19 @@ const VIEWPORT_STYLE = {
 
 export function PptxViewer({ url }: { filename: string; url: string }) {
   const [railOpen, setRailOpen] = useState(false);
-  const [slideCount, setSlideCount] = useState(1);
-  const [slideWidth, setSlideWidth] = useState(0);
+  // What the deck turned out to be, once it has parsed: the number of slides
+  // the count and the rail work from, and the width one slide occupies at 100%
+  // zoom, which is what fit-width scales against. Absent until then, so the
+  // controls that would otherwise read "1 / 1" at 100% -- a description of no
+  // document at all -- are not on screen to be read.
+  //
+  // Held through a reload rather than cleared with the URL: a save replaces the
+  // deck in place, and the count and zoom of the deck on screen are still the
+  // truest thing available while its next version parses.
+  const [deck, setDeck] = useState<null | {
+    slideCount: number;
+    slideWidth: number;
+  }>(null);
   const [query, setQuery] = useState("");
   const [matches, setMatches] = useState<PresentationSearchResult[]>([]);
   const [activeMatch, setActiveMatch] = useState(0);
@@ -61,7 +73,7 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
   // box cannot see.
   const { fit, isFit, selectZoom, zoom } = useFitWidth({
     container: viewport,
-    contentWidth: slideWidth,
+    contentWidth: deck?.slideWidth ?? 0,
     initialFit: true,
   });
   // Read off the scroll position rather than taken from the library's own
@@ -164,20 +176,24 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
           }}
           open={railOpen}
         />
-        <ViewerPageControl
-          count={slideCount}
-          label="slide"
-          onPageChange={(page) => {
-            goToSlide(page - 1);
-          }}
-          page={slideIndex + 1}
-        />
-        <ViewerZoomControl
-          isFit={isFit}
-          onFit={fit}
-          onZoomChange={selectZoom}
-          zoom={zoom}
-        />
+        {deck && (
+          <>
+            <ViewerPageControl
+              count={deck.slideCount}
+              label="slide"
+              onPageChange={(page) => {
+                goToSlide(page - 1);
+              }}
+              page={slideIndex + 1}
+            />
+            <ViewerZoomControl
+              isFit={isFit}
+              onFit={fit}
+              onZoomChange={selectZoom}
+              zoom={zoom}
+            />
+          </>
+        )}
         <ViewerToolbarSpacer />
         <ViewerFindControl
           activeMatch={activeMatch}
@@ -199,7 +215,7 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
             activeIndex={slideIndex}
             controller={controller}
             onSelect={goToSlide}
-            slideCount={slideCount}
+            slideCount={deck?.slideCount ?? 0}
           />
         }
         railOpen={railOpen}
@@ -228,13 +244,11 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
             fitMode="none"
             height="100%"
             onLoad={(presentation) => {
-              setSlideCount(Math.max(presentation.document.slides.length, 1));
-              // The deck carries its slide size in EMUs, the OOXML unit. Divided
-              // out, it is the width one slide occupies at 100% zoom, which is
-              // what fit-width scales against.
-              setSlideWidth(
-                presentation.document.size.widthEmu / EMU_PER_PIXEL,
-              );
+              setDeck({
+                slideCount: Math.max(presentation.document.slides.length, 1),
+                // The deck carries its slide size in EMUs, the OOXML unit.
+                slideWidth: presentation.document.size.widthEmu / EMU_PER_PIXEL,
+              });
             }}
             onReady={(ready) => {
               setController(ready);
@@ -258,6 +272,14 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
               }
             }}
             onViewportReady={setViewport}
+            // The library's own status overlay names what it is doing, which is
+            // a beat of furniture between two decks rather than a sign of
+            // progress: a parse is usually over inside a couple of frames, and
+            // both the waits it covers -- opening a second deck, and a save
+            // reloading the one on screen -- are things the reader just did.
+            // This is the wait every other format shows: nothing at all, then a
+            // spinner once it has gone on long enough to look broken without it.
+            renderLoading={() => <FileLoading />}
             showThumbnails={false}
             showToolbar={false}
             source={url}

@@ -415,6 +415,13 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
                     renderMs.current = actualDuration;
                   }}
                 >
+                  {/* Drawn flat rather than as the scroller's own items. An
+                      item that anchors a turn to the top of the reading line
+                      buys the room to get there by reserving it below the last
+                      row, which is a scroll behavior of the task view rather
+                      than anything the transcript drew -- and here it would put
+                      the end of the transcript, and the marker that follows it,
+                      somewhere below where the transcript actually stops. */}
                   <ChatStream
                     alwaysShowFooter
                     isAgentRunning={frame.isAgentRunning}
@@ -425,7 +432,6 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
                     onRetry={noop}
                     onRunAgain={noop}
                     onStartNewTask={noop}
-                    renderAsItems
                     task={task}
                   />
                 </Profiler>

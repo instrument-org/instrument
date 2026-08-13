@@ -6,6 +6,7 @@ Screenshot-backed summaries of user-visible product changes. They show design wh
 
 Newest first.
 
+- [2026-08-12: v1.6 beta](2026-08-12-v1.6-beta/README.md) covers `v1.5.0..v1.6.0-beta.4`.
 - [2026-08-03: v1.5](2026-08-03-v1.5/README.md) covers `v1.4.4..v1.5.0`.
 
 ## Format

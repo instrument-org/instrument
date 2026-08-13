@@ -746,7 +746,7 @@ export const PromptInput = ({
           prompt sits in cannot be faded without taking the prompt with them. */}
       <motion.div
         animate={{ opacity: showFolderTray ? 1 : 0 }}
-        className="pointer-events-none absolute inset-0 -z-10 rounded-3xl border border-black/5 bg-muted dark:border-white/10"
+        className="pointer-events-none absolute inset-0 -z-10 rounded-3xl border border-black/2 bg-black/2 dark:border-white/1 dark:bg-white/1"
         initial={false}
         transition={showFolderTray ? BLOCK_OPEN : BLOCK_CLOSE}
       />

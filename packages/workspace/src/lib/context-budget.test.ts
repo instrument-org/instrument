@@ -55,9 +55,8 @@ describe("computeContextBudget", () => {
   );
 
   it("subtracts the reserve so the model keeps room to answer", () => {
-    expect(
-      computeContextBudget({ contextLength: 200_000, occupied: 10_000 }),
-    ).toMatchInlineSnapshot(`
+    expect(computeContextBudget({ contextLength: 200_000, occupied: 10_000 }))
+      .toMatchInlineSnapshot(`
       {
         "occupied": 10000,
         "remaining": 158000,
@@ -71,9 +70,8 @@ describe("computeContextBudget", () => {
     // A flat 32,000 reserve would leave this window at zero and report unknown,
     // which would silently switch the feature off in exactly the setup that
     // exists to exercise it.
-    expect(
-      computeContextBudget({ contextLength: 6000, occupied: 5000 }),
-    ).toMatchInlineSnapshot(`
+    expect(computeContextBudget({ contextLength: 6000, occupied: 5000 }))
+      .toMatchInlineSnapshot(`
       {
         "occupied": 5000,
         "remaining": 0,

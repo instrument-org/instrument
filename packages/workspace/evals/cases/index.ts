@@ -1,3 +1,4 @@
+import { BACKGROUND_PROCESS_EVALS } from "./background-processes";
 import { BROWSER_SELECTION_EVALS } from "./browser-selection";
 import { CHECK_EVALS } from "./check";
 import { FILES_FENCE_EVALS } from "./files-fence";
@@ -10,6 +11,7 @@ import { UNREADABLE_MEDIA_EVALS } from "./unreadable-media";
 import { WEB_SEARCH_EVALS } from "./web-search";
 
 export const EVALS = [
+  ...BACKGROUND_PROCESS_EVALS,
   ...BROWSER_SELECTION_EVALS,
   ...CHECK_EVALS,
   ...FILES_FENCE_EVALS,

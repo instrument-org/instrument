@@ -109,7 +109,11 @@ Because the bundled mount is read-only, the agent cannot place a custom script b
 
 It does widen what a subprocess can reach, and the widening is worth stating plainly rather than waving through on the grounds that the agent already runs this code. Today a script runs from a per-task copy, so a script that writes beside itself writes into one task. Mounted, the same write lands in the prepared set every task and every workspace shares, or in a third-party skills folder belonging to whichever tool installed it. `resolveReadOnlyHostPath`'s own contract says its wider reach is safe only because callers reject the flags that let a binary write or execute, which is not something an interpreter can be made to do.
 
-**Open.** Options are to make the prepared directory read-only to the subprocess through filesystem permissions and let re-materialization own the only writes, or to accept shared-set drift and rely on the version marker to heal it at the next upgrade. Not decided; step 3 does not land without an answer.
+**Decided: accept the drift, and assert against it in CI.** The prepared directory is not made unwritable through filesystem permissions. A real subprocess already has the host user's full filesystem, by design and by [decision record](../../decisions/2026-07-15-userland-agent-sandbox.md), so a skill script writing beside itself is a hygiene problem rather than a boundary being crossed. Permissions here would be the strictest mechanism in a system that chose userland containment everywhere else, guarding against something any task script can already do by other means.
+
+It is not a new capability either. A skill already runs from a copy inside the task mount, which is bridged, so the same write already happens today and lands in a copy that dies with the task. What the mount changes is where it lands, not whether it can.
+
+What carries the weight instead is that the bundled set is ours. CI already installs and tests it together, so it runs those tests against a read-only prepared directory and fails on anything that writes beside itself: build-time, no platform-specific permission code, and covering the only skills we can make promises about. Third-party skills are mounted with whatever their installer left them as, and are out of scope by construction.
 
 ## Registry
 

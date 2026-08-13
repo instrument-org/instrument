@@ -40,12 +40,11 @@ function watch(filePath: string, signal: AbortSignal) {
 
 const hostPath = (filePath: string) => path.join(taskDir(taskId), filePath);
 
-// A fresh directory attached under `mountName`, replacing whatever was there.
-// Called twice with one name to stand a different folder behind a mount point
-// the task already has.
+// A directory attached under `mountName`, replacing whatever was there. Each
+// call is its own attachment, so re-attaching a folder the task had before
+// carries a new id the way the app's own re-attach does.
 let folderCount = 0;
-async function attachFolder(mountName: string): Promise<string> {
-  const folder = await fs.mkdtemp(path.join(root, `${mountName}-`));
+async function attach(mountName: string, folder: string): Promise<void> {
   folderCount += 1;
 
   await setTaskState(taskDir(taskId), {
@@ -60,7 +59,13 @@ async function attachFolder(mountName: string): Promise<string> {
       },
     },
   });
+}
 
+// Called twice with one name to stand a different folder behind a mount point
+// the task already has.
+async function attachFolder(mountName: string): Promise<string> {
+  const folder = await fs.mkdtemp(path.join(root, `${mountName}-`));
+  await attach(mountName, folder);
   return folder;
 }
 
@@ -119,43 +124,7 @@ describe("watchFileInfo", () => {
   // The pane can be showing a file from an attached folder when the user
   // detaches it. Going on reporting that file's size and mtime would be
   // reporting out of a folder the task no longer has.
-  it("stops when the folder the file came from is detached", async () => {
-    const shared = await fs.mkdtemp(path.join(root, "shared-"));
-    await fs.writeFile(path.join(shared, "note.md"), "hello");
-    await setTaskState(taskDir(taskId), {
-      attachedFolders: {
-        Shared: {
-          access: "read-only",
-          createdAt: 0,
-          id: FolderAttachment.IdSchema.parse("folder-1"),
-          mountName: "Shared",
-          path: AbsolutePathSchema.parse(shared),
-          source: "user",
-        },
-      },
-    });
-
-    const controller = new AbortController();
-    const seen: unknown[] = [];
-
-    for await (const value of watch("/mnt/Shared/note.md", controller.signal)) {
-      seen.push(value);
-      if (value !== null) {
-        await setTaskState(taskDir(taskId), { attachedFolders: {} });
-        await fs.writeFile(path.join(shared, "note.md"), "changed");
-      }
-    }
-
-    expect(seen[0]).toMatchObject({ filename: "note.md" });
-    // Ended on its own, without the caller aborting.
-    expect(seen.at(-1)).toBeNull();
-    expect(controller.signal.aborted).toBe(false);
-  });
-
-  // The detach the test above performs is noticed because the write after it
-  // wakes the stat. A real detach touches nothing, so the task's own change
-  // event has to be what wakes it.
-  it("stops on a detach that never touches the file", async () => {
+  it("reports the file as gone when the folder it came from is detached", async () => {
     const shared = await attachFolder("Shared");
     await fs.writeFile(path.join(shared, "note.md"), "hello");
 
@@ -164,7 +133,33 @@ describe("watchFileInfo", () => {
 
     for await (const value of watch("/mnt/Shared/note.md", controller.signal)) {
       seen.push(value);
-      if (value !== null) {
+      if (value === null) {
+        controller.abort();
+      } else {
+        await setTaskState(taskDir(taskId), { attachedFolders: {} });
+        await fs.writeFile(path.join(shared, "note.md"), "changed");
+      }
+    }
+
+    expect(seen[0]).toMatchObject({ filename: "note.md" });
+    expect(seen.at(-1)).toBeNull();
+  });
+
+  // The detach the test above performs is noticed because the write after it
+  // wakes the stat. A real detach touches nothing, so the task's own change
+  // event has to be what wakes it.
+  it("notices a detach that never touches the file", async () => {
+    const shared = await attachFolder("Shared");
+    await fs.writeFile(path.join(shared, "note.md"), "hello");
+
+    const controller = new AbortController();
+    const seen: unknown[] = [];
+
+    for await (const value of watch("/mnt/Shared/note.md", controller.signal)) {
+      seen.push(value);
+      if (value === null) {
+        controller.abort();
+      } else {
         await setTaskState(taskDir(taskId), { attachedFolders: {} });
         publisher.publish("task.updated", { id: taskId });
       }
@@ -172,13 +167,12 @@ describe("watchFileInfo", () => {
 
     expect(seen[0]).toMatchObject({ filename: "note.md" });
     expect(seen.at(-1)).toBeNull();
-    expect(controller.signal.aborted).toBe(false);
   });
 
-  // Same mount point, someone else's directory behind it. The path still
-  // resolves, so asking only whether the mount exists says yes, while the stat
-  // goes on reading the folder the user took away.
-  it("stops when the mount name is reused for a different folder", async () => {
+  // A folder the user takes away and puts back is the case a watch that ended
+  // on the detach could not serve: the pane holds whatever the watch said last,
+  // so it would sit on the missing state for a file that is there again.
+  it("reports the file again when the same folder is re-attached", async () => {
     const shared = await attachFolder("Shared");
     await fs.writeFile(path.join(shared, "note.md"), "hello");
 
@@ -187,7 +181,39 @@ describe("watchFileInfo", () => {
 
     for await (const value of watch("/mnt/Shared/note.md", controller.signal)) {
       seen.push(value);
-      if (value !== null) {
+      if (seen.length === 1) {
+        await setTaskState(taskDir(taskId), { attachedFolders: {} });
+        publisher.publish("task.updated", { id: taskId });
+      } else if (value === null) {
+        await attach("Shared", shared);
+        publisher.publish("task.updated", { id: taskId });
+      } else {
+        controller.abort();
+      }
+    }
+
+    expect(seen).toHaveLength(3);
+    expect(seen[1]).toBeNull();
+    expect(seen.at(-1)).toMatchObject({ filename: "note.md" });
+  });
+
+  // Same mount point, someone else's directory behind it. The path still
+  // resolves, so asking only whether the mount exists says yes, while the stat
+  // goes on reading the folder the user took away. Not the case above either:
+  // the mount is back and the file stays gone, because what the watch was
+  // granted was the directory rather than the name over it.
+  it("stays gone when the mount name is reused for a different folder", async () => {
+    const shared = await attachFolder("Shared");
+    await fs.writeFile(path.join(shared, "note.md"), "hello");
+
+    const controller = new AbortController();
+    const seen: unknown[] = [];
+
+    for await (const value of watch("/mnt/Shared/note.md", controller.signal)) {
+      seen.push(value);
+      if (value === null) {
+        controller.abort();
+      } else {
         const replacement = await attachFolder("Shared");
         await fs.writeFile(path.join(replacement, "note.md"), "someone else's");
         publisher.publish("task.updated", { id: taskId });

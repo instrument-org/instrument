@@ -2,7 +2,7 @@
 
 Range: `v1.5.0..v1.6.0-beta.4`, covering `v1.6.0-beta.0` through `v1.6.0-beta.4`.
 
-These are review-worthy product surfaces rather than a chronological changelog. Commits authored by or co-authored with Neil Renicker are excluded, as are developer-mode-only surfaces. Screenshots were captured from the installed production macOS build at `v1.6.0-beta.4` (`01fa65b725ba3bae30efd4a08840753437ea017a`).
+These are review-worthy product surfaces rather than a chronological changelog. Commits authored by or co-authored with Neil Renicker are excluded, as are developer-mode-only surfaces. Screenshots were captured from the installed production macOS build at `v1.6.0-beta.4` (`01fa65b725ba3bae30efd4a08840753437ea017a`), except grouped transcript activity, which was captured from the debug transcript fixture. That fixture renders the shipping component against scripted data, so the layout is the product's and the words in it are not a real turn's.
 
 - **Writable folder access**
 
@@ -16,7 +16,7 @@ These are review-worthy product surfaces rather than a chronological changelog. 
 
   ![Attached folder list with a permission control on each row](images/folder-access.png)
 
-  Folder names and locations were replaced with generic labels before capture; the component layout and controls are unchanged.
+  Folder names and locations were replaced with generic labels before capture; the component layout and controls are unchanged. Every row pictured is set to Read-only, so the full-access state this change introduces is not shown.
 
   ```text
   Use these commits as repo context for writable folder access: f381e4beb 78ae3c0d0 096e533f8
@@ -46,13 +46,19 @@ These are review-worthy product surfaces rather than a chronological changelog. 
 
   Location: Studio task transcript.
 
-  Files named by an agent now render as type-aware, clickable file controls, including compatibility rendering for files produced by tasks from before the structured file fence existed.
+  Files named by an agent now render as type-aware, clickable file controls. A ` ```files ` fence draws them as a grid, a path written as a Markdown link resolves to a single chip, and a task from before the fence gets a grid built from what its turns produced.
 
   Source changes: [9b07f7e7c](https://github.com/instrument-org/instrument/commit/9b07f7e7c), [9161b9eaf](https://github.com/instrument-org/instrument/commit/9161b9eaf), [17ada1c24](https://github.com/instrument-org/instrument/commit/17ada1c24), [a2fd717c2](https://github.com/instrument-org/instrument/commit/a2fd717c2)
 
-  Screenshot:
+  Screenshots, one per rendering:
 
-  ![Assistant response with type-aware links to generated presentation, spreadsheet, document, PDF, and CSV files](images/agent-file-handoff.png)
+  ![Reply ending in a grid of two file cards, each with a type icon, filename, and file kind](images/agent-file-handoff-fence.png)
+
+  A reply whose fence names two files. The first card carries the highlight a grid gives a file the task pane has open. Both files here are the same kind, so the type-aware label is shown but not contrasted.
+
+  ![Reply from a pre-fence task whose Markdown file links render as type-aware chips](images/agent-file-handoff.png)
+
+  The chip path, and the one shape a current task will not produce. This task predates the fence, so its reply links each file in Markdown; the compatibility grid skips any file the reply already linked, so it is suppressed here for all five.
 
   ```text
   Use these commits as repo context for agent file handoff: 9b07f7e7c 9161b9eaf 17ada1c24 a2fd717c2
@@ -124,7 +130,9 @@ These are review-worthy product surfaces rather than a chronological changelog. 
 
   Screenshot:
 
-  ![Failed turn with product-language error details and Start new task and Try again actions](images/error-recovery.png)
+  ![Four failed turns, the last expanded to its recovery text and the Start new task and Try again actions](images/error-recovery.png)
+
+  Three of the four summaries pictured read `Something went wrong`, which is the fallback for a failure that maps to nothing more specific; `No API key` is the only translated label in frame. The explanation of what a new task keeps and leaves behind is tooltip copy, so it needs a hover and does not appear here.
 
   ```text
   Use these commits as repo context for error recovery actions: f9b7f0d32 95db33867 33b47546b

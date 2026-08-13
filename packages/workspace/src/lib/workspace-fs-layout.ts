@@ -22,9 +22,12 @@ import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { ReadOnlyBaseFs } from "./read-only-base-fs";
 import { skillWriteTrackingFs } from "./skill-write-tracking-fs";
+import {
+  BUNDLED_SOURCE_IDS,
+  getSkillSources,
+  skillsMountSegment,
+} from "./skills";
 import { getWorkspaceConfig } from "./workspace-config";
-import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
-
 export { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
 /**
@@ -71,29 +74,29 @@ const HOST_DEVICE_NAMES = new Set([
 ]);
 
 /**
- * Virtual mount point of the workspace's own `skills/` directory.
- *
- * Always writable, whatever access the attached folders have: authoring a skill
- * is editing a plain package of files, so the agent does it with the ordinary
- * file tools rather than a dedicated tool. Only the workspace's skills live
- * here -- skills
- * discovered in a co-installed agent's home directory stay readable through
- * `load_skill` and are never exposed for writing.
- */
-
-/**
  * The complete virtual filesystem layout for a task: the writable task mount,
- * the writable workspace skills mount, and any user-attached folders, each
- * read-only or writable according to the access the user granted it. This is
- * the single source of truth shared by the bash sandbox (just-bash filesystem),
- * the native-binary path bridge, and the dedicated file tools, so all three
- * agree on what the agent can see and where.
+ * one mount per skill source, and any user-attached folders, each read-only or
+ * writable according to the access the user granted it. This is the single
+ * source of truth shared by the bash sandbox (just-bash filesystem), the
+ * native-binary path bridge, and the dedicated file tools, so all three agree
+ * on what the agent can see and where.
  */
 export interface WorkspaceFsLayout {
   attached: WorkspaceFsMount[];
   /** Absent for a task that does not belong to a project. */
   project?: WorkspaceFsMount & { readOnly: false };
-  skills: WorkspaceFsMount;
+  /**
+   * One per skill source, at `/skills/<source>/`. The source segment is what
+   * carries provenance and writability, so the agent reads both off the path
+   * rather than having to ask: the workspace's own skills are writable because
+   * authoring one is editing a plain package of files, and everything else --
+   * what the app ships, and what a co-installed agent left in its home
+   * directory -- is read-only where it was discovered.
+   *
+   * Listed whether or not the directory exists, because the layout is built
+   * synchronously; `buildBashFs` skips the ones that are not there.
+   */
+  skills: WorkspaceFsMount[];
   task: WorkspaceFsMount & { hostRoot: TaskDir; readOnly: false };
 }
 
@@ -214,17 +217,35 @@ export async function buildBashFs(
     );
   }
 
-  // The workspace's own directory, always meant to be there, so create it if a
-  // fresh workspace has not yet. Skipping the mount instead would leave the
-  // agent writing to a `/skills` the prompt advertises but that does not exist.
-  // Unlike an attached folder, it cannot be detached out from under us, so it
-  // always mounts.
-  await mkdir(layout.skills.hostRoot, { recursive: true });
-  const skillsFs = new ReadWriteFs({
-    maxFileReadSize,
-    root: layout.skills.hostRoot,
-  });
-  fs.mount(layout.skills.mountPoint, skillWriteTrackingFs(skillsFs));
+  for (const mount of layout.skills) {
+    // The workspace's own directory is always meant to be there, so create it if
+    // a fresh workspace has not yet: skipping it would leave the agent writing
+    // to a path the prompt advertises but that does not exist. Every other
+    // source belongs to something else on this machine, and an absent one just
+    // means that tool is not installed.
+    if (mount.readOnly) {
+      if (!(await pathExists(mount.hostRoot))) {
+        continue;
+      }
+      fs.mount(
+        mount.mountPoint,
+        new OverlayFs({
+          maxFileReadSize,
+          mountPoint: "/",
+          readOnly: true,
+          root: mount.hostRoot,
+        }),
+      );
+      continue;
+    }
+    await mkdir(mount.hostRoot, { recursive: true });
+    fs.mount(
+      mount.mountPoint,
+      skillWriteTrackingFs(
+        new ReadWriteFs({ maxFileReadSize, root: mount.hostRoot }),
+      ),
+    );
+  }
 
   return fs;
 }
@@ -285,12 +306,7 @@ export function buildWorkspaceFsLayout({
           },
         }
       : {}),
-    skills: {
-      hostRoot: getWorkspaceSkillsDir(),
-      masksPrivateDir: false,
-      mountPoint: MOUNT.skills,
-      readOnly: false,
-    },
+    skills: buildSkillMounts(),
     task: {
       hostRoot: taskHostRoot,
       masksPrivateDir: true,
@@ -398,7 +414,7 @@ export function nonTaskMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
   return [
     ...layout.attached,
     ...(layout.project ? [layout.project] : []),
-    layout.skills,
+    ...layout.skills,
   ];
 }
 
@@ -472,22 +488,29 @@ export function resolveHostPath(
  * Map a virtual absolute path to the host path a NATIVE binary may receive.
  *
  * Native binaries (ffmpeg, python, node, ...) run against the real filesystem,
- * so this is the sandbox's outer boundary and it deliberately bridges ONLY the
- * task mount. Every other virtual path quarantines to a path inside the task
- * dir that does not exist, so the binary fails with a not-found error instead
- * of touching the host. Do not "fix" this by resolving against the full layout.
+ * so this is the sandbox's outer boundary and it bridges the task mount and the
+ * skills mounts, and nothing else. Every other virtual path quarantines to a
+ * path inside the task dir that does not exist, so the binary fails with a
+ * not-found error instead of touching the host.
  *
- * This holds for /mnt mounts the user granted write access to, not just the
+ * That holds for /mnt mounts the user granted write access to, not just the
  * read-only ones. A real host path is read AND write to the operating system,
  * so handing one to a subprocess would put the user's folder outside every
  * containment the sandbox has: no symlink check, no path masking, and no way
  * to tell what a build step touched. The agent copies a file into the task and
  * works on the copy instead. Writes back into the folder go through the virtual
  * filesystem, where the symlink check and the mount's access level still apply.
+ *
+ * The skills mounts are the deliberate exception, because running a skill's own
+ * scripts is what mounting them is for, and an interpreter cannot be handed a
+ * flag that lets it read a file without also being able to write beside it.
+ * What that widening costs, and why it is answered in CI rather than with
+ * filesystem permissions, is recorded in the skills-mount plan.
  */
 export function resolveNativeHostPath(
   taskHostRoot: TaskDir,
   virtualAbsPath: string,
+  skillMounts: WorkspaceFsMount[] = [],
 ): AbsolutePath {
   const normalized = normalizePath(virtualAbsPath);
   const relative = relativeWithin(MOUNT.task, normalized);
@@ -496,6 +519,15 @@ export function resolveNativeHostPath(
       taskHostRoot,
       relative === "/" ? "." : `.${relative}`,
     );
+  }
+  for (const mount of skillMounts) {
+    const withinSkill = relativeWithin(mount.mountPoint, normalized);
+    if (withinSkill !== null) {
+      return absolutePathJoin(
+        mount.hostRoot,
+        withinSkill === "/" ? "." : `.${withinSkill}`,
+      );
+    }
   }
   // Private-dir paths (and any non-/task virtual path) quarantine to a
   // non-existent path inside the task dir -- same defense as the read-only /mnt
@@ -549,6 +581,40 @@ export function resolveReadOnlyHostPath(
 /** All mounts, task first. */
 function allMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
   return [layout.task, ...nonTaskMounts(layout)];
+}
+
+/**
+ * One mount per skill source, at `/skills/<source>/`.
+ *
+ * Derived from the same source list discovery walks, so a source the agent can
+ * load a skill from is a source it can also read and run that skill's files in.
+ * The two bundled sources collapse onto one segment backed by the prepared
+ * directory: they cannot run from the app bundle, which is signed and replaced
+ * wholesale by the updater, so they are materialized once per machine instead.
+ */
+function buildSkillMounts(): WorkspaceFsMount[] {
+  const config = getWorkspaceConfig();
+  const mounts = new Map<string, WorkspaceFsMount>();
+
+  for (const { dir, id } of getSkillSources(config)) {
+    const mountPoint = `${MOUNT.skills}/${skillsMountSegment(id)}`;
+    // Both bundled ids reach the same segment, and the first one to claim it
+    // brings the prepared directory with it.
+    if (mounts.has(mountPoint)) {
+      continue;
+    }
+    const bundled = BUNDLED_SOURCE_IDS.has(id);
+    mounts.set(mountPoint, {
+      hostRoot: bundled ? config.preparedSkillsDir : dir,
+      // Every one of these belongs to a tool rather than to a task or a project,
+      // so an `.instrument` dir in one is an ordinary directory of theirs.
+      masksPrivateDir: false,
+      mountPoint,
+      readOnly: id !== "workspace",
+    });
+  }
+
+  return [...mounts.values()];
 }
 
 /**

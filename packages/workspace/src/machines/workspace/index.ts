@@ -432,6 +432,7 @@ export const workspaceMachine = setup({
       modelCache: ModelCache;
       nodeExecEnv: Record<string, string>;
       pnpmBinPath: string;
+      preparedSkillsDir: string;
       registryDir: string;
       rootDir: string;
       shimClientDir: string;
@@ -459,6 +460,7 @@ export const workspaceMachine = setup({
       modelCache: input.modelCache,
       nodeExecEnv: input.nodeExecEnv,
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
+      preparedSkillsDir: AbsolutePathSchema.parse(input.preparedSkillsDir),
       projectsDir: absolutePathJoin(rootDir, PROJECTS_DIR_NAME),
       registryDir: AbsolutePathSchema.parse(input.registryDir),
       rootDir,

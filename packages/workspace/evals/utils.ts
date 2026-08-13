@@ -60,6 +60,9 @@ export function buildReportWorkspaceConfig(
     modelCache: noopModelCache,
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
+    preparedSkillsDir: AbsolutePathSchema.parse(
+      path.join(absoluteWorkspaceDir, "prepared-skills"),
+    ),
     projectsDir: AbsolutePathSchema.parse(
       path.join(absoluteWorkspaceDir, PROJECTS_DIR_NAME),
     ),

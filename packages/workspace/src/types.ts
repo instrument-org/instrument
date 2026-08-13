@@ -118,6 +118,12 @@ export interface WorkspaceConfig {
   modelCache: ModelCache;
   nodeExecEnv: Record<string, string>;
   pnpmBinPath: AbsolutePath;
+  // Where the skills the app ships are prepared for use. They cannot run from
+  // the bundle -- it is signed, notarized, and replaced wholesale by the updater,
+  // so nothing may write a `node_modules` there -- so they are materialized once
+  // per machine here instead. Outside the workspace deliberately: several
+  // workspaces, or a workspace the user moves, all source from one prepared set.
+  preparedSkillsDir: AbsolutePath;
   projectsDir: AbsolutePath;
   registryDir: AbsolutePath;
   rootDir: WorkspaceDir;

@@ -45,7 +45,7 @@ export function ComposerFolderTray({
   return (
     // No gap: the space under a row belongs to the row, so it collapses with
     // one on its way out instead of leaving a band where it was.
-    <div className={cn("flex flex-col px-4 py-2", className)}>
+    <div className={cn("flex flex-col px-4 pt-2 pb-1", className)}>
       {/* `initial={false}`: folders a draft already had are not arriving, and
           the first one on a surface that grows a tray for it is carried in by
           the tray opening around it. */}
@@ -99,7 +99,7 @@ export function ComposerFolderTray({
       </AnimatePresence>
       {showAdd && (
         <Button
-          className="-ml-1.5 h-6 w-fit gap-2 px-1.5 text-xs text-muted-foreground"
+          className="-ml-1.5 w-fit gap-2 text-xs leading-none text-gray-400 not-disabled:hover:text-gray-500 dark:text-gray-600 dark:not-disabled:hover:text-gray-500"
           disabled={disabled}
           onClick={onAdd}
           size="sm"

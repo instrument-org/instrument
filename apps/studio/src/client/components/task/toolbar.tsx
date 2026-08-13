@@ -61,6 +61,7 @@ export function TaskToolbar({
   const renderMenuItems = (menuComponents: MenuComponents) => (
     <TaskActionsMenuItems
       id={task.id}
+      isUnread={Boolean(task.unreadIndicator)}
       menuComponents={menuComponents}
       onDelete={() => {
         openDeleteTask(task);

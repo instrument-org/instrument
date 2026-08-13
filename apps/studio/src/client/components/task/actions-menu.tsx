@@ -19,6 +19,7 @@ import {
   CopyIcon,
   DotsThreeOutlineVerticalIcon,
   FileArchiveIcon,
+  NotificationIcon,
   PencilSimpleLineIcon,
   PushPinIcon,
   PushPinSlashIcon,
@@ -70,6 +71,7 @@ export function TaskActionsMenu({
 // {@link MenuComponents}.
 export function TaskActionsMenuItems({
   id,
+  isUnread,
   menuComponents,
   onDelete,
   onExportZip,
@@ -80,6 +82,7 @@ export function TaskActionsMenuItems({
   selectedSessionId,
 }: {
   id: TaskId;
+  isUnread: boolean;
   menuComponents: MenuComponents;
   onDelete: () => void;
   onExportZip: () => void;
@@ -109,6 +112,26 @@ export function TaskActionsMenuItems({
     rpcClient.workspace.pin.add.mutationOptions({
       onError: (error) => {
         toast.error("Failed to pin task", { description: error.message });
+      },
+    }),
+  );
+
+  const { mutate: markUnread } = useMutation(
+    rpcClient.workspace.task.markUnread.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to mark task as unread", {
+          description: error.message,
+        });
+      },
+    }),
+  );
+
+  const { mutate: markRead } = useMutation(
+    rpcClient.workspace.task.clearIndicator.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to mark task as read", {
+          description: error.message,
+        });
       },
     }),
   );
@@ -149,6 +172,20 @@ export function TaskActionsMenuItems({
       <Item onSelect={onRename}>
         <PencilSimpleLineIcon className="size-4" />
         <span>Rename</span>
+      </Item>
+      {/* Marking unread from the task you are looking at holds: the view only
+          clears a manual mark once you leave and come back. */}
+      <Item
+        onSelect={() => {
+          if (isUnread) {
+            markRead({ id });
+          } else {
+            markUnread({ id });
+          }
+        }}
+      >
+        <NotificationIcon className="text-muted-foreground" />
+        <span>{isUnread ? "Mark as read" : "Mark as unread"}</span>
       </Item>
       <TaskProjectMenuItem
         currentProjectId={projectId}

@@ -274,7 +274,7 @@ function privateDirError(displayPath: string) {
   return executeError(
     `"${displayPath}" is inside the private ${TASK_FOLDER_NAMES.private} ` +
       `directory, which holds task internals and is not accessible. Agent ` +
-      `outputs like screenshots and tool-output logs live under work/.`,
+      `outputs like screenshots live under ${TASK_FOLDER_NAMES.work}/.`,
   );
 }
 

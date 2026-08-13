@@ -34,8 +34,8 @@ const EXCLUDED_NAMES = [
   // The private dir holds the db, settings, and the browser session/home -- all
   // hidden from the agent file index (and off-limits to agent reads entirely).
   TASK_FOLDER_NAMES.private,
-  // Tool-output spill logs live under work/ so the agent can read the paths it
-  // is handed, but they are noise for the user, so keep them out of the index.
+  // Tool-output spill logs. The agent is handed their paths and must read them,
+  // but they are noise for the user, so keep them out of the index.
   TASK_FOLDER_NAMES.toolOutput,
   // The subprocess temp dir. Interpreters and their tooling drop caches here
   // (a V8 compile cache alone runs to tens of files and megabytes), which the

@@ -32,7 +32,7 @@ import {
   TabsTrigger,
 } from "@/client/components/ui/tabs";
 import { Textarea } from "@/client/components/ui/textarea";
-import { MagnifyingGlassIcon } from "@phosphor-icons/react";
+import { CheckIcon, MagnifyingGlassIcon } from "@phosphor-icons/react";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_app/debug/components/form-elements")({
@@ -55,6 +55,10 @@ const buttonVariants = [
   "input-select",
 ] as const;
 
+const buttonSizes = ["xs", "sm", "default", "lg"] as const;
+
+const buttonIconSizes = ["icon-sm", "icon", "icon-lg"] as const;
+
 const badgeVariants = [
   "default",
   "brand",
@@ -65,6 +69,23 @@ const badgeVariants = [
   "success",
   "warning",
 ] as const;
+
+function Gallery({
+  children,
+  label,
+}: {
+  children: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="border-b border-black/5 pb-1.5 text-xs font-medium text-muted-foreground dark:border-white/10">
+        {label}
+      </p>
+      {children}
+    </div>
+  );
+}
 
 function RouteComponent() {
   return (
@@ -137,12 +158,40 @@ function RouteComponent() {
         </Section>
 
         <Section title="Button">
-          <div className="flex flex-wrap gap-3">
-            {buttonVariants.map((variant) => (
-              <Button key={variant} variant={variant}>
-                {variant}
-              </Button>
-            ))}
+          <div className="flex flex-col gap-8">
+            <Gallery label="variants">
+              <div className="flex flex-wrap gap-2">
+                {buttonVariants.map((variant) => (
+                  <Button key={variant} variant={variant}>
+                    {variant}
+                  </Button>
+                ))}
+              </div>
+            </Gallery>
+            <Gallery label="sizes">
+              <div className="flex flex-col gap-3">
+                {buttonSizes.map((size) => (
+                  <SizeRow key={size} size={size}>
+                    <Button size={size}>Button</Button>
+                    <Button size={size}>
+                      <CheckIcon />
+                      Button
+                    </Button>
+                  </SizeRow>
+                ))}
+              </div>
+            </Gallery>
+            <Gallery label="icon">
+              <div className="flex flex-col gap-3">
+                {buttonIconSizes.map((size) => (
+                  <SizeRow key={size} size={size}>
+                    <Button size={size}>
+                      <CheckIcon />
+                    </Button>
+                  </SizeRow>
+                ))}
+              </div>
+            </Gallery>
           </div>
         </Section>
 
@@ -284,5 +333,22 @@ function Section({
       </div>
       {children}
     </section>
+  );
+}
+
+function SizeRow({
+  children,
+  size,
+}: {
+  children: React.ReactNode;
+  size: string;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="w-18 shrink-0 font-mono text-xs text-muted-foreground">
+        {size}
+      </span>
+      {children}
+    </div>
   );
 }

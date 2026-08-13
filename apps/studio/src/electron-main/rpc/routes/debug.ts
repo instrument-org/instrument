@@ -312,9 +312,64 @@ const openAuthTestPage = devOnly.input(z.void()).handler(() => {
   void shell.openExternal(`http://localhost:${port}/test`);
 });
 
+/**
+ * The remote debugging port this instance answers on. It is the only thing that
+ * separates two instances of one checkout, which is what a hand-started window
+ * and an agent-driven one are: the conventional port belongs to the window a
+ * person started, and a driven instance derives its own from the checkout path.
+ */
+function debugPort() {
+  const port = Number(app.commandLine.getSwitchValue("remote-debugging-port"));
+  return port > 0 ? port : undefined;
+}
+
+/**
+ * An instance pointed at its own user data directory -- a seeded workspace, say
+ * -- is named by that directory. One on the shared dev directory has nothing to
+ * add.
+ */
+function userDataName() {
+  const dir = process.env.ELECTRON_USER_DATA_DIR;
+  return dir ? path.basename(dir) : undefined;
+}
+
+/**
+ * The folder holding the checkout, for a linked worktree only: the main
+ * checkout is what every other instance is a deviation from, so naming it says
+ * nothing an empty slot doesn't. A linked worktree's `.git` is a file pointing
+ * back at the main checkout, where the main checkout's is a directory.
+ */
+function worktreeName() {
+  if (app.isPackaged) {
+    return;
+  }
+  // Dev runs Electron against apps/studio, so the checkout is two levels up.
+  const root = path.resolve(app.getAppPath(), "..", "..");
+  try {
+    if (fsSync.statSync(path.join(root, ".git")).isFile()) {
+      return path.basename(root);
+    }
+  } catch {
+    // Nothing above this run is a checkout, so there is no worktree to name.
+  }
+  return;
+}
+
 const getAppEnvironment = devOnly
-  .output(z.object({ isPackaged: z.boolean() }))
-  .handler(() => ({ isPackaged: app.isPackaged }));
+  .output(
+    z.object({
+      debugPort: z.number().optional(),
+      isPackaged: z.boolean(),
+      userData: z.string().optional(),
+      worktree: z.string().optional(),
+    }),
+  )
+  .handler(() => ({
+    debugPort: debugPort(),
+    isPackaged: app.isPackaged,
+    userData: userDataName(),
+    worktree: worktreeName(),
+  }));
 
 const relaunchWithNewUserFolder = devOnly.input(z.void()).handler(() => {
   // app.relaunch() has no env option and the spawned child inherits the

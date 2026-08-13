@@ -117,9 +117,13 @@ The registry is keyed by **session**, not task ([`recordsBySession`](../../packa
 
 ## What the user sees
 
-**No new UI surface.** The only renderer change is that a promoted command has no exit code yet, and treating a missing code as non-zero painted every still-running command as a failure — fixed in [`bash-exit-status.ts`](../../apps/studio/src/client/components/message-part/bash-exit-status.ts).
+**A pill beside the task title**, absent whenever nothing is running — [`task-background-processes.tsx`](../../apps/studio/src/client/components/task/task-background-processes.tsx). It says "2 running" rather than showing a bare count, because an unread badge is a number in a dot and this in that shape beside a title would be read as one. Clicking it opens a popover with the explanation, each command, how long it has been going, and a stop.
 
-So today: a user cannot see that three processes are running, and cannot stop them. Quitting the app is the only user-reachable control. Whether that needs a surface is open — this is an app for non-coders, and "background task manager" is not obviously a concept to expose.
+The word "process" appears nowhere in it. The audience did not ask for a server and does not know they have one, so every string says *still running*. The placements that were considered and why this one won are in [wireframes-background-processes.html](../plans/active/wireframes-background-processes.html).
+
+One other renderer change: a promoted command has no exit code yet, and treating a missing code as non-zero painted every still-running command as a failure — fixed in [`bash-exit-status.ts`](../../apps/studio/src/client/components/message-part/bash-exit-status.ts).
+
+**What is still missing:** nothing warns the user when the two-hour cap fires, so a server stopping on its own reads as a bug. And the sidebar shows nothing, so a task you are not looking at can hold a running process invisibly.
 
 ## Does ordinary `bash` behave worse?
 

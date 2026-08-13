@@ -1,6 +1,6 @@
 # Background shell processes
 
-Status: **active, headless.** The workspace half works end to end and is covered by tests; there is no Studio UI and no subagent tool yet. Open decisions are in [Decisions still open](#decisions-still-open).
+Status: **active.** The workspace half works end to end and is covered by tests, the agent is told what it left running, and a task's header shows the user. No subagent tool yet. What remains is in [What the user and the agent are told](#what-the-user-and-the-agent-are-told).
 
 ## Problem
 
@@ -253,39 +253,34 @@ The mitigation with a real payoff is a pid file reaped at next boot, which is th
 same shape [agent-browser-orphaned-daemons.md](../../findings/agent-browser-orphaned-daemons.md)
 wants, and worth doing once for both rather than twice.
 
-## Decisions still open
+## What the user and the agent are told
 
-**The agent cannot see what is already running at the start of a turn.** This is the
-gap that matters now that processes outlive their turn. A tool result names the id
-it created, but that result is a message in history, and nothing tells a *later*
-turn that `bg_1` is still serving on port 3000. So an agent may start a duplicate,
-or tell the user to open a URL for a process it cannot confirm is alive.
+**The agent is told at the start of a turn**, by a `data-backgroundProcesses` part
+([`create-background-processes-part.ts`](../../../packages/workspace/src/lib/create-background-processes-part.ts)).
+A tool result names the id it created, but that result is a message in history:
+nothing told a *later* turn that `bg_1` was still serving on port 3000, so an
+agent could start a duplicate or point the user at a URL for a process that had
+since been killed.
 
-The fix is a `data-backgroundProcesses` part, and `browserStatus` is the working
-precedent for exactly this shape: a **State** part in the taxonomy at the top of
-[`message-data-part.ts`](../../../packages/workspace/src/schemas/session/message-data-part.ts),
-which means it must compare against what this session was last told or it will
-restate an unchanged fact every turn. `createBrowserStatusPart` already handles
-both halves this needs -- the "still open, here it is" case and the "it is gone,
-here is what it was" case, the second of which is what a restart produces.
+`browserStatus` is the precedent it follows -- a **State** part in the taxonomy at
+the top of [`message-data-part.ts`](../../../packages/workspace/src/schemas/session/message-data-part.ts),
+attached only when the answer changed. The one piece it could not inherit: the
+registry is in memory, so after a restart there is nothing to read. What the
+session was last told is persisted under its own storage key, which is what makes
+`ended` -- "the server you started is gone" -- sayable at all.
 
-The one piece it does not inherit: the registry is in memory, so after a restart
-there is nothing to read. Saying "the server you started is gone" requires
-persisting what the session was last told, the way browser state persists
-`lastUrl`.
+**The user is told in the task header**, by a pill that is absent whenever nothing
+is running. Four placements were drawn before picking it
+([wireframes-background-processes.html](wireframes-background-processes.html)):
+above the prompt input, inline in the transcript, the header, and the sidebar.
+Inline lost on a point that is not about taste -- a transcript is a log and this
+is live state, so it is the one placement that cannot stay correct. The same
+reasoning keeps the data part developer-only in the chat stream.
 
-The eval transcripts now say this is worth building. Models do end turns with
-processes running and say so in the reply, and a later turn has no way to learn
-whether that is still true.
-
-**No user-visible surface.** A user cannot see that a server is running, or stop
-it, and the processes persist across turns until explicit or lifecycle cleanup.
-Four placements are drawn in [wireframes-background-processes.html](wireframes-background-processes.html):
-above the prompt input, inline in the transcript, in the task header, and in the
-sidebar. The inline one is the only placement that cannot stay correct, because a
-transcript is a log and this is live state.
-
-**UI.** Headless by choice. Managing a process is a shell command, so it renders as an ordinary bash card like anything else the agent runs, and a promoted `bash` call does too. That is one thing the move to commands bought for free: there is no second part type to design. A live-tailing output pane on the promoted card is the obvious first piece; a per-task process list with kill buttons only becomes necessary if processes outlive turns.
+**Still open.** Nothing warns the user when the two-hour cap fires, so a server
+stopping on its own reads as a bug rather than a policy. And the sidebar shows
+nothing, so a task you are not looking at can hold a running process invisibly --
+the one question the header pill cannot answer.
 
 ## Subagents: same lifecycle, different read model
 

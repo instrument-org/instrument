@@ -249,20 +249,29 @@ const assertReportedExitCodeSeven: Assertion = {
  */
 const assertReadTheCounter: Assertion = {
   check: ({ sessions }) => {
-    const reported = /tick\s*#?(\d+)|\b(\d+)\b/.exec(
-      replyText(sessions).replaceAll(/[^\d\sa-z#]/gi, " "),
+    const text = replyText(sessions).replaceAll(/[^\d\sa-z#]/gi, " ");
+    // Numbers written as a tick first. A reply says other numbers too ("after
+    // ~25 seconds"), and taking whichever came first measured the wrong one.
+    const ticks = [...text.matchAll(/tick\s*#?(\d+)/gi)].map(
+      (match) => match[1],
     );
-    const number = reported?.[1] ?? reported?.[2];
+    const candidates =
+      ticks.length > 0
+        ? ticks
+        : [...text.matchAll(/\b(\d+)\b/g)].map((match) => match[1]);
     // Any tool result, not just `bash`: reading the process log with
     // `read_file` is a legitimate way to have learned the number.
-    const seen =
-      number !== undefined &&
-      new RegExp(String.raw`tick ${number}\b`).test(toolResultText(sessions));
+    const results = toolResultText(sessions);
+    const found = candidates.find(
+      (number) =>
+        number !== undefined &&
+        new RegExp(String.raw`tick ${number}\b`).test(results),
+    );
     return {
-      evidence: seen
-        ? `Reported tick ${number}, which a command's output contained`
-        : `No reported tick number was found in any command output (reply: ${replyText(sessions).slice(0, 160) || "(none)"})`,
-      passed: seen,
+      evidence: found
+        ? `Reported tick ${found}, which a tool result contained`
+        : `No reported tick number was found in any tool result (reply: ${replyText(sessions).slice(0, 160) || "(none)"})`,
+      passed: found !== undefined,
       text: "Reported a tick count it had actually read",
     };
   },
@@ -286,18 +295,18 @@ const assertFoundTheError: Assertion = {
 };
 
 /**
- * The wait must not itself become a background process. `fg` blocks for up to
- * ten minutes by default, so inside a `bash` call with an ordinary `yieldMs` the
- * call outlives its own window and gets promoted: the agent asked to look at
- * bg_1 and is handed bg_2, which is now blocked on bg_1 and holding a slot of
- * the per-task cap. Nothing about the id it wanted has been answered.
+ * The wait must not itself become a background process: an `fg` that outlived
+ * its call would get the call promoted, handing back bg_2 blocked on bg_1 and
+ * holding a slot of the per-task cap, having answered nothing.
+ *
+ * Only a command that *starts* with `fg` counts. A model is free to put slow
+ * work in front of it (`sleep 30; fg bg_1` in a one-second call), and the
+ * promotion then belongs to that work, not to the wait.
  */
 const assertTheWaitDidNotGetPromoted: Assertion = {
   check: ({ sessions }) => {
     const promotedWaits = promoted(sessions).filter((call) =>
-      new RegExp(String.raw`(^|[\n;|&(])\s*${FG_COMMAND.name}\b`).test(
-        call.command,
-      ),
+      new RegExp(String.raw`^\s*${FG_COMMAND.name}\b`).test(call.command),
     );
     return {
       evidence:
@@ -370,14 +379,17 @@ export const BACKGROUND_PROCESS_EVALS = [
   }),
 
   /**
-   * The other half of `fg`: reading a process that never exits. A server has no
-   * exit code to wait for, so the only way to answer is to take what it has
-   * written since the last read and come back.
+   * Observing a process that never exits. There is no exit code to wait for, so
+   * the answer has to come from what it has written so far.
+   *
+   * Deliberately not asserted through `fg`: the process log is advertised in
+   * the same note, it holds the whole output rather than only what arrived
+   * since the last read, and reading it consumes nothing. Half the models
+   * reach for it over `fg` here, and they are not wrong to.
    */
   defineEval({
     assertions: [
       assertPromotedAProcess,
-      makeAssertUsedCommand(FG_COMMAND.name, "to read a running process"),
       assertTheWaitDidNotGetPromoted,
       assertReadTheCounter,
     ],

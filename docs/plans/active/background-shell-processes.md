@@ -130,21 +130,30 @@ Tool-result text is deliberately timeless -- statements about what was true at t
 
 ### With a real agent
 
-`pnpm eval run --prompt ... --model ...` runs the actual agent loop against real models (see [Reproducing the agent runs](#reproducing-the-agent-runs)). Given "write a server, start it, make a request to it, confirm from its own log, then stop it" and no hint that background processes exist, three models found and used the feature correctly from the descriptions alone.
+`pnpm eval run background` runs the actual agent loop against real models (see [Reproducing the agent runs](#reproducing-the-agent-runs)). This is the only rung that can answer whether the feature is discoverable: a command reaches the background by outliving its yield, so there is no tool listing to find it in.
 
-**These runs predate the shell commands** and used the `bash_output`/`bash_kill` tools they replaced. They are kept because what they establish is about `yieldMs`, which did not change; the run needs repeating against `jobs`/`fg`/`kill` before the same can be claimed of those.
+Six committed cases in `evals/cases/background-processes.ts` cover discovery, both halves of `fg`, enumeration, cleanup, and a control that an ordinary command still runs inline. Nothing in any prompt names backgrounding, `jobs`, `fg` or `kill`: the only place a model learns they exist is the `bash` description.
 
-| Model | Sequence | Result |
-| --- | --- | --- |
-| claude-haiku-4.5 | `bash yieldMs=2000` → `bg_1` → request → `bash_output` → `bash_kill` | clean, 8 steps |
-| gpt-5.4-mini | `bash yieldMs=1000` → `bg_1`, request promoted to `bg_2` → polled both → `bash_kill bg_1` | clean, handled two live processes |
-| gemini-2.5-flash | `bash` → `bg_1` → request → `bash_output` saw the logged request | correct up to a provider rate limit that ended the run |
+Across the four representative models, 24 runs, every assertion passes.
 
-Three things worth keeping from that:
+| Case | Asks | claude-sonnet | gemini-pro | gpt-5.6-luna | kimi |
+| --- | --- | --- | --- | --- | --- |
+| serve-then-clean-up | start a server, verify it, stop it | pass | pass | pass | pass |
+| wait-out-a-slow-command | block on a process for its exit code | pass | pass | pass | pass |
+| read-a-running-process | observe something that never exits | pass | pass | pass | pass |
+| enumerate-and-stop-everything | recover ids across calls, stop them | pass | pass | pass | pass |
+| find-an-error-in-noisy-output | answer without reading it all | pass | pass | pass | pass |
+| ordinary-command-stays-inline | control: nothing is promoted | pass | pass | pass | pass |
 
-- Every model reached for a small `yieldMs` when deliberately starting a server, which is the affordance the parameter was supposed to carry.
-- gpt-5.4-mini's *request* command was itself promoted to `bg_2` when it outran a 1 s yield. It polled it, saw exit 0, and moved on. Accidental promotion is a non-event, which is the whole argument for not killing on expiry.
-- None of them tried `curl` against localhost. Each reached for a real process (`node -e`, a `python` heredoc) unprompted, so the [SSRF gap](#gaps-found-while-building) may be less sharp in practice than it looks.
+What the transcripts show, beyond the pass marks:
+
+- **A small `yieldMs` is how every model deliberately starts a long-lived process.** That is the affordance the parameter was supposed to carry, and it is reached for without prompting.
+- **Composition is used unprompted**: `kill bg_1 && sleep 1 && jobs` to stop and confirm in one call, `jobs --json; wc -l work/worker.log` to combine a listing with a count. `--json` was found without being pointed at.
+- **The process tree is understood.** One model annotated its kill as stopping "the active process group and its Node children" -- the part of `kill` that was least likely to be visible.
+- **Reading the log file competes with `fg`, and should.** Asked for the latest output of a running process, half the models read `work/.tool-output/bg_N.log` rather than calling `fg`. The log is advertised in the same note, holds everything rather than only what arrived since the last read, and consumes nothing. `fg` is not the only right answer here and the cases do not require it.
+- **A model will raise `yieldMs` when it can see the duration.** Told to run a command with a visible `45000` in it, one model set `yieldMs: 60000` and held the call open rather than backgrounding. That is the better answer, and it is why the wait case asks for the process id first.
+
+The one defect these found is fixed: `fg` defaulted to a ten-minute block, so a wait inside an ordinary call outlived its own window and got the call promoted -- the agent asked to look at `bg_1` and was handed `bg_2`, blocked on `bg_1`, answering nothing. The enclosing call's remaining window is the ceiling now. An assertion guards it.
 
 ### By hand
 
@@ -165,14 +174,17 @@ Unit coverage in `background-processes.test.ts` and `background-output-buffer.te
 ### Reproducing the agent runs
 
 ```bash
-cd packages/workspace
-pnpm eval run --yes \
-  --prompt "Write a tiny Node HTTP server at work/server.js that listens on port 31999 and logs every request it receives. Start it running, then make a request to it, confirm from the server's own log output that it received the request, and stop the server when you are done." \
-  --model anthropic/claude-haiku-4.5
+# every case against every representative model
+pnpm eval run --yes background
+
+# one case, one model, while iterating
+pnpm eval run --yes --model openai/gpt-5.6-luna background-wait-out
+
+# re-check assertions against sessions already recorded, at no cost
+pnpm eval report <workspace dir printed by the run>
 ```
 
-See the `validate-changes` skill for what that command is and when to reach for
-it.
+Read the transcripts rather than the pass marks: three of these assertions were wrong the first time and only the tool sequence showed it. See the `validate-changes` skill for what that command is and when to reach for it.
 
 ## Gaps found while building
 

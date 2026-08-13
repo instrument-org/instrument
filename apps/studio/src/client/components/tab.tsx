@@ -70,7 +70,7 @@ export const Tab = ({
         "w-full max-w-60 flex-1 overflow-hidden",
         "h-full items-center transition-[background-color,border-radius,box-shadow] duration-150",
         isSelected
-          ? "gap-2 rounded-xl bg-background py-2 pr-1.5 pl-3 shadow-soft"
+          ? "gap-2 rounded-xl bg-background py-2 pr-1.5 pl-3 shadow-xs-soft"
           : cn(
               "py-2 pr-1.5 pl-3 hover:rounded-xl hover:bg-muted/60",
               showSeparator &&

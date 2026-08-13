@@ -156,19 +156,26 @@ export function FolderAccessControl({
 export function FolderAccessLabel({
   access,
   className,
+  iconOnly = false,
 }: {
   access: FolderAttachment.Access;
   className?: string;
+  iconOnly?: boolean;
 }) {
   const label = (
     <span
+      aria-label={iconOnly ? ACCESS_LABELS[access] : undefined}
       className={cn(
         "flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground",
+        iconOnly && "gap-0 hover:text-muted-foreground",
         className,
       )}
     >
-      <FolderAccessIcon access={access} />
-      {ACCESS_LABELS[access]}
+      <FolderAccessIcon
+        access={access}
+        className={iconOnly ? "size-3.5" : undefined}
+      />
+      {iconOnly ? null : ACCESS_LABELS[access]}
     </span>
   );
 

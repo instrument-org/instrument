@@ -23,8 +23,9 @@ export function FolderAttachmentsCard({
   return (
     <div className="flex w-full justify-end">
       {/* One rounded block with rules between the folders, sized to its widest
-          row: a set of folders is one list, not a card each. */}
-      <div className="flex w-fit max-w-[80%] flex-col divide-y overflow-hidden rounded-lg border bg-background shadow-xs">
+          row with enough room to read short paths comfortably: a set of folders
+          is one list, not a card each. */}
+      <div className="flex w-fit max-w-[80%] min-w-64 flex-col divide-y divide-black/5 overflow-hidden rounded-lg bg-background shadow-xs dark:divide-white/6">
         {folders.map((folder) => (
           <FolderAttachmentPreview folder={folder} key={folder.id} />
         ))}

@@ -1,6 +1,7 @@
 import {
   MessageScroller,
   MessageScrollerContent,
+  MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "@/client/components/ui/message-scroller";
@@ -17,7 +18,14 @@ import { useTranscriptEdge } from "./use-transcript-edge";
  * with no layout engine every box is zero tall and every measurement agrees
  * with every other. A real browser is the only place the numbers are numbers.
  */
-function Harness({ rowsPerFrame }: { rowsPerFrame: number[] }) {
+function Harness({
+  anchored = false,
+  rowsPerFrame,
+}: {
+  /** Draw the rows as turns the scroller can anchor, the way the app does. */
+  anchored?: boolean;
+  rowsPerFrame: number[];
+}) {
   const frame = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
   const edge = useTranscriptEdge({ frameRef: frame, index });
@@ -39,11 +47,22 @@ function Harness({ rowsPerFrame }: { rowsPerFrame: number[] }) {
           <MessageScroller className="min-h-0 flex-1">
             <MessageScrollerViewport>
               <MessageScrollerContent className="gap-2 p-4 pb-8">
-                {Array.from({ length: rows }, (_, row) => (
-                  <div className="h-10" key={row}>
-                    row {row}
-                  </div>
-                ))}
+                {Array.from({ length: rows }, (_, row) =>
+                  anchored ? (
+                    <MessageScrollerItem
+                      className="h-10"
+                      key={row}
+                      messageId={`row-${row.toString()}`}
+                      scrollAnchor
+                    >
+                      row {row}
+                    </MessageScrollerItem>
+                  ) : (
+                    <div className="h-10" key={row}>
+                      row {row}
+                    </div>
+                  ),
+                )}
               </MessageScrollerContent>
             </MessageScrollerViewport>
           </MessageScroller>
@@ -91,5 +110,19 @@ describe("the transcript's bottom edge", () => {
     await screen.getByRole("button", { name: "step" }).click();
 
     await expect.poll(() => readEdge(screen).delta).toBe("-48");
+  });
+
+  // Anchoring a turn to the top of the reading line means reserving the room
+  // below it to get there, and the scroller reserves that room inside the
+  // content box. It is the scroller's, not the transcript's, and counting it
+  // would put the end of the transcript below the last row it drew.
+  it("ignores the room the scroller reserves under an anchored turn", async () => {
+    const screen = await render(<Harness anchored rowsPerFrame={[2, 3]} />);
+    await expect.poll(() => readEdge(screen).height).toBe(40 * 2 + 8);
+
+    await screen.getByRole("button", { name: "step" }).click();
+
+    await expect.poll(() => readEdge(screen).height).toBe(40 * 3 + 8 * 2);
+    expect(readEdge(screen).delta).toBe("48");
   });
 });

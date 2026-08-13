@@ -52,17 +52,23 @@ export function useTranscriptEdge({
     }
 
     const measure = () => {
-      // The content box less its own padding, rather than the last child's box.
-      // The frame carries padding so a reader can scroll past the end, and that
-      // padding is not something the transcript drew; the last child is not
-      // reliably the last row, since the scroller puts its own elements there.
+      // The bottom of the last row the transcript drew, which is neither the
+      // content box's bottom nor its last child's. The frame carries padding so
+      // a reader can scroll past the end, and the scroller keeps a spacer of its
+      // own down there for the room a turn needs to reach the top of the
+      // viewport; neither is something the transcript drew.
       const style = globalThis.getComputedStyle(content);
       const above = Number.parseFloat(style.paddingTop);
-      const below = Number.parseFloat(style.paddingBottom);
       const box = content.getBoundingClientRect();
       const frameBox = frame.getBoundingClientRect();
-      const bottom = box.bottom - below;
-      const contentHeight = Math.round(box.height - above - below);
+      const rows = [...content.children].filter(
+        (child) =>
+          !(child instanceof HTMLElement) ||
+          child.dataset.messageScrollerSpacer === undefined,
+      );
+      const bottom =
+        rows.at(-1)?.getBoundingClientRect().bottom ?? box.top + above;
+      const contentHeight = Math.round(bottom - box.top - above);
       heights.current.set(index, contentHeight);
       const before = heights.current.get(index - 1);
       setEdge({

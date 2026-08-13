@@ -106,7 +106,7 @@ const subscribers = new Map<number, Set<() => void>>();
 const timers = new Map<number, ReturnType<typeof setTimeout>>();
 const subscribeFns = new Map<number, (onChange: () => void) => () => void>();
 
-let sharedNow = Date.now();
+let sharedNow: number | undefined;
 let watchingVisibility = false;
 
 /**
@@ -150,7 +150,19 @@ export function clockSubscriber(intervalMs: number) {
   return subscribe;
 }
 
+/**
+ * The `getSnapshot` half of the pair, so it has to hand back the same instant
+ * every time it is asked between ticks rather than read the clock per call.
+ *
+ * The clock starts at the first read rather than when this module is imported:
+ * import order decides nothing about when a timestamp first appears, and until
+ * one does there is no subscriber and no tick to move a value read that early
+ * off whatever instant it caught. A snapshot left sitting ahead of the real
+ * instant reads a fresh date as old enough to render as a date, and that answer
+ * subscribes to nothing, so nothing arrives to correct it.
+ */
 export function getSharedNow() {
+  sharedNow ??= Date.now();
   return sharedNow;
 }
 

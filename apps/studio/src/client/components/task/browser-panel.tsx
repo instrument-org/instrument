@@ -79,12 +79,16 @@ export function TaskBrowserPanel({
   active,
   className,
   sessionId,
+  sliding,
   taskId,
 }: {
   active: boolean;
   // See FileViewer: set when the surface is already drawn around this.
   className?: string;
   sessionId: StoreId.Session;
+  // The pane is sliding open or shut, so the slot is moving under a guest that
+  // only follows it while something is watching. See useBrowserSlot.
+  sliding?: boolean;
   taskId: TaskId;
 }) {
   const targetId = encodeBrowserTargetId(taskId, sessionId);
@@ -138,6 +142,7 @@ export function TaskBrowserPanel({
     emulatedDeviceWidth: emulatedDevice?.width,
     hasLoadError: Boolean(loadError),
     isVisible,
+    sliding,
     targetId,
   });
 

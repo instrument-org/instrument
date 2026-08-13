@@ -7,11 +7,6 @@ import {
   fileViewerClassName,
   FileViewerHeader,
 } from "@/client/components/file-viewer";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/client/components/ui/resizable";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { useTaskPaneActions } from "@/client/hooks/use-task-pane";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
@@ -31,23 +26,9 @@ import { type ReactNode } from "react";
 
 import { FileLoading } from "../file-loading";
 import { TaskBrowserPanel } from "./browser-panel";
+import { TaskPaneSplit } from "./pane-split";
 import { PaneTabs } from "./pane-tabs";
 import { TaskSidebar } from "./sidebar";
-
-const PANEL_SIZES = {
-  artifactMin: 300,
-  sidebarMin: 350,
-};
-
-// Default split when the pane opens: favor the pane and keep the chat compact.
-// These are proportions clamped by the pixel min sizes, so the sidebar still
-// snaps to sidebarMin on narrow windows.
-const OPEN_LAYOUT = { artifact: 65, sidebar: 35 };
-
-const LAYOUT = {
-  closed: { sidebar: 100 },
-  open: OPEN_LAYOUT,
-};
 
 // The pane is the card. Whatever it is showing sits inside this, so the tab
 // strip, a viewer's title row and a viewer's own toolbar stack as one band.
@@ -77,9 +58,8 @@ export function TaskView({
 }) {
   const openFileViewer = useSetAtom(openFileViewerAtom);
   const assetBaseUrl = getAssetBaseUrl(task.id);
-  const { closeTab, openFiles, reorderTabs, selectTab } = useTaskPaneActions(
-    task.id,
-  );
+  const { close, closeTab, openFiles, reorderTabs, selectTab } =
+    useTaskPaneActions(task.id);
 
   // Whether a live browser exists for this session, used to show the guest vs a
   // placeholder in the browser panel.
@@ -175,16 +155,8 @@ export function TaskView({
 
   return (
     <div className="relative h-full w-full overflow-hidden">
-      <ResizablePanelGroup
-        className="h-full"
-        defaultLayout={showArtifactPanel ? LAYOUT.open : LAYOUT.closed}
-        orientation="horizontal"
-      >
-        <ResizablePanel
-          defaultSize={showArtifactPanel ? `${OPEN_LAYOUT.sidebar}%` : "100%"}
-          id="sidebar"
-          minSize={PANEL_SIZES.sidebarMin}
-        >
+      <TaskPaneSplit
+        chat={
           <TaskSidebar
             activeFilePath={filePanel?.filePath ?? null}
             attachedFolders={attachedFolders}
@@ -193,83 +165,68 @@ export function TaskView({
             selectedSessionId={selectedSessionId}
             task={task}
           />
-        </ResizablePanel>
+        }
+        isPaneOpen={showArtifactPanel}
+        onCollapse={close}
+      >
+        {({ isSliding }) => (
+          <div className="flex h-full flex-col p-2">
+            {/* One card, with the strip as its first row. The viewers below
+                already stack a title and a toolbar inside this same frame,
+                so the tabs join that band instead of floating above the
+                pane on the task's own background. */}
+            <div className={paneSurfaceClassName}>
+              <PaneTabs
+                fileTabs={fileTabs}
+                onClose={closeTab}
+                onReorder={reorderTabs}
+                onSelect={selectTab}
+                selectedKey={selected ? TaskPane.tabKey(selected) : undefined}
+                taskId={task.id}
+              />
 
-        {showArtifactPanel && (
-          <>
-            <ResizableHandle />
-
-            <ResizablePanel
-              defaultSize={`${OPEN_LAYOUT.artifact}%`}
-              id="artifact"
-              minSize={PANEL_SIZES.artifactMin}
-            >
-              <div className="flex h-full flex-1 animate-in flex-col p-2 duration-150 fade-in-0 slide-in-from-right-2">
-                {/* One card, with the strip as its first row. The viewers below
-                    already stack a title and a toolbar inside this same frame,
-                    so the tabs join that band instead of floating above the
-                    pane on the task's own background. */}
-                <div className={paneSurfaceClassName}>
-                  <PaneTabs
-                    fileTabs={fileTabs}
-                    onClose={closeTab}
-                    onReorder={reorderTabs}
-                    onSelect={selectTab}
-                    selectedKey={
-                      selected ? TaskPane.tabKey(selected) : undefined
-                    }
+              <div className="min-h-0 flex-1">
+                {selected?.type === "browser" && selectedSessionId ? (
+                  <TaskBrowserPanel
+                    active={browserActive}
+                    className={paneContentClassName}
+                    sessionId={selectedSessionId}
+                    sliding={isSliding}
                     taskId={task.id}
                   />
-
-                  <div className="min-h-0 flex-1">
-                    {selected?.type === "browser" && selectedSessionId ? (
-                      <TaskBrowserPanel
-                        active={browserActive}
-                        className={paneContentClassName}
-                        sessionId={selectedSessionId}
-                        taskId={task.id}
-                      />
-                    ) : currentFile ? (
-                      <FileViewer
-                        className={paneContentClassName}
-                        file={currentFile}
-                        // The path, not the URL. The URL carries the file's
-                        // mtime, so keying on it tore the viewer down and
-                        // rebuilt it every time the file was saved -- losing
-                        // the scroll position, the raw/preview toggle, and
-                        // whatever was on screen, for a file the user is
-                        // watching precisely because it keeps changing. A
-                        // remount is for a different file; new bytes of the
-                        // same one are a content change.
-                        key={currentFile.filePath}
-                        onExpand={() => {
-                          openFileViewer({ files: [currentFile] });
-                        }}
-                      />
-                    ) : filePanel ? (
-                      // Only claim the file is gone once the lookup has
-                      // answered. Rendering the missing state while the query is
-                      // still in flight flashes "File not found" over every file
-                      // on its way in, which is a lie the panel then corrects a
-                      // frame later. The wait itself shows nothing: it is over
-                      // faster than the eye settles, so anything drawn there is
-                      // a flicker between two files rather than a sign of
-                      // progress.
-                      <ArtifactPanelShell filePath={filePanel.filePath}>
-                        {isResolvingFile ? (
-                          <FileLoading />
-                        ) : (
-                          <MissingFileNotice />
-                        )}
-                      </ArtifactPanelShell>
-                    ) : null}
-                  </div>
-                </div>
+                ) : currentFile ? (
+                  <FileViewer
+                    className={paneContentClassName}
+                    file={currentFile}
+                    // The path, not the URL. The URL carries the file's mtime,
+                    // so keying on it tore the viewer down and rebuilt it every
+                    // time the file was saved -- losing the scroll position,
+                    // the raw/preview toggle, and whatever was on screen, for a
+                    // file the user is watching precisely because it keeps
+                    // changing. A remount is for a different file; new bytes of
+                    // the same one are a content change.
+                    key={currentFile.filePath}
+                    onExpand={() => {
+                      openFileViewer({ files: [currentFile] });
+                    }}
+                  />
+                ) : filePanel ? (
+                  // Only claim the file is gone once the lookup has answered.
+                  // Rendering the missing state while the query is still in
+                  // flight flashes "File not found" over every file on its way
+                  // in, which is a lie the panel then corrects a frame later.
+                  // The wait itself shows nothing: it is over faster than the
+                  // eye settles, so anything drawn there is a flicker between
+                  // two files rather than a sign of progress.
+                  <ArtifactPanelShell filePath={filePanel.filePath}>
+                    {isResolvingFile ? <FileLoading /> : <MissingFileNotice />}
+                  </ArtifactPanelShell>
+                ) : null}
               </div>
-            </ResizablePanel>
-          </>
+            </div>
+          </div>
         )}
-      </ResizablePanelGroup>
+      </TaskPaneSplit>
     </div>
   );
 }

@@ -15,4 +15,4 @@ const TAB_ICONS = [
 
 export const TabIconsSchema = z.enum(TAB_ICONS);
 
-export type TabIconName = (typeof TAB_ICONS)[number];
+export type TabIconName = z.output<typeof TabIconsSchema>;

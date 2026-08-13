@@ -28,7 +28,7 @@ import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient } from "@/client/rpc/client";
 import {
-  BugIcon,
+  CodeIcon,
   CpuIcon,
   FadersHorizontalIcon,
   FlagIcon,
@@ -236,7 +236,7 @@ function useNavItems(): NavItem[] {
             title: "Features",
           },
           {
-            icon: BugIcon,
+            icon: CodeIcon,
             isDeveloperMode: true,
             tab: "Debug" as const,
             title: "Debug",

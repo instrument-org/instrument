@@ -130,5 +130,9 @@ describe("the scenario library, drawn frame by frame", () => {
 
     expect(drawn).toBeGreaterThan(200);
     expect(broke).toEqual({ empty: [], indented: [], live: [] });
-  }, 120_000);
+    // Budgeted for a CI runner with the rest of the suite on it, where drawing
+    // the library takes something like ten times what it takes on a dev
+    // machine. Sized against that number rather than the local one, since a
+    // budget that only holds on the fast machine fails as a wrong answer.
+  }, 300_000);
 });

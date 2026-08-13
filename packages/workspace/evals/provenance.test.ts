@@ -49,7 +49,9 @@ describe("systemPromptDigest", () => {
     const digest = systemPromptDigest([
       sessionWith([{ realRole: "system", text: "You are an assistant." }]),
     ]);
-    expect(digest).toMatchInlineSnapshot(`"00b00008e83fb08e4fe5fcc4a235591cbf75269c51705c695f5f40b989a47ad7"`);
+    expect(digest).toMatchInlineSnapshot(
+      `"00b00008e83fb08e4fe5fcc4a235591cbf75269c51705c695f5f40b989a47ad7"`,
+    );
   });
 
   it("changes when the prompt changes", () => {

@@ -99,14 +99,22 @@ export function ComposerFolderTray({
       </AnimatePresence>
       {showAdd && (
         <Button
-          className="-ml-1.5 w-fit gap-2 text-xs leading-none text-gray-400 not-disabled:hover:text-gray-500 dark:text-gray-600 dark:not-disabled:hover:text-gray-500"
+          className={cn(
+            "w-fit gap-2 text-xs leading-none text-gray-400 not-disabled:hover:text-gray-500 dark:text-gray-600 dark:not-disabled:hover:text-gray-500",
+            folders.length > 0 ? "h-7 px-0" : "-ml-1.5",
+          )}
           disabled={disabled}
           onClick={onAdd}
           size="sm"
           variant="ghost"
         >
           {folders.length > 0 ? (
-            <PlusIcon className="size-3" />
+            // Same size-4 slot as the remove control so + and × share a
+            // keyline. A span, not a bare svg: Button's has-[>svg]:px-*
+            // would indent it again.
+            <span className="flex size-4 items-center justify-center">
+              <PlusIcon className="size-3" />
+            </span>
           ) : (
             <FolderIcon className="size-5" />
           )}

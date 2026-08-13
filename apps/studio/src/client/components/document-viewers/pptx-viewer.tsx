@@ -4,7 +4,7 @@ import {
   type PresentationSearchResult,
   ReactPptxViewer,
 } from "@extend-ai/react-pptx";
-import { type CSSProperties, useEffect, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 
 import { useFitWidth } from "./use-fit-width";
 import { useVisiblePage } from "./use-visible-page";
@@ -73,6 +73,30 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
       pageIndexAttribute: "data-rpv-slide-index",
       scrollElement: viewport,
     }) - 1;
+
+  // That reading, kept somewhere a reload can still reach it. It is measured
+  // off the slides in the DOM, and a reload takes them out before the new deck
+  // arrives, so by the time there is anywhere to put the reader back it reads
+  // as slide one.
+  const readingRef = useRef(slideIndex);
+  useEffect(() => {
+    readingRef.current = slideIndex;
+  }, [slideIndex]);
+
+  // The slide to land the reader back on, set as the deck they were reading is
+  // torn out and consumed once its replacement is ready.
+  //
+  // A save is a new URL for the same file, and the library reloads in place
+  // around its own idea of the current slide: whichever shows the most area,
+  // which in a panel tall enough for two slides is the one below the one being
+  // read from a pixel past the top of the deck onwards. So a save on a deck
+  // open at slide one landed the reader on slide two, again on every save.
+  const restoreSlideRef = useRef<null | number>(null);
+  useEffect(() => {
+    return () => {
+      restoreSlideRef.current = readingRef.current;
+    };
+  }, [url]);
 
   // Navigating by scrolling the list, rather than through the library's
   // `goToSlide` or its controlled `slideIndex` prop. Both of those early-return
@@ -218,6 +242,19 @@ export function PptxViewer({ url }: { filename: string; url: string }) {
               // to run against, so it is searched once one exists.
               if (query !== "") {
                 runSearch(ready, query);
+              }
+              // Navigating rather than writing the scroll position back: the
+              // library reloads by scrolling to a slide through its virtualizer,
+              // which spends the next several frames checking it landed there
+              // and correcting it if not. A raw scroll would be taken for a miss
+              // and undone; asking for a different slide is what retires it.
+              const restoreSlide = restoreSlideRef.current;
+              restoreSlideRef.current = null;
+              if (restoreSlide !== null) {
+                void ready.goToSlide(restoreSlide, {
+                  behavior: "instant",
+                  block: "start",
+                });
               }
             }}
             onViewportReady={setViewport}

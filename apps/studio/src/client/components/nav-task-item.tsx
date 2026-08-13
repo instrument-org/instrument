@@ -1,5 +1,4 @@
 import { openDeleteTask } from "@/client/atoms/delete-task-modal";
-import { TaskDevDiskMenuItems } from "@/client/components/dev-disk-menu-items";
 import { InternalLink } from "@/client/components/internal-link";
 import { TaskMenuItems } from "@/client/components/task-menu-items";
 import {
@@ -26,9 +25,7 @@ import { useInlineRename } from "@/client/hooks/use-inline-rename";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task, type TaskId } from "@instrument-org/workspace/client";
 import {
-  ArrowUpRightIcon,
   DotsThreeOutlineVerticalIcon,
-  NotificationIcon,
   PushPinIcon,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
@@ -36,7 +33,6 @@ import { memo, useState } from "react";
 import { toast } from "sonner";
 
 import { InlineRenameInput } from "./inline-rename-input";
-import { TaskProjectMenuItem } from "./project/task-project-menu-item";
 import { TaskStatusIcon } from "./session-status-icon";
 import { UnreadDot } from "./unread-dot";
 
@@ -84,25 +80,6 @@ export const NavTaskItem = memo(function NavTaskItem({
     }),
   );
 
-  const { mutate: markUnread } = useMutation(
-    rpcClient.workspace.task.markUnread.mutationOptions({
-      onError: (error) => {
-        toast.error("Failed to mark task as unread", {
-          description: error.message,
-        });
-      },
-    }),
-  );
-  const { mutate: markRead } = useMutation(
-    rpcClient.workspace.task.clearIndicator.mutationOptions({
-      onError: (error) => {
-        toast.error("Failed to mark task as read", {
-          description: error.message,
-        });
-      },
-    }),
-  );
-
   const handleTogglePin = () => {
     if (isPinned) {
       removePin({ id: task.id });
@@ -111,54 +88,21 @@ export const NavTaskItem = memo(function NavTaskItem({
     }
   };
 
-  const renderMenuItems = (menuComponents: MenuComponents) => {
-    const { Item, Separator } = menuComponents;
-    return (
-      <TaskMenuItems
-        extras={
-          <>
-            <Item
-              onSelect={() => {
-                if (isUnread) {
-                  markRead({ id: task.id });
-                } else {
-                  markUnread({ id: task.id });
-                }
-              }}
-            >
-              <NotificationIcon className="text-muted-foreground" />
-              <span>{isUnread ? "Mark as read" : "Mark as unread"}</span>
-            </Item>
-            <TaskProjectMenuItem
-              currentProjectId={task.projectId}
-              menuComponents={menuComponents}
-              taskId={task.id}
-            />
-            <Separator />
-            <Item
-              onSelect={() => {
-                onOpenInNewTab(task.id);
-              }}
-            >
-              <ArrowUpRightIcon className="text-muted-foreground" />
-              <span>Open in new tab</span>
-            </Item>
-            <TaskDevDiskMenuItems
-              menuComponents={menuComponents}
-              taskId={task.id}
-            />
-          </>
-        }
-        isPinned={isPinned}
-        menuComponents={menuComponents}
-        onDelete={() => {
-          openDeleteTask(task);
-        }}
-        onRename={rename.start}
-        onTogglePin={handleTogglePin}
-      />
-    );
-  };
+  const renderMenuItems = (menuComponents: MenuComponents) => (
+    <TaskMenuItems
+      isPinned={isPinned}
+      menuComponents={menuComponents}
+      onDelete={() => {
+        openDeleteTask(task);
+      }}
+      onOpenInNewTab={() => {
+        onOpenInNewTab(task.id);
+      }}
+      onRename={rename.start}
+      onTogglePin={handleTogglePin}
+      task={task}
+    />
+  );
 
   return (
     <SidebarMenuItem

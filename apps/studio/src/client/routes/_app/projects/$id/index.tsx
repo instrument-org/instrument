@@ -322,6 +322,12 @@ function RouteComponent() {
                 onDelete={(t) => {
                   openDeleteTask(t);
                 }}
+                onOpenInNewTab={(t) => {
+                  void addTab({
+                    params: { id: t.id },
+                    to: "/tasks/$id",
+                  });
+                }}
                 task={task}
               />
             ))

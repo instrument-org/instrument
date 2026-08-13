@@ -9,3 +9,5 @@ The structure is inspired by OpenAI's [Harness engineering: leveraging Codex in 
 - `findings/` records durable, non-obvious engineering observations and unresolved issues.
 - `plans/` tracks non-trivial execution work from active through completed.
 - `changes/` captures dated, screenshot-backed summaries of user-facing changes for design follow-up and possible changelog input.
+
+Documentation for the Platform API, the authenticated service Studio calls through `src/electron-main/platform-api/`, belongs in that service's own repository rather than here. Describe this side of the seam freely: the client interface, what the app does with a response, and what a failure has to look like to the user. Leave the endpoint's design, provider choices, pricing, and billing to the side that owns them, so those details have one home and cannot drift into a second description that nobody updates.

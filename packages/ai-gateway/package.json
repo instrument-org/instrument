@@ -11,7 +11,9 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./client": "./src/client.ts"
+    "./client": "./src/client.ts",
+    "./model-cache": "./src/lib/model-cache.ts",
+    "./schemas": "./src/schemas/index.ts"
   },
   "scripts": {
     "check:lint": "eslint . --max-warnings 0 && oxlint --type-aware",

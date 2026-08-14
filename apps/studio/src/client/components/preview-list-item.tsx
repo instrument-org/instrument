@@ -24,8 +24,13 @@ export function PreviewListItem({
     <Button
       className={cn(
         "h-12 w-full justify-start gap-x-2 overflow-hidden",
+        // The brand tint a full-width `FilePreviewCard` row takes when the pane
+        // is showing its file, so a chip and a row read as the same state. Hover
+        // holds the tint rather than falling back to the variant's, which would
+        // otherwise paint the selected chip as an unselected one under the
+        // pointer.
         isSelected &&
-          "ring-2 ring-primary ring-offset-2 ring-offset-background",
+          "bg-brand-600/8 not-disabled:hover:bg-brand-600/8 dark:bg-brand-300/8 dark:not-disabled:hover:bg-brand-300/8",
       )}
       onClick={onClick}
       type="button"

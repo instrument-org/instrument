@@ -41,8 +41,14 @@ export function FilePreviewListItem({
           <Button
             className={cn(
               "relative size-12 shrink-0 overflow-hidden p-0",
+              // The outline a square media tile takes when the pane is showing
+              // its file. A tint is the treatment everywhere else, but the image
+              // covers the surface it would land on, so the mark goes outside.
+              // `outline-solid` because the button's base turns the outline off
+              // for the focus ring to switch back on, and a width alone inherits
+              // that off.
               isSelected &&
-                "ring-2 ring-primary ring-offset-2 ring-offset-background",
+                "outline-2 outline-offset-2 outline-brand-100 outline-solid dark:outline-brand-700",
             )}
             onClick={onClick}
             type="button"

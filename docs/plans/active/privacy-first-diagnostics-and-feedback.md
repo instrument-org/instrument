@@ -37,7 +37,7 @@ Nothing has been removed. Both PostHog SDKs are live and default-on.
 
 **Diagnostics seed.** [server-exceptions.ts](../../../apps/studio/src/electron-main/lib/server-exceptions.ts) is an unbounded in-memory array, developer-mode only, populated only when telemetry is off.
 
-**Timing seed.** [boot-timing.ts](../../../apps/studio/src/electron-main/lib/boot-timing.ts) wraps each step of main-process boot and logs its duration through electron-log, so a packaged build's `main.log` says which step a slow launch spent its time in. A formatted string, not a record, and the only timing anywhere in the app.
+**Timing seed.** [boot-timing.ts](../../../apps/studio/src/electron-main/lib/boot-timing.ts) wraps each step of main-process boot and logs its duration through electron-log, so a packaged build's `main.log` says which step a slow launch spent its time in. A formatted string, not a record, and the only timing anywhere in the app. [main-log-retention-and-transport.md](../../findings/main-log-retention-and-transport.md) measures what that file retains and why its transport defaults do not survive the volume Phase 1 adds.
 
 **No feedback UI.** [nav-support.tsx](../../../apps/studio/src/client/components/nav-support.tsx) is an external link. FP-653 "Conversation quality rating" was cancelled.
 

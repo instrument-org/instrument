@@ -22,7 +22,6 @@ import {
 } from "motion/react";
 import { useEffect, useRef } from "react";
 
-
 /**
  * The resizable sidebar rail. Width is driven imperatively so dragging tracks
  * the cursor 1:1 with no transition. Open/close is a slide: the panel keeps its

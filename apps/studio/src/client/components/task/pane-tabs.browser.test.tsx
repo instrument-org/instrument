@@ -1,7 +1,7 @@
 import { renderInBrowser } from "@/tests/render-browser";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
-import { page, userEvent } from "vitest/browser";
 import { expect, test, vi } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { PaneTabs } from "./pane-tabs";
 

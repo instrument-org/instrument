@@ -8,6 +8,7 @@ import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { useNearViewport } from "../hooks/use-near-viewport";
 import { renderMermaid, toDiagramImageUrl } from "../lib/mermaid";
 import {
+  BlockToolbarButton,
   blockToolbarButtonClassName,
   CodeBlock,
   CodeWithCopy,
@@ -131,33 +132,26 @@ export const MermaidDiagram = ({
           on an invisible control. */}
       <div className="absolute top-1 right-1 z-10 flex items-center gap-1 opacity-0 group-hover/block-toolbar:opacity-100 focus-within:opacity-100">
         {!showSource && (
-          <button
-            aria-label="Open diagram"
-            className={blockToolbarButtonClassName}
+          <BlockToolbarButton
+            icon={ArrowsOutSimpleIcon}
+            label="Open diagram"
             onClick={openInPreview}
-            title="Open diagram"
-            type="button"
-          >
-            <ArrowsOutSimpleIcon size={12} />
-          </button>
+          />
         )}
-        <button
-          aria-label={showSource ? "Show diagram" : "Show source"}
-          className={blockToolbarButtonClassName}
+        <BlockToolbarButton
+          icon={showSource ? GraphIcon : CodeIcon}
+          label={showSource ? "Show diagram" : "Show source"}
           onClick={() => {
             setShowSource(!showSource);
           }}
-          title={showSource ? "Show diagram" : "Show source"}
-          type="button"
-        >
-          {showSource ? <GraphIcon size={12} /> : <CodeIcon size={12} />}
-        </button>
+        />
         <CopyButton
           className={blockToolbarButtonClassName}
           iconSize={12}
           onCopy={async () => {
             await navigator.clipboard.writeText(code);
           }}
+          tooltip="Copy source"
         />
       </div>
 

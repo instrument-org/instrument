@@ -114,6 +114,10 @@ async function renderTranscript() {
 test("brings up the footer of the turn under the pointer and no other", async () => {
   await renderTranscript();
 
+  // Park the pointer off the transcript first. Nothing has moved it yet, so it
+  // sits wherever the run happens to leave it, and a resting pointer that lands
+  // on a turn raises that turn's footer before the first hover is ever issued.
+  await page.getByRole("button", { name: "off the transcript" }).hover();
   expect(footerOpacities()).toEqual(["0", "0"]);
 
   // A row in the turn's first message; the footer it belongs to is drawn from

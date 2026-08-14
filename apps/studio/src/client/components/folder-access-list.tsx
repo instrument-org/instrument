@@ -307,7 +307,7 @@ function FolderAccessRow({
               onClick={onRemove}
               type="button"
             >
-              <XIcon className="size-3.5" />
+              <XIcon className="size-3" />
               <span className="sr-only">
                 Remove {folderNameFromPath(path)}
               </span>

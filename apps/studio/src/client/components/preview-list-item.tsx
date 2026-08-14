@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/client/lib/utils";
 
-import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function PreviewListItem({
@@ -21,20 +20,28 @@ export function PreviewListItem({
   tooltipContent?: string;
 }) {
   const button = (
-    <Button
+    // Its own surface rather than a button variant's, taken from the folder
+    // block a message carries beside these (`FolderAttachmentsCard`): the same
+    // fill and elevation, one chip at a time instead of one divided block. The
+    // hairline comes with `shadow-xs`, which is the soft ramp over a 1px ring --
+    // a `border` on top of it is that edge drawn twice. Borrowing a variant
+    // instead meant its next round of tuning arrived here as a filename nobody
+    // could read.
+    <button
       className={cn(
-        "h-12 w-full justify-start gap-x-2 overflow-hidden",
-        isSelected &&
-          "ring-2 ring-primary ring-offset-2 ring-offset-background",
+        "flex h-12 w-full items-center gap-x-2 overflow-hidden rounded-lg bg-background px-3 text-left text-foreground shadow-xs",
+        "transition-[outline] outline-none focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]",
+        // The brand tint a `FilePreviewCard` takes when the pane is showing its
+        // file, so a chip and a full-width card read as the same state.
+        isSelected ? "bg-brand-600/8 dark:bg-brand-300/8" : "hover:bg-muted",
       )}
       onClick={onClick}
       type="button"
-      variant="outline-muted"
     >
       {icon}
-      <span className="min-w-0 truncate text-left text-xs/tight">{label}</span>
+      <span className="min-w-0 truncate text-xs/tight">{label}</span>
       {rightElement && <div className="ml-auto shrink-0">{rightElement}</div>}
-    </Button>
+    </button>
   );
 
   if (!tooltipContent) {
@@ -46,7 +53,7 @@ export function PreviewListItem({
       <TooltipTrigger asChild>{button}</TooltipTrigger>
       <TooltipContent
         className="wrap-break-word"
-          collisionPadding={10}
+        collisionPadding={10}
         maxWidth="500px"
       >
         {tooltipContent}

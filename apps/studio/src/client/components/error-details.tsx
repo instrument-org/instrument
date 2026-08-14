@@ -1,5 +1,5 @@
 import { cn } from "@/client/lib/utils";
-import { CaretDownIcon } from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { useState } from "react";
 
 import { CopyButton } from "./copy-button";

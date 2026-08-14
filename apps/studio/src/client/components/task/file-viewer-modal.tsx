@@ -5,7 +5,8 @@ import {
 } from "@/client/atoms/task-file-viewer";
 import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
-import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react";
+import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -159,6 +160,7 @@ export function TaskFileViewerModal() {
               {hasMultipleFiles && (
                 <>
                   <Button
+                    aria-label="Previous file"
                     className="absolute top-1/2 left-3 z-10 -translate-y-1/2"
                     onClick={goToPrevious}
                     size="icon"
@@ -167,6 +169,7 @@ export function TaskFileViewerModal() {
                     <CaretLeftIcon className="size-6" />
                   </Button>
                   <Button
+                    aria-label="Next file"
                     className="absolute top-1/2 right-3 z-10 -translate-y-1/2"
                     onClick={goToNext}
                     size="icon"

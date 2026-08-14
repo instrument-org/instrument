@@ -1,5 +1,5 @@
 import { cn } from "@/client/lib/utils";
-import { CaretDownIcon } from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import * as React from "react";
 

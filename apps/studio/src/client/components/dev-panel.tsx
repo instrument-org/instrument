@@ -41,7 +41,7 @@ import {
   onboardingScreens,
 } from "@/client/routes/_app/debug/-debug-routes";
 import { scenarios } from "@/client/routes/_app/debug/-transcript/scenarios";
-import { rpcClient } from "@/client/rpc/client";
+import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
   FEATURE_METADATA,
   type FeatureName,
@@ -49,20 +49,19 @@ import {
 } from "@/shared/features";
 import { SHORTCUTS } from "@/shared/shortcuts";
 import { steppedZoom } from "@/shared/zoom";
-import {
-  ArrowLineDownIcon,
-  ArrowsClockwiseIcon,
-  ChartBarIcon,
-  DatabaseIcon,
-  MagnifyingGlassMinusIcon,
-  MagnifyingGlassPlusIcon,
-  MonitorIcon,
-  MoonIcon,
-  NavigationArrowIcon,
-  NotePencilIcon,
-  SunIcon,
-  WarningOctagonIcon,
-} from "@phosphor-icons/react";
+import { PORTS } from "@instrument-org/shared";
+import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
+import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
+import { ChartBarIcon } from "@phosphor-icons/react/ChartBar";
+import { DatabaseIcon } from "@phosphor-icons/react/Database";
+import { MagnifyingGlassMinusIcon } from "@phosphor-icons/react/MagnifyingGlassMinus";
+import { MagnifyingGlassPlusIcon } from "@phosphor-icons/react/MagnifyingGlassPlus";
+import { MonitorIcon } from "@phosphor-icons/react/Monitor";
+import { MoonIcon } from "@phosphor-icons/react/Moon";
+import { NavigationArrowIcon } from "@phosphor-icons/react/NavigationArrow";
+import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
+import { SunIcon } from "@phosphor-icons/react/Sun";
+import { WarningOctagonIcon } from "@phosphor-icons/react/WarningOctagon";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
@@ -113,6 +112,8 @@ const FEATURE_CODES: Record<FeatureName, string> = {
 };
 
 const FEATURE_NAMES = Object.keys(FEATURE_CODES) as FeatureName[];
+
+type AppEnvironment = RPCOutput["debug"]["getAppEnvironment"];
 
 export function DevPanel() {
   const navigate = useNavigate();
@@ -218,6 +219,8 @@ export function DevPanel() {
   }
 
   const envLabel = appEnvironment?.isPackaged === true ? "prod" : "dev";
+  const instanceTag =
+    appEnvironment === undefined ? "" : instanceLabel(appEnvironment);
 
   return (
     <>
@@ -244,6 +247,14 @@ export function DevPanel() {
                   {appVersion.version}
                 </span>
               )}
+              {/* What a dev run has to say for itself in the slot a packaged
+                  build gives its version: how this instance differs from the
+                  one started by hand, and nothing at all when it doesn't. */}
+              {!isPackaged && instanceTag !== "" && (
+                <span className="font-mono text-[9px] leading-none text-dev-500/70 tabular-nums dark:text-dev-400/60">
+                  {instanceTag}
+                </span>
+              )}
               <FeatureFlagStrip features={features} />
             </MenubarTrigger>
             <MenubarContent align="end" side="bottom">
@@ -260,6 +271,36 @@ export function DevPanel() {
                 <span className="font-mono text-[9px] text-dev-700/80 dark:text-dev-300/70">
                   {appEnvironment?.isPackaged ? "packaged" : "unpackaged"}
                 </span>
+                {appEnvironment?.worktree !== undefined && (
+                  <>
+                    <span className="font-mono text-[9px] text-dev-500/60 dark:text-dev-400/50">
+                      worktree
+                    </span>
+                    <span className="font-mono text-[9px] text-dev-700/80 dark:text-dev-300/70">
+                      {appEnvironment.worktree}
+                    </span>
+                  </>
+                )}
+                {appEnvironment?.userData !== undefined && (
+                  <>
+                    <span className="font-mono text-[9px] text-dev-500/60 dark:text-dev-400/50">
+                      user data
+                    </span>
+                    <span className="font-mono text-[9px] text-dev-700/80 dark:text-dev-300/70">
+                      {appEnvironment.userData}
+                    </span>
+                  </>
+                )}
+                {appEnvironment?.debugPort !== undefined && (
+                  <>
+                    <span className="font-mono text-[9px] text-dev-500/60 dark:text-dev-400/50">
+                      debug port
+                    </span>
+                    <span className="font-mono text-[9px] text-dev-700/80 tabular-nums dark:text-dev-300/70">
+                      {appEnvironment.debugPort}
+                    </span>
+                  </>
+                )}
               </div>
               <MenubarSeparator />
               <MenubarSub>
@@ -761,6 +802,25 @@ function FeatureFlagStrip({ features }: { features: Features }) {
       )}
     </span>
   );
+}
+
+/**
+ * Which of several dev instances this window is, for someone holding more than
+ * one of them at once -- and only where it differs from the instance they start
+ * by hand, so an empty label means that one. A worktree names itself, a custom
+ * user data directory names the workspace it was seeded with, and a port off
+ * the conventional one is the tell that something else booted this window: a
+ * driven instance derives its port from the checkout path.
+ */
+function instanceLabel({ debugPort, userData, worktree }: AppEnvironment) {
+  const where = [worktree, userData]
+    .filter((part) => part !== undefined)
+    .join("/");
+  const port =
+    debugPort === undefined || debugPort === PORTS.electronDebug
+      ? undefined
+      : debugPort.toString();
+  return [where, port].filter((part) => part !== undefined && part).join(" ");
 }
 
 function ThemeToggle() {

@@ -7,7 +7,7 @@ import { OnboardingScreen } from "@/client/components/onboarding/screen";
 import { TermsFooter } from "@/client/components/terms-footer";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
-import { WarningCircleIcon } from "@phosphor-icons/react";
+import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "../ui/button";

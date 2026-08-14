@@ -37,7 +37,7 @@ export function createDevToolsMenu(): MenuItemConstructorOptions[] {
     {
       label: "🐛 Dev",
       submenu: [
-        shortcutMenuItem("reloadWebViews"),
+        shortcutMenuItem("reloadApp"),
         { type: "separator" as const },
         shortcutMenuItem("themeLight"),
         shortcutMenuItem("themeDark"),

@@ -20,15 +20,13 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import uFuzzy from "@leeoniya/ufuzzy";
-import {
-  ArrowsClockwiseIcon,
-  BugIcon,
-  CardsThreeIcon,
-  ChatCircleIcon,
-  PlusIcon,
-  PushPinIcon,
-  SidebarSimpleIcon,
-} from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
+import { CodeIcon } from "@phosphor-icons/react/Code";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { PushPinIcon } from "@phosphor-icons/react/PushPin";
+import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMatch, useNavigate } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -599,7 +597,7 @@ function CommandResultsList({
                   }}
                   value={`debug:${row.matched.item.key}`}
                 >
-                  <BugIcon className="size-4 shrink-0 opacity-50" />
+                  <CodeIcon className="size-4 shrink-0 opacity-50" />
                   <span className="flex-1 truncate text-sm">
                     <FuzzyHighlight
                       ranges={row.matched.labelRanges}

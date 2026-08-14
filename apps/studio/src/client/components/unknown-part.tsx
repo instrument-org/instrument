@@ -1,5 +1,5 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
-import { QuestionIcon } from "@phosphor-icons/react";
+import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { useState } from "react";
 
 import {

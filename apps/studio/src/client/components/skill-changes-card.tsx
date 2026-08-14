@@ -6,7 +6,8 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { skillMentionLabel } from "@instrument-org/shared/skill-mention";
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
-import { CaretRightIcon, GraduationCapIcon } from "@phosphor-icons/react";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 

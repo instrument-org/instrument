@@ -76,6 +76,19 @@ export interface WorkspaceFsLayout {
 export interface WorkspaceFsMount {
   /** Real on-disk directory backing this mount. */
   hostRoot: AbsolutePath;
+  /**
+   * The `.instrument` dir at this mount's root is not the agent's to read or
+   * write, and every consumer of the layout has to refuse it.
+   *
+   * A property of the mount rather than a case each consumer writes against the
+   * task mount, because it is true of two mounts already and each of them holds
+   * the settings that decide what the agent can reach: the task's attached
+   * folders, the project's folder list and the access granted to each. A guard
+   * spelled per consumer is one the next mount does not inherit, and the mount
+   * whose settings widen access across every task in a project is the one that
+   * arrived without it.
+   */
+  masksPrivateDir: boolean;
   /** Absolute, normalized virtual path where the directory appears. */
   mountPoint: string;
   /**
@@ -127,7 +140,8 @@ export async function buildBashFs(
   // never here.
   fs.mount(
     layout.task.mountPoint,
-    maskPrivateDirFs(
+    masked(
+      layout.task,
       new ReadWriteFs({ maxFileReadSize, root: layout.task.hostRoot }),
     ),
   );
@@ -145,14 +159,17 @@ export async function buildBashFs(
     // and `cp` as succeeding and leave the user's files untouched.
     fs.mount(
       mount.mountPoint,
-      mount.readOnly
-        ? new OverlayFs({
-            maxFileReadSize,
-            mountPoint: "/",
-            readOnly: true,
-            root: mount.hostRoot,
-          })
-        : new ReadWriteFs({ maxFileReadSize, root: mount.hostRoot }),
+      masked(
+        mount,
+        mount.readOnly
+          ? new OverlayFs({
+              maxFileReadSize,
+              mountPoint: "/",
+              readOnly: true,
+              root: mount.hostRoot,
+            })
+          : new ReadWriteFs({ maxFileReadSize, root: mount.hostRoot }),
+      ),
     );
   }
 
@@ -165,7 +182,8 @@ export async function buildBashFs(
   if (layout.project && (await pathExists(layout.project.hostRoot))) {
     fs.mount(
       layout.project.mountPoint,
-      maskPrivateDirFs(
+      masked(
+        layout.project,
         new ReadWriteFs({ maxFileReadSize, root: layout.project.hostRoot }),
       ),
     );
@@ -213,6 +231,9 @@ export function buildWorkspaceFsLayout({
     attachedFolders ?? {},
   ).map(({ folder, mountPoint }) => ({
     hostRoot: folder.path,
+    // A folder the user attached is theirs, and an `.instrument` dir in it is
+    // an ordinary directory of theirs rather than one of ours.
+    masksPrivateDir: false,
     mountPoint,
     readOnly: effectiveFolderAccess(folder) !== "read-write",
   }));
@@ -224,8 +245,8 @@ export function buildWorkspaceFsLayout({
     // user means the agent to edit, so it is granted deliberately and narrowly
     // rather than falling out of where the folder happens to sit. What that
     // guard is actually protecting -- the settings that name the project's
-    // folders and the access granted to each -- stays unreachable, because
-    // buildBashFs masks the private dir inside this mount.
+    // folders and the access granted to each -- is what `masksPrivateDir` keeps
+    // out of reach.
     ...(projectFolderName
       ? {
           project: {
@@ -233,6 +254,7 @@ export function buildWorkspaceFsLayout({
               getWorkspaceConfig().projectsDir,
               projectFolderName,
             ),
+            masksPrivateDir: true,
             mountPoint: MOUNT.project,
             readOnly: false as const,
           },
@@ -240,11 +262,13 @@ export function buildWorkspaceFsLayout({
       : {}),
     skills: {
       hostRoot: getWorkspaceSkillsDir(),
+      masksPrivateDir: false,
       mountPoint: MOUNT.skills,
       readOnly: false,
     },
     task: {
       hostRoot: taskHostRoot,
+      masksPrivateDir: true,
       mountPoint: MOUNT.task,
       readOnly: false,
     },
@@ -320,6 +344,28 @@ export function hostPathEscapesMount(
   }
 
   return !pathIsWithin(canonicalPath, canonicalRoot);
+}
+
+/**
+ * Whether a virtual path names the masked private dir of the mount that owns
+ * it, or anything inside it.
+ *
+ * The one question every consumer of the layout asks in place of comparing a
+ * mount against `layout.task`. Fails closed on a path the mount does not own,
+ * which its caller has already ruled out by resolving it there.
+ */
+export function isMaskedPrivatePath(
+  mount: WorkspaceFsMount,
+  virtualAbsPath: string,
+): boolean {
+  if (!mount.masksPrivateDir) {
+    return false;
+  }
+  const relative = relativeWithin(
+    mount.mountPoint,
+    normalizePath(virtualAbsPath),
+  );
+  return relative === null || isPrivateRelative(relative);
 }
 
 /** Every mount other than the task, in the order they are advertised. */
@@ -437,18 +483,15 @@ export function resolveReadOnlyHostPath(
   }
   const { hostPath, mount } = resolved;
 
-  if (mount === layout.task) {
-    const relative = relativeWithin(MOUNT.task, normalizePath(virtualAbsPath));
-    if (relative === null || isPrivateRelative(relative)) {
-      return null;
-    }
-    return hostPath;
+  if (isMaskedPrivatePath(mount, virtualAbsPath)) {
+    return null;
   }
 
   // The bash sandbox refuses to traverse a symlink out of a mount; a real
   // binary would happily follow it, so the containment has to be re-checked
-  // here rather than inherited.
-  if (hostPathEscapesMount(hostPath, mount.hostRoot)) {
+  // here rather than inherited. Not asked of the task mount, whose own contents
+  // the agent writes and reads by relative path in any case.
+  if (mount !== layout.task && hostPathEscapesMount(hostPath, mount.hostRoot)) {
     return null;
   }
   return hostPath;
@@ -490,4 +533,9 @@ function canonicalizeThroughMissing(hostPath: string): null | string {
 
 function isEnoent(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
+}
+
+/** A mount's filesystem with its private dir hidden, when it has one. */
+function masked(mount: WorkspaceFsMount, fs: IFileSystem): IFileSystem {
+  return mount.masksPrivateDir ? maskPrivateDirFs(fs) : fs;
 }

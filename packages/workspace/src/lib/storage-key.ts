@@ -20,6 +20,13 @@ export namespace StorageKey {
     return ["background-processes-reported", sessionId].join(SEPARATOR);
   }
 
+  // Per-session latch for whether reaching a page has already taken the pane
+  // during the turn now running. Lowered as each user message is composed, so a
+  // turn takes the pane at most once however many pages it visits.
+  export function browserRevealedThisTurn(sessionId: StoreId.Session) {
+    return ["browser-revealed-this-turn", sessionId].join(SEPARATOR);
+  }
+
   // Per-session marker and last-known page for managed browser use. Live
   // browser presence remains authoritative for whether a tab is currently open.
   export function browserState(sessionId: StoreId.Session) {

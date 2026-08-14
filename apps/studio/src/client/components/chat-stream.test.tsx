@@ -19,6 +19,18 @@ import {
 } from "./ui/message-scroller";
 import { TooltipProvider } from "./ui/tooltip";
 
+// An opened file card highlights what it is showing, and asks the app which
+// theme to highlight against; the real provider answers through `matchMedia`
+// and an RPC round trip, neither of which is here and neither of which any
+// case below reads. `vi.mock` is hoisted above the imports either way.
+vi.mock("@/client/components/theme-provider", () => ({
+  useTheme: () => ({
+    resolvedTheme: "light",
+    setTheme: vi.fn(),
+    theme: "light",
+  }),
+}));
+
 const sessionId = StoreId.newSessionId();
 const messageId = StoreId.newMessageId();
 
@@ -74,6 +86,57 @@ function assistantMessage(
 }
 
 /**
+ * The transcript as one element, so a case that is about state surviving can
+ * hand the same tree a later set of messages.
+ */
+function chatStream(
+  messages: unknown[],
+  {
+    alwaysShowFooter = false,
+    isAgentRunning = false,
+    isDeveloperMode = false,
+    releaseAutoScroll,
+    renderAsItems = false,
+  }: RenderOptions = {},
+) {
+  const stream = (
+    <TranscriptScrollContext value={releaseAutoScroll ?? noop}>
+      <ChatStream
+        alwaysShowFooter={alwaysShowFooter}
+        isAgentRunning={isAgentRunning}
+        isDeveloperMode={isDeveloperMode}
+        messages={messages as SessionMessage.WithParts[]}
+        onContinue={vi.fn()}
+        onModelChange={vi.fn()}
+        onRetry={vi.fn()}
+        onRunAgain={vi.fn()}
+        onStartNewTask={vi.fn()}
+        renderAsItems={renderAsItems}
+        task={task}
+      />
+    </TranscriptScrollContext>
+  );
+
+  return (
+    <TooltipProvider>
+      {/* Rows only become scroller items inside a scroller, and only the
+          top-level transcript is one. */}
+      {renderAsItems ? (
+        <MessageScrollerProvider>
+          <MessageScroller>
+            <MessageScrollerViewport>
+              <MessageScrollerContent>{stream}</MessageScrollerContent>
+            </MessageScrollerViewport>
+          </MessageScroller>
+        </MessageScrollerProvider>
+      ) : (
+        stream
+      )}
+    </TooltipProvider>
+  );
+}
+
+/**
  * Clicks the first row reading `text`.
  *
  * A working group's head line is a copy of the step the agent is on, so once the
@@ -86,6 +149,76 @@ function clickRow(text: string) {
     throw new Error(`no row labeled ${text}`);
   }
   fireEvent.click(row);
+}
+
+/**
+ * The one call the transcript opens without being asked, in the two states that
+ * matter; see `opensOnSight`.
+ *
+ * Both share the part the transcript keys everything on, since the whole
+ * question is what survives the call finishing: two parts with two ids would be
+ * two rows, and the state of the first one would have nowhere to go.
+ */
+function imageCall(explanation: string) {
+  const input = {
+    explanation,
+    filePath: "./output/cover",
+    prompt: "Four quarterly bars in muted ink on paper",
+  };
+  const seat = metadata(new Date(1));
+  const toolCallId = StoreId.ToolCallSchema.parse(`call-g${partCounter}`);
+  return {
+    done: {
+      input,
+      metadata: { ...seat, endedAt: new Date(2) },
+      output: {
+        images: [
+          {
+            filePath: "output/cover.png",
+            height: 1024,
+            modifiedAt: 0,
+            sizeBytes: 1024,
+            width: 1024,
+          },
+        ],
+        modelId: "openai/gpt-image-1",
+        provider: { displayName: "OpenAI", id: "openai", type: "openai" },
+        renamedToAvoidOverwrite: false,
+        sourceImages: [],
+        state: "success",
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      },
+      state: "output-available",
+      toolCallId,
+      type: "tool-generate_image",
+    },
+    running: {
+      input,
+      metadata: seat,
+      state: "input-available",
+      toolCallId,
+      type: "tool-generate_image",
+    },
+  };
+}
+
+/**
+ * Whether the row reading `text` is showing what the call itself produced.
+ *
+ * The *last* row by that name, which is the step in its place in the run: the
+ * copy a group draws in its own slot comes from the slice the group opened in
+ * and so is always above it. Which one is asked matters, because the copy is on
+ * its way out at exactly the moment this is worth asking.
+ */
+function isRowOpen(text: string) {
+  const row = screen.getAllByText(text).at(-1);
+  // Read off the state rather than off the content: a collapsible that has been
+  // opened once keeps its content mounted and hides it, so its presence says
+  // only that the row was open at some point.
+  return (
+    row?.closest('[data-slot="collapsible"]')?.getAttribute("data-state") ===
+    "open"
+  );
 }
 
 function metadata(startedAt?: Date) {
@@ -149,50 +282,8 @@ function read({
       };
 }
 
-function renderMessages(
-  messages: unknown[],
-  {
-    alwaysShowFooter = false,
-    isAgentRunning = false,
-    isDeveloperMode = false,
-    releaseAutoScroll,
-    renderAsItems = false,
-  }: RenderOptions = {},
-) {
-  const stream = (
-    <TranscriptScrollContext value={releaseAutoScroll ?? noop}>
-      <ChatStream
-        alwaysShowFooter={alwaysShowFooter}
-        isAgentRunning={isAgentRunning}
-        isDeveloperMode={isDeveloperMode}
-        messages={messages as SessionMessage.WithParts[]}
-        onContinue={vi.fn()}
-        onModelChange={vi.fn()}
-        onRetry={vi.fn()}
-        onStartNewTask={vi.fn()}
-        renderAsItems={renderAsItems}
-        task={task}
-      />
-    </TranscriptScrollContext>
-  );
-
-  return renderWithProviders(
-    <TooltipProvider>
-      {/* Rows only become scroller items inside a scroller, and only the
-          top-level transcript is one. */}
-      {renderAsItems ? (
-        <MessageScrollerProvider>
-          <MessageScroller>
-            <MessageScrollerViewport>
-              <MessageScrollerContent>{stream}</MessageScrollerContent>
-            </MessageScrollerViewport>
-          </MessageScroller>
-        </MessageScrollerProvider>
-      ) : (
-        stream
-      )}
-    </TooltipProvider>,
-  );
+function renderMessages(messages: unknown[], options?: RenderOptions) {
+  return renderWithProviders(chatStream(messages, options));
 }
 
 function renderParts(parts: unknown[], options?: RenderOptions) {
@@ -734,6 +825,157 @@ describe("ChatStream and the turn the scroller anchors", () => {
     clickRow("Reading each quarter");
 
     expect(releaseAutoScroll).toHaveBeenCalledOnce();
+  });
+});
+
+/**
+ * A step inside a folded phase is on screen for exactly as long as the agent is
+ * on it: the fold draws one line for the whole phase, and the next step takes
+ * that line. So a step the reader opens takes the phase open with it, which is
+ * what leaves it somewhere to be once the agent has moved on.
+ */
+describe("ChatStream and a step the reader opened", () => {
+  // Built once per case and handed back unchanged, since a rebuilt part is a
+  // new part: what is under test is a row keeping its state as the run grows
+  // around it, and a fresh id would have nothing to keep.
+  const phase = () =>
+    [
+      [activity("Reading each quarter")],
+      [read({ explanation: "Reading the first quarter" })],
+      // The agent between steps, which is where a reader gets the chance to
+      // click at all: the group falls back to the last step it took for the
+      // line it draws while it works out what to do next.
+      [read({ explanation: "Reading the second quarter" })],
+    ].map((parts) => assistantMessage(parts));
+
+  it("opens the phase around it", () => {
+    renderMessages(phase(), { isAgentRunning: true });
+
+    expect(screen.queryByText("Reading the first quarter")).toBeNull();
+
+    clickRow("Reading the second quarter");
+
+    expect(screen.getByText("Reading the first quarter")).toBeDefined();
+    expect(isRowOpen("Reading the second quarter")).toBe(true);
+  });
+
+  it("keeps it open as the agent works past it", () => {
+    const messages = phase();
+    const { rerender } = renderMessages(messages, { isAgentRunning: true });
+
+    clickRow("Reading the second quarter");
+
+    // The agent takes its next step, which replaces the copy the group draws in
+    // its own slot -- and used to take the opened row away with it.
+    rerender(
+      chatStream(
+        [
+          ...messages,
+          assistantMessage([
+            read({ explanation: "Reading the third quarter", running: true }),
+          ]),
+        ],
+        { isAgentRunning: true },
+      ),
+    );
+
+    expect(screen.getByText("Reading the third quarter")).toBeDefined();
+    // Still in the phase, which is still open, and still showing what it read.
+    expect(screen.getByText("Reading the first quarter")).toBeDefined();
+    expect(isRowOpen("Reading the second quarter")).toBe(true);
+  });
+
+  it("leaves the phase open once the reader shuts the step again", () => {
+    renderMessages(phase(), { isAgentRunning: true });
+
+    clickRow("Reading the second quarter");
+    clickRow("Reading the second quarter");
+
+    expect(isRowOpen("Reading the second quarter")).toBe(false);
+    expect(screen.getByText("Reading the first quarter")).toBeDefined();
+  });
+});
+
+/**
+ * Image generation runs for the better part of a minute and what it produces is
+ * a picture, so the line saying it started is not a stand-in for it the way it
+ * is for every other call. The transcript opens it without being asked.
+ */
+describe("ChatStream and the step that opens itself", () => {
+  // One phase, one image call in it, and the call's two states sharing a part;
+  // see `imageCall`. `drawing` is the transcript while it is being drawn.
+  const phase = () => {
+    const image = imageCall("Drawing the cover");
+    const opening = [
+      assistantMessage([activity("Illustrating the write-up")]),
+      assistantMessage([read({ explanation: "Reading the brief" })]),
+    ];
+    return {
+      drawing: [...opening, assistantMessage([image.running])],
+      drawn: [...opening, assistantMessage([image.done])],
+    };
+  };
+
+  it("opens an image being drawn, and the phase around it", () => {
+    renderMessages(phase().drawing, { isAgentRunning: true });
+
+    expect(isRowOpen("Drawing the cover")).toBe(true);
+    expect(screen.getByText("Reading the brief")).toBeDefined();
+  });
+
+  it("leaves it open once it is drawn and the run has moved on", () => {
+    const { drawing, drawn } = phase();
+    const { rerender } = renderMessages(drawing, { isAgentRunning: true });
+
+    rerender(
+      chatStream(
+        [
+          ...drawn,
+          assistantMessage([
+            read({ explanation: "Reading the write-up", running: true }),
+          ]),
+        ],
+        { isAgentRunning: true },
+      ),
+    );
+
+    expect(screen.getByText("Reading the write-up")).toBeDefined();
+    expect(isRowOpen("Drawing the cover")).toBe(true);
+  });
+
+  it("does not open it again over a reader who shut it", () => {
+    const { drawing } = phase();
+    const { rerender } = renderMessages(drawing, { isAgentRunning: true });
+
+    clickRow("Drawing the cover");
+    expect(isRowOpen("Drawing the cover")).toBe(false);
+
+    rerender(chatStream([...drawing], { isAgentRunning: true }));
+
+    expect(isRowOpen("Drawing the cover")).toBe(false);
+  });
+
+  // Drawn without a phase announced first, the image heads a run of its own:
+  // the head line is a copy of the row itself, so opening the run puts the same
+  // call on screen twice. The picture belongs to the row in the run, not both.
+  it("draws the picture once when the run it opens has no heading", () => {
+    const image = imageCall("Drawing the cover");
+
+    renderMessages([assistantMessage([image.running])], {
+      isAgentRunning: true,
+    });
+
+    expect(screen.getAllByText("Drawing the cover")).toHaveLength(2);
+    expect(screen.getAllByText("Generating")).toHaveLength(1);
+  });
+
+  // Opening it is about watching it happen. A task reopened afterwards is a
+  // list of the phases it went through, the same as any other.
+  it("leaves a finished one folded away in a transcript being reread", () => {
+    renderMessages(phase().drawn);
+
+    expect(screen.queryByText("Drawing the cover")).toBeNull();
+    expect(screen.queryByText("Reading the brief")).toBeNull();
   });
 });
 

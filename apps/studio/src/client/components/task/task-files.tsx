@@ -14,11 +14,9 @@ import {
   TASK_FOLDER_NAMES,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import {
-  CaretRightIcon,
-  DotsThreeOutlineVerticalIcon,
-  FolderSimpleIcon,
-} from "@phosphor-icons/react";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { useMemo, useState } from "react";
@@ -180,17 +178,20 @@ export function TaskFiles({
           />
         ))}
         {folderEntries.length > 0 && (
-          <SidebarMenuItem>
-            <CollapsibleTreeSection defaultOpen label="Attached folders">
-              {folderEntries.map((folder) => (
-                <AttachedFolderRow
-                  folder={folder}
-                  key={folder.id}
-                  taskId={task.id}
-                />
-              ))}
-            </CollapsibleTreeSection>
-          </SidebarMenuItem>
+          <>
+            <SidebarMenuItem>
+              <CollapsibleTreeSection defaultOpen label="Attached folders">
+                {folderEntries.map((folder) => (
+                  <AttachedFolderRow
+                    folder={folder}
+                    key={folder.id}
+                    taskId={task.id}
+                  />
+                ))}
+              </CollapsibleTreeSection>
+            </SidebarMenuItem>
+            <li aria-hidden className="-mx-1 h-px bg-border/50" />
+          </>
         )}
         {computed.hiddenTree.length > 0 && (
           <SidebarMenuItem>
@@ -321,7 +322,7 @@ function FileRow({
         <ContextMenuTrigger asChild>
           <SidebarMenuButton
             className={cn(
-              "h-auto min-h-14 items-stretch gap-2.5 px-3 py-2 text-xs",
+              "h-auto min-h-14 items-stretch gap-3 px-3 py-2 text-xs",
               isActive
                 ? "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 : "hover:bg-muted/50",
@@ -415,23 +416,17 @@ function CollapsibleTreeSection({
   }
 
   return (
-    <Collapsible
-      className="group/collapsible"
-      onOpenChange={setOpen}
-      open={open}
-    >
+    <Collapsible onOpenChange={setOpen} open={open}>
       <CollapsibleTrigger asChild>
         <SidebarMenuButton
           className={cn(
-            "h-auto min-h-8 gap-2 px-3 py-2 text-xs font-medium text-foreground",
+            "group/collapsible-trigger h-auto min-h-8 gap-2 px-3 py-2 text-xs font-medium text-foreground",
             labelClassName,
           )}
         >
-          {Icon && (
-            <Icon className="size-3.5! shrink-0 text-muted-foreground" />
-          )}
+          {Icon && <Icon className="size-3.5! shrink-0" />}
           <span className="min-w-0 flex-1 truncate text-left">{label}</span>
-          <CaretRightIcon className="size-3! shrink-0 text-muted-foreground transition-transform group-data-[state=open]/collapsible:rotate-90" />
+          <CaretRightIcon className="size-3! shrink-0 text-muted-foreground transition-transform group-data-[state=open]/collapsible-trigger:rotate-90" />
         </SidebarMenuButton>
       </CollapsibleTrigger>
       <CollapsibleContent>
@@ -502,6 +497,9 @@ function TreeNode({
         forceOpen={containsActive}
         icon={isTopSpecialSection ? undefined : FolderSimpleIcon}
         label={directorySectionLabel(node.name)}
+        labelClassName={
+          isTopSpecialSection ? undefined : "text-muted-foreground/60"
+        }
       >
         {node.children.map((child, i) => (
           <TreeNode

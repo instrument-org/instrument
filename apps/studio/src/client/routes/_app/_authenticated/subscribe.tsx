@@ -12,7 +12,7 @@ import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME, CONTACT_EMAIL } from "@instrument-org/shared";
-import { CheckCircleIcon } from "@phosphor-icons/react";
+import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";

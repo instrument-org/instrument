@@ -1,5 +1,5 @@
 import { cn } from "@/client/lib/utils";
-import { CaretDownIcon } from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { MessageScroller as MessageScrollerPrimitive } from "@shadcn/react/message-scroller";
 import * as React from "react";
 

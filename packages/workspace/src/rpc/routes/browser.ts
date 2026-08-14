@@ -2,7 +2,9 @@ import { eventIterator } from "@orpc/server";
 import invariant from "tiny-invariant";
 import { z } from "zod";
 
+import { restoreLastPage } from "../../lib/browser-state";
 import { getBrowserSessionDir } from "../../lib/task-dir-utils";
+import { BrowserPresenceLevelSchema } from "../../machines/task-browser";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { BrowserTargetIdSchema } from "../../types";
@@ -43,26 +45,41 @@ const open = base
       value: { id, partitionDir, sessionId, targetId: target.targetId },
     });
 
+    const restored = await restoreLastPage({
+      sessionId,
+      targetId: target.targetId,
+      taskId: id,
+    });
+    if (restored.isErr()) {
+      // The tab is open, which is what was asked for; it just came up blank.
+      context.workspaceConfig.captureException(restored.error);
+    }
+
     return { targetId: target.targetId };
   });
 
 /**
  * A hold, not a query: subscribing acquires presence and aborting releases it,
  * so the subscription's lifetime is the whole payload. A viewer keeps the task's
- * browser alive; drop the subscription and the taskBrowser machine starts its
- * grace period.
+ * browser alive; drop the subscription and the taskBrowser machine starts the
+ * clock that matches the lease that was dropped.
+ *
+ * `retained` is held for as long as the client keeps the task page alive and
+ * `visible` only while it is on screen, so a client that shows one page at a
+ * time holds both for that page and `retained` alone for the rest. What decides
+ * either is entirely the client's business.
  *
  * The yielded value carries nothing, so the caller subscribes and ignores the
  * result. That is correct here and would be a bug on anything else under `live`.
  */
 const presence = base
-  .input(z.object({ id: TaskIdSchema }))
+  .input(z.object({ id: TaskIdSchema, level: BrowserPresenceLevelSchema }))
   .output(eventIterator(PresenceSchema))
   .handler(async function* ({ context, input, signal }) {
     invariant(signal, "presence subscription requires an AbortSignal");
     context.workspaceRef.send({
       type: "acquireBrowserPresence",
-      value: { id: input.id },
+      value: { id: input.id, level: input.level },
     });
 
     try {
@@ -83,7 +100,7 @@ const presence = base
     } finally {
       context.workspaceRef.send({
         type: "releaseBrowserPresence",
-        value: { id: input.id },
+        value: { id: input.id, level: input.level },
       });
     }
   });

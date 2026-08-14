@@ -12,7 +12,8 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { rpcClient } from "@/client/rpc/client";
-import { WarningCircleIcon, XIcon } from "@phosphor-icons/react";
+import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { isEqual } from "radashi";
 import { useMemo } from "react";
@@ -41,7 +42,7 @@ export function ServerExceptionsAlert() {
     const groups: GroupedExceptionItem[] = [];
 
     for (const exception of serverExceptions) {
-      const content = exception.stack || exception.message;
+      const content = exception.details || exception.message;
       const firstLine = content.split("\n")[0] || content;
       const firstLineWithoutErrorPrefix = firstLine.replace(/^Error:\s*/i, "");
 

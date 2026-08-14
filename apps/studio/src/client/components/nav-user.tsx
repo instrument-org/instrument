@@ -9,7 +9,8 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import { getInitials } from "@/client/lib/get-initials";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { FadersHorizontalIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
+import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useQuery } from "@tanstack/react-query";
 
 import { useLiveSubscriptionStatus } from "../hooks/use-live-subscription-status";

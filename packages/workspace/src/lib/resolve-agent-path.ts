@@ -20,6 +20,7 @@ import { pathIsWithin } from "./path-is-within";
 import { resolvePathWithinTaskDir } from "./resolve-path-within-task-dir";
 import {
   hostPathEscapesMount,
+  isMaskedPrivatePath,
   nonTaskMounts,
   resolveHostPath,
   type WorkspaceFsLayout,
@@ -314,10 +315,14 @@ function resolveVirtualAbsolutePath(
 
   const { hostPath, mount } = resolved;
 
+  // Asked of the mount that owns the path rather than of the task mount alone:
+  // the project mount masks a private dir too, and the file tools reach it by
+  // a route the bash sandbox's mask does not cover.
+  if (isMaskedPrivatePath(mount, virtualPath)) {
+    return privateDirError(normalizePath(virtualPath));
+  }
+
   if (mount === layout.task) {
-    if (isTaskPrivatePath(layout.task.hostRoot, hostPath)) {
-      return privateDirError(normalizePath(virtualPath));
-    }
     // Normalize /task/... input into the same task-relative form as relative
     // input so display paths stay consistent across tools.
     const relative = relativeWithin(MOUNT.task, normalizePath(virtualPath));

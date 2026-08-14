@@ -1,10 +1,48 @@
 import { FileIcon } from "@/client/components/file-icon";
 import { cn } from "@/client/lib/utils";
 import { TaskPane } from "@instrument-org/workspace/client";
-import { GlobeIcon, XIcon } from "@phosphor-icons/react";
+import { GlobeIcon } from "@phosphor-icons/react/Globe";
+import { XIcon } from "@phosphor-icons/react/X";
 import { Reorder } from "motion/react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { PaneToggle } from "./pane-toggle";
+
+// The strip's measurements, in layout px. `GAP` is the `gap-1` between tabs.
+const GAP = 4;
+// A tab with nothing in it but its icon, which at the strip's own tab height is
+// a square. Tabs stop here rather than compressing into a column of slivers.
+const MIN_TAB = 28;
+// A centered icon and a close, clear of each other. The close is drawn over the
+// name's tail rather than beside it, so it tracks the tab's right edge and
+// closes on an icon that is sitting still in the middle of the tab.
+const CLOSE_FITS = 60;
+// An icon at the head of the tab and a 42px name box after it: a few characters
+// and the ellipsis that says there were more. Under it a name is a chopped
+// letter or two.
+const NAME_FITS = 80;
+// The `mr-3` holding the fixed tab off the task's own, on top of the gap.
+const FIXED_MARGIN = 12;
+
+// Lands a tab at its new place rather than moving it there.
+//
+// The projection itself has to stay on whatever the strip is doing: it is what
+// registers each tab's box with the group, so a tab that is not projecting is a
+// tab the drag cannot reorder around. Only the animation over it is turned off.
+const LAND_IN_PLACE = { layout: { duration: 0 } };
+
+interface StripLayout {
+  /** What a tab that is not the one being read can draw. */
+  density: TabDensity;
+  /** Whether the fixed tab has the room to say what it is in words. */
+  fixedIsNamed: boolean;
+  /** What the selected tab can draw, which is never less than the rest. */
+  selectedDensity: TabDensity;
+  /** How many of the task's tabs are drawn at all. */
+  visibleCount: number;
+}
+
+type TabDensity = "compact" | "full" | "icon";
 
 /**
  * The pane's tab strip, and the close control at its right end.
@@ -34,8 +72,96 @@ export function PaneTabs({
 }) {
   const fileKeys = fileTabs.map((tab) => TaskPane.tabKey(tab));
   // The browser is always drawn and always first, so the strip's order is the
-  // fixed tab followed by the stored ones. Arrow keys walk this.
+  // fixed tab followed by the stored ones. Arrow keys walk this, including the
+  // tabs the strip has no room to draw.
   const orderedKeys = ["browser", ...fileKeys];
+  const fileCount = fileTabs.length;
+
+  const stripRef = useRef<HTMLDivElement>(null);
+  const tabAreaRef = useRef<HTMLDivElement>(null);
+  // Motion's layout animation is here for the drag and nothing else: it is what
+  // slides the other tabs out of the way of the one being moved. Left on, it
+  // animates every width the strip changes on its own -- a tab widening as it
+  // is selected, a task switch swapping the row out -- and those are arrivals
+  // at a state rather than something to watch happen, so a tab slides in from
+  // wherever the tab before it happened to end.
+  const [isDragging, setIsDragging] = useState(false);
+  const [{ density, fixedIsNamed, selectedDensity, visibleCount }, setLayout] =
+    useState(() => stripLayout(0, fileCount));
+
+  // Measured rather than asked of CSS. A container query could answer what one
+  // tab has room to draw, now that a tab is a share of the row rather than its
+  // own width, but it cannot answer how many tabs the row has room for at all,
+  // and that is the same reading. One mechanism, one number.
+  //
+  // In a layout effect so the first paint is already at the right state.
+  useLayoutEffect(() => {
+    const strip = stripRef.current;
+    const area = tabAreaRef.current;
+    if (!strip || !area) {
+      return;
+    }
+
+    // Both are `flex-1` off a row whose width comes from the pane, so what they
+    // read is the room the tabs have rather than the room they are taking.
+    //
+    // Two readings, because the fixed tab's name is inside the difference
+    // between them. The task's tabs are laid out from the area they actually
+    // have, which is what is left after the fixed tab; the fixed tab's own name
+    // is decided by the row, which is the one width its name cannot change.
+    // Measured off the area instead, it would be a name deciding whether there
+    // was room for a name, and the answer would flip on every pass.
+    const apply = () => {
+      const row = stripLayout(strip.clientWidth - FIXED_MARGIN, fileCount + 1);
+      const files = stripLayout(area.clientWidth, fileCount);
+      const next = { ...files, fixedIsNamed: row.density === "full" };
+      setLayout((current) =>
+        current.density === next.density &&
+        current.fixedIsNamed === next.fixedIsNamed &&
+        current.selectedDensity === next.selectedDensity &&
+        current.visibleCount === next.visibleCount
+          ? current
+          : next,
+      );
+    };
+
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(strip);
+    observer.observe(area);
+    return () => {
+      observer.disconnect();
+    };
+  }, [fileCount]);
+
+  // The run of tabs there is room for. It stays at the front of the strip until
+  // the selection is past the end of it: whatever the pane is showing has to be
+  // on the strip, and a file opened past the end arrives selected.
+  const selectedIndex = fileKeys.indexOf(selectedKey ?? "");
+  const start = Math.max(
+    0,
+    Math.min(selectedIndex - visibleCount + 1, fileCount - visibleCount),
+  );
+  const visibleTabs = fileTabs.slice(start, start + visibleCount);
+  const visibleKeys = fileKeys.slice(start, start + visibleCount);
+
+  // Focus follows the selection while the strip holds it. The arrow keys move
+  // both themselves, but a selection that lands past the run above moves the
+  // run too, and the tab that was next in the DOM a moment ago is then not the
+  // one that ended up selected.
+  useEffect(() => {
+    const strip = stripRef.current;
+    if (!strip?.contains(document.activeElement)) {
+      return;
+    }
+    const selected = strip.querySelector('[role="tab"][aria-selected="true"]');
+    if (
+      selected instanceof HTMLElement &&
+      selected !== document.activeElement
+    ) {
+      selected.focus();
+    }
+  }, [selectedKey]);
 
   const selectRelative = (from: string, direction: -1 | 1) => {
     const index = orderedKeys.indexOf(from);
@@ -59,28 +185,38 @@ export function PaneTabs({
     // the row below draws its own, and two hairlines a row apart break the band
     // into pieces rather than separating anything.
     <div className="flex h-10 shrink-0 items-center gap-1 px-2">
-      {/* No horizontal scroll. Tabs share the row and truncate as they fill it,
+      {/* No horizontal scroll. Tabs share the row and compress as they fill it,
           the way the window's do; a strip that scrolls hides tabs behind an
-          interaction nobody looks for in a space this small. */}
+          interaction nobody looks for in a space this small.
+
+          They compress together: the strip trades every name for its icons at
+          once, and then every close, so the row is always one thing rather than
+          a mix of two. See `stripLayout`. */}
       <div
         aria-label="Open tabs"
         className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
+        data-density={density}
+        ref={stripRef}
         role="tablist"
       >
         <PaneTab
+          // Its name goes when an even share of the row would not carry one,
+          // and comes back when it is the tab being read. It is a tab like the
+          // rest of them, and a row of icons with one word at the head of it
+          // reads as a row that failed to finish compressing.
+          density={selectedKey === "browser" || fixedIsNamed ? "full" : "icon"}
           isSelected={selectedKey === "browser"}
+          // A rule between the fixed tab and the task's own. The gap it sits in
+          // is held open whether or not the rule is drawn, so a selection
+          // moving in and out of the first tab never shifts the strip.
+          nextIsSelected={visibleKeys[0] === selectedKey}
           onSelect={() => {
             onSelect("browser");
           }}
           onSelectRelative={(direction) => {
             selectRelative("browser", direction);
           }}
-          // A rule between the fixed tab and the task's own, drawn once rather
-          // than between every pair. Unconditional: hiding it beside a selected
-          // tab, as the window's tab bar does, shifts every tab to its right
-          // each time the selection moves, which is worse than the slight
-          // unevenness it fixes.
-          showSeparator={fileTabs.length > 0}
+          showSeparator={fileCount > 0}
           tab={{ type: "browser" }}
         />
 
@@ -90,18 +226,39 @@ export function PaneTabs({
           as="div"
           axis="x"
           className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
-          onReorder={onReorder}
+          onReorder={(keys: string[]) => {
+            // The drag only ever sees the run that is drawn, so the tabs either
+            // side of it keep their places around the new order.
+            onReorder([
+              ...fileKeys.slice(0, start),
+              ...keys,
+              ...fileKeys.slice(start + visibleCount),
+            ]);
+          }}
+          ref={tabAreaRef}
           role="none"
-          values={fileKeys}
+          values={visibleKeys}
         >
-          {fileTabs.map((tab) => {
+          {visibleTabs.map((tab, index) => {
             const key = TaskPane.tabKey(tab);
             return (
               <PaneTab
+                // The tab being read is held at a width the rest of the row has
+                // given up on, so it still says which file the pane is showing
+                // and still carries the close for it.
+                density={key === selectedKey ? selectedDensity : density}
+                isDragging={isDragging}
                 isSelected={key === selectedKey}
                 key={key}
+                nextIsSelected={visibleKeys[index + 1] === selectedKey}
                 onClose={() => {
                   onClose(key);
+                }}
+                onDragEnd={() => {
+                  setIsDragging(false);
+                }}
+                onDragStart={() => {
+                  setIsDragging(true);
                 }}
                 onSelect={() => {
                   onSelect(key);
@@ -109,7 +266,7 @@ export function PaneTabs({
                 onSelectRelative={(direction) => {
                   selectRelative(key, direction);
                 }}
-                showSeparator={false}
+                showSeparator={index < visibleTabs.length - 1}
                 tab={tab}
                 value={key}
               />
@@ -141,16 +298,28 @@ function focusSiblingTab(from: Element, direction: -1 | 1) {
 }
 
 function PaneTab({
+  density,
+  isDragging,
   isSelected,
+  nextIsSelected,
   onClose,
+  onDragEnd,
+  onDragStart,
   onSelect,
   onSelectRelative,
   showSeparator,
   tab,
   value,
 }: {
+  density: TabDensity;
+  // Whether a tab on the strip is being dragged, which is the one time a tab
+  // moving to a new place is worth watching.
+  isDragging?: boolean;
   isSelected: boolean;
+  nextIsSelected: boolean;
   onClose?: () => void;
+  onDragEnd?: () => void;
+  onDragStart?: () => void;
   onSelect: () => void;
   onSelectRelative: (direction: -1 | 1) => void;
   showSeparator: boolean;
@@ -166,26 +335,56 @@ function PaneTab({
   const isFixed = tab.type === "browser";
   const isClosable = tab.type === "file" && onClose !== undefined;
 
+  // An even share of the row, whatever the tab has to put in it. A tab sized by
+  // its own name is a row of tabs that are all different widths and all
+  // truncated anyway, and nothing about which one is wider says anything.
+  //
+  // The floor under each state is what hands the selected tab its extra width:
+  // every tab asks for the same share and the selected one cannot go under a
+  // name's worth of it, so the row pays the difference without anything here
+  // having to know a number.
+  const sizing = cn(
+    isFixed
+      ? // The fixed tab takes no share. It is its name's width, or a square
+        // with its icon in the middle of it.
+        cn("shrink-0", density !== "full" && "w-7")
+      : cn(
+          "max-w-48 flex-1",
+          { compact: "min-w-15", full: "min-w-20", icon: "min-w-7" }[density],
+        ),
+    // The icon is at the head of the tab only while there is a name for it to
+    // be at the head of. On its own it sits in the middle, wherever the close
+    // happens to be.
+    density === "full" ? "gap-1.5 px-2" : "justify-center px-1",
+  );
+
   const className = cn(
-    "group/pane-tab relative flex h-7 cursor-default items-center gap-1.5 rounded-md px-2 text-xs select-none",
+    // One weight in every state, so selecting a tab moves its color and nothing
+    // else. A weight that changed with the selection would reflow the name
+    // under the cursor and shift the row it sits in.
+    "group/pane-tab relative flex h-7 cursor-default items-center rounded-md text-xs font-medium select-none",
     // Drawn inside the tab rather than around it. The strip is a 40px row with
     // 28px tabs and clips its overflow so the tabs can compress, which leaves
     // an outset ring shaved off top and bottom.
     "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
-    // The browser keeps its full width whatever else is open: it is the one tab
-    // that is always there, so it is the one that has to stay legible. The rest
-    // share what is left and truncate, which is also what gives the name a box
-    // wider than itself to fade into -- without it the name's box ends where
-    // the text does and the fade lands mid-filename.
-    isFixed ? "shrink-0" : "max-w-48 min-w-0 shrink",
+    sizing,
     isSelected
       ? "bg-accent text-accent-foreground"
       : "text-muted-foreground hover:bg-accent/50",
-    // Sat in the gap rather than against an edge, so a tab taking a background
-    // on hover never appears to grow the rule onto itself. The margin leaves
-    // the same 8px either side of it.
+    // The fixed tab is held further off the task's own than they are off each
+    // other, and the margin is what holds it: the rule below is drawn in that
+    // space rather than taking any.
+    isFixed && showSeparator && "mr-3",
+    // Between the tabs at all times, since a compressed strip is otherwise a
+    // row of icons with nothing to say where one tab ends. Not against a tab
+    // that is drawing a background of its own, which is edge enough.
     showSeparator &&
-      "mr-3 after:pointer-events-none after:absolute after:top-1/4 after:-right-2 after:h-1/2 after:w-px after:bg-border after:content-['']",
+      !isSelected &&
+      !nextIsSelected &&
+      cn(
+        "after:pointer-events-none after:absolute after:top-1/4 after:h-1/2 after:w-px after:bg-border after:content-[''] hover:after:hidden",
+        isFixed ? "after:-right-2" : "after:-right-0.5",
+      ),
   );
 
   // Selecting on pointer-down rather than on click, and reading the middle
@@ -208,20 +407,31 @@ function PaneTab({
       )}
 
       {/* The close sits over the name's last few pixels rather than beside it,
-          so a tab is the width of what it says and stays that width whether or
-          not the cursor is on it. The name is fully transparent everywhere the
-          control is drawn, which is what keeps it from showing through. */}
+          so the name has the whole tab to run in and gives up its tail only
+          while there is something drawn over it. The name is fully transparent
+          everywhere the control is drawn, which is what keeps it from showing
+          through.
+
+          Off the strip rather than out of the tab once there is no room for it:
+          the name is still what the tab is called, to a screen reader and to
+          the tooltip the row carries. */}
       <span
         className={cn(
           "min-w-0",
-          isFixed ? "whitespace-nowrap" : "truncate",
-          // Only while the control is actually drawn. The tab is the width of
-          // its name, so an always-on fade would clip the tail of a name that
-          // fits.
-          isClosable &&
-            (isSelected
-              ? "tab-title-fade"
-              : "group-hover/pane-tab:tab-title-fade"),
+          density === "full"
+            ? cn(
+                // The box runs to the end of the tab rather than to the end of
+                // the text, so the fade below lands where the close is drawn
+                // instead of eating the tail of a name with room to spare.
+                isFixed ? "whitespace-nowrap" : "flex-1 truncate",
+                // Only while the close is actually drawn, so a name short
+                // enough to sit clear of it is not faded for nothing.
+                isClosable &&
+                  (isSelected
+                    ? "tab-title-fade"
+                    : "group-hover/pane-tab:tab-title-fade"),
+              )
+            : "sr-only",
         )}
       >
         {filename}
@@ -229,8 +439,11 @@ function PaneTab({
 
       {/* Held open for the selected tab, since the one being read is the one
           most likely to be closed. The browser has no close at all: it is the
-          pane's zero state, so there is nothing behind it to fall back to. */}
-      {isClosable && (
+          pane's zero state, so there is nothing behind it to fall back to, and
+          neither does a tab compressed past the room for one -- at that width
+          the icon is the whole tab, and closing is the middle button or the
+          file's own menu. */}
+      {isClosable && density !== "icon" && (
         <button
           aria-label={`Close ${filename}`}
           className={cn(
@@ -258,6 +471,9 @@ function PaneTab({
   const handlers = {
     "aria-selected": isSelected,
     className,
+    // What this tab ended up with room for, which is not always what the tab
+    // beside it did.
+    "data-density": density,
     onKeyDown: (event: React.KeyboardEvent) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
@@ -282,6 +498,8 @@ function PaneTab({
     // Roving: the strip is one stop in the page's tab order, and arrows move
     // within it. Otherwise every open file is another press of Tab to get past.
     tabIndex: isSelected ? 0 : -1,
+    // What the tab is called, for the widths where it cannot say so itself.
+    title: filename,
   };
 
   // A div rather than a button, because the close control sits inside it and a
@@ -289,8 +507,107 @@ function PaneTab({
   return value === undefined ? (
     <div {...handlers}>{contents}</div>
   ) : (
-    <Reorder.Item {...handlers} as="div" value={value}>
+    // Position only. The default animates a size change by scaling the tab,
+    // which stretches the icon inside it, and the sizes here change on their
+    // own whenever the strip changes state.
+    //
+    // The move is worth watching under a drag, where a tab is being put
+    // somewhere and the ones it displaces have to be seen giving way. Every
+    // other move the strip makes is an arrival at a state -- selecting a tab,
+    // switching tasks, dragging the pane wider -- and those land in place.
+    <Reorder.Item
+      {...handlers}
+      as="div"
+      layout="position"
+      onDragEnd={onDragEnd}
+      onDragStart={onDragStart}
+      transition={isDragging ? undefined : LAND_IN_PLACE}
+      value={value}
+    >
       {contents}
     </Reorder.Item>
   );
+}
+
+/**
+ * What the strip can draw, from the room it has and the number of tabs sharing
+ * it -- the fixed tab included, since it takes a share of the row like the rest
+ * and can give its name up like the rest.
+ *
+ * One state for the strip rather than one per tab, which is the whole point of
+ * an even share: every tab has the same room, so a strip that took the name off
+ * one of them and left it on the next would be saying something about them that
+ * is not true. It reads as broken rather than as compressed.
+ *
+ * The exception is the tab being read, which is held at a width that can still
+ * carry a name and a close while the rest of the row goes to icons. It is the
+ * one tab whose name the reader already knows and the one they are most likely
+ * to close, and a row that gives up on it first is a row that made the pane
+ * harder to use in exchange for two more icons.
+ *
+ * Nothing is drawn under `MIN_TAB`. A strip that kept dividing what it had
+ * would end in a row of clipped half-icons, so past that point the tabs that
+ * fit are drawn whole and the rest are not drawn -- the same bargain the
+ * browser strikes, where a full enough window leaves tabs you have to close
+ * something to get back to.
+ */
+function stripLayout(available: number, count: number): StripLayout {
+  // Not laid out yet: a pane that has not been sized, or a test with no layout
+  // engine at all. A zero width is not a reading, so it takes nothing away.
+  if (available <= 0 || count === 0) {
+    return {
+      density: "full",
+      fixedIsNamed: true,
+      selectedDensity: "full",
+      visibleCount: count,
+    };
+  }
+
+  const visibleCount = Math.min(
+    count,
+    Math.max(1, Math.floor((available + GAP) / (MIN_TAB + GAP))),
+  );
+  const content = available - GAP * (visibleCount - 1);
+  const equalShare = content / visibleCount;
+
+  // Room for every name, so there is nothing to hand out and no reason to take
+  // the row apart unevenly.
+  if (equalShare >= NAME_FITS) {
+    return {
+      density: "full",
+      fixedIsNamed: true,
+      selectedDensity: "full",
+      visibleCount,
+    };
+  }
+
+  // The most the selected tab can be given without taking another tab under the
+  // width of its own icon. What the tabs are actually laid out by is the
+  // `min-width` this picks for each of them, which is why it stops where the
+  // next state down begins rather than anywhere in between.
+  const reserved = Math.min(NAME_FITS, content - MIN_TAB * (visibleCount - 1));
+  if (visibleCount === 1 || reserved < CLOSE_FITS) {
+    const density = tabDensity(equalShare);
+    return {
+      density,
+      fixedIsNamed: false,
+      selectedDensity: density,
+      visibleCount,
+    };
+  }
+
+  return {
+    density: tabDensity((content - reserved) / (visibleCount - 1)),
+    fixedIsNamed: false,
+    selectedDensity: tabDensity(reserved),
+    visibleCount,
+  };
+}
+
+/** What a tab of a given width has the room to draw. */
+function tabDensity(width: number): TabDensity {
+  if (width >= NAME_FITS) {
+    return "full";
+  }
+  return width >= CLOSE_FITS ? "compact" : "icon";
 }

@@ -251,9 +251,9 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
         // Only reserve room for the hover-revealed action while the row is
         // hovered, focused, or its menu is open. At rest the button text reclaims
         // the full width instead of truncating into permanently empty space.
-        "[&:hover:has([data-sidebar=menu-action])_[data-sidebar=menu-button]]:pr-8",
-        "[&:focus-within:has([data-sidebar=menu-action])_[data-sidebar=menu-button]]:pr-8",
-        "[&:has([data-sidebar=menu-action][aria-expanded=true])_[data-sidebar=menu-button]]:pr-8",
+        "[&:hover:has(>[data-sidebar=menu-action])_>[data-sidebar=menu-button]]:pr-8",
+        "[&:focus-within:has(>[data-sidebar=menu-action])_>[data-sidebar=menu-button]]:pr-8",
+        "[&:has(>[data-sidebar=menu-action][aria-expanded=true])_>[data-sidebar=menu-button]]:pr-8",
         className,
       )}
       data-sidebar="menu-item"

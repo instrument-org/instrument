@@ -5,7 +5,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/client/components/ui/sidebar";
-import { GraduationCapIcon } from "@phosphor-icons/react";
+import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { type MakeRouteMatchUnion } from "@tanstack/react-router";
 
 export function NavSkills({ matches }: { matches: MakeRouteMatchUnion[] }) {

@@ -140,15 +140,35 @@ export async function* watchFileInfo({
   const listener = () => {
     notify();
   };
-  fsSync.watchFile(hostPath, { interval: intervalMs }, listener);
+
+  /**
+   * The stat, running only while the task can reach the path. A revoked folder
+   * is one nothing here may look at, so the poll stops with the access rather
+   * than going on reading a directory the user took away, and starts again if
+   * the access comes back.
+   */
+  let polling = false;
+  const poll = (wanted: boolean) => {
+    if (wanted === polling) {
+      return;
+    }
+    polling = wanted;
+    if (wanted) {
+      fsSync.watchFile(hostPath, { interval: intervalMs }, listener);
+    } else {
+      fsSync.unwatchFile(hostPath, listener);
+    }
+  };
+
   signal?.addEventListener("abort", notify, { once: true });
 
   // Losing a folder is not a change to the file, so the stat that wakes this
   // loop never fires for one: a detached folder would sit here reporting its
   // files until something happened to write one of them. The task's own change
-  // events are what a revoked mount arrives as, so they wake it too -- and only
-  // when the access is actually gone, since a tab opening publishes on the same
-  // channel and has nothing to say about this file.
+  // events are what a revoked mount arrives as, and what its return arrives as
+  // too, since the stat is stopped for as long as the access is gone. Only a
+  // change in reachability wakes the loop, because a tab opening publishes on
+  // the same channel and has nothing to say about this file.
   const watchingTask = new AbortController();
   if (isMountPath) {
     void (async () => {
@@ -158,8 +178,14 @@ export async function* watchFileInfo({
           signal: watchingTask.signal,
         }),
       ]);
+      let wasReachable = true;
       for await (const payload of updates) {
-        if (payload.id === taskId && !(await stillReachable())) {
+        if (payload.id !== taskId) {
+          continue;
+        }
+        const reachable = await stillReachable();
+        if (reachable !== wasReachable) {
+          wasReachable = reachable;
           notify();
         }
       }
@@ -173,17 +199,21 @@ export async function* watchFileInfo({
     while (signal?.aborted !== true) {
       const next = changed;
       // Checked before each report rather than only at the start: the access
-      // this reads through can be taken away while the pane is open, and the
-      // honest answer then is the same one an unreachable path gets.
-      if (!(await stillReachable())) {
-        yield null;
-        return;
-      }
-      yield await read();
+      // this reads through can be taken away while the pane is open, and given
+      // back, and while it is gone the honest answer is the one an unreachable
+      // path gets. The watch outlives the loss instead of ending on it, because
+      // the caller is a pane that is still open: end here and re-attaching the
+      // folder leaves it on the missing state with nothing left to tell it the
+      // file is back.
+      const reachable = await stillReachable();
+      // Before the read, so a write landing between the two wakes the loop
+      // rather than going unnoticed until the next one.
+      poll(reachable);
+      yield reachable ? await read() : null;
       await next;
     }
   } finally {
-    fsSync.unwatchFile(hostPath, listener);
+    poll(false);
     signal?.removeEventListener("abort", notify);
     watchingTask.abort();
   }

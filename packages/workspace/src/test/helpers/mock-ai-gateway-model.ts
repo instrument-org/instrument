@@ -1,4 +1,7 @@
-import { AIGatewayModel, AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import {
+  AIGatewayModel,
+  AIGatewayModelURI,
+} from "@instrument-org/ai-gateway/schemas";
 import {
   AIProviderConfigIdSchema,
   type AIProviderType,

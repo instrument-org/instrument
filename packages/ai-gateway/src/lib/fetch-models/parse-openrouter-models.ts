@@ -59,6 +59,12 @@ export function parseOpenRouterModelsList({
       }
 
       const { author, modelId } = split;
+      // A batch variant is the same model behind a queued endpoint that answers
+      // within hours, so it can never serve a turn the user is waiting on.
+      if (modelId.endsWith(":batch")) {
+        continue;
+      }
+
       const canonicalId = AIGatewayModel.CanonicalIdSchema.parse(modelId);
 
       const mapped = mapOpenRouterShapedModel({

@@ -64,6 +64,20 @@ seven-model run is otherwise twenty-one directories distinguished by a numeric
 suffix. An approximate cost accompanies each run wherever the model's price is
 known.
 
+`summary.json` carries a `provenance` block so a directory can still say what it
+measured months later: the commit and branch, whether tracked files differed from
+it, and the sha256 of the system prompt each task was actually scored against
+(also per task, in `eval-case.json`). The dirty flag is the one to read, because
+measuring a prompt edit before committing it is the ordinary way a change gets
+scored. More than one digest in a run means the session context was rebuilt part
+way through and the tasks were not all scored against the same prompt. `report`
+omits the commit, which would describe the checkout re-scoring rather than the
+one that ran; the digest comes from the sessions and survives.
+
+The workspace a run used is a temp directory, so `report <dir>` is only good
+until the OS reaps it or the storage format moves past it. What lasts is
+`eval-results.local`.
+
 For choosing whether an eval is the right check at all, see the
 `validate-changes` skill.
 

@@ -10,10 +10,9 @@ import {
   type MenuComponents,
 } from "@/client/components/ui/menu-components";
 import { type useInlineRename } from "@/client/hooks/use-inline-rename";
-import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task } from "@instrument-org/workspace/client";
-import { CardsThreeIcon } from "@phosphor-icons/react";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useRef, useState } from "react";
 
@@ -44,8 +43,6 @@ export function TaskBreadcrumb({
 
   const titleRef = useRef<HTMLButtonElement>(null);
   const [fieldWidth, setFieldWidth] = useState<number>();
-
-  const hasProject = Boolean(projectId && project);
 
   // Nothing here is text to select: clicking the title is how a rename starts,
   // and a caret plus a highlighted word under it reads as an edit that did not
@@ -85,8 +82,14 @@ export function TaskBreadcrumb({
           {/*
             Separator stays with the task title — a standalone shrink-0 element
             so it remains visible even after the project name fully collapses.
+
+            It carries its own room on both sides rather than living on the
+            row's gap alone. The title's hover surface bleeds back over its own
+            padding, and against a 4px gap that fill would land on the slash,
+            which leans right at the top and reads as clipped. The extra 4px
+            buys the fill its clearance without spending it on one side.
           */}
-          <span className="shrink-0 text-gray-400">/</span>
+          <span className="mx-1 shrink-0 text-gray-400">/</span>
         </>
       )}
       {rename.isEditing ? (
@@ -119,21 +122,16 @@ export function TaskBreadcrumb({
         <ContextMenu>
           <ContextMenuTrigger asChild>
             {/*
-              The hover surface is pulled back out by its own padding, so the
-              8px to the overflow button stays measured from the text rather
-              than from the fill. Only the task title takes the surface: the
+              The hover surface is pulled back out by its own padding on both
+              sides, so the gaps around it stay measured from the text rather
+              than from the fill: 8px to the overflow button, the separator's
+              own spacing behind it, and the row's leading edge when the title
+              starts the row alone. Only the task title takes the surface: the
               project crumbs beside it are links to somewhere else, not a
               rename.
-
-              It bleeds left only when the title is the first thing in the row.
-              Behind a project, that side has the separator on it, and a fill
-              reaching past the text lands on the slash.
             */}
             <button
-              className={cn(
-                "-mr-1.5 flex h-8 min-w-0 items-center truncate rounded-lg px-1.5 text-left outline-none hover:bg-muted focus-visible:outline-[3px] focus-visible:-outline-offset-3 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]",
-                !hasProject && "-ml-1.5",
-              )}
+              className="-mx-1.5 flex h-8 min-w-0 items-center truncate rounded-lg px-1.5 text-left outline-none hover:bg-muted focus-visible:outline-[3px] focus-visible:-outline-offset-3 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]"
               onClick={() => {
                 setFieldWidth(
                   titleRef.current

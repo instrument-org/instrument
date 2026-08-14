@@ -2,16 +2,15 @@ import {
   type SessionMessagePart,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import { ArrowsOutSimpleIcon, ChatIcon } from "@phosphor-icons/react";
-import { useSetAtom } from "jotai";
+import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 
-import { appendToPromptAtom } from "../../atoms/prompt-value";
 import { useTaskPaneActions } from "../../hooks/use-task-pane";
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { FileIcon } from "../file-icon";
 import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
 import { FileToolCard } from "./file-tool-card";
+import { ToolCardActions } from "./tool-card";
 
 type ReadFilePart = Extract<
   SessionMessagePart.ToolPart,
@@ -178,12 +177,7 @@ function ReadFileCard({
   openOnContentClick?: boolean;
 }) {
   const filename = filenameFromFilePath(filePath);
-  const appendToPrompt = useSetAtom(appendToPromptAtom);
   const { openFiles } = useTaskPaneActions(id);
-
-  const handleAddToChat = () => {
-    appendToPrompt({ key: { scope: "task", taskId: id }, update: filePath });
-  };
 
   const handleExpand = () => {
     if (modifiedAt === undefined) {
@@ -209,15 +203,8 @@ function ReadFileCard({
             </span>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-3">
-          <IconButton
-            className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
-            icon={ChatIcon}
-            onClick={handleAddToChat}
-            tooltip="Add to chat"
-            variant="ghost"
-          />
-          {modifiedAt !== undefined && (
+        {modifiedAt !== undefined && (
+          <ToolCardActions>
             <IconButton
               className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
               icon={ArrowsOutSimpleIcon}
@@ -225,8 +212,8 @@ function ReadFileCard({
               tooltip="Open in panel"
               variant="ghost"
             />
-          )}
-        </div>
+          </ToolCardActions>
+        )}
       </div>
       {openOnContentClick && modifiedAt !== undefined ? (
         <button

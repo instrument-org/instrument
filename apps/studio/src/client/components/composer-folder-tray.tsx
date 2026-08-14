@@ -8,7 +8,9 @@ import { BLOCK_CLOSE, BLOCK_OPEN } from "@/client/lib/motion";
 import { displayPath, folderNameFromPath } from "@/client/lib/path-utils";
 import { cn } from "@/client/lib/utils";
 import { type FolderAttachment } from "@instrument-org/workspace/client";
-import { FolderIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
+import { FolderIcon } from "@phosphor-icons/react/Folder";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { XIcon } from "@phosphor-icons/react/X";
 import { AnimatePresence, motion } from "motion/react";
 
 /**
@@ -45,7 +47,7 @@ export function ComposerFolderTray({
   return (
     // No gap: the space under a row belongs to the row, so it collapses with
     // one on its way out instead of leaving a band where it was.
-    <div className={cn("flex flex-col px-4 py-2", className)}>
+    <div className={cn("flex flex-col px-4 pt-2 pb-1", className)}>
       {/* `initial={false}`: folders a draft already had are not arriving, and
           the first one on a surface that grows a tray for it is carried in by
           the tray opening around it. */}
@@ -80,7 +82,7 @@ export function ComposerFolderTray({
                 </button>
                 <MacFolderIcon className="size-5 shrink-0" />
                 <span
-                  className="min-w-0 flex-1 truncate text-xs text-muted-foreground"
+                  className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground"
                   title={folder.path}
                 >
                   {displayPath(folder.path)}
@@ -99,14 +101,22 @@ export function ComposerFolderTray({
       </AnimatePresence>
       {showAdd && (
         <Button
-          className="-ml-1.5 h-6 w-fit gap-2 px-1.5 text-xs text-muted-foreground"
+          className={cn(
+            "w-fit gap-2 border-0 bg-transparent text-xs leading-none shadow-none",
+            folders.length > 0 ? "-ml-2.5 h-7 px-2.5" : "-ml-1.5",
+          )}
           disabled={disabled}
           onClick={onAdd}
           size="sm"
-          variant="ghost"
+          variant="outline-muted"
         >
           {folders.length > 0 ? (
-            <PlusIcon className="size-3" />
+            // Same size-4 slot as the remove control so + and × share a
+            // keyline. A span, not a bare svg: Button's has-[>svg]:px-*
+            // would indent it again.
+            <span className="flex size-4 items-center justify-center">
+              <PlusIcon className="size-3" />
+            </span>
           ) : (
             <FolderIcon className="size-5" />
           )}

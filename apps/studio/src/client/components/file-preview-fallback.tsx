@@ -1,7 +1,7 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { useTaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
-import { ArrowLineDownIcon } from "@phosphor-icons/react";
+import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { type ReactNode } from "react";
 
 import { FileActionsMenuItems } from "./file-actions-menu";

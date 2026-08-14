@@ -127,6 +127,70 @@ export function getLanguageFromFilePath(
   return EXTENSION_MAP[ext as keyof typeof EXTENSION_MAP];
 }
 
+/**
+ * How a language is written where a reader sees it, for the ids that a
+ * capitalized id gets wrong: acronyms, punctuation, and the names that carry a
+ * capital in the middle.
+ *
+ * Everything absent falls back to capitalizing the id, which is the right
+ * answer for most of them (`rust`, `python`, `elixir`) and a reasonable one for
+ * a language nobody has written a line here for yet.
+ */
+const LANGUAGE_NAMES: Record<string, string> = {
+  bash: "Shell",
+  c: "C",
+  cmake: "CMake",
+  coffee: "CoffeeScript",
+  cpp: "C++",
+  csharp: "C#",
+  css: "CSS",
+  csv: "CSV",
+  fsharp: "F#",
+  gdscript: "GDScript",
+  glsl: "GLSL",
+  graphql: "GraphQL",
+  html: "HTML",
+  ini: "INI",
+  javascript: "JavaScript",
+  json: "JSON",
+  jsonc: "JSONC",
+  jsx: "JSX",
+  latex: "LaTeX",
+  matlab: "MATLAB",
+  mdx: "MDX",
+  "objective-c": "Objective-C",
+  objective_c: "Objective-C",
+  ocaml: "OCaml",
+  php: "PHP",
+  plaintext: "Text",
+  postcss: "PostCSS",
+  powershell: "PowerShell",
+  proto: "Protocol Buffers",
+  r: "R",
+  scss: "SCSS",
+  sql: "SQL",
+  toml: "TOML",
+  tsx: "TSX",
+  typescript: "TypeScript",
+  vb: "Visual Basic",
+  wasm: "WebAssembly",
+  xml: "XML",
+  yaml: "YAML",
+};
+
+/**
+ * The name to show for whatever a fence or a file called its language, which is
+ * as likely to be an extension (`ts`) or an alias (`yml`) as an id.
+ */
+export function getLanguageDisplayName(language: string): string {
+  // Widened so an unknown key reads as missing rather than as one of the
+  // extensions, which is the whole question being asked of it here.
+  const ids: Record<string, string> = EXTENSION_MAP;
+  const lower = language.toLowerCase();
+  const id = ids[lower] ?? lower;
+  return LANGUAGE_NAMES[id] ?? id.charAt(0).toUpperCase() + id.slice(1);
+}
+
 export function toSupportedLanguage(
   language: string,
   supportedLanguages: SupportedLanguage[],

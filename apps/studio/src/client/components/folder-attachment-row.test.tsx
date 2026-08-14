@@ -3,6 +3,7 @@ import { screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { FolderAttachmentRow } from "./folder-attachment-row";
+import { TooltipProvider } from "./ui/tooltip";
 
 const { openFolder } = vi.hoisted(() => ({
   openFolder: vi.fn(() => Promise.resolve()),
@@ -39,5 +40,19 @@ describe("FolderAttachmentRow", () => {
     );
 
     expect(screen.getByRole("button", { name: "Folder actions" })).toBeTruthy();
+  });
+
+  it("puts access beside the path as a named icon", () => {
+    renderWithProviders(
+      <TooltipProvider>
+        <FolderAttachmentRow access="read-write" path={PATH} />
+      </TooltipProvider>,
+    );
+
+    const path = screen.getByText("~/Downloads");
+    const access = screen.getByRole("img", { name: "Full access" });
+
+    expect(screen.queryByText("Full access")).toBeNull();
+    expect(access.parentElement).toBe(path.parentElement);
   });
 });

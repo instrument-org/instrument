@@ -20,6 +20,11 @@ import {
   type RunStop,
   sessionsFor,
 } from "./harness";
+import {
+  type GitProvenance,
+  gitProvenance,
+  systemPromptDigest,
+} from "./provenance";
 import { buildReportWorkspaceConfig, c, write } from "./utils";
 
 interface RollupSummary {
@@ -34,6 +39,17 @@ interface RollupSummary {
   /** Tasks where at least one model request failed (rate limit, credits, ...). */
   erroredTasks: number;
   modelURIs: string[];
+  /** What this run measured, for a reader who has only the directory. */
+  provenance: {
+    generatedAt: string;
+    git?: GitProvenance;
+    /**
+     * Distinct across the run's tasks, so more than one says the session
+     * context was rebuilt part way through and the tasks were not all scored
+     * against the same prompt.
+     */
+    systemPromptSha256: string[];
+  };
   results: RunReport[];
   /** Tasks the harness or the case ended on purpose. Not a failure. */
   stoppedTasks: number;
@@ -55,6 +71,8 @@ interface RunReport {
   passed: number;
   resolvedModelId?: string;
   stoppedBy?: RunStop;
+  /** The system prompt this task was scored against. See `provenance`. */
+  systemPromptSha256?: string;
   taskId: string;
   totalTokens: number;
 }
@@ -79,6 +97,14 @@ export async function generateReport({
   runs?: CompletedRun[];
   workspaceRootDir: string;
 }): Promise<RollupSummary> {
+  // Only a report for runs this process just watched can speak for the tree
+  // they ran against. `pnpm eval report` re-scores sessions recorded whenever,
+  // from whatever checkout is standing here now, and stamping today's commit on
+  // last week's numbers is worse than leaving the field out. The prompt digest
+  // is read from the sessions either way, so a re-report keeps the half that
+  // describes the run rather than the reader.
+  const git =
+    runs.length > 0 ? await gitProvenance(import.meta.dirname) : undefined;
   const evalCasesByName = new Map(evalCases.map((e) => [e.name, e]));
   // A task's id is slugified from its prompt, not from the case name, so a name
   // can only be recovered from the run that produced it. Without this the match
@@ -106,6 +132,11 @@ export async function generateReport({
       assertions: { failed: 0, pass_rate: 0, passed: 0, total: 0 },
       erroredTasks: 0,
       modelURIs: [],
+      provenance: {
+        generatedAt: new Date().toISOString(),
+        git,
+        systemPromptSha256: [],
+      },
       results: [],
       stoppedTasks: 0,
       tasks: 0,
@@ -121,6 +152,7 @@ export async function generateReport({
   let rollupErroredTasks = 0;
   let rollupStoppedTasks = 0;
   let rollupCost = 0;
+  const rollupPromptDigests = new Set<string>();
   let sawPrice = false;
   const rollupModelURIs = new Set<string>();
   const results: RunReport[] = [];
@@ -260,6 +292,16 @@ export async function generateReport({
         `Warning: no eval case matched "${caseName}" (${task.id}); its assertions, if any, were not run.\n`,
       );
     }
+
+    // Read once for both the digest and the assertions: the digest has to be
+    // recorded for every task, including one with no assertions to run, and
+    // that is the case where the old code never loaded the sessions at all.
+    const sessions = await sessionsFor(taskId);
+    const systemPromptSha256 = systemPromptDigest(sessions);
+    if (systemPromptSha256) {
+      rollupPromptDigests.add(systemPromptSha256);
+    }
+
     await fs.writeFile(
       path.join(taskOutputDir, "eval-case.json"),
       JSON.stringify(
@@ -269,6 +311,7 @@ export async function generateReport({
           name: caseName,
           resolvedModelId: run?.resolvedModelId,
           stoppedBy,
+          systemPromptSha256,
           taskId: task.id,
         },
         null,
@@ -279,7 +322,6 @@ export async function generateReport({
 
     let assertionResults: AssertionResult[] = [];
     if (evalCase?.assertions && evalCase.assertions.length > 0) {
-      const sessions = await sessionsFor(taskId);
       assertionResults = await Promise.all(
         evalCase.assertions.map((a) =>
           Promise.resolve(a.check({ sessions, taskId })),
@@ -343,6 +385,7 @@ export async function generateReport({
       passed: assertionResults.filter((r) => r.passed).length,
       resolvedModelId: run?.resolvedModelId,
       stoppedBy,
+      systemPromptSha256,
       taskId: task.id,
       totalTokens: stats.totalTokens,
     });
@@ -359,6 +402,11 @@ export async function generateReport({
     costUSD: sawPrice ? rollupCost : undefined,
     erroredTasks: rollupErroredTasks,
     modelURIs: [...rollupModelURIs],
+    provenance: {
+      generatedAt: new Date().toISOString(),
+      git,
+      systemPromptSha256: [...rollupPromptDigests].sort(),
+    },
     results,
     stoppedTasks: rollupStoppedTasks,
     tasks: tasks.length,

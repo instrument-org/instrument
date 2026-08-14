@@ -53,7 +53,9 @@ Run lint/types from **repo root** through Turbo for caching. Avoid package-loop 
 
 `check:lint` / `fix:lint` run both ESLint (syntactic rules: perfectionist, react-compiler, regexp, yml/jsonc, turbo) and `oxlint --type-aware` (all TypeScript type-aware rules via tsgolint, plus Tailwind class rules). There is no typed linting in the ESLint config, so it is fast.
 
-A format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`) runs oxfmt on every file you Edit/Write, then oxfmt + `eslint --fix` + `oxlint --fix` over all changed files on Stop, and reports what is left. So: expect files to change after you write them, and never hand-format or hand-fix order-only and auto-fixable lint (including Tailwind class order). Type errors and non-auto-fixable lint are **not** covered — run the checks above.
+A format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`) runs oxfmt on every file you Edit/Write, then oxfmt + `oxlint --fix` + `eslint --fix` on Stop over the files that session edited. Anything ESLint could not fix blocks the turn and comes back to you to fix in context. So: expect files to change after you write them, never hand-format or hand-fix order-only and auto-fixable lint (including Tailwind class order), and don't run `check:lint` proactively to find what the hook is about to hand you anyway.
+
+What the hook does not cover: type errors, `oxlint --type-aware` problems that `--fix` can't resolve, and any file written by something other than Edit/Write (a heredoc or `sed -i` is untracked, so it is neither formatted nor linted). Run `check:types` yourself when a change can move types: a signature, a schema, a prop, the shape of data flowing through. Skip it when a change cannot: className and CSS edits, copy, Markdown.
 
 ## Key catalog versions
 

@@ -32,7 +32,10 @@ description, or choose the right arguments. Only rung 3 answers that.
 - **A tool description, a system prompt, a skill, tool selection** -> rung 3
   only. There is nothing below it that involves a model, so nothing below it can
   answer the question.
-- **Anything the user sees** -> rung 4.
+- **New or changed behavior a user can reach** -> rung 4. A spacing, color, or
+  copy tweak the diff already describes in full is not that, and neither is a
+  change you can confirm in an instance that is already running: look at that
+  one instead of booting another.
 
 ## Rung 1: unit tests
 

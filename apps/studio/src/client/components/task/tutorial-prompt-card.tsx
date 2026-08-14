@@ -1,6 +1,6 @@
 import { cn } from "@/client/lib/utils";
 import { APP_NAME } from "@instrument-org/shared";
-import { XIcon } from "@phosphor-icons/react";
+import { XIcon } from "@phosphor-icons/react/X";
 import { AnimatePresence, motion } from "motion/react";
 import { type ReactNode, useId } from "react";
 

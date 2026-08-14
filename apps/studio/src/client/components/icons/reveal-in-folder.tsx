@@ -1,5 +1,5 @@
 import { isMacOS } from "@/client/lib/utils";
-import { FolderOpenIcon } from "@phosphor-icons/react";
+import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 
 export function RevealInFolderIcon({ className }: { className?: string }) {
   if (isMacOS()) {

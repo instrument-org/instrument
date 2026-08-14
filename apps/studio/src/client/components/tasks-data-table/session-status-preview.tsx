@@ -12,7 +12,9 @@ import {
   getToolNameByType,
   isToolPart,
 } from "@instrument-org/workspace/client";
-import { BrainIcon, ChatTextIcon, QuestionIcon } from "@phosphor-icons/react";
+import { BrainIcon } from "@phosphor-icons/react/Brain";
+import { ChatTextIcon } from "@phosphor-icons/react/ChatText";
+import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { skipToken, useQuery } from "@tanstack/react-query";
 
 export function SessionStatusPreview({ id }: { id: TaskId }) {

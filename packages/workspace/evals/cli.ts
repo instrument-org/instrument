@@ -167,6 +167,8 @@ function exitCodeFor(rollup: Rollup): number {
     : 0;
 }
 
+const short = (sha: string) => sha.slice(0, 12);
+
 function printSummary({
   outputDir: out,
   rollup,
@@ -192,6 +194,7 @@ function printSummary({
               `${c.dim}│${c.reset}  ${c.dim}${i === 0 ? "Models     " : "           "}:${c.reset} ${c.cyan}${m}${c.reset}`,
           )
         : []),
+      ...provenanceLines(rollup.provenance),
       `${c.dim}│${c.reset}  ${c.dim}Tasks      :${c.reset} ${c.yellow}${rollup.tasks}${c.reset}`,
       ...(rollup.stoppedTasks > 0
         ? [
@@ -246,6 +249,36 @@ function printTranscripts({
       "",
     ].join("\n"),
   );
+}
+
+/**
+ * What the run measured, said at the point the operator can still act on it.
+ *
+ * The dirty flag is the one worth the line. Measuring an edit before committing
+ * it is the ordinary way a prompt change gets scored, and the numbers then
+ * belong to a tree that no commit describes -- which is invisible afterwards
+ * unless the run said so while someone was watching.
+ */
+function provenanceLines(provenance: Rollup["provenance"]): string[] {
+  const { git, systemPromptSha256 } = provenance;
+  return [
+    ...(git
+      ? [
+          `${c.dim}│${c.reset}  ${c.dim}Commit     :${c.reset} ${short(git.commit)}${git.branch ? ` ${c.dim}on${c.reset} ${git.branch}` : ""}${
+            git.dirty ? ` ${c.yellow}+ uncommitted changes${c.reset}` : ""
+          }`,
+        ]
+      : []),
+    ...(systemPromptSha256.length > 0
+      ? [
+          `${c.dim}│${c.reset}  ${c.dim}Prompt     :${c.reset} ${systemPromptSha256.map(short).join(", ")}${
+            systemPromptSha256.length > 1
+              ? ` ${c.yellow}(context was rebuilt mid-run)${c.reset}`
+              : ""
+          }`,
+        ]
+      : []),
+  ];
 }
 
 if (subcommand === "list") {

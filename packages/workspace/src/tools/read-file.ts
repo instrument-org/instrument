@@ -53,6 +53,7 @@ import { setupTool } from "./create-tool";
 const DEFAULT_READ_LIMIT = 2000;
 const DIRECTORY_LISTING_LIMIT = 200;
 const MAX_LINE_LENGTH = 2000;
+// Roughly 11,600 tokens of source, or 17,700 of JSON or YAML.
 const MAX_BYTES = 50 * 1024;
 
 const INPUT_PARAMS = {

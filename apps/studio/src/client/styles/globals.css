@@ -186,10 +186,14 @@ body {
   --shadow-xl: var(--elevation-xl);
   --shadow-2xl: var(--elevation-2xl);
   --shadow-3xl: var(--elevation-3xl);
-  /* xs, md, and lg elevation minus the hairline ring. */
-  --shadow-soft: var(--elevation-soft);
+  /* Same ramp, minus the hairline ring. */
+  --shadow-xs-soft: var(--elevation-xs-soft);
+  --shadow-sm-soft: var(--elevation-sm-soft);
   --shadow-md-soft: var(--elevation-md-soft);
   --shadow-lg-soft: var(--elevation-lg-soft);
+  --shadow-xl-soft: var(--elevation-xl-soft);
+  --shadow-2xl-soft: var(--elevation-2xl-soft);
+  --shadow-3xl-soft: var(--elevation-3xl-soft);
 }
 
 /* =========================
@@ -225,33 +229,28 @@ body {
   --sidebar-ring: var(--gray-400);
 
   /* Elevation ramp (light) — drop shadows over a 1px hairline ring. */
-  --elevation-xs:
-    0 1px 2px 0 rgb(10 13 18 / 0.04), 0 1px 1px 0 rgb(10 13 18 / 0.05),
-    0 0 0 1px rgb(10 13 18 / 0.05);
-  --elevation-sm:
-    0 2px 4px 0 rgb(10 13 18 / 0.04), 0 1px 2px -1px rgb(10 13 18 / 0.06),
-    0 0 0 1px rgb(10 13 18 / 0.06);
-  --elevation-md:
-    0 4px 8px -1px rgb(10 13 18 / 0.05), 0 2px 4px -2px rgb(10 13 18 / 0.06),
-    0 0 0 1px rgb(10 13 18 / 0.06);
-  --elevation-lg:
-    0 8px 16px -3px rgb(10 13 18 / 0.06), 0 4px 6px -4px rgb(10 13 18 / 0.06),
-    0 0 0 1px rgb(10 13 18 / 0.06);
-  --elevation-xl:
-    0 12px 24px -4px rgb(10 13 18 / 0.07), 0 6px 10px -6px rgb(10 13 18 / 0.07),
-    0 0 0 1px rgb(10 13 18 / 0.06);
-  --elevation-2xl:
-    0 20px 40px -8px rgb(10 13 18 / 0.08),
-    0 10px 16px -8px rgb(10 13 18 / 0.07), 0 0 0 1px rgb(10 13 18 / 0.06);
-  --elevation-3xl:
-    0 32px 64px -12px rgb(10 13 18 / 0.1),
-    0 16px 24px -12px rgb(10 13 18 / 0.08), 0 0 0 1px rgb(10 13 18 / 0.06);
-  --elevation-soft:
+  --elevation-xs-soft:
     0 1px 2px 0 rgb(10 13 18 / 0.04), 0 1px 1px 0 rgb(10 13 18 / 0.05);
+  --elevation-sm-soft:
+    0 2px 4px 0 rgb(10 13 18 / 0.04), 0 1px 2px -1px rgb(10 13 18 / 0.06);
   --elevation-md-soft:
     0 4px 8px -1px rgb(10 13 18 / 0.05), 0 2px 4px -2px rgb(10 13 18 / 0.06);
   --elevation-lg-soft:
     0 8px 16px -3px rgb(10 13 18 / 0.06), 0 4px 6px -4px rgb(10 13 18 / 0.06);
+  --elevation-xl-soft:
+    0 12px 24px -4px rgb(10 13 18 / 0.07), 0 6px 10px -6px rgb(10 13 18 / 0.07);
+  --elevation-2xl-soft:
+    0 20px 40px -8px rgb(10 13 18 / 0.08), 0 10px 16px -8px rgb(10 13 18 / 0.07);
+  --elevation-3xl-soft:
+    0 32px 64px -12px rgb(10 13 18 / 0.1),
+    0 16px 24px -12px rgb(10 13 18 / 0.08);
+  --elevation-xs: var(--elevation-xs-soft), 0 0 0 1px rgb(10 13 18 / 0.05);
+  --elevation-sm: var(--elevation-sm-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
+  --elevation-md: var(--elevation-md-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
+  --elevation-lg: var(--elevation-lg-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
+  --elevation-xl: var(--elevation-xl-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
+  --elevation-2xl: var(--elevation-2xl-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
+  --elevation-3xl: var(--elevation-3xl-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
 
   /* Status ramps — 6 stops (50/100/300/500/700/900) per Figma. */
   --error-50: #fbeef0;
@@ -368,24 +367,20 @@ body {
   --sidebar-ring: rgb(255 255 255 / 30%);
 
   /* Elevation ramp (dark) — light inner ring plus a deeper black drop. */
-  --elevation-xs:
-    0 0 0 1px rgb(255 255 255 / 0.06), 0 0 0 2px rgb(0 0 0 / 0.04);
-  --elevation-sm:
-    0 0 0 1px rgb(255 255 255 / 0.08), 0 2px 4px 0 rgb(0 0 0 / 0.08);
-  --elevation-md:
-    0 0 0 1px rgb(255 255 255 / 0.1), 0 8px 16px -2px rgb(0 0 0 / 0.12);
-  --elevation-lg:
-    0 0 0 1px rgb(255 255 255 / 0.11), 0 14px 28px -5px rgb(0 0 0 / 0.17);
-  --elevation-xl:
-    0 0 0 1px rgb(255 255 255 / 0.13), 0 20px 40px -7px rgb(0 0 0 / 0.21);
-  --elevation-2xl:
-    0 0 0 1px rgb(255 255 255 / 0.14), 0 26px 52px -10px rgb(0 0 0 / 0.26);
-  --elevation-3xl:
-    0 0 0 1px rgb(255 255 255 / 0.16), 0 32px 64px -12px rgb(0 0 0 / 0.3);
-  --elevation-soft:
-    0 1px 2px 0 rgb(0 0 0 / 0.24), 0 1px 1px 0 rgb(0 0 0 / 0.28);
+  --elevation-xs-soft: 0 0 0 2px rgb(0 0 0 / 0.04);
+  --elevation-sm-soft: 0 2px 4px 0 rgb(0 0 0 / 0.08);
   --elevation-md-soft: 0 8px 16px -2px rgb(0 0 0 / 0.12);
   --elevation-lg-soft: 0 14px 28px -5px rgb(0 0 0 / 0.17);
+  --elevation-xl-soft: 0 20px 40px -7px rgb(0 0 0 / 0.21);
+  --elevation-2xl-soft: 0 26px 52px -10px rgb(0 0 0 / 0.26);
+  --elevation-3xl-soft: 0 32px 64px -12px rgb(0 0 0 / 0.3);
+  --elevation-xs: 0 0 0 1px rgb(255 255 255 / 0.06), var(--elevation-xs-soft);
+  --elevation-sm: 0 0 0 1px rgb(255 255 255 / 0.08), var(--elevation-sm-soft);
+  --elevation-md: 0 0 0 1px rgb(255 255 255 / 0.1), var(--elevation-md-soft);
+  --elevation-lg: 0 0 0 1px rgb(255 255 255 / 0.11), var(--elevation-lg-soft);
+  --elevation-xl: 0 0 0 1px rgb(255 255 255 / 0.13), var(--elevation-xl-soft);
+  --elevation-2xl: 0 0 0 1px rgb(255 255 255 / 0.14), var(--elevation-2xl-soft);
+  --elevation-3xl: 0 0 0 1px rgb(255 255 255 / 0.16), var(--elevation-3xl-soft);
 }
 
 @utility prose-custom {
@@ -698,6 +693,7 @@ body {
   &::details-content {
     block-size: auto;
     content-visibility: visible;
+    overflow: visible;
   }
 }
 

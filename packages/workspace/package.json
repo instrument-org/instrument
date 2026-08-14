@@ -33,7 +33,7 @@
     "script:run-workspace": "cross-env NODE_ENV=development tsx scripts/run-workspace.ts",
     "script:seed-workspace": "cross-env NODE_ENV=development tsx scripts/seed-workspace.ts",
     "test": "vitest",
-    "test:ci": "cross-env CI=true vitest",
+    "test:ci": "cross-env CI=true vitest --maxWorkers=40%",
     "turbo:check": "turbo run check:types check:lint",
     "turbo:check-and-test": "turbo run check:types check:lint test:ci",
     "turbo:check:lint:ci": "cross-env CI=true turbo check:lint",

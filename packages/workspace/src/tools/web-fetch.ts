@@ -20,6 +20,7 @@ import { TOOL_NAMES } from "./name";
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 // Converted pages can run to hundreds of thousands of characters (a single
 // large product page measured ~180k), which would swamp the model's context.
+// This ceiling is roughly 14,000 tokens of page markdown.
 const MAX_TEXT_CHARACTERS = 50_000;
 const DEFAULT_TIMEOUT_SECONDS = 30;
 const MAX_TIMEOUT_SECONDS = 120;

@@ -1,6 +1,11 @@
 const TRUNCATE_MAX_LINES = 2000;
 
-/** Head + tail byte budgets for truncateMiddle. */
+/**
+ * Head + tail byte budgets for truncateMiddle.
+ *
+ * The two together are roughly 5,400 to 8,800 tokens, the range covering
+ * ordinary command output through dense listings.
+ */
 export const TRUNCATE_HEAD_BYTES = 10 * 1024; // 10 KB
 export const TRUNCATE_TAIL_BYTES = 10 * 1024; // 10 KB
 

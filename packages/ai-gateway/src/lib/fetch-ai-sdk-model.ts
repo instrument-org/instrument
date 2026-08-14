@@ -6,13 +6,14 @@ import {
 import { Result } from "typescript-result";
 
 import { AIGatewayModelURI } from "../schemas/model-uri";
-import { type AIGatewayProviderConfig } from "../schemas/provider-config";
+import {
+  type AIGatewayProviderConfig,
+  TEST_MODEL_OVERRIDE_KEY,
+} from "../schemas/provider-config";
 import { aiSDKForProviderConfig } from "./ai-sdk-for-provider-config";
 import { TypedError } from "./errors";
 import { fetchModel } from "./fetch-model";
 import { type ModelCache } from "./model-cache";
-
-export const TEST_MODEL_OVERRIDE_KEY = "__testModelOverride";
 
 export async function fetchAISDKModel({
   captureException,

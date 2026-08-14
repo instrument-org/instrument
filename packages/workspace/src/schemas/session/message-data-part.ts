@@ -77,7 +77,11 @@ export namespace SessionMessageDataPart {
     filename: z.string(),
     filePath: RelativePathSchema,
     mimeType: z.string(),
-    modifiedAt: z.number(),
+    // Attachments written before this field existed have none, and it is a
+    // cache-buster for the asset URL: 0 costs those files nothing, since they
+    // are not the ones being rewritten. Without a default the whole part fails
+    // to read and the turn's uploads vanish from the transcript.
+    modifiedAt: z.number().default(0),
     size: z.number(),
   });
 
@@ -172,6 +176,10 @@ export namespace SessionMessageDataPart {
     }),
     z.object({
       status: z.literal("open"),
+      target: BrowserTargetSchema,
+    }),
+    z.object({
+      status: z.literal("reopened"),
       target: BrowserTargetSchema,
     }),
   ]);

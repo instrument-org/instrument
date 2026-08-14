@@ -13,13 +13,11 @@ import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import {
-  FileTextIcon,
-  FloppyDiskIcon,
-  GlobeSimpleIcon,
-  type Icon,
-  ListChecksIcon,
-} from "@phosphor-icons/react";
+import { type Icon } from "@phosphor-icons/react";
+import { FileTextIcon } from "@phosphor-icons/react/FileText";
+import { FloppyDiskIcon } from "@phosphor-icons/react/FloppyDisk";
+import { GlobeSimpleIcon } from "@phosphor-icons/react/GlobeSimple";
+import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useAtom, useAtomValue } from "jotai";

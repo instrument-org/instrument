@@ -12,7 +12,8 @@ import {
   CollapsibleTrigger,
 } from "@/client/components/ui/collapsible";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { CaretRightIcon, MonitorIcon } from "@phosphor-icons/react";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 

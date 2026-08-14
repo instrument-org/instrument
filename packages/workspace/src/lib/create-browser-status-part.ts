@@ -2,16 +2,12 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { encodeBrowserTargetId } from "../types";
-import { getBrowserState } from "./browser-state";
+import {
+  BLANK_PAGE_URL,
+  getBrowserState,
+  takeBrowserClosed,
+} from "./browser-state";
 import { getWorkspaceConfig } from "./workspace-config";
-
-// A browser sitting on the blank page is not news, in either direction: it has
-// no state to tell the model about and nothing to resume. agent-browser creates
-// a page for any command that needs one, including commands that only read
-// state, so a target can exist for a whole session without a page ever being
-// asked for -- and telling the model "a browser tab is already open" about that
-// invites it to keep addressing a browser that has nothing in it.
-const BLANK_PAGE_URL = "about:blank";
 
 export async function createBrowserStatusPart({
   createdAt,
@@ -30,7 +26,35 @@ export async function createBrowserStatusPart({
       ({ id }) => id === encodeBrowserTargetId(taskId, sessionId),
     );
 
+    // A teardown since the model last looked outranks whatever is there now.
+    // Reopening the panel builds a new tab, so by the time this runs the reap
+    // is invisible from the target list -- either nothing is there or a blank
+    // (or freshly restored) tab is, and none of those say on their own that the
+    // page the model was working in has been thrown away.
+    const closedResult = await takeBrowserClosed(taskId, sessionId);
+    if (closedResult.isErr()) {
+      getWorkspaceConfig().captureException(closedResult.error);
+    }
+    const closed = closedResult.isOk() ? closedResult.value : undefined;
+    if (closed?.lastUrl) {
+      const previousTarget = {
+        ...(closed.lastTitle ? { title: closed.lastTitle } : {}),
+        url: closed.lastUrl,
+      };
+      return createPart({
+        createdAt,
+        data:
+          target && target.url === closed.lastUrl
+            ? { status: "reopened", target: previousTarget }
+            : { previousTarget, status: "closed" },
+        messageId,
+        sessionId,
+      });
+    }
+
     if (target) {
+      // Telling the model "a browser tab is already open" about a blank one
+      // invites it to keep addressing a browser that has nothing in it.
       if (target.url === BLANK_PAGE_URL) {
         return undefined;
       }

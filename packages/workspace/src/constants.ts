@@ -65,8 +65,8 @@ export const AGENT_FILES_LANGUAGE = "files";
  * ride in the session-context message on every turn, so an unbounded one eats
  * the context window before the task starts. Characters rather than tokens for
  * the same reason as the skill catalog's budget: no tokenizer is right for every
- * provider we run against, and roughly four characters to the token (fewer for
- * CJK) is close enough to size a budget by.
+ * provider we run against. This is roughly 4,200 tokens of Markdown prose, and
+ * closer to 13,000 if the file is written in CJK.
  *
  * Nothing is lost to the cap. The project folder mounts at MOUNT.project,
  * so what does not fit stays one read away and the truncated block says where.

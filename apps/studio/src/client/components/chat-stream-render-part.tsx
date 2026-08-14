@@ -154,6 +154,7 @@ export function renderChatPart({
         }
         isStandIn={isStandIn}
         key={part.metadata.id}
+        rowId={part.metadata.id}
         text={part.text}
       />
     );

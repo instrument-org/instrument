@@ -17,18 +17,16 @@ import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language
 import { type FileType, getFileType } from "@/client/lib/get-file-type";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  ArrowClockwiseIcon,
-  ArrowElbowDownLeftIcon,
-  ArrowLineDownIcon,
-  ArrowsOutSimpleIcon,
-  CheckIcon,
-  CodeIcon,
-  CopyIcon,
-  DotsThreeOutlineVerticalIcon,
-  EyeIcon,
-  XIcon,
-} from "@phosphor-icons/react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
+import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft";
+import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
+import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { CodeIcon } from "@phosphor-icons/react/Code";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { EyeIcon } from "@phosphor-icons/react/Eye";
+import { XIcon } from "@phosphor-icons/react/X";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { motion } from "motion/react";
@@ -513,9 +511,16 @@ const fileViewerHeaderMenuTriggerClassName = toolbarClassName({
   pressed: false,
 });
 
+// Both segments of the open button are transparent until hovered, so hovering
+// the label alone leaves the caret invisible and the control reads as having no
+// menu. Tint the caret at a fraction of the hover fill instead: enough to show
+// the two are one control, light enough to stay subordinate to the half the
+// pointer is actually on. Alpha over the same token covers both themes, since
+// dark's `muted` is already white at low opacity. Only while the menu is closed
+// -- an open menu's fill says more than the neighbor's hover does.
 const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
   className:
-    "h-7 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+    "h-7 peer-hover/open-file:data-[state=closed]:bg-muted/60 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
   pressed: false,
 });
 
@@ -852,7 +857,7 @@ export function FileViewerHeader({
           </TooltipTrigger>
           <TooltipContent
             className="wrap-break-word"
-          collisionPadding={10}
+            collisionPadding={10}
             maxWidth="500px"
           >
             {filePath}

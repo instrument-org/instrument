@@ -4,7 +4,7 @@ import {
 } from "@/client/atoms/file-preview";
 import { getFileType } from "@/client/lib/get-file-type";
 import { formatBytes } from "@instrument-org/workspace/client";
-import { XIcon } from "@phosphor-icons/react";
+import { XIcon } from "@phosphor-icons/react/X";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";

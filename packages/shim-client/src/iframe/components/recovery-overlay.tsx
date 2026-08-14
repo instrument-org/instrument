@@ -1,10 +1,8 @@
 import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
-import {
-  ArrowsClockwiseIcon,
-  ArrowSquareOutIcon,
-  WarningIcon,
-  XIcon,
-} from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
+import { XIcon } from "@phosphor-icons/react/X";
 
 export function RecoveryOverlay({
   isInsideStudio,

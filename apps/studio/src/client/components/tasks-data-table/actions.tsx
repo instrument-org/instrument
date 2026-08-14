@@ -14,15 +14,13 @@ import {
 } from "@/client/components/ui/tooltip";
 import { useTaskAgentStatus } from "@/client/hooks/use-task-agent-status";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  ArrowUpRightIcon,
-  DotsThreeOutlineVerticalIcon,
-  PencilSimpleLineIcon,
-  PushPinIcon,
-  PushPinSlashIcon,
-  StopCircleIcon,
-  TrashIcon,
-} from "@phosphor-icons/react";
+import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
+import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { PencilSimpleLineIcon } from "@phosphor-icons/react/PencilSimpleLine";
+import { PushPinIcon } from "@phosphor-icons/react/PushPin";
+import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
+import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 

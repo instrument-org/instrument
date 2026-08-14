@@ -1,5 +1,5 @@
 import { cn } from "@/client/lib/utils";
-import { CaretUpIcon } from "@phosphor-icons/react";
+import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
 import { type ReactNode } from "react";
 
 export function ToolPartListItemCompact({

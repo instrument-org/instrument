@@ -27,14 +27,12 @@ import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  BugIcon,
-  CpuIcon,
-  FadersHorizontalIcon,
-  FlagIcon,
-  HardDrivesIcon,
-  XIcon,
-} from "@phosphor-icons/react";
+import { CodeIcon } from "@phosphor-icons/react/Code";
+import { CpuIcon } from "@phosphor-icons/react/Cpu";
+import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
+import { FlagIcon } from "@phosphor-icons/react/Flag";
+import { HardDrivesIcon } from "@phosphor-icons/react/HardDrives";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 
@@ -236,7 +234,7 @@ function useNavItems(): NavItem[] {
             title: "Features",
           },
           {
-            icon: BugIcon,
+            icon: CodeIcon,
             isDeveloperMode: true,
             tab: "Debug" as const,
             title: "Debug",

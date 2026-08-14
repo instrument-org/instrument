@@ -1,5 +1,6 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
-import { CaretDownIcon, CopyIcon } from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { useState } from "react";
 
 import { cn } from "../../lib/utils";

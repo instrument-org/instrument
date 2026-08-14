@@ -157,7 +157,13 @@ export function parseStudioDrivePath(path: string): {
  * that never go through it.
  */
 function readOpenDialogTitle(): null | string {
-  const dialog = document.querySelector('[role="dialog"]');
+  // Confirms are `alertdialog`, not `dialog`. Reading only the latter reports
+  // `null` for every destructive confirmation in the app while one is open on
+  // screen, which reads as "no dialog" rather than as "a role this did not ask
+  // for".
+  const dialog = document.querySelector(
+    '[role="dialog"], [role="alertdialog"]',
+  );
   if (!dialog) {
     return null;
   }

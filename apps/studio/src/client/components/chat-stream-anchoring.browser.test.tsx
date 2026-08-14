@@ -251,6 +251,7 @@ function Transcript({
         onContinue={vi.fn()}
         onModelChange={vi.fn()}
         onRetry={vi.fn()}
+        onRunAgain={vi.fn()}
         onStartNewTask={vi.fn()}
         renderAsItems
         task={task}

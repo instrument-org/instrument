@@ -4,7 +4,8 @@ import {
   type SessionMessagePart,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import { FileTextIcon, GitBranchIcon } from "@phosphor-icons/react";
+import { FileTextIcon } from "@phosphor-icons/react/FileText";
+import { GitBranchIcon } from "@phosphor-icons/react/GitBranch";
 import { sift } from "radashi";
 import { useMemo, useState } from "react";
 

@@ -21,22 +21,20 @@ import {
   type Task,
   TaskIdSchema,
 } from "@instrument-org/workspace/client";
-import {
-  ArticleIcon,
-  BrainIcon,
-  CaretDownIcon,
-  CheckIcon,
-  DotsThreeIcon,
-  type Icon,
-  InfoIcon,
-  PaperclipIcon,
-  PauseIcon,
-  PlayIcon,
-  SkipBackIcon,
-  SkipForwardIcon,
-  UserIcon,
-  WarningIcon,
-} from "@phosphor-icons/react";
+import { type Icon } from "@phosphor-icons/react";
+import { ArticleIcon } from "@phosphor-icons/react/Article";
+import { BrainIcon } from "@phosphor-icons/react/Brain";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
+import { InfoIcon } from "@phosphor-icons/react/Info";
+import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
+import { PauseIcon } from "@phosphor-icons/react/Pause";
+import { PlayIcon } from "@phosphor-icons/react/Play";
+import { SkipBackIcon } from "@phosphor-icons/react/SkipBack";
+import { SkipForwardIcon } from "@phosphor-icons/react/SkipForward";
+import { UserIcon } from "@phosphor-icons/react/User";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { createFileRoute } from "@tanstack/react-router";
 import { useAtom } from "jotai";
 import { Profiler, useEffect, useMemo, useRef, useState } from "react";
@@ -415,6 +413,13 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
                     renderMs.current = actualDuration;
                   }}
                 >
+                  {/* Drawn flat rather than as the scroller's own items. An
+                      item that anchors a turn to the top of the reading line
+                      buys the room to get there by reserving it below the last
+                      row, which is a scroll behavior of the task view rather
+                      than anything the transcript drew -- and here it would put
+                      the end of the transcript, and the marker that follows it,
+                      somewhere below where the transcript actually stops. */}
                   <ChatStream
                     alwaysShowFooter
                     isAgentRunning={frame.isAgentRunning}
@@ -423,8 +428,8 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
                     onContinue={noop}
                     onModelChange={noop}
                     onRetry={noop}
+                    onRunAgain={noop}
                     onStartNewTask={noop}
-                    renderAsItems
                     task={task}
                   />
                 </Profiler>

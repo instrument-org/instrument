@@ -28,13 +28,11 @@ import {
 } from "@instrument-org/ai-gateway/client";
 import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
 import uFuzzy from "@leeoniya/ufuzzy";
-import {
-  CaretDownIcon,
-  CheckIcon,
-  PlusIcon,
-  WarningCircleIcon,
-  WarningIcon,
-} from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
+import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -222,6 +220,7 @@ export function ModelPicker({
       <PopoverTrigger asChild>
         <Button
           aria-expanded={open}
+          aria-label="Model"
           className={cn(
             "flex h-auto items-center justify-between gap-2 rounded-lg px-1.5! py-1 text-left",
             "text-gray-400 hover:text-gray-400 dark:text-gray-500 dark:hover:text-gray-500",

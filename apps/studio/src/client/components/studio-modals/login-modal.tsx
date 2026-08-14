@@ -19,7 +19,7 @@ import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useLoginSocial } from "@/client/hooks/use-login-social";
 import { SHARED } from "@/client/lib/styles";
 import { cn } from "@/client/lib/utils";
-import { XIcon } from "@phosphor-icons/react";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useAtom } from "jotai";
 import { useState } from "react";
 

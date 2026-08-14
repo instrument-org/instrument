@@ -1,14 +1,19 @@
 import { type ImageModelV3, type LanguageModelV3 } from "@ai-sdk/provider";
 import {
-  type AIGatewayModel,
-  AIGatewayProviderConfig,
   type AISDKImageModelResult,
   type AISDKWebSearchModelResult,
-  noopModelCache,
+} from "@instrument-org/ai-gateway";
+import { noopModelCache } from "@instrument-org/ai-gateway/model-cache";
+// The values come from the subpaths rather than the package root, which every
+// test file using this helper would otherwise pay a second of module
+// evaluation for. See the comment on the gateway's `schemas` barrel.
+import {
+  type AIGatewayModel,
+  AIGatewayProviderConfig,
   TEST_IMAGE_MODEL_OVERRIDE_KEY,
   TEST_MODEL_OVERRIDE_KEY,
   TEST_WEB_SEARCH_MODEL_OVERRIDE_KEY,
-} from "@instrument-org/ai-gateway";
+} from "@instrument-org/ai-gateway/schemas";
 import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
 import path from "node:path";
 import { noop } from "radashi";

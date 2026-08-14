@@ -1,4 +1,4 @@
-import { XIcon } from "@phosphor-icons/react";
+import { XIcon } from "@phosphor-icons/react/X";
 
 import { Button } from "./ui/button";
 

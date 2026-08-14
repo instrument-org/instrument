@@ -6,12 +6,10 @@ import { useTaskFileOpenControl } from "@/client/hooks/use-task-file-open-contro
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getFileKindLabel, getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
-import {
-  ArrowLineDownIcon,
-  CheckIcon,
-  CopyIcon,
-  PlayIcon,
-} from "@phosphor-icons/react";
+import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { PlayIcon } from "@phosphor-icons/react/Play";
 import { useRef, useState } from "react";
 
 import { usePrefetchTaskFileOpenTarget } from "../hooks/use-task-file-open-target";

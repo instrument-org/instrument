@@ -69,8 +69,12 @@ test("names every file it draws, in the tree and not just on screen", async () =
   // A card whose name goes missing lays out exactly as it did before, so it is
   // a failure neither the heights above nor the widths below can see.
   //
-  // One line per file and nothing else. The icons are decorative and hidden as
-  // such, so what is left is exactly the set of things that can be addressed.
+  // One line per file, plus the collapse's own button: a row of media fills the
+  // grid's collapsed height on its own, so the document under it is drawn and
+  // clipped. Clipped, and still named -- what the grid cuts stays in the tree,
+  // which is why the count on that button is a claim about layout and not about
+  // what was rendered. The icons are decorative and hidden as such, so what is
+  // left is exactly the set of things that can be addressed.
   const { locator } = await drawFence(
     "output/revenue.png\noutput/notes.md\noutput/clip.mp4",
   );
@@ -80,7 +84,8 @@ test("names every file it draws, in the tree and not just on screen", async () =
     - button "Open clip.mp4"
     - button "Open notes.md"
     - text: notes.md Markdown
-    - button "Actions for notes.md""
+    - button "Actions for notes.md"
+    - button "Show 1 more""
   `);
 });
 

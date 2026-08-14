@@ -3,7 +3,7 @@ import { useSelectedTabId } from "@/client/hooks/use-selected-tab-id";
 import { useTabs } from "@/client/hooks/use-tabs";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { NEW_TAB_PATH } from "@/client/lib/tab-actions";
-import { PlusIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { AnimatePresence, motion, Reorder } from "motion/react";
 
 export default function TabBar() {

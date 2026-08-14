@@ -1,6 +1,6 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { cn } from "@/client/lib/utils";
-import { ArrowsOutSimpleIcon } from "@phosphor-icons/react";
+import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { useRef, useState } from "react";
 
 import { FileActionsMenuItems } from "./file-actions-menu";

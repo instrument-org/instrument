@@ -1,5 +1,6 @@
 import { formatDuration } from "@/client/lib/format-time";
 import { cn } from "@/client/lib/utils";
+import { type StoreId } from "@instrument-org/workspace/client";
 import { memo, useEffect, useState } from "react";
 import { useStickToBottom } from "use-stick-to-bottom";
 
@@ -11,7 +12,7 @@ import { PlanningDotSlot } from "./planning-dot-slot";
 import { reasoningDisplayText } from "./reasoning-utils";
 import { RunRowChevron } from "./run-row-chevron";
 import { SessionMarkdown } from "./session-markdown";
-import { useReleaseAutoScroll } from "./transcript-scroll-context";
+import { useRowExpansion } from "./transcript-expansion";
 import {
   Collapsible,
   CollapsibleContent,
@@ -34,6 +35,11 @@ interface ReasoningMessageProps {
    * back, and fading in reads as the line blinking out and returning.
    */
   isStandIn?: boolean;
+  /**
+   * The part it draws, which is where its open state is kept; see
+   * `useRowExpansion`. Absent outside a transcript, where it keeps its own.
+   */
+  rowId?: StoreId.Part;
   text: string;
 }
 
@@ -42,15 +48,19 @@ export const ReasoningMessage = memo(function ReasoningMessage({
   endedAt,
   isLoading = false,
   isStandIn = false,
+  rowId,
   text,
 }: ReasoningMessageProps) {
   const group = useTranscriptGroup();
-  const releaseAutoScroll = useReleaseAutoScroll();
-  const [isExpanded, setIsExpanded] = useState(false);
+  const { isExpanded, setIsExpanded } = useRowExpansion(rowId);
 
   // As a group's head line the row's click opens and shuts the group rather
-  // than this row's own reasoning; see `TranscriptGroup`.
-  const groupHead = group?.isHead === true && group.canExpand ? group : null;
+  // than this row's own reasoning, and the thought itself is drawn by the row
+  // in the run rather than twice; see `TranscriptGroup`.
+  const groupHead =
+    group?.isHead === true && (group.canExpand || group.isExpanded)
+      ? group
+      : null;
 
   // The clock a running duration reads against, held as state and advanced once
   // a second. Reading it during render instead would leave the row's output no
@@ -119,14 +129,7 @@ export const ReasoningMessage = memo(function ReasoningMessage({
         !isStandIn && "animate-in fill-mode-both fade-in",
         !isStandIn && !hasText && "delay-500",
       )}
-      onOpenChange={
-        groupHead === null
-          ? (open) => {
-              releaseAutoScroll();
-              setIsExpanded(open);
-            }
-          : groupHead.toggle
-      }
+      onOpenChange={groupHead === null ? setIsExpanded : groupHead.toggle}
       open={groupHead === null ? isExpanded : groupHead.isExpanded}
     >
       <CollapsibleTrigger

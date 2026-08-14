@@ -24,7 +24,9 @@ node $DRIVE rpc workspace.task.list '{}'
 node $DRIVE stop
 ```
 
-Also `press`, `wait`, `modal`, `eval`, and `port` (the bare number, for pointing another tool at this instance). It speaks CDP directly, so there is no daemon to go stale and no reconnect to invalidate page ids, and it handles the things that otherwise fail quietly: real input, visible-only element matching, browser-side screenshot cropping, and a check that something is mounted before capturing.
+Also `press`, `type`, `wait`, `modal`, `eval`, `run`, and `port` (the bare number, for pointing another tool at this instance). It speaks CDP directly, so there is no daemon to go stale and no reconnect to invalidate page ids, and it handles the things that otherwise fail quietly: real input, visible-only element matching, browser-side screenshot cropping, and a check that something is mounted before capturing.
+
+One command is one process and one connection. That is the right shape for a single question and the wrong one for a sequence, so as soon as you know two things you want to do, reach for [`run`](#a-sequence-run) instead.
 
 `snapshot` is the read to reach for before deciding how to address anything. It prints the accessibility tree as indented `role "name"` lines, in the same terms `click --text` matches on and at a fraction of the size of the DOM, so one call answers what is on screen and what each thing is called. Scope it with `--selector` and go deeper with `--depth` (12 by default); an unscoped app page is a few hundred lines.
 
@@ -67,6 +69,42 @@ node $DRIVE goto /tasks/generated-pdf --workspace documents
 ```
 
 It seeds when the fixture is absent or has changed (`--fresh` forces a rebuild) and reports the seeded task ids, so a script addresses a task by name instead of grepping for one. `--workspace` belongs on every command of the run: it picks the port and the instance record, so a fixture run and a plain dev run can both be up. `pnpm workspace:seed --list` shows what exists; `fixtures/workspaces/README.md` covers adding one.
+
+## A sequence: `run`
+
+`run` hands a script the app from `scripts/studio-app.mjs` over one held connection. The script default-exports `(app, args)` and returns whatever is worth reporting:
+
+```bash
+node $DRIVE run sequence.mjs --args '{"taskId":"…"}'
+cat sequence.mjs | node $DRIVE run -          # or on stdin, no quoting to get wrong
+```
+
+```javascript
+export default async (app, args) => {
+  await app.goto("/skills");
+  await app.click("New skill");
+  await app.waitFor('document.querySelector("[role=dialog]")');
+  await app.expect(
+    'window.__studioDrive.state().dialog === "New skill"',
+    "the dialog to open",
+  );
+
+  // branch on what you found, which a shell chain cannot do
+  const { tasks } = await app.rpc("workspace.task.list", {});
+  if (tasks.length === 0) await app.click("New task");
+
+  return { taskCount: tasks.length };
+};
+```
+
+`app` carries `state`, `goto`, `click`, `press`, `type`, `openModal`, `closeModal`, `rpc`, `eval`, `snapshot`, `shot`, `waitFor`, `waitForIdle`, and `expect`. Anything it has no verb for is reachable through `app.cdp`, so a sequence is limited by what CDP can do rather than by what the CLI has been taught to parse. A promoted helper imports the same module and takes `app` as its first argument, so turning a sequence you have now written twice into a reusable function is a refactor rather than a rewrite.
+
+Why this and not a command apiece: a primitive costs 0.3ms to 30ms over a held connection, while deciding the next command costs seconds. A twelve-step sequence measured at 1.2s in total, against roughly two minutes as twelve commands.
+
+- **Every call is traced.** The result is `{ok, steps, trace}` plus your return value, and a failure keeps the trace: `ok: false`, `stoppedAt`, and the failing step's own error. A run that dies at step 7 still reports the six that worked, so there is nothing to reconstruct.
+- **`waitFor` replaces `sleep`.** A string is evaluated in the page, a function runs in Node. It reports `waitedMs`, which is usually a fraction of the sleep it replaces.
+- **`expect` fails on the step that was wrong**, with your message, rather than surfacing three steps later as something unrelated.
+- **A reload stops the run.** Any write in the checkout relaunches the app or hot-updates the renderer, and a long sequence is a larger thing to lose that way than one command is. If the load changes mid-run the step is marked `reloaded` and the run stops there. Pass `--allow-reload` when the sequence expects one, or is testing one.
 
 ## Asking the app instead of reading the page
 
@@ -134,7 +172,8 @@ The quit prompt is a native `showMessageBox`, outside the web contents. CDP cann
 ## Traps
 
 - `element.click()` from an evaluated script dispatches a bare `click`, so it misses a handler mounted on an ancestor (how file cards and list rows are built) and every menu, popover and select, whose Radix triggers open on `pointerdown` and carry no click handler at all. It returns normally either way, so the run carries on against an unchanged UI. Use real input.
-- `click --text` matches only what is visible, so a control scrolled out of a long list reports as missing rather than being scrolled to. Bring it into view first, or address it by selector.
+- A control scrolled out of a long list is brought into view and then clicked, and the step reports `scrolledIntoView` so a capture taken afterward is not read as the same viewport. One still clipped after that (inside a collapsed pane, behind an overlay) fails saying so, with the coordinate, rather than dispatching at a point the window does not cover.
+- `press` takes combinations: `press 'Meta+k'`, `press 'Control+Shift+R'`, `press Escape`, `press ArrowDown`. A modifier changes what gets sent, so `Meta+k` fires the shortcut without also typing a `k`.
 - `use-stick-to-bottom` releases auto-follow on `wheel`, so assigning `scrollTop` is overridden immediately, and UI that only appears when scrolled off the live edge stays unreachable.
 - `?` opens the shortcut guide only when focus is outside an editable and nothing is blocking. Pressing it while the composer has focus does nothing and reads as the tool failing.
 - After a main-process edit, the relaunched Electron can lose the debug port to the dying instance (`bind() failed: Address already in use`) and come back with no endpoint. Restart the dev server.

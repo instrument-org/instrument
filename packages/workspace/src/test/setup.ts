@@ -1,4 +1,8 @@
-import { noopModelCache } from "@instrument-org/ai-gateway";
+// The package root re-exports the gateway's Hono app and every model-fetching
+// path with it, which is around a second of module evaluation per test file --
+// paid once for each of them, since every file gets its own module registry.
+// This subpath is a leaf, so the setup every test file loads stays cheap.
+import { noopModelCache } from "@instrument-org/ai-gateway/model-cache";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";

@@ -116,6 +116,65 @@ const DIAGRAMS = [
   "```mermaid\ngraph TD\n  A[Start] --> B[Half written\n```",
 ].join("\n\n");
 
+/**
+ * Fences, in the shapes that decide how a block is drawn.
+ *
+ * A fence carries no language more often than it carries one -- it is what a
+ * model writes when it is quoting output rather than code -- and the block has
+ * to hold that text's own line structure either way. The rest are the states
+ * the controls answer for: a line wider than the column, a file the fence names,
+ * and a block longer than the transcript has room for.
+ */
+const CODE_BLOCKS = [
+  "## Every shape a fence arrives in",
+  "A fence with no language at all, whose blank lines and indentation are the content:",
+  "```\n$ cat prompt.txt\n\n  Clean up the transcript.\n  Keep the speaker's voice.\n\nDone in 1.2s\n```",
+  "One that names the file it holds, which is drawn over the block rather than above it:",
+  "```ts src/lib/format-bytes.ts\nexport const formatBytes = (bytes: number) =>\n  bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;\n```",
+  "A line wider than the column, which wraps until the reader asks it not to:",
+  "```ts\nconst summary = `Processed ${count} rows from ${source} in ${elapsed}ms, skipping ${skipped} that failed validation and ${dropped} that were already present.`;\n```",
+  "And a block longer than the transcript has room for, which holds the rest back:",
+  `\`\`\`ts
+import { readFile, writeFile } from "node:fs/promises";
+
+interface Row {
+  id: string;
+  amount: number;
+  region: string;
+}
+
+const parse = (line: string): Row | undefined => {
+  const [id, amount, region] = line.split(",");
+  if (!id || !amount || !region) {
+    return undefined;
+  }
+  return { amount: Number(amount), id, region };
+};
+
+const byRegion = (rows: Row[]) => {
+  const totals = new Map<string, number>();
+  for (const row of rows) {
+    totals.set(row.region, (totals.get(row.region) ?? 0) + row.amount);
+  }
+  return totals;
+};
+
+export const summarize = async (source: string, destination: string) => {
+  const contents = await readFile(source, "utf8");
+  const rows = contents.split("\\n").slice(1).map(parse).filter(Boolean);
+  const totals = byRegion(rows as Row[]);
+
+  const report = [...totals]
+    .sort((left, right) => right[1] - left[1])
+    .map(([region, total]) => \`\${region}: \${total.toFixed(2)}\`)
+    .join("\\n");
+
+  await writeFile(destination, report, "utf8");
+  return totals.size;
+};
+\`\`\``,
+].join("\n\n");
+
 /** A file long enough that the card holding it has to decide how much to show. */
 const HELPERS = `import { format, parseISO } from "date-fns";
 
@@ -280,6 +339,27 @@ const REAL_TURN: Act[] = [
   reasoning(
     "The chart builds now. The write-up needs to lead with the reclassification, because every number below it is wrong without that context.",
   ),
+
+  // The one call the transcript opens for itself, and the reason it is worth
+  // scrolling through here: a phase with steps after the image, so the card
+  // has to still be on screen once the run has moved on twice.
+  activity("Drawing the cover"),
+  generated({
+    explanation: "Drawing the cover for the write-up",
+    filePath: "./output/quarterly-cover",
+    parameters: { background: "opaque", quality: "high" },
+    prompt:
+      "Four quarterly bars in muted ink on paper, the third taller than the rest, drawn as a restrained editorial illustration.",
+  }),
+  wrote({
+    content: "![Q3](./output/quarterly-cover.png)\n",
+    explanation: "Putting the cover at the top of the write-up",
+    filePath: "./summary.md",
+  }),
+  read({
+    explanation: "Checking how it reads with the cover on it",
+    filePath: "./summary.md",
+  }),
 
   prose(
     "## What moved in Q3\n\nOn the reported figures, revenue in the north grew twelve percent against Q2 and the south was flat. Adjusted for the August reclassification, which moved 412 accounts across the regional boundary without any change in the underlying business, the north grew about three percent and the south was slightly up.\n\nThat reverses the story the raw numbers tell, where the south looks like it is losing ground.\n\n### Why the raw numbers are wrong\n\nThe reclassification was an administrative change made in the first week of August. It is recorded in `notes.md` but not reflected in the per-quarter files, which are generated from the account tables directly. Anything comparing Q3 to Q2 on those files alone reads the boundary move as growth.\n\nStandard practice would be to restate the prior periods so the comparison holds. That has not been done here, and until it is, every quarter-on-quarter figure that crosses August is overstated for the north and understated for the south by the same 412 accounts.\n\n### The remaining three percent\n\nWhat is left after the adjustment is concentrated in the last four weeks of the quarter and looks like ordinary seasonal recovery rather than anything structural. Q3 of the prior year shows the same shape at a smaller absolute size, and Q3 of the year before that shows it again.\n\n### The chart\n\nThe chart script keyed on the region names directly, so it broke outright once one of them was renamed. It now goes through a region map, which is written to `regions.csv` alongside it. The rendered chart is in `chart.png` and shows both the reported and the adjusted series, because showing only one of them is how this gets misread again.\n\n### What to do about it\n\nThe per-quarter files should carry the reclassification date, so a comparison across it is at least visible to whoever makes it. Failing that, `notes.md` has to be read alongside them every time, which is the thing that did not happen here and is not going to reliably happen next time either.",
@@ -755,6 +835,16 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
     id: "diagrams",
     name: "Diagrams arriving",
     script: [user("Draw me some diagrams."), prose(DIAGRAMS, 90)],
+  },
+  {
+    about:
+      "Fences, in the shapes that decide how a block is drawn: one with no language, one naming the file it holds, one wider than the column, and one long enough to hold itself back. Replay it to judge the controls a block carries -- wrapping, the filename it is labeled with, and how much of a long block is worth showing before the reader asks for the rest.",
+    id: "code-blocks",
+    name: "Code blocks",
+    script: [
+      user("Show me what you wrote, and the output it produced."),
+      prose(CODE_BLOCKS, 90),
+    ],
   },
   {
     about:

@@ -7,7 +7,7 @@ import {
   isAddressableTaskFilePath,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import { ImageIcon } from "@phosphor-icons/react";
+import { ImageIcon } from "@phosphor-icons/react/Image";
 import { useSetAtom } from "jotai";
 import {
   memo,
@@ -21,6 +21,7 @@ import {
 import ReactMarkdown, {
   type Components,
   defaultUrlTransform,
+  type ExtraProps,
   type Options,
 } from "react-markdown";
 import remarkBreaks from "remark-breaks";
@@ -38,7 +39,7 @@ import { rehypeAnimateWords } from "../lib/rehype-animate-words";
 import { isTaskFileHref, taskFilePathFromHref } from "../lib/task-file-href";
 import { cn } from "../lib/utils";
 import { AgentFilesBlock } from "./agent-files-block";
-import { CodeBlock, CodeWithCopy } from "./code-block";
+import { MarkdownCodeBlock } from "./code-block";
 import { ExternalLink } from "./external-link";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileIcon } from "./file-icon";
@@ -76,13 +77,102 @@ type RemarkPluginList = NonNullable<Options["remarkPlugins"]>;
 const emptyPluginList: PluginList = [];
 const emptyRemarkPluginList: RemarkPluginList = [];
 
+type FenceNode = NonNullable<ExtraProps["node"]>;
+
 function containsMathSyntax(markdown: string) {
   return /```math\b|\\\(|\\\[|\\begin\{[a-z*]+\}|\$\$[\s\S]*?\$\$/.test(
     markdown,
   );
 }
 
-const markdownPre: Components["pre"] = ({ children }) => <>{children}</>;
+const nodeText = (node: FenceNode["children"][number]): string => {
+  if (node.type === "text") {
+    return node.value;
+  }
+  return node.type === "element" ? node.children.map(nodeText).join("") : "";
+};
+
+// A fence's info string is whatever the model wrote after the language, and the
+// conventions in the wild are a bare path, ``` ```ts title="src/foo.ts" ```, and
+// ``` ```ts:src/foo.ts ```. Anything else there -- a line range, a highlighter
+// directive -- names no file, so a filename has to look like one.
+const fenceFilename = (candidate: string | undefined): string | undefined => {
+  const bare = /^(?:(?:file|filename|title)=)?["']?([^"'\s]+)["']?$/.exec(
+    candidate?.trim() ?? "",
+  )?.[1];
+  return bare && /[^/]\.\w+$/.test(bare) ? bare : undefined;
+};
+
+// The `meta` mdast hands to hast for the rest of the info string. Read
+// structurally rather than off the type: `ElementData` only carries the field
+// where the plugin that sets it has been loaded for its types too.
+const fenceMeta = (data: unknown): string | undefined =>
+  data &&
+  typeof data === "object" &&
+  "meta" in data &&
+  typeof data.meta === "string"
+    ? data.meta
+    : undefined;
+
+interface Fence {
+  code: string;
+  filename?: string;
+  language?: string;
+}
+
+const readFence = (node: FenceNode | undefined): Fence | undefined => {
+  const code = node?.children.find(
+    (child) => child.type === "element" && child.tagName === "code",
+  );
+  if (code?.type !== "element") {
+    return undefined;
+  }
+
+  const className = code.properties.className;
+  const info = (Array.isArray(className) ? className.map(String) : [])
+    .find((name) => name.startsWith("language-"))
+    ?.slice("language-".length);
+  // `lang:path` puts the filename where the language goes, which would
+  // otherwise leave the block both unhighlighted and unlabeled.
+  const [language, taggedFilename] = info?.split(":") ?? [];
+
+  return {
+    code: nodeText(code).replace(/\n$/, ""),
+    filename: fenceFilename(taggedFilename ?? fenceMeta(code.data)),
+    language: language || undefined,
+  };
+};
+
+// Only the `pre` is told which code is which: an inline `code` element is
+// indistinguishable from the one inside a fence when all you have is the
+// element itself. Reading the fence from here is what lets a fence with no
+// language be a block at all -- reached through `code`, it fell through to the
+// inline branch, where a browser collapses its newlines into spaces.
+const markdownPre: Components["pre"] = ({ children, node }) => {
+  const fence = readFence(node);
+
+  // Raw HTML can carry a `pre` that holds anything, and there is no fence to
+  // read; whatever it holds has already been rendered.
+  if (!fence) {
+    return <pre>{children}</pre>;
+  }
+
+  if (fence.language === AGENT_FILES_LANGUAGE) {
+    return <AgentFilesBlock content={fence.code} />;
+  }
+
+  if (fence.language && isMermaidLanguage(fence.language)) {
+    return <MermaidDiagram code={fence.code} language={fence.language} />;
+  }
+
+  return (
+    <MarkdownCodeBlock
+      code={fence.code}
+      filename={fence.filename}
+      language={fence.language}
+    />
+  );
+};
 
 // Native ordered-list markers sit outside the padding and grow leftward as the
 // number's digit count rises, so past one digit they escape the message column.
@@ -113,46 +203,6 @@ const markdownOrderedList: Components["ol"] = ({
     >
       {children}
     </ol>
-  );
-};
-
-const markdownCode: Components["code"] = ({
-  children,
-  className,
-  node: _node,
-  ref: _ref,
-  ...props
-}) => {
-  const match = /language-(\w+)/.exec(className ?? "");
-  const language = match?.[1];
-
-  if (!language) {
-    return (
-      <code {...props} className={className}>
-        {children}
-      </code>
-    );
-  }
-
-  const codeString =
-    typeof children === "string"
-      ? children.replace(/\n$/, "")
-      : Array.isArray(children)
-        ? children.join("")
-        : "";
-
-  if (language === AGENT_FILES_LANGUAGE) {
-    return <AgentFilesBlock content={codeString} />;
-  }
-
-  if (isMermaidLanguage(language)) {
-    return <MermaidDiagram code={codeString} language={language} />;
-  }
-
-  return (
-    <CodeWithCopy content={codeString}>
-      <CodeBlock code={codeString} language={language} />
-    </CodeWithCopy>
   );
 };
 
@@ -331,6 +381,43 @@ const ImagePlaceholder = ({ alt, src }: { alt?: string; src?: string }) => (
   </div>
 );
 
+/**
+ * An image the message points at, which can turn out not to be there: an asset
+ * pruned with its task, a path the model wrote from memory. Left alone that
+ * draws as the browser's broken-image glyph, which names neither the image nor
+ * what went wrong; the placeholder a blocked image already gets says both.
+ *
+ * The failure is held against the source that produced it, so a URL still
+ * growing clears it as it goes.
+ */
+const MarkdownImage = ({
+  alt,
+  className,
+  src,
+  ...props
+}: React.ImgHTMLAttributes<HTMLImageElement>) => {
+  const { isStreaming } = useContext(MarkdownTaskContext);
+  const [failedSrc, setFailedSrc] = useState<null | string>(null);
+
+  if (src !== undefined && src === failedSrc) {
+    // Half a URL fails the same way a missing file does, and until the text
+    // settles there is no telling which this is.
+    return isStreaming ? null : <ImagePlaceholder alt={alt} src={src} />;
+  }
+
+  return (
+    <img
+      {...props}
+      alt={alt}
+      className={cn("max-w-full cursor-pointer! rounded-md", className)}
+      onError={() => {
+        setFailedSrc(src ?? null);
+      }}
+      src={src}
+    />
+  );
+};
+
 const resolveImageSrc = (
   src: string | undefined,
   assetBaseUrl: string | undefined,
@@ -442,7 +529,6 @@ export const Markdown = memo(
         <ReactMarkdown
           components={{
             a: MarkdownLink,
-            code: markdownCode,
             img: ({
               alt,
               className,
@@ -458,13 +544,10 @@ export const Markdown = memo(
                 );
               }
               return (
-                <img
+                <MarkdownImage
                   {...props}
                   alt={alt}
-                  className={cn(
-                    "max-w-full cursor-pointer! rounded-md",
-                    className,
-                  )}
+                  className={className}
                   onClick={handleImageClick}
                   src={resolvedSrc}
                 />

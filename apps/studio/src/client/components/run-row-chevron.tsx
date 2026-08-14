@@ -1,5 +1,5 @@
 import { cn } from "@/client/lib/utils";
-import { CaretRightIcon } from "@phosphor-icons/react";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 
 // The disclosure control on the compact rows the agent emits as it works: tool
 // calls and reasoning. Closed, it stays out of the layout until the row is

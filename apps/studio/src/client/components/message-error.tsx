@@ -1,7 +1,7 @@
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { OUR_MODELS } from "@instrument-org/shared";
 import { type SessionMessage } from "@instrument-org/workspace/client";
-import { WarningIcon } from "@phosphor-icons/react";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -35,7 +35,7 @@ interface MessageErrorProps {
   message: SessionMessage.Assistant;
   onContinue: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
-  onRetry: (prompt: string) => void;
+  onRunAgain: () => void;
   onStartNewTask?: () => void;
 }
 
@@ -46,7 +46,7 @@ export function MessageError({
   message,
   onContinue,
   onModelChange,
-  onRetry,
+  onRunAgain,
   onStartNewTask,
 }: MessageErrorProps) {
   const error = message.metadata.error;
@@ -198,15 +198,14 @@ export function MessageError({
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Starts a new task</p>
+                      <p>
+                        Opens a blank task. Nothing carries over, but this one
+                        stays in your list, so you can copy over anything you
+                        still need.
+                      </p>
                     </TooltipContent>
                   </Tooltip>
-                  <Button
-                    onClick={() => {
-                      onRetry("Try that again.");
-                    }}
-                    size="sm"
-                  >
+                  <Button onClick={onRunAgain} size="sm">
                     Try again
                   </Button>
                 </div>

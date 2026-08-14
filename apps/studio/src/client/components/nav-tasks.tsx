@@ -7,7 +7,7 @@ import {
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { cn } from "@/client/lib/utils";
 import { type Task, type TaskId } from "@instrument-org/workspace/client";
-import { PlusIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { type MakeRouteMatchUnion } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtomValue } from "jotai";

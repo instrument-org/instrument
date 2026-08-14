@@ -9,7 +9,7 @@ import {
   type ProjectId,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { PlusIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -66,14 +66,14 @@ export function ProjectFolders({
   };
 
   return (
-    <div className="flex shrink-0 flex-col overflow-hidden rounded-lg bg-card/60 pb-1">
+    <div className="flex shrink-0 flex-col overflow-hidden rounded-lg bg-card/60 pb-2 shadow-xs">
       <div className="flex items-center justify-between px-3 py-2">
         <h2 className="text-xs font-medium">Attached folders</h2>
         <Button
-          className="text-muted-foreground"
+          className="border-0 bg-transparent shadow-none"
           onClick={() => void handleAdd()}
           size="xs"
-          variant="ghost"
+          variant="outline-muted"
         >
           <PlusIcon className="size-3" />
           Add a folder

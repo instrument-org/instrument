@@ -1,9 +1,7 @@
-import {
-  CheckCircleIcon,
-  InfoIcon,
-  WarningIcon,
-  XCircleIcon,
-} from "@phosphor-icons/react";
+import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
+import { InfoIcon } from "@phosphor-icons/react/Info";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
+import { XCircleIcon } from "@phosphor-icons/react/XCircle";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
 import { useTheme } from "../theme-provider";

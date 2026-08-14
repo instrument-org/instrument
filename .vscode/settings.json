@@ -75,6 +75,12 @@
   "tailwindCSS.classFunctions": ["cn", "tv"],
   "tailwindCSS.lint.suggestCanonicalClasses": "ignore", // Handled by oxlint-tailwindcss
   "typescript.enablePromptUseWorkspaceTsdk": true,
+  // Auto-import is where a banned barrel import comes back: the lint rule
+  // catches it, but only after it has been written. This keeps the icon
+  // package's root out of the suggestions, leaving its per-icon subpaths.
+  "typescript.preferences.autoImportSpecifierExcludeRegexes": [
+    "^@phosphor-icons/react$"
+  ],
   "typescript.tsdk": "node_modules/typescript/lib",
   "vitest.configSearchPatternInclude": "**/vitest*.config*.{ts,js,mjs,cjs,cts,mts}",
   "yaml.schemas": {

@@ -88,6 +88,8 @@ export interface TranscriptGroup {
 export interface TranscriptLayout {
   groups: Map<StoreId.Part, TranscriptGroup>;
   rows: Map<StoreId.Part, TranscriptRow>;
+  /** The rows the transcript opens for itself; see `opensOnSight`. */
+  selfOpeningRowIds: StoreId.Part[];
 }
 
 /** Where one row sits in the transcript. */
@@ -159,6 +161,7 @@ export function buildTranscriptLayout({
   const flat: TranscriptRow[] = [];
   const groups = new Map<StoreId.Part, TranscriptGroup>();
   const seenSourceIds = new Set<string>();
+  const selfOpeningRowIds: StoreId.Part[] = [];
 
   // The group still taking rows, if any. Settling is what writes one out, so
   // every group in the map is final except the last.
@@ -274,6 +277,9 @@ export function buildTranscriptLayout({
       push(id, kind);
       if (isToolPart(part)) {
         open.toolCalls.push({ name: getToolNameByType(part.type), rowId: id });
+        if (isStreaming && isToolPartRunning(part) && opensOnSight(part)) {
+          selfOpeningRowIds.push(id);
+        }
       }
       markLive({
         group: open,
@@ -300,6 +306,7 @@ export function buildTranscriptLayout({
     rows: new Map(
       flat.map((row): [StoreId.Part, TranscriptRow] => [row.id, row]),
     ),
+    selfOpeningRowIds,
   };
 }
 
@@ -567,6 +574,25 @@ function markLive({
   if (isLive) {
     group.activeRowId = id;
   }
+}
+
+/**
+ * Whether the transcript opens this call the first time it catches it running,
+ * rather than waiting to be asked.
+ *
+ * Only image generation. Every other call is either quick enough that the line
+ * saying it started is the whole of what there is to see, or textual enough
+ * that its row already says what it did. This one runs for the better part of a
+ * minute and produces a picture, so the reader who is watching has nothing to
+ * watch, and the reader who looks away comes back to a line of text standing in
+ * for an image.
+ *
+ * Opening it opens the phase around it too, the same as if the reader had asked
+ * (see `ChatStream`), which is what leaves the picture on screen once the run
+ * moves on to the next step.
+ */
+function opensOnSight(part: SessionMessagePart.ToolPart): boolean {
+  return part.type === "tool-generate_image";
 }
 
 /**

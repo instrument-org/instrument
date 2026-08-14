@@ -25,12 +25,10 @@ import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { type FolderAttachment } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import {
-  type Icon,
-  LockIcon,
-  ShieldWarningIcon,
-  XIcon,
-} from "@phosphor-icons/react";
+import { type Icon } from "@phosphor-icons/react";
+import { LockIcon } from "@phosphor-icons/react/Lock";
+import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
+import { XIcon } from "@phosphor-icons/react/X";
 import { AnimatePresence, motion } from "motion/react";
 import { Fragment } from "react";
 import { toast } from "sonner";
@@ -156,19 +154,30 @@ export function FolderAccessControl({
 export function FolderAccessLabel({
   access,
   className,
+  iconOnly = false,
 }: {
   access: FolderAttachment.Access;
   className?: string;
+  iconOnly?: boolean;
 }) {
   const label = (
     <span
+      aria-label={iconOnly ? ACCESS_LABELS[access] : undefined}
       className={cn(
         "flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground",
+        iconOnly && "gap-0 hover:text-muted-foreground",
         className,
       )}
+      // A bare span is generic, and a generic element cannot take a name, so
+      // without a role the icon-only form states the access to sighted readers
+      // only. The word is the accessible name when it is written out.
+      role={iconOnly ? "img" : undefined}
     >
-      <FolderAccessIcon access={access} />
-      {ACCESS_LABELS[access]}
+      <FolderAccessIcon
+        access={access}
+        className={iconOnly ? "size-3.5" : undefined}
+      />
+      {iconOnly ? null : ACCESS_LABELS[access]}
     </span>
   );
 
@@ -276,32 +285,34 @@ function FolderAccessRow({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div className="group flex items-center gap-x-2.5 px-3 py-2">
+        <div className="group flex items-center gap-x-2.5 px-3 py-1.5">
           <MacFolderIcon className="size-8 shrink-0" />
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-xs font-medium">
               {folderNameFromPath(path)}
             </span>
             <span
-              className="truncate text-xs text-muted-foreground"
+              className="truncate text-xs font-medium text-muted-foreground"
               title={path}
             >
               {displayPath(path)}
             </span>
           </div>
-          <FolderAccessControl
-            access={access}
-            folderName={folderNameFromPath(path)}
-            onChange={onAccessChange}
-          />
-          <button
-            className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-50 hover:bg-foreground/5 hover:opacity-100"
-            onClick={onRemove}
-            type="button"
-          >
-            <XIcon className="size-3.5" />
-            <span className="sr-only">Remove {folderNameFromPath(path)}</span>
-          </button>
+          <div className="flex items-center gap-x-1.5">
+            <FolderAccessControl
+              access={access}
+              folderName={folderNameFromPath(path)}
+              onChange={onAccessChange}
+            />
+            <button
+              className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-50 hover:bg-foreground/5 hover:opacity-100"
+              onClick={onRemove}
+              type="button"
+            >
+              <XIcon className="size-3" />
+              <span className="sr-only">Remove {folderNameFromPath(path)}</span>
+            </button>
+          </div>
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>

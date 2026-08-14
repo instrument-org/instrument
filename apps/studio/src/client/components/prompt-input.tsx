@@ -36,14 +36,12 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import {
-  ArrowUpIcon,
-  CardsThreeIcon,
-  FolderIcon,
-  PaperclipIcon,
-  StopIcon,
-  UploadSimpleIcon,
-} from "@phosphor-icons/react";
+import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
+import { FolderIcon } from "@phosphor-icons/react/Folder";
+import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
+import { StopIcon } from "@phosphor-icons/react/Stop";
+import { UploadSimpleIcon } from "@phosphor-icons/react/UploadSimple";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { AnimatePresence, motion } from "motion/react";
@@ -746,7 +744,7 @@ export const PromptInput = ({
           prompt sits in cannot be faded without taking the prompt with them. */}
       <motion.div
         animate={{ opacity: showFolderTray ? 1 : 0 }}
-        className="pointer-events-none absolute inset-0 -z-10 rounded-3xl border border-black/5 bg-muted dark:border-white/10"
+        className="pointer-events-none absolute inset-0 -z-10 rounded-3xl border border-black/2 bg-black/2 dark:border-white/1 dark:bg-white/1"
         initial={false}
         transition={showFolderTray ? BLOCK_OPEN : BLOCK_CLOSE}
       />

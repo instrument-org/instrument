@@ -1,7 +1,7 @@
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
-import { FolderOpenIcon } from "@phosphor-icons/react";
+import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { toast } from "sonner";
 
 // Collapse the user's home directory to ~ across platforms, so the username in

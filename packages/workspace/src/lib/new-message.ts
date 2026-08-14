@@ -13,6 +13,7 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { detectAttachedFolderChanges } from "./attached-folder-changes";
+import { allowBrowserReveal } from "./browser-state";
 import { createBackgroundProcessesPart } from "./create-background-processes-part";
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createPaneTabsPart } from "./create-pane-tabs-part";
@@ -127,6 +128,13 @@ export async function newMessage({
   });
   if (backgroundProcessesPart) {
     parts.push(backgroundProcessesPart);
+  }
+
+  // A fresh request is a fresh claim on the user's attention, so the first page
+  // this turn reaches may take the pane again.
+  const allowed = await allowBrowserReveal({ sessionId, taskId });
+  if (allowed.isErr()) {
+    getWorkspaceConfig().captureException(allowed.error);
   }
 
   const browserStatusPart = await createBrowserStatusPart({

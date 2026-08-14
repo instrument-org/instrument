@@ -151,6 +151,10 @@ export namespace SessionMessageDataPart {
       status: z.literal("open"),
       target: BrowserTargetSchema,
     }),
+    z.object({
+      status: z.literal("reopened"),
+      target: BrowserTargetSchema,
+    }),
   ]);
 
   export type BrowserStatusDataPart = z.output<

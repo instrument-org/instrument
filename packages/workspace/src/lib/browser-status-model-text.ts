@@ -14,6 +14,13 @@ export function browserStatusModelNote(
   }
 
   const title = data.target.title ? ` Page title: ${data.target.title}.` : "";
+
+  if (data.status === "reopened") {
+    return systemNote`
+      The in-app browser tab for this session was closed while it sat idle, and has been reopened at the page it was last on. Current URL: ${data.target.url}.${title} It is a fresh load, so anything the page was holding -- scroll position, form entries, expanded sections, snapshot refs -- is gone. Re-establish whatever state the work needs before acting on it.
+    `;
+  }
+
   return systemNote`
     An in-app browser tab is already open for this task (opened by you or the user). Current URL: ${data.target.url}.${title} Drive it with \`agent-browser\`.
   `;

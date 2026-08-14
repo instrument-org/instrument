@@ -2,7 +2,11 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { encodeBrowserTargetId } from "../types";
-import { BLANK_PAGE_URL, getBrowserState } from "./browser-state";
+import {
+  BLANK_PAGE_URL,
+  getBrowserState,
+  takeBrowserClosed,
+} from "./browser-state";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export async function createBrowserStatusPart({
@@ -21,6 +25,32 @@ export async function createBrowserStatusPart({
     const target = targets.find(
       ({ id }) => id === encodeBrowserTargetId(taskId, sessionId),
     );
+
+    // A teardown since the model last looked outranks whatever is there now.
+    // Reopening the panel builds a new tab, so by the time this runs the reap
+    // is invisible from the target list -- either nothing is there or a blank
+    // (or freshly restored) tab is, and none of those say on their own that the
+    // page the model was working in has been thrown away.
+    const closedResult = await takeBrowserClosed(taskId, sessionId);
+    if (closedResult.isErr()) {
+      getWorkspaceConfig().captureException(closedResult.error);
+    }
+    const closed = closedResult.isOk() ? closedResult.value : undefined;
+    if (closed?.lastUrl) {
+      const previousTarget = {
+        ...(closed.lastTitle ? { title: closed.lastTitle } : {}),
+        url: closed.lastUrl,
+      };
+      return createPart({
+        createdAt,
+        data:
+          target && target.url === closed.lastUrl
+            ? { status: "reopened", target: previousTarget }
+            : { previousTarget, status: "closed" },
+        messageId,
+        sessionId,
+      });
+    }
 
     if (target) {
       // Telling the model "a browser tab is already open" about a blank one

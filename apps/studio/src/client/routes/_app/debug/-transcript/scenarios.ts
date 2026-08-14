@@ -116,6 +116,65 @@ const DIAGRAMS = [
   "```mermaid\ngraph TD\n  A[Start] --> B[Half written\n```",
 ].join("\n\n");
 
+/**
+ * Fences, in the shapes that decide how a block is drawn.
+ *
+ * A fence carries no language more often than it carries one -- it is what a
+ * model writes when it is quoting output rather than code -- and the block has
+ * to hold that text's own line structure either way. The rest are the states
+ * the controls answer for: a line wider than the column, a file the fence names,
+ * and a block longer than the transcript has room for.
+ */
+const CODE_BLOCKS = [
+  "## Every shape a fence arrives in",
+  "A fence with no language at all, whose blank lines and indentation are the content:",
+  "```\n$ cat prompt.txt\n\n  Clean up the transcript.\n  Keep the speaker's voice.\n\nDone in 1.2s\n```",
+  "One that names the file it holds, which is drawn over the block rather than above it:",
+  "```ts src/lib/format-bytes.ts\nexport const formatBytes = (bytes: number) =>\n  bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;\n```",
+  "A line wider than the column, which wraps until the reader asks it not to:",
+  "```ts\nconst summary = `Processed ${count} rows from ${source} in ${elapsed}ms, skipping ${skipped} that failed validation and ${dropped} that were already present.`;\n```",
+  "And a block longer than the transcript has room for, which holds the rest back:",
+  `\`\`\`ts
+import { readFile, writeFile } from "node:fs/promises";
+
+interface Row {
+  id: string;
+  amount: number;
+  region: string;
+}
+
+const parse = (line: string): Row | undefined => {
+  const [id, amount, region] = line.split(",");
+  if (!id || !amount || !region) {
+    return undefined;
+  }
+  return { amount: Number(amount), id, region };
+};
+
+const byRegion = (rows: Row[]) => {
+  const totals = new Map<string, number>();
+  for (const row of rows) {
+    totals.set(row.region, (totals.get(row.region) ?? 0) + row.amount);
+  }
+  return totals;
+};
+
+export const summarize = async (source: string, destination: string) => {
+  const contents = await readFile(source, "utf8");
+  const rows = contents.split("\\n").slice(1).map(parse).filter(Boolean);
+  const totals = byRegion(rows as Row[]);
+
+  const report = [...totals]
+    .sort((left, right) => right[1] - left[1])
+    .map(([region, total]) => \`\${region}: \${total.toFixed(2)}\`)
+    .join("\\n");
+
+  await writeFile(destination, report, "utf8");
+  return totals.size;
+};
+\`\`\``,
+].join("\n\n");
+
 /** A file long enough that the card holding it has to decide how much to show. */
 const HELPERS = `import { format, parseISO } from "date-fns";
 
@@ -776,6 +835,16 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
     id: "diagrams",
     name: "Diagrams arriving",
     script: [user("Draw me some diagrams."), prose(DIAGRAMS, 90)],
+  },
+  {
+    about:
+      "Fences, in the shapes that decide how a block is drawn: one with no language, one naming the file it holds, one wider than the column, and one long enough to hold itself back. Replay it to judge the controls a block carries -- wrapping, the filename it is labeled with, and how much of a long block is worth showing before the reader asks for the rest.",
+    id: "code-blocks",
+    name: "Code blocks",
+    script: [
+      user("Show me what you wrote, and the output it produced."),
+      prose(CODE_BLOCKS, 90),
+    ],
   },
   {
     about:

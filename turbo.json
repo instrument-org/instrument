@@ -23,6 +23,7 @@
         "HOME",
         "NODE_ENV",
         "PATH",
+        "REMOTE_DEBUGGING_PORT",
         "SKIP_MOVE_TO_APPLICATIONS",
         "SKIP_ONBOARDING",
         "SIGNTOOL_PATH",

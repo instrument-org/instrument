@@ -30,7 +30,7 @@
     "check:lint": "eslint . --max-warnings 0 && oxlint --type-aware",
     "check:types": "tsgo --noEmit",
     "cleanup:releases": "node scripts/cleanup-releases.ts",
-    "dev": "cross-env NODE_OPTIONS=--enable-source-maps REMOTE_DEBUGGING_PORT=48160 electron-vite dev --sourcemap",
+    "dev": "cross-env NODE_OPTIONS=--enable-source-maps electron-vite dev --sourcemap",
     "dev:fresh": "cross-env ELECTRON_USE_NEW_USER_FOLDER=true NODE_OPTIONS=--enable-source-maps electron-vite dev --sourcemap",
     "dev:web": "vite --config web/vite.config.ts",
     "fix:lint": "eslint . --max-warnings 0 --fix && oxlint --type-aware --fix",

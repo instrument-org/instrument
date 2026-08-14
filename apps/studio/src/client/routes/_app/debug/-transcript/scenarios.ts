@@ -281,6 +281,27 @@ const REAL_TURN: Act[] = [
     "The chart builds now. The write-up needs to lead with the reclassification, because every number below it is wrong without that context.",
   ),
 
+  // The one call the transcript opens for itself, and the reason it is worth
+  // scrolling through here: a phase with steps after the image, so the card
+  // has to still be on screen once the run has moved on twice.
+  activity("Drawing the cover"),
+  generated({
+    explanation: "Drawing the cover for the write-up",
+    filePath: "./output/quarterly-cover",
+    parameters: { background: "opaque", quality: "high" },
+    prompt:
+      "Four quarterly bars in muted ink on paper, the third taller than the rest, drawn as a restrained editorial illustration.",
+  }),
+  wrote({
+    content: "![Q3](./output/quarterly-cover.png)\n",
+    explanation: "Putting the cover at the top of the write-up",
+    filePath: "./summary.md",
+  }),
+  read({
+    explanation: "Checking how it reads with the cover on it",
+    filePath: "./summary.md",
+  }),
+
   prose(
     "## What moved in Q3\n\nOn the reported figures, revenue in the north grew twelve percent against Q2 and the south was flat. Adjusted for the August reclassification, which moved 412 accounts across the regional boundary without any change in the underlying business, the north grew about three percent and the south was slightly up.\n\nThat reverses the story the raw numbers tell, where the south looks like it is losing ground.\n\n### Why the raw numbers are wrong\n\nThe reclassification was an administrative change made in the first week of August. It is recorded in `notes.md` but not reflected in the per-quarter files, which are generated from the account tables directly. Anything comparing Q3 to Q2 on those files alone reads the boundary move as growth.\n\nStandard practice would be to restate the prior periods so the comparison holds. That has not been done here, and until it is, every quarter-on-quarter figure that crosses August is overstated for the north and understated for the south by the same 412 accounts.\n\n### The remaining three percent\n\nWhat is left after the adjustment is concentrated in the last four weeks of the quarter and looks like ordinary seasonal recovery rather than anything structural. Q3 of the prior year shows the same shape at a smaller absolute size, and Q3 of the year before that shows it again.\n\n### The chart\n\nThe chart script keyed on the region names directly, so it broke outright once one of them was renamed. It now goes through a region map, which is written to `regions.csv` alongside it. The rendered chart is in `chart.png` and shows both the reported and the adjusted series, because showing only one of them is how this gets misread again.\n\n### What to do about it\n\nThe per-quarter files should carry the reclassification date, so a comparison across it is at least visible to whoever makes it. Failing that, `notes.md` has to be read alongside them every time, which is the thing that did not happen here and is not going to reliably happen next time either.",
   ),

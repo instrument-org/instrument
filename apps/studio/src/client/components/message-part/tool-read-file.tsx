@@ -3,10 +3,7 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
-import { ChatIcon } from "@phosphor-icons/react/Chat";
-import { useSetAtom } from "jotai";
 
-import { appendToPromptAtom } from "../../atoms/prompt-value";
 import { useTaskPaneActions } from "../../hooks/use-task-pane";
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { FileIcon } from "../file-icon";
@@ -180,12 +177,7 @@ function ReadFileCard({
   openOnContentClick?: boolean;
 }) {
   const filename = filenameFromFilePath(filePath);
-  const appendToPrompt = useSetAtom(appendToPromptAtom);
   const { openFiles } = useTaskPaneActions(id);
-
-  const handleAddToChat = () => {
-    appendToPrompt({ key: { scope: "task", taskId: id }, update: filePath });
-  };
 
   const handleExpand = () => {
     if (modifiedAt === undefined) {
@@ -211,15 +203,8 @@ function ReadFileCard({
             </span>
           )}
         </div>
-        <ToolCardActions>
-          <IconButton
-            className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
-            icon={ChatIcon}
-            onClick={handleAddToChat}
-            tooltip="Add to chat"
-            variant="ghost"
-          />
-          {modifiedAt !== undefined && (
+        {modifiedAt !== undefined && (
+          <ToolCardActions>
             <IconButton
               className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
               icon={ArrowsOutSimpleIcon}
@@ -227,8 +212,8 @@ function ReadFileCard({
               tooltip="Open in panel"
               variant="ghost"
             />
-          )}
-        </ToolCardActions>
+          </ToolCardActions>
+        )}
       </div>
       {openOnContentClick && modifiedAt !== undefined ? (
         <button

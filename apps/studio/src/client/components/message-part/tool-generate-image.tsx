@@ -4,14 +4,11 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
-import { ChatIcon } from "@phosphor-icons/react/Chat";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { ImagesIcon } from "@phosphor-icons/react/Images";
 import { QuotesIcon } from "@phosphor-icons/react/Quotes";
-import { useSetAtom } from "jotai";
 import { useEffect, useState } from "react";
 
-import { appendToPromptAtom } from "../../atoms/prompt-value";
 import { useTaskPaneActions } from "../../hooks/use-task-pane";
 import { copyFileToClipboard } from "../../lib/file-actions";
 import { getAssetUrl } from "../../lib/get-asset-url";
@@ -415,12 +412,8 @@ function humanizeParamKey(key: string): string {
 }
 
 function ImageActions({ filePath, id }: { filePath: string; id: TaskId }) {
-  const appendToPrompt = useSetAtom(appendToPromptAtom);
   const { openFiles } = useTaskPaneActions(id);
 
-  const handleAddToChat = () => {
-    appendToPrompt({ key: { scope: "task", taskId: id }, update: filePath });
-  };
 
   const handleExpand = () => {
     openFiles([filePath]);
@@ -432,13 +425,6 @@ function ImageActions({ filePath, id }: { filePath: string; id: TaskId }) {
 
   return (
     <ToolCardActions>
-      <IconButton
-        className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
-        icon={ChatIcon}
-        onClick={handleAddToChat}
-        tooltip="Add to chat"
-        variant="ghost"
-      />
       <IconButton
         className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
         icon={ArrowsOutSimpleIcon}

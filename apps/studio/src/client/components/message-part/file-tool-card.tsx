@@ -1,10 +1,7 @@
 import { type TaskId } from "@instrument-org/workspace/client";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
-import { ChatIcon } from "@phosphor-icons/react/Chat";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
-import { useSetAtom } from "jotai";
 
-import { appendToPromptAtom } from "../../atoms/prompt-value";
 import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
 import { useTaskPaneActions } from "../../hooks/use-task-pane";
 import { getLanguageFromFilePath } from "../../lib/file-extension-to-language";
@@ -33,7 +30,6 @@ export function FileToolCard({
 
   const filename = filenameFromFilePath(filePath);
   const detectedLanguage = language ?? getLanguageFromFilePath(filePath);
-  const appendToPrompt = useSetAtom(appendToPromptAtom);
   const { openFiles } = useTaskPaneActions(id);
 
   const cleanedContent =
@@ -48,9 +44,6 @@ export function FileToolCard({
     await navigator.clipboard.writeText(cleanedContent);
   };
 
-  const handleAddToChat = () => {
-    appendToPrompt({ key: { scope: "task", taskId: id }, update: filePath });
-  };
 
   const handleExpand = () => {
     if (modifiedAt === undefined) {
@@ -78,13 +71,6 @@ export function FileToolCard({
 
         {!isStreaming && modifiedAt !== undefined && (
           <ToolCardActions>
-            <IconButton
-              className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
-              icon={ChatIcon}
-              onClick={handleAddToChat}
-              tooltip="Add to chat"
-              variant="ghost"
-            />
             <IconButton
               className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
               icon={ArrowsOutSimpleIcon}

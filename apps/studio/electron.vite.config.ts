@@ -15,6 +15,14 @@ import { analyzer } from "vite-bundle-analyzer";
 
 const isAnalyzing = process.env.ANALYZE_BUILD === "true";
 
+// electron-vite passes `--remote-debugging-port` to the Electron child only
+// when this is set, so without a default a hand-started dev instance has no
+// debug endpoint and cannot be driven or handed to an agent. Defaulted here
+// rather than in the `dev` script because `cross-env` assigns unconditionally,
+// and callers that pick their own port (the Windows host runs both of its
+// targets through `pnpm run dev`) have to keep it.
+process.env.REMOTE_DEBUGGING_PORT ??= "48160";
+
 // electron-vite deep-clones the config before resolving async plugin factories,
 // so this one is awaited here rather than inline in `plugins`. Drop the hoist
 // once https://github.com/alex8088/electron-vite/issues/902 ships.

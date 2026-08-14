@@ -43,6 +43,8 @@ declare namespace NodeJS {
       HOME: string | undefined; // Only used in workspace
       NODE_ENV: string | undefined;
       PATH: string | undefined;
+      /** Dev only: the port electron-vite gives the Electron child for CDP. */
+      REMOTE_DEBUGGING_PORT: string | undefined;
       SIGNTOOL_PATH: string | undefined;
       SKIP_MOVE_TO_APPLICATIONS: string | undefined;
       SKIP_ONBOARDING: string | undefined;

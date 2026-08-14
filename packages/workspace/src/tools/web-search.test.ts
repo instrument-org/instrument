@@ -7,7 +7,7 @@ import { runTool } from "../test/helpers/run-tool";
 import { WebSearch } from "./web-search";
 
 /** The documented model-visible budget for one search's retrieved text. */
-const SEARCH_TEXT_BUDGET = 16_000;
+const SEARCH_TEXT_BUDGET = 10_000;
 
 function render(
   text: string,
@@ -226,7 +226,7 @@ describe("WebSearch model output", () => {
     const marks = shortenings(value);
     expect(marks).toHaveLength(6);
     expect(marks.map((mark) => mark.kept)).toEqual([
-      2667, 2667, 2667, 2667, 2666, 2666,
+      1667, 1667, 1667, 1667, 1666, 1666,
     ]);
     expect(marks.reduce((total, mark) => total + mark.kept, 0)).toBe(
       SEARCH_TEXT_BUDGET,

@@ -61,6 +61,22 @@ export function ToolCard({
   );
 }
 
+/**
+ * The controls at the right-hand end of a card's header.
+ *
+ * They stand 20px tall against a header line of 16px, so left in the flow they
+ * are what sets the header's height -- and they only appear once there is a
+ * file to act on, which means the header grew by the difference at the moment
+ * the call finished, on top of whatever the card's body was already doing. So
+ * the row hangs 2px into the header's own padding instead, which keeps a 20px
+ * hit target and leaves the header one height from start to end.
+ */
+export function ToolCardActions({ children }: { children: ReactNode }) {
+  return (
+    <div className="-my-0.5 flex shrink-0 items-center gap-3">{children}</div>
+  );
+}
+
 export function ToolCardHeader({
   children,
   className,

@@ -13,6 +13,7 @@ import { FileIcon } from "../file-icon";
 import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
 import { FileToolCard } from "./file-tool-card";
+import { ToolCardActions } from "./tool-card";
 
 type ReadFilePart = Extract<
   SessionMessagePart.ToolPart,
@@ -210,7 +211,7 @@ function ReadFileCard({
             </span>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-3">
+        <ToolCardActions>
           <IconButton
             className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
             icon={ChatIcon}
@@ -227,7 +228,7 @@ function ReadFileCard({
               variant="ghost"
             />
           )}
-        </div>
+        </ToolCardActions>
       </div>
       {openOnContentClick && modifiedAt !== undefined ? (
         <button

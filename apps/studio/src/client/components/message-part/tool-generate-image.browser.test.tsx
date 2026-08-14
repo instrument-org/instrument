@@ -29,6 +29,28 @@ const INPUT = {
   prompt: "Four quarterly bars in muted ink on paper",
 };
 
+/** The card's own header, which is where its controls appear. */
+function cardHeader(card: Element) {
+  return cardRow(card, 0);
+}
+
+/**
+ * One of the card's three rows: header, picture, details.
+ *
+ * Read by position rather than by what it is made of, since the whole question
+ * is whether the different things drawn there come out the same size. Counted
+ * rather than assumed, so a card that stops drawing one of them says so instead
+ * of quietly measuring another.
+ */
+function cardRow(card: Element, index: number) {
+  const rows = [...card.children];
+  const row = rows[index];
+  if (rows.length !== 3 || !row) {
+    throw new Error(`a card drew ${rows.length.toString()} rows, not 3`);
+  }
+  return row;
+}
+
 /** The tool has finished and written an image the card cannot draw. */
 function drawn(): Part {
   return {
@@ -78,21 +100,9 @@ function partMetadata() {
   };
 }
 
-/**
- * The box between one card's header and its details, whatever is in it.
- *
- * Read by position rather than by what it is made of, since the whole question
- * is whether the different things drawn there come out the same size.
- */
+/** The box between the card's header and its details, whatever is in it. */
 function pictureBox(card: Element) {
-  // Header, picture, details. Checked rather than assumed, so a card that stops
-  // drawing one of them says so instead of quietly measuring another.
-  const parts = [...card.children];
-  const box = parts[1];
-  if (parts.length !== 3 || !box) {
-    throw new Error(`a card drew ${parts.length.toString()} rows, not 3`);
-  }
-  return box;
+  return cardRow(card, 1);
 }
 
 /**
@@ -151,6 +161,17 @@ describe("the generated image card", () => {
     const whileDrawing = pictureBox(drawing).clientHeight;
     expect(whileDrawing).toBeGreaterThan(0);
     expect(pictureBox(finished).clientHeight).toBe(whileDrawing);
+  });
+
+  // The controls only appear once there is a file to act on, and they are
+  // taller than the filename beside them, so the header grew by the difference
+  // at the moment the picture landed -- on top of whatever the picture did.
+  it("holds one header height when its controls arrive", async () => {
+    const { drawing, finished } = await renderCards();
+
+    expect(cardHeader(finished).clientHeight).toBe(
+      cardHeader(drawing).clientHeight,
+    );
   });
 
   // The card header already draws the line under the filename, and a fallback

@@ -26,6 +26,7 @@ import { isActiveToolPart } from "../transcript-layout";
 import { ToolCapabilityFailure } from "./tool-capability-failure";
 import {
   ToolCard,
+  ToolCardActions,
   ToolCardHeader,
   ToolCardSection,
   ToolChip,
@@ -430,7 +431,7 @@ function ImageActions({ filePath, id }: { filePath: string; id: TaskId }) {
   };
 
   return (
-    <div className="flex shrink-0 items-center gap-3">
+    <ToolCardActions>
       <IconButton
         className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
         icon={ChatIcon}
@@ -453,7 +454,7 @@ function ImageActions({ filePath, id }: { filePath: string; id: TaskId }) {
         tooltip="Copy image"
         variant="ghost"
       />
-    </div>
+    </ToolCardActions>
   );
 }
 

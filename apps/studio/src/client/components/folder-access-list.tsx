@@ -283,7 +283,7 @@ function FolderAccessRow({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div className="group flex items-center gap-x-2.5 px-3 py-1">
+        <div className="group flex items-center gap-x-2.5 px-3 py-1.5">
           <MacFolderIcon className="size-8 shrink-0" />
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-xs font-medium">

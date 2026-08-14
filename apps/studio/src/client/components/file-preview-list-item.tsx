@@ -44,7 +44,7 @@ export function FilePreviewListItem({
               tint would land on. */}
           <button
             className={cn(
-              "relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-black/5 bg-background shadow-xs dark:border-white/6",
+              "relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-background shadow-xs",
               "transition-[outline] outline-none focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]",
               isSelected &&
                 "outline-2 outline-solid outline-offset-2 outline-brand-100 dark:outline-brand-700",

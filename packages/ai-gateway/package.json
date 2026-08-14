@@ -20,7 +20,7 @@
     "check:types": "tsgo --noEmit",
     "fix:lint": "eslint . --max-warnings 0 --fix && oxlint --type-aware --fix",
     "test": "vitest",
-    "test:ci": "cross-env CI=true vitest",
+    "test:ci": "cross-env CI=true vitest --maxWorkers=40%",
     "turbo:check": "turbo run check:types check:lint"
   },
   "dependencies": {

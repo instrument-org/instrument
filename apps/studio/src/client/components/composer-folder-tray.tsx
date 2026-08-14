@@ -80,7 +80,7 @@ export function ComposerFolderTray({
                 </button>
                 <MacFolderIcon className="size-5 shrink-0" />
                 <span
-                  className="min-w-0 flex-1 truncate text-xs text-muted-foreground"
+                  className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground"
                   title={folder.path}
                 >
                   {displayPath(folder.path)}
@@ -100,13 +100,13 @@ export function ComposerFolderTray({
       {showAdd && (
         <Button
           className={cn(
-            "w-fit gap-2 text-xs leading-none text-gray-400 not-disabled:hover:text-gray-500 dark:text-gray-600 dark:not-disabled:hover:text-gray-500",
-            folders.length > 0 ? "h-7 px-0" : "-ml-1.5",
+            "w-fit gap-2 border-0 bg-transparent text-xs leading-none shadow-none",
+            folders.length > 0 ? "-ml-2.5 h-7 px-2.5" : "-ml-1.5",
           )}
           disabled={disabled}
           onClick={onAdd}
           size="sm"
-          variant="ghost"
+          variant="outline-muted"
         >
           {folders.length > 0 ? (
             // Same size-4 slot as the remove control so + and × share a

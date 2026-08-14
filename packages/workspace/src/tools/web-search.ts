@@ -49,10 +49,18 @@ const BOUNDARY_LABEL = "WEB_SEARCH_RESULTS";
  * a shortened result still worth having, since a URL is the way back to the
  * page the excerpt came from.
  *
+ * The number has to sit well under what the backend already returns to do
+ * anything. It caps each excerpt at 3,000 characters and ranks six of them, so
+ * a full search arrives at 18,000 and a budget anywhere near that is inert: a
+ * measured 13-search session spent 178,640 characters on excerpts, and 16,000
+ * would have recovered 5.6% of it. 10,000 recovers 37%, and costs each of six
+ * sources roughly 1,666 characters, so the back half of a maximal excerpt is
+ * what pays for it.
+ *
  * Applied here rather than to the stored value, so a session that recorded an
  * oversized search before this existed stops paying for it on the next replay.
  */
-const SEARCH_TEXT_BUDGET = 16_000;
+const SEARCH_TEXT_BUDGET = 10_000;
 
 const SHORTENING_NOTE =
   "Some retrieved text below was shortened so that one search cannot fill the context window. Each shortened passage says so at the point it was cut, and the source list is complete: fetch a source's URL with web_fetch when you need more of that page than is shown here.";

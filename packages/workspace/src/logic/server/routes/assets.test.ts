@@ -4,7 +4,13 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { setTaskState } from "../../../lib/task-state-store";
+import { createProject } from "../../../lib/project";
+import { setTaskState } from "../../../lib/task-record";
+import { updateTaskSettings } from "../../../lib/task-settings";
+import {
+  getWorkspaceConfig,
+  setWorkspaceConfig,
+} from "../../../lib/workspace-config";
 import { FolderAttachment } from "../../../schemas/folder-attachment";
 import { AbsolutePathSchema, TaskDirSchema } from "../../../schemas/paths";
 import { type TaskId } from "../../../schemas/task-id";
@@ -46,6 +52,12 @@ describe("assetsRoute", () => {
     const styleStats = await fs.stat(path.join(taskRoot, "style.css"));
     styleModifiedAt = styleStats.mtimeMs;
     await fs.writeFile(path.join(photosRoot, "cat.png"), "mounted image");
+    await fs.writeFile(path.join(photosRoot, "a cat.png"), "spaced image");
+    await fs.writeFile(
+      path.join(photosRoot, "Smith, John #2.png"),
+      "punctuated image",
+    );
+    await fs.writeFile(path.join(taskRoot, "my notes.md"), "spaced task file");
     await fs.writeFile(path.join(privateRoot, "secret.txt"), "secret");
     await fs.symlink(
       path.join(privateRoot, "secret.txt"),
@@ -57,12 +69,27 @@ describe("assetsRoute", () => {
       path.join(taskRoot, "escaped-index", "index.html"),
     );
 
+    // A real project, because the mount is resolved from the task's live
+    // projectId rather than from anything seeded into its state.
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      projectsDir: AbsolutePathSchema.parse(path.join(root, "projects")),
+    });
+    const project = await createProject({ name: "Acme" });
+    if (project.isErr()) {
+      throw project.error;
+    }
+    const projectRoot = path.join(root, "projects", "Acme");
+    await fs.writeFile(path.join(projectRoot, "logo.png"), "project image");
+    await updateTaskSettings(taskId, { projectId: project.value.id });
+
     await setTaskState(TaskDirSchema.parse(taskRoot), {
       attachedFolders: {
         photos: {
+          access: "read-only",
           createdAt: 0,
           id: FolderAttachment.IdSchema.parse("photos-id"),
-          name: "Photos",
+          mountName: "Photos",
           path: AbsolutePathSchema.parse(photosRoot),
           source: "user",
         },
@@ -82,6 +109,10 @@ describe("assetsRoute", () => {
     ["/", "task index"],
     ["/style.css", "task styles"],
     ["/mnt/Photos/cat.png", "mounted image"],
+    // The project mount is outside the task root like /mnt, so its paths have to
+    // be recognized as already-virtual. Prefixing the task mount instead would
+    // look for it at /task/project/logo.png and 404.
+    ["/project/logo.png", "project image"],
   ])("serves %s from the workspace layout", async (pathname, expected) => {
     const response = await requestAsset(pathname);
 
@@ -90,6 +121,27 @@ describe("assetsRoute", () => {
     expect(response.headers.get("access-control-allow-origin")).toBe("*");
     expect(response.headers.get("last-modified")).not.toBeNull();
     expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
+  // A client escapes a name before it ever sends the request, so the route sees
+  // the escaped spelling and has to put it back before resolving a real file.
+  // Reserved characters are the ones that get missed: they survive `decodeURI`,
+  // and a folder the user picked is full of names that carry them.
+  it.each([
+    ["/my%20notes.md", "spaced task file"],
+    ["/mnt/Photos/a%20cat.png", "spaced image"],
+    ["/mnt/Photos/Smith%2C%20John%20%232.png", "punctuated image"],
+  ])("serves the percent-encoded %s", async (pathname, expected) => {
+    const response = await requestAsset(pathname);
+
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toBe(expected);
+  });
+
+  it("rejects traversal spelled with escapes, which decoding would otherwise let through", async () => {
+    const response = await requestAsset("/%2E%2E/%2E%2E/private/secret.txt");
+
+    expect(response.status).toBe(404);
   });
 
   it("caches a task file only when its live mtime matches the version", async () => {
@@ -131,6 +183,21 @@ describe("assetsRoute", () => {
     // private file, so the deny rule must be case-insensitive too.
     "/.INSTRUMENT/task.db",
   ])("never serves private task metadata at %s", async (pathname) => {
+    const response = await requestAsset(pathname);
+    expect(response.status).toBe(404);
+  });
+
+  // The virtual filesystem's private-dir mask is a just-bash decorator, so it
+  // does not cover this route at all: without its own segment check, mounting
+  // the project folder would publish the settings naming the project's folders
+  // and the access granted to each over HTTP.
+  it.each([
+    "/project/.instrument/settings.json",
+    // Same file on a case-insensitive filesystem. The mount point itself is
+    // matched exactly, so only the private segment varies here; a path spelled
+    // `/PROJECT/...` never reaches this mount in the first place.
+    "/project/.INSTRUMENT/settings.json",
+  ])("never serves the project's private settings at %s", async (pathname) => {
     const response = await requestAsset(pathname);
     expect(response.status).toBe(404);
   });

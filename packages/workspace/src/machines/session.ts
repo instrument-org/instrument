@@ -68,6 +68,7 @@ type SessionMachineEvent =
   | { type: "addMessage"; value: SessionMessage.UserWithParts }
   | { type: "done" }
   | { type: "error"; value: { message: string } }
+  | { type: "runTurn" }
   | { type: "stop" }
   | {
       type: "updateInteractiveToolCall";
@@ -84,6 +85,28 @@ export const sessionMachine = setup({
 
     markUsedNonReadOnlyTools: assign({ usedNonReadOnlyTools: true }),
 
+    spawnAgentMachine: assign({
+      agentRef: (
+        { context, self, spawn },
+        { parentMessageId }: { parentMessageId: StoreId.Message },
+      ) =>
+        spawn("agentMachine", {
+          id: "agent",
+          input: {
+            agent: context.agent,
+            baseLLMRetryDelayMs: context.baseLLMRetryDelayMs,
+            llmRequestChunkTimeoutMs: context.llmRequestChunkTimeoutMs,
+            maxStepCount: context.maxStepCount,
+            model: context.model,
+            parentMessageId,
+            parentRef: self,
+            sessionId: context.sessionId,
+            spawnAgent: context.spawnAgent,
+            taskId: context.taskId,
+          },
+        }),
+    }),
+
     stopAgent: ({ context }) => {
       if (context.agentRef) {
         context.agentRef.send({ type: "stop" });
@@ -93,6 +116,24 @@ export const sessionMachine = setup({
 
   actors: {
     agentMachine,
+
+    // Where a turn that brings no message of its own begins: everything the
+    // agent writes from here lands after the newest message already stored, so
+    // that message is the boundary the turn is measured from. Undefined when
+    // the session is empty, which leaves the agent nothing to answer.
+    getLastMessageId: fromPromise<
+      StoreId.Message | undefined,
+      { sessionId: StoreId.Session; taskId: TaskId }
+    >(async ({ input, signal }) => {
+      const result = await Store.getMessageIds(input.sessionId, input.taskId, {
+        signal,
+      });
+      if (result.isErr()) {
+        throw new Error(result.error.message);
+      }
+      // ulid sorts oldest to newest
+      return alphabetical(result.value, (id) => id).at(-1);
+    }),
 
     saveQueuedMessage: fromPromise<
       SessionMessage.WithParts,
@@ -192,6 +233,7 @@ export const sessionMachine = setup({
       parentRef: ParentActorRef;
       parentSessionId?: StoreId.Session;
       queuedMessages: SessionMessage.UserWithParts[];
+      runRequested: boolean;
       sessionId: StoreId.Session;
       sessionNamePrefix?: string;
       spawnAgent: SpawnAgentFunction;
@@ -209,6 +251,7 @@ export const sessionMachine = setup({
       parentRef: ParentActorRef;
       parentSessionId?: StoreId.Session;
       queuedMessages: SessionMessage.UserWithParts[];
+      runRequested?: boolean;
       sessionId: StoreId.Session;
       sessionNamePrefix?: string;
       taskId: TaskId;
@@ -313,6 +356,7 @@ export const sessionMachine = setup({
       parentRef: input.parentRef,
       parentSessionId: input.parentSessionId,
       queuedMessages: input.queuedMessages,
+      runRequested: input.runRequested ?? false,
       sessionId: input.sessionId,
       sessionNamePrefix: input.sessionNamePrefix,
       spawnAgent,
@@ -340,6 +384,9 @@ export const sessionMachine = setup({
           event.value,
         ],
       }),
+    },
+    runTurn: {
+      actions: assign({ runRequested: true }),
     },
     stop: {
       actions: log("Agent not running"),
@@ -502,6 +549,10 @@ export const sessionMachine = setup({
           },
           target: "SavingMessageAndSpawningAgent",
         },
+        {
+          guard: ({ context }) => context.runRequested,
+          target: "SpawningAgentOverStoredMessages",
+        },
         { target: "Done" },
       ],
       tags: ["agent.alive"],
@@ -520,23 +571,11 @@ export const sessionMachine = setup({
         },
         onDone: {
           actions: [
+            {
+              params: ({ event }) => ({ parentMessageId: event.output.id }),
+              type: "spawnAgentMachine",
+            },
             assign({
-              agentRef: ({ context, event, self, spawn }) =>
-                spawn("agentMachine", {
-                  id: "agent",
-                  input: {
-                    agent: context.agent,
-                    baseLLMRetryDelayMs: context.baseLLMRetryDelayMs,
-                    llmRequestChunkTimeoutMs: context.llmRequestChunkTimeoutMs,
-                    maxStepCount: context.maxStepCount,
-                    model: context.model,
-                    parentMessageId: event.output.id,
-                    parentRef: self,
-                    sessionId: context.sessionId,
-                    spawnAgent: context.spawnAgent,
-                    taskId: context.taskId,
-                  },
-                }),
               queuedMessages: ({ context }) => {
                 const [_, ...rest] = context.queuedMessages;
                 return rest;
@@ -550,6 +589,41 @@ export const sessionMachine = setup({
           target: "Done",
         },
         src: "saveQueuedMessage",
+      },
+      tags: ["agent.alive"],
+    },
+
+    // A turn the user asked for without saying anything: the failed one again,
+    // and nothing else. The agent reads the same session it always does, so
+    // what it answers is the request that was already there.
+    SpawningAgentOverStoredMessages: {
+      invoke: {
+        input: ({ context }) => ({
+          sessionId: context.sessionId,
+          taskId: context.taskId,
+        }),
+        onDone: [
+          {
+            actions: [
+              {
+                params: ({ event }) => {
+                  invariant(event.output, "No message to run from");
+                  return { parentMessageId: event.output };
+                },
+                type: "spawnAgentMachine",
+              },
+              assign({ runRequested: false }),
+            ],
+            guard: ({ event }) => event.output !== undefined,
+            target: "Agent",
+          },
+          { target: "Done" },
+        ],
+        onError: {
+          actions: "assignEventError",
+          target: "Done",
+        },
+        src: "getLastMessageId",
       },
       tags: ["agent.alive"],
     },

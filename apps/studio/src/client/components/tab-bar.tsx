@@ -3,7 +3,7 @@ import { useSelectedTabId } from "@/client/hooks/use-selected-tab-id";
 import { useTabs } from "@/client/hooks/use-tabs";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { NEW_TAB_PATH } from "@/client/lib/tab-actions";
-import { PlusIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { AnimatePresence, motion, Reorder } from "motion/react";
 
 export default function TabBar() {
@@ -40,6 +40,7 @@ export default function TabBar() {
         </AnimatePresence>
         <li className="flex shrink-0 items-center self-stretch pl-0.5">
           <motion.button
+            aria-label="New tab"
             className="group inline-flex shrink-0 items-center justify-center rounded-xl px-3 py-2 [-webkit-app-region:no-drag] hover:bg-muted/60"
             onClick={() => {
               addTab({ pathname: NEW_TAB_PATH });

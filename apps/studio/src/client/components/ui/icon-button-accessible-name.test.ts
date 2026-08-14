@@ -7,7 +7,7 @@ const CLIENT_ROOT = path.join(import.meta.dirname, "../..");
 /**
  * A `<TooltipContent>` is not an accessible name. It is rendered into a
  * separate portal, is not referenced by the trigger, and never reaches an
- * assistive client -- so an icon-only button labelled that way announces as
+ * assistive client -- so an icon-only button labeled that way announces as
  * nothing, and shows up in a devtools accessibility snapshot as a bare
  * `button`. That second part is why this is a test rather than a review note:
  * the scripts that drive Studio for smoke and capture runs pick controls by
@@ -81,6 +81,75 @@ describe("icon-only buttons", () => {
           continue;
         }
         if (hasAccessibleName(block)) {
+          continue;
+        }
+        const line = source.slice(0, match.index).split("\n").length;
+        offenders.push(`${file.slice(CLIENT_ROOT.length + 1)}:${line}`);
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+});
+
+/**
+ * `combobox` is one of the roles that does not take its name from its contents,
+ * so a trigger reading "Light" or "Auto" on screen announces as nothing at all.
+ * That makes it the same provably-wrong shape as the tooltip case above rather
+ * than a judgment call: the author put a visible label there, and the one thing
+ * it cannot do is name the control.
+ *
+ * Both spellings are covered because both are in use -- `SelectTrigger`, which
+ * sets the role itself, and a `Button role="combobox"` driving a popover.
+ */
+const COMBOBOX_MARKER = /<SelectTrigger\b|role="combobox"/g;
+
+/**
+ * The opening tag containing `index`.
+ *
+ * Scanned rather than matched, because a JSX attribute list holds `>` twice
+ * over: in the arrow of `onClick={() => …}`, and inside any braced expression.
+ * A regex stopping at the first `>` truncates the tag and reports the attribute
+ * it was looking for as absent.
+ */
+function openingTagAround(source: string, index: number) {
+  const start = source.lastIndexOf("<", index);
+  if (start === -1) {
+    return "";
+  }
+  let depth = 0;
+  for (let i = start; i < source.length; i++) {
+    const character = source[i];
+    if (character === "{") {
+      depth++;
+    } else if (character === "}") {
+      depth--;
+    } else if (character === ">" && depth === 0 && source[i - 1] !== "=") {
+      return source.slice(start, i + 1);
+    }
+  }
+  return source.slice(start);
+}
+
+describe("comboboxes", () => {
+  it("carry a name, since the role takes none from its contents", () => {
+    const offenders: string[] = [];
+
+    for (const file of collectTsxFiles(CLIENT_ROOT)) {
+      const source = readFileSync(file, "utf8");
+      const seen = new Set<number>();
+
+      for (const match of source.matchAll(COMBOBOX_MARKER)) {
+        const tag = openingTagAround(source, match.index);
+        const start = source.lastIndexOf("<", match.index);
+        if (seen.has(start)) {
+          continue;
+        }
+        seen.add(start);
+
+        // An `id` is how the triggers named by a sibling <Label> spell it, and
+        // a <button> is labelable, so that genuinely does name them.
+        if (hasAccessibleName(tag) || /\bid=/.test(tag)) {
           continue;
         }
         const line = source.slice(0, match.index).split("\n").length;

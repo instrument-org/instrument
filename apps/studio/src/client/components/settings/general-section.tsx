@@ -23,7 +23,7 @@ import {
   APP_REPO_URL,
   MANUAL_DOWNLOAD_URL,
 } from "@instrument-org/shared";
-import { ArrowSquareOutIcon } from "@phosphor-icons/react";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { type ReactNode } from "react";

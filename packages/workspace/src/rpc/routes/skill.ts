@@ -250,4 +250,4 @@ const changed = base
     }
   });
 
-export const skill = { byName, file, list, live: { changed }, remove };
+export const skill = { byName, events: { changed }, file, list, remove };

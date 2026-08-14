@@ -95,8 +95,10 @@ export default [
     // The syntax bans above describe the shape of the running app: one
     // TooltipProvider at its root, links that know about tabs, no bare anchors.
     // A test mounts a component without that shell and has to supply the pieces
-    // itself, so the rule only produced per-file disables there.
-    files: ["**/*.test.*"],
+    // itself, so the rule only produced per-file disables there. The helpers in
+    // `src/tests` are where that shell is now supplied from, which is the same
+    // case one level up.
+    files: ["**/*.test.*", "src/tests/**"],
     rules: {
       "no-restricted-syntax": "off",
     },

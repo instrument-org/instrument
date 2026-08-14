@@ -4,6 +4,7 @@ import { TOOLS_FOR_MODEL_OUTPUT } from "../../tools/all";
 import { RelativePathSchema } from "../paths";
 import { StoreId } from "../store-id";
 import { SessionMessage } from "./message";
+import { SessionMessagePart } from "./message-part";
 
 const mockDate = new Date("2024-01-01T10:00:00Z");
 
@@ -210,6 +211,8 @@ describe("SessionMessage.toModelMessages", () => {
                 "type": "text",
                 "value": "Exit code: 0
 
+      The command produced no output on stdout or stderr.
+
       Duration: 0 ms",
               },
               "toolCallId": "call_789",
@@ -286,86 +289,6 @@ describe("SessionMessage.toModelMessages", () => {
 
     expect(replay).toEqual(first);
     expect(JSON.stringify(first)).toMatch(/nonce=[0-9a-f]{32}/);
-  });
-
-  it("injects a system note for external file changes on a user message", async () => {
-    const { messageId, messageMetadata, partMetadata } = baseMetadata();
-
-    const messages: SessionMessage.WithParts[] = [
-      {
-        id: messageId,
-        metadata: messageMetadata,
-        parts: [
-          {
-            metadata: partMetadata,
-            state: "done",
-            text: "Use the latest data.",
-            type: "text",
-          },
-          {
-            data: {
-              files: [
-                {
-                  filename: "data.csv",
-                  filePath: RelativePathSchema.parse("output/data.csv"),
-                  mimeType: "text/csv",
-                  modifiedAt: 1_234_567_890,
-                  size: 42,
-                  status: "added",
-                },
-                {
-                  filename: "notes.md",
-                  filePath: RelativePathSchema.parse("notes.md"),
-                  mimeType: "text/markdown",
-                  modifiedAt: 1_234_567_999,
-                  size: 10,
-                  status: "modified",
-                },
-              ],
-            },
-            metadata: { ...partMetadata, id: StoreId.newPartId() },
-            type: "data-externalFileChanges",
-          },
-        ],
-        role: "user",
-      },
-    ];
-
-    const result = await SessionMessage.toModelMessages(
-      messages,
-      TOOLS_FOR_MODEL_OUTPUT,
-    );
-
-    expect(result).toMatchInlineSnapshot(`
-      [
-        {
-          "content": [
-            {
-              "text": "<user_message>",
-              "type": "text",
-            },
-            {
-              "text": "Use the latest data.",
-              "type": "text",
-            },
-            {
-              "text": "</user_message>",
-              "type": "text",
-            },
-            {
-              "text": "
-      <instrument-system-note>
-      These files changed on disk outside this session since your last activity (e.g. edited by the user or another tool). Re-read them if relevant before relying on their contents.
-      - output/data.csv (added)
-      - notes.md (modified)
-      </instrument-system-note>",
-              "type": "text",
-            },
-          ],
-          "role": "user",
-        },
-      ]
-    `);
   });
 
   it("injects browser status on a user message", async () => {
@@ -739,5 +662,49 @@ describe("SessionMessage.toModelMessages", () => {
         },
       ]
     `);
+  });
+
+  // Assembling a turn reads a folder's mount name to build its /mnt path, and
+  // a part that reached here without one crashed the whole turn rather than
+  // losing a line. Store migrations are what guarantee the field is there; this
+  // is the reader holding up its end.
+  it("builds an attached folder's mount path when replaying a turn", async () => {
+    const { messageMetadata, partMetadata } = baseMetadata();
+    const legacyStoredPart = SessionMessagePart.coerce({
+      data: {
+        files: [],
+        folders: [
+          {
+            access: "read-write",
+            createdAt: 1_718_198_400_000,
+            id: "01KZ9NPNZZPQF80Z7A7DG4Z5BN",
+            mountName: "Home-Downloads",
+            path: "/Users/sam/Downloads",
+            source: "user",
+          },
+        ],
+      },
+      metadata: partMetadata,
+      type: "data-attachments",
+    });
+
+    const result = await SessionMessage.toModelMessages(
+      [
+        {
+          id: StoreId.newMessageId(),
+          metadata: messageMetadata,
+          parts: [
+            legacyStoredPart,
+            { metadata: partMetadata, text: "what is in here", type: "text" },
+          ],
+          role: "user",
+        },
+      ],
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    const text = JSON.stringify(result);
+    expect(text).toContain("/mnt/Home-Downloads");
+    expect(text).not.toContain("/mnt/undefined");
   });
 });

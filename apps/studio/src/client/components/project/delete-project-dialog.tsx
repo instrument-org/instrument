@@ -37,7 +37,7 @@ export function DeleteProjectDialog({
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="max-w-md">
+      <DialogContent maxWidth="28rem">
         <DialogHeader>
           <DialogTitle>Delete {`"${projectName}"`}?</DialogTitle>
           <DialogDescription>

@@ -2,9 +2,22 @@
 
 set -euo pipefail
 
-CHROME_DEVTOOLS=(env CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS=1 pnpm exec chrome-devtools)
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-browser_url="${1:-http://127.0.0.1:48160}"
+CHROME_DEVTOOLS=(
+  env
+  CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS=1
+  CHROME_DEVTOOLS_MCP_NO_USAGE_STATISTICS=1
+  pnpm exec chrome-devtools
+)
+
+# This checkout's instance, not 48160: that one is the conventional port and is
+# almost always a window a person is using.
+if [[ -n "${1:-}" ]]; then
+  browser_url="$1"
+else
+  browser_url="http://127.0.0.1:$(node "${HERE}/studio-drive.mjs" port)"
+fi
 page_hint="${2:-}"
 
 BROWSER_URL="$browser_url" node << 'NODE'

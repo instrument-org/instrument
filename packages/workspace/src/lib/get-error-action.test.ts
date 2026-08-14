@@ -46,6 +46,34 @@ describe("getErrorAction", () => {
     }
   });
 
+  it("returns retry for a throttle reported inside a 200 stream", () => {
+    const message = createMessage({
+      classification: "rate-limit",
+      kind: "unknown",
+      message:
+        '{"code":429,"message":"openai/gpt-5.6-luna is temporarily rate-limited upstream."}',
+    });
+    expect(getErrorAction(message)).toEqual({ type: "retry" });
+  });
+
+  it("returns retry for a transient failure reported inside a 200 stream", () => {
+    const message = createMessage({
+      classification: "transient",
+      kind: "unknown",
+      message: '{"code":503,"message":"Provider overloaded"}',
+    });
+    expect(getErrorAction(message)).toEqual({ type: "retry" });
+  });
+
+  it("still errors on a streamed failure it cannot name", () => {
+    const message = createMessage({
+      classification: "unknown",
+      kind: "unknown",
+      message: "Test error",
+    });
+    expect(getErrorAction(message).type).toBe("error");
+  });
+
   it("returns retry for no-such-tool errors", () => {
     const message = createMessage({
       kind: "no-such-tool",

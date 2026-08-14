@@ -1,5 +1,5 @@
 import { SUPPORT_URL } from "@instrument-org/shared";
-import { WarningCircleIcon } from "@phosphor-icons/react";
+import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 
 import { ExternalLink } from "./external-link";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";

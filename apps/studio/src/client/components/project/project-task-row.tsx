@@ -1,5 +1,6 @@
 import { InlineRenameInput } from "@/client/components/inline-rename-input";
 import { InternalLink } from "@/client/components/internal-link";
+import { RelativeTime } from "@/client/components/relative-time";
 import { TaskStatusIcon } from "@/client/components/session-status-icon";
 import { TaskMenuItems } from "@/client/components/task-menu-items";
 import {
@@ -17,30 +18,30 @@ import {
   dropdownMenuComponents,
   type MenuComponents,
 } from "@/client/components/ui/menu-components";
+import { UnreadDot } from "@/client/components/unread-dot";
 import { useInlineRename } from "@/client/hooks/use-inline-rename";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task } from "@instrument-org/workspace/client";
-import {
-  DotsThreeOutlineVerticalIcon,
-  PushPinIcon,
-  XCircleIcon,
-} from "@phosphor-icons/react";
+import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { useMutation } from "@tanstack/react-query";
-import { format, formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 import { toast } from "sonner";
 
 export function ProjectTaskRow({
   isPinned,
   onDelete,
+  onOpenInNewTab,
   task,
 }: {
   isPinned: boolean;
   onDelete: (task: Task) => void;
+  onOpenInNewTab: (task: Task) => void;
   task: Task;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const isUnread = Boolean(task.unreadIndicator);
 
   const { mutateAsync: renameTask } = useMutation(
     rpcClient.workspace.task.update.mutationOptions(),
@@ -66,55 +67,36 @@ export function ProjectTaskRow({
       },
     }),
   );
-  const { mutate: removeFromProject } = useMutation(
-    rpcClient.workspace.project.removeTask.mutationOptions({
-      onError: (error) => {
-        toast.error("Failed to remove task from project", {
-          description: error.message,
-        });
-      },
-    }),
-  );
-
   if (rename.isEditing) {
     return <InlineRenameInput inputProps={rename.inputProps} />;
   }
 
-  const renderMenuItems = (menuComponents: MenuComponents) => {
-    const { Item } = menuComponents;
-    return (
-      <TaskMenuItems
-        extras={
-          <Item
-            onSelect={() => {
-              removeFromProject({ taskId: task.id });
-            }}
-          >
-            <XCircleIcon className="text-muted-foreground" />
-            <span>Remove from project</span>
-          </Item>
+  const renderMenuItems = (menuComponents: MenuComponents) => (
+    <TaskMenuItems
+      isPinned={isPinned}
+      menuComponents={menuComponents}
+      onDelete={() => {
+        onDelete(task);
+      }}
+      onOpenInNewTab={() => {
+        onOpenInNewTab(task);
+      }}
+      onRename={rename.start}
+      onTogglePin={() => {
+        if (isPinned) {
+          removePin({ id: task.id });
+        } else {
+          addPin({ id: task.id });
         }
-        isPinned={isPinned}
-        menuComponents={menuComponents}
-        onDelete={() => {
-          onDelete(task);
-        }}
-        onRename={rename.start}
-        onTogglePin={() => {
-          if (isPinned) {
-            removePin({ id: task.id });
-          } else {
-            addPin({ id: task.id });
-          }
-        }}
-      />
-    );
-  };
+      }}
+      task={task}
+    />
+  );
 
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div className="group flex h-9 items-center gap-x-2 rounded-md pr-3">
+        <div className="group flex h-9 items-center gap-x-2 rounded-md px-3">
           {isPinned && (
             <PushPinIcon className="size-3.5 shrink-0 text-muted-foreground/50" />
           )}
@@ -129,9 +111,15 @@ export function ProjectTaskRow({
             {task.title}
           </InternalLink>
           <div className="group/meta -mr-6 flex shrink-0 items-center gap-x-1">
-            <span className="text-xs text-muted-foreground">
-              {formatUpdated(task.updatedAt)}
-            </span>
+            {/* With the meta, not in the status slot on the left: that slot is
+                empty on an idle task, so a dot there would indent an unread
+                row's title past every read row beside it. */}
+            {isUnread && <UnreadDot />}
+            <RelativeTime
+              className="text-xs text-muted-foreground"
+              date={task.updatedAt}
+              tooltip={false}
+            />
             <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
               <DropdownMenuTrigger
                 className={cn(
@@ -157,14 +145,4 @@ export function ProjectTaskRow({
       </ContextMenuContent>
     </ContextMenu>
   );
-}
-
-function formatUpdated(date: Date) {
-  const diff = Date.now() - date.getTime();
-  if (diff < 7 * 24 * 60 * 60 * 1000) {
-    return formatDistanceToNow(date, { addSuffix: true })
-      .replace("less than ", "")
-      .replace("about ", "");
-  }
-  return format(date, "MMM d");
 }

@@ -1,4 +1,5 @@
 import mockFs from "mock-fs";
+import fs from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -143,9 +144,10 @@ describe("WriteFile - path policy", () => {
       taskState: {
         attachedFolders: {
           docs: {
+            access: "read-only",
             createdAt: 0,
             id: FolderAttachment.IdSchema.parse("docs-id"),
-            name: "Docs",
+            mountName: "Docs",
             path: AbsolutePathSchema.parse("/ext/Docs"),
             source: "user",
           },
@@ -155,5 +157,37 @@ describe("WriteFile - path policy", () => {
     const error = result._unsafeUnwrapErr();
     expect(error.message).toContain("read-only");
     expect(error.message).toContain("copy");
+  });
+
+  it("writes into a read-write mount at its real location", async () => {
+    mockFs({
+      "/ext/Docs": {},
+      [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} },
+    });
+
+    const result = await runTool(WriteFile, {
+      ...makeExecuteArgs({
+        content: "written by the agent",
+        explanation: "test",
+        filePath: "/mnt/Docs/report.md",
+      }),
+      taskState: {
+        attachedFolders: {
+          docs: {
+            access: "read-write",
+            createdAt: 0,
+            id: FolderAttachment.IdSchema.parse("docs-id"),
+            mountName: "Docs",
+            path: AbsolutePathSchema.parse("/ext/Docs"),
+            source: "user",
+          },
+        },
+      },
+    });
+
+    expect(result.isOk()).toBe(true);
+    await expect(fs.readFile("/ext/Docs/report.md", "utf8")).resolves.toBe(
+      "written by the agent",
+    );
   });
 });

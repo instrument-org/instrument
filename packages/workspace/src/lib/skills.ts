@@ -24,6 +24,8 @@ export const FILE_LIST_LIMIT = 50;
  * inlining it whole is the one place a single file can spend the context window
  * before the task starts. Past this the agent is pointed at the copy in its
  * task, which it can read the way it reads any other file.
+ *
+ * Roughly 8,500 tokens of Markdown.
  */
 export const SKILL_CONTENT_LIMIT = 40_000;
 
@@ -39,7 +41,7 @@ export type FrontmatterResult =
       title: string | undefined;
       userInvocable: boolean;
     }
-  | { detail: string; ok: false; reason: "unparseable" }
+  | { detail: string; ok: false; reason: "unparsable" }
   | { keys: string[]; ok: false; reason: "no-description" }
   | { ok: false; reason: "no-frontmatter" | "unterminated" };
 
@@ -79,7 +81,10 @@ export interface SkillInfo {
    * name is the plain label shown to people; `id` addresses the package.
    */
   title: string;
-  /** False when the skill opts out of manual invocation affordances. */
+  /**
+   * False when the skill opts out of manual invocation affordances, and always
+   * false for the skills the app ships. See `BUNDLED_SOURCES`.
+   */
   userInvocable: boolean;
 }
 
@@ -161,6 +166,21 @@ const SOURCE_RANK: Record<SkillSourceKind, number> = {
   workspace: 0,
 };
 
+/**
+ * The sources the app ships itself, whose skills are never user-invocable.
+ *
+ * The agent reaches for these from its own catalog, so offering them as slash
+ * commands suggests someone has to ask for behavior the agent already has.
+ * They stay listed in Studio, badged as automatic.
+ *
+ * The rule lives here rather than in their frontmatter because the same
+ * packages install into other agents, where a skill someone chose to install is
+ * exactly the kind of thing to invoke by name. A copy of one found in another
+ * agent's directory is the same package and collapses into the bundled entry
+ * before this applies, so this decides that copy too.
+ */
+const BUNDLED_SOURCES = new Set<SkillSourceKind>([APP_NAME_SLUG, "system"]);
+
 /** A skill as its own directory describes it, before aliases are made unique. */
 type DiscoveredSkill = Omit<SkillInfo, "qualifiedName">;
 
@@ -226,7 +246,14 @@ export async function findSkills(sources: SkillSource[]): Promise<SkillInfo[]> {
     }
   }
 
-  return qualifySkillNames(await dedupeIdenticalCopies([...skillMap.values()]));
+  const skills = qualifySkillNames(
+    await dedupeIdenticalCopies([...skillMap.values()]),
+  );
+  return skills.map((skill) =>
+    BUNDLED_SOURCES.has(skill.source)
+      ? { ...skill, userInvocable: false }
+      : skill,
+  );
 }
 
 export function getSkillSources(
@@ -356,7 +383,7 @@ export function parseFrontmatter(raw: string): FrontmatterResult {
       return {
         detail: describeYamlError(error),
         ok: false,
-        reason: "unparseable",
+        reason: "unparsable",
       };
     }
   }
@@ -445,7 +472,7 @@ export function resolveSkillName(
  * CRLF and strands its `\r` on the last line of the block. YAML reads that
  * stray `\r` as a second scalar once the value it follows is quoted, so a
  * CRLF-encoded skill whose last frontmatter line is `description: "..."` is
- * rejected as unparseable and never discovered.
+ * rejected as unparsable and never discovered.
  */
 export function splitFrontmatter(raw: string): FrontmatterSplit {
   // A leading byte-order mark would hide the opening fence.

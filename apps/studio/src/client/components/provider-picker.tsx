@@ -17,7 +17,8 @@ import {
 import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { type ProviderMetadata } from "@instrument-org/ai-gateway/client";
 import { type AIProviderType } from "@instrument-org/shared";
-import { CaretDownIcon, StarIcon } from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { StarIcon } from "@phosphor-icons/react/Star";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
 
@@ -64,6 +65,7 @@ export function ProviderPicker({
       <PopoverTrigger asChild>
         <Button
           aria-expanded={open}
+          aria-label="Provider"
           className="justify-between"
           role="combobox"
           type="button"
@@ -98,7 +100,7 @@ export function ProviderPicker({
       >
         <Command>
           <CommandInput placeholder="Search providers..." />
-          <CommandList className="max-h-none min-h-0 flex-1">
+          <CommandList className="min-h-0 flex-1">
             <CommandEmpty>Error loading providers.</CommandEmpty>
             <CommandGroup>
               {sortedProviderMetadata

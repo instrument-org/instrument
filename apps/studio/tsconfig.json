@@ -1,6 +1,7 @@
 {
   "extends": "@instrument-org/typescript-config/app.json",
   "compilerOptions": {
+    "allowImportingTsExtensions": true,
     "paths": {
       "@/*": ["./src/*"]
     }

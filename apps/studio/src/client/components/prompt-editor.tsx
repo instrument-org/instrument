@@ -1,20 +1,21 @@
+import {
+  type ComposerAction,
+  MenuGroupHeader,
+} from "@/client/components/composer-add-menu";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { SkillMention } from "@/client/components/skill-mention";
+import {
+  type ComposerSkill,
+  SkillMenuRow,
+} from "@/client/components/skill-menu-row";
 import {
   Popover,
   PopoverAnchor,
   PopoverContent,
 } from "@/client/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/client/components/ui/tooltip";
+import { matchComposerActions } from "@/client/lib/composer-action-search";
 import { matchSkills, type SkillMatch } from "@/client/lib/skill-search";
-import { skillLocationHint, skillSourceLabel } from "@/client/lib/skill-source";
-import { SKILL_NAME_MATCH_CLASS_NAME } from "@/client/lib/skill-tokens";
 import { cn } from "@/client/lib/utils";
-import { type RPCOutput } from "@/client/rpc/client";
 import { baseKeymap, splitBlock } from "prosemirror-commands";
 import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
@@ -27,6 +28,7 @@ import { EditorView } from "prosemirror-view";
 // token rendered on the next line.
 import "prosemirror-view/style/prosemirror.css";
 import {
+  Fragment,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
@@ -90,17 +92,11 @@ export interface PromptEditorRef {
   setValue: (text: string) => void;
 }
 
-type Skill = Pick<
-  RPCOutput["workspace"]["skill"]["list"][number],
-  | "aliases"
-  | "description"
-  | "id"
-  | "name"
-  | "path"
-  | "qualifiedName"
-  | "source"
-  | "title"
->;
+// What a slash offers, in the order it offers it: the things the composer can
+// be given first, then the skills that can be run.
+type MenuEntry =
+  | { action: ComposerAction; labelRanges: null | number[]; type: "action" }
+  | { match: SkillMatch<ComposerSkill>; type: "skill" };
 
 // A skill token in the document, paired with the element ProseMirror gave its
 // node view so React can render the token into it.
@@ -115,16 +111,58 @@ interface SkillChip {
 // off the one they wanted.
 const SKILL_MENU_LIMIT = 50;
 
+const menuEntries = (
+  actions: ComposerAction[],
+  skills: ComposerSkill[],
+  query: string,
+): MenuEntry[] => [
+  ...matchComposerActions(actions, query).map((match) => ({
+    ...match,
+    type: "action" as const,
+  })),
+  ...matchSkills(skills, query, {
+    limit: SKILL_MENU_LIMIT,
+    scope: "name",
+  }).map((match) => ({
+    match,
+    type: "skill" as const,
+  })),
+];
+
+// Chooses an entry against the range the slash opened. A skill becomes a token
+// in the document; an action leaves nothing behind, because the slash was the
+// way in rather than something the prompt was meant to keep.
+const applyMenuEntry = (
+  view: EditorView,
+  range: { from: number; to: number },
+  entry: MenuEntry,
+) => {
+  if (entry.type === "action") {
+    view.dispatch(view.state.tr.delete(range.from, range.to));
+    view.focus();
+    entry.action.onSelect();
+    return;
+  }
+  const node = promptSchema.nodes.skill.create({ name: entry.match.skill.id });
+  const transaction = view.state.tr.replaceRangeWith(
+    range.from,
+    range.to,
+    node,
+  );
+  transaction.insertText(" ", range.from + node.nodeSize);
+  view.dispatch(transaction);
+  view.focus();
+};
+
 const preventDefault = (event: Event) => {
   event.preventDefault();
 };
 
 export function PromptEditor({
+  actions,
   autoFocus,
-  className,
   defaultValue,
   disabled,
-  maxHeight,
   onChange,
   onPaste,
   onSubmit,
@@ -132,21 +170,22 @@ export function PromptEditor({
   ref,
   skills,
 }: {
+  /** What the plus button offers, offered here too. */
+  actions: ComposerAction[];
   autoFocus: boolean;
-  className?: string;
   /** Read once, when the document is built. Later changes are ignored. */
   defaultValue: string;
   disabled: boolean;
-  maxHeight: number;
   onChange: (value: string) => void;
   onPaste: (event: ClipboardEvent) => boolean;
   onSubmit: (openInNewTab: boolean) => void;
   placeholder?: string;
   ref?: React.Ref<PromptEditorRef>;
-  skills: Skill[];
+  skills: ComposerSkill[];
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView>(null);
+  const actionsRef = useRef(actions);
   const skillsRef = useRef(skills);
   const menuRef = useRef<null | { from: number; query: string; to: number }>(
     null,
@@ -182,13 +221,17 @@ export function PromptEditor({
   });
 
   useEffect(() => {
+    actionsRef.current = actions;
     skillsRef.current = skills;
     onChangeRef.current = onChange;
     onPasteRef.current = onPaste;
     onSubmitRef.current = onSubmit;
     selectedIndexRef.current = selectedIndex;
-  }, [onChange, onPaste, onSubmit, selectedIndex, skills]);
-  const matches = menu ? matchSkills(skills, menu.query, SKILL_MENU_LIMIT) : [];
+  }, [actions, onChange, onPaste, onSubmit, selectedIndex, skills]);
+  const entries = menu ? menuEntries(actions, skills, menu.query) : [];
+  // Where the skills start, so the rule that names them is drawn once and only
+  // when there is something above it to separate them from.
+  const firstSkillIndex = entries.findIndex((entry) => entry.type === "skill");
 
   const updateMenu = (view: EditorView) => {
     const { empty, from } = view.state.selection;
@@ -215,23 +258,12 @@ export function PromptEditor({
     scrollToSelectionRef.current = true;
   };
 
-  const insertSkill = (skill: Skill) => {
+  const selectEntry = (entry: MenuEntry) => {
     const view = viewRef.current;
     const activeMenu = menuRef.current;
-    if (!view || !activeMenu) {
-      return;
+    if (view && activeMenu) {
+      applyMenuEntry(view, activeMenu, entry);
     }
-    const node = promptSchema.nodes.skill.create({
-      name: skill.id,
-    });
-    const transaction = view.state.tr.replaceRangeWith(
-      activeMenu.from,
-      activeMenu.to,
-      node,
-    );
-    transaction.insertText(" ", activeMenu.from + node.nodeSize);
-    view.dispatch(transaction);
-    view.focus();
   };
 
   useLayoutEffect(() => {
@@ -271,13 +303,13 @@ export function PromptEditor({
       handleKeyDown: (_view, event) => {
         const activeMenu = menuRef.current;
         if (activeMenu) {
-          const currentMatches = matchSkills(
+          const currentEntries = menuEntries(
+            actionsRef.current,
             skillsRef.current,
             activeMenu.query,
-            SKILL_MENU_LIMIT,
           );
           if (
-            currentMatches.length > 0 &&
+            currentEntries.length > 0 &&
             (event.key === "ArrowDown" || event.key === "ArrowUp")
           ) {
             event.preventDefault();
@@ -285,8 +317,8 @@ export function PromptEditor({
             setSelectedIndex((current) => {
               const direction = event.key === "ArrowDown" ? 1 : -1;
               return (
-                (current + direction + currentMatches.length) %
-                currentMatches.length
+                (current + direction + currentEntries.length) %
+                currentEntries.length
               );
             });
             return true;
@@ -297,11 +329,11 @@ export function PromptEditor({
             setMenu(null);
             return true;
           }
-          if (event.key === "Enter" && currentMatches.length > 0) {
+          if (event.key === "Enter" && currentEntries.length > 0) {
             event.preventDefault();
-            const match = currentMatches[selectedIndexRef.current];
-            if (match) {
-              insertSkill(match.skill);
+            const entry = currentEntries[selectedIndexRef.current];
+            if (entry) {
+              applyMenuEntry(view, activeMenu, entry);
             }
             return true;
           }
@@ -493,16 +525,21 @@ export function PromptEditor({
   }));
 
   return (
-    <Popover open={menu !== null && matches.length > 0}>
+    <Popover open={menu !== null && entries.length > 0}>
+      {/* Fills the column it is placed in rather than carrying a height of its
+          own: what there is room for is the composer's question to answer, and
+          the scroller below takes whatever that turns out to be. */}
       <PopoverAnchor asChild>
-        <div className={className}>
+        <div className="flex min-h-0 flex-1 flex-col">
           {/* The fade masks the text only: the composer's background sits on
               the container around this, so the faded edge dissolves into it
               whichever theme is on. */}
           <div
-            className={cn("overflow-y-auto", overflowing && "scroll-fade-y")}
+            className={cn(
+              "min-h-0 flex-1 overflow-y-auto",
+              overflowing && "scroll-fade-y",
+            )}
             ref={mountRef}
-            style={{ maxHeight }}
           />
           {chips.map((chip) =>
             createPortal(
@@ -548,38 +585,62 @@ export function PromptEditor({
         side="top"
         sideOffset={8}
       >
-        {matches.map((match, index) => (
-          <SkillMenuItem
-            key={match.skill.id}
-            match={match}
-            onHover={() => {
-              scrollToSelectionRef.current = false;
-              setSelectedIndex(index);
-            }}
-            onSelect={() => {
-              insertSkill(match.skill);
-            }}
-            ref={(element) => {
-              if (index === selectedIndex && scrollToSelectionRef.current) {
-                element?.scrollIntoView({ block: "nearest" });
-              }
-            }}
-            selected={index === selectedIndex}
-          />
+        {entries.map((entry, index) => (
+          <Fragment
+            key={
+              entry.type === "skill"
+                ? `skill:${entry.match.skill.id}`
+                : `action:${entry.action.id}`
+            }
+          >
+            {index === firstSkillIndex && firstSkillIndex > 0 && (
+              <MenuGroupHeader label="Skills" />
+            )}
+            <MenuEntryButton
+              onHover={() => {
+                scrollToSelectionRef.current = false;
+                setSelectedIndex(index);
+              }}
+              onSelect={() => {
+                selectEntry(entry);
+              }}
+              ref={(element) => {
+                if (index === selectedIndex && scrollToSelectionRef.current) {
+                  element?.scrollIntoView({ block: "nearest" });
+                }
+              }}
+              selected={index === selectedIndex}
+            >
+              {entry.type === "skill" ? (
+                <SkillMenuRow match={entry.match} />
+              ) : (
+                <>
+                  <entry.action.icon className="size-4 shrink-0" />
+                  <FuzzyHighlight
+                    ranges={entry.labelRanges}
+                    text={entry.action.label}
+                  />
+                </>
+              )}
+            </MenuEntryButton>
+          </Fragment>
         ))}
       </PopoverContent>
     </Popover>
   );
 }
 
-function SkillMenuItem({
-  match,
+// Wears the dropdown item's treatment without being one: this list is driven by
+// the caret rather than by focus, so the row that would be focused is marked
+// rather than actually focused.
+function MenuEntryButton({
+  children,
   onHover,
   onSelect,
   ref,
   selected,
 }: {
-  match: SkillMatch<Skill>;
+  children: React.ReactNode;
   onHover: () => void;
   onSelect: () => void;
   ref: React.Ref<HTMLButtonElement>;
@@ -588,13 +649,12 @@ function SkillMenuItem({
   return (
     <button
       className={cn(
-        "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left",
-        selected && "bg-accent text-accent-foreground",
+        "flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm text-foreground/60",
+        selected && "bg-accent text-foreground",
       )}
       data-highlighted={selected ? "" : undefined}
-      key={match.skill.id}
-      // Mousedown rather than click, and defaulted out, so choosing a skill
-      // never blurs the editor the insertion is about to run against.
+      // Mousedown rather than click, and defaulted out, so choosing a row never
+      // blurs the editor the choice is about to run against.
       onMouseDown={(event) => {
         event.preventDefault();
         onSelect();
@@ -609,35 +669,7 @@ function SkillMenuItem({
       ref={ref}
       type="button"
     >
-      {/* The plain name, even where two sources share it: the source on the
-          right is what tells them apart, and reading it there is easier than
-          reading a prefix. Choosing the row stores the stable ID. */}
-      <span className="shrink-0 font-mono text-sm font-medium">
-        /
-        <FuzzyHighlight
-          matchClassName={SKILL_NAME_MATCH_CLASS_NAME}
-          ranges={match.nameRanges}
-          text={match.skill.name}
-        />
-      </span>
-      <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-        <FuzzyHighlight
-          ranges={match.descriptionRanges}
-          text={match.skill.description}
-        />
-      </span>
-      {/* No delay: this is the answer to "which of these two is it?", and a
-          hover that has to be held is no help while scanning the list. */}
-      <Tooltip delayDuration={0}>
-        <TooltipTrigger asChild>
-          <span className="shrink-0 text-xs text-muted-foreground/70">
-            {skillSourceLabel(match.skill.source)}
-          </span>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-80 break-all">
-          {skillLocationHint(match.skill)}
-        </TooltipContent>
-      </Tooltip>
+      {children}
     </button>
   );
 }

@@ -1,7 +1,9 @@
 import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
 import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
-import { CaretDownIcon, CaretUpIcon, CheckIcon } from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
+import { CheckIcon } from "@phosphor-icons/react/Check";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import * as React from "react";
 

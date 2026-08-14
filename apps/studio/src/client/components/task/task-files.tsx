@@ -4,10 +4,7 @@ import { FolderAttachmentRow } from "@/client/components/folder-attachment-row";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { getFileKindLabel } from "@/client/lib/get-file-type";
-import {
-  hasVisibleTaskFiles,
-  shouldFilterTaskFile,
-} from "@/client/lib/task-file-groups";
+import { shouldFilterTaskFile } from "@/client/lib/task-file-groups";
 import { cn } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";
 import { rpcClient } from "@/client/rpc/client";
@@ -17,19 +14,17 @@ import {
   TASK_FOLDER_NAMES,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import {
-  CaretRightIcon,
-  ChatTextIcon,
-  DotsThreeOutlineVerticalIcon,
-  FolderSimpleIcon,
-} from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { FileActionsMenuItems } from "../file-actions-menu";
 import { FileThumbnail } from "../file-thumbnail";
+import { RelativeTime } from "../relative-time";
 import {
   Collapsible,
   CollapsibleContent,
@@ -65,19 +60,34 @@ type FileTreeNode =
   | { children: FileTreeNode[]; kind: "dir"; name: string }
   | { file: TaskFileViewerFile; kind: "file" };
 
+/**
+ * How often the list re-walks the task directory while it is on screen.
+ *
+ * The panel is the only thing that wants this list, so it is the only thing
+ * that asks for it: mounted means open, and a closed panel costs nothing. That
+ * is what makes a poll affordable here where a standing watcher was not, and it
+ * is the shape that survives the list being pointed at a folder the user picked
+ * rather than one we laid out.
+ */
+const REFETCH_INTERVAL_MS = 5000;
+
 export function TaskFiles({
   activeFilePath,
   attachedFolders,
-  files,
   onFileSelect,
   task,
 }: {
   activeFilePath: null | string;
   attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
-  files: RPCOutput["workspace"]["task"]["files"]["list"] | undefined;
   onFileSelect: (file: TaskFileViewerFile) => void;
   task: Task;
 }) {
+  const { data: files } = useQuery(
+    rpcClient.workspace.task.files.list.queryOptions({
+      input: { taskId: task.id },
+      refetchInterval: REFETCH_INTERVAL_MS,
+    }),
+  );
   const assetBaseUrl = getAssetBaseUrl(task.id);
 
   const computed = useMemo(() => {
@@ -129,9 +139,20 @@ export function TaskFiles({
 
   const folderEntries = attachedFolders ? Object.values(attachedFolders) : [];
 
-  if (!hasVisibleTaskFiles(files) && folderEntries.length === 0) {
+  // Only when there is genuinely nothing to draw. This used to ask whether the
+  // task had any *prominent* files, which answered "no" for a task whose work
+  // so far is all under `work/` -- and then said there were no files while the
+  // "Other files" section below was holding them.
+  if (
+    computed.tree.length === 0 &&
+    computed.hiddenTree.length === 0 &&
+    folderEntries.length === 0
+  ) {
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center px-4 text-center text-sm text-muted-foreground">
+      // Padded rather than centered in a flex child that collapses: this panel
+      // is as tall as its contents, so `flex-1` around one line of text left it
+      // in a box barely taller than the line.
+      <div className="px-4 py-8 text-center text-sm text-muted-foreground">
         There are no files yet.
       </div>
     );
@@ -157,17 +178,20 @@ export function TaskFiles({
           />
         ))}
         {folderEntries.length > 0 && (
-          <SidebarMenuItem>
-            <CollapsibleTreeSection defaultOpen label="Attached folders">
-              {folderEntries.map((folder) => (
-                <AttachedFolderRow
-                  folder={folder}
-                  key={folder.id}
-                  taskId={task.id}
-                />
-              ))}
-            </CollapsibleTreeSection>
-          </SidebarMenuItem>
+          <>
+            <SidebarMenuItem>
+              <CollapsibleTreeSection defaultOpen label="Attached folders">
+                {folderEntries.map((folder) => (
+                  <AttachedFolderRow
+                    folder={folder}
+                    key={folder.id}
+                    taskId={task.id}
+                  />
+                ))}
+              </CollapsibleTreeSection>
+            </SidebarMenuItem>
+            <li aria-hidden className="-mx-1 h-px bg-border/50" />
+          </>
         )}
         {computed.hiddenTree.length > 0 && (
           <SidebarMenuItem>
@@ -201,8 +225,6 @@ function AttachedFolderRow({
   folder: AttachedFolder;
   taskId: TaskId;
 }) {
-  const appendToPrompt = useSetAtom(appendToPromptAtom);
-
   const { mutate: removeFolder } = useMutation(
     rpcClient.workspace.task.state.removeFolder.mutationOptions({
       onError: (error) => {
@@ -211,25 +233,23 @@ function AttachedFolderRow({
     }),
   );
 
+  // The project owns the folders it contributes: they are re-synced onto every
+  // one of its tasks when a message is sent, so removing one here would undo
+  // itself. Detaching it belongs in the project, and only a folder attached to
+  // this task can be detached from it.
+  const canRemove = folder.source !== "project";
+
   return (
     <SidebarMenuItem>
       <FolderAttachmentRow
-        additionalMenuItems={[
-          {
-            icon: <ChatTextIcon className="size-4" />,
-            label: "Add to chat",
-            onSelect: () => {
-              appendToPrompt({
-                key: { scope: "task", taskId },
-                update: `the attached folder "${folder.name}"`,
-              });
-            },
-          },
-        ]}
-        name={folder.name}
-        onRemove={() => {
-          removeFolder({ folderId: folder.id, id: taskId });
-        }}
+        access={folder.access}
+        onRemove={
+          canRemove
+            ? () => {
+                removeFolder({ folderId: folder.id, id: taskId });
+              }
+            : undefined
+        }
         path={folder.path}
         removeLabel="Remove from task"
       />
@@ -278,10 +298,6 @@ function directorySectionLabel(dirName: string) {
   return dirName;
 }
 
-function explorerStubRelativeDate() {
-  return "just now";
-}
-
 function FileRow({
   file,
   isActive,
@@ -306,7 +322,7 @@ function FileRow({
         <ContextMenuTrigger asChild>
           <SidebarMenuButton
             className={cn(
-              "h-auto min-h-14 items-stretch gap-2.5 px-3 py-2 text-xs",
+              "h-auto min-h-14 items-stretch gap-3 px-3 py-2 text-xs",
               isActive
                 ? "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 : "hover:bg-muted/50",
@@ -325,7 +341,13 @@ function FileRow({
                     : "text-muted-foreground",
                 )}
               >
-                {getFileKindLabel(file)} · {explorerStubRelativeDate()}
+                {getFileKindLabel(file)}
+                {file.modifiedAt !== undefined && (
+                  <>
+                    {" · "}
+                    <RelativeTime date={new Date(file.modifiedAt)} />
+                  </>
+                )}
               </span>
             </div>
           </SidebarMenuButton>
@@ -394,23 +416,17 @@ function CollapsibleTreeSection({
   }
 
   return (
-    <Collapsible
-      className="group/collapsible"
-      onOpenChange={setOpen}
-      open={open}
-    >
+    <Collapsible onOpenChange={setOpen} open={open}>
       <CollapsibleTrigger asChild>
         <SidebarMenuButton
           className={cn(
-            "h-auto min-h-8 gap-2 px-3 py-2 text-xs font-medium text-foreground",
+            "group/collapsible-trigger h-auto min-h-8 gap-2 px-3 py-2 text-xs font-medium text-foreground",
             labelClassName,
           )}
         >
-          {Icon && (
-            <Icon className="size-3.5! shrink-0 text-muted-foreground" />
-          )}
+          {Icon && <Icon className="size-3.5! shrink-0" />}
           <span className="min-w-0 flex-1 truncate text-left">{label}</span>
-          <CaretRightIcon className="size-3! shrink-0 text-muted-foreground transition-transform group-data-[state=open]/collapsible:rotate-90" />
+          <CaretRightIcon className="size-3! shrink-0 text-muted-foreground transition-transform group-data-[state=open]/collapsible-trigger:rotate-90" />
         </SidebarMenuButton>
       </CollapsibleTrigger>
       <CollapsibleContent>
@@ -481,6 +497,9 @@ function TreeNode({
         forceOpen={containsActive}
         icon={isTopSpecialSection ? undefined : FolderSimpleIcon}
         label={directorySectionLabel(node.name)}
+        labelClassName={
+          isTopSpecialSection ? undefined : "text-muted-foreground/60"
+        }
       >
         {node.children.map((child, i) => (
           <TreeNode

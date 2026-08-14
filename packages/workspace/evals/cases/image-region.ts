@@ -30,22 +30,25 @@ const Q3_NORTHEAST = "5,318";
 /**
  * A zoom the model meant, matching how the tool reads the same input.
  *
- * `read_file` treats an all-zero rectangle as no rectangle, because it names
- * no place and one model family sends it on the first read of every image.
- * Counting it here anyway made the negative case fail a model whose read the
- * tool had already handled as a plain one -- the eval and the tool disagreeing
- * about what a region read even is.
+ * `read_file` answers some rectangles with the plain whole image: ones naming
+ * no place, which a model family sends on the first read of every image, and
+ * ones covering the entire picture, which have nothing in them to magnify. The
+ * tool is the authority on which those were, and it marks them. Judging the
+ * input here instead made the negative case fail a model whose read the tool
+ * had already handled as a plain one -- the eval and the tool disagreeing about
+ * what a region read even is.
  */
 function isRegionRead(part: SessionMessagePart.Type) {
   if (part.type !== "tool-read_file") {
     return false;
   }
-  const region = part.input?.region;
-  if (!region) {
+  if (!part.input?.region) {
     return false;
   }
   return (
-    region.x1 !== 0 || region.x2 !== 0 || region.y1 !== 0 || region.y2 !== 0
+    part.state !== "output-available" ||
+    part.output.state !== "image" ||
+    part.output.regionIgnored === undefined
   );
 }
 
@@ -66,6 +69,64 @@ const assertReadsARegion: Assertion = {
     };
   },
   text: "Zooms in with a region read",
+};
+
+/**
+ * The rectangle landed in the space the read named it in.
+ *
+ * A read states two sizes for a large file: the size the model is shown, which
+ * is the coordinate space, and the file's own size on disk. A model that aims in
+ * the second overshoots by the ratio between them, and on these fixtures (8000
+ * wide, shown at 1269) any such rectangle runs off the view and is trimmed to
+ * fit. So a crop carrying `requestedRegion` is the signature of a rectangle
+ * aimed in the file's pixel space.
+ *
+ * A rectangle the tool ignored is not judged here at all, on the same reasoning
+ * as `isRegionRead`: naming no place is a parameter filled in rather than aimed,
+ * and it says nothing about which pixel space the model would have used. Judging
+ * it as a miss made both zoom cases fail for a model whose actual aim was exact.
+ *
+ * This is a guard, not a demonstration. Every model measured so far aims in the
+ * shown space on these fixtures, and the wrong-space aim is something real
+ * sessions produce and this fixture set does not. It is here so that a change to
+ * how the two sizes are worded cannot quietly push models into the other one
+ * without a red assertion.
+ */
+function aimVerdict(part: SessionMessagePart.Type) {
+  if (part.type !== "tool-read_file" || !part.input?.region) {
+    return;
+  }
+  if (part.state !== "output-available" || part.output.state !== "image") {
+    return;
+  }
+  if (part.output.regionIgnored !== undefined) {
+    return;
+  }
+  return part.output.requestedRegion === undefined
+    ? ("clean" as const)
+    : ("missed" as const);
+}
+
+const assertAimsInTheShownSpace: Assertion = {
+  check: ({ sessions }) => {
+    const crops = sessions.flatMap((session) =>
+      session.messages.flatMap((message) =>
+        message.parts
+          .map((part) => aimVerdict(part))
+          .filter((v) => v !== undefined),
+      ),
+    );
+    const missed = crops.filter((verdict) => verdict === "missed");
+    return {
+      evidence:
+        missed.length === 0
+          ? `${crops.length} region read(s), none trimmed or ignored`
+          : `${missed.length} of ${crops.length} region read(s) named a rectangle outside the space they were shown the image in`,
+      passed: missed.length === 0,
+      text: "Aims in the pixel space the image was shown in",
+    };
+  },
+  text: "Aims in the pixel space the image was shown in",
 };
 
 /**
@@ -135,7 +196,11 @@ const assertNoRegionRead: Assertion = {
 
 export const IMAGE_REGION_EVALS = [
   defineEval({
-    assertions: [assertReadsARegion, assertAnswerContains(SERIAL)],
+    assertions: [
+      assertReadsARegion,
+      assertAimsInTheShownSpace,
+      assertAnswerContains(SERIAL),
+    ],
     files: [
       { content: fixture("serial-label.png"), filename: "inventory.png" },
     ],
@@ -144,7 +209,11 @@ export const IMAGE_REGION_EVALS = [
       "This inventory report has an asset serial number on it. What is it? Give me the exact value.",
   }),
   defineEval({
-    assertions: [assertReadsARegion, assertAnswerContains(Q3_NORTHEAST)],
+    assertions: [
+      assertReadsARegion,
+      assertAimsInTheShownSpace,
+      assertAnswerContains(Q3_NORTHEAST),
+    ],
     files: [
       {
         content: fixture("revenue-table.png"),

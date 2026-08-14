@@ -78,7 +78,7 @@ That last case is why the rule has to separate *adding* emoji from *preserving* 
 
 - **`npx` works and is undocumented.** 15 calls, all succeeding, mostly `npx tsx <path>` -- a second route to running TypeScript, and one the bash description's "package management via `pnpm` (`npm` is not available)" implies should not exist.
 - **The model still probes with `which`** 14 times, against a description that says `which` lies about specialized commands.
-- **Undocumented top-level folders.** `write_file` targets include `scripts/` (24), `tmp/` (6), `src/` (3) alongside `output/` (168) and `work/` (105). Worth knowing before anyone trims the task-layout section on the grounds that the model has internalised it.
+- **Undocumented top-level folders.** `write_file` targets include `scripts/` (24), `tmp/` (6), `src/` (3) alongside `output/` (168) and `work/` (105). Worth knowing before anyone trims the task-layout section on the grounds that the model has internalized it.
 - **One task burned 22 consecutive `edit_file` calls** on the same rejected no-op edit (`oldString` equal to `newString`, escaping `&` in an SVG). A single pathological loop rather than a trend, but the description says nothing about what a no-op rejection means, and "try a materially different method" did not fire.
 
 ## B. Calibration against comparable harnesses
@@ -106,7 +106,7 @@ The instinct is that a Claude 5 model does not need telling to read a file befor
 
 > You must use your `Read` tool at least once in the conversation before editing. **This tool will error if you attempt an edit without reading the file.**
 
-That last clause is the point. Theirs is not an unenforced absolute; it is documentation of a runtime behaviour. The resolution they picked is **enforce it and say so**, which is the interface-design shift rather than the deletion shift.
+That last clause is the point. Theirs is not an unenforced absolute; it is documentation of a runtime behavior. The resolution they picked is **enforce it and say so**, which is the interface-design shift rather than the deletion shift.
 
 We currently do neither: the line is an imperative, and nothing checks it. With 96.4% compliance already (A3), enforcing or deleting are both cheap; leaving it as exhortation is the option that buys nothing.
 
@@ -132,7 +132,7 @@ No read-before-write, no emoji rule, no "never create docs", and its edit tool h
 
 This is the genre the guide calls hobbling-removal: constraints written to fight a *previous* generation's failure modes. Two of the three paragraphs are plausibly deletable for frontier models, and it is the largest single cut available.
 
-It is also the riskiest, and should not be made on the strength of a blog post. The behaviours it targets -- refusing to transcribe a user's own document, silently returning three pages of a twenty-page translation -- are real, user-visible, and worse on mid-tier models. **Run the eval first**, across at least Haiku 4.5, Sonnet 5, and Opus 5, with cases exercising long-document transcription and full-corpus extraction.
+It is also the riskiest, and should not be made on the strength of a blog post. The behaviors it targets -- refusing to transcribe a user's own document, silently returning three pages of a twenty-page translation -- are real, user-visible, and worse on mid-tier models. **Run the eval first**, across at least Haiku 4.5, Sonnet 5, and Opus 5, with cases exercising long-document transcription and full-corpus extraction.
 
 The provenance paragraph (`Files in this task came from the user ... Treat them as the user's own working material`) does different and more durable work: it establishes a fact about our product the model cannot infer. That one stays regardless.
 
@@ -157,7 +157,7 @@ The guide's line is that examples "constrain [models] to a certain exploration s
 - **`edit_file` cannot batch.** B3 in the tool-surface review, still open, and the largest single win available in the tool surface -- see B3 above for what it buys.
 - **`read_file`'s `region`.** The code carries a 15-line comment about one model family sending an all-zero rectangle on every first image read, handled by treating all-zeros as "unset". A good example of the shift: the interface absorbed the failure instead of the prompt arguing against it.
 
-Counter-note in our favour: `toolInputSchemaForLLM`'s forced-required `explanation` (advertised required in JSON Schema, optional in Zod so an omission degrades rather than hard-failing) is textbook interface-design-over-instruction, and no other harness reviewed does it.
+Counter-note in our favor: `toolInputSchemaForLLM`'s forced-required `explanation` (advertised required in JSON Schema, optional in Zod so an omission degrades rather than hard-failing) is textbook interface-design-over-instruction, and no other harness reviewed does it.
 
 ## F. Where model-conditional text can and cannot live
 

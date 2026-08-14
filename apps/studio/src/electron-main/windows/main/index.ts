@@ -9,7 +9,7 @@ import {
 } from "@/electron-main/lib/quit-guard";
 import { getMainWindowBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
-import { bindReservedShortcuts } from "@/electron-main/menus/shortcuts";
+import { bindShortcutAccelerators } from "@/electron-main/menus/shortcuts";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
   getMainWindowZoom,
@@ -115,7 +115,7 @@ async function createMainWindowInstance() {
 
   setMainWindow(mainWindow);
 
-  bindReservedShortcuts(mainWindow.webContents);
+  bindShortcutAccelerators(mainWindow.webContents);
 
   // Center the traffic lights for the zoom the renderer last reported, so they
   // sit in the boot shell's toolbar correctly instead of jumping once the
@@ -265,7 +265,7 @@ function setupWindowEventListeners({
   onResize: () => void;
 }) {
   // Required on macOS and Linux
-  // On macoS, unfocused resizes (e.g. Amethyst) won't be tracked
+  // On macOS, unfocused resizes (e.g. Amethyst) won't be tracked
   // On Linux, maximize / unmaximize may not fire reliably
   mainWindow.on("will-resize", () => {
     onResize();
@@ -285,7 +285,6 @@ function setupWindowEventListeners({
     onResize();
     publisher.publish("window.maximized-changed", null);
   });
-  // cspell:ignore unmaximize
   mainWindow.on("unmaximize", () => {
     onResize();
     publisher.publish("window.maximized-changed", null);

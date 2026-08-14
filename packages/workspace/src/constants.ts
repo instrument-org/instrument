@@ -49,6 +49,30 @@ export const TASK_STATUSES = [
   "unknown",
 ] as const;
 
+/**
+ * Info string of the fenced block an agent writes to show the user a set of
+ * files: one workspace path per line. Shared because it is a contract between
+ * the prompt that teaches it and the renderer that draws it, and a fence
+ * language the renderer does not know renders as a code block.
+ */
+export const AGENT_FILES_LANGUAGE = "files";
+
+/**
+ * Character budget for the project instructions inlined into a task's standing
+ * context.
+ *
+ * The instructions are an `AGENTS.md` the user can paste anything into, and they
+ * ride in the session-context message on every turn, so an unbounded one eats
+ * the context window before the task starts. Characters rather than tokens for
+ * the same reason as the skill catalog's budget: no tokenizer is right for every
+ * provider we run against. This is roughly 4,200 tokens of Markdown prose, and
+ * closer to 13,000 if the file is written in CJK.
+ *
+ * Nothing is lost to the cap. The project folder mounts at MOUNT.project,
+ * so what does not fit stays one read away and the truncated block says where.
+ */
+export const MAX_PROJECT_INSTRUCTIONS_LENGTH = 20_000;
+
 // Limit prompt storage to 50KB to avoid blowing up the JSON file
 export const MAX_PROMPT_STORAGE_LENGTH = 50_000;
 export const TOOL_EXPLANATION_PARAM_NAME = "explanation";

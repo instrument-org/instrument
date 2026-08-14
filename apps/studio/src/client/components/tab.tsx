@@ -1,10 +1,11 @@
 import { TaskStatusIcon } from "@/client/components/session-status-icon";
 import { TaskIcon } from "@/client/components/task-icon";
 import { UnreadDot } from "@/client/components/unread-dot";
+import { tabTitleMaskStyle } from "@/client/lib/tab-title-mask";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Tab as TabData } from "@/shared/tabs";
-import { XIcon } from "@phosphor-icons/react";
+import { XIcon } from "@phosphor-icons/react/X";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { motion, Reorder, useReducedMotion } from "motion/react";
 
@@ -15,13 +16,6 @@ const SkeletonTitle = () => {
     </div>
   );
 };
-
-const tabTitleMaskStyle = {
-  maskImage:
-    "linear-gradient(to right, #000 0%, #000 calc(100% - 1.5rem), transparent 100%)",
-  WebkitMaskImage:
-    "linear-gradient(to right, #000 0%, #000 calc(100% - 1.5rem), transparent 100%)",
-} as const;
 
 export const Tab = ({
   isSelected,
@@ -76,7 +70,7 @@ export const Tab = ({
         "w-full max-w-60 flex-1 overflow-hidden",
         "h-full items-center transition-[background-color,border-radius,box-shadow] duration-150",
         isSelected
-          ? "gap-2 rounded-xl bg-background py-2 pr-1.5 pl-3 shadow-soft"
+          ? "gap-2 rounded-xl bg-background py-2 pr-1.5 pl-3 shadow-xs-soft"
           : cn(
               "py-2 pr-1.5 pl-3 hover:rounded-xl hover:bg-muted/60",
               showSeparator &&
@@ -132,6 +126,10 @@ export const Tab = ({
           </div>
         ) : null}
         <button
+          // A tab with no title yet is still closable, and "Close" alone reads
+          // as a control with no object, so it falls back the way the tooltip
+          // above does rather than to an empty name.
+          aria-label={`Close ${item.title || "tab"}`}
           className={cn(
             "rounded-md p-1 opacity-70 ring-offset-background hover:bg-muted/80 hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none",
             isSelected ? "flex" : "hidden group-hover:flex",

@@ -69,6 +69,31 @@ describe("parseOpenRouterModelsList", () => {
     ).toBeUndefined();
   });
 
+  it("drops batch variants and keeps the model they mirror", () => {
+    const models = parseOpenRouterModelsList({
+      config,
+      data: {
+        data: [
+          openRouterModel(),
+          openRouterModel({
+            id: "x-ai/grok-4.3:batch",
+            name: "xAI: Grok 4.3 (batch)",
+          }),
+          openRouterModel({
+            id: "anthropic/claude-opus-5:batch",
+            name: "Claude Opus 5 (batch)",
+          }),
+        ],
+      },
+    }).getOrThrow();
+
+    expect(models.map((model) => model.providerId)).toMatchInlineSnapshot(`
+      [
+        "x-ai/grok-4.3",
+      ]
+    `);
+  });
+
   it("accepts a reason this client does not know", () => {
     expect(
       parseOne(

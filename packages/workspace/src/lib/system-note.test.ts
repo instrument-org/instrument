@@ -93,4 +93,20 @@ describe("browserStatusModelNote", () => {
     expect(note.split("<instrument-system-note>")).toHaveLength(2);
     expect(note.split("</instrument-system-note>")).toHaveLength(2);
   });
+
+  it("tells the agent a restored page is a fresh load", () => {
+    expect(
+      browserStatusModelNote({
+        status: "reopened",
+        target: { title: "Example", url: "https://example.test/docs" },
+      }),
+    ).toMatchInlineSnapshot(
+      `
+      "
+      <instrument-system-note>
+      The in-app browser tab for this session was closed while it sat idle, and has been reopened at the page it was last on. Current URL: https://example.test/docs. Page title: Example. It is a fresh load, so anything the page was holding -- scroll position, form entries, expanded sections, snapshot refs -- is gone. Re-establish whatever state the work needs before acting on it.
+      </instrument-system-note>"
+    `,
+    );
+  });
 });

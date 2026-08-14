@@ -92,6 +92,16 @@ const pool = new Map<BrowserTargetId, PooledWebview>();
 // a guest so focus can return to the exact host element it displaced.
 let lastHostFocusedElement: HTMLElement | null = null;
 
+// Put keyboard focus on a guest so agent keyboard input dispatched to it is
+// actually delivered there. Chromium routes keyboard input to the widget
+// holding focus, and only this renderer-side DOM focus moves it across the
+// process boundary -- the main process cannot do it for us. The guest's own
+// `document.activeElement` survives losing and regaining focus, so this alone
+// puts typing back into whatever the agent last clicked.
+function focusGuest(targetId: BrowserTargetId) {
+  getWebviewElement(targetId)?.focus({ preventScroll: true });
+}
+
 function recordHostFocus(event: FocusEvent) {
   const target = event.target;
   if (!(target instanceof HTMLElement) || target.tagName === "WEBVIEW") {
@@ -138,17 +148,10 @@ const paintOwners = new Map<BrowserTargetId, symbol>();
 // polled endpoint. Replaced (not mutated) on each reconcile so the snapshot is a
 // stable reference for useSyncExternalStore between changes.
 let attachedTargets: ReadonlySet<BrowserTargetId> = new Set();
-// Ids of targets that have started loading a real page, mirrored the same way.
-// Distinct from attached: every target attaches, only some are ever navigated.
-let navigatedTargets: ReadonlySet<BrowserTargetId> = new Set();
 const targetListeners = new Set<() => void>();
 
 export function getAttachedTargetsSnapshot(): ReadonlySet<BrowserTargetId> {
   return attachedTargets;
-}
-
-export function getNavigatedTargetsSnapshot(): ReadonlySet<BrowserTargetId> {
-  return navigatedTargets;
 }
 
 /** The pooled guest element for a target, if it exists (for nav controls). */
@@ -203,10 +206,10 @@ export function initBrowserPool(): () => void {
         return;
       }
       try {
-        const subscription = await rpcClient.browser.live.restoreHostFocus.call(
-          undefined,
-          { signal },
-        );
+        const subscription =
+          await rpcClient.browser.events.restoreHostFocus.call(undefined, {
+            signal,
+          });
         for await (const _ of subscription) {
           restoreHostFocus();
         }
@@ -220,8 +223,32 @@ export function initBrowserPool(): () => void {
     }
   }
 
+  async function runGuestFocusRequests() {
+    while (true) {
+      if (signal.aborted) {
+        return;
+      }
+      try {
+        const subscription = await rpcClient.browser.events.focusGuest.call(
+          undefined,
+          { signal },
+        );
+        for await (const { targetId } of subscription) {
+          focusGuest(targetId);
+        }
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        captureException(error);
+      }
+      await sleep(RECONNECT_DELAY_MS);
+    }
+  }
+
   void run();
   void runFocusRestores();
+  void runGuestFocusRequests();
 
   return () => {
     controller.abort();
@@ -320,11 +347,7 @@ export function showOverSlot(
   }
 }
 
-/**
- * useSyncExternalStore glue for {@link attachedTargets} and
- * {@link navigatedTargets} (see use-browser-targets). Both are replaced in the
- * same reconcile, so one listener set covers them.
- */
+/** useSyncExternalStore glue for {@link attachedTargets} (see use-browser-targets). */
 export function subscribeAttachedTargets(listener: () => void): () => void {
   targetListeners.add(listener);
   return () => {
@@ -455,9 +478,6 @@ function reconcile(targets: BrowserGuestTarget[]) {
 
   attachedTargets = new Set(
     targets.filter((target) => target.attached).map((target) => target.id),
-  );
-  navigatedTargets = new Set(
-    targets.filter((target) => target.navigated).map((target) => target.id),
   );
   for (const listener of targetListeners) {
     listener();

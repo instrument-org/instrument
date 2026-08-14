@@ -12,7 +12,9 @@ import {
   getToolNameByType,
   isToolPart,
 } from "@instrument-org/workspace/client";
-import { BrainIcon, ChatTextIcon, QuestionIcon } from "@phosphor-icons/react";
+import { BrainIcon } from "@phosphor-icons/react/Brain";
+import { ChatTextIcon } from "@phosphor-icons/react/ChatText";
+import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { skipToken, useQuery } from "@tanstack/react-query";
 
 export function SessionStatusPreview({ id }: { id: TaskId }) {
@@ -46,9 +48,9 @@ function SessionStatusText({
 
   // Only stream full message parts while the agent is live. Idle/completed rows
   // render "Done" without opening a per-row session stream, which otherwise
-  // fans out to one full listWithParts subscription per visible table row.
+  // fans out to one full message subscription per visible table row.
   const { data: messages = [] } = useQuery(
-    rpcClient.workspace.message.live.listWithParts.experimental_liveOptions({
+    rpcClient.workspace.message.live.list.experimental_liveOptions({
       input: isAgentAlive ? { id, sessionId } : skipToken,
     }),
   );
@@ -72,8 +74,7 @@ function SessionStatusText({
       part.type !== "step-start" &&
       part.type !== "source-url" &&
       part.type !== "source-document" &&
-      part.type !== "data-browserStatus" &&
-      part.type !== "data-externalFileChanges",
+      part.type !== "data-browserStatus",
   );
   const latestPart = relevantParts.at(-1);
 
@@ -106,10 +107,7 @@ function SessionStatusText({
       displayText = getToolStreamingLabel(toolName, false);
       shouldAnimate = isAgentAlive;
     }
-  } else if (
-    latestPart.type === "data-fileChanges" ||
-    latestPart.type === "data-skillChanges"
-  ) {
+  } else if (latestPart.type === "data-skillChanges") {
     displayText = "Done";
   } else if (latestPart.type === "reasoning") {
     displayText = isAgentAlive ? "Thinking" : "Thought";

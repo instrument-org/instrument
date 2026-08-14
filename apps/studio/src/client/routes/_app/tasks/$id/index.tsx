@@ -1,17 +1,15 @@
 import { releaseTaskDraft } from "@/client/atoms/prompt-value";
 import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
 import { TaskView } from "@/client/components/task/view";
-import { useIsActiveTab } from "@/client/hooks/use-active-tab";
-import { useAutoOpenBrowserArtifact } from "@/client/hooks/use-auto-open-browser-artifact";
-import { useAutoOpenOutputArtifact } from "@/client/hooks/use-auto-open-output-artifact";
 import { useClearTaskIndicatorOnView } from "@/client/hooks/use-clear-task-indicator-on-view";
+import { useIsTaskPageVisible } from "@/client/hooks/use-task-page-visible";
 import { useTaskRouteSync } from "@/client/hooks/use-task-route-sync";
 import { rpcClient } from "@/client/rpc/client";
-import { artifactPanelSchema } from "@/client/schemas/artifact-panel";
 import {
   StoreId,
   type Task,
   TaskIdSchema,
+  TaskPane,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import {
@@ -30,7 +28,6 @@ import {
 import { z } from "zod";
 
 const taskSearchSchema = z.object({
-  artifactPanel: artifactPanelSchema.optional(),
   selectedSessionId: StoreId.SessionSchema.optional(),
   showSettings: z.boolean().optional(),
 });
@@ -181,20 +178,13 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
         }),
         read: () => rpcClient.workspace.task.state.get.call({ id }),
       }),
-      seedLiveQuery({
-        queryClient,
-        queryKey: rpcClient.workspace.task.files.live.list.experimental_liveKey(
-          { input: { taskId: id } },
-        ),
-        read: () => rpcClient.workspace.task.files.list.call({ taskId: id }),
-      }),
       selectedSessionId
         ? seedLiveQuery({
             queryClient,
             queryKey:
-              rpcClient.workspace.message.live.listWithParts.experimental_liveKey(
-                { input: { id, sessionId: selectedSessionId } },
-              ),
+              rpcClient.workspace.message.live.list.experimental_liveKey({
+                input: { id, sessionId: selectedSessionId },
+              }),
             read: () =>
               rpcClient.workspace.message.list.call({
                 id,
@@ -223,7 +213,7 @@ export const Route = createFileRoute("/_app/tasks/$id/")({
 
 function RouteComponent() {
   const { id } = Route.useParams();
-  const { artifactPanel, selectedSessionId, showSettings } = Route.useSearch();
+  const { selectedSessionId, showSettings } = Route.useSearch();
   const navigate = useNavigate();
 
   useClearTaskIndicatorOnView(id);
@@ -259,33 +249,27 @@ function RouteComponent() {
     }),
   );
 
-  const { data: files } = useQuery(
-    rpcClient.workspace.task.files.live.list.experimental_liveOptions({
-      input: { taskId: id },
-    }),
-  );
-
-  // Presence is scoped to the foreground tab, not to mount: every tab stays
-  // mounted in the background, so gating on the active tab lets the server's
-  // taskBrowser machine reap an unviewed task's browser after its grace period.
-  const isActiveTab = useIsActiveTab();
+  // Two holds on the task's browser, and the subscriptions themselves are the
+  // whole payload: each yields nothing worth reading, so both results go unused
+  // on purpose.
+  //
+  // The retained hold lasts as long as this page is mounted, which is what tells
+  // the server the user still has this task open and can come back to whatever
+  // is loaded in it. The visible hold lasts only while the page is on screen.
+  // Every task page stays mounted while backgrounded, so mount alone cannot
+  // distinguish the two and the server needs both to pick which clock a browser
+  // is on.
+  const isVisible = useIsTaskPageVisible();
   useQuery(
     rpcClient.workspace.browser.live.presence.experimental_liveOptions({
-      input: isActiveTab ? { id } : skipToken,
+      input: { id, level: "retained" },
     }),
   );
-
-  // Focuses output artifacts produced by the active turn.
-  useAutoOpenOutputArtifact({
-    id,
-    selectedSessionId,
-  });
-
-  // Opens the browser panel when the agent starts browsing.
-  useAutoOpenBrowserArtifact({
-    id,
-    selectedSessionId,
-  });
+  useQuery(
+    rpcClient.workspace.browser.live.presence.experimental_liveOptions({
+      input: isVisible ? { id, level: "visible" } : skipToken,
+    }),
+  );
 
   const isLoading = isTaskLoading || isTaskStateLoading;
 
@@ -307,9 +291,8 @@ function RouteComponent() {
   return (
     <>
       <TaskView
-        artifactPanel={artifactPanel}
         attachedFolders={taskState.attachedFolders}
-        files={files}
+        pane={taskState.pane ?? TaskPane.EMPTY}
         promptDraft={taskState.promptDraft ?? ""}
         selectedModelURI={taskState.selectedModelURI}
         selectedSessionId={selectedSessionId}

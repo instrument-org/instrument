@@ -1,7 +1,5 @@
-import "@/client/styles/globals.css";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderInBrowser } from "@/tests/render-browser";
 import { describe, expect, it, vi } from "vitest";
-import { render } from "vitest-browser-react";
 
 import type * as MermaidLib from "../lib/mermaid";
 
@@ -34,15 +32,13 @@ describe("MermaidDiagram chunk-load failure", () => {
       )
       .mockResolvedValue('<svg id="mermaid-diagram-1" />');
 
-    const { container } = await render(
-      <QueryClientProvider client={new QueryClient()}>
-        <ThemeProvider>
-          <MermaidDiagram
-            code="graph TD\n  A[Start] --> B[End]"
-            language="mermaid"
-          />
-        </ThemeProvider>
-      </QueryClientProvider>,
+    const { container } = await renderInBrowser(
+      <ThemeProvider>
+        <MermaidDiagram
+          code="graph TD\n  A[Start] --> B[End]"
+          language="mermaid"
+        />
+      </ThemeProvider>,
     );
 
     // The source block is what a failed diagram falls back to, and with no

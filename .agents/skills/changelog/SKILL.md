@@ -58,7 +58,7 @@ More will follow.
 - Evals have landed!
 - A couple clicks and you can compare rich output from as many models and apps you desire.
 - Built-in prompts for standard eval apps and some goofy ones too.
-- Suport fo custom eval prompts.
+- Support for custom eval prompts.
 - Dedicated runs page with bulk actions.
 
 ## 🩹 Bug Fixes

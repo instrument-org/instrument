@@ -11,6 +11,7 @@ import {
 } from "just-bash";
 import { dedent } from "radashi";
 
+import { MOUNT } from "../mount-points";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
@@ -50,6 +51,7 @@ import {
   PYTHON_COMMAND,
 } from "./shell-commands/python";
 import { createRgCommand, RG_COMMAND } from "./shell-commands/rg";
+import { createShowCommand, SHOW_COMMAND } from "./shell-commands/show";
 import { createTsCommand, TS_COMMAND } from "./shell-commands/ts";
 import { createTscCommand, TSC_COMMAND } from "./shell-commands/tsc";
 import { createUvCommand, UV_COMMAND } from "./shell-commands/uv";
@@ -59,16 +61,9 @@ import {
 } from "./shell-commands/validate-skill";
 import { createWhichCommand } from "./shell-commands/which";
 import { taskDir } from "./task-dir-utils";
-import {
-  buildBashFs,
-  buildWorkspaceFsLayout,
-  SKILLS_MOUNT_POINT,
-  TASK_MOUNT_POINT,
-} from "./workspace-fs-layout";
+import { buildBashFs, buildWorkspaceFsLayout } from "./workspace-fs-layout";
 
-// cspell:ignore mixmark
-
-/** FS reads, HTTP bodies, maxStringLength/maxOutputSize; maxHeredocSize unchanged (10 MiB). */
+/** FS reads, HTTP bodies, maxStringLength/maxOutputSize; maxHeredocSize unchanged (64 MiB). */
 const SANDBOX_MAX_BYTES = 256 * 1024 * 1024;
 
 function stubCommand(
@@ -86,9 +81,13 @@ function stubCommand(
 
 // Commands excluded due to upstream bugs and replaced with stubs that explain
 // the situation to the agent. Each entry explains why.
+//
+// These, and the command descriptions below that steer the agent around an
+// upstream gap, are registered in docs/architecture/just-bash-upstream.md with
+// what has to be true before each can go. A workaround that outlives its bug
+// keeps the model avoiding something that works, so retire both together.
 const BROKEN_COMMANDS = new Set<CommandName>([
   "html-to-markdown", // depends on `turndown`, which requires `@mixmark-io/domino` as an undeclared peer dependency
-  "sqlite3", // resolves its worker via import.meta.url on disk; incompatible with asar bundling
   "which", // always errors in this environment; replaced with a stub below
 ]);
 
@@ -97,7 +96,6 @@ const STATIC_STUB_COMMANDS = [
     "npm",
     "npm is not available in this environment. Use 'pnpm' instead (e.g. 'pnpm add <package>').",
   ),
-  stubCommand("sqlite3", "SQLite is not available in this environment"),
 ];
 
 const commandOrderPlugin: TransformPlugin<{ commands: string[] }> = {
@@ -120,7 +118,6 @@ const commandOrderPlugin: TransformPlugin<{ commands: string[] }> = {
       }
     }
 
-    // cspell:ignore Subshell
     function walkCommand(node: CommandNode) {
       switch (node.type) {
         case "For":
@@ -180,6 +177,8 @@ const DESCRIBED_COMMANDS: Record<string, string> = {
   curl: "Download files or fetch HTTP responses (use `-L -o <path> <url>` to download a file)",
   jq: "Parse and manipulate JSON",
   rg: RG_COMMAND.description,
+  sqlite3:
+    "Query SQLite database files. Dot commands (`.tables`, `.schema`) are NOT implemented -- list tables with `select name from sqlite_master where type='table'`. Pass `-bail` or a SQL error still exits 0. `-box`/`-json`/`-csv -header` control output",
   xan: "Fast CSV processing, filtering, aggregation, and visualization",
   yq: "Parse and manipulate YAML (like jq but for YAML; e.g. `yq '.key' file.yaml`)",
 };
@@ -311,6 +310,7 @@ export function createBashDescription() {
 
   const customLines = [
     `  ${AGENT_BROWSER_COMMAND.name} - ${agentBrowserCommandDescription()}`,
+    `  ${SHOW_COMMAND.name} - ${SHOW_COMMAND.description}`,
     ...CUSTOM_COMMAND_DEFS.filter((cmd) => cmd.listInDescription).map(
       (cmd) => `  ${cmd.name} - ${cmd.description}`,
     ),
@@ -321,11 +321,11 @@ export function createBashDescription() {
   return dedent`
     Execute bash commands in the task directory.
 
-    IMPORTANT: Folders the user attaches appear as read-only mounts under \`/mnt/\`. Any write into one, including a script or command that outputs there, fails with EROFS; copy the file into the task first (e.g. \`cp '/mnt/<folder>/file' attachments/\`) and work on the copy.
+    IMPORTANT: Folders the user attaches appear as mounts under \`${MOUNT.attachedFolders}/\`, each read-only or read-and-write; the attached-folders list in your context says which. A write into a read-only one fails with EROFS. A write into a read-and-write one lands on the user's real files immediately, so treat \`rm\` there as permanent. \`rg\` searches mount paths directly, but the interpreter hatches (python, node, ffmpeg, pnpm) cannot resolve one: copy the file into the task first (e.g. \`cp '${MOUNT.attachedFolders}/<folder>/file' attachments/\`), work on the copy, and \`mv\` the result back if it belongs in the folder.
 
-    IMPORTANT: Python is available via the specialized \`${PYTHON_COMMAND.name}\`/\`${PYTHON3_COMMAND.name}\`/\`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` commands below (backed by a per-task virtualenv in work/.venv), TypeScript/JavaScript via \`${TS_COMMAND.name}\`, and package management via \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside script code run by these commands, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`${TASK_MOUNT_POINT}/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`/mnt/...\` never is (copy attached files into the task first) and paths inside script FILES on disk are never translated.
+    IMPORTANT: Python is available via the specialized \`${PYTHON_COMMAND.name}\`/\`${PYTHON3_COMMAND.name}\`/\`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` commands below (backed by a per-task virtualenv in work/.venv), TypeScript/JavaScript via \`${TS_COMMAND.name}\`, and package management via \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside script code run by these commands, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`${MOUNT.task}/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`${MOUNT.attachedFolders}/...\` never is (copy attached files into the task first) and paths inside script FILES on disk are never translated.
 
-    IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`${TASK_MOUNT_POINT}\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`${TASK_MOUNT_POINT}\`, the \`/mnt\` mounts, and \`${SKILLS_MOUNT_POINT}\` exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
+    IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`${MOUNT.task}\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`${MOUNT.task}\`, the \`${MOUNT.attachedFolders}\` mounts, and \`${MOUNT.skills}\` exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
     IMPORTANT: Backgrounding is NOT supported. Each call must complete within \`timeoutMs\`.
 
@@ -353,20 +353,24 @@ export function createBashDescription() {
 
 export async function createBashEnv({
   attachedFolders,
+  projectFolderName,
   sessionId,
   taskId,
 }: {
   attachedFolders?: Record<string, FolderAttachment.Type>;
+  projectFolderName?: string;
   sessionId: StoreId.Session;
   taskId: TaskId;
 }) {
   // The layout is the single source of truth for what the agent can see: the
-  // writable task directory mounted at /task (the working directory) plus any
-  // read-only user-attached folders under /mnt. The bash interpreter, the
+  // writable task directory mounted at /task (the working directory), the
+  // project folder at /project when the task belongs to one, plus any
+  // user-attached folders under /mnt, each read-only or writable. The bash
   // native-binary path bridge, and the dedicated file tools all route through
   // it so they agree on virtual<->real mapping.
   const layout = buildWorkspaceFsLayout({
     attachedFolders,
+    projectFolderName,
     taskHostRoot: taskDir(taskId),
   });
   const fs = await buildBashFs(layout, { maxFileReadSize: SANDBOX_MAX_BYTES });
@@ -389,18 +393,20 @@ export async function createBashEnv({
       // just-bash's own `rg`. The built-in is a TypeScript reimplementation;
       // the real binary is orders of magnitude faster on a large tree and does
       // not carry its `(?i)` and root-level-glob bugs.
-      createRgCommand({ attachedFolders, taskId }),
+      createRgCommand({ attachedFolders, projectFolderName, taskId }),
+      createShowCommand({ sessionId, taskId }),
       ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(taskId)),
       createWhichCommand(
         new Set([
           AGENT_BROWSER_COMMAND.name,
+          SHOW_COMMAND.name,
           ...allowedCommands,
           ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.name),
         ]),
       ),
       ...STATIC_STUB_COMMANDS,
     ],
-    cwd: TASK_MOUNT_POINT,
+    cwd: MOUNT.task,
     executionLimits: {
       maxOutputSize: SANDBOX_MAX_BYTES,
       maxStringLength: SANDBOX_MAX_BYTES,

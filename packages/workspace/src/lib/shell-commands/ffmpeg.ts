@@ -30,7 +30,6 @@ export function createFfmpegCommand(taskId: TaskId) {
         // commands -- a `q` anywhere in the stream aborts the encode midway.
         // This disables only that interaction; a `pipe:0`/`-` input still reads
         // the pipe.
-        // cspell:ignore nostdin
         "-nostdin",
         ...resolvePathArgs(args, taskId, ctx),
       ],

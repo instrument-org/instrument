@@ -10,7 +10,8 @@ import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { systemNote } from "../lib/system-note";
 import { taskDir } from "../lib/task-dir-utils";
-import { getTaskState } from "../lib/task-state-store";
+import { resolveTaskProjectFolder } from "../lib/task-project-folder";
+import { getTaskState } from "../lib/task-record";
 import {
   TRUNCATE_HEAD_BYTES,
   TRUNCATE_TAIL_BYTES,
@@ -63,6 +64,7 @@ export const BashTool = setupTool({
     const taskState = await getTaskState(taskDir(taskId));
     const bash = await createBashEnv({
       attachedFolders: taskState.attachedFolders,
+      projectFolderName: await resolveTaskProjectFolder(taskId),
       sessionId,
       taskId,
     });
@@ -144,10 +146,19 @@ export const BashTool = setupTool({
     const exitLine = `Exit code: ${output.exitCode}`;
     const durationLine = `Duration: ${ms(output.durationMs, { long: true })}`;
 
+    // Say that the command printed nothing rather than leaving a gap where the
+    // output would be. Silence otherwise reads as a swallowed result, and the
+    // usual next move is to run something else to find out which it was.
     if (!hasErrors && !displayOutput) {
       return {
         type: "text",
-        value: [exitLine, "", durationLine].join("\n"),
+        value: [
+          exitLine,
+          "",
+          "The command produced no output on stdout or stderr.",
+          "",
+          durationLine,
+        ].join("\n"),
       };
     }
 

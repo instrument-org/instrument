@@ -17,21 +17,25 @@ import { type SessionMessageDataPart } from "../schemas/session/message-data-par
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { absolutePathJoin } from "./absolute-path-join";
-import { assignFolderNames } from "./assign-folder-names";
+import { assignMountNames } from "./assign-mount-names";
 import { TypedError } from "./errors";
 import { findAvailableName } from "./find-available-name";
 import { getCurrentDate } from "./get-current-date";
 import { getMimeType } from "./get-mime-type";
+import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
 import { sanitizeFilename } from "./sanitize-filename";
 import { getTaskAttachmentsDir } from "./task-dir-utils";
-import { getTaskState, setTaskState } from "./task-state-store";
+import { getTaskState, setTaskState } from "./task-record";
 
 type PathFileUpload = Extract<FileUpload.Type, { path: string }>;
 interface PreparedUploadedFile {
   filename: string;
   filePath: AbsolutePath;
   input: FileUpload.Type;
+  // A source the task already holds is attached where it lies, so there is
+  // nothing to write and `filePath` names the file itself.
+  isInTask: boolean;
   mimeType: string;
   relativePath: RelativePath;
 }
@@ -45,7 +49,11 @@ export async function writeUploadedAttachments({
 }: {
   dir: TaskDir;
   files?: FileUpload.Type[];
-  folders?: { path: string; source?: FolderAttachment.Source }[];
+  folders?: {
+    access?: FolderAttachment.Access;
+    path: string;
+    source?: FolderAttachment.Source;
+  }[];
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
 }) {
@@ -60,25 +68,27 @@ export async function writeUploadedAttachments({
       });
 
       for (const preparedFile of preparedFiles) {
-        if ("path" in preparedFile.input) {
-          yield* ResultAsync.fromPromise(
-            fs.copyFile(preparedFile.input.path, preparedFile.filePath),
-            (error) =>
-              new TypedError.FileSystem(
-                error instanceof Error ? error.message : "Unknown error",
-                { cause: error },
-              ),
-          );
-        } else {
-          const buffer = Buffer.from(preparedFile.input.content, "base64");
-          yield* ResultAsync.fromPromise(
-            fs.writeFile(preparedFile.filePath, buffer),
-            (error) =>
-              new TypedError.FileSystem(
-                error instanceof Error ? error.message : "Unknown error",
-                { cause: error },
-              ),
-          );
+        if (!preparedFile.isInTask) {
+          if ("path" in preparedFile.input) {
+            yield* ResultAsync.fromPromise(
+              fs.copyFile(preparedFile.input.path, preparedFile.filePath),
+              (error) =>
+                new TypedError.FileSystem(
+                  error instanceof Error ? error.message : "Unknown error",
+                  { cause: error },
+                ),
+            );
+          } else {
+            const buffer = Buffer.from(preparedFile.input.content, "base64");
+            yield* ResultAsync.fromPromise(
+              fs.writeFile(preparedFile.filePath, buffer),
+              (error) =>
+                new TypedError.FileSystem(
+                  error instanceof Error ? error.message : "Unknown error",
+                  { cause: error },
+                ),
+            );
+          }
         }
 
         const stats = yield* ResultAsync.fromPromise(
@@ -91,6 +101,7 @@ export async function writeUploadedAttachments({
         );
 
         if (
+          !preparedFile.isInTask &&
           "path" in preparedFile.input &&
           stats.size !== preparedFile.input.size
         ) {
@@ -115,29 +126,55 @@ export async function writeUploadedAttachments({
       const taskState = await getTaskState(dir);
       const existingFolders = Object.values(taskState.attachedFolders ?? {});
 
-      const newFolders: FolderAttachment.Type[] = folders.map((folder) => ({
-        createdAt: getCurrentDate().getTime(),
-        id: FolderAttachment.IdSchema.parse(ulid()),
-        name: "",
-        path: AbsolutePathSchema.parse(folder.path),
-        source: folder.source ?? "user",
-      }));
-
-      const allFolders = [...existingFolders, ...newFolders].sort(
-        (a, b) => a.createdAt - b.createdAt,
+      // A path already attached is not attached twice: two mounts over one
+      // directory get two names and can disagree about access, and the agent
+      // would be free to write through the permissive one. Re-attaching can
+      // still tighten access -- an explicit read-only attach is the user
+      // narrowing the grant -- but never widen it silently.
+      const existingByPath = new Map(
+        existingFolders.map((folder) => [folder.path, folder]),
       );
-      const names = assignFolderNames(allFolders);
+      const newFolders: FolderAttachment.Type[] = [];
+      const tightened = new Map<string, FolderAttachment.Access>();
+      for (const folder of folders) {
+        const folderPath = AbsolutePathSchema.parse(folder.path);
+        const access = folder.access ?? "read-only";
+        const existing = existingByPath.get(folderPath);
+        if (existing) {
+          if (existing.access === "read-write" && access === "read-only") {
+            tightened.set(folderPath, access);
+          }
+          continue;
+        }
+        newFolders.push({
+          access,
+          createdAt: getCurrentDate().getTime(),
+          id: FolderAttachment.IdSchema.parse(ulid()),
+          mountName: "",
+          path: folderPath,
+          source: folder.source ?? "user",
+        });
+      }
+
+      const allFolders = [
+        ...existingFolders.map((folder) => {
+          const access = tightened.get(folder.path);
+          return access ? { ...folder, access } : folder;
+        }),
+        ...newFolders,
+      ].sort((a, b) => a.createdAt - b.createdAt);
+      const names = assignMountNames(allFolders);
 
       const nextFolders: Record<string, FolderAttachment.Type> = {};
       for (const folder of allFolders) {
-        const name = names.get(folder.id) ?? folder.name;
-        nextFolders[name] = { ...folder, name };
+        const mountName = names.get(folder.id) ?? folder.mountName;
+        nextFolders[mountName] = { ...folder, mountName };
       }
       await setTaskState(dir, { attachedFolders: nextFolders });
 
       for (const folder of newFolders) {
-        const name = names.get(folder.id) ?? folder.name;
-        folderAttachments.push({ ...folder, name });
+        const mountName = names.get(folder.id) ?? folder.mountName;
+        folderAttachments.push({ ...folder, mountName });
       }
     }
 
@@ -203,6 +240,26 @@ function prepareUploadedFiles({
     const reservedFilenames = new Set<string>();
 
     for (const file of files) {
+      if ("path" in file) {
+        yield* await validatePathUpload({ file });
+
+        // A file the task already holds is attached where it lies. Copying it
+        // into `attachments/` would fork it: the agent would work on the copy
+        // while the original the user pointed at silently went stale.
+        const inTaskPath = taskAttachmentPath({ dir, filePath: file.path });
+        if (inTaskPath) {
+          preparedFiles.push({
+            filename: file.filename,
+            filePath: file.path,
+            input: file,
+            isInTask: true,
+            mimeType: file.mimeType,
+            relativePath: inTaskPath,
+          });
+          continue;
+        }
+      }
+
       const sanitized = sanitizeFilename(file.filename);
       const uniqueFilename = yield* ResultAsync.fromPromise(
         getUniqueFilename(inputDir, sanitized, reservedFilenames),
@@ -210,10 +267,6 @@ function prepareUploadedFiles({
       );
 
       reservedFilenames.add(uniqueFilename);
-
-      if ("path" in file) {
-        yield* await validatePathUpload({ dir, file });
-      }
 
       const relativePath = RelativePathSchema.parse(
         `${TASK_FOLDER_NAMES.attachments}/${uniqueFilename}`,
@@ -223,6 +276,7 @@ function prepareUploadedFiles({
         filename: uniqueFilename,
         filePath: absolutePathJoin(dir, relativePath),
         input: file,
+        isInTask: false,
         mimeType: "path" in file ? file.mimeType : getMimeType(uniqueFilename),
         relativePath,
       });
@@ -232,13 +286,32 @@ function prepareUploadedFiles({
   });
 }
 
-function validatePathUpload({
+/**
+ * The task-relative spelling of a path already inside the task, or undefined
+ * for one outside it. The private dir counts as outside: the agent may not read
+ * it, so a file dragged out of there is copied in like any other outside file.
+ */
+function taskAttachmentPath({
   dir,
-  file,
+  filePath,
 }: {
   dir: TaskDir;
-  file: PathFileUpload;
-}) {
+  filePath: AbsolutePath;
+}): RelativePath | undefined {
+  const relative = normalizePath(path.relative(dir, filePath));
+  if (
+    relative === "" ||
+    relative === ".." ||
+    relative.startsWith("../") ||
+    path.isAbsolute(relative) ||
+    relative.split("/")[0] === TASK_FOLDER_NAMES.private
+  ) {
+    return undefined;
+  }
+  return RelativePathSchema.parse(relative);
+}
+
+function validatePathUpload({ file }: { file: PathFileUpload }) {
   return safeTry(async function* () {
     if (!path.isAbsolute(file.path)) {
       yield* err(
@@ -253,19 +326,6 @@ function validatePathUpload({
       yield* err(
         new TypedError.FileSystem(
           `Uploaded file path does not match filename: ${file.filename}`,
-        ),
-      );
-    }
-
-    const relativeSourcePath = path.relative(dir, file.path);
-    if (
-      relativeSourcePath === "" ||
-      (!relativeSourcePath.startsWith("..") &&
-        !path.isAbsolute(relativeSourcePath))
-    ) {
-      yield* err(
-        new TypedError.FileSystem(
-          `Uploaded file is already inside the task: ${file.filename}`,
         ),
       );
     }

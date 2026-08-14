@@ -30,7 +30,7 @@ The one-hour threshold is not a safe proxy for cache expiry. An active or interm
 ## Current mechanisms to preserve
 
 - `prepareModelMessages` persists two `session-context` messages and puts them before conversation history.
-- User turns already render uploaded files, attached-folder changes, browser status, external file changes, project changes, skill mentions, and intent as contextual text parts.
+- User turns already render uploaded files, attached-folder changes, browser status, open pane tabs, project changes, skill mentions, and intent as contextual text parts.
 - A max-step note is already carried from an assistant data part to the next user message. This is the precedent for delivering a persisted assistant-side delta without rewriting history.
 - `workspace-skill-index` snapshots only the writable workspace skill directory for an agent turn and reports packages that the turn created, updated, or removed.
 - `mainAgent.onFinish` already saves created and updated workspace skill names as `data-skillChanges` on the turn's last assistant message for the UI.

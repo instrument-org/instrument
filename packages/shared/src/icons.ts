@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const TAB_ICONS = [
+  "code",
   "credit-card",
   "file-text",
   "flask-conical",
@@ -10,9 +11,8 @@ const TAB_ICONS = [
   "project",
   "table-properties",
   "terminal",
-  "bug",
 ] as const;
 
 export const TabIconsSchema = z.enum(TAB_ICONS);
 
-export type TabIconName = (typeof TAB_ICONS)[number];
+export type TabIconName = z.output<typeof TabIconsSchema>;

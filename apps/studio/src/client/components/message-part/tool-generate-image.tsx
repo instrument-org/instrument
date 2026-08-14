@@ -3,36 +3,43 @@ import {
   type SessionMessagePart,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import {
-  ArrowsOutSimpleIcon,
-  ChatIcon,
-  CopyIcon,
-  ImagesIcon,
-  QuotesIcon,
-} from "@phosphor-icons/react";
-import { useNavigate } from "@tanstack/react-router";
-import { useSetAtom } from "jotai";
+import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { ImagesIcon } from "@phosphor-icons/react/Images";
+import { QuotesIcon } from "@phosphor-icons/react/Quotes";
 import { useEffect, useState } from "react";
 
-import { appendToPromptAtom } from "../../atoms/prompt-value";
+import { useTaskPaneActions } from "../../hooks/use-task-pane";
 import { copyFileToClipboard } from "../../lib/file-actions";
 import { getAssetUrl } from "../../lib/get-asset-url";
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { cn } from "../../lib/utils";
 import { AIProviderIcon } from "../ai-provider-icon";
-import { isActiveToolPart } from "../chat-stream-utils";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
 import { FileIcon } from "../file-icon";
 import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
-import { useCurrentTaskFile } from "../task/current-task-files";
+import { isActiveToolPart } from "../transcript-layout";
 import { ToolCapabilityFailure } from "./tool-capability-failure";
 import {
   ToolCard,
+  ToolCardActions,
   ToolCardHeader,
   ToolCardSection,
   ToolChip,
 } from "./tool-card";
+
+/**
+ * The room the picture takes, held from the moment the tool starts drawing.
+ *
+ * A frame sized to whatever turned up would resize twice while the reader is
+ * watching it: once when the image lands, and again if it turns out it cannot
+ * be drawn at all -- and everything below it in the transcript moves each time,
+ * for a card whose whole job is to be looked at. So the streaming preview, the
+ * finished image and the one that would not load are one box, and only what is
+ * inside it changes.
+ */
+const IMAGE_FRAME = "relative h-80 w-full overflow-hidden";
 
 type GenerateImagePart = Extract<
   SessionMessagePart.ToolPart,
@@ -83,11 +90,11 @@ export function SourceImagesChip({
         const src = getAssetUrl({
           assetBase: assetBaseUrl,
           filePath: file.filePath,
-          version: file.modifiedAt,
         });
         return (
           <ImageWithFallback
             alt="Reference"
+            arrival="icon"
             className="-ml-0.5 size-4 rounded-full border border-border/50 object-cover first:ml-0"
             fallback={fallback}
             filename={filenameFromFilePath(file.filePath)}
@@ -116,7 +123,7 @@ export function ToolGenerateImage({
   onRetry: (prompt: string) => void;
   part: GenerateImagePart;
 }) {
-  const navigate = useNavigate({ from: "/tasks/$id/" });
+  const { openFiles } = useTaskPaneActions(id);
 
   if (!part.input) {
     return null;
@@ -150,20 +157,8 @@ export function ToolGenerateImage({
   const modelName = resolveImageModelName(successOutput?.modelId);
   const modelProviderType = successOutput?.provider.type;
 
-  const openInPanel = ({
-    filePath,
-    modifiedAt,
-  }: {
-    filePath: string;
-    modifiedAt: number;
-  }) => {
-    void navigate({
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        artifactPanel: { filePath, modifiedAt, type: "file" as const },
-      }),
-    });
+  const openInPanel = ({ filePath }: { filePath: string }) => {
+    openFiles([filePath]);
   };
 
   return (
@@ -189,11 +184,7 @@ export function ToolGenerateImage({
           !isGenerating &&
           primaryFilePath &&
           primaryModifiedAt !== undefined && (
-            <ImageActions
-              filePath={primaryFilePath}
-              id={id}
-              modifiedAt={primaryModifiedAt}
-            />
+            <ImageActions filePath={primaryFilePath} id={id} />
           )}
       </ToolCardHeader>
 
@@ -208,7 +199,6 @@ export function ToolGenerateImage({
             assetBaseUrl={assetBaseUrl}
             filePath={image.filePath}
             key={index}
-            maxHeight="max-h-80"
             modifiedAt={image.modifiedAt}
             onOpen={openInPanel}
           />
@@ -257,14 +247,12 @@ export function ToolGenerateImage({
                   )}
                 >
                   {sourceImageFiles.slice(0, 4).map((file, index) => (
-                    <GeneratedImage
+                    <SourceThumbnail
                       assetBaseUrl={assetBaseUrl}
                       filePath={file.filePath}
                       key={index}
-                      maxHeight="max-h-14"
                       modifiedAt={file.modifiedAt}
                       onOpen={openInPanel}
-                      thumbnail
                     />
                   ))}
                 </div>
@@ -324,67 +312,65 @@ function formatElapsed(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
+/**
+ * The picture the tool drew, in the room the card has been holding for it.
+ *
+ * Clickable only while there is something to look at. A file that will not draw
+ * is not one the panel can open either, so the frame stops being a control
+ * rather than offering a zoom that goes nowhere.
+ */
 function GeneratedImage({
   assetBaseUrl,
   filePath,
-  maxHeight = "",
   modifiedAt,
   onOpen,
-  thumbnail = false,
 }: {
   assetBaseUrl: string;
   filePath: string;
-  maxHeight?: string;
   modifiedAt: number;
   onOpen: (file: { filePath: string; modifiedAt: number }) => void;
-  thumbnail?: boolean;
 }) {
   const filename = filenameFromFilePath(filePath);
-  const currentFile = useCurrentTaskFile(filePath);
-  const src = getAssetUrl({
-    assetBase: assetBaseUrl,
-    filePath,
-    version: currentFile?.modifiedAt ?? modifiedAt,
-  });
+  const src = getAssetUrl({ assetBase: assetBaseUrl, filePath });
+  const [undrawableSrc, setUndrawableSrc] = useState<null | string>(null);
 
-  const handleClick = () => {
-    onOpen({ filePath, modifiedAt });
-  };
+  const image = (
+    <ImageWithFallback
+      alt={filename}
+      className="size-full object-contain"
+      fallback={
+        // Fills the frame rather than sizing itself, and draws no rule of its
+        // own: the line above it is the card header's, and a second one on top
+        // of it reads as a 2px border under the filename.
+        <div className="flex size-full flex-col items-center justify-center gap-2 bg-muted">
+          <ImagesIcon className="size-6 text-muted-foreground/50" />
+          <p className="text-sm text-muted-foreground">Image not available</p>
+        </div>
+      }
+      filename={filename}
+      onError={() => {
+        setUndrawableSrc(src);
+      }}
+      src={src}
+    />
+  );
 
   return (
-    <button
-      className={cn(
-        "relative cursor-zoom-in focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-        thumbnail ? "block rounded-md" : "block w-full",
+    <div className={IMAGE_FRAME}>
+      {undrawableSrc === src ? (
+        image
+      ) : (
+        <button
+          className="block size-full cursor-zoom-in focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          onClick={() => {
+            onOpen({ filePath, modifiedAt });
+          }}
+          type="button"
+        >
+          {image}
+        </button>
       )}
-      onClick={handleClick}
-      type="button"
-    >
-      <ImageWithFallback
-        alt={filename}
-        className={cn(
-          maxHeight,
-          thumbnail ? "w-auto rounded-md" : "w-full",
-          "object-contain",
-        )}
-        fallback={
-          thumbnail ? (
-            <div className="flex size-16 items-center justify-center rounded-md border border-border bg-muted">
-              <ImagesIcon className="size-5 text-muted-foreground/50" />
-            </div>
-          ) : (
-            <div className="flex h-32 w-full flex-col items-center justify-center gap-2 border-y border-border bg-muted">
-              <ImagesIcon className="size-6 text-muted-foreground/50" />
-              <p className="text-sm text-muted-foreground">
-                Image not available
-              </p>
-            </div>
-          )
-        }
-        filename={filename}
-        src={src}
-      />
-    </button>
+    </div>
   );
 }
 
@@ -425,30 +411,11 @@ function humanizeParamKey(key: string): string {
     : key;
 }
 
-function ImageActions({
-  filePath,
-  id,
-  modifiedAt,
-}: {
-  filePath: string;
-  id: TaskId;
-  modifiedAt: number;
-}) {
-  const appendToPrompt = useSetAtom(appendToPromptAtom);
-  const navigate = useNavigate({ from: "/tasks/$id/" });
-
-  const handleAddToChat = () => {
-    appendToPrompt({ key: { scope: "task", taskId: id }, update: filePath });
-  };
+function ImageActions({ filePath, id }: { filePath: string; id: TaskId }) {
+  const { openFiles } = useTaskPaneActions(id);
 
   const handleExpand = () => {
-    void navigate({
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        artifactPanel: { filePath, modifiedAt, type: "file" as const },
-      }),
-    });
+    openFiles([filePath]);
   };
 
   const handleCopy = async () => {
@@ -456,14 +423,7 @@ function ImageActions({
   };
 
   return (
-    <div className="flex shrink-0 items-center gap-3">
-      <IconButton
-        className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
-        icon={ChatIcon}
-        onClick={handleAddToChat}
-        tooltip="Add to chat"
-        variant="ghost"
-      />
+    <ToolCardActions>
       <IconButton
         className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
         icon={ArrowsOutSimpleIcon}
@@ -479,7 +439,7 @@ function ImageActions({
         tooltip="Copy image"
         variant="ghost"
       />
-    </div>
+    </ToolCardActions>
   );
 }
 
@@ -519,6 +479,58 @@ function resolveImageModelName(
   return modelId.split("/").at(-1) ?? modelId;
 }
 
+/** One of the images the prompt was drawn from, in the reference strip. */
+function SourceThumbnail({
+  assetBaseUrl,
+  filePath,
+  modifiedAt,
+  onOpen,
+}: {
+  assetBaseUrl: string;
+  filePath: string;
+  modifiedAt: number;
+  onOpen: (file: { filePath: string; modifiedAt: number }) => void;
+}) {
+  const filename = filenameFromFilePath(filePath);
+  const src = getAssetUrl({ assetBase: assetBaseUrl, filePath });
+  const [undrawableSrc, setUndrawableSrc] = useState<null | string>(null);
+
+  const image = (
+    <ImageWithFallback
+      alt={filename}
+      className="max-h-14 w-auto rounded-md object-contain"
+      fallback={
+        // The height the thumbnail draws at, so a strip with one reference
+        // missing sits level with one where they all arrived.
+        <div className="flex size-14 items-center justify-center rounded-md bg-muted">
+          <ImagesIcon className="size-5 text-muted-foreground/50" />
+        </div>
+      }
+      filename={filename}
+      onError={() => {
+        setUndrawableSrc(src);
+      }}
+      src={src}
+    />
+  );
+
+  if (undrawableSrc === src) {
+    return image;
+  }
+
+  return (
+    <button
+      className="block cursor-zoom-in rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      onClick={() => {
+        onOpen({ filePath, modifiedAt });
+      }}
+      type="button"
+    >
+      {image}
+    </button>
+  );
+}
+
 function StreamingImagePreview({
   assetBaseUrl,
   image,
@@ -527,9 +539,7 @@ function StreamingImagePreview({
   image?: { filePath: string; modifiedAt: number };
 }) {
   return (
-    // Fixed height reserved for the whole stream so a frame landing over the
-    // skeleton doesn't shift the card; matches the finalized image's max height.
-    <div className="relative h-80 w-full overflow-hidden">
+    <div className={IMAGE_FRAME}>
       {image ? (
         <ImageWithFallback
           alt="Generating preview"
@@ -539,7 +549,6 @@ function StreamingImagePreview({
           src={getAssetUrl({
             assetBase: assetBaseUrl,
             filePath: image.filePath,
-            version: image.modifiedAt,
           })}
         />
       ) : (

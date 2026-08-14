@@ -34,14 +34,12 @@ import { useInlineRename } from "@/client/hooks/use-inline-rename";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Project } from "@instrument-org/workspace/client";
-import {
-  BagIcon,
-  CaretRightIcon,
-  DotsThreeOutlineVerticalIcon,
-  PencilSimpleLineIcon,
-  PlusIcon,
-  TrashIcon,
-} from "@phosphor-icons/react";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { PencilSimpleLineIcon } from "@phosphor-icons/react/PencilSimpleLine";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation } from "@tanstack/react-query";
 import { type MakeRouteMatchUnion } from "@tanstack/react-router";
 import { useAtom } from "jotai";
@@ -114,7 +112,7 @@ export function NavProjects({
                 openCreateProject();
               }}
             >
-              <BagIcon className="size-4 shrink-0" />
+              <CardsThreeIcon className="size-4 shrink-0" />
               <span className="flex-1 font-medium">Add a project</span>
               <PlusIcon className="size-3! shrink-0 group-hover/add:text-sidebar-foreground" />
             </SidebarMenuButton>
@@ -202,7 +200,7 @@ function NavProjectItem({
               params={{ id: project.id }}
               to="/projects/$id"
             >
-              <BagIcon className="size-4 shrink-0 text-gray-400 [[data-active=true]_&]:text-sidebar-foreground" />
+              <CardsThreeIcon className="size-4 shrink-0 text-gray-400 [[data-active=true]_&]:text-sidebar-foreground" />
               <span className="truncate" data-project-title>
                 {project.name}
               </span>

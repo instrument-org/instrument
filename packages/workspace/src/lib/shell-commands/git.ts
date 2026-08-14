@@ -14,8 +14,6 @@ import {
 } from "./utils";
 
 // Git config keys, spelled as git spells them.
-// cspell:ignore askpass fsmonitor gitproxy hookspath includeif
-// cspell:ignore quotepath receivepack sshcommand uploadpack
 
 export const GIT_COMMAND = {
   description:
@@ -68,7 +66,6 @@ const BLOCKED_CONFIG_LEAVES = new Set([
   "proxy",
   "receivepack",
   "sshcommand",
-  // cspell:ignore templatedir
   "templatedir", // Seeds .git/hooks from a directory of the agent's choosing.
   "uploadpack",
   "worktree",
@@ -94,7 +91,6 @@ const FORCED_CONFIG = [
   // An empty helper resets the list built from config files, so a
   // `git config credential.helper store` cannot reach the user's saved tokens
   // (nor osxkeychain, nor the credential manager dugite ships on GIT_EXEC_PATH).
-  // cspell:ignore osxkeychain
   "credential.helper=",
 ];
 
@@ -335,6 +331,15 @@ function rejectUnsafeArgs(args: string[]): string | undefined {
  * the value persists in the repo for every later invocation. FORCED_CONFIG
  * outranks the file for the keys it names, but it cannot preempt an arbitrary
  * `alias.<anything>`, so the write itself has to be refused.
+ *
+ * Every argument is tested rather than the one in key position, because where
+ * that position is takes parsing git's whole grammar to know. `git config set
+ * alias.x '!cmd'` (git 2.46's subcommand form) puts `set` there; any
+ * value-taking flag ahead of the key (`git config --file .git/config alias.x
+ * '!cmd'`) puts its own value there. Both spellings landed a runnable alias
+ * while the first non-flag token was checked. What the wider test costs is a
+ * read of one of these keys refused along with the write, which is a listing
+ * nobody needs rather than a capability.
  */
 function rejectUnsafeConfigWrite(args: string[]): string | undefined {
   const subcommand = findSubcommand(args);
@@ -348,8 +353,10 @@ function rejectUnsafeConfigWrite(args: string[]): string | undefined {
     return `git config ${scope} is not allowed; only a repository's own config is writable.`;
   }
 
-  const key = rest.find((arg) => !arg.startsWith("-"));
-  return key !== undefined && isBlockedConfigKey(key)
-    ? `setting ${key} is not allowed, in config files as well as on the command line.`
-    : undefined;
+  const key = rest.find(
+    (arg) => !arg.startsWith("-") && isBlockedConfigKey(arg),
+  );
+  return key === undefined
+    ? undefined
+    : `setting ${key} is not allowed, in config files as well as on the command line.`;
 }

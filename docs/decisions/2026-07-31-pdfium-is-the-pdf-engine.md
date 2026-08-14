@@ -6,7 +6,7 @@ Studio's artifact panel needed a real PDF viewer, and there are two credible eng
 
 pdfium was picked first, on the grounds that this product opens whatever a user brings from their working life — scans, filled government forms, old archives, CJK documents, whatever some generator produced a decade ago — and robustness against unknown input is where pdfium has the stronger claim: Foxit's commercial engine lineage, continuous large-scale fuzzing because it is an attack surface in Chrome, and exposure to a wider corpus of malformed documents than any other engine.
 
-That choice has one real cost. pdfium rasterizes to canvas and keeps the selection inside the engine, so `document.getSelection()` is empty no matter how much of a page is highlighted, and everything the browser derives from a selection is absent: right-click offers no Copy or Look Up, Cmd/Ctrl+C does nothing, and a right-click clears the highlight the user was reaching for. pdf.js lays a real positioned text layer over its canvas, so all of that is native browser behaviour for free.
+That choice has one real cost. pdfium rasterizes to canvas and keeps the selection inside the engine, so `document.getSelection()` is empty no matter how much of a page is highlighted, and everything the browser derives from a selection is absent: right-click offers no Copy or Look Up, Cmd/Ctrl+C does nothing, and a right-click clears the highlight the user was reaching for. pdf.js lays a real positioned text layer over its canvas, so all of that is native browser behavior for free.
 
 That gap was large enough to justify building the second viewer rather than arguing about it, so both exist and the comparison could be made on real documents.
 
@@ -16,7 +16,7 @@ pdfium is the engine. The pdf.js viewer was built, compared, and removed.
 
 Two things decided it.
 
-Rendering quality on real documents favoured pdfium, by eye, on the axis the original argument turned on. pdf.js renders footnotes and small type visibly softer on the same file at the same zoom. That was checked for the obvious mundane cause and is not one: the canvas backing store is 1756x2274 for an 878x1137 CSS box at `devicePixelRatio: 2`, so both engines rasterize at full density and the difference is genuinely in glyph rasterization.
+Rendering quality on real documents favored pdfium, by eye, on the axis the original argument turned on. pdf.js renders footnotes and small type visibly softer on the same file at the same zoom. That was checked for the obvious mundane cause and is not one: the canvas backing store is 1756x2274 for an 878x1137 CSS box at `devicePixelRatio: 2`, so both engines rasterize at full density and the difference is genuinely in glyph rasterization.
 
 The interaction gap that motivated the spike turned out to be mostly closable on pdfium. Cmd/Ctrl+C now copies, scoped by focus so the keystroke belongs to whichever viewer holds it. A right-click no longer clears the selection, because the selection plugin's pointer handler is stopped in the capture phase for the right button before it descends. And a drag no longer leaves a stray native selection over the page bitmaps, which the browser painted as an opaque grey rectangle that read as an engine rendering fault.
 
@@ -25,7 +25,7 @@ What remains genuinely impossible on pdfium is right-click Copy and Look Up. Chr
 ## Consequences
 
 - Right-click Copy and Look Up do not work over a PDF selection, and will not. Cmd/Ctrl+C is the copy path.
-- Removing pdf.js takes 6.2MB out of what was an 18MB `resources/vendor` payload — character maps, colour profiles, standard fonts and codec wasm, all of which shipped whether the flag was on or not. The recursive build-time tree walk that copied them goes with it, and the `vendor` protocol host narrows to serving wasm alone.
+- Removing pdf.js takes 6.2MB out of what was an 18MB `resources/vendor` payload — character maps, color profiles, standard fonts and codec wasm, all of which shipped whether the flag was on or not. The recursive build-time tree walk that copied them goes with it, and the `vendor` protocol host narrows to serving wasm alone.
 - It also retires three overrides that fought pdf.js's defaults, each a maintenance liability across upgrades: `content-box` restored for its subtree against Tailwind's preflight, or find highlights drift up to 2% off their words; `AnnotationMode.ENABLE` instead of `ENABLE_FORMS`, or a viewer with no save path invites people to type into a form and lose it; and link borders suppressed with `!important`, since pdf.js writes the PDF's own border as an inline style.
 - Editing, if it ever comes, is cheaper on pdfium: annotation, form filling, redaction, signature and export are further plugins over the same engine.
 - The viewer is recoverable rather than gone. Its commits stay on the pull request that introduced it, viewable after a squash-merge and restorable from the branch ref, so revisiting means reading real code rather than rebuilding from this description.

@@ -5,7 +5,9 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/client/components/ui/select";
-import { MonitorIcon, MoonIcon, SunIcon } from "@phosphor-icons/react";
+import { MonitorIcon } from "@phosphor-icons/react/Monitor";
+import { MoonIcon } from "@phosphor-icons/react/Moon";
+import { SunIcon } from "@phosphor-icons/react/Sun";
 
 export function ThemeToggle() {
   const { setTheme, theme } = useTheme();
@@ -53,7 +55,10 @@ export function ThemeToggle() {
       }}
       value={theme}
     >
-      <SelectTrigger className="bg-card bg-none dark:bg-gray-700">
+      <SelectTrigger
+        aria-label="Theme"
+        className="bg-card bg-none dark:bg-gray-700"
+      >
         {getThemeIcon()}
         {getThemeName()}
       </SelectTrigger>

@@ -23,6 +23,12 @@ function read(...segments: string[]): string {
   return fs.readFileSync(path.join(rootDir, ...segments), "utf8");
 }
 
+function readSettings(taskId: string): Record<string, unknown> {
+  return JSON.parse(
+    read("tasks", taskId, ".instrument", "settings.json"),
+  ) as Record<string, unknown>;
+}
+
 function writeLegacyTask(id: string, files: Record<string, string> = {}): void {
   const privateDir = path.join(rootDir, "projects", id, ".instrument");
   fs.mkdirSync(privateDir, { recursive: true });
@@ -40,6 +46,15 @@ function writeProjectFolder(name: string, projectId: string): void {
     JSON.stringify({ createdAt: new Date(0).toISOString(), id: projectId }),
   );
   fs.writeFileSync(path.join(rootDir, "projects", name, "AGENTS.md"), "do x");
+}
+
+function writeTaskSettings(taskId: string, settings: Record<string, unknown>) {
+  const privateDir = path.join(rootDir, "tasks", taskId, ".instrument");
+  fs.mkdirSync(privateDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(privateDir, "settings.json"),
+    JSON.stringify(settings),
+  );
 }
 
 const MARKER = [".instrument", ".legacy-projects-migrated"];
@@ -81,12 +96,10 @@ describe("migrateWorkspaceLayout", () => {
 
     // renamed + relocated under tasks/
     expect(read("tasks", "abc", ".instrument", "task.db")).toBe("db-bytes");
-    expect(read("tasks", "abc", ".instrument", "state.json")).toBe(
-      `{"showTutorial":true}`,
-    );
-    expect(read("tasks", "abc", ".instrument", "settings.json")).toBe(
-      `{"name":"My Task"}`,
-    );
+    // The legacy state file is renamed, then folded into the settings file.
+    expect(exists("tasks", "abc", ".instrument", "state.json")).toBe(false);
+    expect(readSettings("abc").state).toEqual({ showTutorial: true });
+    expect(readSettings("abc").name).toBe("My Task");
 
     // old names gone
     expect(exists("tasks", "abc", "instrument.json")).toBe(false);
@@ -106,9 +119,7 @@ describe("migrateWorkspaceLayout", () => {
 
     migrateWorkspaceLayout({ rootDir });
 
-    expect(read("tasks", "abc", ".instrument", "settings.json")).toBe(
-      `{"name":"Abc"}`,
-    );
+    expect(readSettings("abc").name).toBe("Abc");
     expect(exists("tasks", "abc", "instrument.json")).toBe(false);
   });
 
@@ -119,10 +130,100 @@ describe("migrateWorkspaceLayout", () => {
 
     migrateWorkspaceLayout({ rootDir });
 
-    expect(read("tasks", "abc", ".instrument", "settings.json")).toBe(
-      `{"name":"Abc"}`,
-    );
+    expect(readSettings("abc").name).toBe("Abc");
     expect(exists("tasks", "abc", "settings.json")).toBe(false);
+  });
+
+  describe("task timestamp stamps", () => {
+    it("seeds both from the session db, so the list keeps the order it had", () => {
+      writeTaskSettings("abc", { name: "Abc" });
+      const dbPath = path.join(
+        rootDir,
+        "tasks",
+        "abc",
+        ".instrument",
+        "task.db",
+      );
+      fs.writeFileSync(dbPath, "db");
+      const madeAt = new Date("2026-01-02T03:04:05.000Z");
+      const workedAt = new Date("2026-03-04T05:06:07.000Z");
+      fs.utimesSync(dbPath, madeAt, workedAt);
+
+      migrateWorkspaceLayout({ rootDir });
+
+      // birthtime is not settable, so only the mtime-derived stamp is asserted
+      // here: it is the one that orders the list.
+      expect(readSettings("abc").lastActivityAt).toBe(workedAt.toISOString());
+      expect(readSettings("abc").createdAt).toEqual(expect.any(String));
+    });
+
+    it("falls back to the task folder for a task that never opened a db", () => {
+      writeTaskSettings("abc", { name: "Abc" });
+
+      migrateWorkspaceLayout({ rootDir });
+
+      const folderMtime = fs
+        .statSync(path.join(rootDir, "tasks", "abc"))
+        .mtime.toISOString();
+      expect(readSettings("abc").lastActivityAt).toBe(folderMtime);
+    });
+
+    it("leaves stamps that are already recorded alone", () => {
+      writeTaskSettings("abc", {
+        createdAt: "2020-01-01T00:00:00.000Z",
+        lastActivityAt: "2021-01-01T00:00:00.000Z",
+        name: "Abc",
+      });
+      fs.writeFileSync(
+        path.join(rootDir, "tasks", "abc", ".instrument", "task.db"),
+        "db",
+      );
+
+      migrateWorkspaceLayout({ rootDir });
+
+      expect(readSettings("abc")).toEqual({
+        createdAt: "2020-01-01T00:00:00.000Z",
+        lastActivityAt: "2021-01-01T00:00:00.000Z",
+        name: "Abc",
+      });
+    });
+
+    it("fills only the stamp that is missing", () => {
+      writeTaskSettings("abc", {
+        lastActivityAt: "2021-01-01T00:00:00.000Z",
+        name: "Abc",
+      });
+
+      migrateWorkspaceLayout({ rootDir });
+
+      expect(readSettings("abc").lastActivityAt).toBe(
+        "2021-01-01T00:00:00.000Z",
+      );
+      expect(readSettings("abc").createdAt).toEqual(expect.any(String));
+    });
+
+    it("leaves a project folder that ended up under tasks/ untouched", () => {
+      writeTaskSettings("my-project", {
+        createdAt: "2020-01-01T00:00:00.000Z",
+        id: "prj_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      });
+
+      migrateWorkspaceLayout({ rootDir });
+
+      expect(readSettings("my-project").lastActivityAt).toBeUndefined();
+    });
+
+    it("skips settings it cannot read rather than overwriting them", () => {
+      const privateDir = path.join(rootDir, "tasks", "abc", ".instrument");
+      fs.mkdirSync(privateDir, { recursive: true });
+      fs.writeFileSync(path.join(privateDir, "settings.json"), "{ not json");
+
+      migrateWorkspaceLayout({ rootDir });
+
+      expect(read("tasks", "abc", ".instrument", "settings.json")).toBe(
+        "{ not json",
+      );
+    });
   });
 
   it("renames sqlite sidecar files alongside the db", () => {
@@ -184,7 +285,6 @@ describe("migrateWorkspaceLayout", () => {
   });
 
   it("never moves a real project folder, even with the marker absent", () => {
-    // cspell:ignore prj_01ARZ3NDEKTSV4RRFFQ69G5FAV
     // The regression: a populated projects/ with no marker yet. The content
     // guard must keep the real project in place regardless of the marker.
     writeProjectFolder("My Project", "prj_01ARZ3NDEKTSV4RRFFQ69G5FAV");

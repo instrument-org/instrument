@@ -1,4 +1,4 @@
-import { type CommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
+import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
@@ -14,12 +14,12 @@ import {
 
 vi.mock(import("../execa-node-for-task"));
 
-const mockCtx: CommandContext = {
+const mockCtx = createCommandContext({
   cwd: "/",
   env: new Map<string, string>(),
   fs: new InMemoryFs(),
   stdin: EMPTY_BYTES,
-};
+});
 
 describe("createPnpmCommand", () => {
   const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
@@ -270,7 +270,6 @@ describe("createPnpmCommand", () => {
 
   it.each([
     {
-      // cspell:ignore cowsay
       args: ["cowsay", "hello"],
       createCommand: createNpxCommand,
       expectedArgs: ["dlx", "cowsay", "hello"],

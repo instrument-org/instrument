@@ -90,7 +90,7 @@ The value of this shape is that **writability is a property of which root you ar
 
 **Decided: read-only attachment stays exactly as it is, as "sources." A separate affordance is added for working in a folder, which is writable.**
 
-The two differ in cardinality and lifetime, not just in access level. Sources are many, added and dropped freely, often per message, and read-only is correct for them. A working folder is one (or a small set owned by a project), chosen deliberately, stable for the life of the work, and it orients the agent. Modelling that as an item in the attachment list with a write toggle would make every reference attachment a decision about write access that nobody wanted to make.
+The two differ in cardinality and lifetime, not just in access level. Sources are many, added and dropped freely, often per message, and read-only is correct for them. A working folder is one (or a small set owned by a project), chosen deliberately, stable for the life of the work, and it orients the agent. Modeling that as an item in the attachment list with a write toggle would make every reference attachment a decision about write access that nobody wanted to make.
 
 Three consequences worth having in the plan:
 
@@ -114,9 +114,11 @@ Still required regardless, because they are not user-visible decisions:
 
 Today one mechanism does both jobs, because we own the directory: scan it, and whatever changed is what the agent did. That inference dies the moment the user can edit the same folder mid-run. Split it deliberately.
 
-**The watcher survives, for browsing.** A live file tree over the working folder is a genuinely good affordance, and it needs the watcher. [get-task-files.ts](../../../packages/workspace/src/lib/get-task-files.ts) ignores `node_modules`, `.venv`, and friends because a Python scientific stack alone runs past the index cap; that ignore list was tuned for a directory whose shape we knew. Pointed at a monorepo it needs a cap strategy and probably lazy per-directory expansion rather than a whole-tree index.
+**Browsing is polled, not watched.** A file tree over the working folder is a genuinely good affordance, and it does not need a watcher: the tree polls itself while it is on screen, which is what the file-list panel already does ([file-references-without-a-watcher.md](../completed/file-references-without-a-watcher.md)). The reason that scales here and a watcher does not is what each one's cost is proportional to. A poll costs what is expanded; a watcher costs the tree, and the tree is now one the user picked.
 
-**Attribution comes from somewhere else.** "What did the agent change this turn" cannot come from the watcher any more, because a user edit and an agent edit are the same inotify event. It has to come from the agent's own actions.
+That points at lazy per-directory reads rather than the whole-tree index. [get-task-files.ts](../../../packages/workspace/src/lib/get-task-files.ts) ignores `node_modules`, `.venv`, and friends because a Python scientific stack alone runs past the index cap, and that ignore list was tuned for a directory whose shape we knew. Pointed at a monorepo, an ignore list is a guess about someone else's repository; expanding only what the user opened is not a guess at all, and it makes the cap a per-directory concern rather than a global one.
+
+**Attribution comes from somewhere else.** "What did the agent change this turn" was never going to come from watching the directory, because a user edit and an agent edit are the same filesystem event. It has to come from the agent's own actions.
 
 **We can attribute more than "tool calls" implies, because our bash is not a real shell.** just-bash executes against a virtual `IFileSystem` we supply, so every mutation a shell command makes goes through an interface we control. The mechanism already exists and is already in production: [skill-write-tracking-fs.ts](../../../packages/workspace/src/lib/skill-write-tracking-fs.ts) wraps a filesystem and records `writeFile`, `appendFile`, `mkdir`, `rm`, `mv`, `cp`, `link`, `symlink`, `chmod`, and `utimes` without changing behavior, and it is already mounted on `/skills` in [workspace-fs-layout.ts](../../../packages/workspace/src/lib/workspace-fs-layout.ts). Wrapping `/work` in the same tracker gives per-turn attribution across the file tools and the entire shell surface, for a small fraction of the cost of snapshot-and-diff.
 
@@ -126,7 +128,7 @@ Recommended posture:
 
 - Track the virtual filesystem, which covers file tools and shell built-ins. This is the primary record and it is cheap.
 - Treat native-subprocess output as unattributed. Where a turn ran one, the record can say so rather than pretending completeness.
-- Keep the watcher as the backstop: it sees everything, attributes nothing, and is the right substrate for a browsable tree and for a debug view of what actually moved on disk during a run.
+- Let the browsable tree be the backstop: it reads the directory, so it shows everything including what a subprocess wrote, and it attributes none of it. That is the honest division. A tree the user can look at answers "what is there" without ever claiming to answer "who put it there".
 
 Neither mechanism alone is complete, and saying so in the interface is better than a change list that quietly omits what a build step did.
 
@@ -157,7 +159,7 @@ What actually has to change is four things.
 
 The hazard this brings forward is real and currently theoretical: a reserved prefix shadows a real directory of the same name. Today a task containing `mnt/` would be unreachable there, and nobody has hit it because we own the directory and never make one. A folder the user picked is a different proposition — `scratch/` is an ordinary directory name in a real repository. Options are to accept and document the shadowing (longest mount wins, which is at least consistent with the bash sandbox), or to make the reserved roots collision-proof. Do not solve it by renaming `/mnt`: that string is in the agent prompt, in stored `MountedWorkspacePath` values inside message parts, and in the file tools' path grammar.
 
-**Cache policy must key on ownership, not on "is it a mount."** The rule today is `!isMountedFile && versionMatches` for a year of `immutable`, with everything else `no-store`. That reads as "task files are ours, mounts are theirs", and the folder plan breaks the equation: `/work` may be a directory the user edits in another application while the task is closed and our watcher is not running. Restate it as **immutable only for mounts we own** — `/scratch`, and `/work` when it is backed by a private directory — and `no-store` for anything user-owned, which is what `/mnt` already gets. One condition, and it avoids serving a year-stale artifact from a folder that changed under us.
+**Cache policy must key on ownership, not on "is it a mount."** The rule today is `!isMountedFile && versionMatches` for a year of `immutable`, with everything else `no-store`. That reads as "task files are ours, mounts are theirs", and the folder plan breaks the equation: `/work` may be a directory the user edits in another application while the task is closed and nothing of ours is looking at it. Restate it as **immutable only for mounts we own** — `/scratch`, and `/work` when it is backed by a private directory — and `no-store` for anything user-owned, which is what `/mnt` already gets. One condition, and it avoids serving a year-stale artifact from a folder that changed under us.
 
 **Existence stops being guaranteed.** `taskDir(id)` is a pure join and the route calls it unconditionally, then reads `state.json` beside it. A task that never materializes a directory (change 5) has neither. The route needs to tolerate a layout with no working mount and answer 404 rather than throw, and `buildWorkspaceFsLayout` needs to be able to express that absence rather than requiring a `TaskDir`. This is small but it is on the critical path: it is the same signature change as the `WorkingDir` brand in change 1.
 
@@ -205,30 +207,16 @@ A comparable desktop agent deliberately invents **no syntax at all**. It stays i
 
 That approach has a real advantage we should not give up lightly: **it degrades perfectly.** A link is a link in any renderer, at any point in a stream, in any copied-out transcript. Its limit is exactly our requirement, though. It cannot group. Six links in a list are six chips, not one gallery.
 
-### Options
+### What was chosen, and on what evidence
 
-| Approach                                          | Groups | Named options         | Degrades to    | Model reliability             |
-| ------------------------------------------------- | ------ | --------------------- | -------------- | ----------------------------- |
-| Href-encoded, no new grammar                      | No     | Query-ish, awkward    | A working link | Highest                       |
-| Wiki-style embeds, `![[path\|opts]]`              | No     | Positional only       | Literal text   | High, common in training data |
-| Directives, `:file[path]{size=lg}` and `:::files` | Yes    | Yes                   | Literal text   | Unknown, needs testing        |
-| Fenced block with a typed payload                 | Yes    | Yes, schema-validated | A code block   | High for JSON emission        |
+A fenced block with `files` as its info string and one path per line. The full comparison and the measured results are in [presentation-syntax.md](presentation-syntax.md); the two findings that decided it:
 
-### Recommendation
+- **Every fence a model emitted was well formed** — bare paths, one per line, one fence per reply — across two models and three prompt revisions. The syntax is not what models get wrong.
+- **What they get wrong is when to reach for it**, and only wording fixes that. Neither model showed a file it had merely _found_ until the rule was stated as "any reply that names a file ends with the fence, a one-line answer included."
 
-Layer by job rather than picking one winner:
+The link in prose is untouched and remains how a single file is mentioned. Directives lost on cost rather than on capability: remark parses a fence already, so the fence needs no plugin, no grammar of ours, and no hand-written mid-stream handling.
 
-- **One file, referenced in prose:** the existing markdown link. Do not touch it. It degrades perfectly and the model already emits it correctly.
-- **One file, embedded with display options, or a group:** a single mechanism that offers both inline and block forms with one attribute grammar. Directives are the strongest candidate for this reason: `:file[report.pdf]{size=large}` inline and `:::files{layout=grid}` as a container come from one plugin, so we do not end up maintaining three parsers with three escaping rules. Our pipeline is already plain remark ([markdown.tsx:465](../../../apps/studio/src/client/components/markdown.tsx#L465) composes `remarkGfm` and `remarkBreaks`), so a directive plugin is a drop-in.
-- **Fallback if directives prove unreliable to emit:** a fenced block with a Zod-validated payload. Verbose and it interrupts prose, but models emit JSON in fenced blocks extremely reliably, and validation failure has an obvious rendering (a code block) rather than a broken one.
-
-Whatever wins, parse everything into one schema so the renderer has a single component family and one validation path.
-
-### Two constraints that should decide this
-
-**Choose it empirically, not aesthetically.** The binding constraint is not what the renderer can parse, it is what models reliably emit unprompted. Prototype two candidates, run them across models with the eval CLI, and read the transcripts. This is exactly the case the `validate-changes` guidance exists for: whether a model finds and correctly uses an affordance is not something unit tests can tell you.
-
-**It has to survive streaming.** Responses render incrementally, so the parser sees `:::files{lay` before it sees anything closeable. Any custom syntax needs a defined mid-stream appearance, or the transcript flickers raw syntax while the model types. This favors constructs with a distinctive opening token that the renderer can recognize and suppress until complete, and it is a strike against anything whose opening is indistinguishable from ordinary prose. Coordinate with [incremental-live-transcript-updates.md](incremental-live-transcript-updates.md).
+Coordinate the streaming behavior with [incremental-live-transcript-updates.md](incremental-live-transcript-updates.md).
 
 ### One consequence elsewhere
 
@@ -270,7 +258,9 @@ It should reuse the same prompt component as user-initiated folder attachment, s
 4. **Safety.** Write containment, the change record, restore story. Depends on the bash-attribution decision. The asset origin's unguessable label and non-wildcard CORS belong here, and gate phase 5 rather than following it.
 5. **The picker.** Folder connection, recent folders, project grouping, persistence.
 6. **Folderless by default.** On-demand scratch, `~/Documents/Instrument/` for deliverables, and agent-requested folder access with the in-chat permission prompt.
-7. **The file tree.** Watcher-backed live browsing of the working folder, with a cap strategy for large trees.
+7. **The file tree.** Browsing the working folder as an expandable tree, with lazy per-directory reads and a poll while it is on screen. Attached folders expand in it too, so one tree answers "what can I open" regardless of which mount a file sits on.
+
+   **Separable from the six phases above, and the only one that is.** Most of it already exists: [task-files.tsx](../../../apps/studio/src/client/components/task/task-files.tsx) builds an expandable tree, polls itself while open, and already lists attached folders. What is missing is expanding an attached folder's *contents* rather than naming it as a row, and reading a directory when it is opened rather than walking the whole task up front. Neither waits on the working-folder concept: they are improvements to a surface that ships today, and doing them first is what makes this phase small when the rest arrives.
 
 Phases 1 through 3 are invisible to the user and are most of the work. That is the honest shape of this: the feature is a folder picker, the cost is a refactor of what a task directory means.
 

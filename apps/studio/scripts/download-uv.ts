@@ -41,13 +41,11 @@ const TARGET_TRIPLES: Record<NodePlatform, Record<NodeArch, string>> = {
     x64: "x86_64-unknown-linux-gnu",
   },
   win32: {
-    // cspell:ignore msvc
     arm64: "aarch64-pc-windows-msvc",
     x64: "x86_64-pc-windows-msvc",
   },
 };
 
-// cspell:ignore bsdtar MSYS
 // Extract the downloaded archive into `extractDir`. On Windows runners the `tar`
 // on PATH is often MSYS/Git GNU tar, which can't read zips and parses the
 // `D:\...` drive-letter path as a remote host ("Cannot connect to D:"). Use

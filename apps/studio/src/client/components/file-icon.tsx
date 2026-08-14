@@ -1,172 +1,101 @@
 import {
-  FileAudioIcon,
-  FileCIcon,
-  FileCodeIcon,
-  FileCppIcon,
-  FileCSharpIcon,
-  FileCssIcon,
-  FileCsvIcon,
-  FileDocIcon,
-  FileHtmlIcon,
-  FileIniIcon,
-  FileJpgIcon,
-  FileJsIcon,
-  FileJsxIcon,
-  FileMdIcon,
-  FilePdfIcon,
-  FilePngIcon,
-  FilePptIcon,
-  FilePyIcon,
-  FileRsIcon,
-  FileSqlIcon,
-  FileSvgIcon,
-  FileTextIcon,
-  FileTsIcon,
-  FileTsxIcon,
-  FileTxtIcon,
-  FileVideoIcon,
-  FileVueIcon,
-  FileXlsIcon,
-  FileZipIcon,
-  type Icon,
-  FileIcon as PhFileIcon,
-} from "@phosphor-icons/react";
-import {
-  BsFileBinary,
-  BsFileCode,
-  BsFileEarmarkFont,
-  BsFileEarmarkImage,
-  BsFileEarmarkPpt,
-  BsFileEarmarkRichtext,
-  BsFileEarmarkSpreadsheet,
-  BsFileEarmarkWord,
-} from "react-icons/bs";
-import { type IconType } from "react-icons/lib";
+  type FileIconToken,
+  getFileIconToken,
+} from "@/client/lib/get-file-icon-token";
+import { type Icon } from "@phosphor-icons/react";
+import { BinaryIcon } from "@phosphor-icons/react/Binary";
+import { BookOpenTextIcon } from "@phosphor-icons/react/BookOpenText";
+import { CalendarBlankIcon } from "@phosphor-icons/react/CalendarBlank";
+import { DatabaseIcon } from "@phosphor-icons/react/Database";
+import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
+import { FileIcon as PhFileIcon } from "@phosphor-icons/react/File";
+import { FileArchiveIcon } from "@phosphor-icons/react/FileArchive";
+import { FileAudioIcon } from "@phosphor-icons/react/FileAudio";
+import { FileCIcon } from "@phosphor-icons/react/FileC";
+import { FileCodeIcon } from "@phosphor-icons/react/FileCode";
+import { FileCppIcon } from "@phosphor-icons/react/FileCpp";
+import { FileCSharpIcon } from "@phosphor-icons/react/FileCSharp";
+import { FileCssIcon } from "@phosphor-icons/react/FileCss";
+import { FileCsvIcon } from "@phosphor-icons/react/FileCsv";
+import { FileDocIcon } from "@phosphor-icons/react/FileDoc";
+import { FileHtmlIcon } from "@phosphor-icons/react/FileHtml";
+import { FileImageIcon } from "@phosphor-icons/react/FileImage";
+import { FileIniIcon } from "@phosphor-icons/react/FileIni";
+import { FileJpgIcon } from "@phosphor-icons/react/FileJpg";
+import { FileJsIcon } from "@phosphor-icons/react/FileJs";
+import { FileJsxIcon } from "@phosphor-icons/react/FileJsx";
+import { FileMdIcon } from "@phosphor-icons/react/FileMd";
+import { FilePdfIcon } from "@phosphor-icons/react/FilePdf";
+import { FilePngIcon } from "@phosphor-icons/react/FilePng";
+import { FilePptIcon } from "@phosphor-icons/react/FilePpt";
+import { FilePyIcon } from "@phosphor-icons/react/FilePy";
+import { FileRsIcon } from "@phosphor-icons/react/FileRs";
+import { FileSqlIcon } from "@phosphor-icons/react/FileSql";
+import { FileSvgIcon } from "@phosphor-icons/react/FileSvg";
+import { FileTextIcon } from "@phosphor-icons/react/FileText";
+import { FileTsIcon } from "@phosphor-icons/react/FileTs";
+import { FileTsxIcon } from "@phosphor-icons/react/FileTsx";
+import { FileTxtIcon } from "@phosphor-icons/react/FileTxt";
+import { FileVideoIcon } from "@phosphor-icons/react/FileVideo";
+import { FileVueIcon } from "@phosphor-icons/react/FileVue";
+import { FileXlsIcon } from "@phosphor-icons/react/FileXls";
+import { FileZipIcon } from "@phosphor-icons/react/FileZip";
+import { IdentificationCardIcon } from "@phosphor-icons/react/IdentificationCard";
+import { PresentationIcon } from "@phosphor-icons/react/Presentation";
+import { SubtitlesIcon } from "@phosphor-icons/react/Subtitles";
+import { TableIcon } from "@phosphor-icons/react/Table";
+import { TextAaIcon } from "@phosphor-icons/react/TextAa";
 
-import { EXTENSION_MAP } from "../lib/file-extension-to-language";
-
-type AnyIcon = Icon | IconType;
-
-const EXTENSION_ICON_MAP: Record<string, AnyIcon | null> = {
-  // --- Phosphor first-class file icons ---
+// One icon set, so every glyph carries the same stroke weight. Where the set
+// draws no page for a format, the token takes the icon that names the thing
+// itself -- a database, an envelope, a table -- rather than a page from
+// elsewhere that would sit heavier than its neighbors.
+const TOKEN_ICONS: Record<FileIconToken, Icon> = {
+  archive: FileArchiveIcon,
+  audio: FileAudioIcon,
+  binary: BinaryIcon,
   c: FileCIcon,
-  cc: FileCppIcon,
-  cjs: FileJsIcon,
+  calendar: CalendarBlankIcon,
+  code: FileCodeIcon,
+  config: FileCodeIcon,
+  contact: IdentificationCardIcon,
   cpp: FileCppIcon,
-  cs: FileCSharpIcon,
+  csharp: FileCSharpIcon,
   css: FileCssIcon,
   csv: FileCsvIcon,
-  cts: FileTsIcon,
-  cxx: FileCppIcon,
-  doc: FileDocIcon,
-  docx: FileDocIcon,
-  h: FileCIcon,
-  hpp: FileCppIcon,
-  htm: FileHtmlIcon,
+  database: DatabaseIcon,
+  document: FileTextIcon,
+  ebook: BookOpenTextIcon,
+  email: EnvelopeSimpleIcon,
+  font: TextAaIcon,
   html: FileHtmlIcon,
+  image: FileImageIcon,
   ini: FileIniIcon,
-  jpeg: FileJpgIcon,
+  javascript: FileJsIcon,
   jpg: FileJpgIcon,
-  js: FileJsIcon,
   jsx: FileJsxIcon,
-  md: FileMdIcon,
-  mdx: FileMdIcon,
-  mjs: FileJsIcon,
-  mts: FileTsIcon,
+  markdown: FileMdIcon,
   pdf: FilePdfIcon,
   png: FilePngIcon,
-  ppt: FilePptIcon,
-  pptx: FilePptIcon,
-  py: FilePyIcon,
-  rs: FileRsIcon,
+  presentation: FilePptIcon,
+  python: FilePyIcon,
+  richtext: FileTextIcon,
+  rust: FileRsIcon,
+  slides: PresentationIcon,
+  spreadsheet: FileXlsIcon,
   sql: FileSqlIcon,
+  subtitle: SubtitlesIcon,
   svg: FileSvgIcon,
-  toml: FileIniIcon,
-  ts: FileTsIcon,
+  table: TableIcon,
+  text: FileTextIcon,
   tsx: FileTsxIcon,
   txt: FileTxtIcon,
+  typescript: FileTsIcon,
+  unknown: PhFileIcon,
+  video: FileVideoIcon,
   vue: FileVueIcon,
-  xls: FileXlsIcon,
-  xlsx: FileXlsIcon,
-  yaml: FileCodeIcon,
-  yml: FileCodeIcon,
-
-  // --- Archives ---
-  "7z": FileZipIcon,
-  gz: FileZipIcon,
-  rar: FileZipIcon,
-  tar: FileZipIcon,
+  word: FileDocIcon,
   zip: FileZipIcon,
-
-  // --- Audio (Phosphor FileAudioIcon) ---
-  aac: FileAudioIcon,
-  flac: FileAudioIcon,
-  m4a: FileAudioIcon,
-  mp3: FileAudioIcon,
-  ogg: FileAudioIcon,
-  wav: FileAudioIcon,
-
-  // --- Video (Phosphor FileVideoIcon) ---
-  avi: FileVideoIcon,
-  mkv: FileVideoIcon,
-  mov: FileVideoIcon,
-  mp4: FileVideoIcon,
-  webm: FileVideoIcon,
-
-  // --- Images not covered by Phosphor specifics ---
-  ai: BsFileEarmarkImage,
-  bmp: BsFileEarmarkImage,
-  gif: BsFileEarmarkImage,
-  heic: BsFileEarmarkImage,
-  psd: BsFileEarmarkImage,
-  raw: BsFileEarmarkImage,
-  tif: BsFileEarmarkImage,
-  tiff: BsFileEarmarkImage,
-  webp: BsFileEarmarkImage,
-
-  // --- Office / docs ---
-  epub: BsFileEarmarkRichtext,
-  key: BsFileEarmarkPpt,
-  numbers: BsFileEarmarkSpreadsheet,
-  odf: BsFileEarmarkRichtext,
-  odp: BsFileEarmarkPpt,
-  ods: BsFileEarmarkSpreadsheet,
-  odt: BsFileEarmarkWord,
-  odw: BsFileEarmarkWord,
-  pages: BsFileEarmarkWord,
-  rtf: BsFileEarmarkRichtext,
-  tsv: BsFileEarmarkSpreadsheet,
-
-  // --- Fonts ---
-  otf: BsFileEarmarkFont,
-  ttf: BsFileEarmarkFont,
-  woff: BsFileEarmarkFont,
-  woff2: BsFileEarmarkFont,
-
-  // --- Binary / executable ---
-  dll: BsFileBinary,
-  // cspell:ignore dylib
-  dylib: BsFileBinary,
-  exe: BsFileBinary,
-  so: BsFileBinary,
-};
-
-// Populate all code-language extensions that aren't already explicitly mapped
-// above with BsFileCode as a generic code fallback.
-for (const ext of Object.keys(EXTENSION_MAP)) {
-  if (!(ext in EXTENSION_ICON_MAP)) {
-    EXTENSION_ICON_MAP[ext] = BsFileCode;
-  }
-}
-
-const FILENAME_ICON_MAP: Record<string, AnyIcon | null> = {
-  ".env": FileIniIcon,
-  ".gitignore": FileCodeIcon,
-  changelog: FileTxtIcon,
-  dockerfile: FileCodeIcon,
-  license: FileTxtIcon,
-  makefile: FileCodeIcon,
-  readme: FileMdIcon,
 };
 
 export function FileIcon({
@@ -180,34 +109,8 @@ export function FileIcon({
   filename: string;
   mimeType?: string;
 }) {
-  const lowerName = filename.toLowerCase();
-  let IconComponent: AnyIcon = PhFileIcon;
-
-  if (FILENAME_ICON_MAP[lowerName]) {
-    IconComponent = FILENAME_ICON_MAP[lowerName];
-  } else {
-    const ext = getFileExtension(filename);
-    if (ext && EXTENSION_ICON_MAP[ext]) {
-      IconComponent = EXTENSION_ICON_MAP[ext] ?? IconComponent;
-    } else if (
-      fallbackExtension &&
-      EXTENSION_ICON_MAP[fallbackExtension.toLowerCase()]
-    ) {
-      IconComponent =
-        EXTENSION_ICON_MAP[fallbackExtension.toLowerCase()] ?? IconComponent;
-    } else if (mimeType?.startsWith("text/")) {
-      IconComponent = FileTextIcon;
-    }
-  }
+  const IconComponent =
+    TOKEN_ICONS[getFileIconToken({ fallbackExtension, filename, mimeType })];
 
   return <IconComponent className={className} />;
-}
-
-function getFileExtension(filename: string): string {
-  const lowerName = filename.toLowerCase();
-  const lastDotIndex = lowerName.lastIndexOf(".");
-  if (lastDotIndex === -1 || lastDotIndex === 0) {
-    return "";
-  }
-  return lowerName.slice(lastDotIndex + 1);
 }

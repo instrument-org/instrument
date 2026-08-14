@@ -1,6 +1,7 @@
+import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
-import react from "@vitejs/plugin-react";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
@@ -19,7 +20,6 @@ export default defineConfig({
       "@extend-ai/react-xlsx",
     ],
     include: [
-      // cspell:ignore utif regl
       "@extend-ai/react-docx > utif",
       "@extend-ai/react-pptx > regl",
       "@extend-ai/react-xlsx > regl",
@@ -32,7 +32,8 @@ export default defineConfig({
       generatedRouteTree: path.join(studioSrc, "client/routeTree.gen.ts"),
       routesDirectory: path.join(studioSrc, "client/routes"),
     }),
-    react({ babel: { plugins: ["babel-plugin-react-compiler"] } }),
+    react(),
+    babel({ presets: [reactCompilerPreset()] }),
     tailwindcss(),
   ],
   resolve: {

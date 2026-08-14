@@ -105,7 +105,7 @@ export function ArchiveViewer({ url }: { url: string }) {
           {shown.length.toLocaleString()}{" "}
           {shown.length === 1 ? "item" : "items"}
           {/* Sizes are what the archive says about itself, which is exactly
-              what a compression bomb overstates, so the total is labelled as a
+              what a compression bomb overstates, so the total is labeled as a
               claim rather than presented as a measurement. */}
           {` · ${formatBytes(totalBytes)} unpacked`}
         </span>

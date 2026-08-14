@@ -62,14 +62,9 @@ export const debugCardRoutes = debugRoutes.filter(
 
 export const componentPages = [
   {
-    id: "chat-stream",
-    label: "Chat",
-    to: "/debug/components/chat-stream",
-  },
-  {
-    id: "data-parts",
-    label: "Data parts",
-    to: "/debug/components/data-parts",
+    id: "transcript",
+    label: "Transcript",
+    to: "/debug/components/transcript",
   },
   {
     id: "error-card",

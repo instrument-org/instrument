@@ -1,6 +1,5 @@
 // The scroll fade is a real stylesheet rule driven by a real scroll timeline,
 // so this file needs the app's CSS rather than bare markup.
-import "@/client/styles/globals.css";
 import { type ComponentProps, createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
@@ -22,8 +21,8 @@ const noop = () => {
 };
 
 const editorProps = {
+  actions: [],
   disabled: false,
-  maxHeight: 200,
   onPaste: () => false,
   onSubmit: noop,
   skills: [] as ComponentProps<typeof PromptEditor>["skills"],
@@ -43,16 +42,20 @@ const ffmpegSkill = {
 function renderEditor(defaultValue = "", skills = editorProps.skills) {
   const onChange = vi.fn();
   const ref = createRef<PromptEditorRef>();
+  // The editor fills the column it is given, so the height it has to work
+  // within belongs to the host -- here a stand-in for the composer's box.
   // `render` reports a thenable so it can be awaited; nothing here needs to.
   void render(
-    <PromptEditor
-      {...editorProps}
-      autoFocus
-      defaultValue={defaultValue}
-      onChange={onChange}
-      ref={ref}
-      skills={skills}
-    />,
+    <div style={{ display: "flex", flexDirection: "column", height: 200 }}>
+      <PromptEditor
+        {...editorProps}
+        autoFocus
+        defaultValue={defaultValue}
+        onChange={onChange}
+        ref={ref}
+        skills={skills}
+      />
+    </div>,
   );
   return { onChange, ref };
 }

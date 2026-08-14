@@ -3,12 +3,12 @@
     "DavidAnson.vscode-markdownlint",
     "dbaeumer.vscode-eslint",
     "oxc.oxc-vscode",
-    "streetsidesoftware.code-spell-checker",
     "vitest.explorer",
     "redhat.vscode-yaml",
     "csstools.postcss",
     "bradlc.vscode-tailwindcss",
     "GitHub.vscode-github-actions",
-    "TypeScriptTeam.native-preview"
+    "TypeScriptTeam.native-preview",
+    "tekumara.typos-vscode"
   ]
 }

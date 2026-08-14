@@ -2,6 +2,7 @@ import type { Protocol } from "devtools-protocol";
 import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 
 import { type BrowserTargetId } from "@instrument-org/workspace/electron";
+import { sleep } from "radashi";
 
 import type { BrowserEntry } from "./entry";
 
@@ -14,17 +15,45 @@ import { log } from "./log";
 import { handlePrintToPDF } from "./print-to-pdf";
 import { startScreencast, stopScreencast } from "./screencast";
 
+// CDP commands that put text or key events into the page. Chromium routes
+// keyboard input to the widget that holds keyboard focus, not to the
+// WebContents whose debugger carried the command, and the guest is an inner
+// WebContents of the Studio renderer. So when the host holds focus these are
+// delivered to Studio's own UI instead of the page -- into whatever the user
+// last clicked, with every newline arriving as an Enter the prompt input
+// submits on. Mouse, scroll, and touch commands are routed by hit-testing
+// against the target's own surface and stay in the guest either way.
+const KEYBOARD_COMMANDS = new Set([
+  "Input.dispatchKeyEvent",
+  "Input.imeSetComposition",
+  "Input.insertText",
+]);
+
+// A page busy enough not to answer this promptly is one we should not be
+// typing into blind, so a timeout reads as "no focus" like any other failure.
+const FOCUS_PROBE_TIMEOUT_MS = 1000;
+
+// The focus request crosses to the renderer and back through a stream, so the
+// guest does not hold focus the instant we ask. Poll briefly rather than
+// sleeping a fixed amount, so the common case costs one extra probe.
+const FOCUS_REPAIR_TIMEOUT_MS = 1000;
+const FOCUS_REPAIR_POLL_MS = 50;
+
 export async function sendCommand({
   ensureDebuggerAttached,
   entries,
   method,
   params,
+  requestGuestFocus,
   targetId,
 }: {
   ensureDebuggerAttached: (entry: BrowserEntry) => void;
   entries: Map<BrowserTargetId, BrowserEntry>;
   method: string;
   params: unknown;
+  // Absent only in tests that do not exercise the repair; without it a guest
+  // that has lost focus can only be refused, which is the safe direction.
+  requestGuestFocus?: (targetId: BrowserTargetId) => void;
   targetId: BrowserTargetId;
 }): Promise<unknown> {
   const entry = entries.get(targetId);
@@ -131,6 +160,30 @@ export async function sendCommand({
     );
   }
 
+  if (
+    KEYBOARD_COMMANDS.has(method) &&
+    !(await guestHoldsKeyboardFocus(entry))
+  ) {
+    // The agent's commands arrive as separate tool calls seconds apart, and
+    // host focus is handed back once a target goes quiet, so a guest the agent
+    // clicked will normally have lost focus again by the time the keystrokes
+    // for it arrive. Take focus back rather than refuse: the guest's own
+    // activeElement survives, so this lands the keys on whatever was clicked.
+    // Logged either way: together these say how often agent typing arrives at
+    // a guest that has already handed focus back, which is the normal case
+    // whenever Studio itself is the focused window.
+    if (await repairGuestKeyboardFocus(entry, requestGuestFocus)) {
+      log.info(`reclaimed keyboard focus for ${method} targetId=${targetId}`);
+    } else {
+      log.warn(
+        `refused ${method} targetId=${targetId}: guest does not hold keyboard focus and could not reclaim it`,
+      );
+      throw new Error(
+        "Keyboard input was not delivered: this browser tab does not hold keyboard focus, so the keystrokes would go to the desktop app's own window instead of the page. Click the element you want to type into first (e.g. `agent-browser click @e5`), then send the keys again.",
+      );
+    }
+  }
+
   try {
     const wc = entry.webContents;
     if (!wc) {
@@ -139,7 +192,7 @@ export async function sendCommand({
 
     // Pass-through: BrowserConfig.sendCommand is a string-keyed bridge from
     // an out-of-process Rust client (agent-browser), so we cannot type the
-    // method here. Typed call sites use sendCdpCommand directly above.
+    // method here.
     //
     // 5s covers all normal commands on a live renderer; stuck renderers fail
     // fast so agent-browser gets a real error instead of a 30s silent hang.
@@ -241,4 +294,56 @@ function getWindowForTargetStub(): Protocol.Browser.GetWindowForTargetResponse {
     },
     windowId: 1,
   };
+}
+
+// Whether the guest currently holds Chromium's keyboard focus, which is the
+// precondition for CDP keyboard input reaching it at all. Asked of the guest
+// document rather than derived from our own bookkeeping: `webContents`
+// focus state is unreliable for `<webview>` guests, and a page-level `focus()`
+// call does not move focus across the process boundary, so only the guest can
+// answer this. Fails closed on every error path.
+async function guestHoldsKeyboardFocus(entry: BrowserEntry): Promise<boolean> {
+  const wc = entry.webContents;
+  if (!wc || wc.isDestroyed()) {
+    return false;
+  }
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const hasFocus: unknown = await Promise.race([
+      wc.executeJavaScript("document.hasFocus()"),
+      new Promise<false>((resolve) => {
+        timeout = setTimeout(() => {
+          resolve(false);
+        }, FOCUS_PROBE_TIMEOUT_MS);
+      }),
+    ]);
+    return hasFocus === true;
+  } catch {
+    return false;
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  }
+}
+
+// Ask the renderer to focus the guest, then wait for the guest to agree that
+// it holds focus. Returns false when no repair channel was supplied or the
+// guest never took focus, which keeps the caller failing closed.
+async function repairGuestKeyboardFocus(
+  entry: BrowserEntry,
+  requestGuestFocus?: (targetId: BrowserTargetId) => void,
+): Promise<boolean> {
+  if (!requestGuestFocus) {
+    return false;
+  }
+  requestGuestFocus(entry.targetId);
+  const deadline = Date.now() + FOCUS_REPAIR_TIMEOUT_MS;
+  do {
+    await sleep(FOCUS_REPAIR_POLL_MS);
+    if (await guestHoldsKeyboardFocus(entry)) {
+      return true;
+    }
+  } while (Date.now() < deadline);
+  return false;
 }

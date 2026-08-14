@@ -4,74 +4,114 @@ import {
 } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
-import { dataPartVisibility } from "./chat-stream-data-parts";
+import { dataPartVisibility, renderDataPart } from "./chat-stream-data-parts";
+import { type RenderPartContext } from "./chat-stream-render-part";
 
 const sessionId = StoreId.newSessionId();
 const messageId = StoreId.newMessageId();
 
-function fileChangesPart(
-  files: { filePath: string; status?: "added" | "deleted" | "modified" }[],
-): SessionMessagePart.DataPart {
-  return {
-    data: {
-      files: files.map(({ filePath, status = "added" }) => ({
-        filename: filePath.split("/").at(-1) ?? filePath,
-        // Branded relative path; `as never` skips the client-side schema
-        // validation the same way the session fixtures do.
-        filePath: filePath as never,
-        mimeType: "text/markdown",
-        modifiedAt: 0,
-        size: 1,
-        status,
-      })),
-    },
+/**
+ * A part outlives the feature that wrote it. `data-gitCommit` is still sitting
+ * in tasks from before git-based file versioning was removed, and parts are cast
+ * to their type on read rather than parsed, so one reaches the transcript with a
+ * type nothing here has a case for.
+ *
+ * It used to reach the renderer's exhaustiveness check, which returned the part
+ * itself -- React was handed an object as a child and the whole transcript went
+ * down rather than the one row.
+ */
+describe("a data part this build has never heard of", () => {
+  const retiredPart = {
+    data: { ref: "abc123" },
     metadata: {
       createdAt: new Date(0),
       id: StoreId.newPartId(),
       messageId,
       sessionId,
     },
-    type: "data-fileChanges",
-  };
-}
+    type: "data-gitCommit",
+  } as unknown as SessionMessagePart.DataPart;
 
-describe("dataPartVisibility", () => {
-  it.each([
-    {
-      expected: "always",
-      label: "output deliverable",
-      paths: ["output/report.md"],
-    },
-    { expected: "always", label: "root-level file", paths: ["report.md"] },
-    { expected: "always", label: "download", paths: ["downloads/logo.png"] },
-    {
-      expected: "always",
-      label: "one surfaced path among hidden ones",
-      paths: ["work/src/app.tsx", "output/report.md"],
-    },
-    {
-      expected: "hidden",
-      label: "skill files copied into work/",
-      paths: [
-        "work/skills/instrument/agent-browser/references/commands.md",
-        "work/skills/instrument/agent-browser/references/profiling.md",
-      ],
-    },
-    { expected: "hidden", label: "root dotfile", paths: [".gitignore"] },
-    { expected: "hidden", label: "no files at all", paths: [] },
-  ])("is $expected for $label", ({ expected, paths }) => {
-    expect(
-      dataPartVisibility(
-        fileChangesPart(paths.map((filePath) => ({ filePath }))),
-      ),
-    ).toBe(expected);
+  it("draws nothing", () => {
+    expect(dataPartVisibility(retiredPart)).toBe("hidden");
   });
 
-  it("is hidden when every surfaced file was deleted", () => {
+  it("renders as nothing rather than as itself", () => {
     expect(
-      dataPartVisibility(
-        fileChangesPart([{ filePath: "output/report.md", status: "deleted" }]),
+      renderDataPart({
+        browserStatusContextAdded: false,
+        ctx: { isDeveloperMode: true } as unknown as RenderPartContext,
+        part: retiredPart,
+      }),
+    ).toBeNull();
+  });
+});
+
+/**
+ * The one retired part that is still read.
+ *
+ * Written by the directory watcher, which reported everything a turn touched,
+ * so what it holds is mostly the scratch the agent worked in. It survives
+ * because a task from before the ` ```files ` fence has no other record of what
+ * a turn produced, and it renders as the same grid a fence does.
+ */
+describe("a file-changes part from before the fence", () => {
+  const partWith = (
+    files: { filePath: string; status: string }[],
+  ): SessionMessagePart.DataPart =>
+    ({
+      data: { files },
+      metadata: {
+        createdAt: new Date(0),
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
+      type: "data-fileChanges",
+    }) as unknown as SessionMessagePart.DataPart;
+
+  const render = (
+    part: SessionMessagePart.DataPart,
+    pathsAlreadyShown?: ReadonlySet<string>,
+  ) =>
+    renderDataPart({
+      browserStatusContextAdded: false,
+      ctx: { isDeveloperMode: false } as unknown as RenderPartContext,
+      part,
+      pathsAlreadyShown,
+    });
+
+  it("shows a deliverable to everyone, not just developers", () => {
+    expect(dataPartVisibility(partWith([]))).toBe("always");
+    expect(
+      render(partWith([{ filePath: "output/chart.png", status: "added" }])),
+    ).not.toBeNull();
+  });
+
+  // The reason the card was worth deleting: `work/` is where the agent writes
+  // the script that makes the deliverable, and the watcher reported all of it.
+  it("draws nothing for a turn that only touched scratch", () => {
+    expect(
+      render(
+        partWith([
+          { filePath: "work/build.py", status: "added" },
+          { filePath: "work/data.json", status: "modified" },
+          { filePath: "attachments/logo.png", status: "added" },
+        ]),
       ),
-    ).toBe("hidden");
+    ).toBeNull();
+  });
+
+  it("leaves out a file the turn deleted", () => {
+    expect(
+      render(partWith([{ filePath: "output/gone.png", status: "deleted" }])),
+    ).toBeNull();
+  });
+
+  it("leaves out a file the reply already showed", () => {
+    const part = partWith([{ filePath: "output/chart.png", status: "added" }]);
+
+    expect(render(part)).not.toBeNull();
+    expect(render(part, new Set(["output/chart.png"]))).toBeNull();
   });
 });

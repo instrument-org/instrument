@@ -10,7 +10,7 @@ import { dedent, sleep } from "radashi";
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { CDP_PAGE_PATH_PREFIX } from "../../logic/server/constants";
 import { getWorkspaceServerPort } from "../../logic/server/url";
-import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../../schemas/paths";
+import { MOUNT } from "../../mount-points";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { WebSearch } from "../../tools/web-search";
@@ -30,6 +30,7 @@ import {
 import { recordBrowserUse } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isTaskId } from "../is-task-id";
+import { isAtOrUnder } from "../path-containment";
 import {
   getBrowserSessionDir,
   getDownloadsDir,
@@ -41,7 +42,6 @@ import { getWorkspaceConfig } from "../workspace-config";
 import {
   privateMountPoint,
   resolveNativeHostPath,
-  TASK_MOUNT_POINT,
 } from "../workspace-fs-layout";
 import {
   agentBrowserFlagName,
@@ -188,7 +188,6 @@ const PROXY_ENV_VARS = new Set([
   "https_proxy",
 ]);
 
-// cspell:ignore networkidle scrollintoview
 const WORKSPACE_HELP_MANAGED = dedent`
   agent-browser - Control the task's managed browser.
 
@@ -205,8 +204,8 @@ const WORKSPACE_HELP_MANAGED = dedent`
 
   Inspecting a file you created:
     agent-browser open output/report.html   Task files load in the browser
-    agent-browser open /task/output/x.html  Task-relative, /task/..., /mnt/...,
-                                            and file:///task/... all work
+    agent-browser open ${MOUNT.task}/output/x.html  Task-relative, ${MOUNT.task}/..., ${MOUNT.attachedFolders}/...,
+                                            and file://${MOUNT.task}/... all work
   Use this to check an HTML deliverable end to end -- rendered layout, interactivity, and console errors -- not just its source.
 
   Reading page content:
@@ -389,28 +388,18 @@ export async function resolveAgentBrowserPathArgs(
   for (const { index, value } of subArgs.slice(2)) {
     const virtualPath = ctx.fs.resolvePath(ctx.cwd, value);
 
-    if (
-      virtualPath === ATTACHED_FOLDERS_MOUNT_ROOT ||
-      virtualPath.startsWith(`${ATTACHED_FOLDERS_MOUNT_ROOT}/`)
-    ) {
+    if (isAtOrUnder(MOUNT.attachedFolders, virtualPath)) {
       return { error: attachedMountLiteralError("Upload") };
     }
 
-    const privateDir = privateMountPoint(TASK_MOUNT_POINT);
-    if (
-      virtualPath === privateDir ||
-      virtualPath.startsWith(`${privateDir}/`)
-    ) {
+    if (isAtOrUnder(privateMountPoint(MOUNT.task), virtualPath)) {
       return { error: privateDirLiteralError("Upload") };
     }
 
-    if (
-      virtualPath !== TASK_MOUNT_POINT &&
-      !virtualPath.startsWith(`${TASK_MOUNT_POINT}/`)
-    ) {
+    if (!isAtOrUnder(MOUNT.task, virtualPath)) {
       return {
         error:
-          `Upload file "${virtualPath}" is outside ${TASK_MOUNT_POINT}. ` +
+          `Upload file "${virtualPath}" is outside ${MOUNT.task}. ` +
           `Copy the file into the task first and use a task-relative path.`,
       };
     }
@@ -427,7 +416,7 @@ export async function resolveAgentBrowserPathArgs(
 /**
  * Refuse `--executable-path`. It is the one flag whose value the CLI runs as a
  * program, and an external invocation runs on the host with the user's own
- * environment rather than the sandbox's, so honouring it would let a file the
+ * environment rather than the sandbox's, so honoring it would let a file the
  * agent wrote in the task execute outside every boundary the rest of this
  * environment keeps -- with the user's credentials in its env. Nothing legitimate
  * needs it: the app ships the browser it drives, and `--profile` covers acting
@@ -759,9 +748,9 @@ export function createAgentBrowserCommand({
     const spawnEnv = {
       ...baseEnv,
       // `agent-browser record` spawns a real `ffmpeg` process by bare name,
-      // resolved against PATH. The bundled ffmpeg-static binary isn't on the
-      // sandbox PATH, so prepend its dir (the in-bash `ffmpeg` command is a
-      // just-bash intercept that a separate subprocess can't see).
+      // resolved against PATH. The bundled ffmpeg binary isn't on the sandbox
+      // PATH, so prepend its dir (the in-bash `ffmpeg` command is a just-bash
+      // intercept that a separate subprocess can't see).
       ...ffmpegSubprocessEnv(baseEnv.PATH),
       // Wins over whichever temp dir the base env carries.
       ...(externalTmpDir
@@ -855,7 +844,7 @@ export function createAgentBrowserCommand({
  */
 export function isExternalBrowserInvocation(args: string[]): boolean {
   // Reads the flags the CLI will actually consume as globals, so an inline
-  // `--cdp=9222` -- which upstream does not honour, leaving it to be read as
+  // `--cdp=9222` -- which upstream does not honor, leaving it to be read as
   // the subcommand -- does not route anywhere the CLI would not go.
   const { globalFlags } = parseAgentBrowserArgs(args);
   let providerName: string | undefined;

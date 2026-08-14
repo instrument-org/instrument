@@ -1,5 +1,14 @@
 import { dedent } from "radashi";
 
+import { AGENT_FILES_LANGUAGE } from "../../constants";
+
+/**
+ * The deliverable the replay writes, named once because three things have to
+ * agree on it: the tool call that writes it, the fence that hands it to the
+ * user, and the pane the replay opens it in.
+ */
+const TUTORIAL_FILE_PATH = "output/instrument-tutorial.md";
+
 export const TUTORIAL_TASK_REPLAY = {
   steps: [
     {
@@ -64,20 +73,24 @@ export const TUTORIAL_TASK_REPLAY = {
            This shows code writing, execution, data export, and practical automation.
       `.trim(),
       explanation: "Creating an Instrument tutorial file for you",
-      filePath: "./output/instrument-tutorial.md",
+      filePath: `./${TUTORIAL_FILE_PATH}`,
       kind: "writeFile",
       toolCallId: "call_tutorialTaskWrite",
     },
     {
       kind: "assistantText",
       text: dedent`
-        I've successfully created a tutorial file for you and attached it below. It covers what Instrument can do, how it differs from typical AI tools, and several example prompts for work and personal use.
+        I've successfully created a tutorial file for you, opened it beside the conversation, and attached it below. It covers what Instrument can do, how it differs from typical AI tools, and several example prompts for work and personal use.
 
         I can also tailor my advice to you. Answer these questions so I can help you find ways to use Instrument for your own tasks.
 
         1. What kinds of tasks are you usually responsible for at work (e.g., coding, content creation, data analysis, personal organization)?
         2. Do you have any specific apps, programming languages, or file types you work with regularly?
         3. What parts of your daily work or personal productivity usually take the most time or feel repetitive?
+
+        \`\`\`${AGENT_FILES_LANGUAGE}
+        ${TUTORIAL_FILE_PATH}
+        \`\`\`
       `.trim(),
     },
   ],

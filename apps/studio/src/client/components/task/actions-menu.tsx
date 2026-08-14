@@ -12,17 +12,17 @@ import {
   type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import {
-  ArrowCounterClockwiseIcon,
-  BugIcon,
-  CopyIcon,
-  DotsThreeOutlineVerticalIcon,
-  FileArchiveIcon,
-  PencilSimpleLineIcon,
-  PushPinIcon,
-  PushPinSlashIcon,
-  TrashIcon,
-} from "@phosphor-icons/react";
+import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
+import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
+import { ArticleIcon } from "@phosphor-icons/react/Article";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { FileArchiveIcon } from "@phosphor-icons/react/FileArchive";
+import { NotificationIcon } from "@phosphor-icons/react/Notification";
+import { PencilSimpleLineIcon } from "@phosphor-icons/react/PencilSimpleLine";
+import { PushPinIcon } from "@phosphor-icons/react/PushPin";
+import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 import { toast } from "sonner";
@@ -33,6 +33,7 @@ import {
   type MenuComponents,
 } from "../ui/menu-components";
 import { TaskOpenInSubmenu } from "./open-in-submenu";
+import { useTranscriptActions } from "./transcript-actions";
 
 export function TaskActionsMenu({
   renderMenuItems,
@@ -43,6 +44,7 @@ export function TaskActionsMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
+          aria-label="Task actions"
           className={toolbarClassName({
             // 4px around a 16px glyph: the button hugs the title it acts on
             // rather than reading as its own toolbar slot.
@@ -68,22 +70,24 @@ export function TaskActionsMenu({
 // {@link MenuComponents}.
 export function TaskActionsMenuItems({
   id,
+  isUnread,
   menuComponents,
-  onDebugClick,
   onDelete,
   onExportZip,
   onRename,
   onReplayClick,
+  onViewTranscript,
   projectId,
   selectedSessionId,
 }: {
   id: TaskId;
+  isUnread: boolean;
   menuComponents: MenuComponents;
-  onDebugClick: () => void;
   onDelete: () => void;
   onExportZip: () => void;
   onRename: () => void;
   onReplayClick: () => void;
+  onViewTranscript: () => void;
   projectId: null | ProjectId | undefined;
   selectedSessionId?: StoreId.Session;
 }) {
@@ -111,6 +115,26 @@ export function TaskActionsMenuItems({
     }),
   );
 
+  const { mutate: markUnread } = useMutation(
+    rpcClient.workspace.task.markUnread.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to mark task as unread", {
+          description: error.message,
+        });
+      },
+    }),
+  );
+
+  const { mutate: markRead } = useMutation(
+    rpcClient.workspace.task.clearIndicator.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to mark task as read", {
+          description: error.message,
+        });
+      },
+    }),
+  );
+
   const copyFolderPathMutation = useMutation(
     rpcClient.utils.copyTaskPathToClipboard.mutationOptions({
       onError: (error) => {
@@ -124,12 +148,7 @@ export function TaskActionsMenuItems({
     }),
   );
 
-  const handleDebugChat = () => {
-    if (!selectedSessionId) {
-      return;
-    }
-    onDebugClick();
-  };
+  const transcript = useTranscriptActions({ id, sessionId: selectedSessionId });
 
   return (
     <>
@@ -153,6 +172,20 @@ export function TaskActionsMenuItems({
         <PencilSimpleLineIcon className="size-4" />
         <span>Rename</span>
       </Item>
+      {/* Marking unread from the task you are looking at holds: the view only
+          clears a manual mark once you leave and come back. */}
+      <Item
+        onSelect={() => {
+          if (isUnread) {
+            markRead({ id });
+          } else {
+            markUnread({ id });
+          }
+        }}
+      >
+        <NotificationIcon className="text-muted-foreground" />
+        <span>{isUnread ? "Mark as read" : "Mark as unread"}</span>
+      </Item>
       <TaskProjectMenuItem
         currentProjectId={projectId}
         menuComponents={menuComponents}
@@ -166,13 +199,35 @@ export function TaskActionsMenuItems({
       {isDeveloperMode && (
         <>
           <Separator />
+          {/* Copy and save come first and act without opening anything: the
+              transcript is nearly always on its way to somewhere else. */}
           <Item
             className="text-dev-700 dark:text-dev-300"
             disabled={!selectedSessionId}
-            onSelect={handleDebugChat}
+            onSelect={() => {
+              transcript.copy("markdown");
+            }}
           >
-            <BugIcon className="size-4 text-dev-700 dark:text-dev-300" />
-            Debug chat
+            <CopyIcon className="size-4 text-dev-700 dark:text-dev-300" />
+            Copy transcript
+          </Item>
+          <Item
+            className="text-dev-700 dark:text-dev-300"
+            disabled={!selectedSessionId}
+            onSelect={() => {
+              transcript.save("markdown");
+            }}
+          >
+            <ArrowLineDownIcon className="size-4 text-dev-700 dark:text-dev-300" />
+            Save transcript
+          </Item>
+          <Item
+            className="text-dev-700 dark:text-dev-300"
+            disabled={!selectedSessionId}
+            onSelect={onViewTranscript}
+          >
+            <ArticleIcon className="size-4 text-dev-700 dark:text-dev-300" />
+            View transcript
           </Item>
           <Item
             className="text-dev-700 dark:text-dev-300"

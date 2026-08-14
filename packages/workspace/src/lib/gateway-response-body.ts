@@ -16,9 +16,12 @@ export const gatewayResponseBodySchema = z
   })
   .pipe(
     z.object({
+      // Only the two fields anything here reads. `code` is deliberately absent:
+      // providers disagree about whether it is a string or the HTTP status as a
+      // number, and demanding either made every body carrying the other one
+      // fail to parse, taking `message` and `retryable` down with it.
       error: z
         .object({
-          code: z.string().optional(),
           message: z.string().optional(),
           retryable: z.boolean().optional(),
         })

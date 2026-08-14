@@ -1,5 +1,8 @@
 import { AIGatewayModel } from "@instrument-org/ai-gateway";
-import { type SyntheticModelId } from "@instrument-org/shared";
+import {
+  ProviderErrorKindSchema,
+  type SyntheticModelId,
+} from "@instrument-org/shared";
 import {
   renderSkillMentionsAsText,
   skillMentionLabel,
@@ -18,10 +21,10 @@ import { attachedFolderChangesModelNote } from "../../lib/attached-folder-change
 import { attachedFolderMountPoint } from "../../lib/attached-folder-mounts";
 import { browserStatusModelNote } from "../../lib/browser-status-model-text";
 import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text";
-import { externalFileChangesModelNote } from "../../lib/external-file-changes-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
+import { paneTabsModelNote } from "../../lib/pane-tabs-model-text";
 import { projectChangesModelNote } from "../../lib/project-changes-model-text";
 import { TOOL_NAMES } from "../../tools/name";
 import { StoreId } from "../store-id";
@@ -31,6 +34,11 @@ export namespace SessionMessage {
   // -----
   // Error
   // -----
+  // What the rejection was about, as opposed to `kind`, which says which shape
+  // it arrived in. Only the two kinds a provider produces carry one, and it is
+  // optional because messages recorded before it existed do not have it.
+  const ClassificationSchema = ProviderErrorKindSchema.optional();
+
   const ErrorSchema = z.discriminatedUnion("kind", [
     z.object({
       kind: z.literal("api-key"),
@@ -41,10 +49,12 @@ export namespace SessionMessage {
       message: z.string(),
     }),
     z.object({
+      classification: ClassificationSchema,
       kind: z.literal("unknown"),
       message: z.string(),
     }),
     z.object({
+      classification: ClassificationSchema,
       kind: z.literal("api-call"),
       message: z.string(),
       name: z.string(),
@@ -213,6 +223,7 @@ export namespace SessionMessage {
     tools: ToolSet,
   ): Promise<ModelMessage[]> {
     let previousBrowserStatusNote: string | undefined;
+    let previousPaneTabsNote: string | undefined;
     // A max-steps stop is recorded on the assistant message where the run
     // halted, but the note belongs on the user turn that resumes it (injection
     // only runs for user messages). Carry it forward to the next user message.
@@ -288,10 +299,11 @@ export namespace SessionMessage {
           if (userAttachedFolders.length > 0) {
             const folderAttachmentText = buildAttachedFoldersText({
               folders: userAttachedFolders.map((folder) => ({
-                mountPoint: attachedFolderMountPoint(folder.name),
-                name: folder.name,
+                access: folder.access,
+                mountPoint: attachedFolderMountPoint(folder.mountName),
+                path: folder.path,
               })),
-              intro: `The user attached these external folders with this message. They are mounted read-only in the task and reachable with the bash tool. Assume they are directly relevant to the user's request.`,
+              intro: `The user attached these external folders with this message. They are mounted in the task and reachable with the bash tool. Assume they are directly relevant to the user's request.`,
             });
 
             injectedParts.push({ text: folderAttachmentText, type: "text" });
@@ -309,18 +321,15 @@ export namespace SessionMessage {
           previousBrowserStatusNote = note;
         }
 
-        const externalChangesPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-externalFileChanges";
-          } => part.type === "data-externalFileChanges",
+        const paneTabsPart = message.parts.find(
+          (part) => part.type === "data-paneTabs",
         );
-        if (externalChangesPart) {
-          const note = externalFileChangesModelNote(externalChangesPart.data);
-          if (note) {
+        if (paneTabsPart) {
+          const note = paneTabsModelNote(paneTabsPart.data);
+          if (note !== previousPaneTabsNote) {
             injectedParts.push({ text: note, type: "text" });
           }
+          previousPaneTabsNote = note;
         }
 
         const folderChangesPart = message.parts.find(

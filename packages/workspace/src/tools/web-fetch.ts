@@ -15,10 +15,12 @@ import { taskDir } from "../lib/task-dir-utils";
 import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
+import { TOOL_NAMES } from "./name";
 
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 // Converted pages can run to hundreds of thousands of characters (a single
 // large product page measured ~180k), which would swamp the model's context.
+// This ceiling is roughly 14,000 tokens of page markdown.
 const MAX_TEXT_CHARACTERS = 50_000;
 const DEFAULT_TIMEOUT_SECONDS = 30;
 const MAX_TIMEOUT_SECONDS = 120;
@@ -92,7 +94,7 @@ export const WebFetch = setupTool({
 
     Good for:
     - Reading an article, docs page, blog post, forum thread, or API reference when you already have the URL
-    - Following a link surfaced by web_search
+    - Following a link surfaced by ${TOOL_NAMES.webSearch}
     - Pulling text or JSON from a known endpoint
 
     This is a lightweight, read-only fetch of the page's server-returned HTML, far faster and cheaper than driving a browser, so prefer it whenever you only need to read a page. It does NOT run JavaScript, log in, or interact with the page. Use the browser instead for client-rendered apps, pages behind a login, anything needing clicks/forms/scrolling, visual verification, or sites that block simple fetches. It also does not read binary files: for a PDF or office document, download it into the task folder (\`curl -L -o\`) and use the \`${SKILL_NAMES.pdf}\` or \`${SKILL_NAMES.documentToMarkdown}\` skill to read it.
@@ -364,7 +366,6 @@ function renderWebContent({
 
 // Documents the workspace can already read once they are on disk, via the
 // `pdf` / `document-to-markdown` skills. Worth routing to rather than refusing.
-// cspell:ignore msword officedocument openxmlformats presentationml spreadsheetml wordprocessingml
 const DOCUMENT_MIMES = new Set([
   "application/msword",
   "application/pdf",
@@ -471,7 +472,7 @@ function requestHeaders(userAgent: string): Record<string, string> {
 function unsupportedContentMessage(mime: string): string {
   const label = mime || "unknown";
   if (DOCUMENT_MIMES.has(mime)) {
-    return `web_fetch cannot read "${label}" documents directly. Download the file into the task folder (for example \`curl -L -o\`), then use the \`${SKILL_NAMES.pdf}\` or \`${SKILL_NAMES.documentToMarkdown}\` skill to extract its text.`;
+    return `${TOOL_NAMES.webFetch} cannot read "${label}" documents directly. Download the file into the task folder (for example \`curl -L -o\`), then use the \`${SKILL_NAMES.pdf}\` or \`${SKILL_NAMES.documentToMarkdown}\` skill to extract its text.`;
   }
-  return `Unsupported content type "${label}". web_fetch reads text, HTML, and JSON pages. If the page needs JavaScript, a login, or interaction, use the browser instead.`;
+  return `Unsupported content type "${label}". ${TOOL_NAMES.webFetch} reads text, HTML, and JSON pages. If the page needs JavaScript, a login, or interaction, use the browser instead.`;
 }

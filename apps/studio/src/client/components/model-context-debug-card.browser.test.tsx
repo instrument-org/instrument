@@ -1,9 +1,7 @@
-import "@/client/styles/globals.css";
+import { renderInBrowser } from "@/tests/render-browser";
 import { describe, expect, it } from "vitest";
-import { render } from "vitest-browser-react";
 
 import { ModelContextDebugCard } from "./model-context-debug-card";
-import { TooltipProvider } from "./ui/tooltip";
 
 // A clamped note fades its last visible line and turns the card into a
 // click-to-expand target, and it should do that exactly when it is cutting text
@@ -21,16 +19,12 @@ const lines = (count: number) =>
   Array.from({ length: count }, (_, index) => `line ${index + 1}`).join("\n");
 
 async function renderCard(text: string) {
-  await render(
-    // Radix throws without one, and a test rendering a single component is the
-    // app root it is asking for.
-    <TooltipProvider>
-      {/* The card fills its parent, so the parent needs a width before any of
-          it can be measured. */}
-      <div style={{ width: 600 }}>
-        <ModelContextDebugCard text={text} />
-      </div>
-    </TooltipProvider>,
+  await renderInBrowser(
+    // The card fills its parent, so the parent needs a width before any of it
+    // can be measured.
+    <div style={{ width: 600 }}>
+      <ModelContextDebugCard text={text} />
+    </div>,
   );
 
   const note = document.querySelector<HTMLElement>(

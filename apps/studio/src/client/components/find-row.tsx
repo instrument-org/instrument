@@ -1,11 +1,9 @@
 import { Button } from "@/client/components/ui/button";
 import { cn } from "@/client/lib/utils";
-import {
-  CaretDownIcon,
-  CaretUpIcon,
-  MagnifyingGlassIcon,
-  XIcon,
-} from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { XIcon } from "@phosphor-icons/react/X";
 import { type RefObject } from "react";
 
 /**

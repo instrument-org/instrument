@@ -76,8 +76,8 @@ describe("validateSkill", () => {
 
   it.each([
     {
-      case: "unparseable",
-      expected: "error:unparseable",
+      case: "unparsable",
+      expected: "error:unparsable",
       raw: "---\ndescription: [\n---\nBody",
     },
     {
@@ -107,7 +107,7 @@ describe("validateSkill", () => {
     const report = await reportFor({
       "SKILL.md": "---\ndescription: [\n---\nBody",
     });
-    const finding = report.findings.find((f) => f.rule === "unparseable");
+    const finding = report.findings.find((f) => f.rule === "unparsable");
     expect(finding?.message).toContain("line 2, column 15");
   });
 

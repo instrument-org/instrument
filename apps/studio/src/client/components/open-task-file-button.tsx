@@ -1,7 +1,7 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { type TaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
 import { cn } from "@/client/lib/utils";
-import { CaretDownIcon } from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { type ComponentProps } from "react";
 
 import { OpenTargetIcon } from "./open-target-icon";
@@ -50,7 +50,10 @@ export function OpenTaskFileButton({
         className={cn(
           "min-w-0 shrink",
           className,
-          control.showOpenWithDropdown && "rounded-r-none",
+          // `peer/open-file` carries no style of its own: it lets a caller whose
+          // variant is transparent at rest tint the caret while this segment is
+          // hovered, so the group still reads as one control.
+          control.showOpenWithDropdown && "peer/open-file rounded-r-none",
         )}
         onClick={handlePrimaryClick}
         size={size}

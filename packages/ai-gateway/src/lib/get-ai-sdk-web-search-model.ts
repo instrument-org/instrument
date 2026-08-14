@@ -7,7 +7,10 @@ import { type ToolSet } from "ai";
 import { Result } from "typescript-result";
 
 import { type AIGatewayModel } from "../schemas/model";
-import { type AIGatewayProviderConfig } from "../schemas/provider-config";
+import {
+  type AIGatewayProviderConfig,
+  TEST_WEB_SEARCH_MODEL_OVERRIDE_KEY,
+} from "../schemas/provider-config";
 import {
   createAnthropicSDK,
   createGoogleSDK,
@@ -33,9 +36,6 @@ const PROVIDER_TYPE_PRIORITY: WebSearchProviderType[] = [
   "x-ai",
   "vercel",
 ];
-
-export const TEST_WEB_SEARCH_MODEL_OVERRIDE_KEY =
-  "__testWebSearchModelOverride";
 
 export interface AISDKWebSearchModelResult {
   model: LanguageModelV3;

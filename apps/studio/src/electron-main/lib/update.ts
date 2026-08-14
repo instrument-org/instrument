@@ -158,7 +158,6 @@ function getInstallNotice() {
 
 function installStagedUpdate() {
   if (os.platform() === "linux") {
-    // cspell:ignore PRIVS pkexec
     // Linux avoids autoUpdater.quitAndInstall(), which hangs here, and cannot use
     // app.relaunch(): that sets PR_SET_NO_NEW_PRIVS=1 on the child process,
     // permanently stripping the pkexec/sudo privileges future updates need to

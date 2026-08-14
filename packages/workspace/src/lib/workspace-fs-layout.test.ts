@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { MOUNT } from "../mount-points";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import {
   AbsolutePathSchema,
@@ -19,8 +20,7 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import {
   buildBashFs,
   buildWorkspaceFsLayout,
-  SKILLS_MOUNT_POINT,
-  TASK_MOUNT_POINT,
+  effectiveFolderAccess,
 } from "./workspace-fs-layout";
 import {
   beginSkillChangeTracking,
@@ -43,13 +43,14 @@ describe("buildBashFs", () => {
     await fs.rm(tmpDir, { force: true, recursive: true });
   });
 
-  async function makeBash() {
+  async function makeBash(access: FolderAttachment.Access = "read-only") {
     const layout = buildWorkspaceFsLayout({
       attachedFolders: {
         docs: {
+          access,
           createdAt: 0,
           id: FolderAttachment.IdSchema.parse("docs-id"),
-          name: "Docs",
+          mountName: "Docs",
           path: AbsolutePathSchema.parse(path.join(tmpDir, "Docs")),
           source: "user",
         },
@@ -59,7 +60,7 @@ describe("buildBashFs", () => {
     const bashFs = await buildBashFs(layout, {
       maxFileReadSize: 1024 * 1024,
     });
-    return new Bash({ cwd: TASK_MOUNT_POINT, fs: bashFs });
+    return new Bash({ cwd: MOUNT.task, fs: bashFs });
   }
 
   // just-bash raises some filesystem refusals as thrown errors rather than exit
@@ -103,6 +104,49 @@ describe("buildBashFs", () => {
     ).rejects.toThrow();
   });
 
+  // A read-write mount has to reach the real disk. OverlayFs would accept every
+  // one of these writes into an in-memory layer that is dropped when the bash
+  // call ends, so each case asserts against the host filesystem rather than the
+  // command's exit code.
+  it("writes into a read-write mount through to the real folder", async () => {
+    const bash = await makeBash("read-write");
+    const result = await bash.exec("echo made > '/mnt/Docs/new.txt'");
+    expect(result.exitCode).toBe(0);
+    await expect(
+      fs.readFile(path.join(tmpDir, "Docs", "new.txt"), "utf8"),
+    ).resolves.toBe("made\n");
+  });
+
+  it("moves and deletes inside a read-write mount through to the real folder", async () => {
+    const bash = await makeBash("read-write");
+
+    const moved = await bash.exec(
+      "mkdir -p '/mnt/Docs/sorted' && mv '/mnt/Docs/readme.txt' '/mnt/Docs/sorted/readme.txt'",
+    );
+    expect(moved.exitCode).toBe(0);
+    await expect(
+      fs.readFile(path.join(tmpDir, "Docs", "sorted", "readme.txt"), "utf8"),
+    ).resolves.toBe("hello docs");
+    await expect(
+      fs.access(path.join(tmpDir, "Docs", "readme.txt")),
+    ).rejects.toThrow();
+
+    const removed = await bash.exec("rm '/mnt/Docs/sorted/readme.txt'");
+    expect(removed.exitCode).toBe(0);
+    await expect(
+      fs.access(path.join(tmpDir, "Docs", "sorted", "readme.txt")),
+    ).rejects.toThrow();
+  });
+
+  it("copies a file from a read-write mount into the task", async () => {
+    const bash = await makeBash("read-write");
+    const result = await bash.exec("cp '/mnt/Docs/readme.txt' copy.txt");
+    expect(result.exitCode).toBe(0);
+    await expect(
+      fs.readFile(path.join(tmpDir, "task", "copy.txt"), "utf8"),
+    ).resolves.toBe("hello docs");
+  });
+
   it("masks the private dir so the agent shell can't read task internals", async () => {
     // A real private file, written the way the app does (direct fs, not the
     // virtual FS).
@@ -124,7 +168,7 @@ describe("buildBashFs", () => {
   });
 
   it.each([
-    ["absolute", `cat ${TASK_MOUNT_POINT}/.instrument/state.json`],
+    ["absolute", `cat ${MOUNT.task}/.instrument/state.json`],
     ["traversal", "cat work/../.instrument/state.json"],
     ["from a subdirectory", "cd work && cat ../.instrument/state.json"],
     ["assembled at runtime", 'd=.instrument; f=state.json; cat "$d/$f"'],
@@ -171,6 +215,88 @@ describe("buildBashFs", () => {
     const list = await bash.exec("ls -a");
     expect(list.stdout).toContain("notes.txt");
     expect(list.stdout).not.toContain(".instrument");
+  });
+
+  // The project folder mounts writable so the agent can edit the project's own
+  // AGENTS.md when asked, which makes the mask over its private dir the thing
+  // standing between the agent and the settings naming its attached folders and
+  // the access granted to each.
+  describe("project mount", () => {
+    async function makeProjectBash() {
+      await fs.mkdir(path.join(tmpDir, "Proj", ".instrument"), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        path.join(tmpDir, "Proj", "AGENTS.md"),
+        "Use British spelling.",
+      );
+      await fs.writeFile(
+        path.join(tmpDir, "Proj", ".instrument", "settings.json"),
+        `{"folders":[{"access":"read-only","path":"/secret"}]}`,
+      );
+      // The mount resolves the folder name against the workspace, so the
+      // projects dir has to be where this test built the folder.
+      setWorkspaceConfig({
+        ...getWorkspaceConfig(),
+        projectsDir: AbsolutePathSchema.parse(tmpDir),
+      });
+      const layout = buildWorkspaceFsLayout({
+        projectFolderName: "Proj",
+        taskHostRoot: TaskDirSchema.parse(path.join(tmpDir, "task")),
+      });
+      const bashFs = await buildBashFs(layout, {
+        maxFileReadSize: 1024 * 1024,
+      });
+      return new Bash({ cwd: MOUNT.task, fs: bashFs });
+    }
+
+    it("reads the project's instructions at its mount point", async () => {
+      const bash = await makeProjectBash();
+      const result = await bash.exec(`cat ${MOUNT.project}/AGENTS.md`);
+      expect(result.stdout).toBe("Use British spelling.");
+      expect(result.exitCode).toBe(0);
+    });
+
+    it("writes through to the real project folder", async () => {
+      const bash = await makeProjectBash();
+      const result = await bash.exec(
+        `echo 'Prefer pnpm.' >> ${MOUNT.project}/AGENTS.md`,
+      );
+      expect(result.exitCode).toBe(0);
+      await expect(
+        fs.readFile(path.join(tmpDir, "Proj", "AGENTS.md"), "utf8"),
+      ).resolves.toBe("Use British spelling.Prefer pnpm.\n");
+    });
+
+    it("masks the project's private dir against reads", async () => {
+      const bash = await makeProjectBash();
+      expect(
+        await stdoutOf(bash, `cat ${MOUNT.project}/.instrument/settings.json`),
+      ).not.toContain("secret");
+      expect(await stdoutOf(bash, `ls -a ${MOUNT.project}`)).not.toContain(
+        ".instrument",
+      );
+    });
+
+    it("refuses writes into the project's private dir", async () => {
+      const bash = await makeProjectBash();
+      await stdoutOf(
+        bash,
+        `echo '{"folders":[{"access":"read-write","path":"/"}]}' > ${MOUNT.project}/.instrument/settings.json`,
+      );
+      await expect(
+        fs.readFile(
+          path.join(tmpDir, "Proj", ".instrument", "settings.json"),
+          "utf8",
+        ),
+      ).resolves.toContain(`"read-only"`);
+    });
+
+    it("has no project mount for a task outside a project", async () => {
+      const bash = await makeBash();
+      const result = await bash.exec("ls /");
+      expect(result.stdout).not.toContain("project");
+    });
   });
 
   it("rejects writes outside every mount with EROFS instead of losing them", async () => {
@@ -248,13 +374,13 @@ describe("buildBashFs skills mount", () => {
       taskHostRoot: TaskDirSchema.parse(path.join(tmpDir, "task")),
     });
     const bashFs = await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 });
-    return new Bash({ cwd: TASK_MOUNT_POINT, fs: bashFs });
+    return new Bash({ cwd: MOUNT.task, fs: bashFs });
   }
 
   it("mounts the workspace skills dir writable", async () => {
     const bash = await makeBash();
     const result = await bash.exec(
-      `mkdir -p ${SKILLS_MOUNT_POINT}/made-up && echo body > ${SKILLS_MOUNT_POINT}/made-up/SKILL.md`,
+      `mkdir -p ${MOUNT.skills}/made-up && echo body > ${MOUNT.skills}/made-up/SKILL.md`,
     );
     expect(result.exitCode).toBe(0);
     await expect(
@@ -272,7 +398,7 @@ describe("buildBashFs skills mount", () => {
 
     await withTurnContext(turn, () =>
       bash.exec(
-        `mkdir -p ${SKILLS_MOUNT_POINT}/tracked && echo body > ${SKILLS_MOUNT_POINT}/tracked/SKILL.md`,
+        `mkdir -p ${MOUNT.skills}/tracked && echo body > ${MOUNT.skills}/tracked/SKILL.md`,
       ),
     );
 
@@ -296,14 +422,73 @@ describe("buildBashFs skills mount", () => {
     const bash = await makeBash();
     // The prompt advertises /skills unconditionally, so it has to be there to
     // write to even before the first skill exists.
-    const listed = await bash.exec(`ls ${SKILLS_MOUNT_POINT}`);
+    const listed = await bash.exec(`ls ${MOUNT.skills}`);
     expect(listed.exitCode).toBe(0);
     const written = await bash.exec(
-      `mkdir -p ${SKILLS_MOUNT_POINT}/first && echo body > ${SKILLS_MOUNT_POINT}/first/SKILL.md`,
+      `mkdir -p ${MOUNT.skills}/first && echo body > ${MOUNT.skills}/first/SKILL.md`,
     );
     expect(written.exitCode).toBe(0);
     await expect(
       fs.readFile(path.join(tmpDir, "skills", "first", "SKILL.md"), "utf8"),
     ).resolves.toBe("body\n");
+  });
+});
+
+describe("effectiveFolderAccess", () => {
+  let tmpDir: string;
+  let previousConfig: ReturnType<typeof getWorkspaceConfig>;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), `${APP_NAME_SLUG}-folder-access-test-`),
+    );
+    await fs.mkdir(path.join(tmpDir, "workspace"));
+    await fs.mkdir(path.join(tmpDir, "elsewhere"));
+    previousConfig = getWorkspaceConfig();
+    setWorkspaceConfig({
+      ...previousConfig,
+      rootDir: WorkspaceDirSchema.parse(path.join(tmpDir, "workspace")),
+    });
+  });
+
+  afterEach(async () => {
+    setWorkspaceConfig(previousConfig);
+    await fs.rm(tmpDir, { force: true, recursive: true });
+  });
+
+  function accessFor(folderPath: string) {
+    return effectiveFolderAccess({
+      access: "read-write",
+      createdAt: 0,
+      id: FolderAttachment.IdSchema.parse("folder-id"),
+      mountName: "Folder",
+      path: AbsolutePathSchema.parse(folderPath),
+      source: "user",
+    });
+  }
+
+  it("grants read-write to a folder clear of the workspace", () => {
+    expect(accessFor(path.join(tmpDir, "elsewhere"))).toBe("read-write");
+  });
+
+  // Built by hand rather than with path.join, which would normalize the
+  // segments away before the code under test ever sees them. A hand-edited
+  // state.json is exactly where an unnormalized path comes from.
+  it("refuses a folder that spells the workspace through .. segments", () => {
+    expect(accessFor(`${tmpDir}/elsewhere/../workspace`)).toBe("read-only");
+  });
+
+  it("refuses a folder that reaches the workspace through a symlink", async () => {
+    const link = path.join(tmpDir, "link-to-workspace");
+    await fs.symlink(path.join(tmpDir, "workspace"), link);
+    expect(accessFor(link)).toBe("read-only");
+  });
+
+  it("refuses a folder whose symlinked parent contains the workspace", async () => {
+    const link = path.join(tmpDir, "link-to-root");
+    await fs.symlink(tmpDir, link);
+    expect(accessFor(path.join(link, "workspace", "projects"))).toBe(
+      "read-only",
+    );
   });
 });

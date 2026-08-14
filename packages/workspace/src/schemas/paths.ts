@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { MOUNT } from "../mount-points";
+
 // These schemas are shared with the renderer, so they cannot reach for
 // `node:path`. Matches `path.isAbsolute` for both posix (`/foo`) and win32
 // (`\foo`, `C:\foo`, `C:/foo`) shapes regardless of the host platform.
@@ -38,17 +40,17 @@ export const RelativeTaskPathSchema = RelativePathSchema.refine(
 );
 
 /**
- * Root of the read-only attached-folder mounts in the workspace virtual FS
- * (e.g. `/mnt/Photos`). Attached folders live on the user's real disk and are
- * surfaced read-only under this prefix. Single source of truth for the mount
- * root: this schema, the attached-folder mount points, and the asset server
- * all derive from it.
+ * Root of the attached-folder mounts in the workspace virtual FS (e.g.
+ * `/mnt/Photos`). Attached folders live on the user's real disk and are
+ * surfaced under this prefix, read-only or read-write according to the access
+ * the user granted each one. Single source of truth for the mount root: this
+ * schema, the attached-folder mount points, and the asset server all derive
+ * from it.
  */
-export const ATTACHED_FOLDERS_MOUNT_ROOT = "/mnt";
 
 const MountedWorkspacePathSchema = z
   .string()
-  .startsWith(`${ATTACHED_FOLDERS_MOUNT_ROOT}/`)
+  .startsWith(`${MOUNT.attachedFolders}/`)
   .brand("MountedWorkspacePath")
   .refine(
     (val) =>

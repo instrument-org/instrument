@@ -4,8 +4,6 @@ import {
   type SubscribeCallback,
 } from "@parcel/watcher";
 
-// cspell:ignore sockname
-
 /**
  * The surface of @parcel/watcher every watcher depends on, loaded dynamically so
  * the native binding resolves from node_modules at runtime instead of being

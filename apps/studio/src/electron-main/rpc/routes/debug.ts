@@ -10,17 +10,22 @@ import { setRecentVersionBump } from "@/electron-main/stores/preferences";
 import { openOnboardingWindow } from "@/electron-main/windows/onboarding";
 import { APP_NAME, PORTS } from "@instrument-org/shared";
 import {
+  findAvailableName,
   getTaskSettings,
   StoreId,
   taskDir,
   type TaskId,
   TaskIdSchema,
   workspaceRouter,
+  type WorkspaceRPCContext,
 } from "@instrument-org/workspace/electron";
 import { call } from "@orpc/server";
-import { app, shell } from "electron";
+import { app, clipboard, shell } from "electron";
 import { spawn } from "node:child_process";
+import fsSync from "node:fs";
+import fs from "node:fs/promises";
 import os from "node:os";
+import path from "node:path";
 import { z } from "zod";
 
 import { browserViewManagerDebugRoutes } from "../../browser-view/debug-snapshot";
@@ -78,22 +83,103 @@ const systemInfo = devOnly.handler(async ({ context }) => {
   ];
 });
 
-const sessionMarkdown = devOnly
-  .input(
-    z.object({
-      id: TaskIdSchema,
-      sessionId: StoreId.SessionSchema,
-    }),
-  )
-  .output(z.object({ markdown: z.string() }))
-  .handler(async ({ context, input, signal }) => {
-    const frontMatter = await buildSystemFrontMatter(input.id);
-    return call(
-      workspaceRouter.session.toMarkdown,
-      { frontMatter, id: input.id, sessionId: input.sessionId },
+const TranscriptFormatSchema = z.enum(["json", "markdown"]);
+
+const TRANSCRIPT_EXTENSION = {
+  json: "json",
+  markdown: "md",
+} as const satisfies Record<z.output<typeof TranscriptFormatSchema>, string>;
+
+const transcriptInput = z.object({
+  format: TranscriptFormatSchema,
+  id: TaskIdSchema,
+  sessionId: StoreId.SessionSchema,
+});
+
+// Both formats are rendered here rather than in the renderer: the JSON one is
+// the session record verbatim, and shipping that across the RPC boundary as an
+// object only to stringify it again doubles the cost of the largest thing this
+// route ever returns.
+async function renderTranscript({
+  context,
+  input,
+  signal,
+}: {
+  context: WorkspaceRPCContext;
+  input: z.output<typeof transcriptInput>;
+  signal?: AbortSignal;
+}) {
+  if (input.format === "json") {
+    const session = await call(
+      workspaceRouter.session.byIdWithMessagesAndParts,
+      { id: input.id, sessionId: input.sessionId },
       { context, signal },
     );
+    return JSON.stringify(session, null, 2);
+  }
+
+  const frontMatter = await buildSystemFrontMatter(input.id);
+  const { markdown } = await call(
+    workspaceRouter.session.toMarkdown,
+    { frontMatter, id: input.id, sessionId: input.sessionId },
+    { context, signal },
+  );
+  return markdown;
+}
+
+const sessionTranscript = devOnly
+  .input(transcriptInput)
+  .output(z.object({ content: z.string() }))
+  .handler(async ({ context, input, signal }) => ({
+    content: await renderTranscript({ context, input, signal }),
+  }));
+
+// Copying happens here rather than in the renderer: a transcript is the largest
+// thing this route produces, and the renderer would only be receiving it to hand
+// it straight back to the OS.
+const copySessionTranscript = devOnly
+  .input(transcriptInput)
+  .handler(async ({ context, input, signal }) => {
+    clipboard.writeText(await renderTranscript({ context, input, signal }));
   });
+
+const saveSessionTranscript = devOnly
+  .input(transcriptInput)
+  .output(z.object({ filename: z.string(), filepath: z.string() }))
+  .handler(async ({ context, input, signal }) => {
+    const content = await renderTranscript({ context, input, signal });
+
+    const settings = await getTaskSettings(taskDir(input.id));
+    const outputPath = app.getPath("downloads");
+    const { name: filename } = await findAvailableName({
+      isTaken: (candidate) =>
+        fsSync.existsSync(path.join(outputPath, candidate)),
+      name: `${transcriptFilenameStem(settings?.name ?? input.id)}.${TRANSCRIPT_EXTENSION[input.format]}`,
+      splitExtension: true,
+    });
+
+    const filepath = path.join(outputPath, filename);
+    await fs.writeFile(filepath, content, "utf8");
+
+    // The transcript is usually saved on its way to an agent, and what an agent
+    // needs is the path, not the bytes. Leaving it on the clipboard turns the
+    // next step into a paste instead of a hunt through Downloads.
+    clipboard.writeText(filepath);
+
+    return { filename, filepath };
+  });
+
+// Names the file after the task it came from, the way the zip export does, so a
+// Downloads folder holding a few of these still says which is which.
+function transcriptFilenameStem(taskName: string) {
+  const stem = taskName
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9-]/g, "-")
+    .replaceAll(/-+/g, "-")
+    .replaceAll(/^-|-$/g, "")
+    .slice(0, 50);
+  return stem ? `${stem}-transcript` : "transcript";
+}
 
 const throwError = devOnly
   .input(
@@ -109,7 +195,7 @@ const throwError = devOnly
     throw error;
   });
 
-const live = {
+const events = {
   testNotification: devOnly.handler(async function* ({ signal }) {
     for await (const _payload of publisher.subscribe("test-notification", {
       signal,
@@ -226,9 +312,64 @@ const openAuthTestPage = devOnly.input(z.void()).handler(() => {
   void shell.openExternal(`http://localhost:${port}/test`);
 });
 
+/**
+ * The remote debugging port this instance answers on. It is the only thing that
+ * separates two instances of one checkout, which is what a hand-started window
+ * and an agent-driven one are: the conventional port belongs to the window a
+ * person started, and a driven instance derives its own from the checkout path.
+ */
+function debugPort() {
+  const port = Number(app.commandLine.getSwitchValue("remote-debugging-port"));
+  return port > 0 ? port : undefined;
+}
+
+/**
+ * An instance pointed at its own user data directory -- a seeded workspace, say
+ * -- is named by that directory. One on the shared dev directory has nothing to
+ * add.
+ */
+function userDataName() {
+  const dir = process.env.ELECTRON_USER_DATA_DIR;
+  return dir ? path.basename(dir) : undefined;
+}
+
+/**
+ * The folder holding the checkout, for a linked worktree only: the main
+ * checkout is what every other instance is a deviation from, so naming it says
+ * nothing an empty slot doesn't. A linked worktree's `.git` is a file pointing
+ * back at the main checkout, where the main checkout's is a directory.
+ */
+function worktreeName() {
+  if (app.isPackaged) {
+    return;
+  }
+  // Dev runs Electron against apps/studio, so the checkout is two levels up.
+  const root = path.resolve(app.getAppPath(), "..", "..");
+  try {
+    if (fsSync.statSync(path.join(root, ".git")).isFile()) {
+      return path.basename(root);
+    }
+  } catch {
+    // Nothing above this run is a checkout, so there is no worktree to name.
+  }
+  return;
+}
+
 const getAppEnvironment = devOnly
-  .output(z.object({ isPackaged: z.boolean() }))
-  .handler(() => ({ isPackaged: app.isPackaged }));
+  .output(
+    z.object({
+      debugPort: z.number().optional(),
+      isPackaged: z.boolean(),
+      userData: z.string().optional(),
+      worktree: z.string().optional(),
+    }),
+  )
+  .handler(() => ({
+    debugPort: debugPort(),
+    isPackaged: app.isPackaged,
+    userData: userDataName(),
+    worktree: worktreeName(),
+  }));
 
 const relaunchWithNewUserFolder = devOnly.input(z.void()).handler(() => {
   // app.relaunch() has no env option and the spawned child inherits the
@@ -272,15 +413,17 @@ const setQuitGuardForced = devOnly
 
 export const debug = {
   browserViewManager: browserViewManagerDebugRoutes,
+  copySessionTranscript,
+  events,
   getAppEnvironment,
   getQuitGuardForced,
-  live,
   openAuthTestPage,
   openOnboarding,
   openUserDataFolder,
   openWorkspaceFolder,
   relaunchWithNewUserFolder,
-  sessionMarkdown,
+  saveSessionTranscript,
+  sessionTranscript,
   setQuitGuardForced,
   systemInfo,
   throwError,

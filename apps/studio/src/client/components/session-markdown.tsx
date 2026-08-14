@@ -8,6 +8,7 @@ export const SessionMarkdown = ({
   assetBaseUrl,
   className,
   hideImages,
+  isStreaming,
   markdown,
   ref,
   taskId,
@@ -15,6 +16,7 @@ export const SessionMarkdown = ({
   assetBaseUrl?: string;
   className?: string;
   hideImages?: boolean;
+  isStreaming?: boolean;
   markdown: string;
   ref?: Ref<HTMLDivElement>;
   taskId?: TaskId;
@@ -30,6 +32,7 @@ export const SessionMarkdown = ({
       <Markdown
         assetBaseUrl={assetBaseUrl}
         hideImages={hideImages}
+        isStreaming={isStreaming}
         markdown={markdown}
         taskId={taskId}
       />

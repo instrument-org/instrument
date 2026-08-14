@@ -1,6 +1,6 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { cn } from "@/client/lib/utils";
-import { ArrowsOutSimpleIcon } from "@phosphor-icons/react";
+import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { useRef, useState } from "react";
 
 import { FileActionsMenuItems } from "./file-actions-menu";
@@ -12,11 +12,17 @@ import {
 import { contextMenuComponents } from "./ui/menu-components";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
-const INTERACTIVE_DELAY_MS = 300;
-const VISIBLE_DELAY_MS = 400;
+// When the overlay controls may take the pointer, derived from when they finish
+// arriving rather than picked separately -- the two numbers disagreeing is the
+// bug this is shaped to prevent. A card is usually crossed rather than aimed at,
+// and a press during that crossing means "open this", so a control that is not
+// yet on screen must not be able to answer for one. Both must match the reveal
+// spelled out on the overlay box below (`delay-400 duration-200`).
+const REVEAL_DELAY_MS = 400;
+const REVEAL_DURATION_MS = 200;
+const ARMED_DELAY_MS = REVEAL_DELAY_MS + REVEAL_DURATION_MS;
 
 export function MediaCardShell({
-  aspectRatio,
   bottomBar,
   canCopy,
   children,
@@ -29,7 +35,6 @@ export function MediaCardShell({
   overlayActions,
   scrim,
 }: {
-  aspectRatio: "square" | "video";
   bottomBar?: React.ReactNode;
   canCopy?: boolean;
   children: React.ReactNode;
@@ -50,7 +55,7 @@ export function MediaCardShell({
     hoverStartRef.current = Date.now();
     timerRef.current = window.setTimeout(() => {
       setInteractive(true);
-    }, INTERACTIVE_DELAY_MS);
+    }, ARMED_DELAY_MS);
     onMouseEnter?.();
   };
 
@@ -73,8 +78,13 @@ export function MediaCardShell({
             // bar stack against each other and nothing else. Without it they
             // join whatever stacking context the page happens to give them and
             // outrank chrome that is nowhere near this card.
-            "group/media relative isolate w-full overflow-hidden rounded-2xl bg-card shadow-sm dark:bg-muted",
-            aspectRatio === "square" ? "aspect-square" : "aspect-video",
+            //
+            // Square whatever the media inside it is. The grid lays these out
+            // several to a row, so a card that took its own shape would set the
+            // row's height by whichever of them happened to be tallest -- and
+            // that height would then change as the rest of the row arrived.
+            // A video letterboxes into the square instead.
+            "group/media relative isolate aspect-square w-full overflow-hidden rounded-2xl bg-card shadow-sm dark:bg-muted",
             isSelected &&
               "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
           )}
@@ -87,7 +97,12 @@ export function MediaCardShell({
             {scrim}
           </div>
 
+          {/* The card itself. Everything drawn above is either the media or an
+              overlay control, so this is the only thing that names the card to
+              a screen reader or to a script driving the app -- unlabeled it is
+              a bare `button` reachable by position and nothing else. */}
           <button
+            aria-label={`Open ${file.filename}`}
             className="absolute inset-0 z-0 size-full"
             onClick={onClick}
             type="button"
@@ -95,11 +110,18 @@ export function MediaCardShell({
 
           {!hideActionsMenu && (
             <button
+              // Same `onClick` as the card: this is the affordance that says the
+              // card opens, not a second thing to do. Exposing it would put two
+              // identically named controls and two tab stops on one action, so
+              // it stays out of the tree and out of the tab order, and the card
+              // behind it answers for both.
+              aria-hidden
               className={cn(
                 "absolute top-3 right-3 z-10 flex size-7 items-center justify-center",
                 "text-white opacity-0 drop-shadow-sm transition-opacity duration-200 group-hover/media:opacity-100 group-has-[button[data-state=open]]/media:opacity-100",
               )}
               onClick={onClick}
+              tabIndex={-1}
               type="button"
             >
               <ArrowsOutSimpleIcon className="size-3.5" />
@@ -120,10 +142,12 @@ export function MediaCardShell({
                 "group-has-[button[data-state=open]]/media:[&>*]:pointer-events-auto",
               )}
               onClickCapture={(e) => {
-                // block mouseup-race clicks that started before the protection window
+                // The press and the release straddle the moment above: a button
+                // pressed while nothing was armed still releases over one that
+                // now is, and the click belongs to neither.
                 if (
                   hoverStartRef.current !== null &&
-                  Date.now() - hoverStartRef.current < VISIBLE_DELAY_MS
+                  Date.now() - hoverStartRef.current < ARMED_DELAY_MS
                 ) {
                   e.stopPropagation();
                 }

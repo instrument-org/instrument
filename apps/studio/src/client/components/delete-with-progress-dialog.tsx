@@ -4,7 +4,7 @@ import {
   getTrashTerminology,
   PROGRESS_MESSAGES,
 } from "@/client/lib/trash-terminology";
-import { TimerIcon } from "@phosphor-icons/react";
+import { TimerIcon } from "@phosphor-icons/react/Timer";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { Alert, AlertDescription } from "./ui/alert";

@@ -55,7 +55,6 @@ describe("resolveUrlOrSearch", () => {
     },
     {
       expected: "https://www.google.com/search?q=stackoverflow.com%20questions",
-      // cspell:ignore stackoverflow
       input: "stackoverflow.com questions",
     },
     // Leading/trailing whitespace is trimmed before routing.

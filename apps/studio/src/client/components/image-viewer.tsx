@@ -2,11 +2,9 @@ import {
   IMAGE_PANZOOM_VIEWPORT_CLASS,
   useImagePanzoom,
 } from "@/client/hooks/use-image-panzoom";
-import {
-  ArrowsInIcon,
-  MagnifyingGlassMinusIcon,
-  MagnifyingGlassPlusIcon,
-} from "@phosphor-icons/react";
+import { ArrowsInIcon } from "@phosphor-icons/react/ArrowsIn";
+import { MagnifyingGlassMinusIcon } from "@phosphor-icons/react/MagnifyingGlassMinus";
+import { MagnifyingGlassPlusIcon } from "@phosphor-icons/react/MagnifyingGlassPlus";
 import { useRef, useState } from "react";
 
 import { ImageWithFallback } from "./image-with-fallback";

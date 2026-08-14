@@ -18,8 +18,8 @@ const noop = () => {
 };
 
 const editorProps = {
+  actions: [],
   disabled: false,
-  maxHeight: 200,
   onPaste: () => false,
   onSubmit: noop,
   skills: [] as ComponentProps<typeof PromptEditor>["skills"],

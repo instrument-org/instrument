@@ -1,7 +1,10 @@
 import { forceWindowControlsAtom } from "@/client/atoms/window-controls";
 import { cn, isLinux, isMacOS, isWindows } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { CopyIcon, MinusIcon, SquareIcon, XIcon } from "@phosphor-icons/react";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { MinusIcon } from "@phosphor-icons/react/Minus";
+import { SquareIcon } from "@phosphor-icons/react/Square";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { type ReactNode } from "react";

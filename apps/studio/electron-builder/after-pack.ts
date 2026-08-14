@@ -8,20 +8,25 @@ import { existsSync } from "node:fs";
 import {
   type ElectronPlatform,
   isElectronPlatform,
+  resolvePackagedFfmpeg,
   resolvePackagedPnpm,
   resolvePackagedRipgrep,
   resolvePackagedUv,
   resolveUnpackedDir,
 } from "./paths";
 import { pruneForeignBinaries } from "./prune-foreign-binaries";
+import { pruneGitTooling, verifyGitSurvived } from "./prune-git-tooling";
+import { verifyFfmpegBinary } from "./verify-ffmpeg";
 import { verifyRipgrepBinary } from "./verify-ripgrep";
 import { verifyUvBinary } from "./verify-uv";
 
 export function runAfterPack(context: AfterPackContext) {
   pruneForeignPackagedBinaries(context);
+  pruneUnreachableGitTooling(context);
   verifyPackagedRipgrep(context);
   verifyPackagedUv(context);
   verifyPackagedPnpm(context);
+  verifyPackagedFfmpeg(context);
 }
 
 // Only a binary matching the host platform AND arch can be executed during
@@ -68,6 +73,56 @@ function pruneForeignPackagedBinaries(context: AfterPackContext) {
   if (removed.length > 0) {
     console.log(
       `afterPack: pruned ${removed.length} foreign binaries: ${removed.join(", ")}`,
+    );
+  }
+}
+
+function pruneUnreachableGitTooling(context: AfterPackContext) {
+  const platformName = context.electronPlatformName;
+  if (!isElectronPlatform(platformName)) {
+    return;
+  }
+
+  const unpackedDir = resolveUnpackedDir(context.appOutDir, platformName);
+  if (!existsSync(unpackedDir)) {
+    return;
+  }
+
+  const removed = pruneGitTooling({ unpackedDir });
+  verifyGitSurvived({ unpackedDir });
+
+  if (removed.length > 0) {
+    console.log(
+      `afterPack: pruned ${removed.length} unreachable git files: ${removed.join(", ")}`,
+    );
+  }
+}
+
+function verifyPackagedFfmpeg(context: AfterPackContext) {
+  const platformName = context.electronPlatformName;
+  if (!isElectronPlatform(platformName)) {
+    throw new Error(`Unsupported electron platform: ${platformName}`);
+  }
+
+  for (const name of ["ffmpeg", "ffprobe"] as const) {
+    const binaryPath = resolvePackagedFfmpeg(
+      context.appOutDir,
+      platformName,
+      name,
+    );
+    if (!binaryPath) {
+      throw new Error(
+        `Could not locate packaged ${name} binary under ${context.appOutDir} for ${platformName} ${Arch[context.arch]}. It has to reach app.asar.unpacked, since every image and video read spawns it as a subprocess.`,
+      );
+    }
+
+    const { size, version } = verifyFfmpegBinary(binaryPath, {
+      execute: canExecuteForTarget({ arch: context.arch, platformName }),
+      name,
+    });
+    const detail = version ?? "size-only";
+    console.log(
+      `afterPack: verified ${name} at ${binaryPath} (${size} bytes, ${detail})`,
     );
   }
 }

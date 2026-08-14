@@ -1,22 +1,15 @@
 import type { RefObject } from "react";
 
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import {
-  useLiveAssetUrl,
-  useTaskFileReferenceStatus,
-} from "@/client/components/task/current-task-files";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { useTaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getFileKindLabel, getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
-import {
-  ArrowLineDownIcon,
-  CheckIcon,
-  CopyIcon,
-  ImageBrokenIcon,
-  PlayIcon,
-} from "@phosphor-icons/react";
+import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { PlayIcon } from "@phosphor-icons/react/Play";
 import { useRef, useState } from "react";
 
 import { usePrefetchTaskFileOpenTarget } from "../hooks/use-task-file-open-target";
@@ -55,7 +48,6 @@ export function FilePreviewCard({
   const [isPlaying, setIsPlaying] = useState(false);
 
   const fileType = getFileType({ filename, mimeType });
-  const referenceStatus = useTaskFileReferenceStatus(file);
 
   const handleMouseEnter = () => {
     if (fileType === "video" && videoRef.current) {
@@ -77,20 +69,6 @@ export function FilePreviewCard({
       setIsPlaying(false);
     }
   };
-
-  if (
-    referenceStatus === "missing" &&
-    (fileType === "image" || fileType === "video")
-  ) {
-    return (
-      <MissingMediaCard
-        aspectRatio={fileType === "image" ? "square" : "video"}
-        file={file}
-        isSelected={isSelected}
-        onClick={onClick}
-      />
-    );
-  }
 
   if (fileType === "image") {
     return (
@@ -151,7 +129,6 @@ function FileRowCard({
   onClick: () => void;
 }) {
   const { filename, filePath } = file;
-  const isMissing = useTaskFileReferenceStatus(file) === "missing";
   const fileActions = useFileActionVisibility(file);
   const hasFileActions =
     fileActions.showCopy ||
@@ -173,12 +150,23 @@ function FileRowCard({
         prefetchOpenTarget(file);
       }}
     >
+      {/* The row is what opens the file, and a row is not a control: without
+          this it could be clicked and nothing else -- no tab stop, no name, no
+          Enter. It carries no handler of its own, so a press here activates the
+          same way a press on the filename does, by reaching the row's `onClick`
+          on the way up. Below the text column in paint order, so the tooltip
+          and the actions menu still take the pointer first. */}
+      <button
+        aria-label={`Open ${filename}`}
+        className="absolute inset-0 z-0 size-full rounded-2xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+        type="button"
+      />
       <FileThumbnail
         file={file}
         isActive={isSelected ?? false}
         variant="primary"
       />
-      <div className="flex min-w-0 flex-1 flex-col justify-center text-left">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col justify-center text-left">
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="truncate text-sm leading-5 text-foreground">
@@ -190,12 +178,12 @@ function FileRowCard({
           </TooltipContent>
         </Tooltip>
         <span className="truncate text-xs leading-[18px] font-medium text-muted-foreground">
-          {isMissing ? "File not found" : getFileKindLabel(file)}
+          {getFileKindLabel(file)}
         </span>
       </div>
       {!hideActionsMenu && hasFileActions && (
         <div
-          className="flex shrink-0 items-center opacity-0 group-hover:opacity-100"
+          className="relative z-10 flex shrink-0 items-center opacity-0 group-hover:opacity-100"
           onClick={(e) => {
             e.stopPropagation();
           }}
@@ -240,8 +228,7 @@ function ImagePreviewCard({
   isSelected?: boolean;
   onClick: () => void;
 }) {
-  const { filename, mimeType } = file;
-  const url = useLiveAssetUrl(file);
+  const { filename, url } = file;
   const fileActions = useFileActionVisibility(file);
   const [resolveOpenTarget, setResolveOpenTarget] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
@@ -256,7 +243,7 @@ function ImagePreviewCard({
       await copyFileToClipboard({
         filePath: file.filePath,
         id: file.taskId,
-        isImage: mimeType.startsWith("image/"),
+        isImage: getFileType(file) === "image",
       });
       triggerCopied();
     } catch {
@@ -270,7 +257,6 @@ function ImagePreviewCard({
 
   return (
     <MediaCardShell
-      aspectRatio="square"
       canCopy={!imageLoadError}
       file={file}
       hideActionsMenu={hideActionsMenu}
@@ -342,47 +328,6 @@ function ImagePreviewCard({
   );
 }
 
-// Inline media previews resolve their bytes from disk; when the referenced file
-// is gone (e.g. an imported task whose output was renamed) the raw <img>/<video>
-// would render a broken thumbnail with no explanation. Swap in a labeled state
-// that mirrors the missing-file artifact panel and drops the now-dead actions.
-function MissingMediaCard({
-  aspectRatio,
-  file,
-  isSelected,
-  onClick,
-}: {
-  aspectRatio: "square" | "video";
-  file: TaskFileViewerFile;
-  isSelected?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          className={cn(
-            "relative flex w-full flex-col items-center justify-center gap-1.5 overflow-hidden rounded-2xl bg-card p-3 text-center shadow-sm dark:bg-muted",
-            aspectRatio === "square" ? "aspect-square" : "aspect-video",
-            isSelected &&
-              "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
-          )}
-          onClick={onClick}
-          type="button"
-        >
-          <ImageBrokenIcon className="size-6 text-muted-foreground/60" />
-          <span className="text-xs font-medium text-muted-foreground">
-            File not found
-          </span>
-        </button>
-      </TooltipTrigger>
-      <TooltipContent>
-        <span className="break-all">{file.filePath}</span>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
 function VideoPreviewCard({
   file,
   handleMouseEnter,
@@ -412,7 +357,7 @@ function VideoPreviewCard({
   videoProgress: number;
   videoRef: RefObject<HTMLVideoElement | null>;
 }) {
-  const url = useLiveAssetUrl(file);
+  const { url } = file;
   const fileActions = useFileActionVisibility(file);
   const [resolveOpenTarget, setResolveOpenTarget] = useState(false);
   const openControl = useTaskFileOpenControl(
@@ -427,7 +372,6 @@ function VideoPreviewCard({
 
   return (
     <MediaCardShell
-      aspectRatio="video"
       bottomBar={
         displayTime === null ? undefined : (
           <div className="pointer-events-none absolute right-4 bottom-4 left-4 z-10 flex flex-col gap-1 opacity-0 transition-opacity duration-200 group-hover/media:opacity-100">
@@ -482,8 +426,13 @@ function VideoPreviewCard({
       }
       scrim={<div className="absolute inset-0 bg-black/20" />}
     >
+      {/* No surface of its own: the card's is what shows around a frame that
+          does not fill the square, the same as an image's. A black box would
+          be the heaviest thing in the reply, and next to the image tiles it
+          sits beside it reads as a different component rather than a
+          different kind of file. */}
       <video
-        className="size-full bg-black object-contain"
+        className="size-full object-contain"
         loop
         muted
         onLoadedMetadata={onLoadedMetadata}

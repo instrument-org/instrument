@@ -20,11 +20,9 @@ import {
 import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import {
-  DotsThreeOutlineVerticalIcon,
-  FolderIcon,
-  TrashIcon,
-} from "@phosphor-icons/react";
+import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { FolderIcon } from "@phosphor-icons/react/Folder";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";

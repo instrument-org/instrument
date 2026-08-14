@@ -115,19 +115,34 @@ export function DocxViewer({
           }}
           open={railOpen}
         />
-        <ViewerPageControl
-          count={Math.max(editor.totalPages, 1)}
-          onPageChange={(page) => {
-            revealPage({ layout, pageIndex: page - 1, scrollElement, zoom });
-          }}
-          page={Math.min(currentPage, Math.max(editor.totalPages, 1))}
-        />
-        <ViewerZoomControl
-          isFit={isFit}
-          onFit={fit}
-          onZoomChange={selectZoom}
-          zoom={zoom}
-        />
+        {/* Only once a document has been imported. The editor starts on an empty
+            one, which is a page of nothing reported as page 1 of 1, and a
+            document opened over another one shows that for as long as the
+            import takes. The nonce counts documents loaded rather than tracking
+            the import itself, so it stays raised while a save re-imports the
+            open document and the controls it is not changing stay put. */}
+        {editor.documentLoadNonce > 0 && (
+          <>
+            <ViewerPageControl
+              count={Math.max(editor.totalPages, 1)}
+              onPageChange={(page) => {
+                revealPage({
+                  layout,
+                  pageIndex: page - 1,
+                  scrollElement,
+                  zoom,
+                });
+              }}
+              page={Math.min(currentPage, Math.max(editor.totalPages, 1))}
+            />
+            <ViewerZoomControl
+              isFit={isFit}
+              onFit={fit}
+              onZoomChange={selectZoom}
+              zoom={zoom}
+            />
+          </>
+        )}
         <ViewerToolbarSpacer />
       </ViewerToolbar>
 

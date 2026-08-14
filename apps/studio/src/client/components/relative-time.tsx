@@ -1,42 +1,40 @@
-import { format, formatDistanceToNow } from "date-fns";
-import { useEffect, useState } from "react";
+import { useRelativeTime } from "@/client/hooks/use-relative-time";
+import { formatAbsoluteTime } from "@/client/lib/relative-time";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
-interface RelativeTimeProps {
-  className?: string;
-  date: Date;
-  updateInterval?: number;
-}
-
 export function RelativeTime({
   className,
+  compact = false,
   date,
-  updateInterval = 60_000,
-}: RelativeTimeProps) {
-  const [, setTick] = useState(0);
+  tooltip = true,
+}: {
+  className?: string;
+  /**
+   * The narrowest rendering ("12m ago", "5h ago", "3d ago"), for a row whose
+   * title wants the width more than the timestamp does.
+   */
+  compact?: boolean;
+  date: Date;
+  /**
+   * Off where the row already owns hover (a command palette item, a dense list
+   * row with its own menu), since a second hover surface there competes with
+   * the one the user is aiming for.
+   */
+  tooltip?: boolean;
+}) {
+  const text = useRelativeTime(date, { compact });
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTick((prev) => prev + 1);
-    }, updateInterval);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [updateInterval]);
+  if (!tooltip) {
+    return <span className={className}>{text}</span>;
+  }
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className={className}>
-          {formatDistanceToNow(date, { addSuffix: true }).replace(
-            "less than a minute",
-            "< 1 minute",
-          )}
-        </span>
+        <span className={className}>{text}</span>
       </TooltipTrigger>
-      <TooltipContent>{format(date, "PPpp")}</TooltipContent>
+      <TooltipContent>{formatAbsoluteTime(date)}</TooltipContent>
     </Tooltip>
   );
 }

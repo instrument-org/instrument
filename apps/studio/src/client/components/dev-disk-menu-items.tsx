@@ -4,7 +4,7 @@ import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectId, type TaskId } from "@instrument-org/workspace/client";
-import { CopyIcon } from "@phosphor-icons/react";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 

@@ -11,8 +11,7 @@ export const GLOBAL_DEFINES = {
   __AGENT_BROWSER_BIN_DIR__: path.dirname(
     require.resolve("agent-browser/bin/agent-browser.js"),
   ),
-  __FFMPEG_STATIC_PATH__: require.resolve("ffmpeg-static"),
-  __FFPROBE_STATIC_PATH__: require.resolve("@derhuerst/ffprobe-static"),
+  __FFMPEG_FFPROBE_STATIC_PATH__: require.resolve("ffmpeg-ffprobe-static"),
 };
 
 export function applyGlobalDefines() {

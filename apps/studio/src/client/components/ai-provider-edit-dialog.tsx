@@ -11,7 +11,7 @@ import { Input } from "@/client/components/ui/input";
 import { Label } from "@/client/components/ui/label";
 import { rpcClient } from "@/client/rpc/client";
 import { type ClientAIProviderConfig } from "@/shared/schemas/provider";
-import { WarningCircleIcon } from "@phosphor-icons/react";
+import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useMutation } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
@@ -103,7 +103,7 @@ export function AIProviderEditDialog({
 
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent maxWidth="425px">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AIProviderIcon type={config.type} />

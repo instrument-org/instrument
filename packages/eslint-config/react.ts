@@ -40,6 +40,28 @@ const config: ReturnType<typeof tseslint.config> = tseslint.config(
       "react-refresh": reactRefresh,
     },
     rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              // The icon package's root re-exports 3024 separate modules, and
+              // importing it evaluates all of them: 914ms in Node, which a
+              // bundler amortizes but a test runner pays once per test file,
+              // since each one gets its own module registry. A subpath is a
+              // leaf and costs ~1ms.
+              //
+              // `allowTypeImports` because a type-only import is erased before
+              // anything runs, so it is free wherever it points. `Icon` and
+              // `IconProps` are only reachable from the root, and stay there.
+              allowTypeImports: true,
+              message:
+                "Import the icon from its own module -- `@phosphor-icons/react/Check`, not the package root. The root pulls in every icon there is.",
+              regex: "^@phosphor-icons/react$",
+            },
+          ],
+        },
+      ],
       "n/no-unsupported-features/node-builtins": [
         "error",
         { allowExperimental: true, ignores: ["localStorage"] },

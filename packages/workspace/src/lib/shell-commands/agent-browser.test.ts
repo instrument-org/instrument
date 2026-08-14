@@ -1,4 +1,4 @@
-import { type CommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
+import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import os from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,12 +22,12 @@ import {
 
 vi.mock("execa");
 
-const mockCtx: CommandContext = {
+const mockCtx = createCommandContext({
   cwd: "/",
   env: new Map<string, string>(),
   fs: new InMemoryFs(),
   stdin: EMPTY_BYTES,
-};
+});
 
 describe("createAgentBrowserCommand", () => {
   const taskId = TaskIdSchema.parse("test");
@@ -556,7 +556,7 @@ describe("agent-browser routing", () => {
     { name: "a task-absolute program", value: "/task/work/chrome.sh" },
     { name: "a host browser build", value: "/Applications/Chromium.app" },
   ])("refuses an --executable-path naming $name", async ({ value }) => {
-    // An external invocation runs with the host environment, so honouring this
+    // An external invocation runs with the host environment, so honoring this
     // would execute an agent-authored file outside the sandbox with the user's
     // own credentials in its env.
     const result = await command.execute(
@@ -705,7 +705,6 @@ describe("isDaemonConfigRace", () => {
   it("matches the CLI's daemon-configuration refusal", () => {
     expect(
       isDaemonConfigRace(
-        // cspell:ignore KXTDQBA XGVK
         "✗ A daemon for session 'ses_01KXTDQBA6YKA952V0XGVK2HM4' started " +
           "concurrently with different daemon configuration. Retry the command " +
           "so agent-browser can restart it with the requested configuration.",
@@ -769,7 +768,7 @@ describe("isExternalBrowserInvocation", () => {
     { args: ["-p", "ios", "open", "x"], external: true },
     // Explicitly naming the instrument provider is the task browser.
     { args: ["--provider", "instrument", "open", "x"], external: false },
-    // The CLI does not honour an inline value on these flags -- it reads the
+    // The CLI does not honor an inline value on these flags -- it reads the
     // whole token as the subcommand and fails -- so the invocation reaches no
     // browser at all, and routing it externally would name a target the
     // command never connects to.

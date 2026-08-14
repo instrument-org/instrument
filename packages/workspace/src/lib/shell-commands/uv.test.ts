@@ -1,5 +1,5 @@
 import { execaSync } from "execa";
-import { type CommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
+import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { existsSync, mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -15,14 +15,12 @@ import { createPipCommand } from "./pip";
 import { createPythonCommand } from "./python";
 import { createUvCommand } from "./uv";
 
-// cspell:ignore cowsay uvsmoke
-
-const mockCtx: CommandContext = {
+const mockCtx = createCommandContext({
   cwd: "/",
   env: new Map<string, string>(),
   fs: new InMemoryFs(),
   stdin: EMPTY_BYTES,
-};
+});
 
 describe("createUvCommand", () => {
   const taskId = createMockTaskConfigForDir(

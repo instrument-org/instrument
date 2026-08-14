@@ -2,6 +2,8 @@ import { resetStudioModals } from "@/client/atoms/studio-modal";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
+import { installWindowStubs } from "./window-stubs";
+
 // Loaded only by the `dom` project (see `vitest.config.ts`), on top of the
 // shared node setup.
 
@@ -34,10 +36,26 @@ Object.defineProperty(window, "ResizeObserver", {
   },
 });
 
-// The preload bridge every `isMacOS()`-style check reads. Pinned to darwin so a
-// component that renders a chord (or any other per-platform copy) reads the
-// same on every machine the suite runs on, rather than following the host.
-Object.defineProperty(window, "electron", {
+// Same story for IntersectionObserver, which anything deferring work until it
+// is scrolled near uses. Nothing is ever reported as intersecting, so such a
+// component renders whatever it draws before it comes into view -- which is the
+// honest answer in a document that has no view.
+Object.defineProperty(window, "IntersectionObserver", {
   configurable: true,
-  value: { process: { platform: "darwin" } },
+  value: class {
+    disconnect() {
+      // Nothing is observed, so nothing has to be released.
+    }
+    observe() {
+      // No viewport for anything to come into.
+    }
+    takeRecords() {
+      return [];
+    }
+    unobserve() {
+      // See `observe`.
+    }
+  },
 });
+
+installWindowStubs();

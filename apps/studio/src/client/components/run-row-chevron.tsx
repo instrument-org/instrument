@@ -1,5 +1,5 @@
 import { cn } from "@/client/lib/utils";
-import { CaretRightIcon } from "@phosphor-icons/react";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 
 // The disclosure control on the compact rows the agent emits as it works: tool
 // calls and reasoning. Closed, it stays out of the layout until the row is
@@ -10,10 +10,10 @@ export function RunRowChevron({ isOpen }: { isOpen: boolean }) {
   return (
     <CaretRightIcon
       className={cn(
-        // The row's gap-3 is the spacing between its icon, label and chips. The
+        // The row's gap-2 is the spacing between its icon, label and chips. The
         // chevron reads as attached to what precedes it rather than as another
         // item in that sequence, so it pulls back off that gap to sit 4px out.
-        "-ml-2 size-3 shrink-0 text-muted-foreground transition-transform duration-200",
+        "-ml-1 size-3 shrink-0 text-muted-foreground transition-transform duration-200",
         isOpen ? "rotate-90" : "hidden group-hover/run-row:block",
       )}
     />

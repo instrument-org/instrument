@@ -1,12 +1,20 @@
-import type { Project, Task, TaskId } from "@instrument-org/workspace/client";
+import type {
+  Project,
+  ProjectId,
+  Task,
+  TaskId,
+} from "@instrument-org/workspace/client";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { InternalLink } from "@/client/components/internal-link";
+import { RelativeTime } from "@/client/components/relative-time";
 import { TaskStatusIcon } from "@/client/components/session-status-icon";
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
-import { ArrowsDownUpIcon, BagIcon, PushPinIcon } from "@phosphor-icons/react";
-import { format, formatDistanceToNow } from "date-fns";
+import { ArrowsDownUpIcon } from "@phosphor-icons/react/ArrowsDownUp";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
+import { PushPinIcon } from "@phosphor-icons/react/PushPin";
+import { format } from "date-fns";
 
 import { TaskActionsCell } from "./actions";
 import { ModelPreview } from "./model-preview";
@@ -25,7 +33,7 @@ export function createColumns({
   onSettings: (id: TaskId) => void;
   onStop: (id: TaskId) => void;
   pinnedTaskIds: Set<TaskId>;
-  projects: Map<string, Project>;
+  projects: Map<ProjectId, Project>;
 }): ColumnDef<Task>[] {
   return [
     {
@@ -138,7 +146,7 @@ export function createColumns({
               params={{ id: project.id }}
               to="/projects/$id"
             >
-              <BagIcon className="size-4 shrink-0" />
+              <CardsThreeIcon className="size-4 shrink-0" />
               {project.name}
             </InternalLink>
           </Button>
@@ -171,13 +179,10 @@ export function createColumns({
       cell: ({ row }) => {
         const task = row.original;
         return (
-          <span className="text-sm text-muted-foreground">
-            {formatDistanceToNow(task.updatedAt, {
-              addSuffix: true,
-            })
-              .replace("less than ", "")
-              .replace("about ", "")}
-          </span>
+          <RelativeTime
+            className="text-sm text-muted-foreground"
+            date={task.updatedAt}
+          />
         );
       },
       header: ({ column }) => {

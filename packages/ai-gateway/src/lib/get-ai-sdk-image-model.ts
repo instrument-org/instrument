@@ -3,7 +3,10 @@ import { OUR_MODELS, type WorkspaceServerURL } from "@instrument-org/shared";
 import { Result } from "typescript-result";
 
 import { type AIGatewayModel } from "../schemas/model";
-import { type AIGatewayProviderConfig } from "../schemas/provider-config";
+import {
+  type AIGatewayProviderConfig,
+  TEST_IMAGE_MODEL_OVERRIDE_KEY,
+} from "../schemas/provider-config";
 import {
   createDeepInfraSDK,
   createFireworksSDK,
@@ -40,8 +43,6 @@ const PROVIDER_TYPE_PRIORITY: ImageGenerationProviderType[] = [
 
 const GEMINI_IMAGE_MODEL_ID = "gemini-3.1-flash-lite-image";
 const OPENROUTER_GEMINI_IMAGE_MODEL_ID = `google/${GEMINI_IMAGE_MODEL_ID}`;
-
-export const TEST_IMAGE_MODEL_OVERRIDE_KEY = "__testImageModelOverride";
 
 export type AISDKImageModelResult =
   | { model: ImageModelV3; type: "image" }
@@ -154,7 +155,6 @@ async function getAISDKImageModel({
     case "fireworks": {
       const sdk = await createFireworksSDK(config, workspaceServerURL);
       const model = sdk.imageModel(
-        // cspell:ignore schnell
         "accounts/fireworks/models/flux-1-schnell-fp8",
       );
       return Result.ok({ model, type: "image" as const });

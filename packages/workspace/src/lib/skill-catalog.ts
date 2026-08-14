@@ -16,9 +16,10 @@ const CATALOG_TAGS = {
  * The catalog is discovered from the user's machine, so its size is set by how
  * many skills they happen to have installed across every agent vendor -- an
  * unbounded list would quietly eat the context window before the task starts.
- * A character budget is the coarse form of Codex's token budget (2% of the
- * context window); switch to that shape once the model metadata carries a
- * context length.
+ * Characters rather than tokens because no tokenizer is right for every
+ * provider we run against: this is roughly 1,700 tokens of prose, and about
+ * 2,500 once the tag markup around short descriptions is counted. See
+ * docs/findings/character-budgets-are-a-token-proxy.md.
  */
 const CATALOG_CHAR_BUDGET = 8000;
 
@@ -63,8 +64,7 @@ interface SkillCatalog {
 /**
  * Render the agent-facing skill catalog within a character budget, degrading in
  * three steps: every description in full, then descriptions shortened to a fair
- * share of what is left, then names alone. Mirrors the only budgeted
- * implementation we found in the wild (Codex's `core-skills` renderer).
+ * share of what is left, then names alone.
  */
 export function renderSkillCatalog(
   skills: SkillInfo[],

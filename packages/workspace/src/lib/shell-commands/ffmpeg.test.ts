@@ -1,5 +1,5 @@
 import {
-  type CommandContext,
+  createCommandContext,
   EMPTY_BYTES,
   encodeUtf8ToBytes,
   InMemoryFs,
@@ -12,12 +12,12 @@ import { createFfmpegCommand } from "./ffmpeg";
 
 vi.mock("execa");
 
-const mockCtx: CommandContext = {
+const mockCtx = createCommandContext({
   cwd: "/task",
   env: new Map<string, string>(),
   fs: new InMemoryFs(),
   stdin: EMPTY_BYTES,
-};
+});
 
 async function mockExeca() {
   const { execa } = await import("execa");
@@ -71,7 +71,6 @@ describe("ffmpegCommand", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       expect.any(String),
-      // cspell:ignore nostdin
       ["-nostdin", "-version"],
       expect.anything(),
     );

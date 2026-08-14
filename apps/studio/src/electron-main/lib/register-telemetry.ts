@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { getPreferencesStore, isDeveloperMode } from "../stores/preferences";
 import { captureServerEvent } from "./capture-server-event";
+import { describeError } from "./describe-error";
 import { logger } from "./electron-logger";
 import { addServerException } from "./server-exceptions";
 import { telemetry } from "./telemetry";
@@ -63,6 +64,7 @@ export function registerTelemetry(app: Electron.App) {
       return;
     }
     event.preventDefault();
+    logger.info("Quit teardown started from will-quit");
 
     // Bounded so a stuck flush can't wedge the quit.
     const forceQuit = setTimeout(() => {
@@ -107,10 +109,7 @@ export function registerTelemetry(app: Electron.App) {
       logger.error(error);
 
       if (isDeveloperMode()) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        const errorStack = error instanceof Error ? error.stack : undefined;
-        addServerException({ message: errorMessage, stack: errorStack });
+        addServerException(describeError(error));
       }
     };
 

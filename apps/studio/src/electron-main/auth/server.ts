@@ -5,11 +5,7 @@ import {
   store,
 } from "@/electron-main/auth/client";
 import { renderAuthPage, testStates } from "@/electron-main/auth/page";
-import {
-  getAuthServer,
-  setAuthServer,
-  setAuthServerPort,
-} from "@/electron-main/auth/state";
+import { setAuthServerPort } from "@/electron-main/auth/state";
 import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
@@ -19,8 +15,7 @@ import { getSessionStore } from "@/electron-main/stores/session";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { getOnboardingWindow } from "@/electron-main/windows/onboarding";
 import { serve } from "@hono/node-server";
-import { PORTS } from "@instrument-org/shared";
-import { detect } from "detect-port";
+import { listenWithPortFallback, PORTS } from "@instrument-org/shared";
 import { type Context, Hono } from "hono";
 import fs from "node:fs/promises";
 
@@ -67,16 +62,57 @@ const serveAsset = async (
   }
 };
 
-export async function startAuthCallbackServer() {
-  const existingServer = getAuthServer();
-  if (existingServer !== null) {
+let startPromise: Promise<undefined | { port: number }> | undefined;
+
+/**
+ * Memoized rather than guarded on the started server, because that handle only
+ * exists once the bind resolves: two calls that overlap the bind would both
+ * pass a guard on it and start a second server.
+ */
+export function startAuthCallbackServer() {
+  startPromise ??= start();
+  return startPromise;
+}
+
+async function start() {
+  const app = new Hono();
+
+  // Bound before the routes are registered, so they close over the port the
+  // bind actually took. Nothing can reach the server in between: registration
+  // runs in the same tick.
+  //
+  // IPv4 loopback only, so the OAuth callback and the auth preview pages aren't
+  // exposed to the local network; the system browser reaches the callback via
+  // localhost/127.0.0.1.
+  const bound = await listenWithPortFallback({
+    basePort: DEFAULT_PORT,
+    listen: (port) => serve({ fetch: app.fetch, hostname: "127.0.0.1", port }),
+  }).catch((error: unknown) => {
+    captureServerException(
+      new Error("Failed to start the auth callback server", { cause: error }),
+      { scopes: ["auth"] },
+    );
+    return null;
+  });
+
+  if (!bound) {
     return;
   }
 
-  const port = await detect(DEFAULT_PORT);
+  const { port, server } = bound;
   setAuthServerPort(port);
 
-  const app = new Hono();
+  // Sign-in is the only thing this server carries, so losing it is worth
+  // reporting and not worth crashing over. Without a listener, a socket error
+  // reaches the process and takes the whole app down.
+  server.on("error", (error) => {
+    captureServerException(
+      new Error("Auth callback server error", { cause: error }),
+      {
+        scopes: ["auth"],
+      },
+    );
+  });
 
   app.get("/icon.png", (c) =>
     serveAsset(
@@ -206,14 +242,6 @@ export async function startAuthCallbackServer() {
   );
   app.get("/test/success", (c) => c.html(renderAuthPage({})));
   app.get("/test/error", (c) => c.html(renderAuthPage({ isError: true })));
-  // Bind IPv4 loopback only so the OAuth callback and the auth preview pages
-  // aren't exposed to the local network; the system browser reaches the
-  // callback via localhost/127.0.0.1.
-  const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port });
-  setAuthServer(server);
 
-  return {
-    port,
-    server,
-  };
+  return { port };
 }

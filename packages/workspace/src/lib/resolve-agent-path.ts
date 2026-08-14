@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { TASK_FOLDER_NAMES } from "../constants";
+import { MOUNT } from "../mount-points";
 import {
   type AbsolutePath,
   AbsolutePathSchema,
@@ -13,14 +14,15 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { ensureRelativePath } from "./ensure-relative-path";
 import { executeError } from "./execute-error";
 import { normalizePath } from "./normalize-path";
+import { relativeWithin } from "./path-containment";
 import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { resolvePathWithinTaskDir } from "./resolve-path-within-task-dir";
 import {
   hostPathEscapesMount,
+  isMaskedPrivatePath,
   nonTaskMounts,
   resolveHostPath,
-  TASK_MOUNT_POINT,
   type WorkspaceFsLayout,
 } from "./workspace-fs-layout";
 
@@ -62,7 +64,6 @@ export function applyUnicodeFallbacks(
     return AbsolutePathSchema.parse(curlyVariant);
   }
 
-  // cspell:ignore d'écran
   // Combined NFD + curly quote (e.g. French macOS: "Capture d'écran")
   const nfdCurlyVariant = nfdVariant.replaceAll("'", "\u2019");
   if (nfdCurlyVariant !== resolvedPath && fileExistsSync(nfdCurlyVariant)) {
@@ -209,11 +210,14 @@ export function resolveToolPath(layout: WorkspaceFsLayout, inputPath: string) {
 
 /**
  * Resolve a write-path input against the workspace layout. Task-relative paths,
- * the task's own virtual paths (/task/...), and the writable skills mount
- * (/skills/...) resolve normally; read-only mounts are rejected with
- * copy-into-task guidance instead of silently landing somewhere else. Whether a
- * non-task mount is writable is decided by its readOnly flag, never by a
- * per-mount special case here.
+ * the task's own virtual paths (/task/...), and writable mounts (/skills/...,
+ * a folder the user granted write access) resolve normally; read-only mounts
+ * are rejected with copy-into-task guidance instead of silently landing
+ * somewhere else. Whether a non-task mount is writable is decided by its
+ * readOnly flag, never by a per-mount special case here.
+ *
+ * `mount` in the result is the mount that owns the path, or null for a path
+ * inside the task.
  */
 export function resolveWritableToolPath(options: {
   inputPath: string;
@@ -223,7 +227,10 @@ export function resolveWritableToolPath(options: {
   const trimmedPath = inputPath.trim();
 
   if (!path.isAbsolute(trimmedPath)) {
-    return resolveToolPath(layout, trimmedPath);
+    return resolveToolPath(layout, trimmedPath).map((resolved) => ({
+      ...resolved,
+      mount: null,
+    }));
   }
 
   const result = resolveVirtualAbsolutePath(layout, trimmedPath);
@@ -237,7 +244,10 @@ export function resolveWritableToolPath(options: {
         `Copy the file into the task first (e.g. cp '${displayPath}' attachments/) and work on the copy.`,
     );
   }
-  return ok({ absolutePath, displayPath });
+  // The owning mount rides along so a caller whose output contract is
+  // task-relative can refuse a mount path rather than silently resolving it
+  // against the task directory.
+  return ok({ absolutePath, displayPath, mount });
 }
 
 function fileExistsSync(filePath: string): boolean {
@@ -299,26 +309,26 @@ function resolveVirtualAbsolutePath(
         : "";
     return executeError(
       `The absolute path "${virtualPath}" is outside the task. ` +
-        `Use a task-relative path (or ${TASK_MOUNT_POINT}/...)${mountHint}.`,
+        `Use a task-relative path (or ${MOUNT.task}/...)${mountHint}.`,
     );
   }
 
   const { hostPath, mount } = resolved;
 
+  // Asked of the mount that owns the path rather than of the task mount alone:
+  // the project mount masks a private dir too, and the file tools reach it by
+  // a route the bash sandbox's mask does not cover.
+  if (isMaskedPrivatePath(mount, virtualPath)) {
+    return privateDirError(normalizePath(virtualPath));
+  }
+
   if (mount === layout.task) {
-    if (isTaskPrivatePath(layout.task.hostRoot, hostPath)) {
-      return privateDirError(normalizePath(virtualPath));
-    }
     // Normalize /task/... input into the same task-relative form as relative
     // input so display paths stay consistent across tools.
-    const normalized = normalizePath(virtualPath);
-    const relative =
-      normalized === TASK_MOUNT_POINT
-        ? "./"
-        : `./${normalized.slice(TASK_MOUNT_POINT.length + 1)}`;
+    const relative = relativeWithin(MOUNT.task, normalizePath(virtualPath));
     return ok({
       absolutePath: hostPath,
-      displayPath: RelativePathSchema.parse(relative),
+      displayPath: RelativePathSchema.parse(`.${relative ?? "/"}`),
       mount: null,
     });
   }

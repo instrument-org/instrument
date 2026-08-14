@@ -75,7 +75,7 @@ const ignore = () => {
 
 // Applied to the two bitmap layers so neither takes a pointer nor offers itself
 // to the browser's drag machinery. `WebkitUserDrag` is the part Chromium
-// actually honours for an `<img>`; `pointerEvents` keeps hit-testing on the
+// actually honors for an `<img>`; `pointerEvents` keeps hit-testing on the
 // wrapper that owns selection.
 const NON_INTERACTIVE_LAYER = {
   pointerEvents: "none",

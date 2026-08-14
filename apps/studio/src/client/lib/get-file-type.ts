@@ -1,3 +1,5 @@
+import { CODE_EXTENSION_MIME_TYPES } from "@instrument-org/shared";
+
 import { isTextMimeType } from "./is-text-mime-type";
 
 export type FileType =
@@ -79,7 +81,6 @@ function fileKindLabel(fileType: FileType): string {
   }
 }
 
-// cspell:ignore dotm ipynb mhtml mobi xlsb zstandard
 const EXTENSION_KIND_LABELS: Record<string, string> = {
   "7z": "7Z archive",
   ass: "Subtitle file",
@@ -158,7 +159,6 @@ const EXTENSION_KIND_LABELS: Record<string, string> = {
   zst: "Zstandard archive",
 };
 
-// cspell:ignore subrip vcard
 const MIME_KIND_LABELS: Record<string, string> = {
   "application/epub+zip": "E-book",
   "application/geo+json": "GeoJSON data",
@@ -234,7 +234,6 @@ export function getFileKindLabel({
 // than their OOXML equivalents but more than the "preview unavailable" card,
 // and a hard parse failure still degrades to it. `.doc` is absent because
 // `@extend-ai/react-docx` reads OOXML only.
-// cspell:ignore docm pptm xlsm
 const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
   csv: "csv",
   // A database has no registered mime type of its own, so the extension is the
@@ -268,8 +267,44 @@ const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
   xlsx: "xlsx",
   // Only zip. The other archive formats in the kind-label table (7z, rar, tar
   // and the compressed tarballs) are different containers that this reader
-  // cannot open, and they keep their labelled download card.
+  // cannot open, and they keep their labeled download card.
   zip: "archive",
+};
+
+// The media a browser can decode, by extension, so a card drawn from a path
+// alone still knows to reach for a thumbnail.
+//
+// `ts` is deliberately absent. It is a registered video extension (MPEG
+// transport stream) and a TypeScript file everywhere it actually turns up here,
+// so it belongs to the code table instead.
+const MEDIA_EXTENSIONS: Record<string, FileType> = {
+  aac: "audio",
+  aiff: "audio",
+  avif: "image",
+  bmp: "image",
+  flac: "audio",
+  gif: "image",
+  heic: "image",
+  heif: "image",
+  ico: "image",
+  jpeg: "image",
+  jpg: "image",
+  m4a: "audio",
+  m4v: "video",
+  mov: "video",
+  mp3: "audio",
+  mp4: "video",
+  oga: "audio",
+  ogg: "audio",
+  ogv: "video",
+  opus: "audio",
+  png: "image",
+  svg: "image",
+  tif: "image",
+  tiff: "image",
+  wav: "audio",
+  webm: "video",
+  webp: "image",
 };
 
 export function getFileType({
@@ -282,37 +317,49 @@ export function getFileType({
   const lowerFilename = filename.toLowerCase();
 
   const extensionStart = lowerFilename.lastIndexOf(".");
-  const documentType =
-    extensionStart === -1
-      ? undefined
-      : DOCUMENT_EXTENSIONS[lowerFilename.slice(extensionStart + 1)];
+  const extension =
+    extensionStart === -1 ? undefined : lowerFilename.slice(extensionStart + 1);
+
+  const documentType = extension ? DOCUMENT_EXTENSIONS[extension] : undefined;
   if (documentType) {
     return documentType;
   }
 
-  if (mimeType) {
-    if (mimeType.startsWith("image/")) {
+  const mediaType = extension ? MEDIA_EXTENSIONS[extension] : undefined;
+  if (mediaType) {
+    return mediaType;
+  }
+
+  // A file reference drawn from a path alone carries no mime type, which is
+  // every reference in the transcript: nothing resolves a file over the network
+  // to draw it. Source files are the ones that need this -- without a mime type
+  // they reach none of the branches below and land on the fallback card.
+  const effectiveMimeType =
+    mimeType ?? (extension ? CODE_EXTENSION_MIME_TYPES[extension] : undefined);
+
+  if (effectiveMimeType) {
+    if (effectiveMimeType.startsWith("image/")) {
       return "image";
     }
 
-    if (mimeType.startsWith("video/")) {
+    if (effectiveMimeType.startsWith("video/")) {
       return "video";
     }
 
-    if (mimeType.startsWith("audio/")) {
+    if (effectiveMimeType.startsWith("audio/")) {
       return "audio";
     }
 
-    if (mimeType === "application/pdf") {
+    if (effectiveMimeType === "application/pdf") {
       return "pdf";
     }
 
-    if (mimeType === "text/html") {
+    if (effectiveMimeType === "text/html") {
       return "html";
     }
   }
 
-  if (isMarkdown({ filename, mimeType })) {
+  if (isMarkdown({ filename, mimeType: effectiveMimeType })) {
     return "markdown";
   }
 
@@ -320,18 +367,35 @@ export function getFileType({
     return "html";
   }
 
-  if (isTextMimeType(mimeType)) {
-    if (isReadableText({ filename, mimeType })) {
+  if (isTextMimeType(effectiveMimeType)) {
+    if (isReadableText({ filename, mimeType: effectiveMimeType })) {
       return "text";
     }
     return "code";
   }
 
-  if (isReadableText({ filename, mimeType })) {
+  if (isReadableText({ filename, mimeType: effectiveMimeType })) {
     return "text";
   }
 
   return "unknown";
+}
+
+/**
+ * Whether the file is one a surface previews by showing it rather than by
+ * naming it.
+ *
+ * Asked of a name alone, so a path with no file behind it yet can be asked the
+ * same question -- which is what lets a grid reserve the room a file is going
+ * to need before the line naming it has finished arriving.
+ */
+export function isMediaFile(file: {
+  filename: string;
+  mimeType?: string;
+}): boolean {
+  const fileType = getFileType(file);
+
+  return fileType === "image" || fileType === "video";
 }
 
 function isMarkdown({
@@ -349,7 +413,6 @@ function isMarkdown({
 }
 
 function isMarkupFile(filename: string): boolean {
-  // cspell:disable-next-line
   return /\.(?:rst|rest|adoc|asciidoc|textile|org|wiki|mediawiki|creole)$/i.test(
     filename.toLowerCase(),
   );

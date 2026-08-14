@@ -62,11 +62,20 @@ const config: Configuration = {
     // DMG volume icons still use .icns even when the app bundle uses .icon (macOS 26+).
     icon: "icon.icns",
   },
-  // cspell:ignore orgstudio
   // NSIS derives the Windows install folder (%LOCALAPPDATA%\Programs\<name>)
   // from package.json `name`, which sanitizes "@instrument-org/studio" into the
   // ugly "@instrument-orgstudio". Override the metadata name so the install
   // folder matches the product name ("Instrument") instead.
+  // Chromium carries a locale bundle per language it has ever been translated
+  // into, which is ~48MB of the macOS app across 220 `.lproj` directories.
+  // Studio's own UI is English-only, so only English survives.
+  //
+  // The name is region-qualified because the match runs both ways: "en-US"
+  // keeps macOS's bare `en.lproj` as well as the `en-US.pak` Windows and Linux
+  // ship. electron-builder skips the cleanup entirely rather than leave a
+  // locales directory empty, so a name that matches nothing cannot produce an
+  // app that fails to boot.
+  electronLanguages: ["en-US"],
   extraMetadata: {
     name: APP_NAME,
   },
@@ -102,11 +111,46 @@ const config: Configuration = {
     "node_modules/**",
     "!**/node_modules/**/*.md",
     "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
-    "!**/node_modules/*.d.ts",
     "!**/node_modules/.bin",
-    "!**/node_modules/sql.js/**", // just-bash peer dep for sqlite3 command; non-functional in asar (worker.js missing), stubbed out -- saves ~18MB
+    // sql.js backs just-bash's `sqlite3`. Only the wasm build's loader and its
+    // .wasm are reachable from Node; the asm.js, browser, and debug variants are
+    // ~17MB of the package's 18MB and nothing loads them.
+    "!**/node_modules/sql.js/dist/{sql-asm*,worker.sql-*,*-debug.*,sql-wasm-browser.*}",
+    // date-fns resolves its default locale by requiring `locale/en-US`, so
+    // that one locale and the builders it shares under `locale/_lib` load
+    // whether or not anything asks for a locale by name. Nothing here asks:
+    // every call site imports arithmetic or ISO parsing. The other ~110
+    // locales and the `cdn` browser bundles beside them are ~6.5MB.
+    //
+    // Order matters. Each re-include has to follow the exclusion, and the
+    // directory itself is re-included by the partial match electron-builder
+    // does on directories, which is what lets the walker descend at all.
+    "!**/node_modules/date-fns/locale/**",
+    "**/node_modules/date-fns/locale/_lib/**",
+    "**/node_modules/date-fns/locale/en-US/**",
+    "**/node_modules/date-fns/locale/en-US.*",
+    // just-bash declares quickjs-emscripten to back its `js-exec` command and
+    // turndown (which pulls domino) to back `html-to-markdown`. Neither
+    // command can run here: `js-exec` is absent from the command registry
+    // just-bash builds, and `html-to-markdown` is filtered out by
+    // BROKEN_COMMANDS in create-bash-env. Both are required from inside the
+    // command body, so excluding them removes 9.4MB nothing can reach.
+    "!**/node_modules/{quickjs-emscripten,turndown}/**",
+    "!**/node_modules/@jitl/quickjs-*/**",
+    "!**/node_modules/@mixmark-io/domino/**",
+    // These two are last among the node_modules rules because a later pattern
+    // wins: they have to apply to whatever the package-specific rules above
+    // re-included, not be undone by them.
+    //
+    // Type declarations are never loaded at runtime. The single-star form
+    // electron-builder documents only matches a `.d.ts` sitting directly in a
+    // `node_modules` directory rather than inside a package, which is nothing.
+    "!**/node_modules/**/*.d.{ts,mts,cts}",
+    // Packages occasionally publish their own Yarn install state. Nothing
+    // reads it, and `.yarn-integrity` below is the only part of it that
+    // electron-builder excludes on its own.
+    "!**/node_modules/**/.yarn/**",
     "!**/*.map", // someday we may want to keep these for debugging
-    /* cspell:disable */
     "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
     "!.editorconfig",
     "!**/._*",
@@ -115,7 +159,6 @@ const config: Configuration = {
     "!**/{appveyor.yml,.travis.yml,circle.yml}",
     "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}",
     "!**/*.local/**",
-    /* cspell:enable */
   ],
   generateUpdatesFilesForAllChannels: true,
   linux: {

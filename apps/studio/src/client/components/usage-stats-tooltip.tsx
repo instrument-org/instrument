@@ -3,7 +3,8 @@ import { formatDuration } from "@/client/lib/format-time";
 import { isValidNumber } from "@/client/lib/usage-utils";
 import { cn } from "@/client/lib/utils";
 import { type SessionMessage } from "@instrument-org/workspace/client";
-import { ChatCircleTextIcon, CoinsIcon } from "@phosphor-icons/react";
+import { ChatCircleTextIcon } from "@phosphor-icons/react/ChatCircleText";
+import { CoinsIcon } from "@phosphor-icons/react/Coins";
 import { type ReactNode } from "react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -113,11 +114,8 @@ export function UsageSummaryText({
   onClick?: () => void;
   totalTokens: number;
 }) {
-  return (
-    <span
-      className={cn("inline-flex items-center gap-2 truncate", className)}
-      onClick={onClick}
-    >
+  const counts = (
+    <>
       <span className="inline-flex shrink-0 items-center gap-1">
         <ChatCircleTextIcon className="size-3 shrink-0" weight="fill" />
         <span className="tabular-nums">{formatNumber(messageCount)}</span>
@@ -128,6 +126,31 @@ export function UsageSummaryText({
           <span className="tabular-nums">{formatNumber(totalTokens)}</span>
         </span>
       )}
-    </span>
+    </>
+  );
+
+  // Two counts to read, and sometimes something to press. Only the second is a
+  // control, so only the second is rendered as one -- as a `span` it took a
+  // click that no keyboard could reach and announced nothing to say it was
+  // there at all.
+  if (!onClick) {
+    return (
+      <span
+        className={cn("inline-flex items-center gap-2 truncate", className)}
+      >
+        {counts}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      aria-label="View transcript"
+      className={cn("inline-flex items-center gap-2 truncate", className)}
+      onClick={onClick}
+      type="button"
+    >
+      {counts}
+    </button>
   );
 }

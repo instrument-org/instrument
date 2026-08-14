@@ -53,7 +53,7 @@ The general shape: when a responsive change looks structural, check whether grid
 
 Radix portals to `document.body`, outside the zoom root, so floating content self-applies `zoom` via `useAppZoomStyle` (`apps/studio/src/client/hooks/use-app-zoom.ts`). On a self-zoomed element, units do not all behave the same way, and getting this backwards is silent:
 
-| Unit         | Behaviour on a self-zoomed element                | Rule                            |
+| Unit         | Behavior on a self-zoomed element                | Rule                            |
 | ------------ | ------------------------------------------------- | ------------------------------- |
 | `vw` / `vh`  | not rescaled; `100vh` renders `zoom x` the window | divide by `var(--content-zoom)` |
 | `%`          | already resolved in the element's own units       | do **not** divide               |
@@ -67,7 +67,11 @@ Dividing an intrinsic size pins the element's rendered size while the text insid
 | `min(32rem, calc((100% - 2rem) / z))`  |       384 |         768 |
 | `min(32rem, calc((100vw - 2rem) / z))` |       512 |        1024 |
 
-Only the last keeps the dialog's layout room constant while letting it grow on screen. `ZOOM_CONTENT_MAX_WIDTH` uses that shape; a dialog wanting a different intrinsic size writes the same shape out literally, since Tailwind only generates arbitrary values it can see in source.
+Only the last keeps the dialog's layout room constant while letting it grow on screen. `zoomMaxSize(axis, intrinsic)` builds it, and `DialogContent`/`AlertDialogContent`/`TooltipContent` apply it as an inline `max-width`/`max-height` from their `maxWidth`/`maxHeight` props. A dialog that wants to be 42rem wide passes `maxWidth="42rem"`; the window cap is added for it.
+
+That is a prop and an inline style rather than a Tailwind class because a class is the form of this that can go missing. `cn()` merges a caller's `max-w-*` over the primitive's own and takes the window cap with it, silently, at the call site where the author is thinking about width and not about zoom. An inline style outranks every class, so the cap cannot be merged away and the intrinsic size can only be set by passing one in. `apps/studio/src/client/components/ui/dialog-zoom.browser.test.tsx` pins both halves of the contract: an oversized dialog stays inside the window at 1x/1.5x/2x, and a dialog that already fits grows with the zoom instead of staying pinned.
+
+A viewport unit written anywhere else in the renderer is the same bug wearing different clothes, so a test walks `src/client` and fails on any `vw`/`vh` not divided by the zoom factor in scope (`use-app-zoom.test.tsx`).
 
 ## Gotchas
 

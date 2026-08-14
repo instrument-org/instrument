@@ -14,6 +14,9 @@ export function installStubs() {
     // `rendererLog` is left off entirely: it is optional, and forwarding to a
     // main-process log has no meaning here.
     getFilePath: (file: File) => file.name,
+    // A browser has no home directory to report, so displayed paths keep
+    // whatever the fixtures spell.
+    homeDir: "/Users/web",
     windowType,
   };
 

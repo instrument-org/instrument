@@ -11,7 +11,7 @@ Status: proposed, not started. Prompted by the MessageScroller adoption, which w
 - tool-run boundaries that span message boundaries (`toolBoundaryMap`),
 - per-message chrome (assistant logo/wordmark, attachments, project-context note, error rows),
 - consecutive-assistant grouping for the footer (`lastFooterIndex`, `visibleAssistantContentCount`),
-- planning indicator and continue-button chrome appended after the loop.
+- continue-button chrome appended after the loop.
 
 It works, but it is hard to reason about and hard to extend. Every new concept (a new tool card, a new marker, collapsing) means threading more state through that one loop. It is also why the scroller integration is fragile: because the flattened output adds/removes several top-level nodes per turn as `isAgentRunning` flips, the streamed DOM churns in staggered mutations, and the library's "is this a new turn?" heuristic misfires. We currently work around that with an explicit anchor call; a cleaner structure removes the need.
 
@@ -45,8 +45,8 @@ Adopt the shape most mature chat renderers converge on: **raw items → derived 
 
 ## Suggested migration path (incremental)
 
-1. Introduce the `turn` / `item` / `unit` types and a pure `deriveRenderGroups` next to the current renderer. Unit-test it against the existing `presetSessions` fixtures with `toMatchInlineSnapshot`.
-2. Swap `ChatStream`'s inner loop to render `units` via the `kind → component` registry, one `MessageScrollerItem` per turn. Delete the flatten / tool-boundary / footer special-casing. Verify against the same fixtures and the debug chat-stream route.
+1. Introduce the `turn` / `item` / `unit` types and a pure `deriveRenderGroups` next to the current renderer. Unit-test it against the transcript scenarios with `toMatchInlineSnapshot`.
+2. Swap `ChatStream`'s inner loop to render `units` via the `kind → component` registry, one `MessageScrollerItem` per turn. Delete the flatten / tool-boundary / footer special-casing. Verify against the same scenarios and the debug transcript route.
 3. Layer collapsing + `detailLevel` onto the unit model.
 
 ## Open questions

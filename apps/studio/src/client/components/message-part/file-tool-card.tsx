@@ -1,10 +1,9 @@
 import { type TaskId } from "@instrument-org/workspace/client";
-import { ArrowsOutSimpleIcon, ChatIcon, CopyIcon } from "@phosphor-icons/react";
-import { useNavigate } from "@tanstack/react-router";
-import { useSetAtom } from "jotai";
+import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
 
-import { appendToPromptAtom } from "../../atoms/prompt-value";
 import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
+import { useTaskPaneActions } from "../../hooks/use-task-pane";
 import { getLanguageFromFilePath } from "../../lib/file-extension-to-language";
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
@@ -12,7 +11,7 @@ import { FileIcon } from "../file-icon";
 import { IconButton } from "../icon-button";
 import { VirtualizedScrollingText } from "../tool-part/virtualized-scrolling-text";
 import { useToolCallSession } from "./tool-call-session";
-import { ToolCard, ToolCardHeader } from "./tool-card";
+import { ToolCard, ToolCardActions, ToolCardHeader } from "./tool-card";
 
 export function FileToolCard({
   content,
@@ -31,8 +30,7 @@ export function FileToolCard({
 
   const filename = filenameFromFilePath(filePath);
   const detectedLanguage = language ?? getLanguageFromFilePath(filePath);
-  const appendToPrompt = useSetAtom(appendToPromptAtom);
-  const navigate = useNavigate({ from: "/tasks/$id/" });
+  const { openFiles } = useTaskPaneActions(id);
 
   const cleanedContent =
     !isStreaming && content.endsWith("\n") ? content.slice(0, -1) : content;
@@ -46,21 +44,11 @@ export function FileToolCard({
     await navigator.clipboard.writeText(cleanedContent);
   };
 
-  const handleAddToChat = () => {
-    appendToPrompt({ key: { scope: "task", taskId: id }, update: filePath });
-  };
-
   const handleExpand = () => {
     if (modifiedAt === undefined) {
       return;
     }
-    void navigate({
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        artifactPanel: { filePath, modifiedAt, type: "file" as const },
-      }),
-    });
+    openFiles([filePath]);
   };
 
   if (!content) {
@@ -81,14 +69,7 @@ export function FileToolCard({
         </div>
 
         {!isStreaming && modifiedAt !== undefined && (
-          <div className="flex shrink-0 items-center gap-3">
-            <IconButton
-              className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
-              icon={ChatIcon}
-              onClick={handleAddToChat}
-              tooltip="Add to chat"
-              variant="ghost"
-            />
+          <ToolCardActions>
             <IconButton
               className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
               icon={ArrowsOutSimpleIcon}
@@ -104,7 +85,7 @@ export function FileToolCard({
               tooltip="Copy"
               variant="ghost"
             />
-          </div>
+          </ToolCardActions>
         )}
       </ToolCardHeader>
 

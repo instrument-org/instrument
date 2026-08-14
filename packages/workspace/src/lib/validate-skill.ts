@@ -3,6 +3,7 @@ import path from "node:path";
 import { estimateTokenCount } from "tokenx";
 
 import { type AbsolutePath } from "../schemas/paths";
+import { TOOL_NAMES } from "../tools/name";
 import { renderSkillCatalog } from "./skill-catalog";
 import { getSkillRuntime } from "./skill-runtime";
 import {
@@ -150,10 +151,10 @@ export async function validateSkill({
 
   const frontmatter = parseFrontmatter(raw);
   if (!frontmatter.ok) {
-    if (frontmatter.reason === "unparseable") {
+    if (frontmatter.reason === "unparsable") {
       add(
         "error",
-        "unparseable",
+        "unparsable",
         `Invalid YAML: ${frontmatter.detail}. ${SKIPPED}`,
         "SKILL.md",
       );
@@ -253,7 +254,7 @@ export async function validateSkill({
     add(
       "warning",
       "skill-file-truncated-on-load",
-      `SKILL.md is ${frontmatter.body.length} characters, past the ${SKILL_CONTENT_LIMIT} \`load_skill\` inlines. The agent gets the beginning and a pointer to the file for the rest, so put what it must not miss first.`,
+      `SKILL.md is ${frontmatter.body.length} characters, past the ${SKILL_CONTENT_LIMIT} \`${TOOL_NAMES.loadSkill}\` inlines. The agent gets the beginning and a pointer to the file for the rest, so put what it must not miss first.`,
       "SKILL.md",
     );
   }

@@ -33,11 +33,11 @@ import {
 import {
   ProjectIdSchema,
   readTaskFile,
-  RelativeTaskPathSchema,
-  resolvePathWithinTaskDir,
   resolveProjectDir,
+  resolveWorkspaceFilePath,
   taskDir,
   TaskIdSchema,
+  WorkspaceFilePathSchema,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 import { call, eventIterator } from "@orpc/server";
@@ -297,14 +297,14 @@ const openTaskFile = base
   })
   .input(
     z.object({
-      filePath: RelativeTaskPathSchema,
+      filePath: WorkspaceFilePathSchema,
       id: TaskIdSchema,
     }),
   )
   .handler(async ({ errors, input }) => {
-    const fullPath = resolvePathWithinTaskDir({
-      dir: taskDir(input.id),
+    const fullPath = await resolveWorkspaceFilePath({
       filePath: input.filePath,
+      taskId: input.id,
     });
     if (!fullPath) {
       throw errors.INVALID_PATH();
@@ -344,7 +344,7 @@ const openTaskFileWith = base
   .input(
     z.object({
       appPath: z.string().refine((val) => path.isAbsolute(val)),
-      filePath: RelativeTaskPathSchema,
+      filePath: WorkspaceFilePathSchema,
       id: TaskIdSchema,
     }),
   )
@@ -353,9 +353,9 @@ const openTaskFileWith = base
       throw errors.UNSUPPORTED_PLATFORM();
     }
 
-    const fullPath = resolvePathWithinTaskDir({
-      dir: taskDir(input.id),
+    const fullPath = await resolveWorkspaceFilePath({
       filePath: input.filePath,
+      taskId: input.id,
     });
     if (!fullPath) {
       throw errors.INVALID_PATH();
@@ -387,7 +387,7 @@ const openTaskFileWith = base
 const getTaskFileOpenTarget = base
   .input(
     z.object({
-      filePath: RelativeTaskPathSchema,
+      filePath: WorkspaceFilePathSchema,
       id: TaskIdSchema,
     }),
   )
@@ -398,9 +398,9 @@ const getTaskFileOpenTarget = base
     }),
   )
   .handler(async ({ input }) => {
-    const fullPath = resolvePathWithinTaskDir({
-      dir: taskDir(input.id),
+    const fullPath = await resolveWorkspaceFilePath({
       filePath: input.filePath,
+      taskId: input.id,
     });
     if (!fullPath) {
       return { appName: null, iconUrl: null };
@@ -414,7 +414,7 @@ const getTaskFileOpenTarget = base
 const getTaskFileOpenCandidates = base
   .input(
     z.object({
-      filePath: RelativeTaskPathSchema,
+      filePath: WorkspaceFilePathSchema,
       id: TaskIdSchema,
     }),
   )
@@ -431,9 +431,9 @@ const getTaskFileOpenCandidates = base
     }),
   )
   .handler(async ({ input }) => {
-    const fullPath = resolvePathWithinTaskDir({
-      dir: taskDir(input.id),
+    const fullPath = await resolveWorkspaceFilePath({
       filePath: input.filePath,
+      taskId: input.id,
     });
     if (!fullPath) {
       return { apps: [] };
@@ -472,16 +472,14 @@ const showTaskFileInFolder = base
   })
   .input(
     z.object({
-      filePath: RelativeTaskPathSchema,
+      filePath: WorkspaceFilePathSchema,
       id: TaskIdSchema,
     }),
   )
   .handler(async ({ errors, input }) => {
-    const taskId = input.id;
-
-    const fullPath = resolvePathWithinTaskDir({
-      dir: taskDir(taskId),
+    const fullPath = await resolveWorkspaceFilePath({
       filePath: input.filePath,
+      taskId: input.id,
     });
     if (!fullPath) {
       throw errors.INVALID_PATH();
@@ -570,10 +568,11 @@ const closeWindow = base.input(z.void()).handler(() => {
   closeMainWindow();
 });
 
-const live = {
-  // Current maximized state, so the custom controls can toggle the
-  // maximize/restore glyph. Re-yields on OS-driven maximize/unmaximize.
-  onWindowFocus: base.handler(async function* ({ signal }) {
+const events = {
+  // Fires whenever the window gains or loses focus. The payload is a timestamp
+  // rather than the focus state: subscribers refetch on it, and a value that
+  // differs every time is what makes the second focus in a row observable.
+  windowFocusChanged: base.handler(async function* ({ signal }) {
     for await (const _ of publisher.subscribe("window.focus-changed", {
       signal,
     })) {
@@ -582,16 +581,19 @@ const live = {
       };
     }
   }),
+};
+
+const live = {
   serverExceptions: base
     .output(
       eventIterator(
         z.array(
           z.object({
             code: z.string().optional(),
+            details: z.string().optional(),
             id: z.string(),
             message: z.string(),
             rpcPath: z.string().optional(),
-            stack: z.string().optional(),
             timestamp: z.number(),
           }),
         ),
@@ -606,6 +608,8 @@ const live = {
         yield getServerExceptions();
       }
     }),
+  // Current maximized state, so the custom controls can toggle the
+  // maximize/restore glyph. Re-yields on OS-driven maximize/unmaximize.
   windowMaximized: base
     .output(eventIterator(z.object({ maximized: z.boolean() })))
     .handler(async function* ({ signal }) {
@@ -675,7 +679,7 @@ const copyFileToClipboard = base
   })
   .input(
     z.object({
-      filePath: RelativeTaskPathSchema,
+      filePath: WorkspaceFilePathSchema,
       id: TaskIdSchema,
       isImage: z.boolean(),
     }),
@@ -730,6 +734,7 @@ export const utils = {
   copyFileToClipboard,
   copyProjectPathToClipboard,
   copyTaskPathToClipboard,
+  events,
   exportZip,
   getSupportedEditors,
   getTaskFileOpenCandidates,

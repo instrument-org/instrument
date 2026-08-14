@@ -2,15 +2,13 @@ import type { ComponentType } from "react";
 
 import { BrandIconGlyph } from "@/client/components/brand-icon";
 import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
-import {
-  CrosshairIcon,
-  HourglassIcon,
-  type Icon,
-  ImageIcon,
-  TextTSlashIcon,
-  VideoCameraIcon,
-  WaveformIcon,
-} from "@phosphor-icons/react";
+import { type Icon } from "@phosphor-icons/react";
+import { CrosshairIcon } from "@phosphor-icons/react/Crosshair";
+import { HourglassIcon } from "@phosphor-icons/react/Hourglass";
+import { ImageIcon } from "@phosphor-icons/react/Image";
+import { TextTSlashIcon } from "@phosphor-icons/react/TextTSlash";
+import { VideoCameraIcon } from "@phosphor-icons/react/VideoCamera";
+import { WaveformIcon } from "@phosphor-icons/react/Waveform";
 import { tv, type VariantProps } from "tailwind-variants";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";

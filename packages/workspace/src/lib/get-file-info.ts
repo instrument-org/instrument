@@ -7,10 +7,7 @@ import { type WorkspaceFilePath } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { TypedError } from "./errors";
 import { getMimeType } from "./get-mime-type";
-import { resolveExistingFilePath } from "./resolve-agent-path";
-import { taskDir } from "./task-dir-utils";
-import { getTaskState } from "./task-state-store";
-import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
+import { resolveWorkspaceFilePath } from "./resolve-workspace-file-path";
 
 export const CurrentFileInfoSchema = z.object({
   filename: z.string(),
@@ -33,22 +30,14 @@ export async function getCurrentFileInfo({
     return err(new TypedError.NotFound("File path has no filename"));
   }
 
-  const taskHostRoot = taskDir(taskId);
-  const taskState = await getTaskState(taskHostRoot);
-  const resolved = resolveExistingFilePath({
-    inputPath: filePath,
-    layout: buildWorkspaceFsLayout({
-      attachedFolders: taskState.attachedFolders,
-      taskHostRoot,
-    }),
-  });
-  if (resolved.isErr()) {
+  const resolvedPath = await resolveWorkspaceFilePath({ filePath, taskId });
+  if (!resolvedPath) {
     return err(new TypedError.NotFound(`File not found: ${filePath}`));
   }
 
   let modifiedAt: number;
   try {
-    const stats = await fs.stat(resolved.value.absolutePath);
+    const stats = await fs.stat(resolvedPath);
     if (!stats.isFile()) {
       return err(new TypedError.NotFound(`File not found: ${filePath}`));
     }

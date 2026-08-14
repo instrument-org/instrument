@@ -62,7 +62,6 @@ const assertSaysItCannotBeRead: Assertion = {
     // so it is deliberately wide: the claim under test is only that the reply
     // is about the file being wrong rather than about the serial number. The
     // assertion that carries the real weight is the next one.
-    // cspell:ignore truncat -- a stem, so it matches truncated and truncation
     const admits =
       /corrupt|truncat|damaged|incomplete|unreadable|not a valid|invalid|\b404\b|re-?upload|re-?attach|re-?export|blank|empty|placeholder|(?:is ?n[o']t|not) (?:actually )?an? (?:image|screenshot|png|pdf)|can(?:'|no)t (?:be )?(?:read|open|view|decode|determine)|unable to (?:read|open|view|decode)|failed to (?:read|open|decode)/i.test(
         text,

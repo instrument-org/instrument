@@ -1,4 +1,4 @@
-import { call, eventIterator } from "@orpc/server";
+import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
 import {
@@ -6,14 +6,10 @@ import {
   getCurrentFileInfo,
 } from "../../../lib/get-file-info";
 import { getTaskFiles, TaskFilesSchema } from "../../../lib/get-task-files";
-import {
-  getCurrentTaskFiles,
-  startWatchingTaskFiles,
-} from "../../../lib/task-file-watcher";
+import { WatchedFileSchema, watchFileInfo } from "../../../lib/watch-file-info";
 import { WorkspaceFilePathSchema } from "../../../schemas/paths";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { base, toORPCError } from "../../base";
-import { publisher } from "../../publisher";
 
 const list = base
   .input(
@@ -23,13 +19,6 @@ const list = base
   )
   .output(TaskFilesSchema)
   .handler(async ({ errors, input: { taskId } }) => {
-    // Serve the live in-memory index when a watcher is active; otherwise fall
-    // back to a fresh walk of disk.
-    const live = getCurrentTaskFiles(taskId);
-    if (live) {
-      return live;
-    }
-
     const result = await getTaskFiles(taskId);
 
     if (result.isErr()) {
@@ -39,7 +28,7 @@ const list = base
     return result.value;
   });
 
-const fileInfo = base
+const info = base
   .input(
     z.object({
       filePath: WorkspaceFilePathSchema,
@@ -61,36 +50,24 @@ const fileInfo = base
   });
 
 export const taskFiles = {
-  fileInfo,
+  info,
   list,
   live: {
-    list: base
+    // One file, watched while something is looking at it. The only live thing
+    // in the app, and deliberately so: the browsing surface over the whole
+    // directory polls itself while it is open (`TaskFiles`), because a poll
+    // costs what is on screen and a watcher costs the tree -- including the
+    // one the user is about to point us at, which can be a monorepo.
+    info: base
       .input(
         z.object({
+          filePath: WorkspaceFilePathSchema,
           taskId: TaskIdSchema,
         }),
       )
-      .output(eventIterator(TaskFilesSchema))
-      .handler(async function* ({ context, input, signal }) {
-        const release = startWatchingTaskFiles({
-          id: input.taskId,
-          workspaceConfig: context.workspaceConfig,
-        });
-
-        try {
-          const changes = publisher.subscribe("task.files.changed", {
-            signal,
-          });
-          yield call(list, input, { context, signal });
-
-          for await (const payload of changes) {
-            if (payload.id === input.taskId) {
-              yield call(list, input, { context, signal });
-            }
-          }
-        } finally {
-          release();
-        }
+      .output(eventIterator(WatchedFileSchema))
+      .handler(async function* ({ input, signal }) {
+        yield* watchFileInfo({ ...input, signal });
       }),
   },
 };

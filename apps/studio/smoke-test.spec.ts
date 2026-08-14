@@ -37,6 +37,67 @@ function runPnpmScript(
 
 const isAppWindow = (url: string) => url.includes("#/");
 
+/** The archive the packaged app actually loads its dependencies from. */
+function asarPath(executablePath: string): string {
+  const resources =
+    process.platform === "darwin"
+      ? path.resolve(path.dirname(executablePath), "../Resources")
+      : path.join(path.dirname(executablePath), "resources");
+  return path.join(resources, "app.asar");
+}
+
+async function resolveExecutablePath(distPath: string): Promise<string> {
+  const platform = process.platform;
+
+  if (platform === "win32") {
+    return path.join(distPath, `win-unpacked/${APP_NAME}.exe`);
+  }
+  if (platform !== "darwin") {
+    return path.join(distPath, `linux-unpacked/${APP_EXECUTABLE}`);
+  }
+
+  // Fall back to the last spelling so the caller's own access check reports
+  // the missing path, with the dist listing it already prints.
+  let executablePath = "";
+  for (const dir of ["mac-arm64", "mac-x64", "mac"]) {
+    executablePath = path.join(
+      distPath,
+      `${dir}/${APP_NAME}.app/Contents/MacOS/${APP_NAME}`,
+    );
+    try {
+      await fs.access(executablePath);
+      return executablePath;
+    } catch {
+      // Try the next architecture directory.
+    }
+  }
+  return executablePath;
+}
+
+function runAsNode(
+  executablePath: string,
+  script: string,
+): Promise<{ code: null | number; stderr: string; stdout: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(executablePath, ["-e", script], {
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+      timeout: 60_000,
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({ code, stderr, stdout });
+    });
+  });
+}
+
 describe("Studio Smoke Test", () => {
   let distPath: string;
   let tempUserDataDir: string;
@@ -61,8 +122,22 @@ describe("Studio Smoke Test", () => {
   }, 300_000);
 
   afterAll(async () => {
-    await fs.rm(distPath, { force: true, recursive: true });
-    await fs.rm(tempUserDataDir, { force: true, recursive: true });
+    // Windows keeps a handle on the packaged executable for a moment after the
+    // app exits, so the unlink needs retries -- and cleanup of a temp directory
+    // must never turn a passing suite red.
+    for (const dir of [distPath, tempUserDataDir]) {
+      try {
+        await fs.rm(dir, {
+          force: true,
+          maxRetries: 10,
+          recursive: true,
+          retryDelay: 200,
+        });
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn(`Could not remove ${dir}:`, error);
+      }
+    }
   });
 
   it("should not contain monorepo paths baked into compiled bundles", async () => {
@@ -103,36 +178,132 @@ describe("Studio Smoke Test", () => {
     }
   });
 
-  it("should launch the app and verify basic functionality", async () => {
-    const platform = process.platform;
-    let executablePath: string;
+  // The agent's shell reaches its heavier commands through files resolved at
+  // runtime -- a worker beside the bundle entry, a wasm blob next to it -- and
+  // packaging decides whether those are still there. Nothing in the dev test
+  // suite can see that, because it runs against node_modules. So run one
+  // command through the archive the shipped app loads, under the shipped
+  // runtime: sqlite3 needs its worker, a worker thread to load it, and sql.js
+  // to read wasm out of the archive, which is the whole chain at once.
+  it("runs a bash command from inside the packaged archive", async () => {
+    const executablePath = await resolveExecutablePath(distPath);
+    const nodeModules = path.join(asarPath(executablePath), "node_modules");
 
-    if (platform === "darwin") {
-      executablePath = path.join(
-        distPath,
-        `mac-arm64/${APP_NAME}.app/Contents/MacOS/${APP_NAME}`,
-      );
-      try {
-        await fs.access(executablePath);
-      } catch {
-        executablePath = path.join(
-          distPath,
-          `mac-x64/${APP_NAME}.app/Contents/MacOS/${APP_NAME}`,
+    const { code, stderr, stdout } = await runAsNode(
+      executablePath,
+      `
+      const path = require("node:path");
+      const { pathToFileURL } = require("node:url");
+      (async () => {
+        // The app imports just-bash as ESM; require.resolve would hand back
+        // the CommonJS entry, which is a different bundle with different
+        // chunk wiring, and the package's exports map does not expose its
+        // manifest anyway. Read the import condition off the manifest.
+        const packageDir = path.join(${JSON.stringify(nodeModules)}, "just-bash");
+        const manifest = require(path.join(packageDir, "package.json"));
+        const entry = path.join(packageDir, manifest.exports["."].import.default);
+        const { Bash } = await import(pathToFileURL(entry).href);
+        const bash = new Bash({ commands: ["sqlite3"] });
+        const result = await bash.exec(
+          "sqlite3 /db 'create table t(a); insert into t values(41); select a+1 from t;'",
         );
-      }
+        process.stdout.write("SANDBOX_SMOKE " + JSON.stringify({ entry, result }) + "\\n");
+      })().catch((error) => {
+        process.stdout.write("SANDBOX_SMOKE_ERROR " + String(error && error.stack ? error.stack : error) + "\\n");
+        process.exit(1);
+      });
+      `,
+    );
+
+    const line = stdout
+      .split("\n")
+      .find((entry) => entry.startsWith("SANDBOX_SMOKE"));
+    expect(
+      line?.startsWith("SANDBOX_SMOKE "),
+      `sandbox probe did not report a result.\nstdout: ${stdout}\nstderr: ${stderr}`,
+    ).toBe(true);
+
+    const parsed = JSON.parse((line ?? "").slice("SANDBOX_SMOKE ".length)) as {
+      entry: string;
+      result: { exitCode: number; stderr: string; stdout: string };
+    };
+
+    expect(parsed.entry).toContain("app.asar");
+    expect(parsed.result.stderr).toBe("");
+    expect(parsed.result.stdout.trim()).toBe("42");
+    expect(code).toBe(0);
+  }, 120_000);
+
+  // ripgrep and uv already run their `--version` in the afterPack hook. These
+  // three do not, and each finds its binary through its own package's path
+  // math, so resolve them the way the app does rather than by hand: a binary
+  // still inside the archive cannot be executed at all, and a foreign-arch one
+  // left behind by pruning only fails when something runs it.
+  it("runs the vendored binaries the sandbox shells out to", async () => {
+    const executablePath = await resolveExecutablePath(distPath);
+    const nodeModules = path.join(asarPath(executablePath), "node_modules");
+
+    const { code, stderr, stdout } = await runAsNode(
+      executablePath,
+      `
+      const path = require("node:path");
+      const { execFileSync } = require("node:child_process");
+      const { createRequire } = require("node:module");
       try {
-        await fs.access(executablePath);
-      } catch {
-        executablePath = path.join(
-          distPath,
-          `mac/${APP_NAME}.app/Contents/MacOS/${APP_NAME}`,
-        );
+        const req = createRequire(path.join(${JSON.stringify(nodeModules)}, "probe.js"));
+        // ffmpeg-ffprobe-static exports paths into the archive; the app
+        // rewrites them the same way to reach the executable copies.
+        const unpack = (binary) =>
+          binary.replace(/[\\\\/]app\\.asar[\\\\/]/, path.sep + "app.asar.unpacked" + path.sep);
+        const ffmpeg = req("ffmpeg-ffprobe-static");
+        const probes = [
+          ["ffmpeg", unpack(ffmpeg.ffmpegPath), "-version"],
+          ["ffprobe", unpack(ffmpeg.ffprobePath), "-version"],
+          ["git", req("dugite").resolveGitBinary(), "--version"],
+        ];
+        const report = {};
+        for (const [name, binary, flag] of probes) {
+          report[name] = {
+            binary,
+            version: execFileSync(binary, [flag], { encoding: "utf8" }).split("\\n")[0],
+          };
+        }
+        process.stdout.write("SANDBOX_BINARIES " + JSON.stringify(report) + "\\n");
+      } catch (error) {
+        process.stdout.write("SANDBOX_BINARIES_ERROR " + String(error && error.stack ? error.stack : error) + "\\n");
+        process.exit(1);
       }
-    } else if (platform === "win32") {
-      executablePath = path.join(distPath, `win-unpacked/${APP_NAME}.exe`);
-    } else {
-      executablePath = path.join(distPath, `linux-unpacked/${APP_EXECUTABLE}`);
+      `,
+    );
+
+    const line = stdout
+      .split("\n")
+      .find((entry) => entry.startsWith("SANDBOX_BINARIES"));
+    expect(
+      line?.startsWith("SANDBOX_BINARIES "),
+      `binary probe did not report a result.\nstdout: ${stdout}\nstderr: ${stderr}`,
+    ).toBe(true);
+
+    const report = JSON.parse(
+      (line ?? "").slice("SANDBOX_BINARIES ".length),
+    ) as Record<string, { binary: string; version: string }>;
+
+    for (const [name, expected] of [
+      ["ffmpeg", /^ffmpeg version /],
+      ["ffprobe", /^ffprobe version /],
+      ["git", /^git version /],
+    ] as const) {
+      expect(report[name]?.version, `${name} --version`).toMatch(expected);
+      expect(
+        report[name]?.binary,
+        `${name} runs from outside the archive`,
+      ).toContain("app.asar.unpacked");
     }
+    expect(code).toBe(0);
+  }, 120_000);
+
+  it("should launch the app and verify basic functionality", async () => {
+    const executablePath = await resolveExecutablePath(distPath);
 
     try {
       await fs.access(executablePath);
@@ -149,10 +320,18 @@ describe("Studio Smoke Test", () => {
       );
     }
 
+    // Some editor integrations export ELECTRON_RUN_AS_NODE, and a GUI launch
+    // that inherits it runs as plain Node: no window, no output, no crash
+    // report, which reads like a signing or bundle failure rather than an
+    // environment one.
+    const appEnv: NodeJS.ProcessEnv = { ...process.env };
+    delete appEnv.ELECTRON_RUN_AS_NODE;
+
     const electronApp = await electron.launch({
-      args: platform === "linux" ? ["--no-sandbox", "--disable-gpu"] : [],
+      args:
+        process.platform === "linux" ? ["--no-sandbox", "--disable-gpu"] : [],
       env: {
-        ...(process.env as Record<string, string>),
+        ...(appEnv as Record<string, string>),
         DISABLE_AUTO_UPDATE_POLLING: "true",
         ELECTRON_ENABLE_CONSOLE_LOGGING: "true",
         ELECTRON_USER_DATA_DIR: tempUserDataDir,

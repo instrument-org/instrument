@@ -128,7 +128,7 @@ let diagramCount = 0;
  * source does not parse.
  *
  * Half-written input is the normal case, not the exception: assistant markdown
- * streams a token at a time, so a graph is unparseable for most of the time it
+ * streams a token at a time, so a graph is unparsable for most of the time it
  * is on screen. The parse is therefore a gate rather than an error path, and
  * callers are expected to hold whatever they are already showing when it fails.
  */

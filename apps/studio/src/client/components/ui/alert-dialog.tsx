@@ -1,9 +1,7 @@
 import { buttonVariants } from "@/client/components/ui/button";
 import { handleContentExitAnimation } from "@/client/components/ui/dialog-exit";
-import {
-  useAppZoomStyle,
-  ZOOM_CONTENT_MAX_WIDTH,
-} from "@/client/hooks/use-app-zoom";
+import { useAppZoomStyle, zoomMaxSize } from "@/client/hooks/use-app-zoom";
+import { useCoversGuests } from "@/client/hooks/use-covers-guests";
 import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
@@ -47,11 +45,17 @@ function AlertDialogCancel({
 
 function AlertDialogContent({
   className,
+  maxHeight,
+  maxWidth = "32rem",
   onAnimationEnd,
   onExitComplete,
   style,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content> & {
+  /** Intrinsic height the dialog wants, capped by the window. Omit for as tall as fits. */
+  maxHeight?: string;
+  /** Intrinsic width the dialog wants, capped by the window. */
+  maxWidth?: string;
   // Fires once the `data-[state=closed]:animate-out` exit animation actually
   // finishes on this element (not a bubbled animation from a child), so
   // callers can defer clearing their content until the close animation has
@@ -63,8 +67,7 @@ function AlertDialogContent({
       <AlertDialogOverlay />
       <AlertDialogPrimitive.Content
         className={cn(
-          "fixed top-[50%] left-[50%] z-50 grid w-full translate-[-50%] gap-4 rounded-3xl border bg-background p-6 shadow-lg duration-200 data-[state=closed]:pointer-events-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
-          ZOOM_CONTENT_MAX_WIDTH,
+          "fixed top-[50%] left-[50%] z-50 grid w-full translate-[-50%] gap-4 overflow-y-auto rounded-3xl border bg-background p-6 shadow-lg duration-200 data-[state=closed]:pointer-events-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           className,
         )}
         data-slot="alert-dialog-content"
@@ -72,7 +75,11 @@ function AlertDialogContent({
           onAnimationEnd,
           onExitComplete,
         )}
-        style={useAppZoomStyle(style)}
+        style={useAppZoomStyle({
+          ...style,
+          maxHeight: zoomMaxSize("height", maxHeight),
+          maxWidth: zoomMaxSize("width", maxWidth),
+        })}
         {...props}
       />
     </AlertDialogPortal>
@@ -128,6 +135,8 @@ function AlertDialogOverlay({
   className,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Overlay>) {
+  useCoversGuests();
+
   return (
     <AlertDialogPrimitive.Overlay
       className={cn(

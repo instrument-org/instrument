@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render } from "vitest-browser-react";
-
 // The question here is which of three stylesheets wins, so all three are loaded
 // exactly as the app loads them and the answers are read off the cascade.
-import "../../styles/globals.css";
-
 import "@extend-ai/react-pptx/styles.css";
 
 import "./pptx-viewer.css";

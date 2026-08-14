@@ -1,3 +1,4 @@
+import { useImageArrival } from "@/client/hooks/use-image-arrival";
 import { cn } from "@/client/lib/utils";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -10,6 +11,8 @@ export function Favicon({
   url: string;
 }) {
   const hostname = URL.canParse(url) ? new URL(url).hostname : url;
+  const faviconUrl = getFaviconUrl(url);
+  const arrival = useImageArrival(faviconUrl, "icon");
 
   return (
     <Tooltip>
@@ -18,9 +21,11 @@ export function Favicon({
           alt={`Favicon for ${hostname}`}
           className={cn(
             "size-4 shrink-0 rounded-full border border-border/50 bg-background",
+            arrival.className,
             className,
           )}
-          src={getFaviconUrl(url)}
+          onLoad={arrival.onLoad}
+          src={faviconUrl}
         />
       </TooltipTrigger>
       <TooltipContent>{hostname}</TooltipContent>

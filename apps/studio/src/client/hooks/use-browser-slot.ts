@@ -12,19 +12,27 @@ interface DeviceEmulation {
 
 /**
  * Measures a host slot and drives the pooled guest to paint over it while the
- * panel is the foreground tab (parking it in paint-host otherwise, or while a
- * load error covers the slot). Returns the ref to attach to the slot element.
+ * panel's task page is on screen (parking it in paint-host otherwise, or while
+ * a load error covers the slot). Returns the ref to attach to the slot element.
  * See browser-pool for the show/park ownership model.
  */
 export function useBrowserSlot({
   active,
+  covered = false,
   emulatedDeviceHeight,
   emulatedDeviceWidth,
   hasLoadError,
-  isActiveTab,
+  isVisible,
+  sliding = false,
   targetId,
 }: {
   active: boolean;
+  // A full-window overlay is drawn over this slot. The guest is body-mounted,
+  // outside every dialog's subtree, so no overlay occludes it -- it keeps
+  // painting over the dim layer as though nothing opened. Opening a dialog also
+  // doesn't take the task page off screen, which is the only park signal this
+  // hook otherwise gets, so a covered host has to say so itself.
+  covered?: boolean;
   // Device size to emulate (see emulated-devices.ts presets), or
   // null/undefined for the panel's natural size. Passed as separate
   // primitives rather than an object so a new object identity per render
@@ -34,7 +42,11 @@ export function useBrowserSlot({
   emulatedDeviceHeight?: null | number;
   emulatedDeviceWidth?: null | number;
   hasLoadError: boolean;
-  isActiveTab: boolean;
+  isVisible: boolean;
+  // The host panel is sliding in or out. Nothing about the slot's own box
+  // changes, so neither the resize observer nor the settle check below can see
+  // it -- the host has to say so, and says so for as long as it lasts.
+  sliding?: boolean;
   targetId: BrowserTargetId;
 }) {
   const slotRef = useRef<HTMLDivElement>(null);
@@ -42,10 +54,10 @@ export function useBrowserSlot({
   // reject a park from a different panel showing the same target (see pool).
   const [slotOwner] = useState(() => Symbol("browser-panel-slot"));
 
-  // Show the guest over the slot only while this is the foreground tab; park it
-  // in paint-host otherwise. Every tab stays mounted (hidden via CSS), so the
-  // guest's own DOM visibility can't tell us we've been backgrounded -- the
-  // active-tab signal is authoritative.
+  // Show the guest over the slot only while the task page is on screen; park it
+  // in paint-host otherwise. A backgrounded task page stays mounted (hidden via
+  // CSS), so the guest's own DOM visibility can't tell us we've been
+  // backgrounded -- the caller's signal is authoritative.
   useLayoutEffect(() => {
     const slot = slotRef.current;
     if (!slot || !active) {
@@ -64,7 +76,7 @@ export function useBrowserSlot({
 
     // On a load error, park the guest so its blank error page doesn't cover our
     // own error state rendered in the slot.
-    if (!isActiveTab || hasLoadError) {
+    if (!isVisible || hasLoadError || covered) {
       setPaintHost(targetId, slotOwner);
       syncEmulation(null);
       return;
@@ -109,10 +121,12 @@ export function useBrowserSlot({
       return rect;
     };
 
-    // The artifact panel slides in via a transform, which getBoundingClientRect
-    // folds into `rect.x` (ResizeObserver can't catch it -- the size is
-    // unchanged). Track the slot each frame so the guest follows the panel, and
-    // stop once the position holds for two frames, i.e. the slot has settled.
+    // The artifact panel slides in and out via a transform, which
+    // getBoundingClientRect folds into `rect.x` (ResizeObserver can't catch it
+    // -- the size is unchanged). Track the slot each frame so the guest follows
+    // the panel, and stop once the position holds for two frames, i.e. the slot
+    // has settled. A declared slide holds the loop open regardless: a spring
+    // leaves and arrives slowly enough to read as settled at both ends.
     let raf = 0;
     let stableFrames = 0;
     let last = measure();
@@ -121,7 +135,7 @@ export function useBrowserSlot({
       stableFrames =
         rect.x === last.x && rect.y === last.y ? stableFrames + 1 : 0;
       last = rect;
-      if (stableFrames < 2) {
+      if (sliding || stableFrames < 2) {
         raf = requestAnimationFrame(track);
       }
     };
@@ -139,8 +153,10 @@ export function useBrowserSlot({
     };
   }, [
     active,
-    isActiveTab,
+    covered,
+    isVisible,
     hasLoadError,
+    sliding,
     slotOwner,
     targetId,
     emulatedDeviceWidth,

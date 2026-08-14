@@ -13,6 +13,7 @@ import { ToolEditFile } from "./tool-edit-file";
 import { ToolGenerateImage } from "./tool-generate-image";
 import { ToolLoadSkill } from "./tool-load-skill";
 import { ToolReadFile } from "./tool-read-file";
+import { ToolStartActivity } from "./tool-start-activity";
 import { ToolUnavailable } from "./tool-unavailable";
 import { ToolWebFetch } from "./tool-web-fetch";
 import { ToolWebSearch } from "./tool-web-search";
@@ -20,14 +21,18 @@ import { ToolWriteFile } from "./tool-write-file";
 
 export function ToolCall({
   assetBaseUrl,
+  isActivityRunning,
   isDeveloperMode,
+  isRunning,
   isStreaming,
   onRetry,
   part,
   task,
 }: {
   assetBaseUrl: string;
+  isActivityRunning: boolean;
   isDeveloperMode: boolean;
+  isRunning: boolean;
   isStreaming: boolean;
   onRetry: (prompt: string) => void;
   part: SessionMessagePart.ToolPart;
@@ -37,11 +42,17 @@ export function ToolCall({
     return null;
   }
 
+  // Not a call the user inspects: it says nothing about the workspace, and its
+  // input is the whole of what it has to show.
+  if (part.type === "tool-start_activity") {
+    return <ToolStartActivity isRunning={isActivityRunning} part={part} />;
+  }
+
   const isDeadDevMode =
     !hasTerminalToolState(part) && !isStreaming && isDeveloperMode;
 
   return (
-    <ToolCallSessionProvider isStreaming={isStreaming}>
+    <ToolCallSessionProvider isRunning={isRunning} isStreaming={isStreaming}>
       <ToolCallSummary
         assetBaseUrl={assetBaseUrl}
         isDeadDevMode={isDeadDevMode}
@@ -87,7 +98,9 @@ function ToolCallBody({
 }: {
   assetBaseUrl: string;
   onRetry: (prompt: string) => void;
-  part: SessionMessagePart.ToolPart;
+  // Activities are drawn by their caller, so the switch below stays exhaustive
+  // over the calls that have a body at all.
+  part: Exclude<SessionMessagePart.ToolPart, { type: "tool-start_activity" }>;
   task: Task;
 }) {
   if (part.state === "output-error") {

@@ -4,6 +4,7 @@ import { unique } from "radashi";
 
 import { getAppStateStore } from "../stores/app-state";
 import { isDeveloperMode } from "../stores/preferences";
+import { describeError } from "./describe-error";
 import { logger } from "./electron-logger";
 import { addServerException } from "./server-exceptions";
 import { getSystemProperties } from "./system-properties";
@@ -13,13 +14,18 @@ export const captureServerException: CaptureExceptionFunction = function (
   error,
   additionalProperties,
 ) {
-  const errorCode =
-    error &&
-    typeof error === "object" &&
-    "code" in error &&
-    typeof error.code === "string"
+  const code: unknown =
+    error && typeof error === "object" && "code" in error
       ? error.code
       : undefined;
+  // ORPC names its own failures with a string code; a provider puts the
+  // upstream HTTP status here as a number. Both say what the failure was.
+  const errorCode =
+    typeof code === "string"
+      ? code
+      : typeof code === "number"
+        ? String(code)
+        : undefined;
 
   // Extract additional error data from ORPC (e.g., validation issues from BAD_REQUEST)
   const errorData =
@@ -30,6 +36,8 @@ export const captureServerException: CaptureExceptionFunction = function (
       ? error.data
       : undefined;
 
+  const { details, message } = describeError(error);
+
   const finalProperties = {
     ...additionalProperties,
     $process_person_profile: false, // Ensure anonymous, if at all
@@ -38,6 +46,11 @@ export const captureServerException: CaptureExceptionFunction = function (
     ...getSystemProperties(),
     ...(errorCode ? { error_code: errorCode } : {}),
     ...(errorData ? { error_data: errorData } : {}),
+    // A non-`Error` has no stack to carry the rest of what it said, so the
+    // serialized value rides along instead of being dropped.
+    ...(error instanceof Error || details === undefined
+      ? {}
+      : { error_details: details }),
     ...(additionalProperties?.rpc_path
       ? { rpc_path: additionalProperties.rpc_path.join(".") }
       : {}),
@@ -48,48 +61,33 @@ export const captureServerException: CaptureExceptionFunction = function (
   }
 
   // PostHog drops non-Error exceptions silently; wrap plain objects so we
-  // always get a real stack trace and the object's data as the message.
-  const capturedError =
-    error instanceof Error
-      ? error
-      : new Error(
-          typeof error === "object" && error !== null
-            ? JSON.stringify(error)
-            : String(error),
-        );
+  // always get a real stack trace, under the sentence the value carried so
+  // that two reports of the same rejection group together.
+  const capturedError = error instanceof Error ? error : new Error(message);
 
   const appStateStore = getAppStateStore();
   const telemetryId = appStateStore.get("telemetryId");
   telemetry?.captureException(capturedError, telemetryId, finalProperties);
   if (isDeveloperMode()) {
     /* eslint-disable no-console */
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorStack = error instanceof Error ? error.stack : undefined;
     const pathPrefix = additionalProperties?.rpc_path
       ? `[${additionalProperties.rpc_path.join(".")}] `
       : "";
     const displayMessage = errorCode
-      ? `${pathPrefix}[${errorCode}] ${errorMessage}`
-      : `${pathPrefix}${errorMessage}`;
+      ? `${pathPrefix}[${errorCode}] ${message}`
+      : `${pathPrefix}${message}`;
 
     console.groupCollapsed(`%c[Exception] ${displayMessage}`, "color: #b71c1c");
 
-    if (error instanceof Error) {
-      if (errorStack) {
-        logger.error(errorStack);
-      }
+    if (details) {
+      logger.error(details);
+    }
 
-      if (error.cause) {
-        const causeMessage =
-          error.cause instanceof Error
-            ? error.cause.message
-            : JSON.stringify(error.cause);
-        console.groupCollapsed("%c▶︎ Cause: " + causeMessage, "color: #f44336");
-        logger.error(error.cause);
-        console.groupEnd();
-      }
-    } else {
-      logger.error(error);
+    if (error instanceof Error && error.cause) {
+      const cause = describeError(error.cause);
+      console.groupCollapsed("%c▶︎ Cause: " + cause.message, "color: #f44336");
+      logger.error(cause.details ?? cause.message);
+      console.groupEnd();
     }
 
     // Log additional error data if present (e.g., validation issues)
@@ -103,11 +101,11 @@ export const captureServerException: CaptureExceptionFunction = function (
 
     addServerException({
       code: errorCode,
-      message: errorMessage,
+      details,
+      message,
       rpcPath: additionalProperties?.rpc_path
         ? additionalProperties.rpc_path.join(".")
         : undefined,
-      stack: errorStack,
     });
     /* eslint-enable no-console */
   } else {

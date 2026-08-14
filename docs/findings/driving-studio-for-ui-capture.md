@@ -10,7 +10,7 @@ The traps below are ordered by how much time each one cost in a real capture run
 
 ### Icon-only controls have no accessible name
 
-Three labelling conventions are in use, and they are not interchangeable:
+Three labeling conventions are in use, and they are not interchangeable:
 
 - `aria-label` — zoom in/out, the page-number input.
 - An `sr-only` span — the scroll-to-latest control (`ui/message-scroller.tsx`).

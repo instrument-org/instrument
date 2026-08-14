@@ -4,10 +4,11 @@ import { publisher } from "../rpc/publisher";
 
 interface ServerException {
   code?: string;
+  /** The long form behind `message`: a stack, or a serialized non-`Error`. */
+  details?: string;
   id: string;
   message: string;
   rpcPath?: string;
-  stack?: string;
   timestamp: number;
 }
 
@@ -15,9 +16,9 @@ const EXCEPTIONS: ServerException[] = [];
 
 export function addServerException(exception: {
   code?: string;
+  details?: string;
   message: string;
   rpcPath?: string;
-  stack?: string;
 }) {
   EXCEPTIONS.push({
     ...exception,

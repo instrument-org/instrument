@@ -128,7 +128,6 @@ describe("addHeuristicTags", () => {
     { expected: ["coding", "recommended"], modelId: "grok-4.20" },
     { expected: ["coding", "recommended"], modelId: "kimi-k2.6" },
     { expected: ["coding", "recommended"], modelId: "kimi-k2.6-code" },
-    // cspell:ignore devstral
     { expected: ["coding", "recommended"], modelId: "devstral-2512" },
     { expected: ["coding", "recommended"], modelId: "gemini-3.5-flash" },
     { expected: ["coding", "recommended"], modelId: "grok-build-0.1" },

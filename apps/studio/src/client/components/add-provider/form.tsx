@@ -10,7 +10,8 @@ import {
   type AIProviderType,
 } from "@instrument-org/shared";
 import { isDefinedError } from "@orpc/client";
-import { LockIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { LockIcon } from "@phosphor-icons/react/Lock";
+import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useMutation } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useReducer, useRef, useState } from "react";

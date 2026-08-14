@@ -2,11 +2,9 @@ import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
 import { cn } from "@/client/lib/utils";
 import { ZOOM_LEVELS } from "@/client/lib/zoom-levels";
 import { steppedZoom } from "@/shared/zoom";
-import {
-  ArrowCounterClockwiseIcon,
-  MinusIcon,
-  PlusIcon,
-} from "@phosphor-icons/react";
+import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
+import { MinusIcon } from "@phosphor-icons/react/Minus";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useAtom } from "jotai";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 

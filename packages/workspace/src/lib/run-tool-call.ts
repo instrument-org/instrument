@@ -10,7 +10,7 @@ import { type SpawnAgentFunction } from "./spawn-agent";
 import { Store } from "./store";
 import { streamTool } from "./stream-tool";
 import { taskDir } from "./task-dir-utils";
-import { getTaskState } from "./task-state-store";
+import { getTaskState } from "./task-record";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export async function runToolCall({
@@ -34,6 +34,24 @@ export async function runToolCall({
   let preliminarySaved = false;
 
   try {
+    // Marks the call as executing rather than waiting its turn. Written before
+    // anything else so the transcript can show which of a batch of calls is the
+    // one actually running.
+    await Store.updatePart(
+      {
+        messageId: part.metadata.messageId,
+        partId: part.metadata.id,
+        sessionId,
+      },
+      (current) =>
+        ({
+          ...current,
+          metadata: { ...current.metadata, startedAt: getCurrentDate() },
+        }) as SessionMessagePart.Type,
+      taskId,
+      { signal },
+    );
+
     const taskState = await getTaskState(taskDir(taskId));
 
     for await (const { output, type } of streamTool({

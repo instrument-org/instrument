@@ -1,5 +1,6 @@
 import { type AppUpdaterStatus } from "@/electron-main/lib/update-status";
 import { type AppCommand } from "@/shared/app-command";
+import { type BrowserTargetId } from "@instrument-org/workspace/electron";
 import { EventPublisher } from "@orpc/server";
 
 interface PublisherEvents {
@@ -14,6 +15,11 @@ interface PublisherEvents {
   "auth.login-success": {
     success: true;
   };
+  // Ask the renderer to put keyboard focus on a guest before agent keyboard
+  // input is dispatched to it. Only renderer-side DOM focus on the `<webview>`
+  // element moves Chromium's keyboard focus across the process boundary;
+  // `webContents.focus()` on the guest does not.
+  "browser.focus-guest": { targetId: BrowserTargetId };
   // Agent-driven browser input can move Chromium keyboard focus into a guest.
   // The renderer owns the exact Studio element that must be restored.
   "browser.restore-host-focus": null;

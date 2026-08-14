@@ -97,8 +97,8 @@ export function getSystemInfoText() {
   const now = getCurrentDate();
   return dedent`
     <system_info>
-    Host operating system: ${getSystemInfo()}
-    Shell environment: unix-like (POSIX), regardless of the host OS.
+    The user's computer: ${getSystemInfo()}. Their files and apps belong to this system, and so does anything you write for them to run. It is not where your own commands run.
+    Your shell: POSIX with GNU coreutils, whatever the user's computer is. Reach for GNU spellings such as \`stat -c\`, \`date -d\`, and \`sed -i\` with no backup suffix; the BSD forms (\`stat -f\`, \`date -r\`, \`sed -i ''\`) do not exist here.
     Current date: ${now.toLocaleDateString("en-US", { day: "numeric", month: "long", weekday: "long", year: "numeric" })}
     </system_info>
   `.trim();

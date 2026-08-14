@@ -207,7 +207,6 @@ const FAKE_FILES = {
     mimeType: "application/pdf",
   },
   text: {
-    // cspell:disable-next-line
     content: "VGhpcyBpcyBhIHNhbXBsZSB0ZXh0IGZpbGUu",
     filename: "sample.txt",
     mimeType: "text/plain",

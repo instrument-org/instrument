@@ -273,6 +273,45 @@ const cases: {
     expected: { evidence: "none", kind: "unknown" },
     name: "a body that is not JSON",
   },
+  {
+    // Recorded from a task that hit this: HTTP 200, then one chunk carrying
+    // `error`, so nothing ever raised an `APICallError`. `code` is the upstream
+    // status as a number.
+    error: {
+      code: 429,
+      message:
+        "openai/gpt-5.6-luna is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
+      metadata: { error_type: "rate_limit_exceeded" },
+    },
+    expected: { evidence: "status", kind: "rate-limit" },
+    name: "throttling reported inside a 200 stream",
+  },
+  {
+    // The same shape with no numeric status leans on `metadata.error_type`,
+    // which is where OpenRouter puts the machine-readable half.
+    error: {
+      message: "Provider returned error",
+      metadata: { error_type: "rate_limit_exceeded" },
+    },
+    expected: { evidence: "structured", kind: "rate-limit" },
+    name: "a streamed error carrying only an error_type",
+  },
+  {
+    error: {
+      code: 400,
+      message:
+        "This endpoint's maximum context length is 200000 tokens. However, you requested about 254000 tokens.",
+    },
+    expected: { evidence: "prose", kind: "context-overflow" },
+    name: "a streamed overflow whose status is not decisive",
+  },
+  {
+    // Our own code throwing mid-stream is not a provider verdict, and must not
+    // be matched against provider prose.
+    error: new Error("prompt is too long"),
+    expected: { evidence: "none", kind: "unknown" },
+    name: "an Error that merely reads like a provider rejection",
+  },
 ];
 
 describe("classifyProviderError", () => {

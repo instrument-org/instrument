@@ -7,76 +7,59 @@ import {
   fileViewerClassName,
   FileViewerHeader,
 } from "@/client/components/file-viewer";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/client/components/ui/resizable";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
+import { useTaskPaneActions } from "@/client/hooks/use-task-pane";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
+import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   encodeBrowserTargetId,
   type StoreId,
   type Task,
+  TaskPane,
 } from "@instrument-org/workspace/client";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
-import { type ReactNode, useState } from "react";
+import { type ReactNode } from "react";
 
 import { FileLoading } from "../file-loading";
 import { TaskBrowserPanel } from "./browser-panel";
+import { TaskPaneSplit } from "./pane-split";
+import { PaneTabs } from "./pane-tabs";
 import { TaskSidebar } from "./sidebar";
 
-const PANEL_SIZES = {
-  artifactMin: 300,
-  sidebarMin: 350,
-};
+// The pane is the card. Whatever it is showing sits inside this, so the tab
+// strip, a viewer's title row and a viewer's own toolbar stack as one band.
+const paneSurfaceClassName =
+  "flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl bg-card shadow-sm";
 
-// Default split when the artifact panel opens: favor the artifact and keep the
-// chat compact. These are proportions clamped by the pixel min sizes, so the
-// sidebar still snaps to sidebarMin on narrow windows.
-const OPEN_LAYOUT = { artifact: 65, sidebar: 35 };
-
-const LAYOUT = {
-  closed: { sidebar: 100 },
-  open: OPEN_LAYOUT,
-};
+// ...and the thing inside gives up the card it would otherwise draw, rather
+// than nesting a second rounded surface a few pixels inside the first.
+const paneContentClassName = "rounded-none bg-transparent shadow-none";
 
 export function TaskView({
-  artifactPanel,
   attachedFolders,
-  files,
+  pane,
   promptDraft,
   selectedModelURI,
   selectedSessionId,
   showTutorial,
   task,
 }: {
-  artifactPanel: ArtifactPanel | undefined;
   attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
-  files: RPCOutput["workspace"]["task"]["files"]["list"] | undefined;
+  pane: TaskPane.Type;
   promptDraft: string;
   selectedModelURI: AIGatewayModelURI.Type | undefined;
   selectedSessionId?: StoreId.Session;
   showTutorial?: boolean;
   task: Task;
 }) {
-  const navigate = useNavigate();
   const openFileViewer = useSetAtom(openFileViewerAtom);
   const assetBaseUrl = getAssetBaseUrl(task.id);
-
-  // Bumped to force the file viewer to remount when the user re-opens the
-  // already-active artifact, snapping an HTML preview back to its entry page
-  // after an in-iframe link navigated it away.
-  const [artifactReloadNonce, setArtifactReloadNonce] = useState(0);
-
-  const filePanel = artifactPanel?.type === "file" ? artifactPanel : undefined;
-  const browserPanel = artifactPanel?.type === "browser";
+  const { close, closeTab, openFiles, reorderTabs, selectTab } =
+    useTaskPaneActions(task.id);
 
   // Whether a live browser exists for this session, used to show the guest vs a
   // placeholder in the browser panel.
@@ -87,6 +70,18 @@ export function TaskView({
   const browserActive = Boolean(
     liveTargetId && attachedTargets.has(liveTargetId),
   );
+
+  // The browser is a fixed first tab rather than one of the stored ones. It is
+  // what the pane opens onto when nothing else is in it, which is what keeps
+  // "open the pane" from ever being a request that lands on nothing -- and with
+  // a tab always present, the strip always has somewhere to put the control
+  // that closes it again. Nothing writes one any more; the filter is for a task
+  // whose state was written when something did.
+  const fileTabs = pane.tabs.filter((tab) => tab.type !== "browser");
+  const tabs: TaskPane.Tab[] = [{ type: "browser" }, ...fileTabs];
+
+  const selected = TaskPane.selectedTab({ ...pane, tabs });
+  const filePanel = selected?.type === "file" ? selected : undefined;
 
   const { data: replayStatus } = useQuery(
     rpcClient.workspace.replay.live.status.experimental_liveOptions({
@@ -106,82 +101,46 @@ export function TaskView({
     }
   };
 
-  const showArtifactPanel = artifactPanel !== undefined;
+  const showArtifactPanel = pane.open;
 
-  const {
-    data: fileInfo,
-    dataUpdatedAt,
-    errorUpdatedAt,
-  } = useQuery(
-    rpcClient.workspace.task.files.fileInfo.queryOptions({
+  // The one live thing in the app: a stat on the open file, on an interval,
+  // for as long as this tab is the one showing. It answers both questions the
+  // pane has -- whether the file is there, and which bytes are current -- so
+  // there is nothing here reading a standing index and nothing resolving a
+  // path at render.
+  const { data: watchedFile, dataUpdatedAt } = useQuery(
+    rpcClient.workspace.task.files.live.info.experimental_liveOptions({
       input: filePanel
-        ? {
-            filePath: filePanel.filePath,
-            taskId: task.id,
-          }
+        ? { filePath: filePanel.filePath, taskId: task.id }
         : skipToken,
     }),
   );
 
-  const currentFileMetadata = files?.find(
-    (file) => file.filePath === filePanel?.filePath,
-  );
-  const currentModifiedAt =
-    currentFileMetadata?.modifiedAt ?? fileInfo?.modifiedAt;
-  const currentFile: null | TaskFileViewerFile =
-    fileInfo && currentModifiedAt !== undefined
-      ? {
-          ...fileInfo,
-          modifiedAt: currentModifiedAt,
-          taskId: task.id,
-          url: getAssetUrl({
-            assetBase: assetBaseUrl,
-            filePath: fileInfo.filePath,
-            version: currentModifiedAt,
-          }),
-        }
-      : null;
+  const currentFile: null | TaskFileViewerFile = watchedFile
+    ? {
+        ...watchedFile,
+        taskId: task.id,
+        url: getAssetUrl({
+          assetBase: assetBaseUrl,
+          filePath: watchedFile.filePath,
+          version: watchedFile.modifiedAt,
+        }),
+      }
+    : null;
 
-  // Whether the panel is still working out what this file is. "Not found" is a
+  // Whether the pane is still working out what this file is. "Not found" is a
   // claim about the file, so it waits for an answer.
   //
-  // The answer is "has this query ever delivered anything for this file", read
-  // off the update stamps, which reset to 0 when the key changes. The status
-  // flags cannot be used for it: while the query is disabled -- which it is for
-  // the render where the path arrives -- it reports neither pending nor
-  // fetching while still holding no data, so a check on those shows the missing
-  // state to every file on its way in.
-  const hasFileAnswer = dataUpdatedAt > 0 || errorUpdatedAt > 0;
-  const isResolvingFile =
-    !hasFileAnswer ||
-    (fileInfo !== undefined && currentModifiedAt === undefined);
-
-  const handleArtifactPanelClose = () => {
-    void navigate({
-      from: "/tasks/$id/",
-      params: { id: task.id },
-      replace: true,
-      search: (prev) => ({ ...prev, artifactPanel: undefined }),
-    });
-  };
+  // The answer is "has this subscription ever delivered anything for this
+  // file", read off the update stamp, which resets to 0 when the key changes.
+  // The status flags cannot be used for it: while the query is disabled --
+  // which it is for the render where the path arrives -- it reports neither
+  // pending nor fetching while still holding no data, so a check on those shows
+  // the missing state to every file on its way in.
+  const isResolvingFile = dataUpdatedAt === 0;
 
   const handleFileSelect = (file: TaskFileViewerFile) => {
-    if (filePanel?.filePath === file.filePath) {
-      setArtifactReloadNonce((nonce) => nonce + 1);
-    }
-    void navigate({
-      from: "/tasks/$id/",
-      params: { id: task.id },
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        artifactPanel: {
-          filePath: file.filePath,
-          modifiedAt: file.modifiedAt,
-          type: "file",
-        },
-      }),
-    });
+    openFiles([file.filePath]);
   };
 
   const chatProps = {
@@ -196,55 +155,62 @@ export function TaskView({
 
   return (
     <div className="relative h-full w-full overflow-hidden">
-      <ResizablePanelGroup
-        className="h-full"
-        defaultLayout={showArtifactPanel ? LAYOUT.open : LAYOUT.closed}
-        orientation="horizontal"
-      >
-        <ResizablePanel
-          defaultSize={showArtifactPanel ? `${OPEN_LAYOUT.sidebar}%` : "100%"}
-          id="sidebar"
-          minSize={PANEL_SIZES.sidebarMin}
-        >
+      <TaskPaneSplit
+        chat={
           <TaskSidebar
             activeFilePath={filePanel?.filePath ?? null}
             attachedFolders={attachedFolders}
             chatProps={chatProps}
-            files={files}
             onFileSelect={handleFileSelect}
             selectedSessionId={selectedSessionId}
             task={task}
           />
-        </ResizablePanel>
+        }
+        isPaneOpen={showArtifactPanel}
+        onCollapse={close}
+        taskId={task.id}
+      >
+        {({ isSliding }) => (
+          <div className="flex h-full flex-col p-2">
+            {/* One card, with the strip as its first row. The viewers below
+                already stack a title and a toolbar inside this same frame,
+                so the tabs join that band instead of floating above the
+                pane on the task's own background. */}
+            <div className={paneSurfaceClassName}>
+              <PaneTabs
+                fileTabs={fileTabs}
+                onClose={closeTab}
+                onReorder={reorderTabs}
+                onSelect={selectTab}
+                selectedKey={selected ? TaskPane.tabKey(selected) : undefined}
+                taskId={task.id}
+              />
 
-        {showArtifactPanel && (
-          <>
-            <ResizableHandle />
-
-            <ResizablePanel
-              defaultSize={`${OPEN_LAYOUT.artifact}%`}
-              id="artifact"
-              minSize={PANEL_SIZES.artifactMin}
-            >
-              <div className="flex h-full flex-1 animate-in flex-col p-2 duration-150 fade-in-0 slide-in-from-right-2">
-                {browserPanel && selectedSessionId ? (
+              <div className="min-h-0 flex-1">
+                {selected?.type === "browser" && selectedSessionId ? (
                   <TaskBrowserPanel
                     active={browserActive}
-                    onClose={handleArtifactPanelClose}
+                    className={paneContentClassName}
                     sessionId={selectedSessionId}
+                    sliding={isSliding}
                     taskId={task.id}
                   />
                 ) : currentFile ? (
-                  <div className="flex h-full">
-                    <FileViewer
-                      file={currentFile}
-                      key={`${currentFile.url}#${artifactReloadNonce}`}
-                      onClose={handleArtifactPanelClose}
-                      onExpand={() => {
-                        openFileViewer({ files: [currentFile] });
-                      }}
-                    />
-                  </div>
+                  <FileViewer
+                    className={paneContentClassName}
+                    file={currentFile}
+                    // The path, not the URL. The URL carries the file's mtime,
+                    // so keying on it tore the viewer down and rebuilt it every
+                    // time the file was saved -- losing the scroll position,
+                    // the raw/preview toggle, and whatever was on screen, for a
+                    // file the user is watching precisely because it keeps
+                    // changing. A remount is for a different file; new bytes of
+                    // the same one are a content change.
+                    key={currentFile.filePath}
+                    onExpand={() => {
+                      openFileViewer({ files: [currentFile] });
+                    }}
+                  />
                 ) : filePanel ? (
                   // Only claim the file is gone once the lookup has answered.
                   // Rendering the missing state while the query is still in
@@ -253,50 +219,41 @@ export function TaskView({
                   // The wait itself shows nothing: it is over faster than the
                   // eye settles, so anything drawn there is a flicker between
                   // two files rather than a sign of progress.
-                  <ArtifactPanelShell
-                    filePath={filePanel.filePath}
-                    onClose={handleArtifactPanelClose}
-                  >
+                  <ArtifactPanelShell filePath={filePanel.filePath}>
                     {isResolvingFile ? <FileLoading /> : <MissingFileNotice />}
                   </ArtifactPanelShell>
                 ) : null}
               </div>
-            </ResizablePanel>
-          </>
+            </div>
+          </div>
         )}
-      </ResizablePanelGroup>
+      </TaskPaneSplit>
     </div>
   );
 }
 
 /**
- * The artifact panel's frame for a file that has no viewer mounted in it,
- * either because the file is still being looked up or because it is not there.
- * Built from `FileViewer`'s own frame and header so nothing moves when one
- * replaces the other -- including the hairline under the chrome, which sits a
- * row lower for a format whose viewer opens a toolbar.
+ * The pane's frame for a file that has no viewer mounted in it, either because
+ * the file is still being looked up or because it is not there. Built from
+ * `FileViewer`'s own frame and header so nothing moves when one replaces the
+ * other -- including the hairline under the chrome, which sits a row lower for
+ * a format whose viewer opens a toolbar.
  */
 function ArtifactPanelShell({
   children,
   filePath,
-  onClose,
 }: {
   children: ReactNode;
   filePath: string;
-  onClose: () => void;
 }) {
   const filename = filePath.slice(filePath.lastIndexOf("/") + 1);
 
   return (
-    <div className={fileViewerClassName}>
+    <div className={cn(fileViewerClassName, paneContentClassName)}>
       {/* No mime type: that is part of what the panel is still waiting on.
           Every format whose viewer opens a toolbar is identified by its
           extension anyway, so the chrome band lays out the same either way. */}
-      <FileViewerHeader
-        filename={filename}
-        filePath={filePath}
-        onClose={onClose}
-      />
+      <FileViewerHeader filename={filename} filePath={filePath} />
       {children}
     </div>
   );

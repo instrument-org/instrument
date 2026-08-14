@@ -165,7 +165,7 @@ The description asserts:
 
 Nothing enforces it, and nothing compares the file's mtime against the one `read_file` returned. opencode v1 and pi-mono are in the same position (opencode even ships the stronger bluff "This tool will fail if you did not read the file first", with no implementation).
 
-But **our exposure is worse than theirs**, because users edit task files directly while the agent works -- that's why `detect-external-file-changes.ts` exists at all. A user editing `output/report.md` mid-turn currently loses the edit with no signal to either party.
+But **our exposure is worse than theirs**, because users edit task files directly while the agent works. There is no longer any detection of that: the between-turn diff was deleted with the standing file index, on the grounds that it could only ever see the task directory and the work is moving into folders the user picks. A user editing `output/report.md` mid-turn loses the edit with no signal to either party.
 
 opencode's v2 rewrite is the only one that solved it, with optimistic concurrency on write:
 
@@ -283,7 +283,7 @@ That lands us at **position 1** -- codex's -- for search specifically, while kee
 
 The routing guidance is now the thing to keep honest. There is exactly one way to search, and the bash description says so; the failure mode to watch for is the opencode one, where two prompt files drift into contradicting each other.
 
-**Where the remaining tools sit.** The bash description tells the model to prefer `read_file` over `cat`/`head`/`tail` and `edit_file`/`write_file` over `sed`/`awk`/redirects. Those are the routing claims still worth auditing: the usage data shows the model ran `head` 254 times and `cat` 51 times anyway, which is real evidence that a prompt line alone does not move behaviour much.
+**Where the remaining tools sit.** The bash description tells the model to prefer `read_file` over `cat`/`head`/`tail` and `edit_file`/`write_file` over `sed`/`awk`/redirects. Those are the routing claims still worth auditing: the usage data shows the model ran `head` 254 times and `cat` 51 times anyway, which is real evidence that a prompt line alone does not move behavior much.
 
 How each tool was judged, which is the reusable part:
 

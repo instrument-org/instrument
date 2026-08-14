@@ -1,12 +1,10 @@
 import { cn } from "@/client/lib/utils";
 import { MAX_ZOOM, MIN_ZOOM } from "@/client/lib/zoom-levels";
 import { steppedZoom } from "@/shared/zoom";
-import {
-  CaretLeftIcon,
-  CaretRightIcon,
-  MagnifyingGlassIcon,
-  SidebarSimpleIcon,
-} from "@phosphor-icons/react";
+import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { FindRow } from "../find-row";

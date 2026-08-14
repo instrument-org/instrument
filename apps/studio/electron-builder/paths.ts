@@ -10,6 +10,31 @@ export function isElectronPlatform(value: string): value is ElectronPlatform {
 }
 
 /**
+ * Locate a packaged ffmpeg or ffprobe binary within the unpacked tree, or
+ * `undefined` if it is missing. Both ship in `ffmpeg-ffprobe-static`, at the
+ * package root rather than under `bin/`.
+ *
+ * They are spawned as subprocesses, so they have to be on the real filesystem
+ * rather than inside the asar -- `unpackAsarPath` in the workspace package
+ * rewrites their path on that assumption, and a binary that never got unpacked
+ * would leave it pointing at nothing.
+ */
+export function resolvePackagedFfmpeg(
+  appOutDir: string,
+  platformName: ElectronPlatform,
+  name: "ffmpeg" | "ffprobe",
+) {
+  const candidate = path.join(
+    resolveUnpackedDir(appOutDir, platformName),
+    "node_modules",
+    "ffmpeg-ffprobe-static",
+    platformName === "win32" ? `${name}.exe` : name,
+  );
+
+  return existsSync(candidate) ? candidate : undefined;
+}
+
+/**
  * Locate the packaged pnpm CLI entry within the unpacked tree, or `undefined`
  * if it is missing. Forked as a subprocess to install task dependencies, so it
  * must be unpacked; pnpm 11 no longer unpacks automatically (see the

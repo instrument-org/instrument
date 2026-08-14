@@ -27,14 +27,12 @@ import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  BugIcon,
-  CpuIcon,
-  FadersHorizontalIcon,
-  FlagIcon,
-  HardDrivesIcon,
-  XIcon,
-} from "@phosphor-icons/react";
+import { CodeIcon } from "@phosphor-icons/react/Code";
+import { CpuIcon } from "@phosphor-icons/react/Cpu";
+import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
+import { FlagIcon } from "@phosphor-icons/react/Flag";
+import { HardDrivesIcon } from "@phosphor-icons/react/HardDrives";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 
@@ -105,7 +103,9 @@ function SettingsModalContent({
   return (
     <DialogContent
       aria-describedby={undefined}
-      className="h-180 max-h-[calc(96vh/var(--content-zoom))] w-225 max-w-[calc(96vw/var(--content-zoom))] gap-0 overflow-hidden p-0 outline-none focus:outline-none focus-visible:outline-none"
+      className="h-180 w-225 gap-0 overflow-hidden p-0 outline-none focus:outline-none focus-visible:outline-none"
+      maxHeight="45rem"
+      maxWidth="56.25rem"
       onExitComplete={onExitComplete}
       onOpenAutoFocus={(event) => {
         event.preventDefault();
@@ -115,7 +115,7 @@ function SettingsModalContent({
       <DialogTitle className="sr-only">Settings</DialogTitle>
       <div className="absolute top-3 right-3 z-10">
         <DialogClose asChild>
-          <Button aria-label="Close" type="button" variant="outline">
+          <Button aria-label="Close" type="button" variant="outline-opaque">
             <XIcon className="size-4" />
           </Button>
         </DialogClose>
@@ -234,7 +234,7 @@ function useNavItems(): NavItem[] {
             title: "Features",
           },
           {
-            icon: BugIcon,
+            icon: CodeIcon,
             isDeveloperMode: true,
             tab: "Debug" as const,
             title: "Debug",

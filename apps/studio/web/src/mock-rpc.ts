@@ -80,12 +80,15 @@ export function pushLive(path: string, value: unknown) {
  * the query stays pending, which downstream reads as `isLoading`.
  */
 const OPEN_STREAM_PATHS = new Set([
-  "appCommands.live.commands",
+  "appCommands.events.command",
   "preferences.live.get",
 ]);
 
+/** The two router segments that mark an oRPC event iterator. */
+const STREAM_SEGMENTS = new Set(["events", "live"]);
+
 /**
- * Procedures under a `live` segment are oRPC event iterators: callers consume
+ * Procedures under a streaming segment are oRPC event iterators: callers consume
  * them with `for await`, so resolving to `undefined` throws on
  * `Symbol.asyncIterator` rather than degrading.
  *
@@ -171,7 +174,9 @@ function resolve(path: string[], input: unknown): Promise<unknown> {
     typeof raw === "function" ? (raw as (i: unknown) => unknown)(input) : raw;
 
   return Promise.resolve(
-    path.includes("live") ? liveStream(key, value) : value,
+    path.some((segment) => STREAM_SEGMENTS.has(segment))
+      ? liveStream(key, value)
+      : value,
   );
 }
 

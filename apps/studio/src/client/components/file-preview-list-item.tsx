@@ -1,5 +1,4 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import { useLiveAssetUrl } from "@/client/components/task/current-task-files";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
@@ -9,7 +8,6 @@ import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileIcon } from "./file-icon";
 import { ImageWithFallback } from "./image-with-fallback";
 import { PreviewListItem } from "./preview-list-item";
-import { Button } from "./ui/button";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -29,7 +27,7 @@ export function FilePreviewListItem({
 }) {
   const { filename, filePath, mimeType } = file;
   const fileType = getFileType(file);
-  const url = useLiveAssetUrl(file);
+  const { url } = file;
   const [imageLoadError, setImageLoadError] = useState(false);
   const fileActions = useFileActionVisibility(file);
   const hasFileActions =
@@ -39,15 +37,23 @@ export function FilePreviewListItem({
     url && fileType === "image" ? (
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
+          {/* The surface its sibling row takes, squared off, so the two kinds of
+              chip in one row sit on the same thing. Styled here rather than
+              borrowed from a button variant for the same reason the row is. The
+              selected mark goes outside because the image covers the surface a
+              tint would land on. */}
+          <button
             className={cn(
-              "relative size-12 shrink-0 overflow-hidden p-0",
+              "relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-background shadow-xs",
+              // No `outline-none`: nothing here draws an outline until the tile
+              // is selected or focused, and suppressing the style up front only
+              // means every outline below has to turn it back on.
+              "transition-[outline] focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50",
               isSelected &&
-                "ring-2 ring-primary ring-offset-2 ring-offset-background",
+                "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
             )}
             onClick={onClick}
             type="button"
-            variant="outline"
           >
             <ImageWithFallback
               alt={filename}
@@ -60,11 +66,12 @@ export function FilePreviewListItem({
               showCheckerboard
               src={url}
             />
-          </Button>
+          </button>
         </TooltipTrigger>
         <TooltipContent
-          className="max-w-[min(500px,90vw)] wrap-break-word"
+          className="wrap-break-word"
           collisionPadding={10}
+          maxWidth="500px"
         >
           {filePath}
         </TooltipContent>

@@ -3,7 +3,6 @@ import { StoreId } from "../schemas/store-id";
 export namespace StorageKey {
   const SEPARATOR = ":";
   export const MESSAGES_KEY = "messages";
-  export const FILE_INDEX_BASELINE_KEY = "file-index-baseline";
 
   // Per-session baseline of the task's attached folders, diffed against the
   // current set when composing a user message to detect folders the user
@@ -11,6 +10,13 @@ export namespace StorageKey {
   // each track what they witnessed.
   export function attachedFoldersBaseline(sessionId: StoreId.Session) {
     return ["attached-folders-baseline", sessionId].join(SEPARATOR);
+  }
+
+  // Per-session latch for whether reaching a page has already taken the pane
+  // during the turn now running. Lowered as each user message is composed, so a
+  // turn takes the pane at most once however many pages it visits.
+  export function browserRevealedThisTurn(sessionId: StoreId.Session) {
+    return ["browser-revealed-this-turn", sessionId].join(SEPARATOR);
   }
 
   // Per-session marker and last-known page for managed browser use. Live
@@ -31,13 +37,6 @@ export namespace StorageKey {
     return StoreId.SessionSchema.parse(sessionKey.split(SEPARATOR).at(-1));
   }
 
-  // Per-session baseline of the on-disk file index, diffed against a fresh walk
-  // when composing a user message to detect changes made between turns. Keyed by
-  // session so concurrent chats in the same task each track what they witnessed.
-  export function fileIndexBaseline(sessionId: StoreId.Session) {
-    return [FILE_INDEX_BASELINE_KEY, sessionId].join(SEPARATOR);
-  }
-
   export function message(
     sessionId: StoreId.Session,
     messageId: StoreId.Message,
@@ -47,6 +46,13 @@ export namespace StorageKey {
 
   export function messages(sessionId: StoreId.Session) {
     return [MESSAGES_KEY, sessionId].join(SEPARATOR);
+  }
+
+  // Per-session record of the pane tabs the agent was last told about, so a
+  // turn only carries the list when it has changed. Keyed by session because
+  // what a given conversation has been told is a fact about that conversation.
+  export function paneTabsReported(sessionId: StoreId.Session) {
+    return ["pane-tabs-reported", sessionId].join(SEPARATOR);
   }
 
   export function part(

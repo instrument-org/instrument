@@ -8,10 +8,12 @@ import {
   getProject,
   listProjects,
   removeFolderFromProject,
+  setProjectFolderAccess,
   updateProject,
 } from "../../../lib/project";
 import { updateTaskSettings } from "../../../lib/task-settings";
-import { ProjectSchema } from "../../../schemas/project";
+import { FolderAttachment } from "../../../schemas/folder-attachment";
+import { ProjectFolderSchema, ProjectSchema } from "../../../schemas/project";
 import { ProjectIdSchema } from "../../../schemas/project-id";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { base, toORPCError } from "../../base";
@@ -36,7 +38,7 @@ const create = base
   .input(
     z.object({
       description: z.string().optional(),
-      folders: z.array(z.string()).optional(),
+      folders: z.array(ProjectFolderSchema).optional(),
       instructions: z.string().optional(),
       name: z.string(),
     }),
@@ -115,10 +117,38 @@ const removeTask = base
   });
 
 const addFolder = base
-  .input(z.object({ id: ProjectIdSchema, path: z.string() }))
+  .input(
+    z.object({
+      access: FolderAttachment.AccessSchema,
+      id: ProjectIdSchema,
+      path: z.string(),
+    }),
+  )
   .output(ProjectSchema)
   .handler(async ({ errors, input }) => {
-    const result = await addFolderToProject(input.id, input.path);
+    const result = await addFolderToProject(input.id, input.path, input.access);
+    if (result.isErr()) {
+      throw toORPCError(result.error, errors);
+    }
+    publisher.publish("project.updated", null);
+    return result.value;
+  });
+
+const setFolderAccess = base
+  .input(
+    z.object({
+      access: FolderAttachment.AccessSchema,
+      id: ProjectIdSchema,
+      path: z.string(),
+    }),
+  )
+  .output(ProjectSchema)
+  .handler(async ({ errors, input }) => {
+    const result = await setProjectFolderAccess(
+      input.id,
+      input.path,
+      input.access,
+    );
     if (result.isErr()) {
       throw toORPCError(result.error, errors);
     }
@@ -169,5 +199,6 @@ export const project = {
   remove,
   removeFolder,
   removeTask,
+  setFolderAccess,
   update,
 };

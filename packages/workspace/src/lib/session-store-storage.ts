@@ -8,6 +8,7 @@ import dbDriver from "unstorage/drivers/db0";
 
 import { type TaskId } from "../schemas/task-id";
 import { TypedError } from "./errors";
+import { runStoreMigrations } from "./store-migrations";
 import { sessionStorePath, taskDir } from "./task-dir-utils";
 import { type WrappedStorage, wrapStorage } from "./wrap-storage";
 
@@ -91,12 +92,29 @@ export function getSessionsStoreStorage(taskId: TaskId) {
             `Failed to read session database at ${sessionStorePath(taskDir(taskId))}`,
             { cause: error },
           ),
-      ).map(() => {
-        const wrappedStorage = wrapStorage(storage);
-        STORAGE_TO_DATABASE.set(wrappedStorage, database);
-        STORAGE_CACHE.set(taskId, wrappedStorage);
-        return wrappedStorage;
-      });
+      )
+        .andThen(() => {
+          const wrappedStorage = wrapStorage(storage);
+          // Before the storage is cached, so nothing can read through it until
+          // its data matches what this build expects. Caching after also means
+          // this runs once per task per process rather than per read.
+          return runStoreMigrations({ storage: wrappedStorage }).map(
+            () => wrappedStorage,
+          );
+        })
+        .mapErr((error) =>
+          error instanceof TypedError.Storage
+            ? error
+            : new TypedError.Storage(
+                `Failed to migrate session database at ${sessionStorePath(taskDir(taskId))}`,
+                { cause: error },
+              ),
+        )
+        .map((wrappedStorage) => {
+          STORAGE_TO_DATABASE.set(wrappedStorage, database);
+          STORAGE_CACHE.set(taskId, wrappedStorage);
+          return wrappedStorage;
+        });
     })
     .orTee(() => {
       STORAGE_CACHE.delete(taskId);

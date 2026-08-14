@@ -44,19 +44,29 @@ export function useAppZoomStyle(style?: CSSProperties): CSSProperties {
   } as CSSProperties;
 }
 
+/** Breathing room kept between portalled content and the window edge. */
+const VIEWPORT_GUTTER = "2rem";
+
 /**
- * Max-size utilities for a portalled Radix Content, applied alongside
- * {@link useAppZoomStyle}. Shared by every centered dialog so the compensation
- * isn't hand-copied per primitive (and silently skipped, which is how
- * AlertDialog clipped off-screen at zoom > 1).
+ * A max-size for portalled, self-zoomed content, applied alongside
+ * {@link useAppZoomStyle} as an inline `max-width`/`max-height`.
  *
- * The content keeps its intrinsic size in layout units at every zoom level, so
- * it grows on screen with the text inside it, and only ever gives that up to
- * stay within the window. A dialog wanting a different intrinsic size overrides
- * these with the same `min(<intrinsic>, calc(<vw|vh>/var(--content-zoom)))`
- * shape written out literally -- Tailwind only generates arbitrary values it can
- * see in source, so this can't be built from parts at runtime.
+ * `intrinsic` is how much room the content wants in the units it is laid out in,
+ * undivided (see the unit rules above). It is capped here by the window the
+ * content has to fit inside, so the content keeps its intrinsic size in layout
+ * units at every zoom level -- growing on screen with the text inside it -- and
+ * only ever gives that up to stay on screen. Omit it to ask for as much room as
+ * the window allows.
+ *
+ * A value rather than Tailwind classes, because a class is the one form of this
+ * that can be lost: `cn()` merges a caller's `max-w-*` over the primitive's own,
+ * taking the window cap with it, and nothing says so at the call site. An inline
+ * style outranks every class, so a dialog's size can only be set by passing an
+ * intrinsic size in -- which is the point, since a dropped cap looks correct at
+ * the 1x default and only misplaces the content once someone zooms in.
  */
-export const ZOOM_CONTENT_MAX_HEIGHT = "max-h-[calc(85vh/var(--content-zoom))]";
-export const ZOOM_CONTENT_MAX_WIDTH =
-  "max-w-[min(32rem,calc((100vw-2rem)/var(--content-zoom)))]";
+export function zoomMaxSize(axis: "height" | "width", intrinsic?: string) {
+  const viewport = axis === "width" ? "100vw" : "100vh";
+  const windowCeiling = `calc((${viewport} - ${VIEWPORT_GUTTER}) / var(--content-zoom))`;
+  return intrinsic ? `min(${intrinsic}, ${windowCeiling})` : windowCeiling;
+}

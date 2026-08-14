@@ -11,8 +11,10 @@ import { executeError } from "../lib/execute-error";
 import { pathExists } from "../lib/path-exists";
 import { resolveWritableToolPath } from "../lib/resolve-agent-path";
 import { taskDir } from "../lib/task-dir-utils";
+import { resolveTaskProjectFolder } from "../lib/task-project-folder";
 import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
+import { MOUNT } from "../mount-points";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { ReadFile } from "./read-file";
@@ -37,7 +39,7 @@ export const WriteFile = setupTool({
   name: "write_file",
   outputSchema: z.object({
     content: z.string(),
-    // Task-relative today; a writable mount path once those exist.
+    // Task-relative, or the mount path of a writable attached folder.
     filePath: z.string(),
     isNewFile: z.boolean(),
     modifiedAt: z.number(),
@@ -47,13 +49,14 @@ export const WriteFile = setupTool({
     Writes a file, creating parent directories as needed.
 
     Usage:
-    - The ${INPUT_PARAMS.filePath} parameter must be a relative path. E.g. ./${TASK_FOLDER_NAMES.output}/report.md
+    - The ${INPUT_PARAMS.filePath} parameter is a path relative to the task (e.g. ./${TASK_FOLDER_NAMES.output}/report.md), or the mount path of an attached folder you have read-and-write access to (${MOUNT.attachedFolders}/<name>/report.md). The attached-folders list in your context says which folders those are.
     - Writing to an existing path overwrites it, so read it with \`${ReadFile.name}\` first when you have not seen its current contents.
     - Never use this tool to re-emit content you already produced or read from disk, including to move a file somewhere the user can see it. That wastes tokens and corrupts bytes (line endings, whitespace, base64-ish or minified content). Copy or move it instead: \`cp work/foo.html output/foo.html\`.
   `,
   execute: async ({ input, signal, taskId, taskState }) => {
     const layout = buildWorkspaceFsLayout({
       attachedFolders: taskState.attachedFolders,
+      projectFolderName: await resolveTaskProjectFolder(taskId),
       taskHostRoot: taskDir(taskId),
     });
     const pathResult = resolveWritableToolPath({

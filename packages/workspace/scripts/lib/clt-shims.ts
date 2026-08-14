@@ -1,8 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-// cspell:ignore dylib libxcselect objdump xcrun
-
 /**
  * The `/usr/bin` tools macOS ships as xcode-select stubs. Each one links
  * `libxcselect.dylib` and resolves the active developer directory before doing
@@ -18,7 +16,6 @@ import path from "node:path";
  */
 // Apple's tool names, spelled Apple's way. Listing each one as a dictionary
 // entry would be longer than the array.
-// cspell:disable
 export const CLT_SHIM_NAMES = [
   "DeRez",
   "GetFileInfo",
@@ -128,7 +125,6 @@ export const CLT_SHIM_NAMES = [
   "xml2man",
   "yacc",
 ] as const;
-// cspell:enable
 
 /**
  * `xcode-select -p` reads the configured developer directory and reports its

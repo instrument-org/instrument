@@ -9,6 +9,7 @@ import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { addCacheControlToMessages } from "./add-cache-control";
+import { dropTrailingFailedMessages } from "./drop-trailing-failed-messages";
 import { filterUnsupportedMedia } from "./filter-unsupported-media";
 import { normalizeModelImages } from "./normalize-model-images";
 import { normalizeToolCallIds } from "./normalize-tool-call-ids";
@@ -117,11 +118,11 @@ export async function prepareModelMessages({
     contextMessages = createResult.value;
   }
 
-  const orderedMessages = [
+  const orderedMessages = dropTrailingFailedMessages([
     // ulid sorts oldest to newest
     ...alphabetical(contextMessages, (message) => message.id),
     ...alphabetical(nonContextMessages, (message) => message.id),
-  ];
+  ]);
 
   const portableMessagesResult = removeCrossModelReasoningDetails({
     messages: orderedMessages,

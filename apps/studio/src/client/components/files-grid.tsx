@@ -1,77 +1,372 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import { type FileType, getFileType } from "@/client/lib/get-file-type";
+import { useTaskPane, useTaskPaneActions } from "@/client/hooks/use-task-pane";
+import {
+  type FileType,
+  getFileType,
+  isMediaFile,
+} from "@/client/lib/get-file-type";
 import {
   isFileInTaskFolder,
   isRootTaskFile,
 } from "@/client/lib/task-file-visibility";
 import { cn } from "@/client/lib/utils";
-import { type ArtifactPanel } from "@/client/schemas/artifact-panel";
-import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
-import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
-import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { TASK_FOLDER_NAMES, TaskPane } from "@instrument-org/workspace/client";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
+import { useParams } from "@tanstack/react-router";
 import { fork } from "radashi";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { FilePreviewCard } from "./file-preview-card";
 import { FilePreviewListItem } from "./file-preview-list-item";
-import { FolderPreviewListItem } from "./folder-preview-list-item";
+import {
+  COLLAPSED_MAX_HEIGHT_PX,
+  collapseFor,
+  FADE_HEIGHT_PX,
+  FILE_ITEM_SELECTOR,
+  offsetTopWithin,
+} from "./files-grid-collapse";
+import { useReleaseAutoScroll } from "./transcript-scroll-context";
+import { Skeleton } from "./ui/skeleton";
 
 interface FilesGridProps {
   alignEnd?: boolean;
   compact?: boolean;
   files: TaskFileViewerFile[];
-  folders?: SessionMessageDataPart.FolderAttachmentDataPart[];
-  initialVisibleCount?: number;
+  /**
+   * A path still being typed, drawn as an empty tile in the place its card will
+   * take.
+   *
+   * The point is the box, not the file: a half-typed path resolves to nothing,
+   * so nothing is resolved. What it buys is that the row is already the height
+   * it settles at when the finished line replaces the tile -- which matters
+   * because a fence's last line is withheld until the message stops streaming,
+   * and that is the same frame the session goes idle in.
+   *
+   * Only media reserves a tile. A media tile's height is its width, so the box
+   * is exact; a list row's is its contents, and a box guessed at is a smaller
+   * version of the jump it was drawn to avoid.
+   *
+   * It is a box and not a file, so the collapse below leaves it out of its
+   * count: a tile the clamp cuts is nothing anyone can be offered to see.
+   */
+  pendingFilePath?: string;
+  // Takes the list as given instead of bucketing it by task folder. For a set
+  // an agent chose and ordered: the buckets exist to find the deliverables in
+  // everything a turn touched, which is a judgment already made here, and they
+  // drop anything outside the task folder -- including a shared folder's files.
+  preserveOrder?: boolean;
   prioritizeUserFiles?: boolean;
 }
-
-const DEFAULT_INITIAL_VISIBLE_COUNT = 6;
-// Square media previews are much taller than a list row, so they collapse to
-// their own ~2-row cap (up to three across at the widest) instead of sharing the
-// list budget, which otherwise showed too many rows of images.
-const MEDIA_COLLAPSED_COUNT = 6;
-// Extra list files rendered past the visible count when collapsed; their bottoms
-// dissolve under the fade mask to hint at more without a hard cutoff.
-const PEEK_COUNT = 2;
-const EMPTY_FOLDERS: SessionMessageDataPart.FolderAttachmentDataPart[] = [];
 
 export function FilesGrid({
   alignEnd = false,
   compact = false,
   files,
-  folders = EMPTY_FOLDERS,
-  initialVisibleCount = DEFAULT_INITIAL_VISIBLE_COUNT,
+  pendingFilePath,
+  preserveOrder = false,
   prioritizeUserFiles = false,
 }: FilesGridProps) {
-  const navigate = useNavigate({ from: "/tasks/$id/" });
-  const search = useSearch({
+  // Absent outside the task route -- a previewed conversation, the debug
+  // scenarios -- where a card is still worth drawing and clicking it has
+  // nowhere to go.
+  const taskId = useParams({
     from: "/_app/tasks/$id/",
     shouldThrow: false,
-  });
-  const selectedArtifactFile = search?.artifactPanel ?? null;
+  })?.id;
+  const pane = useTaskPane(taskId);
+  const { openFiles } = useTaskPaneActions(taskId);
+  const releaseAutoScroll = useReleaseAutoScroll();
 
   const handleFileClick = (file: TaskFileViewerFile) => {
-    if (!search) {
-      return;
-    }
-    void navigate({
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        artifactPanel: {
-          filePath: file.filePath,
-          modifiedAt: file.modifiedAt,
-          type: "file",
-        },
-      }),
-    });
+    openFiles([file.filePath]);
   };
 
   const [isExpanded, setIsExpanded] = useState(false);
+  // Undefined once the grid is measured and found to fit: the clamp is applied
+  // from the first paint, and taken off again rather than left to cut a grid
+  // that has nothing to hide.
+  const [collapsedHeight, setCollapsedHeight] = useState<number | undefined>(
+    COLLAPSED_MAX_HEIGHT_PX,
+  );
+  const [hiddenFileCount, setHiddenFileCount] = useState(0);
+  const [isClipped, setIsClipped] = useState(false);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
-  // Root files cover a deliverable an agent saved to the task root instead of
-  // `output/`; see `isSurfacedTaskFile` for which paths reach the user at all.
+  const mainFiles = preserveOrder
+    ? files
+    : bucketByTaskFolder(files, prioritizeUserFiles);
+
+  const mediaFiles = compact ? [] : mainFiles.filter(isMediaFile);
+  const listFiles = compact
+    ? mainFiles
+    : mainFiles.filter((file) => !isMediaFile(file));
+  const rowCardFiles = compact ? [] : listFiles.filter(hasRowCardPreview);
+  const otherFiles = compact
+    ? listFiles
+    : listFiles.filter((file) => !hasRowCardPreview(file));
+
+  // See `pendingFilePath`.
+  const hasPendingMediaTile =
+    !compact &&
+    pendingFilePath !== undefined &&
+    isMediaFile({ filename: pendingFilePath });
+
+  const mediaTileCount = mediaFiles.length + (hasPendingMediaTile ? 1 : 0);
+  const isSingleMediaFile = mediaTileCount === 1;
+  const itemCount = mediaFiles.length + rowCardFiles.length + otherFiles.length;
+
+  // A layout effect: the clamp is applied on the first paint, and the fade and
+  // the button that say so are measured before it. A frame of hard-cut grid is
+  // the one thing this collapse exists to avoid.
+  //
+  // Re-run on the count as well as watching the box, because a file can arrive
+  // without moving anything: one more chip on a row with room for it leaves
+  // every box exactly where it was, and if that row is the cut one there is now
+  // one more file behind the fade.
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    const content = contentRef.current;
+    if (!grid || !content) {
+      return;
+    }
+
+    // Where each file lands, at the size it lands, in the units the clamp is
+    // written in. Clipping does not move anything, so this reads the same
+    // collapsed or expanded, and the count survives the expand it triggers.
+    //
+    // Three pieces of state rather than the one object `collapseFor` returns,
+    // so a measurement that lands on the same numbers costs nothing.
+    const measure = () => {
+      const collapse = collapseFor(
+        [...grid.querySelectorAll<HTMLElement>(FILE_ITEM_SELECTOR)].map(
+          (item) => {
+            const top = offsetTopWithin(item, grid);
+            return {
+              bottom: top + item.offsetHeight,
+              isPending: item.dataset.pending !== undefined,
+              top,
+            };
+          },
+        ),
+      );
+
+      setCollapsedHeight(collapse.height);
+      setHiddenFileCount(collapse.hiddenFiles);
+      setIsClipped(collapse.clipped);
+    };
+
+    measure();
+
+    // Width decides how the sections wrap, and it moves under a splitter drag
+    // and an app-zoom change alike -- neither of which is a render here. Height
+    // is watched for the case the deps below cannot see: the same files at a
+    // different size. Coalesced to one recompute per frame, since a drag
+    // delivers several records in the same one.
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      frame ||= requestAnimationFrame(() => {
+        frame = 0;
+        measure();
+      });
+    });
+    observer.observe(content);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [itemCount, hasPendingMediaTile]);
+
+  const hasMoreFiles = hiddenFileCount > 0;
+  const isCollapsed = isClipped && !isExpanded;
+
+  // How wide one tile is, as a share of the row. One on its own is the reply's
+  // subject and takes the column; a set of them is a grid, two across and three
+  // once the column is wide enough to read them at. Both are container queries:
+  // the same grid is drawn in a message column, a pane, and a card.
+  const mediaTileWidth = cn(
+    "shrink-0 grow-0",
+    isSingleMediaFile
+      ? "w-full @md:w-[calc((100%/3*2)-(0.5rem/3))]"
+      : "w-[calc((100%/2)-(0.5rem/2))] @xl:w-[calc((100%/3)-(0.5rem*2/3))]",
+  );
+
+  const gridSections = (
+    <>
+      {mediaTileCount > 0 && (
+        <div className="@container">
+          <div
+            className={cn("flex flex-wrap gap-2", alignEnd && "justify-end")}
+          >
+            {mediaFiles.map((file) => (
+              <div
+                className={mediaTileWidth}
+                data-slot="files-grid-item"
+                key={file.filePath}
+              >
+                <FilePreviewCard
+                  file={file}
+                  isSelected={isPaneFileSelected(file, pane)}
+                  onClick={() => {
+                    handleFileClick(file);
+                  }}
+                />
+              </div>
+            ))}
+            {hasPendingMediaTile && (
+              <div
+                className={mediaTileWidth}
+                data-pending
+                data-slot="files-grid-item"
+                key="pending"
+              >
+                <Skeleton className="aspect-square w-full rounded-2xl" />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {rowCardFiles.length > 0 && (
+        <div className="@container">
+          <div
+            className={cn(
+              "grid grid-cols-1 gap-2 @sm:grid-cols-2",
+              alignEnd && "justify-items-end",
+            )}
+          >
+            {rowCardFiles.map((file) => (
+              <div data-slot="files-grid-item" key={file.filePath}>
+                <FilePreviewCard
+                  file={file}
+                  isSelected={isPaneFileSelected(file, pane)}
+                  onClick={() => {
+                    handleFileClick(file);
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {otherFiles.length > 0 && (
+        <div
+          className={cn(
+            "flex flex-wrap items-start gap-2",
+            alignEnd && "justify-end",
+          )}
+        >
+          {otherFiles.map((file) => (
+            <div
+              className="h-12 max-w-48 min-w-0"
+              data-slot="files-grid-item"
+              key={file.filePath}
+            >
+              <FilePreviewListItem
+                file={file}
+                isSelected={isPaneFileSelected(file, pane)}
+                onClick={() => {
+                  handleFileClick(file);
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
+  // Every path was filtered out above, so the grid has nothing to draw. Render
+  // nothing rather than an empty box, which a flex parent still gives a gap.
+  if (mainFiles.length === 0 && !hasPendingMediaTile) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {/* Every file is drawn and the clamp cuts what does not fit, rather than
+          the render stopping at a count: what a row holds is settled by the
+          container, so the cut can only be made once the layout is.
+
+          `overflow-clip` rather than `hidden`, which is a scroll container to
+          everything but the user: focus landing on a cut card would scroll it
+          into view inside the box, sliding the grid up under a mask that stays
+          where it is. Nothing scrolls here, and `onFocus` opens the grid
+          instead.
+
+          `p-2`/`-m-2` gives card shadows and focus rings room inside the clip
+          and the mask -- both cut to the border box -- without moving where the
+          cards sit. `relative` is what the measurement reads its offsets
+          against. The mask is spelled out here rather than taken from
+          `scroll-fade-y`, which is driven by a scroll timeline this static
+          collapse doesn't have. */}
+      <div
+        className="relative -m-2 overflow-clip p-2"
+        onFocus={(event) => {
+          const grid = gridRef.current;
+          const item = event.target.closest<HTMLElement>(FILE_ITEM_SELECTOR);
+          if (
+            isCollapsed &&
+            grid &&
+            item &&
+            collapsedHeight !== undefined &&
+            offsetTopWithin(item, grid) + item.offsetHeight > collapsedHeight
+          ) {
+            releaseAutoScroll();
+            setIsExpanded(true);
+          }
+        }}
+        ref={gridRef}
+        style={{
+          maskImage: isCollapsed
+            ? `linear-gradient(to bottom, black calc(100% - ${FADE_HEIGHT_PX}px), transparent)`
+            : undefined,
+          maxHeight: isExpanded ? undefined : collapsedHeight,
+        }}
+      >
+        {/* What the measurement watches. The clamped box above it is pinned to
+            a height while collapsed, so a card that grows under the clamp is a
+            change a `ResizeObserver` on it cannot see; this one is free to be
+            as tall as its contents. */}
+        <div className="flex flex-col gap-2" ref={contentRef}>
+          {gridSections}
+        </div>
+      </div>
+
+      {hasMoreFiles && (
+        <button
+          className={cn(
+            "flex h-7 w-full items-center justify-center gap-1 rounded-lg text-xs text-muted-foreground",
+            "hover:bg-muted hover:text-foreground",
+          )}
+          onClick={() => {
+            releaseAutoScroll();
+            setIsExpanded((expanded) => !expanded);
+          }}
+          type="button"
+        >
+          {isExpanded ? "Show less" : `Show ${hiddenFileCount} more`}
+          {isExpanded ? (
+            <CaretUpIcon className="size-3.5" />
+          ) : (
+            <CaretDownIcon className="size-3.5" />
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Groups a turn's changed files into the folders that reach the user, richest
+// preview first within each. Root files cover a deliverable an agent saved to
+// the task root instead of `output/`; see `isSurfacedTaskFile` for which paths
+// reach the user at all.
+function bucketByTaskFolder(
+  files: TaskFileViewerFile[],
+  prioritizeUserFiles: boolean,
+) {
   const [outputFiles, nonOutputFiles] = fork(files, (file) =>
     isFileInTaskFolder(file.filePath, TASK_FOLDER_NAMES.output),
   );
@@ -90,7 +385,7 @@ export function FilesGrid({
   const sortedDownloadFiles = sortByRichPreview(downloadFiles);
   const sortedRootFiles = sortByRichPreview(rootFiles);
 
-  const mainFiles = prioritizeUserFiles
+  return prioritizeUserFiles
     ? [
         ...sortedAttachmentFiles,
         ...sortedOutputFiles,
@@ -103,193 +398,6 @@ export function FilesGrid({
         ...sortedAttachmentFiles,
         ...sortedDownloadFiles,
       ];
-
-  const listCollapsedCount = initialVisibleCount + PEEK_COUNT;
-
-  // Media collapses on its own budget (square previews are tall); list content
-  // keeps the base budget plus a peek row. Splitting them keeps a big set of
-  // images down to ~2 rows instead of pushing the whole grid past three.
-  const allMedia = compact ? [] : mainFiles.filter(hasMediaPreview);
-  const listFiles = compact
-    ? mainFiles
-    : mainFiles.filter((file) => !hasMediaPreview(file));
-
-  const shownMedia = isExpanded
-    ? allMedia
-    : allMedia.slice(0, MEDIA_COLLAPSED_COUNT);
-  const shownListFiles = isExpanded
-    ? listFiles
-    : listFiles.slice(0, listCollapsedCount);
-
-  const hiddenFileCount =
-    allMedia.length -
-    shownMedia.length +
-    (listFiles.length - shownListFiles.length);
-  const hasMoreFiles = hiddenFileCount > 0;
-
-  const mediaPreviewFiles = shownMedia;
-  const rowCardFiles = compact ? [] : shownListFiles.filter(hasRowCardPreview);
-  const otherFiles = compact
-    ? shownListFiles
-    : shownListFiles.filter((file) => !hasRowCardPreview(file));
-
-  const isSingleMediaFile = mediaPreviewFiles.length === 1;
-
-  // The fade sits at the very bottom of the grid; when that bottom row is tall
-  // square media (no shorter list rows below it), fade higher into the row.
-  const bottomSectionIsMedia =
-    mediaPreviewFiles.length > 0 &&
-    rowCardFiles.length === 0 &&
-    otherFiles.length === 0 &&
-    folders.length === 0;
-
-  const gridSections = (
-    <>
-      {mediaPreviewFiles.length > 0 && (
-        <div className="@container">
-          <div
-            className={cn("flex flex-wrap gap-2", alignEnd && "justify-end")}
-          >
-            {mediaPreviewFiles.map((file) => (
-              <div
-                className={cn(
-                  "shrink-0 grow-0",
-                  isSingleMediaFile
-                    ? "w-full @md:w-[calc((100%/3*2)-(0.5rem/3))]"
-                    : "w-[calc((100%/2)-(0.5rem/2))]",
-                  // 3-up once the column is wide; the message column tops out
-                  // near 40rem, so @2xl (42rem) could never trigger.
-                  "@xl:w-[calc((100%/3)-(0.5rem*2/3))]",
-                )}
-                key={file.filePath}
-              >
-                <FilePreviewCard
-                  file={file}
-                  isSelected={isArtifactPanelFileSelected(
-                    file,
-                    selectedArtifactFile,
-                  )}
-                  onClick={() => {
-                    handleFileClick(file);
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {rowCardFiles.length > 0 && (
-        <div className="@container">
-          <div
-            className={cn(
-              "grid grid-cols-1 gap-2 @sm:grid-cols-2",
-              alignEnd && "justify-items-end",
-            )}
-          >
-            {rowCardFiles.map((file) => (
-              <FilePreviewCard
-                file={file}
-                isSelected={isArtifactPanelFileSelected(
-                  file,
-                  selectedArtifactFile,
-                )}
-                key={file.filePath}
-                onClick={() => {
-                  handleFileClick(file);
-                }}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {(otherFiles.length > 0 || folders.length > 0) && (
-        <div
-          className={cn(
-            "flex flex-wrap items-start gap-2",
-            alignEnd && "justify-end",
-          )}
-        >
-          {folders.map((folder) => (
-            <div className="h-12 max-w-48 min-w-0" key={folder.id}>
-              <FolderPreviewListItem folder={folder} />
-            </div>
-          ))}
-          {otherFiles.map((file) => (
-            <div className="h-12 max-w-48 min-w-0" key={file.filePath}>
-              <FilePreviewListItem
-                file={file}
-                isSelected={isArtifactPanelFileSelected(
-                  file,
-                  selectedArtifactFile,
-                )}
-                onClick={() => {
-                  handleFileClick(file);
-                }}
-              />
-            </div>
-          ))}
-        </div>
-      )}
-    </>
-  );
-
-  // Every path was filtered out above, so the grid has nothing to draw. Render
-  // nothing rather than an empty box, which a flex parent still gives a gap.
-  if (mainFiles.length === 0 && folders.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      {hasMoreFiles && !isExpanded ? (
-        // Dissolve the trailing peek files into the surface so the collapse
-        // reads as "more below" rather than a hard cutoff. scroll-fade-y is
-        // scroll-timeline driven and doesn't apply to this static collapse, so
-        // the bottom mask is spelled out inline. p-2/-m-2 gives card shadows and
-        // outlines room inside the mask box (masks clip to the border-box)
-        // without shifting where the cards sit.
-        <div
-          className={cn(
-            "-m-2 flex flex-col gap-2 p-2",
-            bottomSectionIsMedia
-              ? "[mask-image:linear-gradient(to_bottom,black_calc(100%_-_5.5rem),transparent)]"
-              : "[mask-image:linear-gradient(to_bottom,black_calc(100%_-_3rem),transparent)]",
-          )}
-        >
-          {gridSections}
-        </div>
-      ) : (
-        gridSections
-      )}
-
-      {hasMoreFiles && (
-        <button
-          className={cn(
-            "flex h-7 w-full items-center justify-center gap-1 rounded-lg text-xs text-muted-foreground",
-            "hover:bg-muted hover:text-foreground",
-          )}
-          onClick={() => {
-            setIsExpanded((expanded) => !expanded);
-          }}
-          type="button"
-        >
-          {isExpanded ? "Show less" : `Show ${hiddenFileCount} more`}
-          {isExpanded ? (
-            <CaretUpIcon className="size-3.5" />
-          ) : (
-            <CaretDownIcon className="size-3.5" />
-          )}
-        </button>
-      )}
-    </div>
-  );
-}
-
-function hasMediaPreview(file: TaskFileViewerFile) {
-  const fileType = getFileType(file);
-  return fileType === "image" || fileType === "video";
 }
 
 // Which types get a full-width preview row rather than a compact chip. Images
@@ -324,19 +432,26 @@ function hasRowCardPreview(file: TaskFileViewerFile) {
   return ROW_CARD_PREVIEW[getFileType(file)];
 }
 
-function isArtifactPanelFileSelected(
-  file: TaskFileViewerFile,
-  artifactPanel: ArtifactPanel | null,
-) {
+// Which card the pane is showing. The path decides it: an mtime in the
+// comparison meant a card lost its own highlight the moment the file it points
+// at changed underneath it.
+//
+// A closed pane shows nothing, so nothing is highlighted -- its selection is
+// kept for the reopen, not a claim about what the user is looking at.
+//
+// Against the stored key rather than `selectedTab`, whose fallback to the last
+// tab is right for deciding what to render and wrong for deciding what looks
+// chosen: with the browser selected it names a file tab, and a card would sit
+// highlighted while the pane showed a web page.
+function isPaneFileSelected(file: TaskFileViewerFile, pane: TaskPane.Type) {
   return (
-    artifactPanel?.type === "file" &&
-    file.filePath === artifactPanel.filePath &&
-    file.modifiedAt === artifactPanel.modifiedAt
+    pane.open &&
+    pane.selected === TaskPane.tabKey(TaskPane.fileTab(file.filePath))
   );
 }
 
 function sortByRichPreview(files: TaskFileViewerFile[]) {
-  const [media, rest] = fork(files, hasMediaPreview);
+  const [media, rest] = fork(files, isMediaFile);
   const [rowCard, other] = fork(rest, hasRowCardPreview);
   return [...media, ...rowCard, ...other];
 }

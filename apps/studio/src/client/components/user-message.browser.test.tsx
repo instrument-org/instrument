@@ -1,10 +1,7 @@
-import "@/client/styles/globals.css";
+import { renderInBrowser } from "@/tests/render-browser";
 import { StoreId } from "@instrument-org/workspace/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
-import { render } from "vitest-browser-react";
 
-import { TooltipProvider } from "./ui/tooltip";
 import { UserMessage } from "./user-message";
 
 // A collapsed message shows a fade and turns its whole bubble into a
@@ -34,18 +31,12 @@ const lines = (count: number) =>
   Array.from({ length: count }, (_, index) => `line ${index + 1}`).join("\n");
 
 async function renderMessage(text: string) {
-  await render(
-    <QueryClientProvider client={new QueryClient()}>
-      {/* Radix throws without one, and a test rendering a single component is
-          the app root it is asking for. */}
-      <TooltipProvider>
-        {/* The bubble is sized as a share of its parent, so the parent needs a
-            width before any of it can be measured. */}
-        <div style={{ width: 600 }}>
-          <UserMessage part={messagePart(text)} />
-        </div>
-      </TooltipProvider>
-    </QueryClientProvider>,
+  await renderInBrowser(
+    // The bubble is sized as a share of its parent, so the parent needs a width
+    // before any of it can be measured.
+    <div style={{ width: 600 }}>
+      <UserMessage part={messagePart(text)} />
+    </div>,
   );
 
   const content = document.querySelector<HTMLElement>(

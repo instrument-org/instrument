@@ -7,7 +7,8 @@ import { ProviderConfigListItem } from "@/client/components/provider-config-list
 import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
 import { type ClientAIProviderConfig } from "@/shared/schemas/provider";
-import { CpuIcon, PlusIcon } from "@phosphor-icons/react";
+import { CpuIcon } from "@phosphor-icons/react/Cpu";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { useState } from "react";

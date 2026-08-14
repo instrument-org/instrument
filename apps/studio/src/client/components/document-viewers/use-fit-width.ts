@@ -50,6 +50,15 @@ export function useFitWidth({
 
     const apply = () => {
       const available = container.clientWidth - GUTTER;
+      // A container that has not been laid out yet leaves nothing to fit
+      // against, and what comes out of dividing by it is the floor of the zoom
+      // range rather than a reading of anything. That is the level the control
+      // then shows until the width arrives -- a document opening at 50% for a
+      // tenth of a second and settling somewhere else. The observer below is
+      // what brings the real width in.
+      if (available <= 0) {
+        return;
+      }
       const next = Math.min(
         Math.max(available / contentWidth, MIN_ZOOM),
         MAX_ZOOM,

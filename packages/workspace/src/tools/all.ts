@@ -9,6 +9,7 @@ import { EditFile } from "./edit-file";
 import { GenerateImage } from "./generate-image";
 import { LoadSkill } from "./load-skill";
 import { ReadFile } from "./read-file";
+import { StartActivity } from "./start-activity";
 import { Unavailable } from "./unavailable";
 import { WebFetch } from "./web-fetch";
 import { WebSearch } from "./web-search";
@@ -21,6 +22,7 @@ export const TOOLS = {
   GenerateImage,
   LoadSkill,
   ReadFile,
+  StartActivity,
   Unavailable,
   WebFetch,
   WebSearch,
@@ -36,6 +38,7 @@ export const TOOLS_BY_NAME = {
   [TOOLS.GenerateImage.name]: TOOLS.GenerateImage,
   [TOOLS.LoadSkill.name]: TOOLS.LoadSkill,
   [TOOLS.ReadFile.name]: TOOLS.ReadFile,
+  [TOOLS.StartActivity.name]: TOOLS.StartActivity,
   [TOOLS.Unavailable.name]: TOOLS.Unavailable,
   [TOOLS.WebFetch.name]: TOOLS.WebFetch,
   [TOOLS.WebSearch.name]: TOOLS.WebSearch,

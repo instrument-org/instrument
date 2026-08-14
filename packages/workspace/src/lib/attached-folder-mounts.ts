@@ -1,11 +1,11 @@
+import { MOUNT } from "../mount-points";
 import { type FolderAttachment } from "../schemas/folder-attachment";
-import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../schemas/paths";
 
 /**
  * Mount points for every attached folder, in iteration order.
  *
  * Folder names are unique per task -- every attachedFolders writer routes the
- * whole set through assignFolderNames (see assign-folder-names.ts) on each
+ * whole set through assignMountNames (see assign-mount-names.ts) on each
  * attach, and the record is keyed by name -- so mount points normally never
  * collide and {@link attachedFolderMountPoint} is safe to derive from a name
  * anywhere. The "(n)" suffix here is a backstop for state that violated the
@@ -20,7 +20,7 @@ export function assignAttachedMounts(
   const assigned: { folder: FolderAttachment.Type; mountPoint: string }[] = [];
 
   for (const folder of Object.values(attachedFolders)) {
-    const base = attachedFolderMountPoint(folder.name);
+    const base = attachedFolderMountPoint(folder.mountName);
     let mountPoint = base;
     for (let n = 2; used.has(mountPoint); n++) {
       mountPoint = `${base} (${n})`;
@@ -37,7 +37,7 @@ export function assignAttachedMounts(
  * "/mnt/Family Photos".
  *
  * Names are derived from the folder's path and unique per task (see
- * assignFolderNames, assignAttachedMounts), so this is a stable one-to-one
+ * assignMountNames, assignAttachedMounts), so this is a stable one-to-one
  * mapping; path separators are flattened and degenerate names fall back to a
  * placeholder purely defensively.
  */
@@ -45,5 +45,5 @@ export function attachedFolderMountPoint(name: string) {
   const segment = name.replaceAll("/", "-").trim();
   const safe =
     segment === "" || segment === "." || segment === ".." ? "folder" : segment;
-  return `${ATTACHED_FOLDERS_MOUNT_ROOT}/${safe}`;
+  return `${MOUNT.attachedFolders}/${safe}`;
 }

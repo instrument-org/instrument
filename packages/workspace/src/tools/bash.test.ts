@@ -29,6 +29,8 @@ describe("BashTool", () => {
           "type": "text",
           "value": "Exit code: 0
 
+        The command produced no output on stdout or stderr.
+
         Duration: 12 ms",
         }
       `);
@@ -102,6 +104,8 @@ describe("BashTool", () => {
         {
           "type": "text",
           "value": "Exit code: 0
+
+        The command produced no output on stdout or stderr.
 
         Duration: 2 seconds",
         }

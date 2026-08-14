@@ -7,10 +7,10 @@ import { parseStudioDrivePath } from "./studio-drive";
 describe("parseStudioDrivePath", () => {
   it("keeps numeric-looking query values as strings", () => {
     expect(
-      parseStudioDrivePath("/debug/components/chat-stream?session=3"),
+      parseStudioDrivePath("/debug/components/transcript?scenario=3"),
     ).toEqual({
-      search: { session: "3" },
-      to: "/debug/components/chat-stream",
+      search: { scenario: "3" },
+      to: "/debug/components/transcript",
     });
   });
 

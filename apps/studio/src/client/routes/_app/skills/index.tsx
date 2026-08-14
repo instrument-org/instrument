@@ -11,12 +11,10 @@ import { isProvidedSource, skillSourceLabel } from "@/client/lib/skill-source";
 import { SKILL_NAME_MATCH_CLASS_NAME } from "@/client/lib/skill-tokens";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME, APP_NAME_SLUG } from "@instrument-org/shared";
-import {
-  FilesIcon,
-  MagnifyingGlassIcon,
-  PlusIcon,
-  XIcon,
-} from "@phosphor-icons/react";
+import { FilesIcon } from "@phosphor-icons/react/Files";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useDeferredValue } from "react";
@@ -122,7 +120,9 @@ function SkillsPage() {
   const { q } = Route.useSearch();
   const navigate = Route.useNavigate();
   const deferredQuery = useDeferredValue(q);
-  const matches = matchSkills(skills, deferredQuery);
+  const matches = matchSkills(skills, deferredQuery, {
+    scope: "name-and-description",
+  });
   const matchBySkill = new Map(matches.map((match) => [match.skill, match]));
   const groups = groupSkills(matches.map((match) => match.skill));
 

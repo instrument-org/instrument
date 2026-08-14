@@ -28,7 +28,7 @@
     "eslint-plugin-jsonc": "^2.20.1",
     "eslint-plugin-n": "^17.21.3",
     "eslint-plugin-only-warn": "^1.1.0",
-    "eslint-plugin-oxlint": "^1.72.0",
+    "eslint-plugin-oxlint": "^1.76.0",
     "eslint-plugin-package-json": "^0.18.0",
     "eslint-plugin-perfectionist": "4.4.0",
     "eslint-plugin-react": "^7.37.5",

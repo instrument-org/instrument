@@ -1,9 +1,10 @@
 import type { Plugin } from "vite";
 
 import { ValidateEnv } from "@julr/vite-plugin-validate-env";
+import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
-import react from "@vitejs/plugin-react";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "electron-vite";
 import fs from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -13,6 +14,21 @@ import { readPackage } from "read-pkg";
 import { analyzer } from "vite-bundle-analyzer";
 
 const isAnalyzing = process.env.ANALYZE_BUILD === "true";
+
+// electron-vite passes `--remote-debugging-port` to the Electron child only
+// when this is set, so without a default a hand-started dev instance has no
+// debug endpoint and cannot be driven or handed to an agent. Defaulted here
+// rather than in the `dev` script because `cross-env` assigns unconditionally,
+// and callers that pick their own port (the Windows host runs both of its
+// targets through `pnpm run dev`) have to keep it.
+process.env.REMOTE_DEBUGGING_PORT ??= "48160";
+
+// electron-vite deep-clones the config before resolving async plugin factories,
+// so this one is awaited here rather than inline in `plugins`. Drop the hoist
+// once https://github.com/alex8088/electron-vite/issues/902 ships.
+const reactCompilerBabel = await babel({
+  presets: [reactCompilerPreset()],
+});
 
 const monorepoNamespace = "@instrument-org";
 // Not including "components" it will be bundled by default in the client
@@ -173,16 +189,14 @@ function createValidateProductionEnv(
 
 export default defineConfig(({ command }) => {
   const require = createRequire(import.meta.url);
-  // In dev, ffmpeg-static/ffprobe-static are external but node_modules isn't
-  // next to the output, so we resolve and bake in the absolute path. In prod,
-  // the packaged app has node_modules alongside the bundle, so a bare specifier
+  // In dev, ffmpeg-ffprobe-static is external but node_modules isn't next to
+  // the output, so we resolve and bake in the absolute path. In prod, the
+  // packaged app has node_modules alongside the bundle, so a bare specifier
   // resolves correctly.
-  const ffmpegStaticValue =
-    command === "serve" ? require.resolve("ffmpeg-static") : "ffmpeg-static";
-  const ffprobeStaticValue =
+  const ffmpegFfprobeStaticValue =
     command === "serve"
-      ? require.resolve("@derhuerst/ffprobe-static")
-      : "@derhuerst/ffprobe-static";
+      ? require.resolve("ffmpeg-ffprobe-static")
+      : "ffmpeg-ffprobe-static";
   const agentBrowserBinDir =
     command === "serve"
       ? path.dirname(require.resolve("agent-browser/bin/agent-browser.js"))
@@ -234,14 +248,37 @@ export default defineConfig(({ command }) => {
             }
             warn(warning);
           },
+          // electron-vite supplies __filename/__dirname/require to ESM chunks by
+          // regex-scanning the rendered output for the last static import and
+          // splicing its shim in after it. At this bundle's size the last match
+          // is import-shaped text inside a comment or a string rather than a
+          // real import: in the dev bundle it lands inside a vendored package's
+          // doc comment, where it is inert. A match inside a string literal
+          // instead corrupts the chunk, and rolldown then emits the entry as
+          // zero bytes. This banner is byte-identical to that shim (the variant
+          // electron-vite picks for Electron >=30), which satisfies its
+          // already-shimmed check so it skips the splice and every chunk
+          // carries the declarations at the top instead. Compare it against
+          // electron-vite's own copy when upgrading, and drop it once
+          // https://github.com/alex8088/electron-vite/issues/906 ships.
+          output: {
+            banner: `
+// -- CommonJS Shims --
+import __cjs_mod__ from 'node:module';
+const __filename = import.meta.filename;
+const __dirname = import.meta.dirname;
+const require = __cjs_mod__.createRequire(import.meta.url);
+`,
+          },
         },
         sourcemap: isProduction,
         watch: {}, // Enable hot reloading
       },
       define: {
         __AGENT_BROWSER_BIN_DIR__: JSON.stringify(agentBrowserBinDir),
-        __FFMPEG_STATIC_PATH__: JSON.stringify(ffmpegStaticValue),
-        __FFPROBE_STATIC_PATH__: JSON.stringify(ffprobeStaticValue),
+        __FFMPEG_FFPROBE_STATIC_PATH__: JSON.stringify(
+          ffmpegFfprobeStaticValue,
+        ),
       },
       plugins: [
         copyVendorAssets(),
@@ -293,7 +330,6 @@ export default defineConfig(({ command }) => {
         // Excluding a package stops its CommonJS-only imports from being
         // converted to ESM, so those are pre-bundled on their own.
         include: [
-          // cspell:ignore utif regl
           "@extend-ai/react-docx > utif",
           "@extend-ai/react-pptx > regl",
           "@extend-ai/react-xlsx > regl",
@@ -310,15 +346,23 @@ export default defineConfig(({ command }) => {
           generatedRouteTree: "./client/routeTree.gen.ts",
           routesDirectory: "./client/routes",
         }),
-        react({
-          babel: {
-            plugins: ["babel-plugin-react-compiler"],
-          },
-        }),
+        react(),
+        reactCompilerBabel,
         tailwindcss(),
       ],
       resolve,
       root: path.resolve("src"),
+      // Just the entry, deliberately. The dev server transforms on one thread,
+      // and its head start on the renderer is shorter than a wide warmup list
+      // takes to drain -- so warming the route modules as well pushes the
+      // request for index.html itself behind the queue, and the window paints
+      // about a second later than with no warmup at all. Warming the entry
+      // alone stays inside the head start and is ahead on every measure.
+      server: {
+        warmup: {
+          clientFiles: ["./client/main.tsx"],
+        },
+      },
       // The document viewers' parser workers are module workers whose entries
       // code-split, which the default IIFE worker format cannot express, so the
       // build fails without this.

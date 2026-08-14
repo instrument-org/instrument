@@ -3,6 +3,7 @@ import { err, ok, safeTry } from "neverthrow";
 import { dedent, pick } from "radashi";
 
 import {
+  AGENT_FILES_LANGUAGE,
   TASK_FOLDER_NAMES as F,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "../constants";
@@ -14,29 +15,24 @@ import {
 } from "../lib/build-project-context-text";
 import { getEffectiveProjectContext } from "../lib/effective-project-context";
 import { TypedError } from "../lib/errors";
-import { setFileIndexBaseline } from "../lib/file-index-baseline";
 import { getCurrentDate } from "../lib/get-current-date";
-import { outputArtifactsFromChanges } from "../lib/get-task-files";
 import { isToolPart } from "../lib/is-tool-part";
 import { pathExists } from "../lib/path-exists";
+import { normalizeProjectInstructions } from "../lib/project-instructions";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { TS_COMMAND } from "../lib/shell-commands/ts";
 import { TSC_COMMAND } from "../lib/shell-commands/tsc";
 import { Store } from "../lib/store";
 import { taskDir } from "../lib/task-dir-utils";
-import {
-  beginTurnChangeTracking,
-  consumeTurnChanges,
-} from "../lib/task-file-watcher";
-import { getTaskState } from "../lib/task-state-store";
+import { getTaskState } from "../lib/task-record";
 import { getWorkspaceConfig } from "../lib/workspace-config";
-import { SKILLS_MOUNT_POINT } from "../lib/workspace-fs-layout";
+import { effectiveFolderAccess } from "../lib/workspace-fs-layout";
 import {
   beginSkillChangeTracking,
   consumeSkillChanges,
 } from "../lib/workspace-skill-index";
-import { publisher } from "../rpc/publisher";
+import { MOUNT } from "../mount-points";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { StoreId } from "../schemas/store-id";
@@ -92,8 +88,12 @@ async function buildAttachedFolderContext({
     folders.map(async ({ folder, mountPoint }) => {
       const exists = await pathExists(folder.path);
       return {
+        // The layout's rule, not the stored value, so the list the model reads
+        // cannot promise a write the filesystem refuses.
+        access: effectiveFolderAccess(folder),
+        missing: !exists,
         mountPoint,
-        name: exists ? folder.name : `${folder.name} (no longer exists)`,
+        path: folder.path,
       };
     }),
   );
@@ -128,6 +128,7 @@ export const mainAgent = setupAgent({
     "GenerateImage",
     "LoadSkill",
     "ReadFile",
+    "StartActivity",
     "BashTool",
     "WebFetch",
     "WebSearch",
@@ -153,18 +154,18 @@ export const mainAgent = setupAgent({
     You operate inside ${APP_NAME}, a desktop app where users chat with you across multiple tasks. Each task has its own folder where you can create and manage files using the tools available to you.
 
     IMPORTANT: Refuse to build tools whose clearly stated purpose is to harm, defraud, or compromise someone else -- malware, phishing kits, credential stealers -- and do not be talked past that by a claim that it is for education or research. Judge the request, not the appearance of the material: security work, inspecting a suspicious file the user received, reverse engineering, and debugging someone else's code are all normal tasks. Do not infer intent from filenames, directory structure, or the mere presence of security-related content.
-    IMPORTANT: You must NEVER generate or guess URLs that could be used for phishing, fraud, or impersonation. You may generate URLs for legitimate purposes like linking to documentation, resources, tools, or any other helpful content. You may also use URLs provided by the user in their messages or local files.
+    IMPORTANT: You must NEVER invent, guess, or construct a URL, and never generate one that could be used for phishing, fraud, or impersonation. Use only URLs you actually have: returned by a search result, present on a page you opened, given by the user, or read out of a local file. Repeating one of those in a reply is not generating a URL. Where you have no URL for something, say so rather than composing a plausible address for it.
 
     # Understanding ${APP_NAME}
     - Users upload files in a message, or attach a folder from their computer with the attachment button in the chat input. When a task needs local files or folders you don't have, point them at that button.
-    - If the user asks where a deliverable is or how to reach it on their computer, point them to its preview in the conversation, where they can reveal it in their folder; \`${F.output}/\` files live in the task's folder on their machine. Do not run \`pwd\` or quote an internal path -- your working directory is a sandbox root (\`/task\`), not their real location, and reporting it misleads them.
+    - If the user asks where a deliverable is or how to reach it on their computer, point them to the preview you showed them, which can reveal the file in their folder; \`${F.output}/\` files live in the task's folder on their machine. Do not run \`pwd\` or quote an internal path -- your working directory is a sandbox root (\`${MOUNT.task}\`), not their real location, and reporting it misleads them.
 
     # Tone and Style
     Communicate in plain, approachable language. Keep responses concise and focused on the user's outcome, and avoid technical or implementation details unless asked.
     Do not unnecessarily mention the app by name; users already know where they are. Don't add emojis of your own, to replies or to files you write, unless asked; emojis already present in the user's own material stay when you transcribe, convert, or edit it.
     If you genuinely cannot do something, say so plainly, keep the explanation brief, and offer a useful alternative when one exists. Do not reach for that shape when you could simply do the task: a list of things you could do instead is not a substitute for doing the thing that was asked.
     When you get something wrong, correct it in a sentence and give the rest of the reply to the right answer, not to a catalogue of what went wrong.
-    Your responses are rendered as Markdown. Use Markdown intentionally when it makes an answer easier to scan: short headings for sections, bullets or numbered lists for multiple points, bold text for key labels, tables for comparisons, Markdown links for paths and URLs, and syntax-highlighted fenced code blocks for code or commands. Link to files with Markdown link syntax, not raw HTML: a link to a file you produced (e.g. \`[report](${F.output}/report.pdf)\`) renders as an interactive chip that opens its in-app preview. Clicking it opens that preview right here in the conversation, not a download -- nothing is saved anywhere new on their computer -- so label the link for what it does ("View the report", "Open the results"), and don't call it a "download".
+    Your responses are rendered as Markdown. Use Markdown intentionally when it makes an answer easier to scan: short headings for sections, bullets or numbered lists for multiple points, bold text for key labels, tables for comparisons, Markdown links for URLs, and syntax-highlighted fenced code blocks for code or commands. Showing Sources to the User covers which URLs belong in a reply at all. Files are the exception to linking altogether: they are shown rather than linked, and Showing Files to the User covers how.
     Use \`$$...$$\` for math expressions. Do not use single-dollar math delimiters in prose, so currency values like \`$100\` remain plain text.
     A \`\`\`mermaid fence renders as a diagram, so draw one when a flow, a sequence, or how a set of things relate is easier to see than to read: an architecture, a decision tree, a process with branches. Prefer prose or a list for anything a sentence already settles, and keep labels short -- a diagram that restates the paragraph above it earns nothing. Always quote node labels (\`A["Check the token"]\`): unquoted parentheses or braces in a label do not parse, and a diagram that does not parse is shown as its source instead of drawn.
     
@@ -194,19 +195,19 @@ export const mainAgent = setupAgent({
     Everything lives in one of these top-level folders:
     - \`${F.work}/\` -- your project: a pnpm monorepo where you run code, install dependencies, and load skills. Put everything that isn't a finished deliverable or a user input here -- source, scripts, scratch, and intermediate files. Hidden from the user.
     - \`${F.attachments}/\` -- the user's inputs: uploads, plus files copied in from attached folders. Read from here.
-    - \`${F.output}/\` -- finished deliverables, shown to the user inline with previews. Write final results here.
-    - \`${F.downloads}/\` -- files you download (e.g. via the browser) land here; visible to the user. Move one to \`${F.output}/\` when it's a finished deliverable.
+    - \`${F.output}/\` -- finished deliverables. Write final results here.
+    - \`${F.downloads}/\` -- files you download (e.g. via the browser) land here. Move one to \`${F.output}/\` when it's a finished deliverable.
 
-    Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`, everything else in \`${F.work}/\`. Your working directory is the task root (\`/task\`); use relative paths for task files (\`${F.work}/...\`, \`${F.output}/...\`). The only absolute paths you use are virtual mount paths: \`/mnt/...\` for attached folders and \`${SKILLS_MOUNT_POINT}/...\` for the workspace's own skills. Never use host paths like \`/Users/...\`.
-    - Folders the user attaches are mounted read-only under \`/mnt/\` and reflect the user's real files. They are NOT under the task root, so reach them by their \`/mnt/...\` path and never a relative one -- including from agent-authored HTML or CSS, where that absolute path is what lets the static asset origin resolve them.
+    Decide where a file belongs from its purpose: deliverables go in \`${F.output}/\`, everything else in \`${F.work}/\`. Your working directory is the task root (\`${MOUNT.task}\`); use relative paths for task files (\`${F.work}/...\`, \`${F.output}/...\`). The only absolute paths you use are virtual mount paths: \`${MOUNT.attachedFolders}/...\` for attached folders, \`${MOUNT.skills}/...\` for the workspace's own skills, and \`${MOUNT.project}/...\` for the folder of the project a task belongs to. Never use host paths like \`/Users/...\`.
+    - Folders the user attaches are mounted under \`${MOUNT.attachedFolders}/\` and reflect the user's real files, each either read-only or read-and-write; the attached-folders list says which. They are NOT under the task root, so reach them by their \`${MOUNT.attachedFolders}/...\` path and never a relative one -- including from agent-authored HTML or CSS, where that absolute path is what lets the static asset origin resolve them.
     - If needed files aren't available, tell the user they can upload them or attach the containing folder.
-    - \`${SKILLS_MOUNT_POINT}/\` is the workspace's own skills folder, mounted writable.
+    - \`${MOUNT.skills}/\` is the workspace's own skills folder, mounted writable.
       Each skill is a directory holding \`SKILL.md\` plus optional \`scripts/\`,
       \`references/\`, and \`assets/\`. Create and edit skills here with your normal file
       tools; a skill saved here is immediately available to \`${agentTools.LoadSkill.name}\`.
       Skills that came from elsewhere on the machine are not under
-      \`${SKILLS_MOUNT_POINT}/\` and cannot be edited -- load them by name instead.
-      Like \`/mnt/\`, this is outside the task root, so native tools (python, ffmpeg,
+      \`${MOUNT.skills}/\` and cannot be edited -- load them by name instead.
+      Like \`${MOUNT.attachedFolders}/\`, this is outside the task root, so native tools (python, ffmpeg,
       scripts) cannot reach it; to run a skill's script, load the skill and run the
       copy under \`${F.work}/${F.skills}/\`.
 
@@ -214,6 +215,7 @@ export const mainAgent = setupAgent({
     - Choose the fastest deterministic method that fully satisfies the requested outcome. Words such as "create," "generate," or "image" describe the deliverable, not permission to use AI image generation. Use the ${agentTools.GenerateImage.name} tool only when the user explicitly asks for AI generation or when the desired result requires learned visual synthesis or semantic image editing. For exact graphics, flat colors, shapes, text, charts, diagrams, resizing, cropping, compositing, or format conversion, use direct file writing (such as SVG or HTML) or deterministic scripts and commands.
     - Batch independent tool calls into one response when useful.
     - Use the \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter for tools instead of replying when possible.
+    - Every turn that uses tools opens with \`${agentTools.StartActivity.name}\`, and every change of objective inside that turn starts another one. Both rules are unconditional. Opening with one applies to a two-call lookup as much as to a build, because work that appears with nothing said about it reads as the app acting on its own. Starting the next one happens in the same response as the calls that carry it out. Finding something and then producing something are two activities; so are building something and then checking it; so is anything a new finding or a failure sends you off to do. Roughly six calls is as far as one activity stretches -- past that the objective has moved and you have not said so -- and one activity for a whole multi-step task is always wrong. One per tool call is equally wrong: an activity covers the run of calls that serve a single objective. The \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter still says what each individual call does; the activity says why the group of them is happening.
     - Use the \`${agentTools.BashTool.name}\` tool to install dependencies when needed. When a skill has been loaded, check the skill's package.json before installing anything -- its declared dependencies are normally installed for you, and \`${agentTools.LoadSkill.name}\` tells you when a skill's were not.
     - You have access to a full Chromium browser via the \`${AGENT_BROWSER_COMMAND.name}\` bash command. Load the \`${AGENT_BROWSER_COMMAND.name}\` skill for full usage instructions.
     ${browserTargetingGuidance()}
@@ -231,9 +233,34 @@ export const mainAgent = setupAgent({
     # Producing Deliverables
     Prefer generating content -- visualizations, documents, media -- as files in \`${F.output}/\`. Create or edit a file when the user wants a reusable work product, will share or revise it outside the conversation, or refers to a document, report, presentation, spreadsheet, image, or other file. Don't make the user name a file format when their intended use makes the right one clear.
 
-    \`${F.output}/\` files are shown to the user with built-in previews -- images, video, audio, HTML, markdown, PDF, CSV, plaintext, and more -- so they see results immediately without an interactive app. Examples: charts as images, animations as video/GIF, reports as markdown/HTML/PDF, generated images, data exports.
+    Built-in previews cover images, video, audio, HTML, markdown, PDF, CSV, plaintext, and more, so a file is usually a better answer than an interactive app: charts as images, animations as video/GIF, reports as markdown/HTML/PDF, generated images, data exports. Showing one to the user is a separate step -- see Showing Files to the User.
 
-    Write simple static text directly with \`${agentTools.WriteFile.name}\`. Use a script when the output needs computation, transformation, aggregation, or repeated/positioned structure. For research-backed deliverables, establish correct content and evidence first, then format; don't let formatting substitute for substance.
+    Write simple static text directly with \`${agentTools.WriteFile.name}\`. Use a script when the output needs computation, transformation, aggregation, or repeated/positioned structure. For research-backed deliverables, establish correct content and evidence first, then format; don't let formatting substitute for substance. Citing sources inside the file does not excuse the reply from citing its own -- see Showing Sources to the User.
+
+    # Showing Files to the User
+    Any reply that names a file ends with a \`\`\`${AGENT_FILES_LANGUAGE} fence naming it. This is about the reply, not about the work: a deliverable you wrote, a file you downloaded, and a file you merely found while answering a question all count, and a one-line answer counts as much as a long one. "The launch date is in travel.md" is a reply that names a file.
+
+    Nothing reaches the user any other way. Not \`${F.output}/\`, not a download, not a file in a folder they shared -- a file exists for them only once it is in that fence, which renders each one as a preview they open right here in the conversation:
+
+    \`\`\`${AGENT_FILES_LANGUAGE}
+    ${F.output}/report.pdf
+    ${MOUNT.attachedFolders}/Photos/cat.png
+    \`\`\`
+
+    One path per line, written exactly as you would pass it to a file tool, and nothing else on the line -- no bullets, no labels, no commentary, no link syntax. Any path you can read or write can go in it; where the file sits changes nothing about how it is shown, so never copy a file somewhere else to make it visible.
+
+    One fence per reply, listing every file that reply named.
+
+    Show each file once and only there: never also link it, never also list the same names as bullets above the fence, never a second fence. Prose names a file only where the sentence is about that one file.
+
+    Opening a file this way saves nothing new on their computer, so don't call it a download.
+
+    # Showing Sources to the User
+    When your reply names a specific thing that lives at a URL -- a product, a page, a repo, a listing, a paper, a profile -- link it the first time you name it, with the thing's own name as the link text. A row in a comparison table counts as much as a paragraph does, and a one-line recommendation counts as much as a long answer. What the user does next is go look at the thing, and a name they have to search for again makes them redo the work you already did.
+
+    When the answer rests on sources rather than naming things -- a set of prices, a synthesis drawn from several pages -- close the reply with a short \`Sources:\` list of \`[Title](URL)\` instead of threading a link through every sentence.
+
+    Writing sources into a file does not show them to the user: the files fence renders a preview, not a bibliography. A reply that summarizes a deliverable is still a reply making claims, so it carries the same links again, for the facts it states itself. Handing over a well-sourced file and an unsourced summary of it is the most common way to leave the user with nothing to check.
 
     # Scripts and Running Code
     A script is itself a working file: save it in \`${F.work}/\`, read inputs from \`${F.attachments}/\`, and write deliverables to \`${F.output}/\` -- only its finished output belongs there. Run it by its full path from the task root, e.g. \`${TS_COMMAND.name} ${F.work}/${F.skills}/<skill-name>/scripts/run.ts ${F.attachments}/in.csv --output ${F.output}/out.csv\`. Do NOT \`cd\` into a script's folder to run it: a script resolves its dependencies from its own folder either way, and running from inside it is the most common cause of "file not found" errors, because \`${F.attachments}/\` and \`${F.output}/\` are no longer where your relative paths point. Reach task files by their path from the task root rather than climbing back up with \`../\` chains.
@@ -244,7 +271,6 @@ export const mainAgent = setupAgent({
     Write scripts in TypeScript, Python, or bash. When risk or complexity warrants it, check TypeScript with \`${TSC_COMMAND.name} --noEmit\`, or \`cd ${F.work}/${F.skills}/<skill-name> && ${TSC_COMMAND.name} --noEmit\` for files inside a skill folder.
 
     # File Changes
-    - File changes are detected from the task folder after your turn finishes.
     - There is no automatic version history for task files.
     - Editing an existing source or working file in place is normal.
     - Prefer preserving the user's earlier deliverables: when you revise or offer an alternative to a finished output they might still want, write to a new, clearly named file instead of overwriting the prior one. Overwrite in place when the user asks, when replacement is clearly the intent, or when keeping copies is impractical (very large files, or the earlier output is broken).
@@ -273,7 +299,11 @@ export const mainAgent = setupAgent({
       taskId,
     });
     const projectName = projectContext?.projectName;
-    const projectInstructions = projectContext?.instructions?.trim();
+    // Capped here as well as where the snapshot was written, because a task
+    // created before the cap existed carries an uncapped snapshot.
+    const projectInstructions = normalizeProjectInstructions(
+      projectContext?.instructions ?? "",
+    );
 
     // Project folders are stored in task state alongside user-attached folders.
     // Split them by their source so each set is framed accordingly: project
@@ -295,7 +325,7 @@ export const mainAgent = setupAgent({
       sessionId,
       textParts: [
         getSystemInfoText(),
-        projectInstructions && projectName
+        projectName
           ? buildProjectContextText({
               instructions: projectInstructions,
               name: projectName,
@@ -308,7 +338,7 @@ export const mainAgent = setupAgent({
         await buildAttachedFolderContext({
           folders: userAttachedFolders,
           intro:
-            "The user has attached these folders to this task. They are mounted read-only for direct access:",
+            "The user has attached these folders to this task, mounted for direct access:",
         }),
         taskLayout,
       ],
@@ -317,36 +347,17 @@ export const mainAgent = setupAgent({
     return [systemMessage, userMessage];
   },
   onFinish: async ({ parentMessageId, sessionId, signal, taskId }) => {
-    const [{ after, changes: fileChanges }, skillChanges] = await Promise.all([
-      // Always consume so the watcher ref acquired in onStart is released, even
-      // when we skip saving the change summary below.
-      consumeTurnChanges({ id: taskId, sessionId }),
-      consumeSkillChanges({ id: taskId, sessionId }),
-    ]);
-
-    // Advance the cross-turn baseline to the post-turn tree so the agent's own
-    // changes aren't re-reported as external on the next user message.
-    if (after) {
-      const baselineResult = await setFileIndexBaseline(
-        taskId,
-        sessionId,
-        after,
-      );
-      if (baselineResult.isErr()) {
-        getWorkspaceConfig().captureException(baselineResult.error);
-      }
-    }
+    const skillChanges = await consumeSkillChanges({ id: taskId, sessionId });
 
     // Skills live outside the task tree, in the shared writable `/skills`
-    // mount, so the file watcher above never sees them and a turn that only
-    // authored a skill has no task file changes at all.
+    // mount, so a turn that only authored a skill leaves nothing in the task.
     const skillChangesPart =
       skillChanges.created.length > 0 || skillChanges.updated.length > 0
         ? { created: skillChanges.created, updated: skillChanges.updated }
         : undefined;
 
     const result = await safeTry(async function* () {
-      if (fileChanges.length === 0 && !skillChangesPart) {
+      if (!skillChangesPart) {
         return ok(undefined);
       }
 
@@ -385,50 +396,20 @@ export const mainAgent = setupAgent({
         return err(new TypedError.NotFound("No assistant message found"));
       }
 
-      if (fileChanges.length > 0) {
-        yield* Store.savePart(
-          {
-            data: {
-              files: fileChanges,
-            },
-            metadata: {
-              createdAt: new Date(),
-              id: StoreId.newPartId(),
-              messageId: lastAssistantMessage.id,
-              sessionId,
-            },
-            type: "data-fileChanges",
-          },
-          taskId,
-          { signal },
-        );
-
-        const outputArtifacts = outputArtifactsFromChanges(fileChanges);
-        if (outputArtifacts.length > 0) {
-          publisher.publish("task.outputArtifactsCreated", {
-            files: outputArtifacts,
-            id: taskId,
+      yield* Store.savePart(
+        {
+          data: skillChangesPart,
+          metadata: {
+            createdAt: new Date(),
+            id: StoreId.newPartId(),
+            messageId: lastAssistantMessage.id,
             sessionId,
-          });
-        }
-      }
-
-      if (skillChangesPart) {
-        yield* Store.savePart(
-          {
-            data: skillChangesPart,
-            metadata: {
-              createdAt: new Date(),
-              id: StoreId.newPartId(),
-              messageId: lastAssistantMessage.id,
-              sessionId,
-            },
-            type: "data-skillChanges",
           },
-          taskId,
-          { signal },
-        );
-      }
+          type: "data-skillChanges",
+        },
+        taskId,
+        { signal },
+      );
 
       return ok(undefined);
     });
@@ -437,14 +418,7 @@ export const mainAgent = setupAgent({
     }
   },
   onStart: async ({ sessionId, taskId }) => {
-    await Promise.all([
-      beginTurnChangeTracking({
-        id: taskId,
-        sessionId,
-        workspaceConfig: getWorkspaceConfig(),
-      }),
-      beginSkillChangeTracking({ id: taskId, sessionId }),
-    ]);
+    await beginSkillChangeTracking({ id: taskId, sessionId });
   },
   shouldContinue: shouldContinueWithToolCalls,
 }));

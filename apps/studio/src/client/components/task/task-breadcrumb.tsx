@@ -12,7 +12,7 @@ import {
 import { type useInlineRename } from "@/client/hooks/use-inline-rename";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task } from "@instrument-org/workspace/client";
-import { BagIcon } from "@phosphor-icons/react";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useRef, useState } from "react";
 
@@ -44,28 +44,6 @@ export function TaskBreadcrumb({
   const titleRef = useRef<HTMLButtonElement>(null);
   const [fieldWidth, setFieldWidth] = useState<number>();
 
-  if (rename.isEditing) {
-    return (
-      // The field opens at the width of the title it replaced, so clicking a
-      // short title doesn't throw a wide box across the header. offsetWidth,
-      // not a rect: the app scales with CSS zoom, and only layout px can be
-      // handed straight back to a style width.
-      //
-      // Its focus ring is inset for the same reason the toolbar buttons inset
-      // theirs: the row around it clips an outward one, and here the row is
-      // exactly as tall as the input's own line.
-      <div
-        className="flex h-8 max-w-96 min-w-0 shrink items-center px-1"
-        style={{ width: fieldWidth ?? RENAME_FIELD_DEFAULT_WIDTH }}
-      >
-        <Input
-          className="h-7 text-sm focus-visible:-outline-offset-3"
-          {...rename.inputProps}
-        />
-      </div>
-    );
-  }
-
   // Nothing here is text to select: clicking the title is how a rename starts,
   // and a caret plus a highlighted word under it reads as an edit that did not
   // take.
@@ -85,7 +63,7 @@ export function TaskBreadcrumb({
             params={{ id: projectId }}
             to="/projects/$id"
           >
-            <BagIcon className="size-4" />
+            <CardsThreeIcon className="size-4" />
           </InternalLink>
           {/*
             Project name. min-w-0 must be on the link itself, not just the inner
@@ -104,41 +82,78 @@ export function TaskBreadcrumb({
           {/*
             Separator stays with the task title — a standalone shrink-0 element
             so it remains visible even after the project name fully collapses.
+
+            It carries its own room on both sides rather than living on the
+            row's gap alone. The title's hover surface bleeds back over its own
+            padding, and against a 4px gap that fill would land on the slash,
+            which leans right at the top and reads as clipped. The extra 4px
+            buys the fill its clearance without spending it on one side.
           */}
-          <span className="shrink-0 text-gray-400">/</span>
+          <span className="mx-1 shrink-0 text-gray-400">/</span>
         </>
       )}
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          {/*
-            The hover surface is pulled back out by its own padding, so the 8px
-            to the overflow button stays measured from the text rather than
-            from the fill. Only the task title takes the surface: the project
-            crumbs beside it are links to somewhere else, not a rename.
-          */}
-          <button
-            className="-mx-1.5 flex h-8 min-w-0 items-center truncate rounded-lg px-1.5 text-left outline-none hover:bg-muted focus-visible:outline-[3px] focus-visible:-outline-offset-3 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]"
-            onClick={() => {
-              setFieldWidth(
-                titleRef.current
-                  ? Math.max(
-                      RENAME_FIELD_MIN_WIDTH,
-                      titleRef.current.offsetWidth + RENAME_FIELD_PADDING,
-                    )
-                  : undefined,
-              );
-              rename.start();
-            }}
-            ref={titleRef}
-            type="button"
-          >
-            <span className="min-w-0 flex-1 truncate">{task.title}</span>
-          </button>
-        </ContextMenuTrigger>
-        <ContextMenuContent className="w-56">
-          {renderMenuItems(contextMenuComponents)}
-        </ContextMenuContent>
-      </ContextMenu>
+      {rename.isEditing ? (
+        // Only the title becomes a field. The project it hangs off stays where
+        // it was, rather than the whole crumb sliding left for the length of
+        // the rename; if the field wants the room, the project name truncates
+        // ahead of it and, at its narrowest, leaves the icon alone.
+        //
+        // The field opens at the width of the title it replaced, so clicking a
+        // short title doesn't throw a wide box across the header. offsetWidth,
+        // not a rect: the app scales with CSS zoom, and only layout px can be
+        // handed straight back to a style width.
+        //
+        // select-text because the row's own select-none reaches into the field
+        // and would leave a rename you can't drag a selection through.
+        //
+        // Its focus ring is inset, like the toolbar buttons beside it: the row
+        // is exactly as tall as the input's own line, so an outward ring would
+        // sit on whatever shares the row rather than around the field.
+        <div
+          className="flex h-8 max-w-96 min-w-0 shrink items-center px-1 select-text"
+          style={{ width: fieldWidth ?? RENAME_FIELD_DEFAULT_WIDTH }}
+        >
+          <Input
+            className="h-7 text-sm focus-visible:-outline-offset-3"
+            {...rename.inputProps}
+          />
+        </div>
+      ) : (
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            {/*
+              The hover surface is pulled back out by its own padding on both
+              sides, so the gaps around it stay measured from the text rather
+              than from the fill: 8px to the overflow button, the separator's
+              own spacing behind it, and the row's leading edge when the title
+              starts the row alone. Only the task title takes the surface: the
+              project crumbs beside it are links to somewhere else, not a
+              rename.
+            */}
+            <button
+              className="-mx-1.5 flex h-8 min-w-0 items-center truncate rounded-lg px-1.5 text-left outline-none hover:bg-muted focus-visible:outline-[3px] focus-visible:-outline-offset-3 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]"
+              onClick={() => {
+                setFieldWidth(
+                  titleRef.current
+                    ? Math.max(
+                        RENAME_FIELD_MIN_WIDTH,
+                        titleRef.current.offsetWidth + RENAME_FIELD_PADDING,
+                      )
+                    : undefined,
+                );
+                rename.start();
+              }}
+              ref={titleRef}
+              type="button"
+            >
+              <span className="min-w-0 flex-1 truncate">{task.title}</span>
+            </button>
+          </ContextMenuTrigger>
+          <ContextMenuContent className="w-56">
+            {renderMenuItems(contextMenuComponents)}
+          </ContextMenuContent>
+        </ContextMenu>
+      )}
     </div>
   );
 }

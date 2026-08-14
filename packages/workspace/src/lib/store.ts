@@ -10,11 +10,9 @@ import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TypedError } from "./errors";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
-import { migrateGitCommitPart } from "./migrate-git-commit-part";
 import { getSessionsStoreStorage } from "./session-store-storage";
 import { setParsedStorageItem } from "./set-parsed-storage-item";
 import { StorageKey } from "./storage-key";
-import { taskDir } from "./task-dir-utils";
 
 export namespace Store {
   export function getAllMessageIds(
@@ -197,7 +195,7 @@ export namespace Store {
       const storage = yield* getSessionsStoreStorage(taskId);
       const part = yield* getParsedStorageItem(
         StorageKey.part(sessionId, messageId, partId),
-        SessionMessagePart.CoercedSchema,
+        SessionMessagePart.FromStorageSchema,
         storage,
         { signal },
       );
@@ -252,25 +250,7 @@ export namespace Store {
 
       const relaxedParts = yield* Result.combine(partResults);
 
-      // Translate legacy gitCommit parts to fileChanges parts so old sessions
-      // still show their file output. Falls back to dropping the part when
-      // git history is unavailable. Remove after 2026-07-18.
-      const migratedParts = await Promise.all(
-        relaxedParts.map(async (part) => {
-          if (part.type !== "data-gitCommit") {
-            return part;
-          }
-          return migrateGitCommitPart(part, taskDir(taskId));
-        }),
-      );
-
-      return ok(
-        migratedParts
-          .filter(
-            (part): part is SessionMessageRelaxedPart.Type => part !== null,
-          )
-          .map((part) => SessionMessagePart.coerce(part)),
-      );
+      return ok(relaxedParts.map((part) => SessionMessagePart.coerce(part)));
     });
   }
 
@@ -668,9 +648,6 @@ export namespace Store {
       const storage = yield* getSessionsStoreStorage(taskId);
 
       yield* storage.removeItem(StorageKey.session(sessionId), { signal });
-      yield* storage.removeItem(StorageKey.fileIndexBaseline(sessionId), {
-        signal,
-      });
       yield* storage.removeItem(StorageKey.browserState(sessionId), { signal });
 
       const messageIds = yield* getMessageIds(sessionId, taskId, {

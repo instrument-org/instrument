@@ -12,7 +12,7 @@ import {
 import { type TaskId } from "../schemas/task-id";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { getCurrentFileInfo } from "./get-file-info";
-import { setTaskState } from "./task-state-store";
+import { setTaskState } from "./task-record";
 
 describe("getCurrentFileInfo", () => {
   let mountedModifiedAt: number;
@@ -38,9 +38,10 @@ describe("getCurrentFileInfo", () => {
     await setTaskState(TaskDirSchema.parse(taskRoot), {
       attachedFolders: {
         photos: {
+          access: "read-only",
           createdAt: 0,
           id: FolderAttachment.IdSchema.parse("photos-id"),
-          name: "Photos",
+          mountName: "Photos",
           path: AbsolutePathSchema.parse(photosRoot),
           source: "user",
         },

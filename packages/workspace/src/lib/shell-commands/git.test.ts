@@ -1,6 +1,6 @@
 import { GIT_AGENT_EMAIL, GIT_AGENT_NAME } from "@instrument-org/shared";
 import {
-  type CommandContext,
+  createCommandContext,
   EMPTY_BYTES,
   encodeUtf8ToBytes,
   InMemoryFs,
@@ -17,14 +17,12 @@ import {
 } from "../../test/helpers/mock-task-config";
 import { collapseProgress, createGitCommand } from "./git";
 
-// cspell:ignore ccore fsmonitor
-
-const mockCtx: CommandContext = {
+const mockCtx = createCommandContext({
   cwd: "/task",
   env: new Map<string, string>(),
   fs: new InMemoryFs(),
   stdin: EMPTY_BYTES,
-};
+});
 
 describe("createGitCommand arg policy", () => {
   const taskId = createMockTaskConfigForDir(
@@ -88,6 +86,13 @@ describe("createGitCommand arg policy", () => {
     },
     { args: ["config", "--add", "core.editor", "sh"], key: "core.editor" },
     { args: ["config", "diff.x.command", "sh"], key: "diff.x.command" },
+    // git 2.46's subcommand form: `set` sits where the key would be.
+    { args: ["config", "set", "alias.pwn", "!sh"], key: "alias.pwn" },
+    // So does the value of any flag that takes one.
+    {
+      args: ["config", "--file", ".git/config", "alias.pwn", "!sh"],
+      key: "alias.pwn",
+    },
   ])("rejects writing $key to a repo's own config", async ({ args, key }) => {
     const result = await command.execute(args, mockCtx);
 
@@ -166,11 +171,10 @@ describe("createGitCommand", () => {
   });
 
   it("drops GIT_* vars the agent exported into the shell", async () => {
-    const hostileCtx: CommandContext = {
+    const hostileCtx = {
       ...mockCtx,
       env: new Map([
         ["GIT_ALLOW_PROTOCOL", "ssh:http:https"],
-        // cspell:ignore ASKPASS
         ["GIT_ASKPASS", "/bin/echo"],
         ["GIT_AUTHOR_NAME", "Someone Else"],
         // Sets any config key with no argv involved, so overriding an

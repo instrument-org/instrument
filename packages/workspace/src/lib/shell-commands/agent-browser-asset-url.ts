@@ -1,10 +1,10 @@
 import { buildAssetBaseUrl } from "@instrument-org/shared";
 
 import { getWorkspaceServerURL } from "../../logic/server/url";
-import { ATTACHED_FOLDERS_MOUNT_ROOT } from "../../schemas/paths";
+import { MOUNT } from "../../mount-points";
 import { type TaskId } from "../../schemas/task-id";
 import { normalizePath } from "../normalize-path";
-import { TASK_MOUNT_POINT } from "../workspace-fs-layout";
+import { isAtOrUnder, relativeWithin } from "../path-containment";
 import { parseAgentBrowserArgs } from "./agent-browser-args";
 
 /**
@@ -69,19 +69,13 @@ export async function rewriteNavigationArgToAssetUrl(
  * their `/mnt/...` path, matching the assets route.
  */
 function assetPathForVirtualPath(virtualPath: string): string | undefined {
-  if (virtualPath === TASK_MOUNT_POINT) {
-    return "/";
+  const taskRelative = relativeWithin(MOUNT.task, virtualPath);
+  if (taskRelative !== null) {
+    return taskRelative;
   }
-  if (virtualPath.startsWith(`${TASK_MOUNT_POINT}/`)) {
-    return virtualPath.slice(TASK_MOUNT_POINT.length);
-  }
-  if (
-    virtualPath === ATTACHED_FOLDERS_MOUNT_ROOT ||
-    virtualPath.startsWith(`${ATTACHED_FOLDERS_MOUNT_ROOT}/`)
-  ) {
-    return virtualPath;
-  }
-  return undefined;
+  return isAtOrUnder(MOUNT.attachedFolders, virtualPath)
+    ? virtualPath
+    : undefined;
 }
 
 async function assetUrlForSandboxPath(

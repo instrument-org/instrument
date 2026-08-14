@@ -212,7 +212,6 @@ describe("redactHostPaths", () => {
     );
   });
 
-  // cspell:ignore firmlink
   it("redacts a /var task dir written in its /private firmlink spelling", () => {
     // A script that calls Path(...).resolve() canonicalizes /var -> /private/var.
     const varDir = TaskDirSchema.parse("/var/folders/dj/abc/T/tasks/my-task");

@@ -2,32 +2,25 @@ import fs from "node:fs/promises";
 
 import { type TaskDir } from "../schemas/paths";
 import { getCurrentDate } from "./get-current-date";
-import { getTaskPrivateDir, sessionStorePath } from "./task-dir-utils";
 
+/**
+ * The task folder's own timestamps, for a task with nothing recorded.
+ *
+ * The folder and not the session database inside it: opening a task checkpoints
+ * that database, so its mtime says a task was worked on when it was only read.
+ *
+ * See docs/findings/task-list-order-followed-file-mtimes.md.
+ */
 export async function getTaskDirTimestamps(dir: TaskDir) {
-  const paths = [
-    sessionStorePath(dir), // Changes when sessions/messages change.
-    getTaskPrivateDir(dir), // Fallback for tasks without a db yet.
-  ];
-
-  for (const path of paths) {
-    try {
-      // Stat directly and let a missing path throw, rather than a separate
-      // access() existence probe -- that doubled the syscalls per task.
-      const stats = await fs.stat(path);
-      return {
-        createdAt: stats.birthtime,
-        updatedAt: stats.mtime,
-      };
-    } catch {
-      continue;
-    }
+  try {
+    return await fs.stat(dir).then((stats) => ({
+      createdAt: stats.birthtime,
+      updatedAt: stats.mtime,
+    }));
+  } catch {
+    // The folder was listed moments ago. Gone now means deleted mid-scan, so
+    // answer rather than fail the whole list.
+    const now = getCurrentDate();
+    return { createdAt: now, updatedAt: now };
   }
-
-  const now = getCurrentDate();
-  // If all paths are missing, sort to the top
-  return {
-    createdAt: now,
-    updatedAt: now,
-  };
 }

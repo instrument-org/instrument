@@ -13,11 +13,12 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { detectAttachedFolderChanges } from "./attached-folder-changes";
+import { allowBrowserReveal } from "./browser-state";
 import { createBrowserStatusPart } from "./create-browser-status-part";
+import { createPaneTabsPart } from "./create-pane-tabs-part";
 import { detectProjectChanges } from "./detect-project-changes";
-import { detectExternalFileChanges } from "./external-file-changes";
 import { taskDir } from "./task-dir-utils";
-import { setTaskState } from "./task-state-store";
+import { setTaskState } from "./task-record";
 import { getWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
@@ -33,7 +34,11 @@ export async function newMessage({
   taskId,
 }: {
   files?: FileUpload.Type[];
-  folders?: { path: string; source?: FolderAttachment.Source }[];
+  folders?: {
+    access?: FolderAttachment.Access;
+    path: string;
+    source?: FolderAttachment.Source;
+  }[];
   intent?: string;
   model: AIGatewayModel.Type;
   modelURI: AIGatewayModelURI.Type;
@@ -114,6 +119,13 @@ export async function newMessage({
     });
   }
 
+  // A fresh request is a fresh claim on the user's attention, so the first page
+  // this turn reaches may take the pane again.
+  const allowed = await allowBrowserReveal({ sessionId, taskId });
+  if (allowed.isErr()) {
+    getWorkspaceConfig().captureException(allowed.error);
+  }
+
   const browserStatusPart = await createBrowserStatusPart({
     createdAt,
     messageId,
@@ -124,16 +136,14 @@ export async function newMessage({
     parts.push(browserStatusPart);
   }
 
-  const externalChanges = await detectExternalFileChanges({
+  const paneTabsPart = await createPaneTabsPart({
+    createdAt,
     messageId,
     sessionId,
     taskId,
   });
-  if (externalChanges.isErr()) {
-    // Awareness of disk changes is best-effort; never block sending.
-    getWorkspaceConfig().captureException(externalChanges.error);
-  } else if (externalChanges.value) {
-    parts.push(externalChanges.value);
+  if (paneTabsPart) {
+    parts.push(paneTabsPart);
   }
 
   // Notify agent when the live project's instructions or folders drift from the

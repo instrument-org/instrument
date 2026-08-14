@@ -1,5 +1,12 @@
 import { type ClassValue, clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { extendTailwindMerge } from "tailwind-merge";
+
+// `max-h-none` is a real Tailwind utility, but tailwind-merge leaves `none` out
+// of its `max-h` class group. Without this, `cn("max-h-96", "max-h-none")` keeps
+// both classes and stylesheet order decides the winner instead of the caller.
+const twMerge = extendTailwindMerge({
+  extend: { classGroups: { "max-h": [{ "max-h": ["none"] }] } },
+});
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

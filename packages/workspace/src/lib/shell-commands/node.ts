@@ -1,5 +1,6 @@
 import { defineCommand, latin1FromBytes } from "just-bash";
 
+import { MOUNT } from "../../mount-points";
 import { type AbsolutePath } from "../../schemas/paths";
 import { type TaskId } from "../../schemas/task-id";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
@@ -72,8 +73,7 @@ const KNOWN_OPTIONS = {
 } as const;
 
 export const NODE_COMMAND = {
-  description:
-    'Run a JavaScript file with Node.js. In -e code: relative paths resolve from cwd, quoted "/task/..." strings are bridged; /mnt paths are not available.',
+  description: `Run a JavaScript file with Node.js. In -e code: relative paths resolve from cwd, quoted "${MOUNT.task}/..." strings are bridged; ${MOUNT.attachedFolders} paths are not available.`,
   name: "node",
 } as const;
 

@@ -3,7 +3,6 @@ packages:
   - apps/*
 
 allowBuilds:
-  "@derhuerst/ffprobe-static": true
   "@parcel/watcher": false
   "@posthog/cli": true
   "@swc/core": true
@@ -15,7 +14,7 @@ allowBuilds:
   electron: true
   electron-winstaller: true
   esbuild: true
-  ffmpeg-static: true
+  ffmpeg-ffprobe-static: true
   msw: true
   protobufjs: true
   sharp: true
@@ -33,7 +32,7 @@ catalog:
   "@types/react": ^19.2.7
   "@types/react-dom": ^19.2.3
   "@typescript/native-preview": 7.0.0-dev.20260702.3
-  "@vitejs/plugin-react": ^5.1.2
+  "@vitejs/plugin-react": ^6.0.5
   ai: ^6.0.168
   better-auth: ^1.6.25
   hono: ^4.12.32
@@ -41,7 +40,7 @@ catalog:
   react-dom: ^19.2.1
   typescript: 5.9.2
   typescript-result: ^3.5.2
-  vite: ^7.3.6
+  vite: ^8.2.0
   vitest: ^4.1.10
   zod: ^4.1.13
 
@@ -66,7 +65,7 @@ overrides:
   "@electron/rebuild>node-abi": 4.31.0
   # Collapse jiti to a single version so vite (which has jiti as an optional
   # peer) resolves to one peer-variant. Two jiti versions otherwise spawn two
-  # vite@7 variants, making Plugin types "unrelated" and breaking tsgo on
+  # vite variants, making Plugin types "unrelated" and breaking tsgo on
   # electron.vite.config.ts.
   jiti: 2.7.0
 
@@ -75,6 +74,7 @@ patchedDependencies:
   "@parcel/watcher@2.6.0": patches/@parcel__watcher@2.6.0.patch
   app-builder-lib@26.15.7: patches/app-builder-lib@26.15.7.patch
   conf@14.0.0: patches/conf@14.0.0.patch
+  just-bash@3.2.0: patches/just-bash@3.2.0.patch
   sonner@2.0.7: patches/sonner@2.0.7.patch
 
 sideEffectsCache: false

@@ -10,9 +10,9 @@ import type { ToolNameSchema } from "./name";
 import { type AgentName } from "../agents/types";
 import { type ExecuteError } from "../lib/execute-error";
 import { type SpawnAgentFunction } from "../lib/spawn-agent";
-import { type TaskState } from "../lib/task-state-store";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
+import { type TaskState } from "../schemas/task-state";
 
 export interface AgentTool<
   TName extends ToolName,

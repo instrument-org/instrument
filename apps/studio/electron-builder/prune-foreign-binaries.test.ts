@@ -17,7 +17,6 @@ const AGENT_BROWSER_BINARIES = [
   "agent-browser.js",
 ];
 
-// cspell:ignore msvc
 const PNPM_REFLINK_PACKAGES = [
   "reflink-darwin-x64",
   "reflink-darwin-arm64",

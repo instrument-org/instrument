@@ -1,0 +1,116 @@
+import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { getAssetUrl } from "@/client/lib/get-asset-url";
+import { isMediaFile } from "@/client/lib/get-file-type";
+import { parseFilesBlock } from "@/client/lib/parse-files-block";
+import { isAddressableTaskFilePath } from "@instrument-org/workspace/client";
+import { useContext } from "react";
+
+import { FilesGrid } from "./files-grid";
+import { MarkdownTaskContext } from "./markdown-task-context";
+
+/**
+ * Renders a ```files fence: the files the agent chose to show, in the order it
+ * listed them.
+ *
+ * This is the agent's own presentation, so it is not the change list. It shows
+ * what the agent named and nothing it did not, wherever the file lives -- which
+ * is the point, now that a shared folder is somewhere the agent can write and
+ * the task-directory watcher cannot see.
+ *
+ * Every card is drawn from its path alone, without asking whether the file is
+ * there. A transcript is a record of what a reply handed over, and whether those
+ * bytes still exist is a question with a different answer every minute; the
+ * honest time to ask it is when someone acts on the file. An image answers it
+ * for free -- the asset origin is a static file server, so the thumbnail either
+ * loads or 404s onto the fallback card.
+ */
+export function AgentFilesBlock({ content }: { content: string }) {
+  const { isStreaming } = useContext(MarkdownTaskContext);
+
+  // A fence still arriving ends mid-path: the model has typed `output/ch` of
+  // `output/chart.png`, and an optimistic card would be drawn and replaced on
+  // every further keystroke. A line is finished once a newline follows it.
+  const lineBreak = content.lastIndexOf("\n");
+  const settledContent =
+    isStreaming === true ? content.slice(0, lineBreak + 1) : content;
+  const paths = parseFilesBlock(settledContent).filter(isDrawablePath);
+
+  // The line still being typed, which the grid holds a place for without
+  // drawing. Every fence has one until the message ends -- the code node drops
+  // the newline before the closing fence, so the last path is unfinished by
+  // this reckoning right up to the frame the message settles in, and that is
+  // the frame it would otherwise arrive in unannounced.
+  //
+  // Only a path that already names media, since that is all the grid can
+  // reserve an exact box for. It is also the only kind worth reserving: a
+  // square tile is the tallest thing a fence draws, and the room it needs is
+  // the room the reader would otherwise have to go and find.
+  const pendingPath =
+    isStreaming === true
+      ? parseFilesBlock(content.slice(lineBreak + 1))
+          .filter(isDrawablePath)
+          .find(
+            (path) => isMediaFile({ filename: path }) && !paths.includes(path),
+          )
+      : undefined;
+
+  return <FilePathsGrid paths={paths} pendingFilePath={pendingPath} />;
+}
+
+/**
+ * A list of paths, drawn as the grid a reply shows its files in.
+ *
+ * Shared rather than inlined because a second producer draws the same thing:
+ * the retired `data-fileChanges` part, which is how a task from before the
+ * fence still shows what a turn produced. Two grids that are meant to be
+ * indistinguishable should not be two pieces of code.
+ */
+export function FilePathsGrid({
+  paths,
+  pendingFilePath,
+}: {
+  paths: string[];
+  pendingFilePath?: string;
+}) {
+  const { assetBaseUrl, taskId } = useContext(MarkdownTaskContext);
+
+  if (
+    taskId === undefined ||
+    assetBaseUrl === undefined ||
+    (paths.length === 0 && pendingFilePath === undefined)
+  ) {
+    return null;
+  }
+
+  const files = paths.map<TaskFileViewerFile>((filePath) => ({
+    filename: filePath.split("/").at(-1) ?? filePath,
+    filePath,
+    taskId,
+    url: getAssetUrl({ assetBase: assetBaseUrl, filePath }),
+  }));
+
+  return (
+    <div className="not-prose my-4">
+      <FilesGrid
+        files={files}
+        pendingFilePath={pendingFilePath}
+        preserveOrder
+      />
+    </div>
+  );
+}
+
+// Whether a line in the fence is worth drawing a card for: a path this app can
+// address, that also reads as a file reference at all.
+//
+// The second half is what a fence needs and a link does not. A link was written
+// as a link, while a fence is a block of lines, so a stray sentence inside one
+// should be ignored rather than drawn as a card naming it. No model in the
+// evals has put one there; this is what keeps the first one that does from
+// reading as a bug in the file itself.
+function isDrawablePath(path: string): boolean {
+  return (
+    isAddressableTaskFilePath(path) &&
+    (path.includes("/") || /\.[a-z0-9]{1,8}$/i.test(path))
+  );
+}

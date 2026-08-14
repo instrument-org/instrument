@@ -1,7 +1,8 @@
 import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
+import { useCoversGuests } from "@/client/hooks/use-covers-guests";
 import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
-import { XIcon } from "@phosphor-icons/react";
+import { XIcon } from "@phosphor-icons/react/X";
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import * as React from "react";
 
@@ -94,6 +95,8 @@ function SheetOverlay({
   className,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Overlay>) {
+  useCoversGuests();
+
   return (
     <SheetPrimitive.Overlay
       className={cn(

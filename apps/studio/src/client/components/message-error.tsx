@@ -1,11 +1,12 @@
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { OUR_MODELS } from "@instrument-org/shared";
 import { type SessionMessage } from "@instrument-org/workspace/client";
-import { WarningIcon } from "@phosphor-icons/react";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { describeMessageError } from "../lib/describe-message-error";
 import {
   parsePlatformApiError,
   requiresAutoModelRecovery,
@@ -34,7 +35,7 @@ interface MessageErrorProps {
   message: SessionMessage.Assistant;
   onContinue: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
-  onRetry: (prompt: string) => void;
+  onRunAgain: () => void;
   onStartNewTask?: () => void;
 }
 
@@ -45,7 +46,7 @@ export function MessageError({
   message,
   onContinue,
   onModelChange,
-  onRetry,
+  onRunAgain,
   onStartNewTask,
 }: MessageErrorProps) {
   const error = message.metadata.error;
@@ -71,14 +72,24 @@ export function MessageError({
   const platformError = parsePlatformApiError(message);
   const isStaleInsufficientCredits =
     platformError?.code === "insufficient-credits" && !isLastMessage;
+  // The session went on past this one, so whatever was throttling or failing
+  // has already been waited out -- the machine retries both of these. Reporting
+  // it above a turn that then succeeded describes a problem the user does not
+  // have.
+  const classification =
+    "classification" in error ? error.classification : undefined;
+  const isRecoveredRetry =
+    (classification === "rate-limit" || classification === "transient") &&
+    !isLastMessage;
 
   // Normally hidden errors are still shown in developer mode via the generic renderer
   const isDevOnlyVisible =
-    isDeveloperMode && (isAborted || isStaleInsufficientCredits);
+    isDeveloperMode &&
+    (isAborted || isStaleInsufficientCredits || isRecoveredRetry);
 
   if (!isDevOnlyVisible) {
     // Hide old or useless errors for non-developer mode
-    if (isAborted || isStaleInsufficientCredits) {
+    if (isAborted || isStaleInsufficientCredits || isRecoveredRetry) {
       return null;
     }
 
@@ -118,6 +129,18 @@ export function MessageError({
     );
   }
 
+  const { detail, summary } = describeMessageError(error);
+
+  // A model on the user's own key answers about an account they hold. Its
+  // rejection names the tier, the reset window, or the key that was refused,
+  // and every one of those is something they can go and fix -- so it is shown,
+  // not buried. Only our own provider writes about an account they have no part
+  // in. A message that never recorded a provider counts as ours, so an unknown
+  // errs toward saying less rather than leaking more.
+  const provider = message.metadata.aiGatewayModel?.params.provider;
+  const isOwnKeyProvider =
+    provider !== undefined && provider !== OUR_MODELS.providerType;
+
   const getErrorTitle = () => {
     switch (error.kind) {
       case "api-call":
@@ -125,29 +148,6 @@ export function MessageError({
       case "invalid-tool-input":
       case "no-such-tool": {
         return "Model error";
-      }
-      default: {
-        return "Error";
-      }
-    }
-  };
-
-  const getErrorTypeLabel = () => {
-    switch (error.kind) {
-      case "api-call": {
-        return "API call error";
-      }
-      case "api-key": {
-        return "API key error";
-      }
-      case "invalid-tool-input": {
-        return "Invalid tool input";
-      }
-      case "no-such-tool": {
-        return "Tool not found";
-      }
-      case "unknown": {
-        return "Unknown error";
       }
       default: {
         return "Error";
@@ -166,7 +166,7 @@ export function MessageError({
       </span>
       <span className="flex-1" />
       <span className="shrink-0 text-error-700/60 dark:text-error-300/60">
-        {getErrorTypeLabel()}
+        {summary}
       </span>
     </ToolPartListItemCompact>
   );
@@ -185,7 +185,7 @@ export function MessageError({
         <CollapsibleContent>
           <CollapsiblePartMainContent
             footer={
-              showActions && onStartNewTask && !platformError ? (
+              showActions && onStartNewTask ? (
                 <div className="mt-2 flex gap-2">
                   <Tooltip delayDuration={0}>
                     <TooltipTrigger asChild>
@@ -198,65 +198,76 @@ export function MessageError({
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Starts a new task</p>
+                      <p>
+                        Opens a blank task. Nothing carries over, but this one
+                        stays in your list, so you can copy over anything you
+                        still need.
+                      </p>
                     </TooltipContent>
                   </Tooltip>
-                  <Button
-                    onClick={() => {
-                      onRetry("Try that again.");
-                    }}
-                    size="sm"
-                  >
+                  <Button onClick={onRunAgain} size="sm">
                     Try again
                   </Button>
                 </div>
               ) : undefined
             }
           >
-            <div className="mb-2">
-              <div className="mb-1 font-semibold">Error:</div>
-              <pre className="font-mono text-xs wrap-break-word whitespace-pre-wrap">
-                {error.message}
-              </pre>
-            </div>
+            <div className="mb-2">{detail}</div>
 
-            {error.kind === "api-call" && (
-              <div className="space-y-1">
-                <div>
-                  <strong>API:</strong> {error.name}
+            {/* Everything below is the provider's own account of the failure,
+                written for whoever integrates against it. On our own provider
+                that means upstream models the user never chose and remedies on
+                a vendor account they have no part in, so it is shown only to
+                someone who asked for that layer. On their own key it is the
+                truer answer and the one they can act on. */}
+            {(isDeveloperMode || isOwnKeyProvider) && (
+              <>
+                <div className="mb-2">
+                  <div className="mb-1 font-semibold">Error:</div>
+                  <pre className="font-mono text-xs wrap-break-word whitespace-pre-wrap">
+                    {error.message}
+                  </pre>
                 </div>
-                <div className="break-all">
-                  <strong>URL:</strong> {error.url}
-                </div>
-                {error.statusCode && (
-                  <div>
-                    <strong>Status:</strong> {error.statusCode}
+
+                {error.kind === "api-call" && (
+                  <div className="space-y-1">
+                    <div>
+                      <strong>API:</strong> {error.name}
+                    </div>
+                    <div className="break-all">
+                      <strong>URL:</strong> {error.url}
+                    </div>
+                    {error.statusCode && (
+                      <div>
+                        <strong>Status:</strong> {error.statusCode}
+                      </div>
+                    )}
+                    {error.responseBody && (
+                      <div>
+                        <strong>Response:</strong>
+                        <pre className="mt-1 max-h-32 overflow-y-auto rounded-sm bg-muted p-2 text-xs wrap-break-word whitespace-pre-wrap">
+                          {error.responseBody}
+                        </pre>
+                      </div>
+                    )}
                   </div>
                 )}
-                {error.responseBody && (
+
+                {error.kind === "invalid-tool-input" && (
                   <div>
-                    <strong>Response:</strong>
-                    <pre className="mt-1 max-h-32 overflow-y-auto rounded-sm bg-muted p-2 text-xs wrap-break-word whitespace-pre-wrap">
-                      {error.responseBody}
+                    <div className="mb-1 font-semibold">Input:</div>
+                    <pre className="max-h-32 overflow-y-auto rounded-sm border bg-muted p-2 font-mono text-xs wrap-break-word whitespace-pre-wrap">
+                      {error.input}
                     </pre>
                   </div>
                 )}
-              </div>
-            )}
 
-            {error.kind === "invalid-tool-input" && (
-              <div>
-                <div className="mb-1 font-semibold">Input:</div>
-                <pre className="max-h-32 overflow-y-auto rounded-sm border bg-muted p-2 font-mono text-xs wrap-break-word whitespace-pre-wrap">
-                  {error.input}
-                </pre>
-              </div>
-            )}
-
-            {error.kind === "no-such-tool" && (
-              <div>
-                <strong>Tool:</strong> {error.toolName}
-              </div>
+                {error.kind === "no-such-tool" && (
+                  <div>
+                    <strong>Tool:</strong> {error.toolName}
+                  </div>
+                )}
+              </>
             )}
           </CollapsiblePartMainContent>
         </CollapsibleContent>

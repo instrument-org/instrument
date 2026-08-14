@@ -371,6 +371,30 @@ describe("quitAndInstall", () => {
     expect(h.installs).toHaveBeenCalledTimes(2);
   });
 
+  // The macOS path: MacUpdater delegates to Squirrel.Mac and re-emits its
+  // failure from the native updater's own error event, which lands after
+  // install() has returned and the request has already answered "installing".
+  it("re-arms the retry when the error lands after the install call returns", async () => {
+    const h = createHarness();
+    h.stage(STAGED);
+    h.respondWith(STAGED);
+    h.installs.mockImplementationOnce(() => {
+      setTimeout(() => {
+        h.events().failed(new Error("Could not launch the installer"));
+      }, 0);
+    });
+
+    await expect(h.updater.quitAndInstall()).resolves.toEqual({
+      type: "installing",
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.published.at(-1)).toMatchObject({ type: "error" });
+
+    await h.updater.quitAndInstall();
+
+    expect(h.installs).toHaveBeenCalledTimes(2);
+  });
+
   it("surfaces an install failure and re-arms the retry", async () => {
     const h = createHarness();
     h.stage(STAGED);

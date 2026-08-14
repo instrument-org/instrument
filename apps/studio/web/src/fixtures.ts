@@ -2,7 +2,7 @@
  * Canned RPC responses, keyed by dotted procedure path.
  *
  * Only what a screen actually reads needs an entry. Anything missing resolves
- * to `undefined` (or an idle stream, under a `live` segment) and is logged, so
+ * to `undefined` (or an idle stream, under a streaming segment) and is logged, so
  * growing this file is driven by `window.__rpcCalls.report()` rather than by
  * reading the routers.
  *
@@ -117,12 +117,11 @@ const models = [
   model("anthropic", "claude-haiku-4-5", "Claude Haiku 4.5", ["new"]),
 ];
 
-// cspell:ignore BFNX XNFB -- letter runs inside the fixture project ULIDs
 const projects = [
   {
     createdAt: new Date("2026-06-02T10:00:00Z"),
     description: "Marketing site and docs",
-    folders: ["/workspace/acme-web"],
+    folders: [{ access: "read-write", path: "/workspace/acme-web" }],
     id: ProjectIdSchema.parse("prj_N1FZH5VKD9779DKV5HZF1NB3XS"),
     instructions: "",
     name: "Acme Web",
@@ -130,7 +129,7 @@ const projects = [
   {
     createdAt: new Date("2026-07-14T09:30:00Z"),
     description: "iOS and Android clients",
-    folders: ["/workspace/acme-mobile"],
+    folders: [{ access: "read-only", path: "/workspace/acme-mobile" }],
     id: ProjectIdSchema.parse("prj_Q3H1K7XNFB99BFNX7K1H3QD5ZV"),
     instructions: "",
     name: "Mobile App",
@@ -162,20 +161,60 @@ const tasks = [
   },
 ] satisfies Task[];
 
+// More than a menu can show at once, on purpose: the composer's list of skills
+// is one of the few things here that has to be scrolled to be read, and a
+// fixture of three never shows that.
+const skills = [
+  ["brand-voice", "Rewrite copy in the house voice, with the words we avoid"],
+  ["changelog", "Turn a range of commits into release notes people can read"],
+  ["competitor-scan", "Collect how other products word a screen like this one"],
+  ["design-review", "Check a screen against the type, spacing and color rules"],
+  ["invoice", "Pull the amounts and dates out of a bill and total them"],
+  [
+    "meeting-notes",
+    "Write up a transcript as decisions, owners and next steps",
+  ],
+  ["pricing-model", "Build a sheet that prices a plan against its costs"],
+  ["research-brief", "Gather sources on a question and say what they agree on"],
+  ["screenshot-diff", "Say what moved between two captures of the same screen"],
+  ["seo-audit", "Read a page the way a crawler does and list what it misses"],
+  ["slide-deck", "Draft a deck from an outline, one idea per slide"],
+  ["sql-explain", "Say in prose what a query returns and what it costs"],
+].map(([name = "", description = ""], index) => {
+  // Two sources, so the label on the right of a row has something to tell
+  // apart and its tooltip has two answers.
+  const source = index % 3 === 0 ? "claude" : "workspace";
+  return {
+    aliases: [],
+    description,
+    // The stable ID a mention stores, which is the source and the name: a
+    // token in the prompt is resolved back to a skill through it, so an ID of
+    // any other shape leaves the chip permanently unresolved.
+    id: `${source}:${name}`,
+    name,
+    path: `/workspace/.skills/${name}`,
+    qualifiedName: `${source}:${name}`,
+    source,
+    title: name,
+    userInvocable: true,
+  };
+});
+
 const byId = (input: unknown) =>
   tasks.find((t) => t.id === (input as { id: string }).id) ?? null;
 
 export const FIXTURES: Record<string, unknown> = {
   // No command at rest; the browser keymap pushes into this stream.
-  "appCommands.live.commands": undefined,
+  "appCommands.events.command": undefined,
   "auth.live.hasToken": true,
   // The browser panel's `<webview>` pool has nothing to reconcile against in a
   // real browser, so it stays empty rather than mounting guests that cannot exist.
-  "browser.live.restoreHostFocus": undefined,
+  "browser.events.restoreHostFocus": undefined,
   "browser.live.targets": [],
   "debug.getAppEnvironment": { isPackaged: false },
-  "features.getAll": {},
-  "features.live.getAll": {},
+  // Skills on, so the composer's menu carries the group a typed slash reaches.
+  "features.getAll": { skills: true },
+  "features.live.getAll": { skills: true },
   "gateway.models.list": { errors: [], models },
   "gateway.models.live.list": { errors: [], models },
   // Snapshots, not the mutable object: handing out the same reference the
@@ -183,16 +222,20 @@ export const FIXTURES: Record<string, unknown> = {
   // land in the cache without ever re-rendering.
   "preferences.get": () => ({ ...preferences }),
   "preferences.getAppVersion": { version: "0.0.0-web" },
-  // React Query rejects an undefined result, so absence is modelled as null.
+  // React Query rejects an undefined result, so absence is modeled as null.
   "preferences.getRecentUpdate": null,
   "preferences.live.defaultModelURI": models[1]?.uri,
   "preferences.live.get": () => ({ ...preferences }),
   "updates.live.status": { status: "idle" },
   "user.live.me": null,
   "user.live.subscriptionStatus": null,
-  "utils.live.onWindowFocus": undefined,
+  "utils.events.windowFocusChanged": undefined,
   "utils.live.serverExceptions": undefined,
   "utils.live.windowMaximized": false,
+  // A browser cannot raise the native folder panel, so picking one always
+  // lands on the same folder. Enough for the composer's folder tray, which is
+  // what a page here is for.
+  "utils.showFolderPicker": { path: "/Users/sam/Documents/Legal Docs" },
   "utils.syncZoom": undefined,
   "workspace.pin.live.listTaskIds": [tasks[1]?.id],
   "workspace.project.live.list": projects,
@@ -200,8 +243,8 @@ export const FIXTURES: Record<string, unknown> = {
   // has to be an array. Empty means the task opens with no session rather than
   // pulling a whole transcript fixture in behind it.
   "workspace.session.list": [],
-  "workspace.skill.list": [],
-  "workspace.skill.live.changed": undefined,
+  "workspace.skill.events.changed": undefined,
+  "workspace.skill.list": skills,
   // Keyed by task, so this one reads its input: no task has a running agent.
   "workspace.task.agentStatus.live.byId": (input: unknown) => ({
     sessionActors: [],

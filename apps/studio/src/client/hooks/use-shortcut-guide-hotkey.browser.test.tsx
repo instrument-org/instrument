@@ -28,12 +28,12 @@ function Host() {
     <>
       <button type="button">outside the editor</button>
       <PromptEditor
+        actions={[]}
         // Focus is what each test establishes for itself, since where the caret
         // is when `?` is pressed is the whole question.
         autoFocus={false}
         defaultValue=""
         disabled={false}
-        maxHeight={200}
         onChange={noop}
         onPaste={() => false}
         onSubmit={noop}

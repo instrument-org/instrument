@@ -74,6 +74,6 @@ Not verified on a host. The generated PowerShell is parse-checked and its helper
 
 ## Not in scope
 
-The packaged product. `ELECTRON_USER_DATA_DIR` is honoured by any build, but `__studioDrive` ships only in a dev build, so the `installed` target keeps using `eval`/`click`/`wait` and has no reason to want a seeded workspace.
+The packaged product. `ELECTRON_USER_DATA_DIR` is honored by any build, but `__studioDrive` ships only in a dev build, so the `installed` target keeps using `eval`/`click`/`wait` and has no reason to want a seeded workspace.
 
 Making `studio-drive boot` work on Windows. Four separate POSIX assumptions would have to go, and the result would duplicate what `windows-studio-host.mjs` already does correctly.

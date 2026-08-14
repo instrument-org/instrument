@@ -4,7 +4,10 @@ import { CopyButton } from "@/client/components/copy-button";
 import { FileIcon } from "@/client/components/file-icon";
 import { InternalLink } from "@/client/components/internal-link";
 import { Markdown } from "@/client/components/markdown";
-import { PromptInput } from "@/client/components/prompt-input";
+import {
+  PromptInput,
+  type PromptInputRef,
+} from "@/client/components/prompt-input";
 import { RevealPath } from "@/client/components/reveal-path";
 import { SkillBadges } from "@/client/components/skill-badges";
 import { SkillFileView } from "@/client/components/skill-file-view";
@@ -44,12 +47,10 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { skillMentionToken } from "@instrument-org/shared/skill-mention";
 import { safe } from "@orpc/client";
-import {
-  ArrowLeftIcon,
-  DotsThreeOutlineVerticalIcon,
-  PencilSimpleIcon,
-  TrashIcon,
-} from "@phosphor-icons/react";
+import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
+import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
@@ -117,7 +118,7 @@ function SkillPage() {
   const navigate = useNavigate();
   const { addTab } = useTabActions();
   const tabId = useTabId();
-  const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
+  const promptInputRef = useRef<PromptInputRef>(null);
   // Keyed by skill so navigating between skills starts back at SKILL.md
   // without an effect to reset it.
   const [selection, setSelection] = useState({ file: SKILL_FILE, skill: name });
@@ -251,6 +252,7 @@ function SkillPage() {
         <div className="mt-8">
           <PromptInput
             allowOpenInNewTab
+            allowWorkInProject
             autoResizeMaxHeight={240}
             draftKey={draftKey}
             isLoading={createTaskMutation.isPending}
@@ -302,7 +304,7 @@ function SkillPage() {
             }}
             placeholder="Describe the task"
             ref={promptInputRef}
-            showProjectSelector
+            showWorkInFolder
           />
         </div>
         <p className="mt-4 max-h-24 overflow-y-auto pr-2 text-sm/relaxed text-muted-foreground">

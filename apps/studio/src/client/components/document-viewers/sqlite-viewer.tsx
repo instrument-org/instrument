@@ -21,7 +21,6 @@ const MAX_ROWS = 100_000;
 // SQLite's declared types are free text with only affinity rules behind them,
 // so this matches the families that carry numbers rather than an exact list.
 // The truncated ones are SQLite's own affinity prefixes, not typos.
-// cspell:ignore FLOA DOUB capi FREEONCLOSE
 const NUMERIC_TYPE = /INT|REAL|FLOA|DOUB|NUMERIC|DEC/i;
 
 interface TableInfo {

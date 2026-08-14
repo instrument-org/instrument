@@ -8,14 +8,16 @@ import { createSession } from "../../lib/create-session";
 import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
+import { getTaskProjectName } from "../../lib/project";
 import { Store } from "../../lib/store";
+import { recordTaskActivity } from "../../lib/task-settings";
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
+import { FolderAttachment } from "../../schemas/folder-attachment";
 import { SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { base, toORPCError } from "../base";
-import { publisher } from "../publisher";
 
 const listWithParts = base
   .input(
@@ -44,7 +46,14 @@ const create = base
   .input(
     z.object({
       files: z.array(FileUpload.Schema).optional(),
-      folders: z.array(z.object({ path: z.string() })).optional(),
+      folders: z
+        .array(
+          z.object({
+            access: FolderAttachment.AccessSchema,
+            path: z.string(),
+          }),
+        )
+        .optional(),
       id: TaskIdSchema,
       modelURI: AIGatewayModelURI.Schema,
       prompt: z.string(),
@@ -118,11 +127,25 @@ const create = base
       const message = messageResult.value;
 
       if (isFirstMessageInSession) {
-        generateTitleFromUserMessage({
-          message,
-          model,
-          workspaceConfig: context.workspaceConfig,
-        }).then(async (title) => {
+        // Titling is deliberately non-blocking, and so is finding the project
+        // it reads: resolving one scans `projects/` and reads each settings
+        // file until the id matches, which is a serial walk the agent's turn
+        // would otherwise wait behind on the first message of every session.
+        void (async () => {
+          let projectName: string | undefined;
+          try {
+            projectName = await getTaskProjectName(taskId);
+          } catch {
+            // A title that does not know its project is worth more than no
+            // title, so a failed lookup falls through rather than ending the run.
+          }
+
+          const title = await generateTitleFromUserMessage({
+            message,
+            model,
+            projectName,
+            workspaceConfig: context.workspaceConfig,
+          });
           if (title.isOk()) {
             await updateSessionTitle({
               sessionId: message.metadata.sessionId,
@@ -130,7 +153,7 @@ const create = base
               title: title.value,
             });
           }
-        });
+        })();
       }
 
       context.workspaceRef.send({
@@ -144,9 +167,9 @@ const create = base
         },
       });
 
-      publisher.publish("task.updated", {
-        id: taskId,
-      });
+      // Publishes `task.updated` itself, which is what moves the task in the
+      // list, so this replaces the bare publish rather than joining it.
+      await recordTaskActivity(taskId);
 
       return { sessionId: message.metadata.sessionId };
     },
@@ -177,7 +200,7 @@ const count = base
   });
 
 const live = {
-  listWithParts: base
+  list: base
     .input(
       z.object({
         id: TaskIdSchema,

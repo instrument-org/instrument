@@ -1,3 +1,4 @@
+import { fileViewerWrapLinesAtom } from "@/client/atoms/file-viewer-wrap-lines";
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import {
   LazyArchiveViewer,
@@ -16,18 +17,18 @@ import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language
 import { type FileType, getFileType } from "@/client/lib/get-file-type";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  ArrowClockwiseIcon,
-  ArrowLineDownIcon,
-  ArrowsOutSimpleIcon,
-  CheckIcon,
-  CodeIcon,
-  CopyIcon,
-  DotsThreeOutlineVerticalIcon,
-  EyeIcon,
-  XIcon,
-} from "@phosphor-icons/react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
+import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft";
+import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
+import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { CodeIcon } from "@phosphor-icons/react/Code";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { EyeIcon } from "@phosphor-icons/react/Eye";
+import { XIcon } from "@phosphor-icons/react/X";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { useAtom } from "jotai";
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -54,6 +55,7 @@ import {
 } from "./ui/context-menu";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
@@ -68,61 +70,26 @@ import { contextMenuComponents } from "./ui/menu-components";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
-function MarkdownPreview({ url }: { url: string }) {
-  const { data, error, isLoading } = useQuery({
-    queryFn: async () => {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch file: ${response.statusText}`);
-      }
-      return response.text();
-    },
-    queryKey: ["markdown-file", url],
-    retry: false,
-  });
+/**
+ * Wrapping is entirely ours to decide: the highlighter hands back tokens as
+ * inline spans inside one `<pre>`, so it reflows like any other markup and
+ * nothing about the wrapped view is lost or approximated. Breaking is
+ * `break-word` rather than `break-all` so a line only breaks mid-token when
+ * the token could not fit a line of its own -- a minified bundle or a base64
+ * blob wraps, an ordinary identifier stays whole.
+ */
+const wrapLinesClassName = "whitespace-pre-wrap wrap-break-word";
 
-  if (isLoading) {
-    return <FileLoading />;
-  }
-
-  if (error) {
-    return (
-      <div className="flex size-full items-center justify-center p-8">
-        <Alert className="max-w-2xl" variant="destructive">
-          <AlertTitle>Failed to load file</AlertTitle>
-          <AlertDescription>
-            {error instanceof Error
-              ? error.message
-              : "An unknown error occurred"}
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
-  return <SessionMarkdown className="p-8" markdown={data ?? ""} />;
-}
-
-function TextView({
-  children,
+function CodeView({
   filename,
   url,
+  wrapLines,
 }: {
-  children: (text: string) => ReactNode;
   filename: string;
   url: string;
+  wrapLines: boolean;
 }) {
-  const { data, error, isLoading } = useQuery({
-    queryFn: async () => {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch file: ${response.statusText}`);
-      }
-      return response.text();
-    },
-    queryKey: ["text-file", url],
-    retry: false, // Ensures fast failure
-  });
+  const { data, error, isLoading } = useFileText(url);
 
   const language = getLanguageFromFilePath(filename);
   const { highlightedHtml, isHighlightable } = useSyntaxHighlighting({
@@ -135,28 +102,31 @@ function TextView({
   }
 
   if (error) {
-    return (
-      <div className="flex size-full items-center justify-center p-8">
-        <Alert className="max-w-2xl" variant="destructive">
-          <AlertTitle>Failed to load file</AlertTitle>
-          <AlertDescription>
-            {error instanceof Error
-              ? error.message
-              : "An unknown error occurred"}
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
+    return <FileTextError error={error} />;
   }
 
   if (highlightedHtml) {
     return (
       <div
-        className="p-4 text-sm"
+        className={cn(
+          "p-4 text-sm",
+          wrapLines && "[&_pre]:wrap-break-word [&_pre]:whitespace-pre-wrap",
+        )}
         dangerouslySetInnerHTML={{ __html: highlightedHtml.join("\n") }}
       />
     );
   }
+
+  const plain = (
+    <pre
+      className={cn(
+        "p-4 text-sm text-foreground",
+        wrapLines && wrapLinesClassName,
+      )}
+    >
+      {data}
+    </pre>
+  );
 
   if (isHighlightable) {
     // Delay showing plain text fallback to give syntax highlighting time to load
@@ -166,12 +136,99 @@ function TextView({
         initial={{ opacity: 0 }}
         transition={{ delay: 0.3, duration: 0 }}
       >
-        {children(data ?? "")}
+        {plain}
       </motion.div>
     );
   }
 
-  return <>{children(data ?? "")}</>;
+  return plain;
+}
+
+function FileTextError({ error }: { error: unknown }) {
+  return (
+    <div className="flex size-full items-center justify-center p-8">
+      <Alert className="max-w-2xl" variant="destructive">
+        <AlertTitle>Failed to load file</AlertTitle>
+        <AlertDescription>
+          {error instanceof Error ? error.message : "An unknown error occurred"}
+        </AlertDescription>
+      </Alert>
+    </div>
+  );
+}
+
+function MarkdownPreview({ url }: { url: string }) {
+  const { data, error, isLoading } = useFileText(url);
+
+  if (isLoading) {
+    return <FileLoading />;
+  }
+
+  if (error) {
+    return <FileTextError error={error} />;
+  }
+
+  return <SessionMarkdown className="p-8" markdown={data ?? ""} />;
+}
+
+/**
+ * A `.txt` is as likely to be a letter as a log, so it is read rather than
+ * inspected: the reading typeface and the markdown preview's measure, wrapped
+ * at the viewer's width instead of running off the right edge on one line.
+ *
+ * `pre-wrap` is what keeps that honest. The file's own line breaks, blank lines
+ * and indentation are content -- a hard-wrapped paragraph, an indented list, a
+ * signature block -- and reflowing them, as a markdown pass would, changes the
+ * document rather than presenting it. Wrapping only happens where a line is too
+ * long for the width on offer.
+ */
+function PlainTextView({
+  url,
+  wrapLines,
+}: {
+  url: string;
+  wrapLines: boolean;
+}) {
+  const { data, error, isLoading } = useFileText(url);
+
+  if (isLoading) {
+    return <FileLoading />;
+  }
+
+  if (error) {
+    return <FileTextError error={error} />;
+  }
+
+  return (
+    <div
+      className={cn(
+        "p-8 text-sm/relaxed text-foreground",
+        wrapLines ? wrapLinesClassName : "whitespace-pre",
+      )}
+    >
+      {data}
+    </div>
+  );
+}
+
+function useFileText(url: string) {
+  return useQuery({
+    // The URL carries the file's mtime, so a save is a new key and a new
+    // fetch. Holding the last text through it is what keeps the pane from
+    // blanking to a loading state on every save of a file someone is editing
+    // outside the app: the old bytes stay up, and the new ones replace them
+    // when they arrive.
+    placeholderData: keepPreviousData,
+    queryFn: async () => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.statusText}`);
+      }
+      return response.text();
+    },
+    queryKey: ["file-text", url],
+    retry: false, // Ensures fast failure
+  });
 }
 
 // Both hosts (the artifact panel and the expand modal) give the viewer the
@@ -189,6 +246,7 @@ interface ViewerContext {
   onImageError: () => void;
   onMediaError: (fallbackExtension: string) => void;
   viewMode: "preview" | "raw";
+  wrapLines: boolean;
 }
 
 /**
@@ -225,7 +283,7 @@ const VIEWERS = {
   archive: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
         <LazyArchiveViewer url={file.url} />
       </ViewerSurface>
     ),
@@ -238,7 +296,7 @@ const VIEWERS = {
         <audio
           className="w-full max-w-2xl"
           controls
-          key={file.url}
+          key={file.filePath}
           onError={() => {
             onMediaError("mp3");
           }}
@@ -248,11 +306,11 @@ const VIEWERS = {
     ),
     scrolls: "container",
   },
-  code: { hasToolbar: false, render: renderText, scrolls: "container" },
+  code: { hasToolbar: false, render: renderCode, scrolls: "container" },
   csv: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
         <LazyCsvViewer filename={file.filename} url={file.url} />
       </ViewerSurface>
     ),
@@ -261,7 +319,7 @@ const VIEWERS = {
   docx: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
         <LazyDocxViewer filename={file.filename} url={file.url} />
       </ViewerSurface>
     ),
@@ -271,7 +329,7 @@ const VIEWERS = {
     hasToolbar: false,
     render: (context) =>
       context.viewMode === "raw" ? (
-        renderText(context)
+        renderCode(context)
       ) : (
         <SandboxedHtmlIframe
           className="absolute inset-0 size-full border-0"
@@ -294,7 +352,7 @@ const VIEWERS = {
           <ContextMenuTrigger className="size-full">
             <ImageViewer
               filename={file.filename}
-              key={file.url}
+              key={file.filePath}
               onError={onImageError}
               url={file.url}
             />
@@ -312,7 +370,7 @@ const VIEWERS = {
   iwork: {
     hasToolbar: false,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
         <LazyIWorkViewer filename={file.filename} url={file.url} />
       </ViewerSurface>
     ),
@@ -321,7 +379,7 @@ const VIEWERS = {
   jsonl: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
         <LazyJsonlViewer url={file.url} />
       </ViewerSurface>
     ),
@@ -331,7 +389,7 @@ const VIEWERS = {
     hasToolbar: false,
     render: (context) =>
       context.viewMode === "raw" ? (
-        renderText(context)
+        renderCode(context)
       ) : (
         <MarkdownPreview url={context.file.url} />
       ),
@@ -340,7 +398,7 @@ const VIEWERS = {
   parquet: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
         <LazyParquetViewer url={file.url} />
       </ViewerSurface>
     ),
@@ -350,7 +408,7 @@ const VIEWERS = {
   pptx: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
         <LazyPptxViewer filename={file.filename} url={file.url} />
       </ViewerSurface>
     ),
@@ -359,13 +417,19 @@ const VIEWERS = {
   sqlite: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
         <LazySqliteViewer url={file.url} />
       </ViewerSurface>
     ),
     scrolls: "self",
   },
-  text: { hasToolbar: false, render: renderText, scrolls: "container" },
+  text: {
+    hasToolbar: false,
+    render: ({ file, wrapLines }) => (
+      <PlainTextView url={file.url} wrapLines={wrapLines} />
+    ),
+    scrolls: "container",
+  },
   unknown: {
     hasToolbar: false,
     render: ({ fallback }) => (
@@ -387,7 +451,7 @@ const VIEWERS = {
             autoPlay
             className="size-full object-contain"
             controls
-            key={file.url}
+            key={file.filePath}
             muted
             onError={() => {
               onMediaError("mp4");
@@ -409,7 +473,7 @@ const VIEWERS = {
   xlsx: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.url}>
+      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
         <LazyXlsxViewer filename={file.filename} url={file.url} />
       </ViewerSurface>
     ),
@@ -417,19 +481,17 @@ const VIEWERS = {
   },
 } satisfies Record<FileType, ViewerEntry>;
 
-function renderPdf({ fallback, file }: ViewerContext) {
+function renderCode({ file, wrapLines }: ViewerContext) {
   return (
-    <ViewerSurface fallback={fallback} resetKey={file.url}>
-      <LazyPdfViewer filename={file.filename} url={file.url} />
-    </ViewerSurface>
+    <CodeView filename={file.filename} url={file.url} wrapLines={wrapLines} />
   );
 }
 
-function renderText({ file }: ViewerContext) {
+function renderPdf({ fallback, file }: ViewerContext) {
   return (
-    <TextView filename={file.filename} url={file.url}>
-      {(text) => <pre className="p-4 text-sm text-foreground">{text}</pre>}
-    </TextView>
+    <ViewerSurface fallback={fallback} resetKey={file.filePath}>
+      <LazyPdfViewer filename={file.filename} url={file.url} />
+    </ViewerSurface>
   );
 }
 
@@ -449,23 +511,35 @@ const fileViewerHeaderMenuTriggerClassName = toolbarClassName({
   pressed: false,
 });
 
+// Both segments of the open button are transparent until hovered, so hovering
+// the label alone leaves the caret invisible and the control reads as having no
+// menu. Tint the caret at a fraction of the hover fill instead: enough to show
+// the two are one control, light enough to stay subordinate to the half the
+// pointer is actually on. Alpha over the same token covers both themes, since
+// dark's `muted` is already white at low opacity. Only while the menu is closed
+// -- an open menu's fill says more than the neighbor's hover does.
 const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
   className:
-    "h-7 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+    "h-7 peer-hover/open-file:data-[state=closed]:bg-muted/60 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
   pressed: false,
 });
 
 export function FileViewer({
+  className,
   file,
   onClose,
   onExpand,
 }: {
+  // Set by a caller that already draws the surface this sits in, so the viewer
+  // can drop its own card and fill the frame instead of nesting inside it.
+  className?: string;
   file: TaskFileViewerFile;
-  onClose: () => void;
+  onClose?: () => void;
   onExpand?: () => void;
 }) {
   const { filename, filePath, mimeType, taskId, url } = file;
   const [viewMode, setViewMode] = useState<"preview" | "raw">("preview");
+  const [wrapLines, setWrapLines] = useAtom(fileViewerWrapLinesAtom);
   // Remounts the sandboxed HTML iframe back to its entry page. The iframe is a
   // cross-origin, opaque-origin sandbox, so we can't read or drive its history;
   // reloading `src` is the only way to escape an in-page link navigation.
@@ -495,6 +569,13 @@ export function FileViewer({
 
   const fileType = getFileType(file);
   const hasPreview = fileType === "markdown" || fileType === "html";
+  // What is on screen is the file's own text, so the wrap preference governs
+  // it: the code and plain text viewers always, a markdown or HTML file only
+  // while its own view mode is showing the source.
+  const showsFileText =
+    fileType === "code" ||
+    fileType === "text" ||
+    (hasPreview && viewMode === "raw");
   const fileActions = useFileActionVisibility(file);
   const hasHeaderMenuActions =
     onExpand != null || fileActions.showDownload || fileActions.showReveal;
@@ -502,6 +583,7 @@ export function FileViewer({
     fileActions.showDownload ||
     fileActions.showReveal ||
     hasPreview ||
+    showsFileText ||
     Boolean(onExpand);
 
   const handleDownload = async () => {
@@ -513,7 +595,7 @@ export function FileViewer({
       await copyFileToClipboard({
         filePath,
         id: taskId,
-        isImage: mimeType.startsWith("image/"),
+        isImage: fileType === "image",
       });
       triggerCopied();
     } catch {
@@ -559,10 +641,11 @@ export function FileViewer({
       setMediaErrorType(fallbackExtension);
     },
     viewMode,
+    wrapLines,
   };
 
   return (
-    <div className={fileViewerClassName}>
+    <div className={cn(fileViewerClassName, className)}>
       <FileViewerHeader
         actions={
           <>
@@ -644,7 +727,7 @@ export function FileViewer({
                       <span>{getRevealInFolderLabel()}</span>
                     </DropdownMenuItem>
                   )}
-                  {hasHeaderMenuActions && hasPreview && (
+                  {hasHeaderMenuActions && (hasPreview || showsFileText) && (
                     <DropdownMenuSeparator />
                   )}
                   {hasPreview && (
@@ -673,6 +756,20 @@ export function FileViewer({
                         </DropdownMenuRadioGroup>
                       </DropdownMenuSubContent>
                     </DropdownMenuSub>
+                  )}
+                  {showsFileText && (
+                    <DropdownMenuCheckboxItem
+                      checked={wrapLines}
+                      onCheckedChange={setWrapLines}
+                      // The menu would otherwise close on the first toggle, and
+                      // seeing the file rewrap is the whole point of the item.
+                      onSelect={(event) => {
+                        event.preventDefault();
+                      }}
+                    >
+                      <ArrowElbowDownLeftIcon className="size-4" />
+                      <span>Wrap lines</span>
+                    </DropdownMenuCheckboxItem>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -734,7 +831,9 @@ export function FileViewerHeader({
   filename: string;
   filePath: string;
   mimeType?: string;
-  onClose: () => void;
+  // Absent in the pane, where the tab strip owns closing. Present in the
+  // expanded modal, whose close is a collapse back to the pane.
+  onClose?: () => void;
 }) {
   return (
     // `h-10 px-2` matches `ViewerToolbar`, which some viewers render right
@@ -757,8 +856,9 @@ export function FileViewerHeader({
             </span>
           </TooltipTrigger>
           <TooltipContent
-            className="max-w-[min(500px,90vw)] wrap-break-word"
+            className="wrap-break-word"
             collisionPadding={10}
+            maxWidth="500px"
           >
             {filePath}
           </TooltipContent>
@@ -766,14 +866,16 @@ export function FileViewerHeader({
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {actions}
-        <Button
-          className={fileViewerHeaderIconActionClassName}
-          onClick={onClose}
-          size="icon-sm"
-          variant="ghost"
-        >
-          <XIcon className="size-4" />
-        </Button>
+        {onClose && (
+          <Button
+            className={fileViewerHeaderIconActionClassName}
+            onClick={onClose}
+            size="icon-sm"
+            variant="ghost"
+          >
+            <XIcon className="size-4" />
+          </Button>
+        )}
       </div>
     </div>
   );

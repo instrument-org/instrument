@@ -1,5 +1,5 @@
 import {
-  type CommandContext,
+  createCommandContext,
   EMPTY_BYTES,
   InMemoryFs,
   unsafeBytesFromLatin1,
@@ -17,12 +17,12 @@ vi.mock("execa");
 
 const realFs = new InMemoryFs();
 
-const mockCtx: CommandContext = {
+const mockCtx = createCommandContext({
   cwd: "/",
   env: new Map<string, string>(),
   fs: realFs,
   stdin: EMPTY_BYTES,
-};
+});
 
 describe("nodeCommand", () => {
   const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));

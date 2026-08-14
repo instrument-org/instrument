@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { MOUNT } from "../mount-points";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { AbsolutePathSchema, TaskDirSchema } from "../schemas/paths";
 import {
@@ -12,17 +13,26 @@ import {
   resolveToolPath,
   resolveWritableToolPath,
 } from "./resolve-agent-path";
-import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
+import {
+  buildWorkspaceFsLayout,
+  resolveReadOnlyHostPath,
+} from "./workspace-fs-layout";
 
 function abs(filePath: string) {
   return AbsolutePathSchema.parse(filePath);
 }
 
-function attachment(id: string, name: string, folderPath: string) {
+function attachment(
+  id: string,
+  mountName: string,
+  folderPath: string,
+  access: FolderAttachment.Access = "read-only",
+) {
   return {
+    access,
     createdAt: 0,
     id: FolderAttachment.IdSchema.parse(id),
-    name,
+    mountName,
     path: abs(folderPath),
     source: "user" as const,
   };
@@ -75,7 +85,6 @@ describe("applyUnicodeFallbacks", () => {
   );
 
   it("resolves NFD-encoded filename (macOS decomposed Unicode)", async () => {
-    // cspell:ignore APFS
     // Write a file using the NFD form of the name. On APFS the OS normalizes
     // it to NFC on disk, so the NFC input path finds it directly. On HFS+ the
     // OS preserves NFD and the fallback is needed. Either way the returned
@@ -89,7 +98,6 @@ describe("applyUnicodeFallbacks", () => {
   });
 
   it("resolves curly apostrophe in filename (macOS U+2019)", async () => {
-    // cspell:ignore d'écran cran
     // macOS uses U+2019 in names like "Capture d'écran"
     const diskName = "Capture d\u2019\u00E9cran.png";
     const inputName = "Capture d'écran.png";
@@ -202,6 +210,73 @@ describe("private-dir (.instrument) restriction", () => {
       expect(resolveToolPath(layout, input).isOk()).toBe(true);
     },
   );
+
+  // The project mount is writable, and its private dir names the folders the
+  // project contributes to every task in it, with the access granted to each.
+  // The mask over that dir belongs to the bash filesystem, which none of these
+  // resolvers goes through.
+  describe("the project mount's private dir", () => {
+    const projectLayout = buildWorkspaceFsLayout({
+      projectFolderName: "Acme",
+      taskHostRoot: dir,
+    });
+    const settings = `${MOUNT.project}/.instrument/settings.json`;
+
+    it("is refused for reading", () => {
+      const result = resolveAgentPath({
+        inputPath: settings,
+        layout: projectLayout,
+      });
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toMatch(/private .* directory/);
+      }
+    });
+
+    it("is refused for writing", () => {
+      expect(
+        resolveWritableToolPath({
+          inputPath: settings,
+          layout: projectLayout,
+        }).isErr(),
+      ).toBe(true);
+    });
+
+    it("is refused to the read-only host path a real binary receives", () => {
+      expect(resolveReadOnlyHostPath(projectLayout, settings)).toBeNull();
+    });
+
+    it("leaves the project's own files reachable", () => {
+      const instructions = `${MOUNT.project}/AGENTS.md`;
+
+      expect(
+        resolveAgentPath({
+          inputPath: instructions,
+          layout: projectLayout,
+        }).isOk(),
+      ).toBe(true);
+      expect(
+        resolveReadOnlyHostPath(projectLayout, instructions),
+      ).not.toBeNull();
+    });
+
+    // A folder the user attached is theirs, and a directory of that name in it
+    // is an ordinary one rather than ours to hide.
+    it("leaves an attached folder's own .instrument dir alone", () => {
+      const attachedLayout = buildWorkspaceFsLayout({
+        attachedFolders: { a: attachment("id-a", "Docs", "/ext/one/Docs") },
+        taskHostRoot: dir,
+      });
+
+      expect(
+        resolveAgentPath({
+          inputPath: `${MOUNT.attachedFolders}/Docs/.instrument/notes.md`,
+          layout: attachedLayout,
+        }).isOk(),
+      ).toBe(true);
+    });
+  });
 });
 
 describe("resolveAgentPath (virtual layout paths)", () => {
@@ -316,5 +391,74 @@ describe("resolveWritableToolPath", () => {
       layout,
     });
     expect(result.isErr()).toBe(true);
+  });
+});
+
+describe("symlink containment on a read-write mount", () => {
+  let tmpDir: string;
+  let layout: ReturnType<typeof buildWorkspaceFsLayout>;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), `${APP_NAME_SLUG}-mount-`),
+    );
+    await fs.mkdir(path.join(tmpDir, "task"));
+    await fs.mkdir(path.join(tmpDir, "Docs"));
+    await fs.mkdir(path.join(tmpDir, "outside"));
+    await fs.writeFile(path.join(tmpDir, "outside", "existing.txt"), "secret");
+    await fs.symlink(
+      path.join(tmpDir, "outside"),
+      path.join(tmpDir, "Docs", "escape"),
+    );
+    layout = buildWorkspaceFsLayout({
+      attachedFolders: {
+        Docs: attachment(
+          "docs",
+          "Docs",
+          path.join(tmpDir, "Docs"),
+          "read-write",
+        ),
+      },
+      taskHostRoot: TaskDirSchema.parse(path.join(tmpDir, "task")),
+    });
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { force: true, recursive: true });
+  });
+
+  it("resolves a plain path inside the mount", () => {
+    const result = resolveWritableToolPath({
+      inputPath: "/mnt/Docs/notes.md",
+      layout,
+    });
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value.absolutePath).toBe(
+        path.join(tmpDir, "Docs", "notes.md"),
+      );
+    }
+  });
+
+  // A read-only mount only ever had to contain reads, so containment could rely
+  // on the target existing. A writable mount is a write primitive: the path a
+  // write creates does not exist yet, and the directories leading to it may not
+  // either.
+  it.each([
+    { input: "/mnt/Docs/escape/existing.txt", label: "an existing file" },
+    {
+      input: "/mnt/Docs/escape/new-file.txt",
+      label: "a file yet to be created",
+    },
+    {
+      input: "/mnt/Docs/escape/deeper/new-file.txt",
+      label: "a file under directories yet to be created",
+    },
+  ])("refuses $label behind a symlink out of the mount", ({ input }) => {
+    const result = resolveWritableToolPath({ inputPath: input, layout });
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.message).toMatch(/resolves outside its mount/);
+    }
   });
 });

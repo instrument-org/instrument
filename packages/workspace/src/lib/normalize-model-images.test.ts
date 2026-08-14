@@ -89,6 +89,7 @@ describe("normalizeModelImages", () => {
     expect(measureImage(Buffer.from(data ?? "", "base64")))
       .toMatchInlineSnapshot(`
         {
+          "format": "png",
           "height": 819,
           "mediaType": "image/png",
           "width": 1456,
@@ -165,7 +166,12 @@ describe("normalizeModelImages", () => {
             "base64",
           ),
         ),
-      ).toEqual({ height: 819, mediaType: "image/png", width: 1456 });
+      ).toEqual({
+        format: "png",
+        height: 819,
+        mediaType: "image/png",
+        width: 1456,
+      });
     },
     60_000,
   );
@@ -176,7 +182,6 @@ describe("normalizeModelImages", () => {
       name: "an error page saved with an image name",
     },
     {
-      // cspell:ignore AAAANS -- a base64 PNG header, not prose
       data: Buffer.from("iVBORw0KGgoAAAANSUhEUg", "base64").toString("base64"),
       name: "a truncated write",
     },
@@ -252,7 +257,12 @@ describe("normalizeModelImages", () => {
     );
     expect(
       measureImage(Buffer.from(typeof data === "string" ? data : "", "base64")),
-    ).toEqual({ height: 819, mediaType: "image/png", width: 1456 });
+    ).toEqual({
+      format: "png",
+      height: 819,
+      mediaType: "image/png",
+      width: 1456,
+    });
   }, 60_000);
 
   it("drops an image part whose bytes are not an image", async () => {

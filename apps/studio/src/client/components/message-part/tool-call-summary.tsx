@@ -3,9 +3,11 @@ import {
   getToolNameByType,
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
-import { EyeIcon, GlobeIcon, type Icon } from "@phosphor-icons/react";
+import { type Icon } from "@phosphor-icons/react";
+import { EyeIcon } from "@phosphor-icons/react/Eye";
+import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useState } from "react";
+import { type ReactNode } from "react";
 
 import { getToolExplanation } from "../../lib/get-tool-explanation";
 import {
@@ -16,6 +18,7 @@ import {
 import { cn } from "../../lib/utils";
 import { PlanningDotIcon } from "../icons/planning-dot";
 import { RunRowChevron } from "../run-row-chevron";
+import { useRowExpansion } from "../transcript-expansion";
 import {
   Collapsible,
   CollapsibleContent,
@@ -26,6 +29,7 @@ import { useToolCallSession } from "./tool-call-session";
 import { FileChip } from "./tool-card";
 import { SourceImagesChip } from "./tool-generate-image";
 import { WebSearchChip } from "./tool-web-search";
+import { TRANSCRIPT_ROW, useTranscriptGroup } from "./transcript-group";
 
 export function ToolCallSummary({
   assetBaseUrl,
@@ -39,8 +43,30 @@ export function ToolCallSummary({
   part: SessionMessagePart.ToolPart;
 }) {
   const features = useAtomValue(featuresAtom);
-  const { isStreaming } = useToolCallSession();
-  const [isOpen, setIsOpen] = useState(false);
+  const { isRunning, isStreaming } = useToolCallSession();
+  const group = useTranscriptGroup();
+  const { isExpanded, setIsExpanded } = useRowExpansion(part.metadata.id);
+
+  // Non-null when this row is the head line of a group that has somewhere else
+  // to draw what it holds -- steps behind the line, or the line already opened
+  // -- which is what makes it answer a click on the group's behalf. Its own
+  // output then belongs to its row in the run rather than to the head line, so
+  // opening the group does not draw the same call twice.
+  const groupHead =
+    group?.isHead === true && (group.canExpand || group.isExpanded)
+      ? group
+      : null;
+
+  // A call is asked for well before it is worked on, so a row has three states
+  // and not two: the one the agent is on, the ones queued behind it, and the
+  // ones already done. `isStreaming` covers the first two -- asked for, not
+  // finished -- and `isRunning` narrows to the first.
+  //
+  // One row draws the live indicator and every other row is at rest, queued
+  // calls included. A second row moving under the head line would read as two
+  // things happening at once, and a call waiting its turn is not work in
+  // progress worth announcing: what it is waiting on is already saying so.
+  const showsLiveIndicator = isRunning && (group === null || group.isHead);
 
   const toolName = getToolNameByType(part.type);
   const browserInfo = getBrowserInfo(part);
@@ -83,14 +109,17 @@ export function ToolCallSummary({
     : null;
 
   const trigger = (
-    <div className="group/run-row inline-flex max-w-full min-w-0 items-center gap-3 py-1.5">
+    // Inline, unlike the rows that are a whole line: a call's chips follow its
+    // label and the hover target ends with them rather than running to the
+    // margin.
+    <div className={cn(TRANSCRIPT_ROW, "inline-flex max-w-full")}>
       {isDeadDevMode ? (
         <span className="flex shrink-0 items-center gap-1 rounded-full border border-dev-500/30 bg-dev-500/10 px-1.5 py-0.5 text-[10px] font-medium text-dev-500 uppercase">
           <EyeIcon className="size-2.5" />
           Dev
         </span>
-      ) : isStreaming ? (
-        <PlanningDotIcon className="size-3 shrink-0" />
+      ) : showsLiveIndicator ? (
+        <PlanningDotIcon />
       ) : (
         Icon && (
           <span className="flex size-5 shrink-0 items-center justify-center rounded-lg bg-black/5 dark:bg-white/5">
@@ -102,10 +131,10 @@ export function ToolCallSummary({
       <span
         className={cn(
           // No leading override: the label's own 20px line box is what holds
-          // the row at one height across every state, since the indicator
-          // beside it is 20px done and 12px while the call runs.
+          // the row at one height, and it is the same 20px the indicator beside
+          // it takes in every state.
           "min-w-0 truncate text-sm",
-          isStreaming
+          showsLiveIndicator
             ? "brand-shiny-text"
             : "text-muted-foreground group-hover/run-row:text-foreground",
         )}
@@ -126,12 +155,25 @@ export function ToolCallSummary({
       <SourceImagesChip assetBaseUrl={assetBaseUrl} part={part} />
       <FileChip part={part} />
 
-      <RunRowChevron isOpen={isOpen} />
+      <RunRowChevron
+        isOpen={groupHead === null ? isExpanded : groupHead.isExpanded}
+      />
     </div>
   );
 
+  // As a group's head line the row's click belongs to the group: the reader is
+  // asking to see the steps behind it, not this one call's output. It keeps the
+  // click while the group is open, since it is then the only way to shut it.
+  if (groupHead !== null) {
+    return (
+      <Collapsible onOpenChange={groupHead.toggle} open={groupHead.isExpanded}>
+        <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
+      </Collapsible>
+    );
+  }
+
   return (
-    <Collapsible onOpenChange={setIsOpen} open={isOpen}>
+    <Collapsible onOpenChange={setIsExpanded} open={isExpanded}>
       <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
       <CollapsibleContent animated>{children}</CollapsibleContent>
     </Collapsible>

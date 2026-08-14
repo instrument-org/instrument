@@ -28,9 +28,10 @@ async function run(command: string, attach = false) {
     attachedFolders: attach
       ? {
           docs: {
+            access: "read-only",
             createdAt: Date.now(),
             id: FolderAttachment.IdSchema.parse("docs-id"),
-            name: "Docs",
+            mountName: "Docs",
             path: TaskDirSchema.parse(attachedDir),
             source: "user",
           },
@@ -122,17 +123,64 @@ describe("rg command", () => {
     expect(result.stderr + result.stdout).toContain("not accessible");
   });
 
+  // ripgrep applies no glob filter to a file named on the command line, so the
+  // deny glob that covers the walk says nothing about these.
+  it.each([
+    { as: "a file", command: "rg NEEDLE .instrument/state.json" },
+    { as: "a directory to walk", command: "rg --hidden NEEDLE .instrument" },
+    { as: "a traversal", command: "rg NEEDLE work/../.instrument/state.json" },
+  ])("refuses the private dir named relatively, $as", async ({ command }) => {
+    const result = await run(command);
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stdout).not.toContain("host");
+    expect(result.stderr + result.stdout).toContain("private");
+  });
+
+  // ripgrep's glob precedence is last-wins, so the agent's own glob is applied
+  // after ours and re-includes what ours took out.
+  it.each([
+    "rg --hidden --glob '.instrument/**' NEEDLE",
+    "rg --hidden --iglob '.INSTRUMENT/**' NEEDLE",
+    "rg --hidden -g '**' --files",
+  ])("keeps the private dir out of `%s`", async (command) => {
+    const result = await run(command);
+
+    expect(result.stdout).not.toContain("state.json");
+  });
+
+  // The deny glob is a flag, so it has to land ahead of the operand separator
+  // rather than after the arguments it is appended to.
+  it("still searches when the pattern is given after `--`", async () => {
+    const result = await run("rg -- NEEDLE");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("work/a.ts");
+  });
+
   it.each([
     { command: "rg --pre /bin/sh NEEDLE", flag: "--pre" },
     { command: "rg --pre-glob '*' NEEDLE", flag: "--pre-glob" },
     { command: "rg -z NEEDLE", flag: "-z" },
     { command: "rg -uz NEEDLE", flag: "-z" },
+    // The cluster carries a value on its last flag, which is where the
+    // all-letters test for a bundled `-z` stopped matching.
+    { command: "rg -zC3 NEEDLE", flag: "-z bundled with a value flag" },
     { command: "rg --search-zip NEEDLE", flag: "--search-zip" },
     { command: "rg --hostname-bin /bin/echo NEEDLE", flag: "--hostname-bin" },
   ])("refuses $flag, which would run another program", async ({ command }) => {
     const result = await run(command);
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr + result.stdout).toContain("runs another program");
+  });
+
+  // `-e` takes the rest of the cluster as its value, so this is a search for
+  // the pattern `z` rather than a bundled `-z`.
+  it("searches for a pattern attached to -e instead of reading it as -z", async () => {
+    const result = await run("rg -ez");
+
+    expect(result.stderr).not.toContain("runs another program");
+    expect(result.exitCode).toBe(1);
   });
 
   it("searches an attached folder and reports its mount path, not the host path", async () => {
@@ -162,9 +210,10 @@ describe("virtualizeOutput", () => {
     return buildWorkspaceFsLayout({
       attachedFolders: {
         docs: {
+          access: "read-only",
           createdAt: 0,
           id: FolderAttachment.IdSchema.parse("docs-id"),
-          name: "Docs",
+          mountName: "Docs",
           // Cast: AbsolutePathSchema rejects win32 absolute paths when the test
           // runs on a posix host, but a Windows build stores exactly this shape.
           path: hostRoot as AbsolutePath,

@@ -50,7 +50,7 @@ UI:
    - Overwrite the message's text part(s) in place (same message id).
    - `getMessageIdsAfter(sessionId, messageId)` -> `removeMessage` each.
    - Start an agent turn from the current tail. **This is the one non-trivial part**: `message.create` couples message-creation with turn-start, so factor out (or find) a "start turn on existing tail" path into the session machine and call it here. Investigate how `message.create` signals the machine and reuse that signal without creating a new message.
-   - Decide whether to recompute the per-turn data parts on the edited message (externalFileChanges / projectContext / browserStatus from `new-message.ts`). Leaving them stale is acceptable for v1.
+   - Decide whether to recompute the per-turn data parts on the edited message (paneTabs / projectContext / browserStatus from `new-message.ts`). Leaving them stale is acceptable for v1.
 
 2. **UI** in `user-message.tsx`:
    - Add an edit (pencil) button to the hover row, gated on session idle.

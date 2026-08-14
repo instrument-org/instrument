@@ -31,7 +31,10 @@ description, or choose the right arguments. Only rung 3 answers that.
 - **A tool description, a system prompt, a skill, tool selection** -> rung 3
   only. There is nothing below it that involves a model, so nothing below it can
   answer the question.
-- **Anything the user sees** -> rung 4.
+- **New or changed behavior a user can reach** -> rung 4. A spacing, color, or
+  copy tweak the diff already describes in full is not that, and neither is a
+  change you can confirm in an instance that is already running: look at that
+  one instead of booting another.
 
 ## Rung 1: unit tests
 
@@ -60,19 +63,28 @@ This is the only rung that tells you whether a model finds and uses what you
 built.
 
 ```bash
-cd packages/workspace
 pnpm eval run --yes --prompt "<task for the agent>" --model anthropic/claude-haiku-4.5
 ```
 
+- Runs from the repo root; no `cd` first.
 - `--model` repeats to build a case x model matrix. Different models fail
-  differently; one model succeeding is weak evidence.
+  differently; one model succeeding is weak evidence. `--repeat` samples the
+  same model more than once, which is what a nondeterministic result needs.
 - A bare slug reads as OpenRouter. Pass a full model URI
   (`<model>?provider=<p>&providerConfigId=<p>-config-id`) to pin another
   configured provider.
-- Each run prints the path to a rendered `session.md`. **Read it.** The tool
-  sequence is the result; the agent's closing summary is not.
+- Each run prints the path to a rendered `session.md`, filed under
+  `<case>/<model>`. **Read it.** The tool sequence is the result; the agent's
+  closing summary is not.
 - Check the summary's failed-request line before trusting anything: a run that
-  dies on a rate limit still produces a task and a transcript.
+  dies on a rate limit still produces a task and a transcript. A run reported as
+  `Stopped` is not that: the harness or the case ended it on purpose.
+- Exit status is non-zero when an assertion failed or a request was refused, so
+  the run does not have to be read to know whether it passed. `--json` and the
+  `summary.json` beside the results carry the same verdict per case and model.
+- Changing an assertion costs nothing to re-check: `pnpm eval report <workspace
+dir>` re-runs every assertion against the sessions already recorded. The run
+  prints the exact command to use.
 
 Committed cases live in `packages/workspace/evals/cases/`; add one when a
 behavior is worth guarding permanently. Details in
@@ -81,15 +93,36 @@ behavior is worth guarding permanently. Details in
 ## Rung 4: the running app
 
 ```bash
-pnpm dev:studio
+node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs boot
 ```
 
-Hot reloads all three targets, including main-process changes. Then:
+Start it this way and no other. `boot` reuses the instance already running for
+this checkout instead of adding a second one, takes a debug port derived from
+the checkout path so two checkouts never contend for one, and records what it
+started so it can be stopped again. It runs the same `electron-vite dev`
+underneath, so main-process edits still relaunch the app and renderer edits
+still hot reload: an edit landing mid-run resets the state you navigated to.
 
-- Drive it or inspect the DOM: `studio-chrome-devtools` skill (CDP on port
-  48160).
+- Drive it, inspect the DOM, or call an RPC route: `studio-chrome-devtools`
+  skill.
 - Read main-process logs: `studio-dev-logs` skill.
 - Headless or in a VM: `.agents/cloud-dev.md`.
+- `studio-drive.mjs stop` when the check is done, unless you booted it for
+  someone to look at.
+
+Three things not to do, each of which costs someone else their session:
+
+- **`pnpm dev` or `pnpm dev:studio` with a `REMOTE_DEBUGGING_PORT` you picked.**
+  A hand-picked port is either already a window someone is using, and you will
+  connect to their app and report confidently about the wrong code, or it is
+  nobody's, and nothing can drive what you just started. Either way it is a
+  second copy of an app that was probably already running.
+- **`pkill -f electron-vite`, `pkill -f Electron`, or any sweep naming neither a
+  pid nor a checkout.** Agents and a human share this machine, and those
+  patterns kill every instance on it. `stop` targets the one it started.
+- **`pnpm dev:web` as a stand-in.** It serves the renderer with the Electron
+  boundary replaced by fixtures, for design work. Nothing behind that boundary
+  runs, so it can neither confirm nor deny that a change works.
 
 ## Inspecting a run afterwards
 

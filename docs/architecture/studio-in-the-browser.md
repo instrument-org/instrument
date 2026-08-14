@@ -38,7 +38,7 @@ Pin shapes to the contracts rather than hand-rolling them, so a fixture that dri
 
 ## Keyboard shortcuts
 
-Every app-wide shortcut in Studio is a **native menu accelerator**: the main process turns it into an `AppCommand` and publishes it on `appCommands.live.commands` ([`shared/app-command.ts`](../../apps/studio/src/shared/app-command.ts)). A browser has no menu, so `web/src/keymap.ts` listens for the same chords and pushes the same commands. Combinations the browser reserves (Cmd+T, Cmd+W, Cmd+N) cannot be intercepted from a page, so tab lifecycle stays mouse-driven.
+Every app-wide shortcut in Studio is a **native menu accelerator**: the main process turns it into an `AppCommand` and publishes it on `appCommands.events.command` ([`shared/app-command.ts`](../../apps/studio/src/shared/app-command.ts)). A browser has no menu, so `web/src/keymap.ts` listens for the same chords and pushes the same commands. Combinations the browser reserves (Cmd+T, Cmd+W, Cmd+N) cannot be intercepted from a page, so tab lifecycle stays mouse-driven.
 
 ## Known gaps
 

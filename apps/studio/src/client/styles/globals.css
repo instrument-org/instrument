@@ -4,7 +4,6 @@
 @import "@fontsource/work-sans/700.css";
 @import "@fontsource/roboto-serif/400.css";
 @import "@fontsource/roboto-serif/500.css";
-/* cspell:ignore wght */
 @import "@fontsource-variable/jetbrains-mono/wght.css";
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -22,8 +21,8 @@
    `<br>` hack so the block stays focusable, so match that shape too. */
 .prompt-editor:has(p:only-child:empty)::before,
 .prompt-editor:has(
-  p:only-child > br.ProseMirror-trailingBreak:only-child
-)::before {
+    p:only-child > br.ProseMirror-trailingBreak:only-child
+  )::before {
   /* Overlay the first line. As a static box the pseudo-element would lay out as
      a block sibling above the paragraph, pushing the caret onto a second line. */
   position: absolute;
@@ -187,10 +186,14 @@ body {
   --shadow-xl: var(--elevation-xl);
   --shadow-2xl: var(--elevation-2xl);
   --shadow-3xl: var(--elevation-3xl);
-  /* xs, md, and lg elevation minus the hairline ring. */
-  --shadow-soft: var(--elevation-soft);
+  /* Same ramp, minus the hairline ring. */
+  --shadow-xs-soft: var(--elevation-xs-soft);
+  --shadow-sm-soft: var(--elevation-sm-soft);
   --shadow-md-soft: var(--elevation-md-soft);
   --shadow-lg-soft: var(--elevation-lg-soft);
+  --shadow-xl-soft: var(--elevation-xl-soft);
+  --shadow-2xl-soft: var(--elevation-2xl-soft);
+  --shadow-3xl-soft: var(--elevation-3xl-soft);
 }
 
 /* =========================
@@ -226,33 +229,28 @@ body {
   --sidebar-ring: var(--gray-400);
 
   /* Elevation ramp (light) — drop shadows over a 1px hairline ring. */
-  --elevation-xs:
-    0 1px 2px 0 rgb(10 13 18 / 0.04), 0 1px 1px 0 rgb(10 13 18 / 0.05),
-    0 0 0 1px rgb(10 13 18 / 0.05);
-  --elevation-sm:
-    0 2px 4px 0 rgb(10 13 18 / 0.04), 0 1px 2px -1px rgb(10 13 18 / 0.06),
-    0 0 0 1px rgb(10 13 18 / 0.06);
-  --elevation-md:
-    0 4px 8px -1px rgb(10 13 18 / 0.05), 0 2px 4px -2px rgb(10 13 18 / 0.06),
-    0 0 0 1px rgb(10 13 18 / 0.06);
-  --elevation-lg:
-    0 8px 16px -3px rgb(10 13 18 / 0.06), 0 4px 6px -4px rgb(10 13 18 / 0.06),
-    0 0 0 1px rgb(10 13 18 / 0.06);
-  --elevation-xl:
-    0 12px 24px -4px rgb(10 13 18 / 0.07), 0 6px 10px -6px rgb(10 13 18 / 0.07),
-    0 0 0 1px rgb(10 13 18 / 0.06);
-  --elevation-2xl:
-    0 20px 40px -8px rgb(10 13 18 / 0.08),
-    0 10px 16px -8px rgb(10 13 18 / 0.07), 0 0 0 1px rgb(10 13 18 / 0.06);
-  --elevation-3xl:
-    0 32px 64px -12px rgb(10 13 18 / 0.1),
-    0 16px 24px -12px rgb(10 13 18 / 0.08), 0 0 0 1px rgb(10 13 18 / 0.06);
-  --elevation-soft:
+  --elevation-xs-soft:
     0 1px 2px 0 rgb(10 13 18 / 0.04), 0 1px 1px 0 rgb(10 13 18 / 0.05);
+  --elevation-sm-soft:
+    0 2px 4px 0 rgb(10 13 18 / 0.04), 0 1px 2px -1px rgb(10 13 18 / 0.06);
   --elevation-md-soft:
     0 4px 8px -1px rgb(10 13 18 / 0.05), 0 2px 4px -2px rgb(10 13 18 / 0.06);
   --elevation-lg-soft:
     0 8px 16px -3px rgb(10 13 18 / 0.06), 0 4px 6px -4px rgb(10 13 18 / 0.06);
+  --elevation-xl-soft:
+    0 12px 24px -4px rgb(10 13 18 / 0.07), 0 6px 10px -6px rgb(10 13 18 / 0.07);
+  --elevation-2xl-soft:
+    0 20px 40px -8px rgb(10 13 18 / 0.08), 0 10px 16px -8px rgb(10 13 18 / 0.07);
+  --elevation-3xl-soft:
+    0 32px 64px -12px rgb(10 13 18 / 0.1),
+    0 16px 24px -12px rgb(10 13 18 / 0.08);
+  --elevation-xs: var(--elevation-xs-soft), 0 0 0 1px rgb(10 13 18 / 0.05);
+  --elevation-sm: var(--elevation-sm-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
+  --elevation-md: var(--elevation-md-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
+  --elevation-lg: var(--elevation-lg-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
+  --elevation-xl: var(--elevation-xl-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
+  --elevation-2xl: var(--elevation-2xl-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
+  --elevation-3xl: var(--elevation-3xl-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
 
   /* Status ramps — 6 stops (50/100/300/500/700/900) per Figma. */
   --error-50: #fbeef0;
@@ -369,24 +367,20 @@ body {
   --sidebar-ring: rgb(255 255 255 / 30%);
 
   /* Elevation ramp (dark) — light inner ring plus a deeper black drop. */
-  --elevation-xs:
-    0 0 0 1px rgb(255 255 255 / 0.06), 0 0 0 2px rgb(0 0 0 / 0.04);
-  --elevation-sm:
-    0 0 0 1px rgb(255 255 255 / 0.08), 0 2px 4px 0 rgb(0 0 0 / 0.08);
-  --elevation-md:
-    0 0 0 1px rgb(255 255 255 / 0.1), 0 8px 16px -2px rgb(0 0 0 / 0.12);
-  --elevation-lg:
-    0 0 0 1px rgb(255 255 255 / 0.11), 0 14px 28px -5px rgb(0 0 0 / 0.17);
-  --elevation-xl:
-    0 0 0 1px rgb(255 255 255 / 0.13), 0 20px 40px -7px rgb(0 0 0 / 0.21);
-  --elevation-2xl:
-    0 0 0 1px rgb(255 255 255 / 0.14), 0 26px 52px -10px rgb(0 0 0 / 0.26);
-  --elevation-3xl:
-    0 0 0 1px rgb(255 255 255 / 0.16), 0 32px 64px -12px rgb(0 0 0 / 0.3);
-  --elevation-soft:
-    0 1px 2px 0 rgb(0 0 0 / 0.24), 0 1px 1px 0 rgb(0 0 0 / 0.28);
+  --elevation-xs-soft: 0 0 0 2px rgb(0 0 0 / 0.04);
+  --elevation-sm-soft: 0 2px 4px 0 rgb(0 0 0 / 0.08);
   --elevation-md-soft: 0 8px 16px -2px rgb(0 0 0 / 0.12);
   --elevation-lg-soft: 0 14px 28px -5px rgb(0 0 0 / 0.17);
+  --elevation-xl-soft: 0 20px 40px -7px rgb(0 0 0 / 0.21);
+  --elevation-2xl-soft: 0 26px 52px -10px rgb(0 0 0 / 0.26);
+  --elevation-3xl-soft: 0 32px 64px -12px rgb(0 0 0 / 0.3);
+  --elevation-xs: 0 0 0 1px rgb(255 255 255 / 0.06), var(--elevation-xs-soft);
+  --elevation-sm: 0 0 0 1px rgb(255 255 255 / 0.08), var(--elevation-sm-soft);
+  --elevation-md: 0 0 0 1px rgb(255 255 255 / 0.1), var(--elevation-md-soft);
+  --elevation-lg: 0 0 0 1px rgb(255 255 255 / 0.11), var(--elevation-lg-soft);
+  --elevation-xl: 0 0 0 1px rgb(255 255 255 / 0.13), var(--elevation-xl-soft);
+  --elevation-2xl: 0 0 0 1px rgb(255 255 255 / 0.14), var(--elevation-2xl-soft);
+  --elevation-3xl: 0 0 0 1px rgb(255 255 255 / 0.16), var(--elevation-3xl-soft);
 }
 
 @utility prose-custom {
@@ -412,6 +406,20 @@ body {
   --tw-prose-counters: var(--muted-foreground);
   --tw-prose-invert-bullets: var(--muted-foreground);
   --tw-prose-invert-counters: var(--muted-foreground);
+
+  /* A code block renders inside a wrapper that positions its hover controls,
+     so Typography's own first/last-child margin reset lands on the wrapper
+     while the block's margin collapses straight through it and out of the
+     blob. Anything that opens or closes with code carries a band of dead space
+     at that edge on top of whatever spacing its container already provides, so
+     reset the block itself at the edges too. */
+  > div:first-child:has(pre) pre {
+    margin-top: 0;
+  }
+
+  > div:last-child:has(pre) pre {
+    margin-bottom: 0;
+  }
 
   h1,
   h2,
@@ -553,6 +561,31 @@ body {
     calc(100% - var(--scroll-fade-size)) 100%;
 }
 
+/* The window a group's stand-in rolls through; see `GroupStandIn`.
+ *
+ * Same mask as `scroll-fade-y` above, held still rather than driven by a scroll
+ * timeline, and it is doing two jobs at once. `mask-repeat: no-repeat` leaves
+ * everything past the ends transparent, so this clips the row on its way out
+ * without an `overflow` that would also cut off the output of a row a reader
+ * expanded. And softening the last few pixels at each end is what makes the
+ * movement read as the line turning past an edge rather than sliding out from
+ * under a blade.
+ *
+ * The fade is sized to eat the row's own 4px of padding and stop just short of
+ * its 20px line box, so a row at rest is never dimmed at its top and bottom by
+ * a mask that is about to be taken off it anyway. */
+@utility roll-window-y {
+  --roll-fade-size: 0.375rem;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black var(--roll-fade-size),
+    black calc(100% - var(--roll-fade-size)),
+    transparent
+  );
+  mask-repeat: no-repeat;
+}
+
 @utility checkerboard {
   --checkerboard-bg: #f5f5f5;
   --checkerboard-tile: #d0d0d0;
@@ -574,6 +607,29 @@ body {
     --checkerboard-bg: #1a1a1a;
     --checkerboard-tile: #2a2a2a;
   }
+}
+
+/* Clears a tab's title out from under a close control drawn on top of it.
+ *
+ * Fully transparent across the control rather than merely on the way there: a
+ * gradient that only reaches transparent at the very edge leaves the name at
+ * roughly four fifths opacity under the control's left half, which reads as
+ * text showing through a button. The stops are measured from the title's own
+ * box, whose right edge sits 0.75rem short of where the control begins.
+ *
+ * Applied only while the control is on screen, because a tab is the width of
+ * its name: with nothing drawn over it, the same fade would eat the last few
+ * letters of a name that fits perfectly well. */
+@utility tab-title-fade {
+  --tab-title-fade: linear-gradient(
+    to right,
+    #000 0%,
+    #000 calc(100% - 1.5rem),
+    transparent calc(100% - 0.75rem),
+    transparent 100%
+  );
+  mask-image: var(--tab-title-fade);
+  -webkit-mask-image: var(--tab-title-fade);
 }
 
 @utility inset-shadow-toolbar {
@@ -637,6 +693,7 @@ body {
   &::details-content {
     block-size: auto;
     content-visibility: visible;
+    overflow: visible;
   }
 }
 
@@ -647,6 +704,17 @@ body {
   body {
     @apply text-foreground font-sans antialiased;
   }
+}
+
+/* Nothing that floats above the app is a handle for the window behind it.
+ * `-webkit-app-region` does not inherit, so this reaches every box inside the
+ * portal target rather than the target alone: a menu or a tooltip reaching over
+ * the title bar would otherwise keep the drag region it covers and stop
+ * answering the pointer at all, which reads as an item that cannot be hovered
+ * or clicked. */
+[data-slot="portal-container"],
+[data-slot="portal-container"] * {
+  -webkit-app-region: no-drag;
 }
 
 /* Adhere to standard macOS cursor behavior. */
@@ -707,43 +775,72 @@ a.cursor-pointer {
   }
 }
 
+/* Each word of a message still streaming in; see `rehype-animate-words`, which
+ * is what puts the attribute there and only while the text is still growing.
+ *
+ * Long and eased out rather than short and linear. Tokens arrive in bursts of
+ * wildly varying size, and at a couple of hundred milliseconds each burst reads
+ * as its own slab landing; held this long the fades overlap far enough to read
+ * as one wash settling, which is what removes the appearance of chunking
+ * without holding a single word back from the page. The curve front-loads the
+ * opacity so a word is legible in a fraction of the time it takes to finish.
+ *
+ * Opacity alone. Hundreds of words are in flight at once on a fast model, and
+ * anything else worth animating here either moves the text or, as a filter
+ * would, puts every one of them on its own compositing layer for the duration. */
+[data-stream-word] {
+  animation: stream-word-in 800ms ease-out both;
+}
+
+@keyframes stream-word-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-stream-word] {
+    animation: none;
+  }
+}
+
 /* Semantic component classes. Defined in @layer components so the
  * better-tailwindcss/no-unknown-classes ESLint rule recognizes them
  * automatically via detectComponentClasses — no manual ignore entries needed. */
 @layer components {
-  @media (prefers-color-scheme: light) {
-    .shiny-text {
-      color: #4a4a4a;
-      background: linear-gradient(
-        120deg,
-        #4a4a4a 40%,
-        rgba(180, 180, 180, 0.8) 50%,
-        #4a4a4a 60%
-      );
-      background-size: 200% 100%;
-      -webkit-background-clip: text;
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
-      display: inline-block;
-      animation: shine 3s linear infinite;
-    }
+  /* Keyed off the theme class rather than the OS preference: the theme is a
+   * setting, and `system` resolves to the same class, so the media query read
+   * the wrong one for anyone whose app and desktop disagree. */
+  .shiny-text {
+    color: #4a4a4a;
+    background: linear-gradient(
+      120deg,
+      #4a4a4a 40%,
+      rgba(180, 180, 180, 0.8) 50%,
+      #4a4a4a 60%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: inline-block;
+    animation: shine 3s linear infinite;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .shiny-text {
-      color: #b5b5b5a4;
-      background: linear-gradient(
-        120deg,
-        rgba(255, 255, 255, 0) 40%,
-        rgba(255, 255, 255, 0.8) 50%,
-        rgba(255, 255, 255, 0) 60%
-      );
-      background-size: 200% 100%;
-      -webkit-background-clip: text;
-      background-clip: text;
-      display: inline-block;
-      animation: shine 3s linear infinite;
-    }
+  .dark .shiny-text {
+    color: #b5b5b5a4;
+    background: linear-gradient(
+      120deg,
+      rgba(255, 255, 255, 0) 40%,
+      rgba(255, 255, 255, 0.8) 50%,
+      rgba(255, 255, 255, 0) 60%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
   }
 
   .shiny-text.disabled {

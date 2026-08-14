@@ -1,8 +1,8 @@
 /**
  * Every keyboard shortcut the app declares, as data. One entry feeds the native
- * menu (which projects it into a menu item), the reserved-chord binder in the
- * main process, and the in-app shortcut guide, so adding a chord is one edit and
- * no surface can drift from another.
+ * menu (which projects it into a menu item), the accelerator binder in the main
+ * process, and the in-app shortcut guide, so adding a chord is one edit and no
+ * surface can drift from another.
  *
  * Descriptors are serializable on purpose: the renderer needs `label`,
  * `accelerator` and `group` to draw the guide, and none of that can travel with
@@ -14,31 +14,36 @@
 export type ShortcutAccelerator = string | { darwin: string; default: string };
 
 export interface ShortcutDescriptor {
+  /** The chord the menu and the guide show. */
   accelerator: ShortcutAccelerator;
+  /**
+   * Further chords that run the same action and are shown nowhere: the other
+   * physical keys that mean a chord (the numpad's own `+`, `Ctrl+=` where
+   * `Ctrl+Plus` is meant), and the per-key chords behind a range like
+   * `CmdOrCtrl+1…8`. They exist so a key works, not so a user learns four ways
+   * to zoom in, which is why the guide lists one row and the menu one item.
+   */
+  alternates?: string[];
   /** Section the guide lists this under. Menu placement is the menu's own business. */
   group: ShortcutGroup;
   label: string;
   /**
    * Who binds the chord:
    *
-   * - `menu` -- the native menu item this entry is projected into.
+   * - `menu` -- the app owns it outright. The main process runs it from the raw
+   *   key event ahead of the focused page, and projects it into a native menu
+   *   item carrying the same accelerator.
    * - `renderer` -- a renderer keydown, for a chord that is layout-dependent or
    *   has to yield to a focused editor. The menu can still offer the item, just
-   *   without an accelerator.
-   * - `external` -- something outside the table already handles it: an Electron
-   *   role, or a hidden accelerator-only menu item. Listed so the guide can show
-   *   it, never projected into a menu item.
+   *   without an accelerator. Never taken in main.
+   * - `external` -- the app owns the chord but the menu shows no row for it,
+   *   either because it stands for a range of keys or because an Electron role
+   *   performs it. Still listed, so the guide can show it.
+   *
+   * Chords an editor legitimately uses (Mod-Z to undo) are not the app's to
+   * take: they stay Electron roles on the Edit menu and out of this table.
    */
   owner: "external" | "menu" | "renderer";
-  /**
-   * Whether the chord has to beat the focused page. Electron offers the native
-   * menu only the key events web content left unhandled, and Chromium keeps the
-   * editing chords for itself whenever a contenteditable has focus, so an
-   * unreserved chord stops working the moment the caret enters the prompt
-   * editor. Reserve only what the app owns outright: anything an editor
-   * legitimately uses (Mod-Z to undo) belongs to the page.
-   */
-  reserved?: boolean;
 }
 
 export type ShortcutGroup =
@@ -102,16 +107,21 @@ export const SHORTCUTS = {
     label: "New Task",
     owner: "menu",
   },
+  // The only chord that reloads the app, and only developer mode offers it: the
+  // whole tabbed app is one web contents, and reloading it destroys every task's
+  // browser with the document their guests are mounted in.
+  reloadApp: {
+    accelerator: "CmdOrCtrl+Shift+R",
+    group: "Developer",
+    label: "Reload App",
+    owner: "menu",
+  },
+  // The page in front of the user, which is the browser panel's when one is
+  // showing and nothing when none is. It never reaches the app.
   reloadPage: {
     accelerator: "CmdOrCtrl+R",
     group: "Navigation",
     label: "Reload Page",
-    owner: "menu",
-  },
-  reloadWebViews: {
-    accelerator: "CmdOrCtrl+Shift+R",
-    group: "Developer",
-    label: "Reload All Web Views",
     owner: "menu",
   },
   reopenTab: {
@@ -126,8 +136,6 @@ export const SHORTCUTS = {
     label: "Actual Size",
     owner: "menu",
   },
-  // Hidden accelerator-only items in the Window menu, so the chords exist
-  // without adding ten rows to it; the guide shows them as two.
   selectLastTab: {
     accelerator: "CmdOrCtrl+9",
     group: "Tabs",
@@ -136,18 +144,32 @@ export const SHORTCUTS = {
   },
   selectNextTab: {
     accelerator: "Ctrl+Tab",
+    alternates: ["CmdOrCtrl+Shift+]"],
     group: "Tabs",
     label: "Show Next Tab",
     owner: "menu",
   },
   selectPreviousTab: {
     accelerator: "Ctrl+Shift+Tab",
+    alternates: ["CmdOrCtrl+Shift+["],
     group: "Tabs",
     label: "Show Previous Tab",
     owner: "menu",
   },
+  // The chord stands for eight of them, so it is written the way the guide
+  // reads it and the real keys are the alternates.
   selectTabByIndex: {
     accelerator: "CmdOrCtrl+1…8",
+    alternates: [
+      "CmdOrCtrl+1",
+      "CmdOrCtrl+2",
+      "CmdOrCtrl+3",
+      "CmdOrCtrl+4",
+      "CmdOrCtrl+5",
+      "CmdOrCtrl+6",
+      "CmdOrCtrl+7",
+      "CmdOrCtrl+8",
+    ],
     group: "Tabs",
     label: "Switch to Tab",
     owner: "external",
@@ -193,16 +215,19 @@ export const SHORTCUTS = {
     group: "View",
     label: "Toggle Sidebar",
     owner: "menu",
-    reserved: true,
   },
   zoomIn: {
     accelerator: "CmdOrCtrl+Plus",
+    // `Ctrl+=` is what a Windows keyboard physically offers for zoom in, and the
+    // numpad's `+` is a key of its own rather than a shifted `=`.
+    alternates: ["CmdOrCtrl+=", "CmdOrCtrl+numadd"],
     group: "View",
     label: "Zoom In",
     owner: "menu",
   },
   zoomOut: {
     accelerator: "CmdOrCtrl+-",
+    alternates: ["CmdOrCtrl+numsub"],
     group: "View",
     label: "Zoom Out",
     owner: "menu",

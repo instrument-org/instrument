@@ -34,7 +34,11 @@ import {
   handleDetach,
   subscribeEvents,
 } from "./entry";
-import { canStealFocus, createFocusGuard } from "./focus-guard";
+import {
+  bouncesGuestFocus,
+  createFocusGuard,
+  isAgentDrivenCommand,
+} from "./focus-guard";
 import { attachGuestInteractions } from "./guest-interactions";
 import { log } from "./log";
 import { stopScreencast } from "./screencast";
@@ -114,6 +118,14 @@ export function createBrowserViewManager(): BrowserViewManager {
       focusedTargetId = null;
     }
     publisher.publish("browser.restore-host-focus", null);
+  }
+
+  // Ask the renderer to put keyboard focus on a guest. Only renderer-side DOM
+  // focus on the `<webview>` element crosses the process boundary, so this is
+  // the one way the main process can make agent keyboard input land in the
+  // page it was addressed to.
+  function requestGuestFocus(targetId: BrowserTargetId) {
+    publisher.publish("browser.focus-guest", { targetId });
   }
 
   function ensureDebuggerAttached(entry: BrowserEntry) {
@@ -465,14 +477,16 @@ export function createBrowserViewManager(): BrowserViewManager {
           entries,
           method,
           params,
+          requestGuestFocus,
           targetId,
         });
-      if (!canStealFocus(method)) {
+      if (!isAgentDrivenCommand(method)) {
         return dispatch();
       }
       const settle = focusGuard.armCommand(
         targetId,
         hostWebContents?.isFocused() ?? false,
+        bouncesGuestFocus(method),
       );
       try {
         return await dispatch();
@@ -542,7 +556,13 @@ export function createBrowserViewManager(): BrowserViewManager {
     }
     if (focused) {
       focusedTargetId = targetId;
-      focusGuard.releaseHost();
+      // Only a user taking the guest hands the claim over. Focus that the
+      // agent's own command caused (a CDP click, which the guest needs before
+      // it can be typed into at all) is recorded for chord routing but leaves
+      // the host owning the caret, so it returns once the agent goes quiet.
+      if (!focusGuard.isGuarded(targetId)) {
+        focusGuard.releaseHost();
+      }
     } else if (focusedTargetId === targetId) {
       focusedTargetId = null;
     }

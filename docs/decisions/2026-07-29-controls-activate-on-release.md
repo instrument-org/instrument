@@ -14,7 +14,7 @@ The earlier decision's central evidence was that the primitives disagreed among 
 
 Radix encodes exactly that split per primitive, deliberately. The policy replaced a correct distinction with a uniform rule the platform does not have.
 
-The felt problem was real, but it had two other causes, both since fixed on their own terms. Colour and background eased over 150ms, so every hover and pressed state arrived a beat late; that is [2026-07-27-hover-and-press-feedback-does-not-ease.md](2026-07-27-hover-and-press-feedback-does-not-ease.md), which the press decision itself named as "the alternative we did not take." And a media card's overlay action box spanned the card's full width with its controls left-aligned, so a wide dead strip and the expand control underneath it both swallowed presses. That was a hit-testing bug, fixed with `pointer-events` and pinned by a browser test. Neither had anything to do with activation timing.
+The felt problem was real, but it had two other causes, both since fixed on their own terms. Color and background eased over 150ms, so every hover and pressed state arrived a beat late; that is [2026-07-27-hover-and-press-feedback-does-not-ease.md](2026-07-27-hover-and-press-feedback-does-not-ease.md), which the press decision itself named as "the alternative we did not take." And a media card's overlay action box spanned the card's full width with its controls left-aligned, so a wide dead strip and the expand control underneath it both swallowed presses. That was a hit-testing bug, fixed with `pointer-events` and pinned by a browser test. Neither had anything to do with activation timing.
 
 ## Decision
 
@@ -32,7 +32,7 @@ Press activation stays exactly where the platform puts it, and in every case it 
 
 The obvious middle path is to keep press activation on the handful of controls that deserve it. It collapses on inspection, because the two sets do not overlap.
 
-The tab strip item is a `Reorder.Item`, so a bare `onPointerDown` is the entire implementation: no click handler to double-fire against, no keyboard activation to preserve. A real `<button>` has both. It fires `click` on Enter and Space, so acting on `pointerdown` as well means mouse users get the action twice. Deduplicating that is the whole reason the helper synthesized a click through `HTMLElement.click()` and then suppressed the browser's own, and every caveat in the superseded decision descends from that one manoeuvre: the ancestor double-fire, the `stopPropagation` a nested control needs on its own `pointerdown`, the `draggable={false}` requirement, the interaction with hover-arming delays.
+The tab strip item is a `Reorder.Item`, so a bare `onPointerDown` is the entire implementation: no click handler to double-fire against, no keyboard activation to preserve. A real `<button>` has both. It fires `click` on Enter and Space, so acting on `pointerdown` as well means mouse users get the action twice. Deduplicating that is the whole reason the helper synthesized a click through `HTMLElement.click()` and then suppressed the browser's own, and every caveat in the superseded decision descends from that one maneuver: the ancestor double-fire, the `stopPropagation` a nested control needs on its own `pointerdown`, the `draggable={false}` requirement, the interaction with hover-arming delays.
 
 So the controls that need the helper are exactly the `<button>`s, which are exactly the controls the platform says act on release. The set worth keeping is empty.
 

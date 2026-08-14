@@ -1,9 +1,6 @@
-import "@/client/styles/globals.css";
 import { filePreviewAtom } from "@/client/atoms/file-preview";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createStore, Provider } from "jotai";
+import { renderInBrowser } from "@/tests/render-browser";
 import { describe, expect, it, vi } from "vitest";
-import { render } from "vitest-browser-react";
 
 import { MermaidDiagram } from "./mermaid-diagram";
 import { ThemeProvider } from "./theme-provider";
@@ -22,16 +19,12 @@ const PARTIAL_GRAPH = "graph TD\n  A[Star";
 const BROKEN_GRAPH = "graph TD\n  A --> ((((";
 
 async function renderDiagram(code: string) {
-  const screen = await render(
-    <QueryClientProvider client={new QueryClient()}>
-      {/* The component reads the resolved theme to pick mermaid's palette;
-          without a provider `useTheme` throws. */}
-      <ThemeProvider>
-        <div style={{ width: 600 }}>
-          <MermaidDiagram code={code} language="mermaid" />
-        </div>
-      </ThemeProvider>
-    </QueryClientProvider>,
+  const screen = await renderInBrowser(
+    <ThemeProvider>
+      <div style={{ width: 600 }}>
+        <MermaidDiagram code={code} language="mermaid" />
+      </div>
+    </ThemeProvider>,
   );
   return screen;
 }
@@ -71,13 +64,11 @@ describe("MermaidDiagram", () => {
     expect(diagramSvg(container)).toBeNull();
 
     await rerender(
-      <QueryClientProvider client={new QueryClient()}>
-        <ThemeProvider>
-          <div style={{ width: 600 }}>
-            <MermaidDiagram code={GRAPH} language="mermaid" />
-          </div>
-        </ThemeProvider>
-      </QueryClientProvider>,
+      <ThemeProvider>
+        <div style={{ width: 600 }}>
+          <MermaidDiagram code={GRAPH} language="mermaid" />
+        </div>
+      </ThemeProvider>,
     );
 
     await expect.poll(() => diagramSvg(container)).toBeTruthy();
@@ -100,16 +91,14 @@ describe("MermaidDiagram", () => {
     });
     observer.observe(container, { childList: true, subtree: true });
 
-    // A re-render whose source has regressed to something unparseable must not
+    // A re-render whose source has regressed to something unparsable must not
     // blank the diagram out; nothing on screen should ever go backwards.
     await rerender(
-      <QueryClientProvider client={new QueryClient()}>
-        <ThemeProvider>
-          <div style={{ width: 600 }}>
-            <MermaidDiagram code={BROKEN_GRAPH} language="mermaid" />
-          </div>
-        </ThemeProvider>
-      </QueryClientProvider>,
+      <ThemeProvider>
+        <div style={{ width: 600 }}>
+          <MermaidDiagram code={BROKEN_GRAPH} language="mermaid" />
+        </div>
+      </ThemeProvider>,
     );
 
     // A failed parse resolves in microseconds; this is room for the commit, the
@@ -127,15 +116,13 @@ describe("MermaidDiagram", () => {
     // Pushed far past the bottom of the window. A message can carry many
     // diagrams, and laying each one out is main-thread work, so the ones the
     // reader has not reached must not be paid for on mount.
-    const { container } = await render(
-      <QueryClientProvider client={new QueryClient()}>
-        <ThemeProvider>
-          <div style={{ height: "400vh" }} />
-          <div style={{ width: 600 }}>
-            <MermaidDiagram code={GRAPH} language="mermaid" />
-          </div>
-        </ThemeProvider>
-      </QueryClientProvider>,
+    const { container } = await renderInBrowser(
+      <ThemeProvider>
+        <div style={{ height: "400vh" }} />
+        <div style={{ width: 600 }}>
+          <MermaidDiagram code={GRAPH} language="mermaid" />
+        </div>
+      </ThemeProvider>,
     );
 
     // The source is what stands in for it, exactly as it does mid-stream.
@@ -157,17 +144,15 @@ describe("MermaidDiagram", () => {
     // window is reported near only once it is already on screen, and the
     // reader sees the source block flash before it. It has to start rendering
     // while it is still below the fold.
-    const { container } = await render(
-      <QueryClientProvider client={new QueryClient()}>
-        <ThemeProvider>
-          <div style={{ height: 300, overflowY: "auto" }}>
-            <div style={{ height: 2000 }} />
-            <div style={{ width: 600 }}>
-              <MermaidDiagram code={GRAPH} language="mermaid" />
-            </div>
+    const { container } = await renderInBrowser(
+      <ThemeProvider>
+        <div style={{ height: 300, overflowY: "auto" }}>
+          <div style={{ height: 2000 }} />
+          <div style={{ width: 600 }}>
+            <MermaidDiagram code={GRAPH} language="mermaid" />
           </div>
-        </ThemeProvider>
-      </QueryClientProvider>,
+        </div>
+      </ThemeProvider>,
     );
 
     const scroller = container.querySelector<HTMLElement>(
@@ -202,14 +187,12 @@ describe("MermaidDiagram", () => {
     // hand it makes a node a card on a surface, the same as the rest of the
     // app, and this is the property that has to hold for it to be legible at
     // all — asserting the exact color would only restate the token.
-    const { container } = await render(
-      <QueryClientProvider client={new QueryClient()}>
-        <ThemeProvider defaultTheme="dark">
-          <div className="bg-background">
-            <MermaidDiagram code={GRAPH} language="mermaid" />
-          </div>
-        </ThemeProvider>
-      </QueryClientProvider>,
+    const { container } = await renderInBrowser(
+      <ThemeProvider defaultTheme="dark">
+        <div className="bg-background">
+          <MermaidDiagram code={GRAPH} language="mermaid" />
+        </div>
+      </ThemeProvider>,
     );
 
     await expect.poll(() => diagramSvg(container)).toBeTruthy();
@@ -225,14 +208,12 @@ describe("MermaidDiagram", () => {
   });
 
   it("styles the source view as an ordinary code block", async () => {
-    const screen = await render(
-      <QueryClientProvider client={new QueryClient()}>
-        <ThemeProvider>
-          <div className="prose prose-custom">
-            <MermaidDiagram code={GRAPH} language="mermaid" />
-          </div>
-        </ThemeProvider>
-      </QueryClientProvider>,
+    const screen = await renderInBrowser(
+      <ThemeProvider>
+        <div className="prose prose-custom">
+          <MermaidDiagram code={GRAPH} language="mermaid" />
+        </div>
+      </ThemeProvider>,
     );
 
     await expect.poll(() => diagramSvg(screen.container)).toBeTruthy();
@@ -259,24 +240,19 @@ describe("MermaidDiagram", () => {
     // full-window preview — not anything inline — is where it gets read. The
     // SVG is handed over as a data URL carrying the surface it was drawn
     // against, since an `img` brings none of the page's CSS with it.
-    const store = createStore();
-    const screen = await render(
-      <Provider store={store}>
-        <QueryClientProvider client={new QueryClient()}>
-          <ThemeProvider>
-            <div style={{ width: 600 }}>
-              <MermaidDiagram code={GRAPH} language="mermaid" />
-            </div>
-          </ThemeProvider>
-        </QueryClientProvider>
-      </Provider>,
+    const screen = await renderInBrowser(
+      <ThemeProvider>
+        <div style={{ width: 600 }}>
+          <MermaidDiagram code={GRAPH} language="mermaid" />
+        </div>
+      </ThemeProvider>,
     );
     await expect.poll(() => diagramSvg(screen.container)).toBeTruthy();
 
-    expect(store.get(filePreviewAtom).isOpen).toBe(false);
+    expect(screen.store.get(filePreviewAtom).isOpen).toBe(false);
     await screen.getByRole("button", { name: "Open diagram" }).click();
 
-    const preview = store.get(filePreviewAtom);
+    const preview = screen.store.get(filePreviewAtom);
     expect(preview.isOpen).toBe(true);
     expect(preview.file?.url.startsWith("data:image/svg+xml")).toBe(true);
   });

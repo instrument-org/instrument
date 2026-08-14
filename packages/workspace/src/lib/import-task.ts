@@ -8,8 +8,10 @@ import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
 import { extractTaskZip } from "./extract-task-zip";
+import { foldTaskStateFile } from "./fold-task-state-file";
 import { generateTaskFolderName } from "./generate-task-folder-name";
-import { getTaskSettings } from "./task-settings";
+import { getCurrentDate } from "./get-current-date";
+import { getTaskSettings, updateTaskSettings } from "./task-settings";
 
 interface ImportTaskOptions {
   workspaceConfig: WorkspaceConfig;
@@ -66,6 +68,27 @@ export async function importTask(
           { cause: error },
         ),
     );
+
+    // A zip written before state was folded into the settings file carries both
+    // files. Nothing else would fold it until the next boot, and until then the
+    // imported task would open with no draft, no tabs and no attached folders.
+    foldTaskStateFile(taskDirPath);
+
+    // An import is activity in this workspace whatever the zip says, so the
+    // task lands at the top of the list the way it did when the answer was the
+    // extracted files' timestamps. `createdAt` is left to the zip where it
+    // carries one: it is the same task, made when it was made.
+    //
+    // Best-effort, because the task is on disk and usable either way and an
+    // unstamped one still lists from its directory.
+    const importedAt = getCurrentDate();
+    const stamped = await updateTaskSettings(id, {
+      createdAt: settings?.createdAt ?? importedAt,
+      lastActivityAt: importedAt,
+    });
+    if (stamped.isErr()) {
+      workspaceConfig.captureException(stamped.error);
+    }
 
     return ok({ taskId: id });
   });

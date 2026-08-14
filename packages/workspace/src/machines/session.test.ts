@@ -1,6 +1,7 @@
 import {
   type ImageModelV3,
   type LanguageModelV3,
+  type LanguageModelV3CallOptions,
   type LanguageModelV3StreamPart,
 } from "@ai-sdk/provider";
 import { type AISDKWebSearchModelResult } from "@instrument-org/ai-gateway";
@@ -227,6 +228,7 @@ describe("sessionMachine", () => {
     maxStepCount,
     providerConfigId = "mock-provider-config-id",
     queuedMessages = [defaultQueuedMessage],
+    runRequested,
     sessionId = defaultSessionId,
     webSearch,
     webSearchModel,
@@ -245,6 +247,7 @@ describe("sessionMachine", () => {
     maxStepCount?: number;
     providerConfigId?: string;
     queuedMessages?: SessionMessage.UserWithParts[];
+    runRequested?: boolean;
     sessionId?: StoreId.Session;
     webSearch?: WebSearchClient;
     webSearchModel?: AISDKWebSearchModelResult;
@@ -365,6 +368,7 @@ describe("sessionMachine", () => {
             }),
         } as unknown as AnyActorRef,
         queuedMessages,
+        runRequested,
         sessionId,
         taskId: testTaskConfig,
       },
@@ -508,9 +512,6 @@ describe("sessionMachine", () => {
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="3" />
           <text state="done">I'm done.</text>
-          <data-fileChanges>
-            <file filename="test.txt" status="modified" />
-          </data-fileChanges>
         </assistant>
         <session-context main realRole="system" />
         <session-context main realRole="user" />
@@ -666,9 +667,6 @@ describe("sessionMachine", () => {
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <text state="done">I'm done.</text>
-          <data-fileChanges>
-            <file filename="generated-image.png" status="added" />
-          </data-fileChanges>
         </assistant>
         <session-context main realRole="system" />
         <session-context main realRole="user" />
@@ -878,7 +876,7 @@ describe("sessionMachine", () => {
                 "filePath": "test.txt"
               }
             </input>
-            <error>Model tried to call unavailable tool 'invalid_tool_name'. Available tools: edit_file, generate_image, load_skill, read_file, bash, web_fetch, web_search, write_file.</error>
+            <error>Model tried to call unavailable tool 'invalid_tool_name'. Available tools: edit_file, generate_image, load_skill, read_file, start_activity, bash, web_fetch, web_search, write_file.</error>
           </tool>
         </assistant>
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
@@ -1487,6 +1485,120 @@ describe("sessionMachine", () => {
           </assistant>
           <session-context main realRole="system" />
           <session-context main realRole="user" />
+        </session>"
+      `);
+    });
+  });
+
+  describe("running a turn over the stored session", () => {
+    function createFailedAssistantMessage(): SessionMessage.AssistantWithParts {
+      const messageId = StoreId.newMessageId();
+      return {
+        id: messageId,
+        metadata: {
+          createdAt: mockDate,
+          error: {
+            kind: "api-call",
+            message: "Overloaded",
+            name: "AI_APICallError",
+            url: "https://example.com",
+          },
+          finishReason: "unknown",
+          modelId: "mock-model-id",
+          providerId: "instrument",
+          sessionId: defaultSessionId,
+        },
+        parts: [
+          {
+            metadata: {
+              createdAt: mockDate,
+              id: StoreId.newPartId(),
+              messageId,
+              sessionId: defaultSessionId,
+            },
+            state: "done",
+            text: "Let me start by",
+            type: "text",
+          },
+        ],
+        role: "assistant",
+      };
+    }
+
+    it("answers the request the session already holds", async () => {
+      const result = await createActorAndTask({
+        chunkSets: [finishChunks],
+        queuedMessages: [],
+        runRequested: true,
+      });
+      await Store.saveMessageWithParts(defaultQueuedMessage, result.taskId);
+      await Store.saveMessageWithParts(
+        createFailedAssistantMessage(),
+        result.taskId,
+      );
+
+      const session = await runTestMachine(result);
+      expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
+        "<session title="Test session" count="5">
+          <user>
+            <text>Hello, I need help with something.</text>
+          </user>
+          <assistant finishReason="unknown" model="mock-model-id" provider="instrument" errorKind="api-call" errorMessage="Overloaded">
+            <text state="done">Let me start by</text>
+          </assistant>
+          <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+            <step-start step="1" />
+            <text state="done">I'm done.</text>
+          </assistant>
+          <session-context main realRole="system" />
+          <session-context main realRole="user" />
+        </session>"
+      `);
+    });
+
+    it("leaves the attempt that failed out of the request", async () => {
+      const prompts: LanguageModelV3CallOptions["prompt"][] = [];
+      const result = await createActorAndTask({
+        aiSDKModel: new MockLanguageModelV3({
+          // oxlint-disable-next-line typescript/require-await
+          doStream: async ({ prompt }) => {
+            prompts.push(prompt);
+            return {
+              rawCall: { rawPrompt: null, rawSettings: {} },
+              stream: simulateReadableStream({
+                chunks: [...finishChunks, streamFinishChunk],
+              }),
+            };
+          },
+        }),
+        queuedMessages: [],
+        runRequested: true,
+      });
+      await Store.saveMessageWithParts(defaultQueuedMessage, result.taskId);
+      await Store.saveMessageWithParts(
+        createFailedAssistantMessage(),
+        result.taskId,
+      );
+
+      await runTestMachine(result);
+      expect(prompts.at(-1)?.map((message) => message.role))
+        .toMatchInlineSnapshot(`
+        [
+          "system",
+          "user",
+          "user",
+        ]
+      `);
+    });
+
+    it("finishes without a turn when the session is empty", async () => {
+      const session = await createAndRunTestMachine({
+        queuedMessages: [],
+        runRequested: true,
+      });
+      expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
+        "<session title="Test session" count="0">
+
         </session>"
       `);
     });

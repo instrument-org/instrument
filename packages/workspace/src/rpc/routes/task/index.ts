@@ -17,7 +17,8 @@ import { initializeTask } from "../../../lib/initialize-task";
 import { newMessage } from "../../../lib/new-message";
 import { newTaskId } from "../../../lib/new-task-id";
 import { pathExists } from "../../../lib/path-exists";
-import { getProject, normalizeProjectInstructions } from "../../../lib/project";
+import { getProject } from "../../../lib/project";
+import { normalizeProjectInstructions } from "../../../lib/project-instructions";
 import { Store } from "../../../lib/store";
 import { taskDir } from "../../../lib/task-dir-utils";
 import {
@@ -36,7 +37,7 @@ import {
   UsageSummarySchema,
 } from "../../../lib/usage-summary";
 import { FileUpload } from "../../../schemas/file-upload";
-import { type FolderAttachment } from "../../../schemas/folder-attachment";
+import { FolderAttachment } from "../../../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../../../schemas/paths";
 import { type Project } from "../../../schemas/project";
 import { ProjectIdSchema } from "../../../schemas/project-id";
@@ -138,7 +139,14 @@ const create = base
   .input(
     z.object({
       files: z.array(FileUpload.Schema).optional(),
-      folders: z.array(z.object({ path: z.string() })).optional(),
+      folders: z
+        .array(
+          z.object({
+            access: FolderAttachment.AccessSchema,
+            path: z.string(),
+          }),
+        )
+        .optional(),
       intent: SessionMessageDataPart.IntentDataPartSchema.shape.text.optional(),
       modelURI: AIGatewayModelURI.Schema,
       name: z.string().trim().min(1).optional(),
@@ -223,10 +231,12 @@ const create = base
       // the user attached). Each folder carries its source so later consumers
       // tell project from user folders without re-deriving from paths.
       const userFolders = (folders ?? []).map((folder) => ({
+        access: folder.access,
         path: folder.path,
         source: "user" as const,
       }));
       let mergedFolders: {
+        access: FolderAttachment.Access;
         path: string;
         source: FolderAttachment.Source;
       }[] = userFolders;
@@ -235,8 +245,12 @@ const create = base
         mergedFolders = [
           ...userFolders,
           ...project.folders
-            .filter((path) => !seen.has(path))
-            .map((path) => ({ path, source: "project" as const })),
+            .filter((folder) => !seen.has(folder.path))
+            .map((folder) => ({
+              access: folder.access,
+              path: folder.path,
+              source: "project" as const,
+            })),
         ];
       }
 
@@ -245,8 +259,8 @@ const create = base
       // agent and UI read this instead of the live project.
       const projectContext = project
         ? {
-            // project already carries instructions from getProject above; reuse
-            // them instead of getProjectInstructions, which re-scans projects/.
+            // project already carries instructions from getProject above, so
+            // normalize those rather than re-reading them from projects/.
             instructions: normalizeProjectInstructions(project.instructions),
             projectId: project.id,
             projectName: project.name,
@@ -297,6 +311,7 @@ const create = base
         generateTitleFromUserMessage({
           message,
           model,
+          projectName: project?.name,
           workspaceConfig: context.workspaceConfig,
         }).then(async (title) => {
           if (title.isOk()) {
@@ -614,16 +629,6 @@ const exportZip = base
     }
   });
 
-const OutputArtifactsCreatedSchema = z.object({
-  files: z
-    .object({
-      filePath: z.string(),
-      modifiedAt: z.number(),
-    })
-    .array(),
-  sessionId: StoreId.SessionSchema,
-});
-
 const live = {
   byId: base
     .input(z.object({ id: TaskIdSchema }))
@@ -681,26 +686,6 @@ const live = {
 
       for await (const _ of mergeGenerators([taskUpdates, taskRemoved])) {
         yield call(list, input, { context, signal });
-      }
-    }),
-  // Forwards artifact-produced events as they happen. Unlike the other live
-  // endpoints this is a pure event stream (no initial snapshot): clients only
-  // react to runs that finish while subscribed.
-  outputArtifacts: base
-    .input(z.object({ id: TaskIdSchema }))
-    .output(eventIterator(OutputArtifactsCreatedSchema))
-    .handler(async function* ({ input, signal }) {
-      const events = publisher.subscribe("task.outputArtifactsCreated", {
-        signal,
-      });
-
-      for await (const payload of events) {
-        if (payload.id === input.id) {
-          yield {
-            files: payload.files,
-            sessionId: payload.sessionId,
-          };
-        }
       }
     }),
 };

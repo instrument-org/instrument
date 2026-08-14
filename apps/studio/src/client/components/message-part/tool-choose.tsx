@@ -1,5 +1,5 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
-import { CheckIcon } from "@phosphor-icons/react";
+import { CheckIcon } from "@phosphor-icons/react/Check";
 
 import { getToolLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";

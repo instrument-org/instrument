@@ -55,15 +55,18 @@ export const publisher = new EventPublisher<{
    * deleted. Carries no payload because every listener re-reads the list.
    */
   "skill.changed": null;
-  "task.files.changed": {
-    id: TaskId;
-  };
-  "task.outputArtifactsCreated": {
-    files: { filePath: string; modifiedAt: number }[];
-    id: TaskId;
-    sessionId: StoreId.Session;
-  };
   "task.removed": {
+    id: TaskId;
+  };
+  /**
+   * A task's own state file changed: the pane, the draft, the selected model.
+   *
+   * Deliberately not `task.updated`, which the task list subscribes to. The
+   * list is ordered by a filesystem timestamp, so every re-read is a chance for
+   * a task to jump to the top on a change nobody made -- and opening a panel is
+   * not activity in a task. Anything that only wants the state reads this.
+   */
+  "task.stateUpdated": {
     id: TaskId;
   };
   "task.updated": {

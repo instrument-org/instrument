@@ -20,10 +20,11 @@ export const AssistantMessage = memo(function AssistantMessage({
   const messageText = part.text;
 
   return (
-    <div className="group flex flex-col items-start">
+    <div className="flex flex-col items-start">
       <SessionMarkdown
         assetBaseUrl={assetBaseUrl}
         className="w-full"
+        isStreaming={part.state === "streaming"}
         markdown={messageText}
         taskId={taskId}
       />

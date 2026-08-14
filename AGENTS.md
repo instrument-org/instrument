@@ -12,7 +12,7 @@ pnpm monorepo for the Instrument desktop app platform.
 ## Product terminology
 
 - The user's unit of work is a **task** everywhere: copy, code, routes, RPC, telemetry, types, tool names, and on-disk layout.
-- On disk, tasks live under `tasks/<id>/` with `.instrument/{task.db,state.json}`.
+- On disk, tasks live under `tasks/<id>/` with `.instrument/{task.db,settings.json}`. One record file: what the app knows about the task at the top level, where the user left off under `state`.
 
 ## Local references
 
@@ -53,7 +53,9 @@ Run lint/types from **repo root** through Turbo for caching. Avoid package-loop 
 
 `check:lint` / `fix:lint` run both ESLint (syntactic rules: perfectionist, react-compiler, regexp, yml/jsonc, turbo) and `oxlint --type-aware` (all TypeScript type-aware rules via tsgolint, plus Tailwind class rules). There is no typed linting in the ESLint config, so it is fast.
 
-A format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`) runs oxfmt on every file you Edit/Write, then oxfmt + `eslint --fix` + `oxlint --fix` over all changed files on Stop, and reports what is left. So: expect files to change after you write them, and never hand-format or hand-fix order-only and auto-fixable lint (including Tailwind class order). Type errors and non-auto-fixable lint are **not** covered — run the checks above.
+A format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`) runs oxfmt on every file you Edit/Write, then oxfmt + `oxlint --fix` + `eslint --fix` on Stop over the files that session edited. Anything ESLint could not fix blocks the turn and comes back to you to fix in context. So: expect files to change after you write them, never hand-format or hand-fix order-only and auto-fixable lint (including Tailwind class order), and don't run `check:lint` proactively to find what the hook is about to hand you anyway.
+
+What the hook does not cover: type errors, `oxlint --type-aware` problems that `--fix` can't resolve, and any file written by something other than Edit/Write (a heredoc or `sed -i` is untracked, so it is neither formatted nor linted). Run `check:types` yourself when a change can move types: a signature, a schema, a prop, the shape of data flowing through. Skip it when a change cannot: className and CSS edits, copy, Markdown.
 
 ## Key catalog versions
 
@@ -62,9 +64,9 @@ A format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`) runs oxfm
 - **React** 19.2 / **react-dom** 19.2
 - **TypeScript** 5.9 (also available as `@typescript/native-preview` 7.x via `tsgo`)
 - **Zod** 4.x
-- **Vite** 7.x / **Vitest** 4.x
+- **Vite** 8.x (Rolldown/Oxc) / **Vitest** 4.x
 - **AI SDK** 6.x
-- **better-auth** 1.2.x
+- **better-auth** 1.6.x
 - **pnpm** 11.10.0 (`packageManager`) / **Node** >=24.15.0 (`engines`)
 
 ## Package management
@@ -76,7 +78,7 @@ A format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`) runs oxfm
 
 After a manual `git worktree add`, run `.claude/hooks/worktree-setup.sh <path-to-worktree>`: copies the gitignored env files (required to boot Studio), inits `registry/`, installs deps. Idempotent. Hooks do this automatically only for sessions started inside a worktree or via EnterWorktree.
 
-Multiple worktrees can run Studio at once (`pnpm dev:studio` from the root, or `pnpm dev` inside `apps/studio`): dev skips the single-instance lock, shares one dev userData dir, and all server ports fall back to free ones. For CDP, give each instance a distinct `REMOTE_DEBUGGING_PORT`.
+Multiple worktrees can run Studio at once: dev skips the single-instance lock, and the servers an instance binds fall back past the ports another one holds. Start one with `studio-drive.mjs boot` (`studio-chrome-devtools` skill) rather than `pnpm dev` directly, so a checkout that already has an instance reuses it and the CDP port comes from the checkout path instead of from a guess. They all share one dev userData dir, so two instances are also two writers of one set of preferences and one workspace; `boot --workspace <fixture>` gets a disposable one instead.
 
 ## Tests
 
@@ -106,6 +108,7 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `docs/architecture/ai-gateway.md` — Model access: the mounted provider-proxy Hono app plus the model-discovery/identity library consumed by workspace and studio.
 - `docs/architecture/agent-sandbox.md` — How agent tools are contained (path-scoped file I/O, just-bash virtual FS, agent-browser allowlist, real-binary escape hatches). Not OS-level sandboxing.
 - `docs/architecture/bash-sandbox-mounts-and-native-binaries.md` — Design constraints and known quirks of the `/task` + `/skills` + `/mnt` mount layout and the virtual↔host path bridge.
+- `docs/architecture/just-bash-upstream.md` — Which `just-bash` build we consume, every patch and agent-facing workaround we carry because of an upstream gap, what has to be true before each can go, and our open upstream PRs. Read before adding a prompt line that steers the agent around sandbox behavior.
 - `docs/architecture/asset-origin.md` — The per-task `assets.<taskId>` HTTP origin: how the host header routes it, why its path space is the virtual FS path space, who builds its URLs, its cache policy and containment, and what it does not authenticate.
 - `docs/architecture/in-app-browser.md` — The per-task browser: the renderer-owned `<webview>` pool, paint-host vs visible, the CDP path from `agent-browser` to the guest, and what the panel may do that the agent may not.
 - `docs/architecture/responsive-layout.md` — Why viewport breakpoints are the wrong proxy for layout width in Studio (UI zoom + resizable sidebar), the `@container/app-content` shell container, and the unit rules for sizing portalled content under zoom.

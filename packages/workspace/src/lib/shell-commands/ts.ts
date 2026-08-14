@@ -1,6 +1,7 @@
 import { defineCommand } from "just-bash";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 
+import { MOUNT } from "../../mount-points";
 import { type TaskId } from "../../schemas/task-id";
 import { absolutePathJoin } from "../absolute-path-join";
 import { runPnpmCommand } from "../run-pnpm";
@@ -15,8 +16,7 @@ import {
 } from "./utils";
 
 export const TS_COMMAND = {
-  description:
-    'Execute a TypeScript or JavaScript file. In -e code: relative paths resolve from cwd, quoted "/task/..." strings are bridged; /mnt paths are not available.',
+  description: `Execute a TypeScript or JavaScript file. In -e code: relative paths resolve from cwd, quoted "${MOUNT.task}/..." strings are bridged; ${MOUNT.attachedFolders} paths are not available.`,
   name: "tsx",
 } as const;
 

@@ -13,7 +13,7 @@ import {
   SidebarFooter,
 } from "@/client/components/ui/sidebar";
 import { rpcClient } from "@/client/rpc/client";
-import { NotePencilIcon } from "@phosphor-icons/react";
+import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { useQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";

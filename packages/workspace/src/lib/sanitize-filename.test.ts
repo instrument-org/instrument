@@ -6,7 +6,6 @@ describe("sanitizeFilename", () => {
   it.each([
     ["plain ASCII filename unchanged", "report.pdf", "report.pdf"],
     ["filename with spaces unchanged", "my report.pdf", "my report.pdf"],
-    // cspell:ignore résumé
     ["strips diacritics", "résumé.pdf", "resume.pdf"],
     ["strips diacritics in extension", "file.pñg", "file.png"],
     ["strips non-ASCII Unicode (e.g. CJK)", "文件.png", "file.png"],

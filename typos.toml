@@ -1,0 +1,67 @@
+# Spell checking, run by `pnpm check:spelling` (scripts/typos.ts).
+#
+# typos only flags words it has a correction for, so novel identifiers, library
+# names, and providers need no allowlist. Everything below is a real word or
+# fragment that collides with a known misspelling, so the list should stay
+# short. If entries start arriving in bulk, the file probably wants an exclude
+# instead.
+
+[default]
+# Makes the standing American English rule executable: `behaviour`, `labelled`,
+# `honour`, and friends are corrections, not preferences.
+locale = "en-us"
+# Abbreviated git hashes, which docs and comments cite constantly. Without this
+# every `1242ba1` reads as a misspelled `by`.
+extend-ignore-identifiers-re = ["\\b[0-9a-f]{7,40}\\b"]
+
+[default.extend-identifiers]
+# SQLite declared-type prefix, matched by the numeric-column regex.
+DOUB = "DOUB"
+# File format and extension names, as bare map keys, extension literals, and
+# prose. Listed here rather than under extend-words so they only match a whole
+# token, never a fragment of a longer misspelling.
+caf = "caf"
+ODF = "ODF"
+odf = "odf"
+styl = "styl"
+
+[default.extend-words]
+# AsyncLocalStorage, as the comments that compare against it write it.
+als = "als"
+# axe-core, the accessibility audit library.
+axe = "axe"
+# Critical advisories, counted as a plural noun.
+criticals = "criticals"
+# Left behind when the bracket markup in composer action labels splits
+# "[proj]ect".
+ect = "ect"
+# A command line truncated for display in a UI mockup (`-loglevel erro...`).
+erro = "erro"
+# A regex stem that has to match both "truncated" and "truncation".
+truncat = "truncat"
+
+[files]
+# Dotted directories are content too: workflows, agent skills, editor config.
+# Without this the checker silently skips .github, .agents, .vscode and .claude.
+ignore-hidden = false
+
+extend-exclude = [
+  # Reachable once hidden files are in scope, and none of it is ours: sample
+  # hooks, rerere caches, and staged patches.
+  ".git/",
+  # Git submodule, owned upstream.
+  "registry/",
+  # Generated or vendored, and not ours to spell.
+  "pnpm-lock.yaml",
+  "patches/",
+  "apps/studio/resources/tailwind-browser.js",
+  # Recorded agent sessions and the documents they produced. The text is model
+  # output and extracted PDF glyph runs, not prose anyone maintains.
+  "fixtures/workspaces/*/tasks/*/session.json",
+  "fixtures/workspaces/*/tasks/*/files/",
+  # An eval whose subject is whether the agent honors a standing instruction to
+  # write British English. The spellings in it are the fixture.
+  "packages/workspace/evals/cases/project-instructions.ts",
+  # Quotes the misspellings it is about, so correcting them erases the point.
+  "docs/findings/spelling-check-cost-versus-signal.md",
+]

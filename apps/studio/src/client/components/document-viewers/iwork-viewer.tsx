@@ -1,4 +1,4 @@
-import { InfoIcon } from "@phosphor-icons/react";
+import { InfoIcon } from "@phosphor-icons/react/Info";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 

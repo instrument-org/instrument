@@ -1,3 +1,4 @@
+import { pathsNamedInMessage } from "@/client/lib/paths-named-in-message";
 import {
   isToolPart,
   type SessionMessage,
@@ -8,7 +9,10 @@ import {
 import { AssistantMessage } from "./assistant-message";
 import { isDataPart, renderDataPart } from "./chat-stream-data-parts";
 import { ToolCall } from "./message-part/tool-call";
-import { isToolCallVisible } from "./message-part/tool-call-utils";
+import {
+  isToolCallVisible,
+  isToolPartRunning,
+} from "./message-part/tool-call-utils";
 import { ReasoningMessage } from "./reasoning-message";
 import { isReasoningPartVisible } from "./reasoning-utils";
 import { UnknownPart } from "./unknown-part";
@@ -32,12 +36,23 @@ export interface RenderPartContext {
 export function renderChatPart({
   browserStatusContextAdded,
   ctx,
+  isGroupWorking,
+  isStandIn = false,
   message,
   part,
   partIndex,
 }: {
   browserStatusContextAdded: boolean;
   ctx: RenderPartContext;
+  /** The group this part sits in is still taking rows; see `TranscriptGroup`. */
+  isGroupWorking: boolean;
+  /**
+   * This is the copy a working group draws in its own slot rather than the row
+   * where it really sits, so it is arriving into a place that is already on
+   * screen and already occupied. `GroupStandIn` is what moves it in; a row that
+   * also animates its own arrival animates twice.
+   */
+  isStandIn?: boolean;
   message: SessionMessage.WithParts;
   part: SessionMessagePart.Type;
   partIndex: number;
@@ -74,7 +89,17 @@ export function renderChatPart({
   }
 
   if (isDataPart(part)) {
-    return renderDataPart({ browserStatusContextAdded, ctx, part });
+    return renderDataPart({
+      browserStatusContextAdded,
+      ctx,
+      part,
+      // Only the retired file-changes grid needs this, and almost no message
+      // carries one, so the message's text is not read unless one does.
+      pathsAlreadyShown:
+        part.type === "data-fileChanges"
+          ? pathsNamedInMessage(message)
+          : undefined,
+    });
   }
 
   if (isToolPart(part)) {
@@ -89,12 +114,17 @@ export function renderChatPart({
       return null;
     }
 
-    // The boundary wrapper div with mt-2/mb-2 around tool-call runs is added
-    // by the chat stream caller, not here.
+    // Indentation and the group box around a run of these are the chat
+    // stream's, not this row's.
     return (
       <ToolCall
         assetBaseUrl={ctx.assetBaseUrl}
+        isActivityRunning={isGroupWorking && ctx.isAgentRunning}
         isDeveloperMode={ctx.isDeveloperMode}
+        // A part can carry a start with no end long after the run that wrote it
+        // died, so the record alone never means "running now": the live session
+        // has to agree, which is what `isToolStreaming` already establishes.
+        isRunning={streaming && isToolPartRunning(part)}
         isStreaming={streaming}
         key={part.metadata.id}
         onRetry={ctx.onRetry}
@@ -122,7 +152,9 @@ export function renderChatPart({
           partIndex === message.parts.length - 1 &&
           part.state === "streaming"
         }
+        isStandIn={isStandIn}
         key={part.metadata.id}
+        rowId={part.metadata.id}
         text={part.text}
       />
     );

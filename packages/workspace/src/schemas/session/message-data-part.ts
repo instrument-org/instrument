@@ -3,59 +3,64 @@ import { z } from "zod";
 import { FolderAttachment } from "../folder-attachment";
 import { RelativePathSchema } from "../paths";
 import { ProjectIdSchema } from "../project-id";
+import { TaskPane } from "../task-pane";
 
 export namespace SessionMessageDataPart {
+  /**
+   * Every part below is one of three cadences, and which one it is decides
+   * whether it needs to guard against repeating itself.
+   *
+   * - **Event**: something that happened on this turn -- `attachments`,
+   *   `intent`, `maxSteps`, `skillChanges`, `skillMentions`, and
+   *   `projectContext`, which is written once at creation. A repeat is
+   *   impossible by construction; nothing to guard.
+   * - **Diff**: what changed since last time -- `projectChanges`,
+   *   `attachedFolderChanges`. Self-limiting: no change, no part.
+   * - **State**: the whole current picture -- `browserStatus`, `paneTabs`.
+   *   These are the ones that will restate an unchanged fact on every single
+   *   turn unless their producer compares against what this session was last
+   *   told. `createBrowserStatusPart` and `createPaneTabsPart` each do, by
+   *   different means; a new state part that forgets is not a failure anyone
+   *   sees, it just quietly spends context.
+   *
+   * Adding a part? Decide which of the three it is first.
+   *
+   * One member below is none of the three, because nothing writes it: see
+   * `fileChanges`.
+   */
   export const NameSchema = z.enum([
     "attachedFolderChanges",
     "attachments",
     "browserStatus",
-    "externalFileChanges",
     "fileChanges",
     "intent",
     "skillChanges",
     "skillMentions",
     "maxSteps",
+    "paneTabs",
     "projectChanges",
     "projectContext",
+    "unknown",
   ]);
 
   export type Name = z.output<typeof NameSchema>;
 
-  const FileChangeStatusSchema = z.enum(["added", "deleted", "modified"]);
-
-  const FileChangeDataPartItemSchema = z.object({
-    filename: z.string(),
-    filePath: RelativePathSchema,
-    mimeType: z.string(),
-    modifiedAt: z.number(),
-    size: z.number(),
-    status: FileChangeStatusSchema,
-  });
-
-  export type FileChangeDataPartItem = z.output<
-    typeof FileChangeDataPartItemSchema
-  >;
-
-  const FileChangesDataPartSchema = z.object({
-    files: z.array(FileChangeDataPartItemSchema),
-  });
-
-  export type FileChangesDataPart = z.output<typeof FileChangesDataPartSchema>;
-
-  // Changes detected on disk between turns (created outside the agent), attached
-  // to the user message that triggered the next turn so the model is aware.
-  const ExternalFileChangesDataPartSchema = z.object({
-    files: z.array(FileChangeDataPartItemSchema),
-  });
-
-  export type ExternalFileChangesDataPart = z.output<
-    typeof ExternalFileChangesDataPartSchema
-  >;
-
-  // Attached folders removed or renamed since the model last saw them --
-  // attached to the user message that triggers the next turn so the model
-  // stops relying on stale names/removed folders.
+  // Attached folders removed, renamed, or re-permissioned since the model last
+  // saw them -- attached to the user message that triggers the next turn so the
+  // model stops relying on stale names, removed folders, or an access level the
+  // user has since changed. The standing folder list lives in the session
+  // context, which is rebuilt at most hourly, so this is what makes a change
+  // reach the model in the turn it happens.
   const AttachedFolderChangesDataPartSchema = z.object({
+    accessChanged: z
+      .array(
+        z.object({
+          access: FolderAttachment.AccessSchema,
+          name: z.string(),
+          path: z.string(),
+        }),
+      )
+      .default([]),
     removed: z.array(z.object({ name: z.string(), path: z.string() })),
     renamed: z.array(
       z.object({ newName: z.string(), oldName: z.string(), path: z.string() }),
@@ -70,7 +75,11 @@ export namespace SessionMessageDataPart {
     filename: z.string(),
     filePath: RelativePathSchema,
     mimeType: z.string(),
-    modifiedAt: z.number(),
+    // Attachments written before this field existed have none, and it is a
+    // cache-buster for the asset URL: 0 costs those files nothing, since they
+    // are not the ones being rewritten. Without a default the whole part fails
+    // to read and the turn's uploads vanish from the transcript.
+    modifiedAt: z.number().default(0),
     size: z.number(),
   });
 
@@ -110,7 +119,13 @@ export namespace SessionMessageDataPart {
   // the new value when `instructionsChanged` is true (omitted when it was
   // cleared), so the latest such part is the effective project instructions.
   const ProjectChangesDataPartSchema = z.object({
-    foldersAdded: z.array(z.object({ name: z.string(), path: z.string() })),
+    foldersAdded: z.array(
+      z.object({
+        access: FolderAttachment.AccessSchema,
+        name: z.string(),
+        path: z.string(),
+      }),
+    ),
     foldersRemoved: z.array(z.object({ name: z.string(), path: z.string() })),
     instructions: z.string().optional(),
     instructionsChanged: z.boolean(),
@@ -136,11 +151,29 @@ export namespace SessionMessageDataPart {
       status: z.literal("open"),
       target: BrowserTargetSchema,
     }),
+    z.object({
+      status: z.literal("reopened"),
+      target: BrowserTargetSchema,
+    }),
   ]);
 
   export type BrowserStatusDataPart = z.output<
     typeof BrowserStatusDataPartSchema
   >;
+
+  /**
+   * What the task's pane already has open, at the start of a turn.
+   *
+   * Attached per turn rather than written into the session context, which is
+   * rebuilt at most hourly: what is on screen changes several times inside one
+   * turn, and standing context that lags an hour would have the agent reasoning
+   * about a pane the user closed long ago.
+   */
+  const PaneTabsDataPartSchema = z.object({
+    tabs: z.array(TaskPane.TabSchema),
+  });
+
+  export type PaneTabsDataPart = z.output<typeof PaneTabsDataPartSchema>;
 
   // Attached to the synthetic assistant message written when a run stops after
   // reaching the max unattended step count. Hidden from the chat UI (the
@@ -194,20 +227,114 @@ export namespace SessionMessageDataPart {
 
   export type MaxStepsDataPart = z.output<typeof MaxStepsDataPartSchema>;
 
+  /**
+   * Retired, and read anyway.
+   *
+   * The directory watcher that wrote this is gone, and so is the change card it
+   * fed: what a reply hands over is now what the reply names in its ` ```files `
+   * fence. Nothing writes this part, and nothing should.
+   *
+   * It is still parsed because tasks from before the fence hold it, and it is
+   * the only record those conversations have of what a turn produced. Dropping
+   * the schema does not delete the payload -- it survives in `task.db` either
+   * way -- it just makes the part unreadable, which costs those transcripts
+   * their file links for no gain.
+   *
+   * Deliberately narrower than what was written. The payload also carried
+   * `filename`, `mimeType`, `modifiedAt` and `size`; the first two come from the
+   * path and the last two were the freshness machinery this replaced, so they
+   * are dropped on read and this schema says how much of the idea survives.
+   *
+   * Parsed element-wise so one malformed entry costs that entry rather than the
+   * whole part: this is old data, written by code nobody is fixing.
+   *
+   * **Safe to delete once tasks predating the fence are not worth reading.**
+   * Added 2026-08-11; revisit in a couple of months. Deleting it means deleting
+   * this schema, its `NameSchema` member, and the renderer's case -- all three
+   * of which the exhaustiveness checks will point at.
+   */
+  const RetiredFileChangeSchema = z.object({
+    filePath: RelativePathSchema,
+    status: z.enum(["added", "deleted", "modified"]),
+  });
+
+  const FileChangesDataPartSchema = z.object({
+    files: z
+      .array(z.unknown())
+      .transform((entries) =>
+        entries.flatMap((entry) => {
+          const parsed = RetiredFileChangeSchema.safeParse(entry);
+          return parsed.success ? [parsed.data] : [];
+        }),
+      )
+      // eslint-disable-next-line unicorn/prefer-top-level-await -- zod's catch, not a promise's
+      .catch([]),
+  });
+
+  export type FileChangesDataPart = z.output<typeof FileChangesDataPartSchema>;
+
+  /**
+   * What a data part becomes when it cannot be read as the type it claims.
+   *
+   * Two ways in, both of them a task outliving a schema: a type this build has
+   * no schema for at all (`data-gitCommit` is still sitting in tasks from before
+   * git-based file versioning was removed), and a payload written before a field
+   * the schema now describes. The part is kept rather than dropped, because
+   * `attachments` is a data part too and silently losing a turn's uploads is a
+   * worse answer than a row saying something could not be read.
+   *
+   * Nothing writes one. It exists only on the way out of the store.
+   */
+  const UnknownDataPartSchema = z.object({
+    originalType: z.string(),
+    reason: z.string(),
+  });
+
+  export type UnknownDataPart = z.output<typeof UnknownDataPartSchema>;
+
   // oxlint-disable-next-line no-unused-vars
   const DataPartsSchema = z.object({
     [NameSchema.enum.attachedFolderChanges]:
       AttachedFolderChangesDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
-    [NameSchema.enum.externalFileChanges]: ExternalFileChangesDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
+    [NameSchema.enum.paneTabs]: PaneTabsDataPartSchema,
     [NameSchema.enum.projectChanges]: ProjectChangesDataPartSchema,
     [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,
     [NameSchema.enum.skillChanges]: SkillChangesDataPartSchema,
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,
+    [NameSchema.enum.unknown]: UnknownDataPartSchema,
   });
   export type DataParts = z.output<typeof DataPartsSchema>;
+
+  /**
+   * Reads a stored payload as the type its part claims, or says why it cannot.
+   *
+   * This is the only place a persisted data payload meets the schema that
+   * describes it. Everything downstream is handed the parsed value, so a field
+   * added since the part was written arrives with the default the schema already
+   * gives it rather than as undefined behind a type that promises otherwise.
+   */
+  export function parseDataPayload(
+    name: string,
+    data: unknown,
+  ): { ok: false; reason: string } | { ok: true; value: unknown } {
+    // `unknown` is a name like any other here, and deliberately so: parts are
+    // coerced on the way out of the store and again by the rpc output schema, so
+    // an already-wrapped part meets this twice. Excluding it would re-wrap the
+    // wrapper on the second pass and lose the type it was reporting.
+    const parsed = NameSchema.safeParse(name);
+    if (!parsed.success) {
+      return { ok: false, reason: `no schema for data-${name}` };
+    }
+
+    const result = DataPartsSchema.shape[parsed.data].safeParse(data);
+
+    return result.success
+      ? { ok: true, value: result.data }
+      : { ok: false, reason: z.prettifyError(result.error) };
+  }
 }

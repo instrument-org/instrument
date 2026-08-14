@@ -23,15 +23,17 @@ import {
   ZoomLevelMenu,
   ZoomStepperControl,
 } from "@/client/components/zoom-controls";
-import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useBrowserFind } from "@/client/hooks/use-browser-find";
 import { useBrowserSlot } from "@/client/hooks/use-browser-slot";
+import { useIsGuestCovered } from "@/client/hooks/use-guest-covered";
+import { useIsTaskPageVisible } from "@/client/hooks/use-task-page-visible";
 import { getWebviewElement } from "@/client/lib/browser-pool";
 import {
   EMULATED_DEVICES,
   type EmulatedDevice,
 } from "@/client/lib/emulated-devices";
 import { resolveUrlOrSearch } from "@/client/lib/resolve-url-or-search";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { BROWSER_ZOOM_MAX, BROWSER_ZOOM_MIN } from "@/shared/browser";
 import { steppedZoom } from "@/shared/zoom";
@@ -41,19 +43,16 @@ import {
   type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import {
-  ArrowClockwiseIcon,
-  ArrowCounterClockwiseIcon,
-  ArrowLeftIcon,
-  ArrowRightIcon,
-  ArrowSquareOutIcon,
-  CopyIcon,
-  DeviceMobileIcon,
-  DotsThreeVerticalIcon,
-  MagnifyingGlassIcon,
-  WarningCircleIcon,
-  XIcon,
-} from "@phosphor-icons/react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
+import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
+import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
+import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { DeviceMobileIcon } from "@phosphor-icons/react/DeviceMobile";
+import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
@@ -78,19 +77,28 @@ interface DidFailLoadEvent extends Event {
  */
 export function TaskBrowserPanel({
   active,
-  onClose,
+  className,
   sessionId,
+  sliding,
   taskId,
 }: {
   active: boolean;
-  onClose: () => void;
+  // See FileViewer: set when the surface is already drawn around this.
+  className?: string;
   sessionId: StoreId.Session;
+  // The pane is sliding open or shut, so the slot is moving under a guest that
+  // only follows it while something is watching. See useBrowserSlot.
+  sliding?: boolean;
   taskId: TaskId;
 }) {
   const targetId = encodeBrowserTargetId(taskId, sessionId);
   const inputRef = useRef<HTMLInputElement>(null);
-  const isActiveTab = useIsActiveTab();
+  const isVisible = useIsTaskPageVisible();
   const [draftUrl, setDraftUrl] = useState("");
+  const [location, setLocation] = useState<null | {
+    targetId: BrowserTargetId;
+    url: string;
+  }>(null);
   const [nav, setNav] = useState({ back: false, forward: false });
   const [zoomFactor, setZoomFactor] = useState(1);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -104,21 +112,37 @@ export function TaskBrowserPanel({
   // Set when a main-frame navigation fails (bad host, no network, ...). The
   // guest is parked and we show a light error state over the slot instead of its
   // blank error page. Cleared when a new load starts or succeeds.
-  const [loadError, setLoadError] = useState<null | {
+  //
+  // Stamped with the guest it happened on, and read back only for that one:
+  // `targetId` changes in place when the selected session changes, with no
+  // remount, so a bare error would survive into the next session's guest and
+  // both park it behind a notice and name the previous session's URL. Filtered
+  // on read rather than cleared in an effect, so it costs no extra render and
+  // no failed page is briefly shown as fine.
+  const [failure, setFailure] = useState<null | {
     message: string;
+    targetId: BrowserTargetId;
     url: string;
   }>(null);
+  const loadError = failure?.targetId === targetId ? failure : null;
   // While the user is editing the URL, agent-driven navigations must not
   // overwrite what they're typing.
   const editingUrlRef = useRef(false);
 
-  const find = useBrowserFind({ active, isActiveTab, targetId });
+  // Read once and give both hooks the same answer: a panel that parks its guest
+  // under an overlay must also stop being the Cmd+F target, or the overlay's
+  // own host claims the single find-opener slot, clears it on unmount, and this
+  // panel never re-registers.
+  const covered = useIsGuestCovered();
+  const find = useBrowserFind({ active, covered, isVisible, targetId });
   const slotRef = useBrowserSlot({
     active,
+    covered,
     emulatedDeviceHeight: emulatedDevice?.height,
     emulatedDeviceWidth: emulatedDevice?.width,
     hasLoadError: Boolean(loadError),
-    isActiveTab,
+    isVisible,
+    sliding,
     targetId,
   });
 
@@ -156,21 +180,30 @@ export function TaskBrowserPanel({
       // getURL/canGoBack throw if the guest hasn't attached its WebContents yet;
       // the did-navigate events that also drive this only fire once it has.
       try {
+        const url = webview.getURL();
         if (!editingUrlRef.current) {
-          const url = webview.getURL();
           setDraftUrl(url === "about:blank" ? "" : url);
         }
+        setLocation({ targetId, url });
         setNav({ back: webview.canGoBack(), forward: webview.canGoForward() });
       } catch {
         // Not attached yet; a did-navigate will re-run sync once it is.
       }
     };
-    const onNavigate = () => {
-      setLoadError(null);
-      sync();
+    // Clear only a failure stamped with this listener's own guest. These
+    // listeners outlive `targetId` changing in place by the frame between the
+    // render and the effect teardown, and a bare clear arriving from the
+    // previous guest in that window would drop the current guest's error
+    // notice and unpark it over the slot. The other state these handlers write
+    // needs no such guard: the re-run's own `sync()` follows the teardown.
+    const clearFailure = () => {
+      setFailure((current) =>
+        current?.targetId === targetId ? null : current,
+      );
     };
-    const onStartLoading = () => {
-      setLoadError(null);
+    const onNavigate = () => {
+      clearFailure();
+      sync();
     };
     const onFailLoad = (event: Event) => {
       const detail = event as DidFailLoadEvent;
@@ -179,8 +212,9 @@ export function TaskBrowserPanel({
       if (!detail.isMainFrame || detail.errorCode === -3) {
         return;
       }
-      setLoadError({
+      setFailure({
         message: detail.errorDescription || "This site can’t be reached",
+        targetId,
         url: detail.validatedURL,
       });
       if (!editingUrlRef.current && detail.validatedURL) {
@@ -198,13 +232,19 @@ export function TaskBrowserPanel({
     sync();
     webview.addEventListener("did-navigate", onNavigate);
     webview.addEventListener("did-navigate-in-page", onNavigate);
-    webview.addEventListener("did-start-loading", onStartLoading);
+    webview.addEventListener("did-start-loading", clearFailure);
     webview.addEventListener("did-fail-load", onFailLoad);
     return () => {
       webview.removeEventListener("did-navigate", onNavigate);
       webview.removeEventListener("did-navigate-in-page", onNavigate);
-      webview.removeEventListener("did-start-loading", onStartLoading);
+      webview.removeEventListener("did-start-loading", clearFailure);
       webview.removeEventListener("did-fail-load", onFailLoad);
+      // The guest this described is being let go. Reopening the same target
+      // builds a fresh one at about:blank, and `sync()` cannot stamp that
+      // until its WebContents attaches, so a location left standing across the
+      // gap would read as a loaded page for those frames and let the guest's
+      // black default show through the slot.
+      setLocation(null);
     };
   }, [active, targetId]);
 
@@ -287,9 +327,21 @@ export function TaskBrowserPanel({
   // act on the current page, so they're only meaningful once one exists; zoom in
   // particular is per-page and doesn't carry to the next navigation.
   const pageUrl = active ? currentUrl() : undefined;
+  // A newly selected target has no location stamped for it until its guest
+  // syncs. Treat that brief handoff as blank too, so the guest's black default
+  // never flashes through before we learn its URL.
+  const blankPage =
+    location?.targetId !== targetId ||
+    !location.url ||
+    location.url === "about:blank";
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-xl bg-card shadow-sm">
+    <div
+      className={cn(
+        "flex h-full flex-col overflow-hidden rounded-xl bg-card shadow-sm",
+        className,
+      )}
+    >
       <div className="flex items-center gap-1 border-b p-1.5">
         <Button
           disabled={!active || !nav.back}
@@ -501,9 +553,6 @@ export function TaskBrowserPanel({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button onClick={onClose} size="icon-sm" variant="ghost">
-          <XIcon className="size-4" />
-        </Button>
       </div>
       {active && find.findOpen && (
         <BrowserFindBar
@@ -517,6 +566,12 @@ export function TaskBrowserPanel({
       )}
       {active ? (
         <div className="relative flex-1" ref={slotRef}>
+          {blankPage && !loadError && (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 z-10 bg-card"
+            />
+          )}
           {loadError && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-card p-6 text-center">
               <WarningCircleIcon className="size-8 text-muted-foreground" />

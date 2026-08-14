@@ -19,7 +19,6 @@ export async function resolveWin32Target(
   if (!/^\.[a-z0-9]+$/.test(ext)) {
     return null;
   }
-  // cspell:ignore HKCR HKCU
   // UserChoice is how Windows 10+ records the user's "always open with" pick;
   // the HKCR default is the pre-UserChoice fallback.
   const script = `

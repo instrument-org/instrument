@@ -1,9 +1,7 @@
-import { sendAppCommand } from "@/electron-main/app-command";
 import { isDeveloperMode } from "@/electron-main/stores/preferences";
-import { zoomIn, zoomOut } from "@/electron-main/windows/main/controls";
 import { type MenuItemConstructorOptions } from "electron";
 
-import { shortcutMenuItem } from "./shortcuts";
+import { hiddenShortcutItems, shortcutMenuItem } from "./shortcuts";
 import {
   createAppMenu,
   createDevToolsMenu,
@@ -50,56 +48,14 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
     submenu: [
       shortcutMenuItem("resetZoom"),
       shortcutMenuItem("zoomIn"),
-      {
-        // Ctrl+= is what Windows users physically press for zoom
-        // in. Electron only matches CmdOrCtrl+Plus on macOS, so we need this
-        // duplicate entry for Windows/Linux.
-        accelerator: "CmdOrCtrl+=",
-        click: () => {
-          zoomIn();
-        },
-        label: "Zoom In",
-        visible: false,
-      },
-      {
-        // Numpad "+" is a distinct key from the main-row "+", so bind it
-        // explicitly; hidden so it doesn't add a second Zoom In menu row.
-        accelerator: "CmdOrCtrl+numadd",
-        click: () => {
-          zoomIn();
-        },
-        label: "Zoom In",
-        visible: false,
-      },
+      ...hiddenShortcutItems("zoomIn"),
       shortcutMenuItem("zoomOut"),
-      {
-        // Numpad "-" duplicate of Zoom Out, hidden like the numpad "+" above.
-        accelerator: "CmdOrCtrl+numsub",
-        click: () => {
-          zoomOut();
-        },
-        label: "Zoom Out",
-        visible: false,
-      },
+      ...hiddenShortcutItems("zoomOut"),
       { type: "separator" as const },
       shortcutMenuItem("selectNextTab"),
       shortcutMenuItem("selectPreviousTab"),
-      {
-        accelerator: "CmdOrCtrl+Shift+]",
-        click: () => {
-          sendAppCommand({ type: "selectNext" });
-        },
-        label: "Show Next Tab",
-        visible: false,
-      },
-      {
-        accelerator: "CmdOrCtrl+Shift+[",
-        click: () => {
-          sendAppCommand({ type: "selectPrevious" });
-        },
-        label: "Show Previous Tab",
-        visible: false,
-      },
+      ...hiddenShortcutItems("selectNextTab"),
+      ...hiddenShortcutItems("selectPreviousTab"),
       { type: "separator" as const },
       { role: "minimize" as const },
       // zoom and front are macOS-only roles; silently no-ops on Windows/Linux
@@ -110,27 +66,10 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
             { role: "front" as const },
           ] satisfies MenuItemConstructorOptions[])
         : []),
-      // Cmd/Ctrl+1..8 jump to that tab index; hidden accelerators (no menu row)
-      // behind the table's `selectTabByIndex` entry.
-      ...Array.from(
-        { length: 8 },
-        (_, i): MenuItemConstructorOptions => ({
-          accelerator: `CmdOrCtrl+${i + 1}`,
-          click: () => {
-            sendAppCommand({ index: i, type: "selectByIndex" });
-          },
-          label: `Switch to Tab ${i + 1}`,
-          visible: false,
-        }),
-      ),
-      {
-        accelerator: "CmdOrCtrl+9",
-        click: () => {
-          sendAppCommand({ type: "selectLast" });
-        },
-        label: "Switch to Last Tab",
-        visible: false,
-      },
+      // Cmd/Ctrl+1..8 jump to that tab index, Cmd/Ctrl+9 to the last; both draw
+      // no menu row, so the whole set arrives as hidden accelerators.
+      ...hiddenShortcutItems("selectTabByIndex"),
+      ...hiddenShortcutItems("selectLastTab"),
     ],
   };
 

@@ -1,5 +1,6 @@
 import { type HeartbeatResponse } from "@instrument-org/workspace/for-shim";
-import { CircleNotchIcon, FileXIcon } from "@phosphor-icons/react";
+import { CircleNotchIcon } from "@phosphor-icons/react/CircleNotch";
+import { FileXIcon } from "@phosphor-icons/react/FileX";
 
 import { ErrorOverlay } from "./error-overlay";
 import { RecoveryOverlay } from "./recovery-overlay";

@@ -1,10 +1,9 @@
 import fs from "node:fs/promises";
 
-import { RelativePathSchema } from "../schemas/paths";
+import { WorkspaceFilePathSchema } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
 import { normalizeTaskFilePath } from "./normalize-task-file-path";
-import { resolvePathWithinTaskDir } from "./resolve-path-within-task-dir";
-import { taskDir } from "./task-dir-utils";
+import { resolveWorkspaceFilePath } from "./resolve-workspace-file-path";
 
 interface ReadTaskFileOptions {
   filePath: string;
@@ -19,14 +18,15 @@ export async function readTaskFile({
 }: ReadTaskFileOptions): Promise<Buffer | null> {
   const cleanPath = normalizeTaskFilePath(filePath);
 
-  // Fail closed: reject absolute paths and any traversal outside dir.
-  const parsedPath = RelativePathSchema.safeParse(cleanPath);
+  // Fail closed: accept only a task-relative path or an attached folder's mount
+  // path, and let the layout decide where each one lands.
+  const parsedPath = WorkspaceFilePathSchema.safeParse(cleanPath);
   if (!parsedPath.success) {
     return null;
   }
-  const fullPath = resolvePathWithinTaskDir({
-    dir: taskDir(taskId),
+  const fullPath = await resolveWorkspaceFilePath({
     filePath: parsedPath.data,
+    taskId,
   });
   if (!fullPath) {
     return null;

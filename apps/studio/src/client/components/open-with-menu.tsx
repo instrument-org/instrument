@@ -1,7 +1,7 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { useOpenTaskFileWith } from "@/client/hooks/use-open-task-file";
 import { useTaskFileOpenCandidates } from "@/client/hooks/use-task-file-open-target";
-import { AppWindowIcon } from "@phosphor-icons/react";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { type ReactElement } from "react";
 
 import { IconWithFallback } from "./icon-with-fallback";
@@ -95,7 +95,6 @@ function OpenWithCandidates({
 
   if (isError) {
     return (
-      // cspell:ignore Couldn
       <Item disabled>
         <span>Couldn&apos;t load apps</span>
       </Item>

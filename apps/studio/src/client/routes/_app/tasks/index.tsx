@@ -29,10 +29,12 @@ import { APP_NAME, TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import {
   isTaskId,
   type Project,
+  type ProjectId,
   type Task,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import { StopCircleIcon, TrashIcon } from "@phosphor-icons/react";
+import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -102,7 +104,7 @@ function RouteComponent() {
   );
 
   const projectsMap = useMemo(() => {
-    const map = new Map<string, Project>();
+    const map = new Map<ProjectId, Project>();
     for (const project of projectsList ?? []) {
       map.set(project.id, project);
     }

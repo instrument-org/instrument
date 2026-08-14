@@ -4,7 +4,8 @@ import {
   type SessionMessagePart,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import { FileTextIcon, GitBranchIcon } from "@phosphor-icons/react";
+import { FileTextIcon } from "@phosphor-icons/react/FileText";
+import { GitBranchIcon } from "@phosphor-icons/react/GitBranch";
 import { sift } from "radashi";
 import { useMemo, useState } from "react";
 
@@ -18,6 +19,7 @@ import { ModelChip } from "./model-chip";
 import { RelativeTime } from "./relative-time";
 import { SourceLink } from "./source-link";
 import { BranchTaskModal } from "./task/branch-modal";
+import { useReleaseAutoScroll } from "./transcript-scroll-context";
 import { Button } from "./ui/button";
 import {
   Collapsible,
@@ -28,7 +30,24 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { UsageStatsTooltip, UsageSummaryText } from "./usage-stats-tooltip";
 
 interface AssistantMessagesFooterProps {
+  /**
+   * Draw the row rather than waiting for the pointer. For a surface with no
+   * reader to hover it: the row takes its space either way, so left to hover it
+   * is a band of blank whose height is real and whose contents are not.
+   */
+  alwaysVisible?: boolean;
   id: TaskId;
+  /**
+   * The turn this footer belongs to is still being produced, so the row holds
+   * its space and shows nothing.
+   *
+   * The space is reserved from the moment the turn has anything in it, rather
+   * than the row being mounted once the turn ends. Mounting it late puts a row's
+   * worth of growth into the frame where the session has just stopped and
+   * nothing is following the transcript, and unmounting it when the next turn
+   * starts takes that height back out from under whatever the reader is on.
+   */
+  isTurnLive?: boolean;
   messages: SessionMessage.AssistantWithParts[];
 }
 
@@ -38,12 +57,15 @@ interface ModelUsageData {
 }
 
 export function AssistantMessagesFooter({
+  alwaysVisible = false,
   id,
+  isTurnLive = false,
   messages,
 }: AssistantMessagesFooterProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isBranchOpen, setIsBranchOpen] = useState(false);
   const isDeveloperMode = useDeveloperMode();
+  const releaseAutoScroll = useReleaseAutoScroll();
 
   // Branch from the last message of this assistant turn: the new task keeps the
   // conversation through here and drops everything after.
@@ -139,15 +161,23 @@ export function AssistantMessagesFooter({
       )}
       <Collapsible
         className="mt-2 flex flex-col gap-2"
-        onOpenChange={setIsExpanded}
+        onOpenChange={(open) => {
+          releaseAutoScroll();
+          setIsExpanded(open);
+        }}
         open={isExpanded}
       >
         <div
           className={cn(
             "flex min-w-0 items-center gap-2",
-            sources.length > 0
-              ? "opacity-100"
-              : "opacity-0 group-hover/assistant-message-footer:opacity-100",
+            // `invisible` rather than an opacity of nought: a turn still being
+            // written should not answer a click or a tab stop, and the row is
+            // only here to hold the height.
+            isTurnLive
+              ? "invisible"
+              : alwaysVisible || sources.length > 0
+                ? "opacity-100"
+                : "opacity-0 group-hover/assistant-turn:opacity-100",
           )}
         >
           {/* The negative margins cancel the buttons' own padding so their icons

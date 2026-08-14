@@ -1,5 +1,5 @@
-import { setBrowserFindOpener } from "@/client/lib/browser-find-registry";
 import { getWebviewElement } from "@/client/lib/browser-pool";
+import { registerForegroundBrowser } from "@/client/lib/foreground-browser-registry";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { useEffect, useRef, useState } from "react";
 
@@ -17,11 +17,18 @@ interface FoundInPageEvent extends Event {
  */
 export function useBrowserFind({
   active,
-  isActiveTab,
+  covered = false,
+  isVisible,
   targetId,
 }: {
   active: boolean;
-  isActiveTab: boolean;
+  // This host is behind a full-window overlay, so it is not the one Cmd+F
+  // should reach. The opener is a single slot: without this, a host that parks
+  // its guest keeps claiming it, and an overlay that takes the slot and clears
+  // it on unmount leaves the panel -- whose own inputs never changed -- never
+  // re-registering, so Cmd+F stops working entirely.
+  covered?: boolean;
+  isVisible: boolean;
   targetId: BrowserTargetId;
 }) {
   const findInputRef = useRef<HTMLInputElement>(null);
@@ -67,19 +74,24 @@ export function useBrowserFind({
     };
   }, [targetId]);
 
-  // Register this panel as the find target while it's the foreground browser, so
-  // the Cmd+F app command opens (and re-focuses) its find bar. See
-  // browser-find-registry for why Cmd+F can't be a renderer keydown.
+  // Register this panel as the foreground browser, so the Cmd+F app command
+  // opens (and re-focuses) its find bar and Cmd+R reloads its guest. The find
+  // opener is what has to be handed over, which is why the registration lives in
+  // this hook; see foreground-browser-registry for why neither chord can be a
+  // renderer keydown.
   useEffect(() => {
-    if (!active || !isActiveTab) {
+    if (!active || !isVisible || covered) {
       return;
     }
-    return setBrowserFindOpener(() => {
-      setFindOpen(true);
-      findInputRef.current?.focus();
-      findInputRef.current?.select();
+    return registerForegroundBrowser({
+      openFind: () => {
+        setFindOpen(true);
+        findInputRef.current?.focus();
+        findInputRef.current?.select();
+      },
+      targetId,
     });
-  }, [active, isActiveTab]);
+  }, [active, covered, isVisible, targetId]);
 
   // Focus the find input when the bar opens (its first render, when the opener
   // above couldn't focus it yet). Deferred a frame so it wins over Radix

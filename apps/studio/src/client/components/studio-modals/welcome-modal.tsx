@@ -13,13 +13,11 @@ import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import {
-  FileTextIcon,
-  FloppyDiskIcon,
-  GlobeSimpleIcon,
-  type Icon,
-  ListChecksIcon,
-} from "@phosphor-icons/react";
+import { type Icon } from "@phosphor-icons/react";
+import { FileTextIcon } from "@phosphor-icons/react/FileText";
+import { FloppyDiskIcon } from "@phosphor-icons/react/FloppyDisk";
+import { GlobeSimpleIcon } from "@phosphor-icons/react/GlobeSimple";
+import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useAtom, useAtomValue } from "jotai";
@@ -205,12 +203,11 @@ function WelcomeModalContent({
     <DialogContent
       aria-describedby={undefined}
       className={cn(
-        `flex max-h-[calc((100vh-3rem)/var(--content-zoom))]
-        w-[calc((100vw-2.5rem)/var(--content-zoom))] max-w-xl flex-col gap-0
-        overflow-hidden border-0 bg-gray-25 p-0 shadow-2xl outline-none
-        focus:outline-none focus-visible:outline-none
-        sm:max-w-xl dark:bg-gray-800`,
+        `flex w-full flex-col gap-0 overflow-hidden border-0 bg-gray-25 p-0
+        shadow-2xl outline-none focus:outline-none focus-visible:outline-none
+        dark:bg-gray-800`,
       )}
+      maxWidth="36rem"
       onEscapeKeyDown={(event) => {
         event.preventDefault();
       }}

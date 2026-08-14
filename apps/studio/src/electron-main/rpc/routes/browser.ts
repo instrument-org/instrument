@@ -13,7 +13,14 @@ function currentTargets(): BrowserGuestTarget[] {
   return getBrowserViewManager()?.getTargets() ?? [];
 }
 
-const live = {
+const events = {
+  focusGuest: base.handler(async function* ({ signal }) {
+    for await (const event of publisher.subscribe("browser.focus-guest", {
+      signal,
+    })) {
+      yield event;
+    }
+  }),
   restoreHostFocus: base.handler(async function* ({ signal }) {
     for await (const _ of publisher.subscribe("browser.restore-host-focus", {
       signal,
@@ -21,6 +28,9 @@ const live = {
       yield null;
     }
   }),
+};
+
+const live = {
   // Stream the browser targets. The renderer pool reconciles its guests to this
   // set (mount on add, dispose on remove) and the UI reads `attached`.
   // Re-subscribing always yields the current set, so nothing is stranded by a
@@ -71,6 +81,7 @@ const setEmulatedDevice = base
   });
 
 export const browser = {
+  events,
   live,
   setEmulatedDevice,
   syncFocus,

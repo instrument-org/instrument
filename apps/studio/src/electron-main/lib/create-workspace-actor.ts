@@ -17,7 +17,6 @@ import {
   closeAllAgentBrowserSessions,
   migrateWorkspaceLayout,
   pruneExternalBrowserTmp,
-  stopAllTaskFileWatchers,
   stopWorkspaceSkillWatcher,
   workspaceMachine,
   workspaceRouter,
@@ -320,6 +319,10 @@ export function createWorkspaceActor({
         }
 
         isQuitInProgress = true;
+        // Teardown runs to `app.exit`, which logs nothing on its way out, so
+        // each stage announces itself: a quit that never finishes is otherwise
+        // indistinguishable from one that did, and the log is all there is.
+        logger.info("Quit teardown started");
         // The app.exit below skips `will-quit`, where the telemetry flush and
         // crash-marker cleanup would otherwise run, so drive them from here.
         // Started now so they overlap the rest of the teardown instead of
@@ -332,6 +335,7 @@ export function createWorkspaceActor({
             return;
           }
           hasExited = true;
+          logger.info("Quit teardown: tearing down browser views");
           browserViewManager.teardown();
 
           let finalized = false;
@@ -340,20 +344,21 @@ export function createWorkspaceActor({
               return;
             }
             finalized = true;
+            logger.info("Quit teardown: stopping the workspace actor");
             actor.stop();
+            logger.info("Quit teardown: exiting");
             app.exit(0);
           };
           // @parcel/watcher aborts the process (SIGABRT) if a live subscription
-          // is torn down while Node frees the environment, so stop watchers and
-          // await their unsubscribe before app.exit. Runs before actor.stop so
-          // watchers still held by an in-flight turn are captured. Bounded so a
+          // is torn down while Node frees the environment, so stop the skills
+          // watcher and await its unsubscribe before app.exit. Bounded so a
           // stuck unsubscribe can't wedge the quit.
           const forceFinalize = setTimeout(finalize, 2000);
           void Promise.all([
-            stopAllTaskFileWatchers().catch(noop),
             stopWorkspaceSkillWatcher().catch(noop),
             telemetryFinalized,
           ]).finally(() => {
+            logger.info("Quit teardown: skills watcher and telemetry settled");
             clearTimeout(forceFinalize);
             finalize();
           });

@@ -94,7 +94,7 @@ Needs a decision rather than a rename:
 - Tooltip loses `skipDelayDuration` and `disableHoverableContent`.
 - Navigation menu hover delay drops from 200ms to 50ms.
 - `onValueChange` widens to `(value | null, eventDetails)`, so `useState<string>` setters passed directly stop typechecking.
-- Accordion and toggle-group lose `type="single" | "multiple"` in favour of always-array values plus a `multiple` boolean.
+- Accordion and toggle-group lose `type="single" | "multiple"` in favor of always-array values plus a `multiple` boolean.
 - No Label, AspectRatio, or VisuallyHidden primitives: native `<label>`, CSS `aspect-ratio`, `sr-only`. Popover `Anchor` is gone.
 
 Portal container support survives: Base UI's Portal parts accept `container`, so [use-portal-container.tsx](../../../apps/studio/src/client/hooks/use-portal-container.tsx) carries over, re-threaded per component.

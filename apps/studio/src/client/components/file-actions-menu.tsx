@@ -1,14 +1,13 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
+import { getFileType } from "@/client/lib/get-file-type";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  ArrowLineDownIcon,
-  ChatTextIcon,
-  CheckIcon,
-  CopyIcon,
-  DotsThreeOutlineVerticalIcon,
-} from "@phosphor-icons/react";
+import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
+import { ChatTextIcon } from "@phosphor-icons/react/ChatText";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -55,7 +54,14 @@ export function FileActionsMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size="sm" variant={variant}>
+        {/* Named after the file it acts on: several of these can be on screen
+            at once, one per card, so "File actions" alone would give every one
+            of them the same name. */}
+        <Button
+          aria-label={`Actions for ${file.filename}`}
+          size="sm"
+          variant={variant}
+        >
           <DotsThreeOutlineVerticalIcon className="size-4" weight="fill" />
         </Button>
       </DropdownMenuTrigger>
@@ -109,7 +115,10 @@ export function FileActionsMenuItems({
       await copyFileToClipboard({
         filePath: file.filePath,
         id: file.taskId,
-        isImage: file.mimeType.startsWith("image/"),
+        // A hint only: the main process sniffs the bytes it just read and
+        // treats this as the answer to "image or text" for a file that really
+        // is binary.
+        isImage: getFileType(file) === "image",
       });
       triggerCopied();
     } catch {

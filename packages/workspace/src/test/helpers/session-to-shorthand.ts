@@ -112,31 +112,23 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
           : "";
       return `<data-browserStatus status="${part.data.status}"${target}${previousUrl} />`;
     }
-    case "data-externalFileChanges": {
-      const filesList = part.data.files
-        .map((file) => {
-          const filename = ` filename="${file.filename}"`;
-          const status = ` status="${file.status}"`;
-          return `<file${filename}${status} />`;
-        })
-        .join("\n");
-      return `<data-externalFileChanges>\n${indent(filesList)}\n</data-externalFileChanges>`;
-    }
     case "data-fileChanges": {
-      const filesList = part.data.files
-        .map((file) => {
-          const filename = ` filename="${file.filename}"`;
-          const status = ` status="${file.status}"`;
-          return `<file${filename}${status} />`;
-        })
-        .join("\n");
-      return `<data-fileChanges>\n${indent(filesList)}\n</data-fileChanges>`;
+      const files = part.data.files
+        .map((file) => `${file.filePath} (${file.status})`)
+        .join(", ");
+      return `<data-fileChanges>${files}</data-fileChanges>`;
     }
     case "data-intent": {
       return `<data-intent>${part.data.text}</data-intent>`;
     }
     case "data-maxSteps": {
       return `<data-maxSteps maxStepCount="${part.data.maxStepCount}" />`;
+    }
+    case "data-paneTabs": {
+      const tabs = part.data.tabs
+        .map((tab) => (tab.type === "file" ? tab.filePath : "browser"))
+        .join(", ");
+      return `<data-paneTabs>${tabs}</data-paneTabs>`;
     }
     case "data-projectChanges": {
       const projectName = ` projectName="${part.data.projectName}"`;
@@ -171,6 +163,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     }
     case "data-skillMentions": {
       return `<data-skillMentions>${part.data.names.join(",")}</data-skillMentions>`;
+    }
+    case "data-unknown": {
+      return `<data-unknown originalType="${part.data.originalType}" />`;
     }
     case "file": {
       const filename = part.filename ? ` filename="${part.filename}"` : "";

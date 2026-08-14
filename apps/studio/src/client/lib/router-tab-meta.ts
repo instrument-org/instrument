@@ -4,7 +4,7 @@ import { type TaskId, TaskIdSchema } from "@instrument-org/workspace/client";
 
 declare module "@tanstack/react-router" {
   interface StaticDataRouteOption {
-    // Static tab-bar icon for this route (project, table, bug, ...). Tasks omit
+    // Static tab-bar icon for this route (project, table, code, ...). Tasks omit
     // it; they render a live status ring keyed off `tabTaskIdParam` instead.
     tabIcon?: TabIconName;
     // Name of the path param holding this route's TaskId, surfaced to the tab

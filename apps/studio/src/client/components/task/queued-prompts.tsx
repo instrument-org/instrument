@@ -1,5 +1,8 @@
 import { type QueuedPrompt } from "@/client/hooks/use-prompt-queue";
-import { PaperclipIcon, StackIcon, TrashIcon } from "@phosphor-icons/react";
+import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
+import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
+import { StackIcon } from "@phosphor-icons/react/Stack";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 
 import { Button } from "../ui/button";
 
@@ -35,8 +38,10 @@ export function QueuedPrompts({
               <span className="text-xs text-muted-foreground tabular-nums">
                 {index + 1}
               </span>
+              {/* One truncated line, so a mention reads as the `/name` typed
+                  rather than as the chip the composer drew for it. */}
               <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                {prompt.prompt}
+                {renderSkillMentionsAsText(prompt.prompt)}
               </span>
               {attachmentCount > 0 && (
                 <span className="flex items-center gap-0.5 text-xs text-muted-foreground">

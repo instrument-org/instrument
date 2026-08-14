@@ -23,6 +23,7 @@
         "HOME",
         "NODE_ENV",
         "PATH",
+        "REMOTE_DEBUGGING_PORT",
         "SKIP_MOVE_TO_APPLICATIONS",
         "SKIP_ONBOARDING",
         "SIGNTOOL_PATH",
@@ -106,7 +107,20 @@
     "transit": { "dependsOn": ["^transit"] },
     "check:unused": { "dependsOn": ["transit"] },
     "//#check:unused": {},
-    "//#check:electron-node-version": {},
+    "//#check:electron-node-version": {
+      "inputs": [
+        ".node-version",
+        ".tool-versions",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "apps/studio/package.json",
+        "registry/.node-version",
+        "registry/.tool-versions",
+        "registry/package.json",
+        "scripts/check-electron-node-version.ts"
+      ]
+    },
     "//#check:actions": {
       "inputs": [
         ".github/workflows/*.yml",
@@ -117,10 +131,6 @@
     "check:electron-node-version": {
       "dependsOn": ["transit"]
     },
-    "check:unused-words": {
-      "dependsOn": ["transit"]
-    },
-    "//#check:unused-words": {},
     "//#check:packages:install": {
       "inputs": ["pnpm-lock.yaml", "**/package.json"]
     },
@@ -135,7 +145,21 @@
     "check:md": {
       "dependsOn": ["transit"]
     },
-    "//#check:md": {},
+    "//#check:md": {
+      "inputs": [
+        "**/*.md",
+        "!**/node_modules/**",
+        "!**/out/**",
+        "!**/dist/**",
+        "!registry/**",
+        "!**/*.local/**",
+        "!.cursor/plans/**",
+        "!.claude/worktrees/**",
+        "!docs/**",
+        ".markdownlint.json",
+        ".markdownlint-cli2.jsonc"
+      ]
+    },
     "check:format": {
       "dependsOn": ["transit"]
     },

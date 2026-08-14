@@ -8,6 +8,7 @@ import {
 } from "ai";
 import { alphabetical } from "radashi";
 
+import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type Session } from "../schemas/session";
 import { SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
@@ -22,6 +23,7 @@ import {
 } from "./build-project-context-text";
 import { getEffectiveProjectContext } from "./effective-project-context";
 import { isToolPart } from "./is-tool-part";
+import { normalizeProjectInstructions } from "./project-instructions";
 import { Store } from "./store";
 import { getUsageSummaryFromMessages } from "./usage-summary-compute";
 
@@ -852,19 +854,6 @@ function renderPersistedAssistantParts(
       });
       continue;
     }
-    if (part.type === "data-fileChanges") {
-      const files = part.data.files.map(
-        (file) =>
-          `${file.status} ${file.filePath} | ${file.mimeType} | ${file.size} bytes`,
-      );
-      lines.push(
-        "",
-        `### Files Changed (${files.length})`,
-        "",
-        fenceText(files.join("\n"), "text"),
-      );
-      continue;
-    }
     if (isDataPart(part)) {
       lines.push(
         "",
@@ -945,13 +934,20 @@ function renderProjectContext(
   // `data-projectChanges` additions/removals and `data-attachedFolderChanges`
   // renames so the list matches what the agent currently sees, keyed by path
   // so removals/renames touch the right entry.
-  const folderNamesByPath = new Map<string, string>();
+  const projectFoldersByPath = new Map<
+    string,
+    { access: FolderAttachment.Access; name: string }
+  >();
   for (const part of allParts) {
     switch (part.type) {
       case "data-attachedFolderChanges": {
         for (const folder of part.data.renamed) {
-          if (folderNamesByPath.has(folder.path)) {
-            folderNamesByPath.set(folder.path, folder.newName);
+          const current = projectFoldersByPath.get(folder.path);
+          if (current) {
+            projectFoldersByPath.set(folder.path, {
+              ...current,
+              name: folder.newName,
+            });
           }
         }
         break;
@@ -959,17 +955,23 @@ function renderProjectContext(
       case "data-attachments": {
         for (const folder of part.data.folders ?? []) {
           if (folder.source === "project") {
-            folderNamesByPath.set(folder.path, folder.name);
+            projectFoldersByPath.set(folder.path, {
+              access: folder.access,
+              name: folder.mountName,
+            });
           }
         }
         break;
       }
       case "data-projectChanges": {
         for (const folder of part.data.foldersRemoved) {
-          folderNamesByPath.delete(folder.path);
+          projectFoldersByPath.delete(folder.path);
         }
         for (const folder of part.data.foldersAdded) {
-          folderNamesByPath.set(folder.path, folder.name);
+          projectFoldersByPath.set(folder.path, {
+            access: folder.access,
+            name: folder.name,
+          });
         }
         break;
       }
@@ -978,27 +980,32 @@ function renderProjectContext(
       }
     }
   }
-  const projectFolderNames = [...folderNamesByPath.values()];
+  const projectFolders = [...projectFoldersByPath.entries()].map(
+    ([path, folder]) => ({ ...folder, path }),
+  );
 
   const blocks: string[] = [];
 
   const effective = getEffectiveProjectContext(allParts);
-  const instructions = effective?.instructions?.trim();
-  if (instructions) {
-    blocks.push(
-      buildProjectContextText({
-        instructions,
-        name: projectPart.data.projectName,
-      }),
-    );
-  }
+  // Capped the same way the session context is, so the transcript reproduces
+  // what the agent was given rather than the whole file behind it.
+  const instructions = normalizeProjectInstructions(
+    effective?.instructions ?? "",
+  );
+  blocks.push(
+    buildProjectContextText({
+      instructions,
+      name: projectPart.data.projectName,
+    }),
+  );
 
-  if (projectFolderNames.length > 0) {
+  if (projectFolders.length > 0) {
     blocks.push(
       buildAttachedFoldersText({
-        folders: projectFolderNames.map((name) => ({
+        folders: projectFolders.map(({ access, name, path }) => ({
+          access,
           mountPoint: attachedFolderMountPoint(name),
-          name,
+          path,
         })),
         intro: projectFoldersIntro(projectPart.data.projectName),
       }),

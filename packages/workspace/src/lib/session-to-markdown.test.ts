@@ -31,7 +31,7 @@ const agentContextPartId = StoreId.PartSchema.parse(
 const userPartId = StoreId.PartSchema.parse("prt_01J00000000000000000000002");
 const stepPartId = StoreId.PartSchema.parse("prt_01J00000000000000000000003");
 const sourcePartId = StoreId.PartSchema.parse("prt_01J00000000000000000000004");
-const fileChangesPartId = StoreId.PartSchema.parse(
+const skillChangesPartId = StoreId.PartSchema.parse(
   "prt_01J00000000000000000000005",
 );
 const toolPartId = StoreId.PartSchema.parse("prt_01J00000000000000000000006");
@@ -165,25 +165,14 @@ const session = Session.WithMessagesAndPartsSchema.parse({
           url: "https://provider.example/docs",
         },
         {
-          data: {
-            files: [
-              {
-                filename: "report.md",
-                filePath: "output/report.md",
-                mimeType: "text/markdown",
-                modifiedAt: 1_753_351_445_000,
-                size: 1234,
-                status: "added",
-              },
-            ],
-          },
+          data: { created: ["pdf-report"], updated: [] },
           metadata: {
             createdAt: new Date("2026-07-24T10:00:04.500Z"),
-            id: fileChangesPartId,
+            id: skillChangesPartId,
             messageId: assistantMessageId,
             sessionId,
           },
-          type: "data-fileChanges",
+          type: "data-skillChanges",
         },
         {
           input: {
@@ -232,14 +221,12 @@ describe("session diagnostics", () => {
     expect(withoutContext).not.toContain("Persisted system prompt");
   });
 
-  it("renders persisted sources, file changes, and interrupted tools", async () => {
+  it("renders persisted sources, data parts, and interrupted tools", async () => {
     const markdown = await sessionToMarkdown(session);
     expect(markdown).toContain("### Sources");
     expect(markdown).toContain('"url": "https://provider.example/docs"');
-    expect(markdown).toContain("### Files Changed (1)");
-    expect(markdown).toContain(
-      "added output/report.md | text/markdown | 1234 bytes",
-    );
+    expect(markdown).toContain("### Persisted Data: skillChanges");
+    expect(markdown).toContain('"pdf-report"');
     expect(markdown).toContain(
       "### Tool Call 1: bash *(incomplete: input-streaming)*",
     );

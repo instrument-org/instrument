@@ -8,7 +8,7 @@ Use 🔴 Important for concrete defects that should be fixed before merging. Pre
 
 - **Containment regressions.** The agent must stay within the `/task`, `/skills`, and read-only `/mnt` layout. Widening the real-binary path bridge, `agent-browser` allowlist, or git argv/env policy is Important.
 - **Packaging and release breakage.** Main-process runtime packages belong in `dependencies`, renderer-only packages in `devDependencies`, and native binaries may require `asarUnpack`. Flag changes that work locally but break or materially bloat the packaged app.
-- **Data loss or incompatibility.** Changes must preserve `tasks/<id>/.instrument/{task.db,state.json}` and continue loading data written by the previous release unless they include a migration.
+- **Data loss or incompatibility.** Changes must preserve `tasks/<id>/.instrument/{task.db,settings.json}` and continue loading data written by the previous release unless they include a migration.
 - **Privacy leaks.** Prompts, agent messages, file contents, user paths, API keys, and `.env` values must not reach telemetry, logs, or unintended network destinations.
 - **Agent-turn correctness.** Flag deterministic tool, prompt, message-assembly, or state-management defects that make turns fail, hang, or silently drop state.
 

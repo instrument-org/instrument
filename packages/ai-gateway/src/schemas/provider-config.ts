@@ -20,3 +20,16 @@ export namespace AIGatewayProviderConfig {
   });
   export type Type = z.output<typeof Schema>;
 }
+
+/**
+ * The keys a test plants a ready-made model under, so resolving a model off a
+ * provider config returns it instead of going to the network.
+ *
+ * They sit beside the config they are stamped onto rather than beside the code
+ * that reads them, which lives among the AI SDK providers: a test helper needs
+ * the names and nothing else, and this module is a leaf.
+ */
+export const TEST_MODEL_OVERRIDE_KEY = "__testModelOverride";
+export const TEST_IMAGE_MODEL_OVERRIDE_KEY = "__testImageModelOverride";
+export const TEST_WEB_SEARCH_MODEL_OVERRIDE_KEY =
+  "__testWebSearchModelOverride";

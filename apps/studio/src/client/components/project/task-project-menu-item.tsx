@@ -2,7 +2,9 @@ import { openCreateProject } from "@/client/atoms/project-modal";
 import { type MenuComponents } from "@/client/components/ui/menu-components";
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectId, type TaskId } from "@instrument-org/workspace/client";
-import { BagIcon, PlusIcon, XCircleIcon } from "@phosphor-icons/react";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { XCircleIcon } from "@phosphor-icons/react/XCircle";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -49,7 +51,7 @@ export function TaskProjectMenuItem({
     <>
       <Sub>
         <SubTrigger>
-          <BagIcon className="size-4 text-muted-foreground" />
+          <CardsThreeIcon className="size-4 text-muted-foreground" />
           {currentProjectId ? "Move to project" : "Add to project"}
         </SubTrigger>
         <SubContent className="min-w-48">
@@ -60,7 +62,7 @@ export function TaskProjectMenuItem({
                 addTask({ projectId: project.id, taskId });
               }}
             >
-              <BagIcon className="size-4 text-muted-foreground" />
+              <CardsThreeIcon className="size-4 text-muted-foreground" />
               <span className="flex-1 truncate">{project.name}</span>
             </Item>
           ))}

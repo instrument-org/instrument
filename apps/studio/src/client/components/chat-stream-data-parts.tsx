@@ -1,16 +1,16 @@
-import { isSurfacedTaskFile } from "@/client/lib/task-file-visibility";
 import {
   attachedFolderChangesModelNote,
   browserStatusModelNote,
-  externalFileChangesModelNote,
+  isAddressableTaskFilePath,
   maxStepsModelNote,
-  type SessionMessageDataPart,
+  paneTabsModelNote,
   type SessionMessagePart,
+  TASK_FOLDER_NAMES,
 } from "@instrument-org/workspace/client";
 import { type ReactNode } from "react";
 
+import { FilePathsGrid } from "./agent-files-block";
 import { type RenderPartContext } from "./chat-stream-render-part";
-import { FileChangesCard } from "./file-changes-card";
 import { ModelContextDebugCard } from "./model-context-debug-card";
 import { ProjectChangesNote } from "./project-changes-note";
 import { SkillChangesCard } from "./skill-changes-card";
@@ -29,31 +29,26 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-attachedFolderChanges": "dev",
   "data-attachments": "hidden",
   "data-browserStatus": "dev",
-  "data-externalFileChanges": "dev",
+  // Retired, and shown to everyone rather than to developers, which is the
+  // opposite of where it ended up before it was deleted. It was demoted to
+  // "dev" because it was a live change card nobody wanted; what it is now is
+  // the only record a pre-fence conversation has of what a turn produced, and
+  // the person who wants that is the person whose task it is.
   "data-fileChanges": "always",
   "data-intent": "dev",
   "data-maxSteps": "dev",
+  "data-paneTabs": "dev",
   "data-projectChanges": "always",
   "data-projectContext": "hidden",
   "data-skillChanges": "always",
   "data-skillMentions": "dev",
+  "data-unknown": "dev",
 };
 
 export function dataPartVisibility(
   part: SessionMessagePart.DataPart,
 ): DataPartVisibility {
-  // File changes confined to paths the grid never surfaces (skill files copied
-  // into `work/`, say) have no card to draw. Reporting them as hidden keeps them
-  // from counting as visible content and from leaving an empty gap in the
-  // message column.
-  if (
-    part.type === "data-fileChanges" &&
-    !part.data.files.some(isSurfacedFileChange)
-  ) {
-    return "hidden";
-  }
-
-  return DATA_PART_DISPLAY[part.type];
+  return declaredVisibility(part.type);
 }
 
 export function isDataPart(
@@ -66,10 +61,17 @@ export function renderDataPart({
   browserStatusContextAdded,
   ctx,
   part,
+  pathsAlreadyShown,
 }: {
   browserStatusContextAdded: boolean;
   ctx: RenderPartContext;
   part: SessionMessagePart.DataPart;
+  /**
+   * Files this message already puts on screen, so the retired file-changes grid
+   * does not draw a second copy of one. Computed once for the message rather
+   * than per part.
+   */
+  pathsAlreadyShown?: ReadonlySet<string>;
 }): ReactNode {
   const visibility = dataPartVisibility(part);
   if (
@@ -106,25 +108,26 @@ export function renderDataPart({
         />
       );
     }
-    case "data-externalFileChanges": {
-      const note = externalFileChangesModelNote(part.data);
-      return note ? (
-        <ModelContextDebugCard
-          className="mt-2"
-          key={part.metadata.id}
-          text={note}
-        />
-      ) : null;
-    }
     case "data-fileChanges": {
-      return (
-        <FileChangesCard
-          assetBaseUrl={ctx.assetBaseUrl}
-          className="mt-2"
-          files={part.data.files}
-          key={part.metadata.id}
-          taskId={ctx.task.id}
-        />
+      // Only `output/`. The watcher behind this part reported everything a turn
+      // touched, and the overwhelming majority of that is `work/`: the scripts
+      // the agent wrote to make the deliverable, not the deliverable. Showing
+      // those is what made the card worth deleting in the first place.
+      //
+      // A deleted file has nothing to show, and one the reply already fenced or
+      // linked is on screen already.
+      const paths = part.data.files
+        .filter(
+          (file) =>
+            file.status !== "deleted" &&
+            file.filePath.startsWith(`${TASK_FOLDER_NAMES.output}/`) &&
+            isAddressableTaskFilePath(file.filePath) &&
+            pathsAlreadyShown?.has(file.filePath) !== true,
+        )
+        .map((file) => file.filePath);
+
+      return paths.length === 0 ? null : (
+        <FilePathsGrid key={part.metadata.id} paths={[...new Set(paths)]} />
       );
     }
     case "data-intent": {
@@ -142,6 +145,15 @@ export function renderDataPart({
           className="mt-2"
           key={part.metadata.id}
           text={maxStepsModelNote(part.data)}
+        />
+      );
+    }
+    case "data-paneTabs": {
+      return (
+        <ModelContextDebugCard
+          className="mt-2"
+          key={part.metadata.id}
+          text={paneTabsModelNote(part.data)}
         />
       );
     }
@@ -169,18 +181,47 @@ export function renderDataPart({
         />
       );
     }
+    case "data-unknown": {
+      // Not a failure the reader can do anything about, so it stays a
+      // developer-mode row: the part is from a build that wrote a shape this one
+      // cannot read, and the reason is the useful half.
+      return (
+        <ModelContextDebugCard
+          className="mt-2"
+          key={part.metadata.id}
+          text={`Could not read a ${part.data.originalType} part: ${part.data.reason}`}
+        />
+      );
+    }
     default: {
       // A new data-part type must be handled above (and classified in
-      // DATA_PART_DISPLAY); this fails the build otherwise.
-      const _exhaustiveCheck: never = part;
-      return _exhaustiveCheck;
+      // DATA_PART_DISPLAY); `satisfies never` fails the build otherwise.
+      //
+      // Returning the part instead of null is what made an unrecognized type
+      // fatal rather than invisible: React was handed a message part as a child
+      // and took the whole transcript down with it. Unreachable now that
+      // `declaredVisibility` hides what it does not recognize, and cheap to
+      // keep correct anyway.
+      part satisfies never;
+      return null;
     }
   }
 }
 
-function isSurfacedFileChange(
-  file: SessionMessageDataPart.FileChangeDataPartItem,
-) {
-  // Deleted files have nothing to preview, matching `FileChangesCard`.
-  return file.status !== "deleted" && isSurfacedTaskFile(file.filePath);
+/**
+ * How a part type is classified, or "hidden" for one this build has never heard
+ * of.
+ *
+ * The transcript draws what earlier builds persisted, and a part outlives the
+ * feature that wrote it: `data-gitCommit` is still sitting in tasks from before
+ * git-based file versioning was removed. Parts are cast to their schema type on
+ * read rather than parsed, so nothing upstream filters those out, and the record
+ * cannot describe them either -- it is keyed by the types that exist now. So the
+ * lookup is widened here, and a type with no classification draws nothing.
+ */
+function declaredVisibility(type: string): DataPartVisibility {
+  const declared: Record<string, DataPartVisibility | undefined> =
+    DATA_PART_DISPLAY;
+
+  return declared[type] ?? "hidden";
 }

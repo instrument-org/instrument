@@ -26,7 +26,7 @@ node .agents/skills/product-wireframe/scripts/sync-theme.ts          # rewrite t
 node .agents/skills/product-wireframe/scripts/sync-theme.ts --check  # fail if stale
 ```
 
-It reads `globals.css`, resolves the `var()` indirection to literal values, and rewrites whatever sits between the `/* sync:start */` and `/* sync:end */` markers in the template and every `docs/plans/active/wireframes-*.html`. Run it after touching the ramps, and leave the markers alone.
+It reads `globals.css`, resolves the `var()` indirection to literal values, and rewrites whatever sits between the `/* sync:start */` and `/* sync:end */` markers in this template, the sibling visual-explanation template, and every `docs/plans/active/wireframes-*.html`. Run it after touching the ramps, and leave the markers alone.
 
 ## The two rules that matter
 
@@ -56,7 +56,7 @@ Values worth getting right, since drift here is what makes a wireframe read as g
 
 Two that are wrong on sight if you guess:
 
-- **The user bubble is a white-to-near-white gradient with a shadow, not a grey fill.** The small top-right corner against three large ones is the most recognisable detail in the transcript.
+- **The user bubble is a white-to-near-white gradient with a shadow, not a grey fill.** The small top-right corner against three large ones is the most recognizable detail in the transcript.
 - **Action buttons are small and quiet.** 14px icons at 4px padding, muted until hover. Drawn at 24px with borders, the frame reads as a different product.
 
 ## Layout

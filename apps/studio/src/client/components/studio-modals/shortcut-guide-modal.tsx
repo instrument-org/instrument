@@ -17,7 +17,7 @@ import {
   type ShortcutMatch,
 } from "@/client/lib/shortcut-search";
 import { SHORTCUT_ENTRIES, SHORTCUT_GROUPS } from "@/shared/shortcuts";
-import { MagnifyingGlassIcon } from "@phosphor-icons/react";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { useAtom } from "jotai";
 import { alphabetical } from "radashi";
 import { useState } from "react";
@@ -79,7 +79,8 @@ function ShortcutGuideContent({
 
   return (
     <DialogContent
-      className="max-w-[min(38rem,calc((100vw-2rem)/var(--content-zoom)))] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0"
+      className="grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0"
+      maxWidth="38rem"
       onExitComplete={onExitComplete}
     >
       <div className="flex flex-col gap-3 px-6 pt-6 pb-4">

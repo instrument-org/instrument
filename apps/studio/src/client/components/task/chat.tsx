@@ -9,6 +9,8 @@ import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { usePromptQueue } from "@/client/hooks/use-prompt-queue";
+import { useTurnSettleWindow } from "@/client/hooks/use-turn-settle-window";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -22,7 +24,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import {
-  type RefObject,
+  type ComponentProps,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -31,7 +33,8 @@ import {
 import { toast } from "sonner";
 
 import { ChatStream } from "../chat-stream";
-import { PromptInput } from "../prompt-input";
+import { PromptInput, type PromptInputRef } from "../prompt-input";
+import { TranscriptScrollContext } from "../transcript-scroll-context";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
 import {
@@ -41,13 +44,24 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
   useMessageScroller,
+  useMessageScrollerScrollable,
 } from "../ui/message-scroller";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ChatZeroState } from "./chat-zero-state";
-import { PromptBrowserToggle } from "./prompt-browser-toggle";
 import { QueuedPrompts } from "./queued-prompts";
 import { TutorialPromptCard } from "./tutorial-prompt-card";
+
+// How long a submitted prompt follows the transcript on its own before the
+// session has to justify it. Long enough to cover starting a turn, short enough
+// that a submit that never becomes one hands the idle transcript back.
+const SUBMIT_FOLLOW_TIMEOUT_MS = 5000;
+
+// Where an anchored turn comes to rest, measured from the top of the viewport.
+// Less than the primitive's default, because the transcript fades its own top
+// 24px: the previous turn showing through the fade is the whole point of the
+// band, and past that it is just a gap above the turn being read.
+const TRANSCRIPT_PREVIOUS_TURN_PEEK = 40;
 
 export function TaskChat({
   isReplayActive = false,
@@ -75,15 +89,21 @@ export function TaskChat({
   // after it.
   useHydrateTaskDraft(id, promptDraft);
 
-  const promptInputRef = useRef<{ clear: () => void; focus: () => void }>(null);
-  const scrollToEndRef = useRef<
-    null | ReturnType<typeof useMessageScroller>["scrollToEnd"]
-  >(null);
+  const promptInputRef = useRef<PromptInputRef>(null);
+  const [scrollToEndSignal, setScrollToEndSignal] = useState(0);
+  const [isFollowingSubmit, setIsFollowingSubmit] = useState(false);
 
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions({
       onError: (error) => {
         toast.error("Failed to create message", { description: error.message });
+      },
+    }),
+  );
+  const runTurn = useMutation(
+    rpcClient.workspace.session.run.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to try again", { description: error.message });
       },
     }),
   );
@@ -119,7 +139,7 @@ export function TaskChat({
   }
 
   const messagesQuery = useQuery(
-    rpcClient.workspace.message.live.listWithParts.experimental_liveOptions({
+    rpcClient.workspace.message.live.list.experimental_liveOptions({
       input: selectedSessionId
         ? {
             id,
@@ -143,6 +163,30 @@ export function TaskChat({
     sessionId: selectedSessionId,
   });
 
+  // The live session takes over following the transcript as soon as it reports
+  // itself alive, so the submit's own reason to follow ends there.
+  if (isFollowingSubmit && isAgentAlive) {
+    setIsFollowingSubmit(false);
+  }
+
+  const isSettlingTurn = useTurnSettleWindow(isAgentAlive);
+
+  // A submit that never becomes a turn would otherwise leave an idle transcript
+  // following forever.
+  useEffect(() => {
+    if (!isFollowingSubmit) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setIsFollowingSubmit(false);
+    }, SUBMIT_FOLLOW_TIMEOUT_MS);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [isFollowingSubmit]);
+
   const { handleContinue } = useContinueSession({
     id,
     modelURI: selectedModelURI,
@@ -162,6 +206,24 @@ export function TaskChat({
       id,
       modelURI: selectedModelURI,
       prompt,
+      sessionId: selectedSessionId,
+    });
+  };
+
+  // The failed turn again, with nothing said on the user's behalf: the agent
+  // runs over the session as it stands and answers the request already in it.
+  const handleRunAgain = () => {
+    if (!selectedSessionId) {
+      // No retry UI is shown when no session is selected
+      return;
+    }
+    if (!selectedModelURI) {
+      toast.error("Failed to try again", { description: "No model selected" });
+      return;
+    }
+    runTurn.mutate({
+      id,
+      modelURI: selectedModelURI,
       sessionId: selectedSessionId,
     });
   };
@@ -209,7 +271,13 @@ export function TaskChat({
   }, [isActiveTab, focusSignal, selectedSessionId, promptEditor]);
 
   const [isTutorialDismissed, setIsTutorialDismissed] = useState(false);
-  const isTutorialVisible = showTutorial === true && !isTutorialDismissed;
+  const [composerFolderCount, setComposerFolderCount] = useState(0);
+  const isTutorialActive = showTutorial === true && !isTutorialDismissed;
+  // The composer grows its own wrapper once a folder is attached, and two
+  // nested ones read as a box in a box. The tutorial gives way for as long as
+  // the folder is there and comes back if it is removed: nothing is written
+  // away, so this is a fold rather than a dismissal.
+  const isTutorialVisible = isTutorialActive && composerFolderCount === 0;
 
   const handleDismissTutorial = () => {
     setIsTutorialDismissed(true);
@@ -224,18 +292,15 @@ export function TaskChat({
   const promptInput = (
     <PromptInput
       autoFocus
-      browserToggle={
-        features.prompt_browser_toggle ? (
-          <PromptBrowserToggle disabled={isReplayActive} />
-        ) : undefined
-      }
       className="relative z-10"
       draftKey={draftKey}
+      folderTrayPlacement="above"
       id={id}
       isLoading={createMessage.isPending}
       isStoppable={isAgentAlive}
       isSubmittable={isQueueEnabled ? true : !isAgentAlive}
       modelURI={selectedModelURI}
+      onFolderCountChange={setComposerFolderCount}
       onModelChange={setSelectedModelURI}
       onStop={() => {
         if (isReplayActive && onCancelReplay) {
@@ -248,11 +313,20 @@ export function TaskChat({
         }
       }}
       onSubmit={({ files, folders, modelURI, prompt }) => {
+        // The composer empties on submit rather than on the reply, so a send the
+        // workspace rejects has to hand the prompt and its attachments back --
+        // nothing else holds them, and a toast the user cannot act on is worse
+        // than no send at all.
+        const draft = promptInputRef.current?.snapshot();
         promptInputRef.current?.clear();
         // Submitting is a request to watch what happens next, so a reader who
-        // had scrolled back returns to the live edge and follows it again.
-        scrollToEndRef.current?.();
-        if (isTutorialVisible) {
+        // had scrolled back returns to the live edge and follows it again. Both
+        // halves are needed: the scroller arms follow-bottom from autoScroll at
+        // the moment it is asked to scroll, so a scroll that runs while the
+        // session is still starting up would only land at the end.
+        setIsFollowingSubmit(true);
+        setScrollToEndSignal((signal) => signal + 1);
+        if (isTutorialActive) {
           handleDismissTutorial();
         }
         // While a turn is running, buffer the prompt; the queue delivers it
@@ -272,6 +346,11 @@ export function TaskChat({
             sessionId: selectedSessionId,
           },
           {
+            onError: () => {
+              if (draft) {
+                promptInputRef.current?.restore(draft);
+              }
+            },
             onSuccess: ({ sessionId }) => {
               void navigate({
                 params: { id },
@@ -302,22 +381,26 @@ export function TaskChat({
   // gradient overlay at the scroll frame's bottom edge eases the transcript into
   // the composer; pb-8 keeps the last turn's text clear of the fade band.
   //
-  // autoScroll only while the session is alive: follow-bottom cannot tell new
-  // output from content the reader grew themselves, so on an idle transcript it
-  // reads a collapsible expanding as output and yanks the row out from under the
-  // click. Alive rather than running, so a turn paused for approval still
-  // follows.
+  // autoScroll while the session is alive, while a just-submitted prompt is
+  // waiting for one, and through the moment a turn takes to settle: past that,
+  // on a transcript nothing is arriving into, follow-bottom has only the
+  // reader's own clicks left to read as output. What it would misread there is
+  // narrowed by `TranscriptScrollContext`, which the controls that open
+  // something call first -- so the window can stay open long enough for the end
+  // of a turn to land. Alive rather than running, so a turn paused for approval
+  // still follows.
   return (
     <MessageScrollerProvider
-      autoScroll={isAgentAlive}
+      autoScroll={isAgentAlive || isFollowingSubmit || isSettlingTurn}
       defaultScrollPosition="end"
       key={selectedSessionId}
+      scrollPreviousItemPeek={TRANSCRIPT_PREVIOUS_TURN_PEEK}
     >
-      <ScrollToEndBridge commandRef={scrollToEndRef} />
+      <ScrollToEndBridge signal={scrollToEndSignal} />
       <div className="flex h-full min-h-0 flex-col">
         <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport>
-            <MessageScrollerContent className="group/assistant-message-footer mx-auto w-full max-w-2xl gap-2 p-4 pb-8">
+            <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8">
               {selectedSessionId ? (
                 isLoadingMessages ? (
                   <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
@@ -343,7 +426,11 @@ export function TaskChat({
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Starts a new task</p>
+                            <p>
+                              Opens a blank task. Nothing carries over, but this
+                              one stays in your list, so you can copy over
+                              anything you still need.
+                            </p>
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip delayDuration={0}>
@@ -363,15 +450,15 @@ export function TaskChat({
                     selectedSessionId={selectedSessionId}
                   />
                 ) : (
-                  <ChatStream
+                  <TranscriptStream
                     isAgentRunning={isAgentRunning}
                     isDeveloperMode={isDeveloperMode}
                     messages={messages}
                     onContinue={handleContinue}
                     onModelChange={setSelectedModelURI}
                     onRetry={handleRetry}
+                    onRunAgain={handleRunAgain}
                     onStartNewTask={handleStartNewTask}
-                    renderAsItems
                     task={task}
                   />
                 )
@@ -380,6 +467,8 @@ export function TaskChat({
               )}
             </MessageScrollerContent>
           </MessageScrollerViewport>
+
+          <TranscriptTopFade />
 
           {/* Fade the transcript into the composer with a background gradient
               rather than a viewport mask, so the scrollbar stays crisp. The
@@ -397,7 +486,7 @@ export function TaskChat({
 
         {/* isolate: keep the tutorial card's -z-10 background and the prompt
             input's z-10 contained to the composer. */}
-        <div className="isolate mx-auto w-full max-w-2xl px-3 pb-3">
+        <div className="isolate mx-auto w-full max-w-3xl px-3 pb-3">
           <QueuedPrompts onRemove={remove} prompts={queue} />
           {showTutorial === undefined ? (
             promptInput
@@ -417,20 +506,51 @@ export function TaskChat({
 }
 
 // The scroll commands come from the provider's context, so they are only
-// reachable below it. This renders nothing and exists to hand scrollToEnd to
-// the submit handler, which sits above the provider.
-function ScrollToEndBridge({
-  commandRef,
-}: {
-  commandRef: RefObject<
-    null | ReturnType<typeof useMessageScroller>["scrollToEnd"]
-  >;
-}) {
+// reachable below it. This renders nothing and exists to run scrollToEnd for
+// the submit handler, which sits above the provider. A counter rather than a
+// direct call, so the scroll runs from the render that turned autoScroll on and
+// the scroller arms follow-bottom with it.
+function ScrollToEndBridge({ signal }: { signal: number }) {
   const { scrollToEnd } = useMessageScroller();
 
-  useEffect(() => {
-    commandRef.current = scrollToEnd;
-  }, [commandRef, scrollToEnd]);
+  useLayoutEffect(() => {
+    if (signal === 0) {
+      return;
+    }
+
+    scrollToEnd();
+  }, [scrollToEnd, signal]);
 
   return null;
+}
+
+// The transcript, wired to the scroller it is drawn in. ChatStream also renders
+// outside one (nested tool-agent streams) where useMessageScroller throws, so
+// reading the scroll commands is this wrapper's job rather than its own.
+function TranscriptStream(
+  props: Omit<ComponentProps<typeof ChatStream>, "renderAsItems">,
+) {
+  const { releaseAutoScroll } = useMessageScroller();
+
+  return (
+    <TranscriptScrollContext value={releaseAutoScroll}>
+      <ChatStream {...props} renderAsItems />
+    </TranscriptScrollContext>
+  );
+}
+
+// The bottom fade's counterpart at the scroll frame's top edge, softening the
+// transcript into the toolbar. Unlike the bottom, it only shows when there is
+// content scrolled above: at rest the first turn should read at full strength.
+function TranscriptTopFade() {
+  const scrollable = useMessageScrollerScrollable();
+
+  return (
+    <div
+      className={cn(
+        "pointer-events-none absolute top-0 right-3 left-0 h-6 bg-linear-to-b from-background to-transparent transition-opacity duration-150",
+        scrollable.start ? "opacity-100" : "opacity-0",
+      )}
+    />
+  );
 }

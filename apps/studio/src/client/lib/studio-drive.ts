@@ -35,9 +35,17 @@ const MODAL_OPENERS = {
 interface StudioDrive {
   closeModal: () => void;
   goto: (path: string, options?: { newTab?: boolean }) => void;
+  load: () => StudioDriveLoad;
   modals: () => StudioModalName[];
   openModal: (name: StudioModalName) => void;
   state: () => StudioDriveState;
+}
+
+interface StudioDriveLoad {
+  /** Minted per renderer load: a new one means the app restarted. */
+  id: string;
+  /** Hot updates applied to this load. */
+  updates: number;
 }
 
 interface StudioDriveState {
@@ -75,6 +83,16 @@ export function initStudioDrive() {
 
   const store = getDefaultStore();
 
+  // A driving script has no other way to tell that the app moved under it: an
+  // edit anywhere in the checkout relaunches the main process or hot-updates
+  // the renderer, and the result reads as a click that stopped working or a
+  // screenshot of a route nobody navigated away from. The id changes on a
+  // reload, the count on every hot update in between.
+  const load: StudioDriveLoad = { id: crypto.randomUUID(), updates: 0 };
+  import.meta.hot?.on("vite:afterUpdate", () => {
+    load.updates++;
+  });
+
   window.__studioDrive = {
     closeModal: resetStudioModals,
 
@@ -94,6 +112,8 @@ export function initStudioDrive() {
         destination as Parameters<typeof router.navigate>[0],
       );
     },
+
+    load: () => ({ ...load }),
 
     modals: () => Object.keys(MODAL_OPENERS) as StudioModalName[],
 
@@ -137,13 +157,19 @@ export function parseStudioDrivePath(path: string): {
  * that never go through it.
  */
 function readOpenDialogTitle(): null | string {
-  const dialog = document.querySelector('[role="dialog"]');
+  // Confirms are `alertdialog`, not `dialog`. Reading only the latter reports
+  // `null` for every destructive confirmation in the app while one is open on
+  // screen, which reads as "no dialog" rather than as "a role this did not ask
+  // for".
+  const dialog = document.querySelector(
+    '[role="dialog"], [role="alertdialog"]',
+  );
   if (!dialog) {
     return null;
   }
-  const labelledBy = dialog.getAttribute("aria-labelledby");
-  const title = labelledBy
-    ? document.querySelector(`#${CSS.escape(labelledBy)}`)?.textContent
+  const labeledBy = dialog.getAttribute("aria-labelledby");
+  const title = labeledBy
+    ? document.querySelector(`#${CSS.escape(labeledBy)}`)?.textContent
     : dialog.getAttribute("aria-label");
   return title?.trim() ?? null;
 }

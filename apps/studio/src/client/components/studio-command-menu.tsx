@@ -12,7 +12,7 @@ import { toggleSidebar } from "@/client/hooks/use-sidebar";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import { debugPages } from "@/client/routes/_app/debug/-debug-routes";
-import { presetSessions } from "@/client/routes/_app/debug/-sessions";
+import { scenarios } from "@/client/routes/_app/debug/-transcript/scenarios";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type Project,
@@ -20,28 +20,29 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import uFuzzy from "@leeoniya/ufuzzy";
-import {
-  ArrowsClockwiseIcon,
-  BagIcon,
-  BugIcon,
-  ChatCircleIcon,
-  PlusIcon,
-  SidebarSimpleIcon,
-} from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
+import { CodeIcon } from "@phosphor-icons/react/Code";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { PushPinIcon } from "@phosphor-icons/react/PushPin";
+import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMatch, useNavigate } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { formatDistanceToNow } from "date-fns";
 import { useAtom, useAtomValue } from "jotai";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { FuzzyHighlight } from "./fuzzy-highlight";
+import { RelativeTime } from "./relative-time";
+import { TaskStatusIcon } from "./session-status-icon";
+import { UnreadDot } from "./unread-dot";
 
 interface DebugItem {
   key: string;
   label: string;
-  search?: { session: string };
+  search?: { scenario: string };
   to: string;
 }
 
@@ -110,6 +111,17 @@ export function StudioCommandMenu() {
     rpcClient.workspace.project.live.list.experimental_liveOptions(),
   );
 
+  const { data: pinnedTaskIds } = useQuery(
+    rpcClient.workspace.pin.live.listTaskIds.experimental_liveOptions({
+      enabled: open,
+    }),
+  );
+
+  const pinnedTaskIdSet = useMemo(
+    () => new Set(pinnedTaskIds ?? []),
+    [pinnedTaskIds],
+  );
+
   const tasks = tasksData?.tasks ?? [];
 
   const currentTaskId = taskRouteMatch?.params.id;
@@ -118,7 +130,16 @@ export function StudioCommandMenu() {
 
   const matchedTasks = useMemo((): MatchedTask[] => {
     if (!search) {
-      return candidateTasks.map((task) => ({ task, titleRanges: null }));
+      // Pinned float to top, the order the sidebar shows. A search is ordered by
+      // relevance instead: a pin says the task matters, not that it's the better
+      // answer to what was typed.
+      const pinned = candidateTasks.filter((task) =>
+        pinnedTaskIdSet.has(task.id),
+      );
+      const rest = candidateTasks.filter(
+        (task) => !pinnedTaskIdSet.has(task.id),
+      );
+      return [...pinned, ...rest].map((task) => ({ task, titleRanges: null }));
     }
 
     const haystack = candidateTasks.map((p) => p.title);
@@ -136,7 +157,7 @@ export function StudioCommandMenu() {
       const task = candidateTasks[info.idx[orderIdx] ?? -1];
       return task ? [{ task, titleRanges: info.ranges[orderIdx] ?? null }] : [];
     });
-  }, [candidateTasks, search]);
+  }, [candidateTasks, pinnedTaskIdSet, search]);
 
   // Projects are search-only: the empty state stays a list of recent tasks.
   const matchedProjects = useMemo((): MatchedProject[] => {
@@ -177,9 +198,9 @@ export function StudioCommandMenu() {
   const isOnNewTabPage = !!newTabRouteMatch;
   const commandSearch = search.trim().toLowerCase();
 
-  // In developer mode every debug page is a flat, top-level entry (preset chat
-  // sessions included, deep-linked via the session search param). Shown on open
-  // and fuzzy-filtered by name as the user types.
+  // In developer mode every debug page is a flat, top-level entry (transcript
+  // scenarios included, deep-linked via the scenario search param). Shown on
+  // open and fuzzy-filtered by name as the user types.
   const developerMode = preferences.developerMode;
   const matchedDebugItems = useMemo((): MatchedDebugItem[] => {
     if (!developerMode) {
@@ -191,11 +212,11 @@ export function StudioCommandMenu() {
         label: page.label,
         to: page.to,
       })),
-      ...presetSessions.map((session) => ({
-        key: `session:${session.id}`,
-        label: session.name,
-        search: { session: session.id },
-        to: "/debug/components/chat-stream",
+      ...scenarios.map((scenario) => ({
+        key: `scenario:${scenario.id}`,
+        label: scenario.name,
+        search: { scenario: scenario.id },
+        to: "/debug/components/transcript",
       })),
     ];
 
@@ -419,6 +440,7 @@ export function StudioCommandMenu() {
                 onSelectDebugItem={handleSelectDebugItem}
                 onSelectProject={handleSelectProject}
                 onSelectTask={handleSelectTask}
+                pinnedTaskIds={pinnedTaskIdSet}
               />
             )}
           </>
@@ -441,6 +463,7 @@ function CommandResultsList({
   onSelectDebugItem,
   onSelectProject,
   onSelectTask,
+  pinnedTaskIds,
 }: {
   matchedDebugItems: MatchedDebugItem[];
   matchedProjects: MatchedProject[];
@@ -448,6 +471,7 @@ function CommandResultsList({
   onSelectDebugItem: (item: DebugItem) => void;
   onSelectProject: (project: Project) => void;
   onSelectTask: (id: TaskId) => void;
+  pinnedTaskIds: Set<TaskId>;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -523,18 +547,33 @@ function CommandResultsList({
                   }}
                   value={row.matched.task.id}
                 >
-                  <ChatCircleIcon className="size-4 shrink-0 opacity-50" />
+                  {pinnedTaskIds.has(row.matched.task.id) ? (
+                    <PushPinIcon className="size-4 shrink-0 opacity-50" />
+                  ) : (
+                    <ChatCircleIcon className="size-4 shrink-0 opacity-50" />
+                  )}
                   <span className="flex-1 truncate text-sm">
                     <FuzzyHighlight
                       ranges={row.matched.titleRanges}
                       text={row.matched.task.title}
                     />
                   </span>
-                  <span className="text-xs text-muted-foreground/60">
-                    {formatDistanceToNow(new Date(row.matched.task.updatedAt), {
-                      addSuffix: true,
-                    }).replace(/^about /, "")}
-                  </span>
+                  {/* Same precedence as the sidebar row: a task the user hasn't
+                      read reads as unread even once its run is over. */}
+                  {row.matched.task.unreadIndicator ? (
+                    <UnreadDot />
+                  ) : (
+                    <TaskStatusIcon
+                      className="size-4 shrink-0"
+                      id={row.matched.task.id}
+                    />
+                  )}
+                  <RelativeTime
+                    className="text-xs text-muted-foreground/60"
+                    compact
+                    date={new Date(row.matched.task.updatedAt)}
+                    tooltip={false}
+                  />
                 </CommandItem>
               ) : row.type === "project" ? (
                 <CommandItem
@@ -543,7 +582,7 @@ function CommandResultsList({
                   }}
                   value={`project:${row.matched.project.id}`}
                 >
-                  <BagIcon className="size-4 shrink-0 opacity-50" />
+                  <CardsThreeIcon className="size-4 shrink-0 opacity-50" />
                   <span className="flex-1 truncate text-sm">
                     <FuzzyHighlight
                       ranges={row.matched.nameRanges}
@@ -558,7 +597,7 @@ function CommandResultsList({
                   }}
                   value={`debug:${row.matched.item.key}`}
                 >
-                  <BugIcon className="size-4 shrink-0 opacity-50" />
+                  <CodeIcon className="size-4 shrink-0 opacity-50" />
                   <span className="flex-1 truncate text-sm">
                     <FuzzyHighlight
                       ranges={row.matched.labelRanges}

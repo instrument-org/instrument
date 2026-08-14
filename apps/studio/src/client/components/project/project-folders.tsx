@@ -1,10 +1,15 @@
-import { FolderAttachmentRow } from "@/client/components/folder-attachment-row";
+import {
+  DEFAULT_FOLDER_ACCESS,
+  FolderAccessList,
+} from "@/client/components/folder-access-list";
 import { Button } from "@/client/components/ui/button";
-import { folderNameFromPath } from "@/client/lib/path-utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type ProjectId } from "@instrument-org/workspace/client";
+import {
+  type ProjectFolder,
+  type ProjectId,
+} from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { PlusIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -12,7 +17,7 @@ export function ProjectFolders({
   folders,
   projectId,
 }: {
-  folders: string[];
+  folders: ProjectFolder[];
   projectId: ProjectId;
 }) {
   const { mutate: addFolder } = useMutation(
@@ -29,6 +34,15 @@ export function ProjectFolders({
       },
     }),
   );
+  const { mutate: setFolderAccess } = useMutation(
+    rpcClient.workspace.project.setFolderAccess.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to change folder access", {
+          description: error.message,
+        });
+      },
+    }),
+  );
 
   const handleAdd = async () => {
     const [error, result] = await safe(
@@ -39,23 +53,27 @@ export function ProjectFolders({
       return;
     }
     if (result) {
-      if (folders.includes(result.path)) {
+      if (folders.some((folder) => folder.path === result.path)) {
         toast.info("That folder is already attached to this project");
         return;
       }
-      addFolder({ id: projectId, path: result.path });
+      addFolder({
+        access: DEFAULT_FOLDER_ACCESS,
+        id: projectId,
+        path: result.path,
+      });
     }
   };
 
   return (
-    <div className="flex shrink-0 flex-col overflow-hidden rounded-lg bg-card/60 pb-1">
+    <div className="flex shrink-0 flex-col overflow-hidden rounded-lg bg-card/60 pb-2 shadow-xs">
       <div className="flex items-center justify-between px-3 py-2">
         <h2 className="text-xs font-medium">Attached folders</h2>
         <Button
-          className="text-muted-foreground"
+          className="border-0 bg-transparent shadow-none"
           onClick={() => void handleAdd()}
           size="xs"
-          variant="ghost"
+          variant="outline-muted"
         >
           <PlusIcon className="size-3" />
           Add a folder
@@ -66,20 +84,15 @@ export function ProjectFolders({
           No folders attached yet.
         </p>
       ) : (
-        <ul className="flex flex-col">
-          {folders.map((path) => (
-            <li key={path}>
-              <FolderAttachmentRow
-                name={folderNameFromPath(path)}
-                onRemove={() => {
-                  removeFolder({ id: projectId, path });
-                }}
-                path={path}
-                removeLabel="Remove from project"
-              />
-            </li>
-          ))}
-        </ul>
+        <FolderAccessList
+          folders={folders}
+          onAccessChange={(path, access) => {
+            setFolderAccess({ access, id: projectId, path });
+          }}
+          onRemove={(path) => {
+            removeFolder({ id: projectId, path });
+          }}
+        />
       )}
     </div>
   );

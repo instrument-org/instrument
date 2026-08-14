@@ -51,6 +51,7 @@ import {
   type SessionMachineParentEvent,
 } from "../session";
 import {
+  type BrowserPresenceLevel,
   taskBrowserMachine,
   type TaskBrowserParentEvent,
 } from "../task-browser";
@@ -62,7 +63,7 @@ export type WorkspaceEvent =
   | WorkspaceServerParentEvent
   | {
       type: "acquireBrowserPresence";
-      value: { id: TaskId };
+      value: { id: TaskId; level: BrowserPresenceLevel };
     }
   | {
       type: "addMessage";
@@ -96,9 +97,11 @@ export type WorkspaceEvent =
       type: "internal.spawnSession";
       value: {
         agentName: AgentName;
-        message: SessionMessage.UserWithParts;
+        // Absent for a turn that runs over what the session already holds.
+        message?: SessionMessage.UserWithParts;
         model: AIGatewayModel.Type;
         parentSessionId?: StoreId.Session;
+        runRequested?: boolean;
         sessionId: StoreId.Session;
         sessionNamePrefix?: string;
         taskId: TaskId;
@@ -123,7 +126,7 @@ export type WorkspaceEvent =
     }
   | {
       type: "releaseBrowserPresence";
-      value: { id: TaskId };
+      value: { id: TaskId; level: BrowserPresenceLevel };
     }
   | { type: "removeTaskBeingTrashed"; value: { id: TaskId } }
   | {
@@ -132,6 +135,15 @@ export type WorkspaceEvent =
   | {
       type: "restartRuntime";
       value: { id: TaskId };
+    }
+  | {
+      type: "runTurn";
+      value: {
+        agentName: AgentName;
+        id: TaskId;
+        model: AIGatewayModel.Type;
+        sessionId: StoreId.Session;
+      };
     }
   | {
       type: "spawnRuntime";
@@ -156,10 +168,29 @@ export type WorkspaceEvent =
       };
     };
 
+// The session actor for a task, while it still has a turn to run. A session
+// that finished dropped its ref, so anything asking for another turn spawns a
+// fresh actor over the same stored session rather than reaching for this one.
+function findLiveSessionRef(
+  context: WorkspaceContext,
+  { id, sessionId }: { id: TaskId; sessionId: StoreId.Session },
+) {
+  return context.sessionRefsByTaskId
+    .get(id)
+    ?.find(
+      (ref) =>
+        ref.getSnapshot().context.sessionId === sessionId &&
+        ref.getSnapshot().status === "active",
+    );
+}
+
 export const workspaceMachine = setup({
   actions: {
     acquireBrowserPresence: enqueueActions(
-      ({ enqueue }, { id }: { id: TaskId }) => {
+      (
+        { enqueue },
+        { id, level }: { id: TaskId; level: BrowserPresenceLevel },
+      ) => {
         enqueue.assign(({ context, spawn }) => {
           const existing = context.taskBrowserRefs.get(id);
           const ref =
@@ -170,7 +201,7 @@ export const workspaceMachine = setup({
                 id,
               },
             });
-          ref.send({ type: "acquirePresence" });
+          ref.send({ type: "acquirePresence", value: { level } });
           if (existing) {
             return {};
           }
@@ -326,8 +357,13 @@ export const workspaceMachine = setup({
     },
 
     releaseBrowserPresence: enqueueActions(
-      ({ context }, { id }: { id: TaskId }) => {
-        context.taskBrowserRefs.get(id)?.send({ type: "releasePresence" });
+      (
+        { context },
+        { id, level }: { id: TaskId; level: BrowserPresenceLevel },
+      ) => {
+        context.taskBrowserRefs
+          .get(id)
+          ?.send({ type: "releasePresence", value: { level } });
       },
     ),
 
@@ -470,35 +506,21 @@ export const workspaceMachine = setup({
     },
     acquireBrowserPresence: {
       actions: {
-        params: ({ event }) => ({ id: event.value.id }),
+        params: ({ event }) => event.value,
         type: "acquireBrowserPresence",
       },
     },
     addMessage: [
       {
         actions: ({ context, event }) => {
-          const { id, sessionId } = event.value;
-          const sessionRefs = context.sessionRefsByTaskId.get(id);
-
-          const targetRef = sessionRefs?.find(
-            (ref) => ref.getSnapshot().context.sessionId === sessionId,
-          );
+          const targetRef = findLiveSessionRef(context, event.value);
           targetRef?.send({
             type: "addMessage",
             value: event.value.message,
           });
         },
-        guard: ({ context, event }) => {
-          const { id, sessionId } = event.value;
-          const sessionRefs = context.sessionRefsByTaskId.get(id);
-          return Boolean(
-            sessionRefs?.some(
-              (ref) =>
-                ref.getSnapshot().context.sessionId === sessionId &&
-                ref.getSnapshot().status === "active",
-            ),
-          );
-        },
+        guard: ({ context, event }) =>
+          findLiveSessionRef(context, event.value) !== undefined,
       },
       {
         actions: raise(({ event }) => {
@@ -566,6 +588,7 @@ export const workspaceMachine = setup({
             message,
             model,
             parentSessionId,
+            runRequested,
             sessionId,
             sessionNamePrefix,
             taskId,
@@ -579,7 +602,8 @@ export const workspaceMachine = setup({
               model,
               parentRef: self,
               parentSessionId,
-              queuedMessages: [message],
+              queuedMessages: message ? [message] : [],
+              runRequested,
               sessionId,
               sessionNamePrefix,
               taskId,
@@ -674,7 +698,7 @@ export const workspaceMachine = setup({
     },
     releaseBrowserPresence: {
       actions: {
-        params: ({ event }) => ({ id: event.value.id }),
+        params: ({ event }) => event.value,
         type: "releaseBrowserPresence",
       },
     },
@@ -719,6 +743,27 @@ export const workspaceMachine = setup({
           const { id } = event.value;
           return !context.runtimeRefs.has(id);
         },
+      },
+    ],
+    runTurn: [
+      {
+        actions: ({ context, event }) => {
+          findLiveSessionRef(context, event.value)?.send({ type: "runTurn" });
+        },
+        guard: ({ context, event }) =>
+          findLiveSessionRef(context, event.value) !== undefined,
+      },
+      {
+        actions: raise(({ event }) => ({
+          type: "internal.spawnSession",
+          value: {
+            agentName: event.value.agentName,
+            model: event.value.model,
+            runRequested: true,
+            sessionId: event.value.sessionId,
+            taskId: event.value.id,
+          },
+        })),
       },
     ],
     "session.done": {

@@ -1,17 +1,21 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { openLogin } from "@/client/atoms/login-modal";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
-import { AttachedFolderPreview } from "@/client/components/attached-folder-preview";
+import {
+  type ComposerAction,
+  ComposerAddMenu,
+  type ComposerMenuView,
+} from "@/client/components/composer-add-menu";
+import { ComposerFolderTray } from "@/client/components/composer-folder-tray";
+import { ComposerFrame } from "@/client/components/composer-frame";
+import {
+  DEFAULT_FOLDER_ACCESS,
+  type FolderAccess,
+} from "@/client/components/folder-access-list";
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
-import { TextareaContainer } from "@/client/components/ui/textarea-container";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
+import { BLOCK_CLOSE, BLOCK_OPEN, ITEM_IN } from "@/client/lib/motion";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { folderNameFromPath } from "@/client/lib/path-utils";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
@@ -20,25 +24,27 @@ import {
   useWindowFileDrop,
 } from "@/client/lib/use-window-file-drop";
 import { cn, isMacOS } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { OUR_MODELS } from "@instrument-org/shared";
+import { skillMentionToken } from "@instrument-org/shared/skill-mention";
 import {
   type FileUpload,
+  type FolderAttachment,
   type ProjectId,
   type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import {
-  ArrowUpIcon,
-  FileIcon,
-  FolderIcon,
-  PaperclipIcon,
-  StopIcon,
-  UploadSimpleIcon,
-} from "@phosphor-icons/react";
+import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
+import { FolderIcon } from "@phosphor-icons/react/Folder";
+import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
+import { StopIcon } from "@phosphor-icons/react/Stop";
+import { UploadSimpleIcon } from "@phosphor-icons/react/UploadSimple";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { AnimatePresence, motion } from "motion/react";
 import {
   useEffect,
   useImperativeHandle,
@@ -58,13 +64,18 @@ import {
   promptFocusSignalAtom,
   removeTransientDraft,
 } from "../atoms/prompt-value";
-import { rpcClient } from "../rpc/client";
-import { PromptProjectSelector } from "./project/prompt-project-selector";
+import { PromptProjectChip } from "./project/prompt-project-chip";
 import { PromptEditor, type PromptEditorRef } from "./prompt-editor";
 import { SessionContextRing } from "./session-context-ring";
 import { Spinner } from "./ui/spinner";
 
 type AttachedItem =
+  | {
+      access: FolderAttachment.Access;
+      id: string;
+      path: string;
+      type: "folder";
+    }
   | {
       content: string;
       id: string;
@@ -82,36 +93,53 @@ type AttachedItem =
       size: number;
       type: "file";
       url?: string;
-    }
-  | {
-      id: string;
-      path: string;
-      type: "folder";
     };
 
 const MAX_PASTE_TEXT_LENGTH = 5000;
 const MAX_FILE_PREVIEW_SIZE = 10 * 1024 * 1024;
 
+export interface PromptInputRef {
+  clear: () => void;
+  focus: () => void;
+  restore: (draft: PromptInputDraft) => void;
+  snapshot: () => PromptInputDraft;
+}
+
+/** Everything a submit clears, so a rejected one can put it back. */
+interface PromptInputDraft {
+  items: AttachedItem[];
+  projectId: null | ProjectId;
+  prompt: string;
+}
+
 interface PromptInputProps {
   allowOpenInNewTab?: boolean;
+  // Whether the plus menu offers to work in a project, and a chosen one shows
+  // beside it. Off where the project is not the composer's to decide -- a task's
+  // is fixed when it is created.
+  allowWorkInProject?: boolean;
   autoFocus?: boolean;
   autoResizeMaxHeight?: number;
-  // Extra action rendered in the button row before the attach control (e.g. the
+  // Extra action rendered in the button row beside the plus button (e.g. the
   // task page's browser-panel toggle). The host owns it so this stays generic.
-  browserToggle?: React.ReactNode;
   className?: string;
   disabled?: boolean;
   draftKey: PromptDraftKey;
+  // Which side of the composer the attached folders are listed on. Below on the
+  // surfaces a prompt is composed from scratch; above where the composer is
+  // already pinned to the bottom of the window.
+  folderTrayPlacement?: "above" | "below";
   id?: TaskId;
   isLoading: boolean;
   isStoppable?: boolean;
   isSubmittable?: boolean;
   modelURI?: AIGatewayModelURI.Type;
+  onFolderCountChange?: (count: number) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onStop?: () => void;
   onSubmit: (value: {
     files?: FileUpload.Input[];
-    folders?: { path: string }[];
+    folders?: { access: FolderAttachment.Access; path: string }[];
     modelURI: AIGatewayModelURI.Type;
     openInNewTab?: boolean;
     projectId?: null | ProjectId;
@@ -120,34 +148,35 @@ interface PromptInputProps {
   placeholder?: string;
   ref?: React.Ref<PromptInputRef>;
   selectedSessionId?: StoreId.Session;
-  showProjectSelector?: boolean;
-}
-
-interface PromptInputRef {
-  clear: () => void;
-  focus: () => void;
+  // Whether the folder tray offers its own entry point. Off, the tray still
+  // appears once folders are attached -- otherwise a folder added from the plus
+  // menu would be invisible and impossible to remove -- it just does not
+  // advertise itself on surfaces that have their own folder controls.
+  showWorkInFolder?: boolean;
 }
 
 export const PromptInput = ({
   allowOpenInNewTab = false,
+  allowWorkInProject = false,
   autoFocus = false,
   autoResizeMaxHeight = 400,
-  browserToggle,
   className,
   disabled = false,
   draftKey,
+  folderTrayPlacement = "below",
   id,
   isLoading,
   isStoppable = false,
   isSubmittable = true,
   modelURI,
+  onFolderCountChange,
   onModelChange,
   onStop,
   onSubmit,
   placeholder,
   ref,
   selectedSessionId,
-  showProjectSelector = false,
+  showWorkInFolder = false,
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
@@ -156,12 +185,18 @@ export const PromptInput = ({
   const [selectedProjectId, setSelectedProjectId] = useState<null | ProjectId>(
     null,
   );
+  const [menuView, setMenuView] = useState<ComposerMenuView | null>(null);
   const openFilePreview = useSetAtom(openFilePreviewAtom);
-  const textareaRef = useRef<HTMLDivElement>(null);
   const promptEditorRef = useRef<PromptEditorRef>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useAtom(promptDraftAtom(draftKey));
   const setInputRef = useSetAtom(promptDraftRefAtom(draftKey));
+  // The plus menu lists skills the way a typed slash does -- name, description
+  // and source on one line -- so it is sized to the composer rather than to the
+  // 32px button it hangs off. Layout px, which is the unit the menu re-applies
+  // zoom to.
+  const [menuWidth, setMenuWidth] = useState<number>();
 
   const {
     data: modelsData,
@@ -203,6 +238,24 @@ export const PromptInput = ({
     focus: () => {
       promptEditorRef.current?.focus();
     },
+    // Only into a composer the user left alone: a send can fail after they have
+    // started the next prompt, and their new words outrank the rejected ones.
+    restore: (draft) => {
+      if (
+        promptEditorRef.current?.getValue().trim() ||
+        attachedItems.length > 0
+      ) {
+        return;
+      }
+      promptEditorRef.current?.setValue(draft.prompt);
+      setAttachedItems(draft.items);
+      setSelectedProjectId(draft.projectId);
+    },
+    snapshot: () => ({
+      items: attachedItems,
+      projectId: selectedProjectId,
+      prompt: promptEditorRef.current?.getValue() ?? "",
+    }),
   }));
 
   useEffect(() => {
@@ -211,6 +264,25 @@ export const PromptInput = ({
       setInputRef(null);
     };
   }, [setInputRef]);
+
+  useEffect(() => {
+    const composer = composerRef.current;
+    if (!composer) {
+      return;
+    }
+    // The content box rather than the border box: what the menu should span is
+    // the button row it hangs off, which is the composer inside its padding.
+    const observer = new ResizeObserver(([entry]) => {
+      const inlineSize = entry?.contentBoxSize[0]?.inlineSize;
+      if (inlineSize !== undefined) {
+        setMenuWidth(inlineSize);
+      }
+    });
+    observer.observe(composer);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   // A transient draft belongs to the surface that mounted it, so drop it when
   // that surface goes away or re-keys. Without this it would outlive the page
@@ -304,7 +376,12 @@ export const PromptInput = ({
         if (existingPaths.has(folder.path)) {
           duplicates.push(folderNameFromPath(folder.path));
         } else {
-          newFolders.push({ id: ulid(), path: folder.path, type: "folder" });
+          newFolders.push({
+            access: DEFAULT_FOLDER_ACCESS,
+            id: ulid(),
+            path: folder.path,
+            type: "folder",
+          });
         }
       }
 
@@ -340,8 +417,10 @@ export const PromptInput = ({
     },
   });
 
-  const removeAttachedItem = (index: number) => {
-    setAttachedItems((prev) => prev.filter((_, i) => i !== index));
+  const removeAttachedItem = (attachedItemId: string) => {
+    setAttachedItems((prev) =>
+      prev.filter((item) => item.id !== attachedItemId),
+    );
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -385,12 +464,86 @@ export const PromptInput = ({
     setAttachedItems((prev) =>
       prev.some((i) => i.type === "folder" && i.path === folderPath)
         ? prev
-        : [...prev, { id: ulid(), path: folderPath, type: "folder" }],
+        : [
+            ...prev,
+            {
+              access: DEFAULT_FOLDER_ACCESS,
+              id: ulid(),
+              path: folderPath,
+              type: "folder",
+            },
+          ],
+    );
+  };
+
+  const setFolderAccess = (
+    folderPath: string,
+    access: FolderAttachment.Access,
+  ) => {
+    setAttachedItems((prev) =>
+      prev.map((item) =>
+        item.type === "folder" && item.path === folderPath
+          ? { ...item, access }
+          : item,
+      ),
+    );
+  };
+
+  const removeFolder = (folderPath: string) => {
+    setAttachedItems((prev) =>
+      prev.filter(
+        (item) => !(item.type === "folder" && item.path === folderPath),
+      ),
     );
   };
 
   const attachedFiles = attachedItems.filter((i) => i.type === "file");
   const attachedFolders = attachedItems.filter((i) => i.type === "folder");
+  const folderAccessList: FolderAccess[] = attachedFolders.map((folder) => ({
+    access: folder.access,
+    path: folder.path,
+  }));
+  const showFolderTray = showWorkInFolder || folderAccessList.length > 0;
+
+  // A host may lay itself out around what this prompt has been given -- the
+  // tutorial task folds its own card away rather than wrapping a wrapper -- so
+  // the count is reported as it changes rather than only on submit.
+  const folderCount = folderAccessList.length;
+  useEffect(() => {
+    onFolderCountChange?.(folderCount);
+  }, [folderCount, onFolderCountChange]);
+
+  const actions: ComposerAction[] = [
+    {
+      icon: PaperclipIcon,
+      id: "add-files",
+      label: "Add files",
+      onSelect: () => {
+        fileInputRef.current?.click();
+      },
+    },
+    {
+      icon: FolderIcon,
+      id: "work-in-folder",
+      label: "Work in a local folder",
+      onSelect: () => {
+        void handleFolderPick();
+      },
+    },
+    ...(allowWorkInProject
+      ? [
+          {
+            icon: CardsThreeIcon,
+            id: "work-in-project",
+            keepMenuOpen: true,
+            label: "Work in a project",
+            onSelect: () => {
+              setMenuView("projects");
+            },
+          },
+        ]
+      : []),
+  ];
 
   const canSubmit =
     !disabled &&
@@ -472,7 +625,13 @@ export const PromptInput = ({
                 : { content: f.content }),
             }))
           : undefined,
-      folders: attachedFolders.length > 0 ? attachedFolders : undefined,
+      folders:
+        attachedFolders.length > 0
+          ? attachedFolders.map((folder) => ({
+              access: folder.access,
+              path: folder.path,
+            }))
+          : undefined,
       modelURI,
       openInNewTab,
       projectId: selectedProjectId,
@@ -544,96 +703,104 @@ export const PromptInput = ({
     return false;
   };
 
+  const folderTray = (
+    // `initial={false}`: a surface that offers the tray has it from the first
+    // paint, and a restored draft arrives with its folders already attached.
+    // Neither is a change, so neither is worth animating.
+    <AnimatePresence initial={false}>
+      {showFolderTray && (
+        <motion.div
+          animate={{ height: "auto", opacity: 1 }}
+          className="overflow-hidden"
+          exit={{ height: 0, opacity: 0, transition: BLOCK_CLOSE }}
+          initial={{ height: 0, opacity: 0 }}
+          transition={BLOCK_OPEN}
+        >
+          <ComposerFolderTray
+            disabled={disabled || isLoading}
+            folders={folderAccessList}
+            onAccessChange={setFolderAccess}
+            onAdd={() => void handleFolderPick()}
+            onRemove={removeFolder}
+            showAdd={showWorkInFolder}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
   return (
-    <>
-      <TextareaContainer
-        className={cn(
-          // isolate: the drag-and-drop overlay covers the composer and nothing
-          // beyond it.
-          "relative isolate overflow-visible rounded-[20px] p-4",
-          "bg-white shadow-xs dark:bg-gray-800",
-          className,
-        )}
-        ref={textareaRef}
-        style={{ maxHeight: `${autoResizeMaxHeight}px` }}
-      >
-        {isDragging && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-[20px] border border-dashed border-foreground/20 bg-background/70">
-            <UploadSimpleIcon className="size-8 text-primary" />
-            <span className="text-sm font-medium text-primary">
-              Drop files or folders to add them
-            </span>
-          </div>
-        )}
+    // Once there are folders to show, the composer sits inside a tray rather
+    // than on top of one: a single rounded block, a shade off the page, with the
+    // prompt inset in it. `isolate` keeps the block behind the prompt rather
+    // than behind whatever the composer was placed on.
+    <motion.div
+      animate={{ padding: showFolderTray ? 4 : 0 }}
+      className={cn("relative isolate flex flex-col", className)}
+      initial={false}
+      transition={showFolderTray ? BLOCK_OPEN : BLOCK_CLOSE}
+    >
+      {/* The block itself, out of flow: a border and a fill on the box the
+          prompt sits in cannot be faded without taking the prompt with them. */}
+      <motion.div
+        animate={{ opacity: showFolderTray ? 1 : 0 }}
+        className="pointer-events-none absolute inset-0 -z-10 rounded-3xl border border-black/2 bg-black/2 dark:border-white/1 dark:bg-white/1"
+        initial={false}
+        transition={showFolderTray ? BLOCK_OPEN : BLOCK_CLOSE}
+      />
 
-        {attachedItems.length > 0 && (
-          <div className="-m-2 mb-2 flex max-h-32 flex-wrap items-start gap-2 overflow-y-auto p-2">
-            {attachedItems.map((item, index) =>
-              item.type === "folder" ? (
-                <AttachedFolderPreview
-                  folderPath={item.path}
-                  key={item.id}
+      {folderTrayPlacement === "above" && folderTray}
+
+      <ComposerFrame
+        actions={
+          <>
+            <div className="flex min-w-0 shrink-0 items-center gap-1">
+              <ComposerAddMenu
+                actions={actions}
+                disabled={disabled || isLoading}
+                onReturnFocus={() => {
+                  promptEditorRef.current?.focus();
+                }}
+                onSelectProject={
+                  allowWorkInProject ? setSelectedProjectId : undefined
+                }
+                onSelectSkill={(skill) => {
+                  promptEditorRef.current?.insertText(
+                    skillMentionToken(skill.id),
+                  );
+                }}
+                onViewChange={setMenuView}
+                projectId={selectedProjectId}
+                skills={userInvocableSkills}
+                view={menuView}
+                width={menuWidth}
+              />
+
+              {allowWorkInProject && selectedProjectId && (
+                <PromptProjectChip
+                  disabled={disabled || isLoading}
+                  onOpenPicker={() => {
+                    setMenuView("projects");
+                  }}
                   onRemove={() => {
-                    removeAttachedItem(index);
+                    setSelectedProjectId(null);
                   }}
+                  projectId={selectedProjectId}
                 />
-              ) : (
-                <AttachedFilePreview
-                  filename={item.name}
-                  key={item.id}
-                  mimeType={item.mimeType}
-                  onClick={() => {
-                    if (item.url) {
-                      openFilePreview({
-                        filename: item.name,
-                        mimeType: item.mimeType,
-                        size: item.size,
-                        url: item.url,
-                      });
-                    }
-                  }}
-                  onRemove={() => {
-                    removeAttachedItem(index);
-                  }}
-                  size={item.size}
-                  url={item.url}
+              )}
+            </div>
+
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-4">
+              {features.context_ring && id && selectedSessionId && (
+                <SessionContextRing
+                  id={id}
+                  model={selectedModel}
+                  selectedSessionId={selectedSessionId}
                 />
-              ),
-            )}
-          </div>
-        )}
+              )}
 
-        {/* Keyed by draft: the editor reads its text once, at mount, so a
-            surface that swaps which draft it is composing (one skill page to
-            the next) needs a new editor rather than a new prop. */}
-        <PromptEditor
-          autoFocus={autoFocus}
-          className="min-h-12"
-          defaultValue={value}
-          disabled={disabled || isLoading}
-          key={draftKeyString(draftKey)}
-          maxHeight={Math.max(autoResizeMaxHeight - 72, 48)}
-          onChange={setValue}
-          onPaste={handlePaste}
-          onSubmit={(modifierPressed) => {
-            handleSubmit(allowOpenInNewTab && modifierPressed);
-          }}
-          placeholder={placeholder}
-          ref={promptEditorRef}
-          skills={userInvocableSkills}
-        />
-
-        <input
-          className="hidden"
-          multiple
-          onChange={handleFileSelect}
-          ref={fileInputRef}
-          type="file"
-        />
-        <div className="flex items-end justify-between gap-2 pt-2">
-          <div className="flex min-w-0 flex-1 items-end gap-2">
-            <div className="min-w-0 flex-1">
               <ModelPicker
+                className="min-w-0"
                 disabled={disabled || isLoading}
                 errors={modelsErrors}
                 isError={modelsIsError}
@@ -659,74 +826,114 @@ export const PromptInput = ({
                 onValueChange={onModelChange}
                 selectedModel={selectedModel}
               />
-            </div>
-          </div>
 
-          {features.context_ring && id && selectedSessionId && (
-            <SessionContextRing
-              id={id}
-              model={selectedModel}
-              selectedSessionId={selectedSessionId}
-            />
-          )}
-
-          {showProjectSelector && (
-            <PromptProjectSelector
-              disabled={disabled || isLoading}
-              onChange={setSelectedProjectId}
-              value={selectedProjectId}
-            />
-          )}
-
-          {browserToggle}
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
               <Button
-                className="size-8 p-0"
-                disabled={disabled || isLoading}
-                size="sm"
-                variant="ghost"
+                aria-label={isStoppable ? "Stop" : "Send"}
+                className="size-8 shrink-0 rounded-full p-0 disabled:opacity-100"
+                disabled={isStoppable ? false : !canSubmit}
+                onClick={(e) => {
+                  if (isStoppable) {
+                    handleStop();
+                  } else {
+                    const openInNewTab =
+                      allowOpenInNewTab && (isMacOS() ? e.metaKey : e.ctrlKey);
+                    handleSubmit(openInNewTab);
+                  }
+                }}
+                variant="brand"
               >
-                <PaperclipIcon className="size-5" weight="regular" />
+                {isStoppable ? (
+                  <StopIcon className="size-5" weight="fill" />
+                ) : isLoading ? (
+                  <Spinner className="size-5" />
+                ) : (
+                  <ArrowUpIcon className="size-5" />
+                )}
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                <FileIcon />
-                Add files
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void handleFolderPick()}>
-                <FolderIcon />
-                Add folder
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            </div>
+          </>
+        }
+        attachments={
+          attachedFiles.length > 0 && (
+            // A file lands in the corner of a box the user is looking away
+            // from, at the caret, so it grows into place rather than appearing
+            // there. `initial={false}`: the first one is carried in by the row
+            // opening around it, and does not need a second motion of its own.
+            <AnimatePresence initial={false}>
+              {attachedFiles.map((item) => (
+                <motion.div
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  key={item.id}
+                  transition={ITEM_IN}
+                >
+                  <AttachedFilePreview
+                    filename={item.name}
+                    mimeType={item.mimeType}
+                    onClick={() => {
+                      if (item.url) {
+                        openFilePreview({
+                          filename: item.name,
+                          mimeType: item.mimeType,
+                          size: item.size,
+                          url: item.url,
+                        });
+                      }
+                    }}
+                    onRemove={() => {
+                      removeAttachedItem(item.id);
+                    }}
+                    size={item.size}
+                    url={item.url}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          )
+        }
+        maxHeight={autoResizeMaxHeight}
+        overlay={
+          isDragging && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-[20px] border border-dashed border-foreground/20 bg-background/70">
+              <UploadSimpleIcon className="size-8 text-primary" />
+              <span className="text-sm font-medium text-primary">
+                Drop files or folders to add them
+              </span>
+            </div>
+          )
+        }
+        ref={composerRef}
+      >
+        {/* Keyed by draft: the editor reads its text once, at mount, so a
+            surface that swaps which draft it is composing (one skill page to
+            the next) needs a new editor rather than a new prop. */}
+        <PromptEditor
+          actions={actions}
+          autoFocus={autoFocus}
+          defaultValue={value}
+          disabled={disabled || isLoading}
+          key={draftKeyString(draftKey)}
+          onChange={setValue}
+          onPaste={handlePaste}
+          onSubmit={(modifierPressed) => {
+            handleSubmit(allowOpenInNewTab && modifierPressed);
+          }}
+          placeholder={placeholder}
+          ref={promptEditorRef}
+          skills={userInvocableSkills}
+        />
+      </ComposerFrame>
 
-          <Button
-            className="size-10 rounded-full p-0 disabled:opacity-100"
-            disabled={isStoppable ? false : !canSubmit}
-            onClick={(e) => {
-              if (isStoppable) {
-                handleStop();
-              } else {
-                const openInNewTab =
-                  allowOpenInNewTab && (isMacOS() ? e.metaKey : e.ctrlKey);
-                handleSubmit(openInNewTab);
-              }
-            }}
-            variant="brand"
-          >
-            {isStoppable ? (
-              <StopIcon className="size-5" weight="fill" />
-            ) : isLoading ? (
-              <Spinner className="size-5" />
-            ) : (
-              <ArrowUpIcon className="size-5" />
-            )}
-          </Button>
-        </div>
-      </TextareaContainer>
-    </>
+      {folderTrayPlacement === "below" && folderTray}
+
+      <input
+        className="hidden"
+        multiple
+        onChange={handleFileSelect}
+        ref={fileInputRef}
+        type="file"
+      />
+    </motion.div>
   );
 };

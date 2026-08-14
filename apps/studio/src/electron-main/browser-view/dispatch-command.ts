@@ -14,6 +14,24 @@ import { log } from "./log";
 import { handlePrintToPDF } from "./print-to-pdf";
 import { startScreencast, stopScreencast } from "./screencast";
 
+// CDP commands that put text or key events into the page. Chromium routes
+// keyboard input to the widget that holds keyboard focus, not to the
+// WebContents whose debugger carried the command, and the guest is an inner
+// WebContents of the Studio renderer. So when the host holds focus these are
+// delivered to Studio's own UI instead of the page -- into whatever the user
+// last clicked, with every newline arriving as an Enter the prompt input
+// submits on. Mouse, scroll, and touch commands are routed by hit-testing
+// against the target's own surface and stay in the guest either way.
+const KEYBOARD_COMMANDS = new Set([
+  "Input.dispatchKeyEvent",
+  "Input.imeSetComposition",
+  "Input.insertText",
+]);
+
+// A page busy enough not to answer this promptly is one we should not be
+// typing into blind, so a timeout reads as "no focus" like any other failure.
+const FOCUS_PROBE_TIMEOUT_MS = 1000;
+
 export async function sendCommand({
   ensureDebuggerAttached,
   entries,
@@ -131,6 +149,21 @@ export async function sendCommand({
     );
   }
 
+  if (
+    KEYBOARD_COMMANDS.has(method) &&
+    !(await guestHoldsKeyboardFocus(entry))
+  ) {
+    // Logged rather than only thrown: how often this fires is what says
+    // whether the refusal is a rare safety net or a routine obstacle worth
+    // replacing with an in-page translation of the keystrokes.
+    log.warn(
+      `refused ${method} targetId=${targetId}: guest does not hold keyboard focus`,
+    );
+    throw new Error(
+      "Keyboard input was not delivered: this browser tab does not hold keyboard focus, so the keystrokes would go to the desktop app's own window instead of the page. Click the element you want to type into first (e.g. `agent-browser click @e5`), then send the keys again.",
+    );
+  }
+
   try {
     const wc = entry.webContents;
     if (!wc) {
@@ -241,4 +274,35 @@ function getWindowForTargetStub(): Protocol.Browser.GetWindowForTargetResponse {
     },
     windowId: 1,
   };
+}
+
+// Whether the guest currently holds Chromium's keyboard focus, which is the
+// precondition for CDP keyboard input reaching it at all. Asked of the guest
+// document rather than derived from our own bookkeeping: `webContents`
+// focus state is unreliable for `<webview>` guests, and a page-level `focus()`
+// call does not move focus across the process boundary, so only the guest can
+// answer this. Fails closed on every error path.
+async function guestHoldsKeyboardFocus(entry: BrowserEntry): Promise<boolean> {
+  const wc = entry.webContents;
+  if (!wc || wc.isDestroyed()) {
+    return false;
+  }
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const hasFocus: unknown = await Promise.race([
+      wc.executeJavaScript("document.hasFocus()"),
+      new Promise<false>((resolve) => {
+        timeout = setTimeout(() => {
+          resolve(false);
+        }, FOCUS_PROBE_TIMEOUT_MS);
+      }),
+    ]);
+    return hasFocus === true;
+  } catch {
+    return false;
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  }
 }

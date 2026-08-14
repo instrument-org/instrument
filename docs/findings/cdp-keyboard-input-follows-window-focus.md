@@ -39,16 +39,21 @@ That is in direct conflict with the routing rule above: the guard wants host foc
 
 ## Current behavior
 
-Two changes, both in `apps/studio/src/electron-main/browser-view/`:
+Three changes:
 
-1. `dispatch-command.ts` refuses `Input.dispatchKeyEvent`, `Input.insertText`, and `Input.imeSetComposition` when the guest does not hold keyboard focus, with an error telling the caller to click the target element first. Focus is asked of the guest document (`document.hasFocus()`) rather than derived from our own bookkeeping, because neither `webContents` focus state nor renderer-reported DOM focus is authoritative here. Every failure path, including a probe that does not answer within a second, reads as "no focus".
-2. `focus-guard.ts` splits "the agent is driving this guest" (used for attributing side effects such as a `window.open`) from "reject this guest's focus transfer". Only navigation-class commands are rejected now. Input commands take focus normally, and host focus is restored once the target has been quiet for the settle tail, so a click-then-type burst is one stretch of agent work rather than a fight over the caret.
+1. `dispatch-command.ts` gates `Input.dispatchKeyEvent`, `Input.insertText`, and `Input.imeSetComposition` on the guest holding keyboard focus. Focus is asked of the guest document (`document.hasFocus()`) rather than derived from our own bookkeeping, because neither `webContents` focus state nor renderer-reported DOM focus is authoritative here. Every failure path, including a probe that does not answer within a second, reads as "no focus".
+2. When the guest does not hold focus, the command **reclaims it** rather than failing: the main process asks the renderer (`browser.focus-guest`) to put DOM focus on the `<webview>` element, polls until the guest agrees, and only then dispatches. It refuses, with an error telling the caller to click the target element first, when the guest never takes focus back. Both outcomes are logged, so their relative counts are observable.
+3. `focus-guard.ts` splits "the agent is driving this guest" (used for attributing side effects such as a `window.open`) from "reject this guest's focus transfer". Only navigation-class commands are rejected now. Input commands take focus normally, and host focus is restored once the target has been quiet for the settle tail, so a click-then-type burst is one stretch of agent work rather than a fight over the caret.
 
-Net effect: keystrokes can no longer be delivered to the app's own window. The ordinary click-then-type flow still works, because the click reclaims focus. When the user takes focus between the two, the command fails with an actionable error instead of typing into their window.
+Reclaiming is not optional polish. The agent's commands arrive as separate tool calls seconds apart, while host focus is handed back after a much shorter lull, so a guest the agent clicked has nearly always lost focus again by the time the keystrokes for it arrive. A gate that only refuses makes ordinary form entry impossible unless the agent happens to chain its click and its typing into one shell command, which is not how a model naturally writes them and which no error message can reasonably teach.
+
+Net effect: keystrokes can no longer be delivered to the app's own window, and the ordinary click-then-type flow works across arbitrary gaps between tool calls.
 
 ## What this does not fix
 
 Agent typing still costs the user their caret for the duration of the typing, because it requires guest focus. That is unavoidable while we dispatch real CDP keyboard input.
+
+The theft crosses tasks. There is one keyboard focus per window, so an agent typing in a background task takes the caret from whatever the user has focused in the foreground task, and hands it back when that agent goes quiet. Confirmed in the running app: a guest parked in paint-host mode, belonging to a task whose tab was not even selected, reclaimed focus from the foreground task's prompt input, typed, and released it. This is also the strongest argument for translating keyboard input to in-page events, which would need no focus at all.
 
 The class is only removed by translating keyboard input into JavaScript executed inside the guest (synthetic `beforeinput`/`input` pairs, `setRangeText` for form fields, Range surgery for contenteditable), which never touches the focus tree. A comparable Electron-based product with the same `<webview>`-guest architecture does exactly this for every input command, refusing anything outside a four-method allowlist, and its own error text names preserving focus as the reason. The cost is that synthetic events carry `isTrusted: false`, which matters most on the sign-in pages we deliberately support, and that a translator has to reimplement hit-testing, focus semantics, scroll chaining, and text editing, while still failing on cross-origin iframes.
 

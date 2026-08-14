@@ -8,7 +8,6 @@ import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileIcon } from "./file-icon";
 import { ImageWithFallback } from "./image-with-fallback";
 import { PreviewListItem } from "./preview-list-item";
-import { Button } from "./ui/button";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -38,21 +37,20 @@ export function FilePreviewListItem({
     url && fileType === "image" ? (
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
+          {/* The compact form of a square `MediaCardShell` tile, down to the
+              surface a transparent or missing image falls back onto, and styled
+              here rather than borrowed from a button variant for the same
+              reason its sibling row is. The selected mark goes outside because
+              the image covers the surface a tint would land on. */}
+          <button
             className={cn(
-              "relative size-12 shrink-0 overflow-hidden p-0",
-              // The outline a square media tile takes when the pane is showing
-              // its file. A tint is the treatment everywhere else, but the image
-              // covers the surface it would land on, so the mark goes outside.
-              // `outline-solid` because the button's base turns the outline off
-              // for the focus ring to switch back on, and a width alone inherits
-              // that off.
+              "relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-card shadow-xs dark:bg-muted",
+              "transition-[outline] outline-none focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]",
               isSelected &&
-                "outline-2 outline-offset-2 outline-brand-100 outline-solid dark:outline-brand-700",
+                "outline-2 outline-solid outline-offset-2 outline-brand-100 dark:outline-brand-700",
             )}
             onClick={onClick}
             type="button"
-            variant="outline"
           >
             <ImageWithFallback
               alt={filename}
@@ -65,7 +63,7 @@ export function FilePreviewListItem({
               showCheckerboard
               src={url}
             />
-          </Button>
+          </button>
         </TooltipTrigger>
         <TooltipContent
           className="wrap-break-word"

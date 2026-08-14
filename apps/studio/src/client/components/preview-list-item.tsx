@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/client/lib/utils";
 
-import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function PreviewListItem({
@@ -21,32 +20,26 @@ export function PreviewListItem({
   tooltipContent?: string;
 }) {
   const button = (
-    <Button
+    // Its own surface rather than a button variant's. This is the compact form
+    // of a `FilePreviewCard` row and wants that card's language -- card fill,
+    // brand tint once the pane is showing the file -- which no variant carries;
+    // borrowing one meant its next round of tuning arrived here as a filename
+    // nobody could read.
+    <button
       className={cn(
-        "h-12 w-full justify-start gap-x-2 overflow-hidden",
-        // The brand tint a full-width `FilePreviewCard` row takes when the pane
-        // is showing its file, so a chip and a row read as the same state. Hover
-        // holds the tint rather than falling back to the variant's, which would
-        // otherwise paint the selected chip as an unselected one under the
-        // pointer.
-        isSelected &&
-          "bg-brand-600/8 not-disabled:hover:bg-brand-600/8 dark:bg-brand-300/8 dark:not-disabled:hover:bg-brand-300/8",
+        "flex h-12 w-full items-center gap-x-2 overflow-hidden rounded-lg px-3 text-left text-foreground",
+        "transition-[outline] outline-none focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]",
+        isSelected
+          ? "border border-black/5 bg-brand-600/8 dark:bg-brand-300/8"
+          : "bg-card shadow-xs hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40",
       )}
       onClick={onClick}
       type="button"
-      variant="outline-muted"
     >
       {icon}
-      {/* Its own color rather than the button's. `outline-muted` tints its label
-          for the text-only "add" buttons it also dresses, where a gray sits
-          under a heading on purpose; here the label is a filename, and it reads
-          at the same weight as the one on a full-width `FilePreviewCard`. Set on
-          the span so the variant's hover shift can't reach it either. */}
-      <span className="min-w-0 truncate text-left text-xs/tight text-foreground">
-        {label}
-      </span>
+      <span className="min-w-0 truncate text-xs/tight">{label}</span>
       {rightElement && <div className="ml-auto shrink-0">{rightElement}</div>}
-    </Button>
+    </button>
   );
 
   if (!tooltipContent) {

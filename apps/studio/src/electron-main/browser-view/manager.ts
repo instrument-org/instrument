@@ -34,7 +34,11 @@ import {
   handleDetach,
   subscribeEvents,
 } from "./entry";
-import { canStealFocus, createFocusGuard } from "./focus-guard";
+import {
+  bouncesGuestFocus,
+  createFocusGuard,
+  isAgentDrivenCommand,
+} from "./focus-guard";
 import { attachGuestInteractions } from "./guest-interactions";
 import { log } from "./log";
 import { stopScreencast } from "./screencast";
@@ -467,12 +471,13 @@ export function createBrowserViewManager(): BrowserViewManager {
           params,
           targetId,
         });
-      if (!canStealFocus(method)) {
+      if (!isAgentDrivenCommand(method)) {
         return dispatch();
       }
       const settle = focusGuard.armCommand(
         targetId,
         hostWebContents?.isFocused() ?? false,
+        bouncesGuestFocus(method),
       );
       try {
         return await dispatch();
@@ -542,7 +547,13 @@ export function createBrowserViewManager(): BrowserViewManager {
     }
     if (focused) {
       focusedTargetId = targetId;
-      focusGuard.releaseHost();
+      // Only a user taking the guest hands the claim over. Focus that the
+      // agent's own command caused (a CDP click, which the guest needs before
+      // it can be typed into at all) is recorded for chord routing but leaves
+      // the host owning the caret, so it returns once the agent goes quiet.
+      if (!focusGuard.isGuarded(targetId)) {
+        focusGuard.releaseHost();
+      }
     } else if (focusedTargetId === targetId) {
       focusedTargetId = null;
     }

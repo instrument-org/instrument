@@ -13,11 +13,23 @@ const IS_DEV = process.env.NODE_ENV === "development";
 const ENABLE_CONSOLE_LOGGING =
   IS_DEV || process.env.ELECTRON_ENABLE_CONSOLE_LOGGING === "true";
 
+// Rotation keeps exactly one archive (`main.old.log`), so retained history is
+// twice this. Sized so that a session logging far more than boot timings and
+// update checks still leaves weeks of history to correlate against, rather
+// than days.
+const MAX_LOG_FILE_BYTES = 8 * 1024 * 1024;
+
 log.transports.file.resolvePathFn = () => {
   return path.join(app.getPath("userData"), "logs", "main.log");
 };
 
 log.transports.file.level = IS_DEV ? false : "info";
+log.transports.file.maxSize = MAX_LOG_FILE_BYTES;
+
+// The file transport writes synchronously by default, which puts a blocking
+// syscall per line on the thread that owns the window. Queue writes instead:
+// the trade is that lines still queued when the process dies are lost.
+log.transports.file.sync = false;
 
 // Enable console logging in development or when explicitly requested
 log.transports.console.level = ENABLE_CONSOLE_LOGGING ? "silly" : false;

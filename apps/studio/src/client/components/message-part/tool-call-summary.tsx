@@ -7,7 +7,7 @@ import { type Icon } from "@phosphor-icons/react";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { useAtomValue } from "jotai";
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import { getToolExplanation } from "../../lib/get-tool-explanation";
 import {
@@ -18,7 +18,7 @@ import {
 import { cn } from "../../lib/utils";
 import { PlanningDotIcon } from "../icons/planning-dot";
 import { RunRowChevron } from "../run-row-chevron";
-import { useRowExpansion } from "../transcript-expansion";
+import { useReleaseAutoScroll } from "../transcript-scroll-context";
 import {
   Collapsible,
   CollapsibleContent,
@@ -45,17 +45,12 @@ export function ToolCallSummary({
   const features = useAtomValue(featuresAtom);
   const { isRunning, isStreaming } = useToolCallSession();
   const group = useTranscriptGroup();
-  const { isExpanded, setIsExpanded } = useRowExpansion(part.metadata.id);
+  const releaseAutoScroll = useReleaseAutoScroll();
+  const [isOpen, setIsOpen] = useState(false);
 
-  // Non-null when this row is the head line of a group that has somewhere else
-  // to draw what it holds -- steps behind the line, or the line already opened
-  // -- which is what makes it answer a click on the group's behalf. Its own
-  // output then belongs to its row in the run rather than to the head line, so
-  // opening the group does not draw the same call twice.
-  const groupHead =
-    group?.isHead === true && (group.canExpand || group.isExpanded)
-      ? group
-      : null;
+  // Non-null when this row is the head line of a group with something behind
+  // it, which is what makes it answer a click on the group's behalf.
+  const groupHead = group?.isHead === true && group.canExpand ? group : null;
 
   // A call is asked for well before it is worked on, so a row has three states
   // and not two: the one the agent is on, the ones queued behind it, and the
@@ -156,7 +151,7 @@ export function ToolCallSummary({
       <FileChip part={part} />
 
       <RunRowChevron
-        isOpen={groupHead === null ? isExpanded : groupHead.isExpanded}
+        isOpen={groupHead === null ? isOpen : groupHead.isExpanded}
       />
     </div>
   );
@@ -173,7 +168,13 @@ export function ToolCallSummary({
   }
 
   return (
-    <Collapsible onOpenChange={setIsExpanded} open={isExpanded}>
+    <Collapsible
+      onOpenChange={(open) => {
+        releaseAutoScroll();
+        setIsOpen(open);
+      }}
+      open={isOpen}
+    >
       <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
       <CollapsibleContent animated>{children}</CollapsibleContent>
     </Collapsible>

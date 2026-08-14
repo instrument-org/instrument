@@ -359,7 +359,10 @@ function PaneTab({
   );
 
   const className = cn(
-    "group/pane-tab relative flex h-7 cursor-default items-center rounded-md text-xs select-none",
+    // One weight in every state, so selecting a tab moves its color and nothing
+    // else. A weight that changed with the selection would reflow the name
+    // under the cursor and shift the row it sits in.
+    "group/pane-tab relative flex h-7 cursor-default items-center rounded-md text-xs font-medium select-none",
     // Drawn inside the tab rather than around it. The strip is a 40px row with
     // 28px tabs and clips its overflow so the tabs can compress, which leaves
     // an outset ring shaved off top and bottom.

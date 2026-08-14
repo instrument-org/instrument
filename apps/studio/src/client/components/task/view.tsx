@@ -168,6 +168,7 @@ export function TaskView({
         }
         isPaneOpen={showArtifactPanel}
         onCollapse={close}
+        taskId={task.id}
       >
         {({ isSliding }) => (
           <div className="flex h-full flex-col p-2">

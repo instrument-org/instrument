@@ -12,6 +12,7 @@ import {
   RAIL_SLIDE_TRANSITION,
 } from "@/client/lib/rail-motion";
 import { cn } from "@/client/lib/utils";
+import { type TaskId } from "@instrument-org/workspace/client";
 import { useAtomValue, useSetAtom } from "jotai";
 import {
   animate,
@@ -62,6 +63,7 @@ export function TaskPaneSplit({
   children,
   isPaneOpen,
   onCollapse,
+  taskId,
 }: {
   chat: ReactNode;
   children: (state: { isSliding: boolean }) => ReactNode;
@@ -69,6 +71,10 @@ export function TaskPaneSplit({
   // Dragged shut. The pane's open state lives beside the task rather than here,
   // so closing it is the host's call to make.
   onCollapse: () => void;
+  // Which task's pane this is. The route reuses one instance of this across
+  // tasks, so without it a task whose pane differs from the last one's reads as
+  // that pane opening or closing.
+  taskId: TaskId;
 }) {
   const storedShare = useAtomValue(taskPaneShareAtom);
   const setStoredShare = useSetAtom(taskPaneShareAtom);
@@ -133,8 +139,12 @@ export function TaskPaneSplit({
   }
 
   // A task opened with its pane already open is not an opening: it starts at
-  // the width and stays there.
+  // the width and stays there. Same for the task after it, since switching
+  // tasks in the sidebar keeps this instance and only changes what it is
+  // showing -- the pane of the task being left is not closing, and the pane of
+  // the one being arrived at was already open when it got there.
   const isFirstRunRef = useRef(true);
+  const shownTaskRef = useRef(taskId);
 
   // Slide the pane in and out when the open state flips. Width changes while
   // open are driven by their own handlers, so this only reacts to open/close.
@@ -161,12 +171,14 @@ export function TaskPaneSplit({
       }
     };
 
-    // Switching to a task whose pane was already open is arriving at a state,
-    // not watching it happen. A row measuring nothing is the same thing a step
-    // earlier -- the task is mounted behind another one, and a slide there
-    // animates what nobody is looking at while holding the browser slot's
-    // per-frame tracking open for it.
-    if (isFirstRunRef.current || row.offsetWidth === 0) {
+    const isNewTask = shownTaskRef.current !== taskId;
+    shownTaskRef.current = taskId;
+
+    // Arriving at a state rather than watching it happen: the first run, a
+    // task change, or a row measuring nothing -- that last one is a task
+    // mounted behind another, where a slide animates what nobody is looking at
+    // and holds the browser slot's per-frame tracking open for it.
+    if (isFirstRunRef.current || isNewTask || row.offsetWidth === 0) {
       isFirstRunRef.current = false;
       settle();
       return;
@@ -214,7 +226,7 @@ export function TaskPaneSplit({
       }
       widthAnimationsRef.current = [];
     };
-  }, [isPaneOpen, opacity, paneWidth, paneX, reservedWidth]);
+  }, [isPaneOpen, taskId, opacity, paneWidth, paneX, reservedWidth]);
 
   // The row's own width, tracked as state so the separator can report its range
   // and so the re-apply below has something to react to.

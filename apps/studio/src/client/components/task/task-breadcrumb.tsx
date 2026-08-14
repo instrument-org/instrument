@@ -82,8 +82,14 @@ export function TaskBreadcrumb({
           {/*
             Separator stays with the task title — a standalone shrink-0 element
             so it remains visible even after the project name fully collapses.
+
+            It carries its own room on both sides rather than living on the
+            row's gap alone. The title's hover surface bleeds back over its own
+            padding, and against a 4px gap that fill would land on the slash,
+            which leans right at the top and reads as clipped. The extra 4px
+            buys the fill its clearance without spending it on one side.
           */}
-          <span className="shrink-0 text-gray-400">/</span>
+          <span className="mx-1 shrink-0 text-gray-400">/</span>
         </>
       )}
       {rename.isEditing ? (
@@ -118,12 +124,11 @@ export function TaskBreadcrumb({
             {/*
               The hover surface is pulled back out by its own padding on both
               sides, so the gaps around it stay measured from the text rather
-              than from the fill: 8px to the overflow button, and behind a
-              project, the same 4px off the separator that the project name has
-              on its other side. The cost is that the idle fill reaches 2px
-              into the separator's box, which its side bearing absorbs. Only the
-              task title takes the surface: the project crumbs beside it are
-              links to somewhere else, not a rename.
+              than from the fill: 8px to the overflow button, the separator's
+              own spacing behind it, and the row's leading edge when the title
+              starts the row alone. Only the task title takes the surface: the
+              project crumbs beside it are links to somewhere else, not a
+              rename.
             */}
             <button
               className="-mx-1.5 flex h-8 min-w-0 items-center truncate rounded-lg px-1.5 text-left outline-none hover:bg-muted focus-visible:outline-[3px] focus-visible:-outline-offset-3 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]"

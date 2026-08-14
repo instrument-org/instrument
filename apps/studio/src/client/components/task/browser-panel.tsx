@@ -93,6 +93,10 @@ export function TaskBrowserPanel({
   const inputRef = useRef<HTMLInputElement>(null);
   const isActiveTab = useIsActiveTab();
   const [draftUrl, setDraftUrl] = useState("");
+  const [location, setLocation] = useState<null | {
+    targetId: BrowserTargetId;
+    url: string;
+  }>(null);
   const [nav, setNav] = useState({ back: false, forward: false });
   const [zoomFactor, setZoomFactor] = useState(1);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -173,10 +177,11 @@ export function TaskBrowserPanel({
       // getURL/canGoBack throw if the guest hasn't attached its WebContents yet;
       // the did-navigate events that also drive this only fire once it has.
       try {
+        const url = webview.getURL();
         if (!editingUrlRef.current) {
-          const url = webview.getURL();
           setDraftUrl(url === "about:blank" ? "" : url);
         }
+        setLocation({ targetId, url });
         setNav({ back: webview.canGoBack(), forward: webview.canGoForward() });
       } catch {
         // Not attached yet; a did-navigate will re-run sync once it is.
@@ -313,6 +318,13 @@ export function TaskBrowserPanel({
   // act on the current page, so they're only meaningful once one exists; zoom in
   // particular is per-page and doesn't carry to the next navigation.
   const pageUrl = active ? currentUrl() : undefined;
+  // A newly selected target has no location stamped for it until its guest
+  // syncs. Treat that brief handoff as blank too, so the guest's black default
+  // never flashes through before we learn its URL.
+  const blankPage =
+    location?.targetId !== targetId ||
+    !location.url ||
+    location.url === "about:blank";
 
   return (
     <div
@@ -545,6 +557,12 @@ export function TaskBrowserPanel({
       )}
       {active ? (
         <div className="relative flex-1" ref={slotRef}>
+          {blankPage && !loadError && (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 z-10 bg-card"
+            />
+          )}
           {loadError && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-card p-6 text-center">
               <WarningCircleIcon className="size-8 text-muted-foreground" />

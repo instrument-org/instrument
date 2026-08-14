@@ -65,7 +65,21 @@ Cmd+R has no app-wide meaning at all: a claimed chord reloads the guest and an u
 
 ## Lifetime
 
-[`task-browser.ts`](../../packages/workspace/src/machines/task-browser.ts) supervises a task's browser as an XState machine with `Observed` / `Unobserved` / `GracePeriod` / `Stopping` / `Stopped` states, on two clocks: `AGENT_IDLE_TIMEOUT_MS` (1 hour) and `USER_PRESENCE_TIMEOUT_MS` (5 minutes). The renderer reports presence through `browser.live.presence` in the workspace RPC. Sessions are torn down through `agent-browser-cleanup.ts`; see [agent-browser-orphaned-daemons](../findings/agent-browser-orphaned-daemons.md) and [agent-browser-ref-map-idle-ttl](../findings/agent-browser-ref-map-idle-ttl.md) for the failure modes that shaped it.
+[`task-browser.ts`](../../packages/workspace/src/machines/task-browser.ts) supervises a task's browser as an XState machine with `Observed` / `Retained` / `Unobserved` / `GracePeriod` / `Stopping` / `Stopped` states. Which state it sits in is decided by the leases viewers hold, not by any event: `acquirePresence` / `releasePresence` only move counts, and eventless transitions on each live state route from there.
+
+The renderer takes those leases through `browser.live.presence` in the workspace RPC, where subscribing *is* the hold and aborting releases it. There are two levels, and the difference between them is the whole design:
+
+| Lease | Held while | Clock when it is the highest lease |
+| --- | --- | --- |
+| `visible` | the task page is on screen | none — `Observed` never reaps |
+| `retained` | the task page is mounted at all | `RETAINED_TIMEOUT_MS` (8 hours) |
+| none | — | `USER_PRESENCE_TIMEOUT_MS` (5 minutes), or `AGENT_IDLE_TIMEOUT_MS` (1 hour) from the last CDP heartbeat |
+
+A task page the user turned away from is not one they abandoned, so backgrounding it costs the browser nothing for a working day; closing it drops the short clock on the browser within minutes. The task route holds both leases and gates `visible` on [`use-task-page-visible.ts`](../../apps/studio/src/client/hooks/use-task-page-visible.ts), which is the single place that knows the app currently draws one task per foreground tab. Nothing below that hook — not the machine, not the RPC — names tabs, so a shell that keeps pages alive some other way changes only the hook.
+
+A reap is unobservable after the fact: the panel builds a new tab the moment it remounts, so a model that was driving a page finds a plausible-looking browser that is not the one it left. Teardown therefore records `closedAt` on the session's browser state ([`browser-state.ts`](../../packages/workspace/src/lib/browser-state.ts)), [`create-browser-status-part.ts`](../../packages/workspace/src/lib/create-browser-status-part.ts) reports it on the next user message and clears it, and `browser.open` puts a freshly built tab back on `lastUrl` — so the user gets their page back and the model is told it is a fresh load whose page state and snapshot refs are gone.
+
+Sessions are torn down through `agent-browser-cleanup.ts`; see [agent-browser-orphaned-daemons](../findings/agent-browser-orphaned-daemons.md) and [agent-browser-ref-map-idle-ttl](../findings/agent-browser-ref-map-idle-ttl.md) for the failure modes that shaped it.
 
 ## Related
 

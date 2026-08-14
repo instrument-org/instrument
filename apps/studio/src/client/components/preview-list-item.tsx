@@ -37,7 +37,14 @@ export function PreviewListItem({
       variant="outline-muted"
     >
       {icon}
-      <span className="min-w-0 truncate text-left text-xs/tight">{label}</span>
+      {/* Its own color rather than the button's. `outline-muted` tints its label
+          for the text-only "add" buttons it also dresses, where a gray sits
+          under a heading on purpose; here the label is a filename, and it reads
+          at the same weight as the one on a full-width `FilePreviewCard`. Set on
+          the span so the variant's hover shift can't reach it either. */}
+      <span className="min-w-0 truncate text-left text-xs/tight text-foreground">
+        {label}
+      </span>
       {rightElement && <div className="ml-auto shrink-0">{rightElement}</div>}
     </Button>
   );

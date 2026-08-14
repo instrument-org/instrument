@@ -24,6 +24,13 @@ const NAME_FITS = 80;
 // The `mr-3` holding the fixed tab off the task's own, on top of the gap.
 const FIXED_MARGIN = 12;
 
+// Lands a tab at its new place rather than moving it there.
+//
+// The projection itself has to stay on whatever the strip is doing: it is what
+// registers each tab's box with the group, so a tab that is not projecting is a
+// tab the drag cannot reorder around. Only the animation over it is turned off.
+const LAND_IN_PLACE = { layout: { duration: 0 } };
+
 interface StripLayout {
   /** What a tab that is not the one being read can draw. */
   density: TabDensity;
@@ -72,6 +79,13 @@ export function PaneTabs({
 
   const stripRef = useRef<HTMLDivElement>(null);
   const tabAreaRef = useRef<HTMLDivElement>(null);
+  // Motion's layout animation is here for the drag and nothing else: it is what
+  // slides the other tabs out of the way of the one being moved. Left on, it
+  // animates every width the strip changes on its own -- a tab widening as it
+  // is selected, a task switch swapping the row out -- and those are arrivals
+  // at a state rather than something to watch happen, so a tab slides in from
+  // wherever the tab before it happened to end.
+  const [isDragging, setIsDragging] = useState(false);
   const [{ density, fixedIsNamed, selectedDensity, visibleCount }, setLayout] =
     useState(() => stripLayout(0, fileCount));
 
@@ -233,11 +247,18 @@ export function PaneTabs({
                 // given up on, so it still says which file the pane is showing
                 // and still carries the close for it.
                 density={key === selectedKey ? selectedDensity : density}
+                isDragging={isDragging}
                 isSelected={key === selectedKey}
                 key={key}
                 nextIsSelected={visibleKeys[index + 1] === selectedKey}
                 onClose={() => {
                   onClose(key);
+                }}
+                onDragEnd={() => {
+                  setIsDragging(false);
+                }}
+                onDragStart={() => {
+                  setIsDragging(true);
                 }}
                 onSelect={() => {
                   onSelect(key);
@@ -278,9 +299,12 @@ function focusSiblingTab(from: Element, direction: -1 | 1) {
 
 function PaneTab({
   density,
+  isDragging,
   isSelected,
   nextIsSelected,
   onClose,
+  onDragEnd,
+  onDragStart,
   onSelect,
   onSelectRelative,
   showSeparator,
@@ -288,9 +312,14 @@ function PaneTab({
   value,
 }: {
   density: TabDensity;
+  // Whether a tab on the strip is being dragged, which is the one time a tab
+  // moving to a new place is worth watching.
+  isDragging?: boolean;
   isSelected: boolean;
   nextIsSelected: boolean;
   onClose?: () => void;
+  onDragEnd?: () => void;
+  onDragStart?: () => void;
   onSelect: () => void;
   onSelectRelative: (direction: -1 | 1) => void;
   showSeparator: boolean;
@@ -475,7 +504,23 @@ function PaneTab({
   return value === undefined ? (
     <div {...handlers}>{contents}</div>
   ) : (
-    <Reorder.Item {...handlers} as="div" value={value}>
+    // Position only. The default animates a size change by scaling the tab,
+    // which stretches the icon inside it, and the sizes here change on their
+    // own whenever the strip changes state.
+    //
+    // The move is worth watching under a drag, where a tab is being put
+    // somewhere and the ones it displaces have to be seen giving way. Every
+    // other move the strip makes is an arrival at a state -- selecting a tab,
+    // switching tasks, dragging the pane wider -- and those land in place.
+    <Reorder.Item
+      {...handlers}
+      as="div"
+      layout="position"
+      onDragEnd={onDragEnd}
+      onDragStart={onDragStart}
+      transition={isDragging ? undefined : LAND_IN_PLACE}
+      value={value}
+    >
       {contents}
     </Reorder.Item>
   );

@@ -1,5 +1,6 @@
 import { renderInBrowser } from "@/tests/render-browser";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
+import { page, userEvent } from "vitest/browser";
 import { expect, test, vi } from "vitest";
 
 import { PaneTabs } from "./pane-tabs";
@@ -284,3 +285,43 @@ test("rules between the tabs, and not against the selected one", async () => {
   `);
 });
 
+test("still reorders on a drag, with the animation over it turned off", async () => {
+  // The layout projection is what registers each tab's box with the group, so
+  // it is also what the drag reorders by. Turning the animation off by turning
+  // the projection off takes the drag with it, and nothing else here would say
+  // so: the tabs would draw correctly and simply stop being draggable.
+  const onReorder = vi.fn();
+  await renderInBrowser(
+    <div style={{ width: 600 }}>
+      <PaneTabs
+        fileTabs={FILES.slice(0, 3).map((filePath) => ({
+          filePath,
+          type: "file" as const,
+        }))}
+        onClose={vi.fn()}
+        onReorder={onReorder}
+        onSelect={vi.fn()}
+        selectedKey="file:output/quarterly-report-2026.pdf"
+        taskId={taskId}
+      />
+    </div>,
+  );
+  await new Promise((resolve) => {
+    requestAnimationFrame(resolve);
+  });
+
+  await userEvent.dragAndDrop(
+    page.getByTitle("quarterly-report-2026.pdf"),
+    page.getByTitle("notes.md"),
+  );
+
+  expect(onReorder.mock.calls.at(-1)).toMatchInlineSnapshot(`
+    [
+      [
+        "file:output/chart.png",
+        "file:output/quarterly-report-2026.pdf",
+        "file:output/notes.md",
+      ],
+    ]
+  `);
+});

@@ -16,7 +16,7 @@ import { type SessionMessage } from "../schemas/session/message";
  * A window that is full to the last token cannot be replied into, so the
  * budget treats the reserve as spent before the transcript gets any of it.
  */
-export const DEFAULT_CONTEXT_RESERVE_TOKENS = 32_000;
+const DEFAULT_CONTEXT_RESERVE_TOKENS = 32_000;
 
 /** Fraction of the usable window at which the agent is told it is running out. */
 const WARN_AT_FRACTION = 0.85;
@@ -43,7 +43,7 @@ export interface ContextBudget {
   usable: number;
 }
 
-export type ContextBudgetStatus =
+type ContextBudgetStatus =
   /** Past the usable window. Nothing more fits without giving something up. */
   | "exhausted"
   /** Room to spare. */

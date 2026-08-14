@@ -159,6 +159,13 @@ export function TaskPaneSplit({
     // Set rather than applied: `applyWidth` is rebuilt every render, and
     // depending on it here would restart the spring on every one.
     const settle = () => {
+      // Landing on the end state ends any slide, including one this run is
+      // interrupting: the effect's cleanup stops those animations, so the
+      // `onComplete` that would otherwise have cleared this never arrives.
+      // Left set, it holds `pointer-events-none` over the pane -- switching
+      // tasks mid-slide leaves the tabs unclickable until some later slide
+      // finishes -- and holds the browser slot tracking the pane every frame.
+      setIsSliding(false);
       if (isPaneOpen) {
         reservedWidth.set(target);
         paneWidth.set(target);

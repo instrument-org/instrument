@@ -8,6 +8,6 @@ import { atomWithStorage } from "jotai/utils";
  * again on every open would be the annoying half of a toggle.
  */
 export const fileViewerWrapLinesAtom = atomWithStorage(
-  "file-viewer-wrap-lines",
+  "studio.file-viewer-wrap-lines.v1",
   true,
 );

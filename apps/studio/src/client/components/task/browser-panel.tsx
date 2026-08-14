@@ -23,10 +23,10 @@ import {
   ZoomLevelMenu,
   ZoomStepperControl,
 } from "@/client/components/zoom-controls";
-import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useBrowserFind } from "@/client/hooks/use-browser-find";
 import { useBrowserSlot } from "@/client/hooks/use-browser-slot";
 import { useIsGuestCovered } from "@/client/hooks/use-guest-covered";
+import { useIsTaskPageVisible } from "@/client/hooks/use-task-page-visible";
 import { getWebviewElement } from "@/client/lib/browser-pool";
 import {
   EMULATED_DEVICES,
@@ -89,7 +89,7 @@ export function TaskBrowserPanel({
 }) {
   const targetId = encodeBrowserTargetId(taskId, sessionId);
   const inputRef = useRef<HTMLInputElement>(null);
-  const isActiveTab = useIsActiveTab();
+  const isVisible = useIsTaskPageVisible();
   const [draftUrl, setDraftUrl] = useState("");
   const [location, setLocation] = useState<null | {
     targetId: BrowserTargetId;
@@ -130,14 +130,14 @@ export function TaskBrowserPanel({
   // own host claims the single find-opener slot, clears it on unmount, and this
   // panel never re-registers.
   const covered = useIsGuestCovered();
-  const find = useBrowserFind({ active, covered, isActiveTab, targetId });
+  const find = useBrowserFind({ active, covered, isVisible, targetId });
   const slotRef = useBrowserSlot({
     active,
     covered,
     emulatedDeviceHeight: emulatedDevice?.height,
     emulatedDeviceWidth: emulatedDevice?.width,
     hasLoadError: Boolean(loadError),
-    isActiveTab,
+    isVisible,
     targetId,
   });
 

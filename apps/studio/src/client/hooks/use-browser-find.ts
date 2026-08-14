@@ -18,7 +18,7 @@ interface FoundInPageEvent extends Event {
 export function useBrowserFind({
   active,
   covered = false,
-  isActiveTab,
+  isVisible,
   targetId,
 }: {
   active: boolean;
@@ -28,7 +28,7 @@ export function useBrowserFind({
   // it on unmount leaves the panel -- whose own inputs never changed -- never
   // re-registering, so Cmd+F stops working entirely.
   covered?: boolean;
-  isActiveTab: boolean;
+  isVisible: boolean;
   targetId: BrowserTargetId;
 }) {
   const findInputRef = useRef<HTMLInputElement>(null);
@@ -80,7 +80,7 @@ export function useBrowserFind({
   // this hook; see foreground-browser-registry for why neither chord can be a
   // renderer keydown.
   useEffect(() => {
-    if (!active || !isActiveTab || covered) {
+    if (!active || !isVisible || covered) {
       return;
     }
     return registerForegroundBrowser({
@@ -91,7 +91,7 @@ export function useBrowserFind({
       },
       targetId,
     });
-  }, [active, covered, isActiveTab, targetId]);
+  }, [active, covered, isVisible, targetId]);
 
   // Focus the find input when the bar opens (its first render, when the opener
   // above couldn't focus it yet). Deferred a frame so it wins over Radix

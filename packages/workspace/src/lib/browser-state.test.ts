@@ -1,22 +1,25 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
 import { TaskPane } from "../schemas/task-pane";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { type BrowserTarget, encodeBrowserTargetId } from "../types";
 import {
   allowBrowserReveal,
   BLANK_PAGE_URL,
   getBrowserState,
   recordBrowserUse,
+  restoreLastPage,
 } from "./browser-state";
 import { disposeSessionsStoreStorage } from "./session-store-storage";
 import { taskDir } from "./task-dir-utils";
 import { getTaskState, updateTaskPane } from "./task-record";
+import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 const id = TaskIdSchema.parse("browser-state-test");
 const sessionId = StoreId.newSessionId();
@@ -52,6 +55,28 @@ describe("browser state", () => {
       value: {
         lastUsedAt: expect.any(Date),
       },
+    });
+  });
+
+  it("keeps the last real page when a later observation is the blank one", async () => {
+    await recordBrowserUse({
+      sessionId,
+      taskId,
+      title: "Example",
+      url: "https://example.com",
+    });
+    // Every command that needs a target but no page reports the blank one. It
+    // is not somewhere anyone was, so it must not become what a reopened tab
+    // restores or what a teardown notice names.
+    await recordBrowserUse({
+      sessionId,
+      taskId,
+      title: "about:blank",
+      url: BLANK_PAGE_URL,
+    });
+
+    expect(await getBrowserState(taskId, sessionId)).toMatchObject({
+      value: { lastTitle: "Example", lastUrl: "https://example.com" },
     });
   });
 
@@ -161,5 +186,67 @@ describe("revealing the browser tab", () => {
     await recordBrowserUse({ sessionId, taskId, url });
 
     expect(await pane()).toMatchObject({ open: false });
+  });
+});
+
+describe("restoring a reopened tab", () => {
+  const targetId = encodeBrowserTargetId(
+    TaskIdSchema.parse("browser-state-test"),
+    sessionId,
+  );
+
+  function withTargets(targets: BrowserTarget[]) {
+    const sendCommand = vi.fn(() => Promise.resolve({}));
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      browser: {
+        ...getWorkspaceConfig().browser,
+        listTargets: () => Promise.resolve(targets),
+        sendCommand,
+      },
+    });
+    return sendCommand;
+  }
+
+  function target(url: string): BrowserTarget {
+    return { id: targetId, title: "", type: "page", url };
+  }
+
+  it("navigates a blank tab back to the page the session was on", async () => {
+    const sendCommand = withTargets([target(BLANK_PAGE_URL)]);
+    await recordBrowserUse({ sessionId, taskId, url: "https://example.com" });
+
+    const result = await restoreLastPage({ sessionId, targetId, taskId });
+
+    expect(result.isOk()).toBe(true);
+    expect(sendCommand).toHaveBeenCalledWith(targetId, "Page.navigate", {
+      url: "https://example.com",
+    });
+  });
+
+  it("leaves a tab that already has a page alone", async () => {
+    // The ordinary case: this runs on every panel mount, and most find a
+    // browser that was never reaped and is still on the page the user left.
+    const sendCommand = withTargets([target("https://example.org")]);
+    await recordBrowserUse({ sessionId, taskId, url: "https://example.com" });
+
+    await restoreLastPage({ sessionId, targetId, taskId });
+
+    expect(sendCommand).not.toHaveBeenCalled();
+  });
+
+  it("reports a guest it cannot reach instead of failing the open", async () => {
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      browser: {
+        ...getWorkspaceConfig().browser,
+        listTargets: () => Promise.reject(new Error("guest is gone")),
+      },
+    });
+    await recordBrowserUse({ sessionId, taskId, url: "https://example.com" });
+
+    const result = await restoreLastPage({ sessionId, targetId, taskId });
+
+    expect(result._unsafeUnwrapErr().message).toBe("guest is gone");
   });
 });

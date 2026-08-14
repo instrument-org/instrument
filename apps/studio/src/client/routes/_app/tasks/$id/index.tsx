@@ -1,8 +1,8 @@
 import { releaseTaskDraft } from "@/client/atoms/prompt-value";
 import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
 import { TaskView } from "@/client/components/task/view";
-import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useClearTaskIndicatorOnView } from "@/client/hooks/use-clear-task-indicator-on-view";
+import { useIsTaskPageVisible } from "@/client/hooks/use-task-page-visible";
 import { useTaskRouteSync } from "@/client/hooks/use-task-route-sync";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -249,15 +249,25 @@ function RouteComponent() {
     }),
   );
 
-  // Presence is scoped to the foreground tab, not to mount: every tab stays
-  // mounted in the background, so gating on the active tab lets the server's
-  // taskBrowser machine reap an unviewed task's browser after its grace period.
-  // The subscription is the whole point and it yields nothing worth reading, so
-  // this result goes unused on purpose.
-  const isActiveTab = useIsActiveTab();
+  // Two holds on the task's browser, and the subscriptions themselves are the
+  // whole payload: each yields nothing worth reading, so both results go unused
+  // on purpose.
+  //
+  // The retained hold lasts as long as this page is mounted, which is what tells
+  // the server the user still has this task open and can come back to whatever
+  // is loaded in it. The visible hold lasts only while the page is on screen.
+  // Every task page stays mounted while backgrounded, so mount alone cannot
+  // distinguish the two and the server needs both to pick which clock a browser
+  // is on.
+  const isVisible = useIsTaskPageVisible();
   useQuery(
     rpcClient.workspace.browser.live.presence.experimental_liveOptions({
-      input: isActiveTab ? { id } : skipToken,
+      input: { id, level: "retained" },
+    }),
+  );
+  useQuery(
+    rpcClient.workspace.browser.live.presence.experimental_liveOptions({
+      input: isVisible ? { id, level: "visible" } : skipToken,
     }),
   );
 

@@ -12,8 +12,8 @@ interface DeviceEmulation {
 
 /**
  * Measures a host slot and drives the pooled guest to paint over it while the
- * panel is the foreground tab (parking it in paint-host otherwise, or while a
- * load error covers the slot). Returns the ref to attach to the slot element.
+ * panel's task page is on screen (parking it in paint-host otherwise, or while
+ * a load error covers the slot). Returns the ref to attach to the slot element.
  * See browser-pool for the show/park ownership model.
  */
 export function useBrowserSlot({
@@ -22,15 +22,15 @@ export function useBrowserSlot({
   emulatedDeviceHeight,
   emulatedDeviceWidth,
   hasLoadError,
-  isActiveTab,
+  isVisible,
   targetId,
 }: {
   active: boolean;
   // A full-window overlay is drawn over this slot. The guest is body-mounted,
   // outside every dialog's subtree, so no overlay occludes it -- it keeps
-  // painting over the dim layer as though nothing opened. Opening a dialog is
-  // also not a tab switch, which is the only park signal this hook otherwise
-  // gets, so a covered host has to say so itself.
+  // painting over the dim layer as though nothing opened. Opening a dialog also
+  // doesn't take the task page off screen, which is the only park signal this
+  // hook otherwise gets, so a covered host has to say so itself.
   covered?: boolean;
   // Device size to emulate (see emulated-devices.ts presets), or
   // null/undefined for the panel's natural size. Passed as separate
@@ -41,7 +41,7 @@ export function useBrowserSlot({
   emulatedDeviceHeight?: null | number;
   emulatedDeviceWidth?: null | number;
   hasLoadError: boolean;
-  isActiveTab: boolean;
+  isVisible: boolean;
   targetId: BrowserTargetId;
 }) {
   const slotRef = useRef<HTMLDivElement>(null);
@@ -49,10 +49,10 @@ export function useBrowserSlot({
   // reject a park from a different panel showing the same target (see pool).
   const [slotOwner] = useState(() => Symbol("browser-panel-slot"));
 
-  // Show the guest over the slot only while this is the foreground tab; park it
-  // in paint-host otherwise. Every tab stays mounted (hidden via CSS), so the
-  // guest's own DOM visibility can't tell us we've been backgrounded -- the
-  // active-tab signal is authoritative.
+  // Show the guest over the slot only while the task page is on screen; park it
+  // in paint-host otherwise. A backgrounded task page stays mounted (hidden via
+  // CSS), so the guest's own DOM visibility can't tell us we've been
+  // backgrounded -- the caller's signal is authoritative.
   useLayoutEffect(() => {
     const slot = slotRef.current;
     if (!slot || !active) {
@@ -71,7 +71,7 @@ export function useBrowserSlot({
 
     // On a load error, park the guest so its blank error page doesn't cover our
     // own error state rendered in the slot.
-    if (!isActiveTab || hasLoadError || covered) {
+    if (!isVisible || hasLoadError || covered) {
       setPaintHost(targetId, slotOwner);
       syncEmulation(null);
       return;
@@ -147,7 +147,7 @@ export function useBrowserSlot({
   }, [
     active,
     covered,
-    isActiveTab,
+    isVisible,
     hasLoadError,
     slotOwner,
     targetId,

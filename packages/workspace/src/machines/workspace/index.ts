@@ -51,6 +51,7 @@ import {
   type SessionMachineParentEvent,
 } from "../session";
 import {
+  type BrowserPresenceLevel,
   taskBrowserMachine,
   type TaskBrowserParentEvent,
 } from "../task-browser";
@@ -62,7 +63,7 @@ export type WorkspaceEvent =
   | WorkspaceServerParentEvent
   | {
       type: "acquireBrowserPresence";
-      value: { id: TaskId };
+      value: { id: TaskId; level: BrowserPresenceLevel };
     }
   | {
       type: "addMessage";
@@ -125,7 +126,7 @@ export type WorkspaceEvent =
     }
   | {
       type: "releaseBrowserPresence";
-      value: { id: TaskId };
+      value: { id: TaskId; level: BrowserPresenceLevel };
     }
   | { type: "removeTaskBeingTrashed"; value: { id: TaskId } }
   | {
@@ -186,7 +187,10 @@ function findLiveSessionRef(
 export const workspaceMachine = setup({
   actions: {
     acquireBrowserPresence: enqueueActions(
-      ({ enqueue }, { id }: { id: TaskId }) => {
+      (
+        { enqueue },
+        { id, level }: { id: TaskId; level: BrowserPresenceLevel },
+      ) => {
         enqueue.assign(({ context, spawn }) => {
           const existing = context.taskBrowserRefs.get(id);
           const ref =
@@ -197,7 +201,7 @@ export const workspaceMachine = setup({
                 id,
               },
             });
-          ref.send({ type: "acquirePresence" });
+          ref.send({ type: "acquirePresence", value: { level } });
           if (existing) {
             return {};
           }
@@ -353,8 +357,13 @@ export const workspaceMachine = setup({
     },
 
     releaseBrowserPresence: enqueueActions(
-      ({ context }, { id }: { id: TaskId }) => {
-        context.taskBrowserRefs.get(id)?.send({ type: "releasePresence" });
+      (
+        { context },
+        { id, level }: { id: TaskId; level: BrowserPresenceLevel },
+      ) => {
+        context.taskBrowserRefs
+          .get(id)
+          ?.send({ type: "releasePresence", value: { level } });
       },
     ),
 
@@ -497,7 +506,7 @@ export const workspaceMachine = setup({
     },
     acquireBrowserPresence: {
       actions: {
-        params: ({ event }) => ({ id: event.value.id }),
+        params: ({ event }) => event.value,
         type: "acquireBrowserPresence",
       },
     },
@@ -689,7 +698,7 @@ export const workspaceMachine = setup({
     },
     releaseBrowserPresence: {
       actions: {
-        params: ({ event }) => ({ id: event.value.id }),
+        params: ({ event }) => event.value,
         type: "releaseBrowserPresence",
       },
     },

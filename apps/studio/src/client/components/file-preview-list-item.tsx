@@ -45,9 +45,12 @@ export function FilePreviewListItem({
           <button
             className={cn(
               "relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-background shadow-xs",
-              "transition-[outline] outline-none focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]",
+              // No `outline-none`: nothing here draws an outline until the tile
+              // is selected or focused, and suppressing the style up front only
+              // means every outline below has to turn it back on.
+              "transition-[outline] focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50",
               isSelected &&
-                "outline-2 outline-solid outline-offset-2 outline-brand-100 dark:outline-brand-700",
+                "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
             )}
             onClick={onClick}
             type="button"

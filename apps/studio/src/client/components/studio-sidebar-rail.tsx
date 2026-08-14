@@ -7,6 +7,10 @@ import {
 } from "@/client/atoms/sidebar";
 import { zoomAtom } from "@/client/atoms/zoom";
 import { StudioSidebar } from "@/client/components/studio-sidebar";
+import {
+  RAIL_FADE_TRANSITION,
+  RAIL_SLIDE_TRANSITION,
+} from "@/client/lib/rail-motion";
 import { cn } from "@/client/lib/utils";
 import { SIDEBAR_WIDTH } from "@/shared/constants";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -18,12 +22,6 @@ import {
 } from "motion/react";
 import { useEffect, useRef } from "react";
 
-const SLIDE_TRANSITION = {
-  damping: 42,
-  stiffness: 520,
-  type: "spring",
-} as const;
-const FADE_TRANSITION = { duration: 0.14, ease: "easeOut" } as const;
 
 /**
  * The resizable sidebar rail. Width is driven imperatively so dragging tracks
@@ -96,16 +94,16 @@ export function StudioSidebarRail({
         panelWidth.set(width);
       }
       controls.push(
-        animate(layoutWidth, width, SLIDE_TRANSITION),
-        animate(panelWidth, width, SLIDE_TRANSITION),
-        animate(panelX, 0, SLIDE_TRANSITION),
-        animate(opacity, 1, FADE_TRANSITION),
+        animate(layoutWidth, width, RAIL_SLIDE_TRANSITION),
+        animate(panelWidth, width, RAIL_SLIDE_TRANSITION),
+        animate(panelX, 0, RAIL_SLIDE_TRANSITION),
+        animate(opacity, 1, RAIL_FADE_TRANSITION),
       );
     } else {
       controls.push(
-        animate(layoutWidth, 0, SLIDE_TRANSITION),
-        animate(panelX, -panelWidth.get(), SLIDE_TRANSITION),
-        animate(opacity, 0, FADE_TRANSITION),
+        animate(layoutWidth, 0, RAIL_SLIDE_TRANSITION),
+        animate(panelX, -panelWidth.get(), RAIL_SLIDE_TRANSITION),
+        animate(opacity, 0, RAIL_FADE_TRANSITION),
       );
     }
     return () => {
@@ -181,9 +179,9 @@ export function StudioSidebarRail({
         collapsingRef.current = true;
         endDrag();
         const frozenWidth = panelWidth.get();
-        animate(layoutWidth, 0, SLIDE_TRANSITION);
-        animate(panelX, -frozenWidth, SLIDE_TRANSITION);
-        animate(opacity, 0, FADE_TRANSITION);
+        animate(layoutWidth, 0, RAIL_SLIDE_TRANSITION);
+        animate(panelX, -frozenWidth, RAIL_SLIDE_TRANSITION);
+        animate(opacity, 0, RAIL_FADE_TRANSITION);
         onCollapse();
         return;
       }
@@ -242,8 +240,8 @@ export function StudioSidebarRail({
             "hover:after:bg-muted-foreground/40 active:after:bg-primary/50",
           )}
           onDoubleClick={() => {
-            animate(panelWidth, SIDEBAR_WIDTH, SLIDE_TRANSITION);
-            animate(layoutWidth, SIDEBAR_WIDTH, SLIDE_TRANSITION);
+            animate(panelWidth, SIDEBAR_WIDTH, RAIL_SLIDE_TRANSITION);
+            animate(layoutWidth, SIDEBAR_WIDTH, RAIL_SLIDE_TRANSITION);
             setStoredWidth(SIDEBAR_WIDTH);
           }}
           onKeyDown={handleKeyDown}

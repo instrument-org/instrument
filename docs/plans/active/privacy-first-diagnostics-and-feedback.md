@@ -61,6 +61,7 @@ One decision moves here from [conversation-storage.md](conversation-storage.md):
 Keep the event catalog, retarget the sink. Bind a `DiagnosticsSink` to the two capture types in Studio's four binding files; workspace and ai-gateway do not change.
 
 - Append-only, in application data, bounded by size and age, same format as conversation storage.
+- Repeated records collapse rather than accumulate: one record per fingerprint with a count and first and last timestamps. Size and age bounds alone do not survive an emitter that fires once per frame, and the noisiest sources are the content-free ones, so an uncaught browser notice raised during a splitter drag can evict every diagnostic record ahead of it. The analytics SDK absorbed this with a client-side rate limiter; an append-only file has none. Collapsing belongs in the sink before the write, since the format rules out editing a record in place.
 - Sanitize on write, not on send: home and task roots become placeholders, URL query and fragment dropped, known secret and key formats matched, prompts, model output, tool payloads and file contents excluded.
 - Two catalog fields change shape rather than move: `model_picker.searched.query` becomes had-results, `external_link.clicked.external_url` becomes an origin category. Both are tolerable locally and indefensible uploaded, and one schema for both is worth the loss.
 - Diagnostics screen: inspect, copy, export, delete. Absorbs the dev-mode exception store.

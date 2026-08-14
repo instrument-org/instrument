@@ -5,7 +5,7 @@ import { tabTitleMaskStyle } from "@/client/lib/tab-title-mask";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Tab as TabData } from "@/shared/tabs";
-import { XIcon } from "@phosphor-icons/react";
+import { XIcon } from "@phosphor-icons/react/X";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { motion, Reorder, useReducedMotion } from "motion/react";
 

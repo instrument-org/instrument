@@ -1,6 +1,8 @@
 import { logger } from "@/client/lib/logger";
 import { cn } from "@/client/lib/utils";
-import { CaretDownIcon, CaretUpIcon, ColumnsIcon } from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
+import { ColumnsIcon } from "@phosphor-icons/react/Columns";
 import {
   type Column,
   type ColumnDef,

@@ -1,6 +1,7 @@
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectId } from "@instrument-org/workspace/client";
-import { CardsThreeIcon, XIcon } from "@phosphor-icons/react";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 
 /**

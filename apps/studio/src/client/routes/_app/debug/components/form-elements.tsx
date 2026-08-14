@@ -32,7 +32,8 @@ import {
   TabsTrigger,
 } from "@/client/components/ui/tabs";
 import { Textarea } from "@/client/components/ui/textarea";
-import { CheckIcon, MagnifyingGlassIcon } from "@phosphor-icons/react";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_app/debug/components/form-elements")({

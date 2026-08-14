@@ -1,9 +1,7 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
-import {
-  ArrowsOutSimpleIcon,
-  CodeIcon,
-  GraphIcon,
-} from "@phosphor-icons/react";
+import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
+import { CodeIcon } from "@phosphor-icons/react/Code";
+import { GraphIcon } from "@phosphor-icons/react/Graph";
 import { useSetAtom } from "jotai";
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 

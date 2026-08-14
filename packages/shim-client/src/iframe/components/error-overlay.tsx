@@ -1,5 +1,6 @@
 import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
-import { ArrowSquareOutIcon, WarningIcon } from "@phosphor-icons/react";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
 
 export function ErrorOverlay({
   isInsideStudio,

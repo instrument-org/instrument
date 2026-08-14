@@ -47,12 +47,10 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { skillMentionToken } from "@instrument-org/shared/skill-mention";
 import { safe } from "@orpc/client";
-import {
-  ArrowLeftIcon,
-  DotsThreeOutlineVerticalIcon,
-  PencilSimpleIcon,
-  TrashIcon,
-} from "@phosphor-icons/react";
+import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
+import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";

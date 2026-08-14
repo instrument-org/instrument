@@ -25,12 +25,10 @@ import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { type FolderAttachment } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import {
-  type Icon,
-  LockIcon,
-  ShieldWarningIcon,
-  XIcon,
-} from "@phosphor-icons/react";
+import { type Icon } from "@phosphor-icons/react";
+import { LockIcon } from "@phosphor-icons/react/Lock";
+import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
+import { XIcon } from "@phosphor-icons/react/X";
 import { AnimatePresence, motion } from "motion/react";
 import { Fragment } from "react";
 import { toast } from "sonner";

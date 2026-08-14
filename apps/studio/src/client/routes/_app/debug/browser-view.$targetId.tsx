@@ -1,7 +1,7 @@
 import { Button } from "@/client/components/ui/button";
 import { useSelectedTabId } from "@/client/hooks/use-selected-tab-id";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
-import { ProhibitIcon } from "@phosphor-icons/react";
+import { ProhibitIcon } from "@phosphor-icons/react/Prohibit";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { getDebugRoute } from "./-debug-routes";

@@ -5,7 +5,9 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/client/components/ui/select";
-import { MonitorIcon, MoonIcon, SunIcon } from "@phosphor-icons/react";
+import { MonitorIcon } from "@phosphor-icons/react/Monitor";
+import { MoonIcon } from "@phosphor-icons/react/Moon";
+import { SunIcon } from "@phosphor-icons/react/Sun";
 
 export function ThemeToggle() {
   const { setTheme, theme } = useTheme();

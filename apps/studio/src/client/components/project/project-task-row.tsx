@@ -23,10 +23,8 @@ import { useInlineRename } from "@/client/hooks/use-inline-rename";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task } from "@instrument-org/workspace/client";
-import {
-  DotsThreeOutlineVerticalIcon,
-  PushPinIcon,
-} from "@phosphor-icons/react";
+import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";

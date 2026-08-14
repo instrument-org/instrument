@@ -12,19 +12,17 @@ import {
   type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import {
-  ArrowCounterClockwiseIcon,
-  ArrowLineDownIcon,
-  ArticleIcon,
-  CopyIcon,
-  DotsThreeOutlineVerticalIcon,
-  FileArchiveIcon,
-  NotificationIcon,
-  PencilSimpleLineIcon,
-  PushPinIcon,
-  PushPinSlashIcon,
-  TrashIcon,
-} from "@phosphor-icons/react";
+import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
+import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
+import { ArticleIcon } from "@phosphor-icons/react/Article";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { FileArchiveIcon } from "@phosphor-icons/react/FileArchive";
+import { NotificationIcon } from "@phosphor-icons/react/Notification";
+import { PencilSimpleLineIcon } from "@phosphor-icons/react/PencilSimpleLine";
+import { PushPinIcon } from "@phosphor-icons/react/PushPin";
+import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 import { toast } from "sonner";

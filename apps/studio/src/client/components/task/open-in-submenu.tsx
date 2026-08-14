@@ -9,7 +9,8 @@ import { type MenuComponents } from "@/client/components/ui/menu-components";
 import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { OpenTaskInTypeSchema } from "@/shared/schemas/editors";
-import { FolderOpenIcon, TerminalWindowIcon } from "@phosphor-icons/react";
+import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
+import { TerminalWindowIcon } from "@phosphor-icons/react/TerminalWindow";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 

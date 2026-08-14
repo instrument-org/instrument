@@ -4,7 +4,8 @@ import { displayPath, folderNameFromPath } from "@/client/lib/path-utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type FolderAttachment } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { DotsThreeOutlineVerticalIcon, TrashIcon } from "@phosphor-icons/react";
+import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { toast } from "sonner";
 
 import {

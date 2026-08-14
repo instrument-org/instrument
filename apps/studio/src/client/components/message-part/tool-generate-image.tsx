@@ -3,13 +3,11 @@ import {
   type SessionMessagePart,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import {
-  ArrowsOutSimpleIcon,
-  ChatIcon,
-  CopyIcon,
-  ImagesIcon,
-  QuotesIcon,
-} from "@phosphor-icons/react";
+import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
+import { ChatIcon } from "@phosphor-icons/react/Chat";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { ImagesIcon } from "@phosphor-icons/react/Images";
+import { QuotesIcon } from "@phosphor-icons/react/Quotes";
 import { useSetAtom } from "jotai";
 import { useEffect, useState } from "react";
 

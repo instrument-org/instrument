@@ -15,7 +15,8 @@ import {
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectId } from "@instrument-org/workspace/client";
-import { type Icon, PlusIcon } from "@phosphor-icons/react";
+import { type Icon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
 import { useRef } from "react";
 

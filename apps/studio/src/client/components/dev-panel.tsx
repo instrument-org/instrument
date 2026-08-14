@@ -50,20 +50,18 @@ import {
 import { SHORTCUTS } from "@/shared/shortcuts";
 import { steppedZoom } from "@/shared/zoom";
 import { PORTS } from "@instrument-org/shared";
-import {
-  ArrowLineDownIcon,
-  ArrowsClockwiseIcon,
-  ChartBarIcon,
-  DatabaseIcon,
-  MagnifyingGlassMinusIcon,
-  MagnifyingGlassPlusIcon,
-  MonitorIcon,
-  MoonIcon,
-  NavigationArrowIcon,
-  NotePencilIcon,
-  SunIcon,
-  WarningOctagonIcon,
-} from "@phosphor-icons/react";
+import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
+import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
+import { ChartBarIcon } from "@phosphor-icons/react/ChartBar";
+import { DatabaseIcon } from "@phosphor-icons/react/Database";
+import { MagnifyingGlassMinusIcon } from "@phosphor-icons/react/MagnifyingGlassMinus";
+import { MagnifyingGlassPlusIcon } from "@phosphor-icons/react/MagnifyingGlassPlus";
+import { MonitorIcon } from "@phosphor-icons/react/Monitor";
+import { MoonIcon } from "@phosphor-icons/react/Moon";
+import { NavigationArrowIcon } from "@phosphor-icons/react/NavigationArrow";
+import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
+import { SunIcon } from "@phosphor-icons/react/Sun";
+import { WarningOctagonIcon } from "@phosphor-icons/react/WarningOctagon";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";

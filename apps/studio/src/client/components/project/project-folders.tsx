@@ -9,7 +9,7 @@ import {
   type ProjectId,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { PlusIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 

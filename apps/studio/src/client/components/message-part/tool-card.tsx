@@ -1,5 +1,5 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
-import { CopyIcon } from "@phosphor-icons/react";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { type ReactNode } from "react";
 
 import { filenameFromFilePath } from "../../lib/path-utils";

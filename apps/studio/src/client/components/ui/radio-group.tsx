@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/client/lib/utils";
-import { CircleIcon } from "@phosphor-icons/react";
+import { CircleIcon } from "@phosphor-icons/react/Circle";
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
 import * as React from "react";
 

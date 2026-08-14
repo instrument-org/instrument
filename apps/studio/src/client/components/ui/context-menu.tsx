@@ -1,7 +1,9 @@
 import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
 import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
-import { CaretRightIcon, CheckIcon, CircleIcon } from "@phosphor-icons/react";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { CircleIcon } from "@phosphor-icons/react/Circle";
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 import * as React from "react";
 

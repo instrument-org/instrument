@@ -2,7 +2,8 @@ import {
   type SessionMessagePart,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import { ArrowsOutSimpleIcon, ChatIcon } from "@phosphor-icons/react";
+import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
+import { ChatIcon } from "@phosphor-icons/react/Chat";
 import { useSetAtom } from "jotai";
 
 import { appendToPromptAtom } from "../../atoms/prompt-value";

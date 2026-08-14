@@ -12,7 +12,8 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { rpcClient } from "@/client/rpc/client";
-import { WarningCircleIcon, XIcon } from "@phosphor-icons/react";
+import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { isEqual } from "radashi";
 import { useMemo } from "react";

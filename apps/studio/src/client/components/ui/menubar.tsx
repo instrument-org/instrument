@@ -1,7 +1,8 @@
 import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
 import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
-import { CaretRightIcon, CheckIcon } from "@phosphor-icons/react";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { CheckIcon } from "@phosphor-icons/react/Check";
 import * as MenubarPrimitive from "@radix-ui/react-menubar";
 import * as React from "react";
 

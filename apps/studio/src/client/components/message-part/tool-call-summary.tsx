@@ -3,7 +3,9 @@ import {
   getToolNameByType,
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
-import { EyeIcon, GlobeIcon, type Icon } from "@phosphor-icons/react";
+import { EyeIcon } from "@phosphor-icons/react/Eye";
+import { GlobeIcon } from "@phosphor-icons/react/Globe";
+import { type Icon } from "@phosphor-icons/react";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useState } from "react";
 

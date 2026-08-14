@@ -1,4 +1,4 @@
-import { CheckIcon } from "@phosphor-icons/react";
+import { CheckIcon } from "@phosphor-icons/react/Check";
 import { type ComponentProps, useState } from "react";
 
 import { IconButton } from "./icon-button";

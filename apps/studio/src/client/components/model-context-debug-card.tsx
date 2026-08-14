@@ -1,6 +1,6 @@
 import { cn } from "@/client/lib/utils";
 import { systemNoteBody } from "@instrument-org/workspace/client";
-import { CaretRightIcon } from "@phosphor-icons/react";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { debounce } from "radashi";
 import { useEffect, useRef, useState } from "react";
 

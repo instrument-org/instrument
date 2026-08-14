@@ -3,14 +3,12 @@ import { TaskProjectMenuItem } from "@/client/components/project/task-project-me
 import { type MenuComponents } from "@/client/components/ui/menu-components";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task } from "@instrument-org/workspace/client";
-import {
-  ArrowUpRightIcon,
-  NotificationIcon,
-  PencilSimpleLineIcon,
-  PushPinIcon,
-  PushPinSlashIcon,
-  TrashIcon,
-} from "@phosphor-icons/react";
+import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
+import { NotificationIcon } from "@phosphor-icons/react/Notification";
+import { PencilSimpleLineIcon } from "@phosphor-icons/react/PencilSimpleLine";
+import { PushPinIcon } from "@phosphor-icons/react/PushPin";
+import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 

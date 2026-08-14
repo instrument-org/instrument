@@ -17,7 +17,7 @@ import {
   type ShortcutMatch,
 } from "@/client/lib/shortcut-search";
 import { SHORTCUT_ENTRIES, SHORTCUT_GROUPS } from "@/shared/shortcuts";
-import { MagnifyingGlassIcon } from "@phosphor-icons/react";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { useAtom } from "jotai";
 import { alphabetical } from "radashi";
 import { useState } from "react";

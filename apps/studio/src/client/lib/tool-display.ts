@@ -1,17 +1,15 @@
 import { type ToolName } from "@instrument-org/workspace/client";
-import {
-  BookOpenIcon,
-  CodeIcon,
-  EyeIcon,
-  FlagIcon,
-  GlobeIcon,
-  type Icon,
-  ImageIcon,
-  MagnifyingGlassIcon,
-  QuestionIcon,
-  TerminalIcon,
-  WrenchIcon,
-} from "@phosphor-icons/react";
+import { type Icon } from "@phosphor-icons/react";
+import { BookOpenIcon } from "@phosphor-icons/react/BookOpen";
+import { CodeIcon } from "@phosphor-icons/react/Code";
+import { EyeIcon } from "@phosphor-icons/react/Eye";
+import { FlagIcon } from "@phosphor-icons/react/Flag";
+import { GlobeIcon } from "@phosphor-icons/react/Globe";
+import { ImageIcon } from "@phosphor-icons/react/Image";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { QuestionIcon } from "@phosphor-icons/react/Question";
+import { TerminalIcon } from "@phosphor-icons/react/Terminal";
+import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 
 // | undefined ensures runtime type safety
 const TOOL_DISPLAY_NAMES: Record<ToolName, string | undefined> = {

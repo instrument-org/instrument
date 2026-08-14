@@ -17,7 +17,8 @@ import {
 import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { type ProviderMetadata } from "@instrument-org/ai-gateway/client";
 import { type AIProviderType } from "@instrument-org/shared";
-import { CaretDownIcon, StarIcon } from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { StarIcon } from "@phosphor-icons/react/Star";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
 

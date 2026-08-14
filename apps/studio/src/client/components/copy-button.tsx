@@ -1,5 +1,6 @@
 import { useTimedFlag } from "@/client/hooks/use-timed-flag";
-import { CheckIcon, CopyIcon } from "@phosphor-icons/react";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
 
 export function CopyButton({
   className,

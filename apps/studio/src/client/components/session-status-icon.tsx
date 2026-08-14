@@ -1,5 +1,5 @@
 import { type SessionTag, type TaskId } from "@instrument-org/workspace/client";
-import { PauseIcon } from "@phosphor-icons/react";
+import { PauseIcon } from "@phosphor-icons/react/Pause";
 import { useQuery } from "@tanstack/react-query";
 
 import { useTaskAgentStatus } from "../hooks/use-task-agent-status";

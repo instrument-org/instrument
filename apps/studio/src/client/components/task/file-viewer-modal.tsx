@@ -5,7 +5,8 @@ import {
 } from "@/client/atoms/task-file-viewer";
 import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
-import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react";
+import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";

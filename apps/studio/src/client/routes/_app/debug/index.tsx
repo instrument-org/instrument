@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/client/components/ui/table";
 import { rpcClient } from "@/client/rpc/client";
-import { ArrowRightIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 

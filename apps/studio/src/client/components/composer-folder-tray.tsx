@@ -8,7 +8,9 @@ import { BLOCK_CLOSE, BLOCK_OPEN } from "@/client/lib/motion";
 import { displayPath, folderNameFromPath } from "@/client/lib/path-utils";
 import { cn } from "@/client/lib/utils";
 import { type FolderAttachment } from "@instrument-org/workspace/client";
-import { FolderIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
+import { FolderIcon } from "@phosphor-icons/react/Folder";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { XIcon } from "@phosphor-icons/react/X";
 import { AnimatePresence, motion } from "motion/react";
 
 /**

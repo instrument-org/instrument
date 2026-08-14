@@ -2,41 +2,39 @@ import {
   type FileIconToken,
   getFileIconToken,
 } from "@/client/lib/get-file-icon-token";
-import {
-  CalendarBlankIcon,
-  FileArchiveIcon,
-  FileAudioIcon,
-  FileCIcon,
-  FileCodeIcon,
-  FileCppIcon,
-  FileCSharpIcon,
-  FileCssIcon,
-  FileCsvIcon,
-  FileDocIcon,
-  FileHtmlIcon,
-  FileIniIcon,
-  FileJpgIcon,
-  FileJsIcon,
-  FileJsxIcon,
-  FileMdIcon,
-  FilePdfIcon,
-  FilePngIcon,
-  FilePptIcon,
-  FilePyIcon,
-  FileRsIcon,
-  FileSqlIcon,
-  FileSvgIcon,
-  FileTextIcon,
-  FileTsIcon,
-  FileTsxIcon,
-  FileTxtIcon,
-  FileVideoIcon,
-  FileVueIcon,
-  FileXlsIcon,
-  FileZipIcon,
-  type Icon,
-  FileIcon as PhFileIcon,
-} from "@phosphor-icons/react";
+import { type Icon } from "@phosphor-icons/react";
+import { CalendarBlankIcon } from "@phosphor-icons/react/CalendarBlank";
+import { FileIcon as PhFileIcon } from "@phosphor-icons/react/File";
+import { FileArchiveIcon } from "@phosphor-icons/react/FileArchive";
+import { FileAudioIcon } from "@phosphor-icons/react/FileAudio";
+import { FileCIcon } from "@phosphor-icons/react/FileC";
+import { FileCodeIcon } from "@phosphor-icons/react/FileCode";
+import { FileCppIcon } from "@phosphor-icons/react/FileCpp";
+import { FileCSharpIcon } from "@phosphor-icons/react/FileCSharp";
+import { FileCssIcon } from "@phosphor-icons/react/FileCss";
+import { FileCsvIcon } from "@phosphor-icons/react/FileCsv";
+import { FileDocIcon } from "@phosphor-icons/react/FileDoc";
+import { FileHtmlIcon } from "@phosphor-icons/react/FileHtml";
+import { FileIniIcon } from "@phosphor-icons/react/FileIni";
+import { FileJpgIcon } from "@phosphor-icons/react/FileJpg";
+import { FileJsIcon } from "@phosphor-icons/react/FileJs";
+import { FileJsxIcon } from "@phosphor-icons/react/FileJsx";
+import { FileMdIcon } from "@phosphor-icons/react/FileMd";
+import { FilePdfIcon } from "@phosphor-icons/react/FilePdf";
+import { FilePngIcon } from "@phosphor-icons/react/FilePng";
+import { FilePptIcon } from "@phosphor-icons/react/FilePpt";
+import { FilePyIcon } from "@phosphor-icons/react/FilePy";
+import { FileRsIcon } from "@phosphor-icons/react/FileRs";
+import { FileSqlIcon } from "@phosphor-icons/react/FileSql";
+import { FileSvgIcon } from "@phosphor-icons/react/FileSvg";
+import { FileTextIcon } from "@phosphor-icons/react/FileText";
+import { FileTsIcon } from "@phosphor-icons/react/FileTs";
+import { FileTsxIcon } from "@phosphor-icons/react/FileTsx";
+import { FileTxtIcon } from "@phosphor-icons/react/FileTxt";
+import { FileVideoIcon } from "@phosphor-icons/react/FileVideo";
+import { FileVueIcon } from "@phosphor-icons/react/FileVue";
+import { FileXlsIcon } from "@phosphor-icons/react/FileXls";
+import { FileZipIcon } from "@phosphor-icons/react/FileZip";
 import {
   BsFileBinary,
   BsFileCode,

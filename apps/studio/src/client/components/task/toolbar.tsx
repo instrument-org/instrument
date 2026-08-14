@@ -8,7 +8,7 @@ import { useInlineRename } from "@/client/hooks/use-inline-rename";
 import { useTaskPane } from "@/client/hooks/use-task-pane";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type StoreId, type Task } from "@instrument-org/workspace/client";
-import { FoldersIcon } from "@phosphor-icons/react";
+import { FoldersIcon } from "@phosphor-icons/react/Folders";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 

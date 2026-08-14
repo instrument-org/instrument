@@ -1,7 +1,7 @@
 import { InternalLink } from "@/client/components/internal-link";
 import { rpcClient } from "@/client/rpc/client";
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
-import { CardsThreeIcon } from "@phosphor-icons/react";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { useQuery } from "@tanstack/react-query";
 
 export function ProjectChangesNote({

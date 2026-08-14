@@ -1,7 +1,7 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { type TaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
 import { cn } from "@/client/lib/utils";
-import { CaretDownIcon } from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { type ComponentProps } from "react";
 
 import { OpenTargetIcon } from "./open-target-icon";

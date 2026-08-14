@@ -33,7 +33,7 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Tab } from "@/shared/tabs";
 import { safe } from "@orpc/client";
-import { IconContext } from "@phosphor-icons/react";
+import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
   CatchBoundary,

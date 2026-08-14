@@ -1,7 +1,8 @@
 import { FileIcon } from "@/client/components/file-icon";
 import { cn } from "@/client/lib/utils";
 import { TaskPane } from "@instrument-org/workspace/client";
-import { GlobeIcon, XIcon } from "@phosphor-icons/react";
+import { GlobeIcon } from "@phosphor-icons/react/Globe";
+import { XIcon } from "@phosphor-icons/react/X";
 import { Reorder } from "motion/react";
 
 import { PaneToggle } from "./pane-toggle";

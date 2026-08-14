@@ -14,11 +14,9 @@ import {
   TASK_FOLDER_NAMES,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import {
-  CaretRightIcon,
-  DotsThreeOutlineVerticalIcon,
-  FolderSimpleIcon,
-} from "@phosphor-icons/react";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { useMemo, useState } from "react";

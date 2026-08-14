@@ -3,7 +3,8 @@ import { formatDuration } from "@/client/lib/format-time";
 import { isValidNumber } from "@/client/lib/usage-utils";
 import { cn } from "@/client/lib/utils";
 import { type SessionMessage } from "@instrument-org/workspace/client";
-import { ChatCircleTextIcon, CoinsIcon } from "@phosphor-icons/react";
+import { ChatCircleTextIcon } from "@phosphor-icons/react/ChatCircleText";
+import { CoinsIcon } from "@phosphor-icons/react/Coins";
 import { type ReactNode } from "react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";

@@ -2,7 +2,7 @@ import { MESSAGE_FOOTER_ICON_SIZE, SHARED } from "@/client/lib/styles";
 import { cn } from "@/client/lib/utils";
 import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
-import { CaretUpIcon } from "@phosphor-icons/react";
+import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
 import { debounce } from "radashi";
 import { memo, useEffect, useRef, useState } from "react";
 

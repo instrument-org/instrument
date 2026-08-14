@@ -7,7 +7,7 @@ import {
   isAddressableTaskFilePath,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import { ImageIcon } from "@phosphor-icons/react";
+import { ImageIcon } from "@phosphor-icons/react/Image";
 import { useSetAtom } from "jotai";
 import {
   memo,

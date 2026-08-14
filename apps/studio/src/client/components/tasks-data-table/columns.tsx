@@ -11,11 +11,9 @@ import { RelativeTime } from "@/client/components/relative-time";
 import { TaskStatusIcon } from "@/client/components/session-status-icon";
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
-import {
-  ArrowsDownUpIcon,
-  CardsThreeIcon,
-  PushPinIcon,
-} from "@phosphor-icons/react";
+import { ArrowsDownUpIcon } from "@phosphor-icons/react/ArrowsDownUp";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
+import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { format } from "date-fns";
 
 import { TaskActionsCell } from "./actions";

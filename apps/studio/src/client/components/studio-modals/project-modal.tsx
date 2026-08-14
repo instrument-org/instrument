@@ -32,7 +32,8 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { isDefinedError, type ORPCError, safe } from "@orpc/client";
-import { PlusIcon, XIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useForm } from "@tanstack/react-form";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";

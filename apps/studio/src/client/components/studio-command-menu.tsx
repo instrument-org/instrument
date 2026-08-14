@@ -20,15 +20,13 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import uFuzzy from "@leeoniya/ufuzzy";
-import {
-  ArrowsClockwiseIcon,
-  CardsThreeIcon,
-  ChatCircleIcon,
-  CodeIcon,
-  PlusIcon,
-  PushPinIcon,
-  SidebarSimpleIcon,
-} from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
+import { CodeIcon } from "@phosphor-icons/react/Code";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { PushPinIcon } from "@phosphor-icons/react/PushPin";
+import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMatch, useNavigate } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";

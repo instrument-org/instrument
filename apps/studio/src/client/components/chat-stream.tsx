@@ -7,7 +7,7 @@ import {
   type StoreId,
   type Task,
 } from "@instrument-org/workspace/client";
-import { WarningIcon } from "@phosphor-icons/react";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useState } from "react";
 
 import { getAssetBaseUrl } from "../lib/asset-base-url";

@@ -3,13 +3,11 @@ import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibili
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getFileType } from "@/client/lib/get-file-type";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  ArrowLineDownIcon,
-  ChatTextIcon,
-  CheckIcon,
-  CopyIcon,
-  DotsThreeOutlineVerticalIcon,
-} from "@phosphor-icons/react";
+import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
+import { ChatTextIcon } from "@phosphor-icons/react/ChatText";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 

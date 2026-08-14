@@ -36,14 +36,12 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import {
-  ArrowUpIcon,
-  CardsThreeIcon,
-  FolderIcon,
-  PaperclipIcon,
-  StopIcon,
-  UploadSimpleIcon,
-} from "@phosphor-icons/react";
+import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
+import { FolderIcon } from "@phosphor-icons/react/Folder";
+import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
+import { StopIcon } from "@phosphor-icons/react/Stop";
+import { UploadSimpleIcon } from "@phosphor-icons/react/UploadSimple";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { AnimatePresence, motion } from "motion/react";

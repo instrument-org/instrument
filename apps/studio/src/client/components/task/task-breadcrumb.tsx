@@ -12,7 +12,7 @@ import {
 import { type useInlineRename } from "@/client/hooks/use-inline-rename";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task } from "@instrument-org/workspace/client";
-import { CardsThreeIcon } from "@phosphor-icons/react";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useRef, useState } from "react";
 

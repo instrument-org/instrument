@@ -33,7 +33,8 @@ import {
   type Task,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import { StopCircleIcon, TrashIcon } from "@phosphor-icons/react";
+import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

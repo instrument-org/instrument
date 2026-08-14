@@ -11,7 +11,8 @@ import {
 } from "@/client/lib/task-file-visibility";
 import { cn } from "@/client/lib/utils";
 import { TASK_FOLDER_NAMES, TaskPane } from "@instrument-org/workspace/client";
-import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
 import { useParams } from "@tanstack/react-router";
 import { fork } from "radashi";
 import { useState } from "react";

@@ -21,22 +21,20 @@ import {
   type Task,
   TaskIdSchema,
 } from "@instrument-org/workspace/client";
-import {
-  ArticleIcon,
-  BrainIcon,
-  CaretDownIcon,
-  CheckIcon,
-  DotsThreeIcon,
-  type Icon,
-  InfoIcon,
-  PaperclipIcon,
-  PauseIcon,
-  PlayIcon,
-  SkipBackIcon,
-  SkipForwardIcon,
-  UserIcon,
-  WarningIcon,
-} from "@phosphor-icons/react";
+import { type Icon } from "@phosphor-icons/react";
+import { ArticleIcon } from "@phosphor-icons/react/Article";
+import { BrainIcon } from "@phosphor-icons/react/Brain";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
+import { InfoIcon } from "@phosphor-icons/react/Info";
+import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
+import { PauseIcon } from "@phosphor-icons/react/Pause";
+import { PlayIcon } from "@phosphor-icons/react/Play";
+import { SkipBackIcon } from "@phosphor-icons/react/SkipBack";
+import { SkipForwardIcon } from "@phosphor-icons/react/SkipForward";
+import { UserIcon } from "@phosphor-icons/react/User";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { createFileRoute } from "@tanstack/react-router";
 import { useAtom } from "jotai";
 import { Profiler, useEffect, useMemo, useRef, useState } from "react";

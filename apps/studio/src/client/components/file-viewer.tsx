@@ -17,18 +17,16 @@ import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language
 import { type FileType, getFileType } from "@/client/lib/get-file-type";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  ArrowClockwiseIcon,
-  ArrowElbowDownLeftIcon,
-  ArrowLineDownIcon,
-  ArrowsOutSimpleIcon,
-  CheckIcon,
-  CodeIcon,
-  CopyIcon,
-  DotsThreeOutlineVerticalIcon,
-  EyeIcon,
-  XIcon,
-} from "@phosphor-icons/react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
+import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft";
+import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
+import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { CodeIcon } from "@phosphor-icons/react/Code";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { EyeIcon } from "@phosphor-icons/react/Eye";
+import { XIcon } from "@phosphor-icons/react/X";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { motion } from "motion/react";

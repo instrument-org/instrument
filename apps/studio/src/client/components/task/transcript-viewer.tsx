@@ -9,13 +9,11 @@ import {
   type StoreId,
   type Task,
 } from "@instrument-org/workspace/client";
-import {
-  ArrowLineDownIcon,
-  BracketsCurlyIcon,
-  CopyIcon,
-  FileTextIcon,
-  XIcon,
-} from "@phosphor-icons/react";
+import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
+import { BracketsCurlyIcon } from "@phosphor-icons/react/BracketsCurly";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { FileTextIcon } from "@phosphor-icons/react/FileText";
+import { XIcon } from "@phosphor-icons/react/X";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";

@@ -1,6 +1,6 @@
 import { TooltipProvider } from "@/client/components/ui/tooltip";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
-import { IconContext } from "@phosphor-icons/react";
+import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,

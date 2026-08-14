@@ -43,18 +43,16 @@ import {
   type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import {
-  ArrowClockwiseIcon,
-  ArrowCounterClockwiseIcon,
-  ArrowLeftIcon,
-  ArrowRightIcon,
-  ArrowSquareOutIcon,
-  CopyIcon,
-  DeviceMobileIcon,
-  DotsThreeVerticalIcon,
-  MagnifyingGlassIcon,
-  WarningCircleIcon,
-} from "@phosphor-icons/react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
+import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
+import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
+import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { DeviceMobileIcon } from "@phosphor-icons/react/DeviceMobile";
+import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 

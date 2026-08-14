@@ -1,5 +1,5 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
-import { WarningIcon } from "@phosphor-icons/react";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
 
 import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
 import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";

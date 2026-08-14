@@ -1,6 +1,8 @@
 import { type QueuedPrompt } from "@/client/hooks/use-prompt-queue";
 import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
-import { PaperclipIcon, StackIcon, TrashIcon } from "@phosphor-icons/react";
+import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
+import { StackIcon } from "@phosphor-icons/react/Stack";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 
 import { Button } from "../ui/button";
 

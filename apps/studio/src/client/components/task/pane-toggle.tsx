@@ -2,7 +2,7 @@ import { Button } from "@/client/components/ui/button";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { useTaskPane, useTaskPaneActions } from "@/client/hooks/use-task-pane";
 import { type TaskId } from "@instrument-org/workspace/client";
-import { SidebarSimpleIcon } from "@phosphor-icons/react";
+import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 
 /**
  * Opens and closes the task's pane.

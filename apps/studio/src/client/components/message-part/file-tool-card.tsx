@@ -1,5 +1,7 @@
 import { type TaskId } from "@instrument-org/workspace/client";
-import { ArrowsOutSimpleIcon, ChatIcon, CopyIcon } from "@phosphor-icons/react";
+import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
+import { ChatIcon } from "@phosphor-icons/react/Chat";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { useSetAtom } from "jotai";
 
 import { appendToPromptAtom } from "../../atoms/prompt-value";

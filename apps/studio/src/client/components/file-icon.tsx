@@ -3,7 +3,11 @@ import {
   getFileIconToken,
 } from "@/client/lib/get-file-icon-token";
 import { type Icon } from "@phosphor-icons/react";
+import { BinaryIcon } from "@phosphor-icons/react/Binary";
+import { BookOpenTextIcon } from "@phosphor-icons/react/BookOpenText";
 import { CalendarBlankIcon } from "@phosphor-icons/react/CalendarBlank";
+import { DatabaseIcon } from "@phosphor-icons/react/Database";
+import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
 import { FileIcon as PhFileIcon } from "@phosphor-icons/react/File";
 import { FileArchiveIcon } from "@phosphor-icons/react/FileArchive";
 import { FileAudioIcon } from "@phosphor-icons/react/FileAudio";
@@ -15,6 +19,7 @@ import { FileCssIcon } from "@phosphor-icons/react/FileCss";
 import { FileCsvIcon } from "@phosphor-icons/react/FileCsv";
 import { FileDocIcon } from "@phosphor-icons/react/FileDoc";
 import { FileHtmlIcon } from "@phosphor-icons/react/FileHtml";
+import { FileImageIcon } from "@phosphor-icons/react/FileImage";
 import { FileIniIcon } from "@phosphor-icons/react/FileIni";
 import { FileJpgIcon } from "@phosphor-icons/react/FileJpg";
 import { FileJsIcon } from "@phosphor-icons/react/FileJs";
@@ -35,44 +40,36 @@ import { FileVideoIcon } from "@phosphor-icons/react/FileVideo";
 import { FileVueIcon } from "@phosphor-icons/react/FileVue";
 import { FileXlsIcon } from "@phosphor-icons/react/FileXls";
 import { FileZipIcon } from "@phosphor-icons/react/FileZip";
-import {
-  BsFileBinary,
-  BsFileCode,
-  BsFileEarmarkFont,
-  BsFileEarmarkImage,
-  BsFileEarmarkPerson,
-  BsFileEarmarkPlay,
-  BsFileEarmarkPost,
-  BsFileEarmarkPpt,
-  BsFileEarmarkRichtext,
-  BsFileEarmarkSpreadsheet,
-  BsFileEarmarkWord,
-} from "react-icons/bs";
-import { type IconType } from "react-icons/lib";
-import { TbFileDatabase } from "react-icons/tb";
+import { IdentificationCardIcon } from "@phosphor-icons/react/IdentificationCard";
+import { PresentationIcon } from "@phosphor-icons/react/Presentation";
+import { SubtitlesIcon } from "@phosphor-icons/react/Subtitles";
+import { TableIcon } from "@phosphor-icons/react/Table";
+import { TextAaIcon } from "@phosphor-icons/react/TextAa";
 
-type AnyIcon = Icon | IconType;
-
-const TOKEN_ICONS: Record<FileIconToken, AnyIcon> = {
+// One icon set, so every glyph carries the same stroke weight. Where the set
+// draws no page for a format, the token takes the icon that names the thing
+// itself -- a database, an envelope, a table -- rather than a page from
+// elsewhere that would sit heavier than its neighbors.
+const TOKEN_ICONS: Record<FileIconToken, Icon> = {
   archive: FileArchiveIcon,
   audio: FileAudioIcon,
-  binary: BsFileBinary,
+  binary: BinaryIcon,
   c: FileCIcon,
   calendar: CalendarBlankIcon,
-  code: BsFileCode,
+  code: FileCodeIcon,
   config: FileCodeIcon,
-  contact: BsFileEarmarkPerson,
+  contact: IdentificationCardIcon,
   cpp: FileCppIcon,
   csharp: FileCSharpIcon,
   css: FileCssIcon,
   csv: FileCsvIcon,
-  database: TbFileDatabase,
-  document: BsFileEarmarkWord,
-  ebook: BsFileEarmarkRichtext,
-  email: BsFileEarmarkPost,
-  font: BsFileEarmarkFont,
+  database: DatabaseIcon,
+  document: FileTextIcon,
+  ebook: BookOpenTextIcon,
+  email: EnvelopeSimpleIcon,
+  font: TextAaIcon,
   html: FileHtmlIcon,
-  image: BsFileEarmarkImage,
+  image: FileImageIcon,
   ini: FileIniIcon,
   javascript: FileJsIcon,
   jpg: FileJpgIcon,
@@ -82,14 +79,14 @@ const TOKEN_ICONS: Record<FileIconToken, AnyIcon> = {
   png: FilePngIcon,
   presentation: FilePptIcon,
   python: FilePyIcon,
-  richtext: BsFileEarmarkRichtext,
+  richtext: FileTextIcon,
   rust: FileRsIcon,
-  slides: BsFileEarmarkPpt,
+  slides: PresentationIcon,
   spreadsheet: FileXlsIcon,
   sql: FileSqlIcon,
-  subtitle: BsFileEarmarkPlay,
+  subtitle: SubtitlesIcon,
   svg: FileSvgIcon,
-  table: BsFileEarmarkSpreadsheet,
+  table: TableIcon,
   text: FileTextIcon,
   tsx: FileTsxIcon,
   txt: FileTxtIcon,

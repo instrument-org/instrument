@@ -306,9 +306,7 @@ function FolderAccessRow({
               type="button"
             >
               <XIcon className="size-3" />
-              <span className="sr-only">
-                Remove {folderNameFromPath(path)}
-              </span>
+              <span className="sr-only">Remove {folderNameFromPath(path)}</span>
             </button>
           </div>
         </div>

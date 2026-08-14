@@ -44,7 +44,6 @@ export function FileToolCard({
     await navigator.clipboard.writeText(cleanedContent);
   };
 
-
   const handleExpand = () => {
     if (modifiedAt === undefined) {
       return;

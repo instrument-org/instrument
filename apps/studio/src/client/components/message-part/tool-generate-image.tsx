@@ -414,7 +414,6 @@ function humanizeParamKey(key: string): string {
 function ImageActions({ filePath, id }: { filePath: string; id: TaskId }) {
   const { openFiles } = useTaskPaneActions(id);
 
-
   const handleExpand = () => {
     openFiles([filePath]);
   };

@@ -1,3 +1,4 @@
+import { TooltipProvider } from "@/client/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, type RenderOptions } from "@testing-library/react";
 import { createStore, getDefaultStore, Provider as JotaiProvider } from "jotai";
@@ -48,6 +49,9 @@ export function renderWithDefaultStore(
  * value from one test into the next. The store comes back for tests that need to
  * seed or read an atom directly.
  *
+ * Also provided: the tooltip provider, which the app mounts once at its root and
+ * anything carrying a tooltip throws without.
+ *
  * Not provided: the router. Anything rendering an `InternalLink` needs one, and
  * standing up a real route tree is worth doing per-test rather than for every
  * caller here.
@@ -73,13 +77,19 @@ function renderWith({
     defaultOptions: { queries: { retry: false } },
   });
 
+  // The tooltip provider is here for the same reason the app mounts exactly one
+  // at its root: a tooltip anywhere under it throws without one, and an icon
+  // button that carries its label in a tooltip is a shape any component can
+  // reach for. Its sibling in `render-browser.tsx` supplies one too.
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>
-      {store ? (
-        <JotaiProvider store={store}>{children}</JotaiProvider>
-      ) : (
-        children
-      )}
+      <TooltipProvider>
+        {store ? (
+          <JotaiProvider store={store}>{children}</JotaiProvider>
+        ) : (
+          children
+        )}
+      </TooltipProvider>
     </QueryClientProvider>
   );
 

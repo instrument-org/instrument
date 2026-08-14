@@ -168,6 +168,10 @@ export function FolderAccessLabel({
         iconOnly && "gap-0 hover:text-muted-foreground",
         className,
       )}
+      // A bare span is generic, and a generic element cannot take a name, so
+      // without a role the icon-only form states the access to sighted readers
+      // only. The word is the accessible name when it is written out.
+      role={iconOnly ? "img" : undefined}
     >
       <FolderAccessIcon
         access={access}

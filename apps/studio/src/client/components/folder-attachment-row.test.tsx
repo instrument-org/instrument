@@ -50,7 +50,7 @@ describe("FolderAttachmentRow", () => {
     );
 
     const path = screen.getByText("~/Downloads");
-    const access = screen.getByLabelText("Full access");
+    const access = screen.getByRole("img", { name: "Full access" });
 
     expect(screen.queryByText("Full access")).toBeNull();
     expect(access.parentElement).toBe(path.parentElement);

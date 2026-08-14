@@ -239,6 +239,12 @@ export function TaskBrowserPanel({
       webview.removeEventListener("did-navigate-in-page", onNavigate);
       webview.removeEventListener("did-start-loading", clearFailure);
       webview.removeEventListener("did-fail-load", onFailLoad);
+      // The guest this described is being let go. Reopening the same target
+      // builds a fresh one at about:blank, and `sync()` cannot stamp that
+      // until its WebContents attaches, so a location left standing across the
+      // gap would read as a loaded page for those frames and let the guest's
+      // black default show through the slot.
+      setLocation(null);
     };
   }, [active, targetId]);
 

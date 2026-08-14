@@ -31,6 +31,10 @@ import {
 } from "./message-part/transcript-group";
 import { ProjectContextNote } from "./project-context-note";
 import {
+  type TranscriptExpansion,
+  TranscriptExpansionContext,
+} from "./transcript-expansion";
+import {
   buildTranscriptLayout,
   generatedGroupHeading,
   groupCanExpand,
@@ -151,6 +155,19 @@ export function ChatStream({
     ReadonlySet<StoreId.Part>
   >(() => new Set());
 
+  // Which steps are open, held here rather than by the rows; see
+  // `TranscriptExpansion` for why they cannot hold it themselves.
+  const [expandedRowIds, setExpandedRowIds] = useState<
+    ReadonlySet<StoreId.Part>
+  >(() => new Set());
+
+  // The steps that have already opened themselves, which is what leaves a
+  // reader who shuts one shut: without it the row would open again on the next
+  // frame, for as long as the call it draws is still running.
+  const [selfOpenedRowIds, setSelfOpenedRowIds] = useState<
+    ReadonlySet<StoreId.Part>
+  >(() => new Set());
+
   const toggleGroup = (groupId: StoreId.Part) => {
     releaseAutoScroll();
     setExpandedGroupIds((current) => {
@@ -204,6 +221,56 @@ export function ChatStream({
     isToolStreaming,
     regularMessages,
   });
+
+  /**
+   * Opens these steps, and the phases they sit in.
+   *
+   * The phase, because the fold takes a step off screen the moment the agent
+   * moves on to the next one: a step opened inside a shut group is replaced by
+   * whatever the agent did next, and what the reader asked to see is gone
+   * before they have finished reading it. The group stays open afterwards, so
+   * the step holds its place in the run while the phase works past it.
+   */
+  const expandRows = (rowIds: readonly StoreId.Part[]) => {
+    setExpandedRowIds((current) => new Set([...current, ...rowIds]));
+    setExpandedGroupIds((current) => {
+      const next = new Set(current);
+      for (const rowId of rowIds) {
+        const groupId = layout.rows.get(rowId)?.groupId;
+        if (groupId !== undefined) {
+          next.add(groupId);
+        }
+      }
+      return next;
+    });
+  };
+
+  // The steps that open for themselves, taken once each. Scrolling is not
+  // handed back for these: nothing the reader did opened them, so the
+  // transcript goes on following its own end the way it was.
+  const openingNow = layout.selfOpeningRowIds.filter(
+    (rowId) => !selfOpenedRowIds.has(rowId),
+  );
+  if (openingNow.length > 0) {
+    setSelfOpenedRowIds(new Set([...openingNow, ...selfOpenedRowIds]));
+    expandRows(openingNow);
+  }
+
+  const expansion: TranscriptExpansion = {
+    isRowExpanded: (rowId) => expandedRowIds.has(rowId),
+    setRowExpanded: (rowId, isExpanded) => {
+      releaseAutoScroll();
+      if (isExpanded) {
+        expandRows([rowId]);
+        return;
+      }
+      setExpandedRowIds((current) => {
+        const next = new Set(current);
+        next.delete(rowId);
+        return next;
+      });
+    },
+  };
 
   const renderCtx: RenderPartContext = {
     assetBaseUrl,
@@ -607,24 +674,28 @@ export function ChatStream({
   // Scroller mode emits direct children of MessageScrollerContent: each turn is
   // an anchorable item, and the surrounding chrome is wrapped so the scroller
   // still measures clean top-level rows.
+  // The provider draws nothing, so the scroller still sees the turns as its own
+  // element's children; it walks the DOM rather than the element tree.
   if (renderAsItems) {
     return (
-      <>
+      <TranscriptExpansionContext value={expansion}>
         {chatElements}
         {continueNode && (
           <MessageScrollerItem key="continue">
             {continueNode}
           </MessageScrollerItem>
         )}
-      </>
+      </TranscriptExpansionContext>
     );
   }
 
   return (
-    <div className="flex w-full flex-col gap-2">
-      <div className="flex flex-col gap-2">{chatElements}</div>
-      {continueNode}
-    </div>
+    <TranscriptExpansionContext value={expansion}>
+      <div className="flex w-full flex-col gap-2">
+        <div className="flex flex-col gap-2">{chatElements}</div>
+        {continueNode}
+      </div>
+    </TranscriptExpansionContext>
   );
 }
 

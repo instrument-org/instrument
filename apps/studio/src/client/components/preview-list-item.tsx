@@ -20,18 +20,18 @@ export function PreviewListItem({
   tooltipContent?: string;
 }) {
   const button = (
-    // Its own surface rather than a button variant's. This is the compact form
-    // of a `FilePreviewCard` row and wants that card's language -- card fill,
-    // brand tint once the pane is showing the file -- which no variant carries;
-    // borrowing one meant its next round of tuning arrived here as a filename
-    // nobody could read.
+    // Its own surface rather than a button variant's, taken from the folder
+    // block a message carries beside these (`FolderAttachmentsCard`): the same
+    // fill, hairline and shadow, one chip at a time instead of one divided
+    // block. Borrowing a variant instead meant its next round of tuning arrived
+    // here as a filename nobody could read.
     <button
       className={cn(
-        "flex h-12 w-full items-center gap-x-2 overflow-hidden rounded-lg px-3 text-left text-foreground",
+        "flex h-12 w-full items-center gap-x-2 overflow-hidden rounded-lg border border-black/5 bg-background px-3 text-left text-foreground shadow-xs dark:border-white/6",
         "transition-[outline] outline-none focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]",
-        isSelected
-          ? "border border-black/5 bg-brand-600/8 dark:bg-brand-300/8"
-          : "bg-card shadow-xs hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40",
+        // The brand tint a `FilePreviewCard` takes when the pane is showing its
+        // file, so a chip and a full-width card read as the same state.
+        isSelected ? "bg-brand-600/8 dark:bg-brand-300/8" : "hover:bg-muted",
       )}
       onClick={onClick}
       type="button"

@@ -37,14 +37,14 @@ export function FilePreviewListItem({
     url && fileType === "image" ? (
       <Tooltip>
         <TooltipTrigger asChild>
-          {/* The compact form of a square `MediaCardShell` tile, down to the
-              surface a transparent or missing image falls back onto, and styled
-              here rather than borrowed from a button variant for the same
-              reason its sibling row is. The selected mark goes outside because
-              the image covers the surface a tint would land on. */}
+          {/* The surface its sibling row takes, squared off, so the two kinds of
+              chip in one row sit on the same thing. Styled here rather than
+              borrowed from a button variant for the same reason the row is. The
+              selected mark goes outside because the image covers the surface a
+              tint would land on. */}
           <button
             className={cn(
-              "relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-card shadow-xs dark:bg-muted",
+              "relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-black/5 bg-background shadow-xs dark:border-white/6",
               "transition-[outline] outline-none focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]",
               isSelected &&
                 "outline-2 outline-solid outline-offset-2 outline-brand-100 dark:outline-brand-700",

@@ -693,6 +693,7 @@ body {
   &::details-content {
     block-size: auto;
     content-visibility: visible;
+    overflow: visible;
   }
 }
 

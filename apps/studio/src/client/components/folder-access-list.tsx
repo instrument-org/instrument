@@ -283,32 +283,36 @@ function FolderAccessRow({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div className="group flex items-center gap-x-2.5 px-3 py-2">
+        <div className="group flex items-center gap-x-2.5 px-3 py-1">
           <MacFolderIcon className="size-8 shrink-0" />
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-xs font-medium">
               {folderNameFromPath(path)}
             </span>
             <span
-              className="truncate text-xs text-muted-foreground"
+              className="truncate text-xs font-medium text-muted-foreground"
               title={path}
             >
               {displayPath(path)}
             </span>
           </div>
-          <FolderAccessControl
-            access={access}
-            folderName={folderNameFromPath(path)}
-            onChange={onAccessChange}
-          />
-          <button
-            className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-50 hover:bg-foreground/5 hover:opacity-100"
-            onClick={onRemove}
-            type="button"
-          >
-            <XIcon className="size-3.5" />
-            <span className="sr-only">Remove {folderNameFromPath(path)}</span>
-          </button>
+          <div className="flex items-center gap-x-1.5">
+            <FolderAccessControl
+              access={access}
+              folderName={folderNameFromPath(path)}
+              onChange={onAccessChange}
+            />
+            <button
+              className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-50 hover:bg-foreground/5 hover:opacity-100"
+              onClick={onRemove}
+              type="button"
+            >
+              <XIcon className="size-3.5" />
+              <span className="sr-only">
+                Remove {folderNameFromPath(path)}
+              </span>
+            </button>
+          </div>
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>

@@ -44,7 +44,7 @@ export const buttonVariants = tv({
       outline:
         "border border-black/5 text-muted-foreground not-disabled:hover:bg-black/5 dark:border-white/10 dark:not-disabled:hover:bg-white/10",
       "outline-muted":
-        "border bg-background shadow-xs not-disabled:hover:bg-muted dark:border-input",
+        "border bg-background text-gray-400 not-disabled:hover:bg-black/5 not-disabled:hover:text-gray-500 dark:border-input dark:text-gray-600 dark:not-disabled:hover:bg-accent/50 dark:not-disabled:hover:text-gray-500",
       // `outline` for a button that floats over a scroll area: an opaque fill
       // and an opaque hover, so content passing beneath can't show through it.
       "outline-opaque":

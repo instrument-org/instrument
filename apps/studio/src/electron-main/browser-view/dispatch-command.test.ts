@@ -9,7 +9,6 @@ import {
   StoreId,
   TaskIdSchema,
 } from "@instrument-org/workspace/electron";
-import { noop } from "radashi";
 import { describe, expect, it, vi } from "vitest";
 
 import { sendCommand } from "./dispatch-command";
@@ -18,8 +17,6 @@ import { type BrowserEntry, createEntry } from "./entry";
 const SUBDOMAIN = TaskIdSchema.parse("agent-browser-test");
 const SESSION_ID = StoreId.newSessionId();
 const TARGET_ID = encodeBrowserTargetId(SUBDOMAIN, SESSION_ID);
-
-const FOCUS_PROBE_TIMEOUT_MS = 1000;
 
 interface FakeDebugger {
   isAttached: () => boolean;
@@ -384,36 +381,55 @@ describe("sendCommand", () => {
   // Chromium delivers keyboard input to whichever widget holds keyboard focus,
   // not to the WebContents whose debugger carried the command. A guest without
   // focus therefore types into Studio's own window, so these are refused.
+  // Chromium delivers keyboard input to whichever widget holds keyboard focus,
+  // not to the WebContents whose debugger carried the command. A guest without
+  // focus types into Studio's own window, so it must reclaim focus first.
   describe("keyboard focus gate", () => {
+    // A repair channel that only reports focus once the renderer has been asked
+    // for it, the way the real `<webview>` focus round trip behaves.
+    function makeRepairableEntry({ succeeds = true } = {}) {
+      let focused = false;
+      const requestGuestFocus = vi.fn().mockImplementation(() => {
+        focused = succeeds;
+      });
+      const wcSendCommand = vi.fn().mockResolvedValue({});
+      const entry = makeEntry({ sendCommand: wcSendCommand });
+      const wc = entry.webContents as unknown as {
+        executeJavaScript: ReturnType<typeof vi.fn>;
+      };
+      wc.executeJavaScript = vi
+        .fn()
+        .mockImplementation(() => Promise.resolve(focused));
+      return { entry, requestGuestFocus, wcSendCommand };
+    }
+
     it.each([
       "Input.dispatchKeyEvent",
       "Input.imeSetComposition",
       "Input.insertText",
     ])(
-      "refuses %s when the guest does not hold keyboard focus",
+      "reclaims guest focus and then dispatches %s",
       async (method) => {
-        const wcSendCommand = vi.fn();
-        const entry = makeEntry({
-          hasFocus: false,
-          sendCommand: wcSendCommand,
-        });
+        const { entry, requestGuestFocus, wcSendCommand } =
+          makeRepairableEntry();
         const entries = new Map([[TARGET_ID, entry]]);
 
-        await expect(
-          sendCommand({
-            ensureDebuggerAttached: vi.fn(),
-            entries,
-            method,
-            params: { text: "hello" },
-            targetId: TARGET_ID,
-          }),
-        ).rejects.toThrow(/does not hold keyboard focus/);
+        await sendCommand({
+          ensureDebuggerAttached: vi.fn(),
+          entries,
+          method,
+          params: { text: "hello" },
+          requestGuestFocus,
+          targetId: TARGET_ID,
+        });
 
-        expect(wcSendCommand).not.toHaveBeenCalled();
+        expect(requestGuestFocus).toHaveBeenCalledWith(TARGET_ID);
+        expect(wcSendCommand).toHaveBeenCalled();
       },
     );
 
-    it("dispatches keyboard input when the guest holds keyboard focus", async () => {
+    it("does not ask for focus when the guest already holds it", async () => {
+      const requestGuestFocus = vi.fn();
       const wcSendCommand = vi.fn().mockResolvedValue({});
       const entry = makeEntry({ hasFocus: true, sendCommand: wcSendCommand });
       const entries = new Map([[TARGET_ID, entry]]);
@@ -423,22 +439,64 @@ describe("sendCommand", () => {
         entries,
         method: "Input.insertText",
         params: { text: "hello" },
+        requestGuestFocus,
         targetId: TARGET_ID,
       });
 
+      expect(requestGuestFocus).not.toHaveBeenCalled();
       expect(wcSendCommand).toHaveBeenCalledWith("Input.insertText", {
         text: "hello",
       });
     });
 
+    it("refuses when the guest never takes focus back", async () => {
+      const { entry, requestGuestFocus, wcSendCommand } = makeRepairableEntry({
+        succeeds: false,
+      });
+      const entries = new Map([[TARGET_ID, entry]]);
+
+      await expect(
+        sendCommand({
+          ensureDebuggerAttached: vi.fn(),
+          entries,
+          method: "Input.insertText",
+          params: { text: "hello" },
+          requestGuestFocus,
+          targetId: TARGET_ID,
+        }),
+      ).rejects.toThrow(/does not hold keyboard focus/);
+
+      expect(requestGuestFocus).toHaveBeenCalledWith(TARGET_ID);
+      expect(wcSendCommand).not.toHaveBeenCalled();
+    });
+
+    it("refuses when no repair channel is available", async () => {
+      const wcSendCommand = vi.fn();
+      const entry = makeEntry({ hasFocus: false, sendCommand: wcSendCommand });
+      const entries = new Map([[TARGET_ID, entry]]);
+
+      await expect(
+        sendCommand({
+          ensureDebuggerAttached: vi.fn(),
+          entries,
+          method: "Input.insertText",
+          params: { text: "hello" },
+          targetId: TARGET_ID,
+        }),
+      ).rejects.toThrow(/does not hold keyboard focus/);
+
+      expect(wcSendCommand).not.toHaveBeenCalled();
+    });
+
     // Mouse and scroll are routed by hit-testing against the target's own
-    // surface, so they reach the guest whether or not it holds focus -- and a
-    // click is how the agent reclaims focus after the gate refuses it.
+    // surface, so they reach the guest whether or not it holds focus and must
+    // never pay for a focus probe.
     it.each([
       "Input.dispatchMouseEvent",
       "Input.synthesizeScrollGesture",
       "Input.synthesizeTapGesture",
     ])("lets %s through without a focus probe", async (method) => {
+      const requestGuestFocus = vi.fn();
       const wcSendCommand = vi.fn().mockResolvedValue({});
       const entry = makeEntry({ hasFocus: false, sendCommand: wcSendCommand });
       const entries = new Map([[TARGET_ID, entry]]);
@@ -448,9 +506,11 @@ describe("sendCommand", () => {
         entries,
         method,
         params: {},
+        requestGuestFocus,
         targetId: TARGET_ID,
       });
 
+      expect(requestGuestFocus).not.toHaveBeenCalled();
       expect(wcSendCommand).toHaveBeenCalled();
     });
 
@@ -468,45 +528,12 @@ describe("sendCommand", () => {
           entries,
           method: "Input.insertText",
           params: { text: "hello" },
+          requestGuestFocus: vi.fn(),
           targetId: TARGET_ID,
         }),
       ).rejects.toThrow(/does not hold keyboard focus/);
 
       expect(wcSendCommand).not.toHaveBeenCalled();
-    });
-
-    it("fails closed when the focus probe never answers", async () => {
-      vi.useFakeTimers();
-      try {
-        const wcSendCommand = vi.fn();
-        const entry = makeEntry({
-          // A probe that never answers, standing in for a wedged renderer.
-          hasFocus: new Promise<never>(noop),
-          sendCommand: wcSendCommand,
-        });
-        const entries = new Map([[TARGET_ID, entry]]);
-
-        // Settle into a value rather than asserting on the pending rejection:
-        // the probe cannot reject until the timers advance, and an unhandled
-        // rejection in between would fail the run on its own.
-        const settled = sendCommand({
-          ensureDebuggerAttached: vi.fn(),
-          entries,
-          method: "Input.insertText",
-          params: { text: "hello" },
-          targetId: TARGET_ID,
-        }).then(
-          () => "dispatched",
-          (error: unknown) =>
-            error instanceof Error ? error.message : String(error),
-        );
-        await vi.advanceTimersByTimeAsync(FOCUS_PROBE_TIMEOUT_MS);
-
-        await expect(settled).resolves.toMatch(/does not hold keyboard focus/);
-        expect(wcSendCommand).not.toHaveBeenCalled();
-      } finally {
-        vi.useRealTimers();
-      }
     });
   });
 });

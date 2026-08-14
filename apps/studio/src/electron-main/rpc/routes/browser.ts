@@ -14,6 +14,13 @@ function currentTargets(): BrowserGuestTarget[] {
 }
 
 const events = {
+  focusGuest: base.handler(async function* ({ signal }) {
+    for await (const event of publisher.subscribe("browser.focus-guest", {
+      signal,
+    })) {
+      yield event;
+    }
+  }),
   restoreHostFocus: base.handler(async function* ({ signal }) {
     for await (const _ of publisher.subscribe("browser.restore-host-focus", {
       signal,

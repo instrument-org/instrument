@@ -2,6 +2,7 @@ import type { Protocol } from "devtools-protocol";
 import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 
 import { type BrowserTargetId } from "@instrument-org/workspace/electron";
+import { sleep } from "radashi";
 
 import type { BrowserEntry } from "./entry";
 
@@ -32,17 +33,27 @@ const KEYBOARD_COMMANDS = new Set([
 // typing into blind, so a timeout reads as "no focus" like any other failure.
 const FOCUS_PROBE_TIMEOUT_MS = 1000;
 
+// The focus request crosses to the renderer and back through a stream, so the
+// guest does not hold focus the instant we ask. Poll briefly rather than
+// sleeping a fixed amount, so the common case costs one extra probe.
+const FOCUS_REPAIR_TIMEOUT_MS = 1000;
+const FOCUS_REPAIR_POLL_MS = 50;
+
 export async function sendCommand({
   ensureDebuggerAttached,
   entries,
   method,
   params,
+  requestGuestFocus,
   targetId,
 }: {
   ensureDebuggerAttached: (entry: BrowserEntry) => void;
   entries: Map<BrowserTargetId, BrowserEntry>;
   method: string;
   params: unknown;
+  // Absent only in tests that do not exercise the repair; without it a guest
+  // that has lost focus can only be refused, which is the safe direction.
+  requestGuestFocus?: (targetId: BrowserTargetId) => void;
   targetId: BrowserTargetId;
 }): Promise<unknown> {
   const entry = entries.get(targetId);
@@ -153,15 +164,24 @@ export async function sendCommand({
     KEYBOARD_COMMANDS.has(method) &&
     !(await guestHoldsKeyboardFocus(entry))
   ) {
-    // Logged rather than only thrown: how often this fires is what says
-    // whether the refusal is a rare safety net or a routine obstacle worth
-    // replacing with an in-page translation of the keystrokes.
-    log.warn(
-      `refused ${method} targetId=${targetId}: guest does not hold keyboard focus`,
-    );
-    throw new Error(
-      "Keyboard input was not delivered: this browser tab does not hold keyboard focus, so the keystrokes would go to the desktop app's own window instead of the page. Click the element you want to type into first (e.g. `agent-browser click @e5`), then send the keys again.",
-    );
+    // The agent's commands arrive as separate tool calls seconds apart, and
+    // host focus is handed back once a target goes quiet, so a guest the agent
+    // clicked will normally have lost focus again by the time the keystrokes
+    // for it arrive. Take focus back rather than refuse: the guest's own
+    // activeElement survives, so this lands the keys on whatever was clicked.
+    // Logged either way: together these say how often agent typing arrives at
+    // a guest that has already handed focus back, which is the normal case
+    // whenever Studio itself is the focused window.
+    if (await repairGuestKeyboardFocus(entry, requestGuestFocus)) {
+      log.info(`reclaimed keyboard focus for ${method} targetId=${targetId}`);
+    } else {
+      log.warn(
+        `refused ${method} targetId=${targetId}: guest does not hold keyboard focus and could not reclaim it`,
+      );
+      throw new Error(
+        "Keyboard input was not delivered: this browser tab does not hold keyboard focus, so the keystrokes would go to the desktop app's own window instead of the page. Click the element you want to type into first (e.g. `agent-browser click @e5`), then send the keys again.",
+      );
+    }
   }
 
   try {
@@ -305,4 +325,25 @@ async function guestHoldsKeyboardFocus(entry: BrowserEntry): Promise<boolean> {
       clearTimeout(timeout);
     }
   }
+}
+
+// Ask the renderer to focus the guest, then wait for the guest to agree that
+// it holds focus. Returns false when no repair channel was supplied or the
+// guest never took focus, which keeps the caller failing closed.
+async function repairGuestKeyboardFocus(
+  entry: BrowserEntry,
+  requestGuestFocus?: (targetId: BrowserTargetId) => void,
+): Promise<boolean> {
+  if (!requestGuestFocus) {
+    return false;
+  }
+  requestGuestFocus(entry.targetId);
+  const deadline = Date.now() + FOCUS_REPAIR_TIMEOUT_MS;
+  do {
+    await sleep(FOCUS_REPAIR_POLL_MS);
+    if (await guestHoldsKeyboardFocus(entry)) {
+      return true;
+    }
+  } while (Date.now() < deadline);
+  return false;
 }

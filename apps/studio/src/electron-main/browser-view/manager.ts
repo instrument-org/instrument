@@ -120,6 +120,14 @@ export function createBrowserViewManager(): BrowserViewManager {
     publisher.publish("browser.restore-host-focus", null);
   }
 
+  // Ask the renderer to put keyboard focus on a guest. Only renderer-side DOM
+  // focus on the `<webview>` element crosses the process boundary, so this is
+  // the one way the main process can make agent keyboard input land in the
+  // page it was addressed to.
+  function requestGuestFocus(targetId: BrowserTargetId) {
+    publisher.publish("browser.focus-guest", { targetId });
+  }
+
   function ensureDebuggerAttached(entry: BrowserEntry) {
     const wc = entry.webContents;
     if (!wc || wc.isDestroyed()) {
@@ -469,6 +477,7 @@ export function createBrowserViewManager(): BrowserViewManager {
           entries,
           method,
           params,
+          requestGuestFocus,
           targetId,
         });
       if (!isAgentDrivenCommand(method)) {

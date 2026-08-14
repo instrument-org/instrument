@@ -73,7 +73,7 @@ No current evidence justifies lowering `read_file`, skill-content, bash, or imag
 
 ## Telemetry
 
-Record one event whenever a budget clips model-visible content. Include only numeric fields: tool name, original characters, retained characters, provider, and model identifier. Do not record commands, queries, excerpts, URLs, file paths, or output text.
+Record one event whenever a budget clips model-visible content. Include only counts and identifiers the workspace already reports elsewhere: tool name, original characters, retained characters, provider, and model identifier. Do not record commands, queries, excerpts, URLs, file paths, or output text.
 
 ## Validation
 

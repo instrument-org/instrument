@@ -4,7 +4,7 @@ Date: 2026-08-12
 
 ## Decision
 
-Tool results are bounded per call. There is no second budget that a single assistant step's results share, and no pass that trims tool results on every request.
+Tool results are bounded per call, and a per-call bound applies wherever a result is rendered for the model, replay included, so that a session which recorded an oversized result stops paying for it. There is no second budget that a single assistant step's results share.
 
 When we do need to bound a whole request, it goes in the context-fit path keyed to the model's actual window, not in a fixed constant applied unconditionally. [The plan](../plans/completed/tool-result-context-budgets.md) has the audit that raised the question; [context compaction](../plans/active/context-compaction.md) is where the fit belongs.
 

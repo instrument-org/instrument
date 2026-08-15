@@ -86,9 +86,16 @@ async function writeMergedSettings(
   await updateTaskRecord(taskDir(taskId), (record) => {
     // Raw first so `state` and anything this build cannot read survive the
     // write, then the parsed settings so their defaults apply, then the change.
+    //
+    // A settings view that would not parse contributes nothing rather than its
+    // defaults. The view is parsed as one object, so a single field this build
+    // cannot read -- one a newer build wrote, one a hand edit broke -- takes the
+    // whole view with it, and defaults laid over the raw record would then
+    // replace the title the record still holds. Every activity stamp comes
+    // through here, so that write is one the user need do nothing to provoke.
     const merged: Record<string, unknown> = {
       ...record.raw,
-      ...(record.settings ?? { name: "" }),
+      ...(record.settings ?? {}),
       ...updates,
     };
 

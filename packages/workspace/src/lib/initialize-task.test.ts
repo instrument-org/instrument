@@ -72,10 +72,10 @@ describe("initializeTask", () => {
     );
     expect(settings.replaceAll(ISO_TIMESTAMP, "<when>")).toMatchInlineSnapshot(`
       "{
-        "name": "Test task",
         "createdAt": "<when>",
         "createdWithAppVersion": "0.0.0-test",
-        "lastActivityAt": "<when>"
+        "lastActivityAt": "<when>",
+        "name": "Test task"
       }"
     `);
     await expect(

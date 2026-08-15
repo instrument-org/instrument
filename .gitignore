@@ -49,3 +49,8 @@ node_modules/
 
 # Agent git worktrees (nested checkouts created by the worktree bootstrap hook)
 .claude/worktrees/
+
+# Visual explanations: single-use artifacts an agent writes for a human to read
+# now. Kept on disk as a surfacing spot, not as history. Ask for one to be
+# committed if it should outlive the conversation that produced it.
+/docs/visual-explanations/

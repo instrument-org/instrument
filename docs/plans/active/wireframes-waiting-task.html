@@ -143,13 +143,13 @@
 
       /* A real grid, not wrapped flex: cards in a row share a height, so
          captions line up and no tile bleeds into its neighbour. */
+      body {
+        overflow-anchor: none;
+      }
       #rack {
         display: grid;
         grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
         gap: 1.25rem;
-      }
-      .tile {
-        scroll-margin-top: 5rem;
       }
 
       /* One small floating bar carries what you need to know and the only
@@ -354,7 +354,7 @@
       rack.innerHTML = states
         .map(
           (state, i) => `
-        <figure id="f${i}" class="tile m-0 flex flex-col overflow-hidden rounded-xl bg-white p-3 shadow-sm">
+        <figure class="tile m-0 flex flex-col overflow-hidden rounded-xl bg-white p-3 shadow-sm">
           <div class="frame self-center overflow-hidden rounded-lg ring-1 ring-black/5" data-label="${i + 1} · ${state.title}" data-w="${state.w || W}" data-h="${state.h || H}" style="--w:${state.w || W}px; --h:${state.h || H}px">
             <div>${state.body}</div>
           </div>

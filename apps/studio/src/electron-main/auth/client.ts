@@ -7,6 +7,7 @@ import { getSessionStore } from "@/electron-main/stores/session";
 import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import * as arctic from "arctic";
 import { createAuthClient } from "better-auth/client";
+import { z } from "zod";
 
 import { captureServerException } from "../lib/capture-server-exception";
 
@@ -22,9 +23,14 @@ export const store: {
   state: null,
 };
 
-interface OAuthState {
-  state: string;
-}
+// Reaches us back through the provider's redirect, so it is parsed rather than
+// asserted even though the caller has already matched it against the value we
+// stored before the redirect.
+const OAuthStateSchema = z.object({
+  state: z.string(),
+});
+
+type OAuthState = z.output<typeof OAuthStateSchema>;
 
 export function createGoogleProvider({ port }: { port: number }) {
   return new arctic.Google(
@@ -37,7 +43,8 @@ export function createGoogleProvider({ port }: { port: number }) {
 export function decodeOAuthState(encodedState: string): null | OAuthState {
   try {
     const decoded = Buffer.from(encodedState, "base64").toString("utf8");
-    return JSON.parse(decoded) as OAuthState;
+    const parsed = OAuthStateSchema.safeParse(JSON.parse(decoded));
+    return parsed.success ? parsed.data : null;
   } catch (error) {
     captureServerException(
       new Error("Failed to decode OAuth state", { cause: error }),

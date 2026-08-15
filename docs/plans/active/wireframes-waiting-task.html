@@ -355,11 +355,11 @@
         .map(
           (state, i) => `
         <figure id="f${i}" class="tile m-0 flex flex-col overflow-hidden rounded-xl bg-white p-3 shadow-sm">
-          <div class="frame self-center overflow-hidden rounded-lg ring-1 ring-black/5" data-w="${state.w || W}" data-h="${state.h || H}" style="--w:${state.w || W}px; --h:${state.h || H}px">
+          <div class="frame self-center overflow-hidden rounded-lg ring-1 ring-black/5" data-label="${i + 1} · ${state.title}" data-w="${state.w || W}" data-h="${state.h || H}" style="--w:${state.w || W}px; --h:${state.h || H}px">
             <div>${state.body}</div>
           </div>
           <figcaption class="mt-3 flex-1 text-xs leading-5 text-muted-foreground">
-            <span class="font-medium ${state.titleClass}">${i + 1} · ${state.title}.</span> ${state.note}
+            <span class="mr-1.5 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-600">${i + 1}</span><span class="font-medium ${state.titleClass}">${state.title}.</span> ${state.note}
           </figcaption>
         </figure>`,
         )
@@ -427,7 +427,12 @@
           "--s",
           Math.min((innerWidth * 0.95) / Number(frame.dataset.w), (innerHeight * 0.95) / Number(frame.dataset.h)),
         );
-        viewer.replaceChildren(clone);
+        const label = document.createElement("p");
+        label.className = "mt-3 text-center text-xs text-white/70";
+        label.textContent = frame.dataset.label;
+        const stack = document.createElement("div");
+        stack.append(clone, label);
+        viewer.replaceChildren(stack);
         viewer.showModal();
       });
 

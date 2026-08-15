@@ -141,6 +141,17 @@
         transform-origin: top left;
       }
 
+      /* Every tile reserves the same vertical space for its frame, whatever
+         the frame's own aspect ratio, so captions start on the same line
+         down the whole grid rather than only within a row. A frame shorter
+         than the slot is centered in it, not stretched. */
+      .slot {
+        height: var(--slot-h);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
       /* A real grid, not wrapped flex: cards in a row share a height, so
          captions line up and no tile bleeds into its neighbor. */
       body {
@@ -170,7 +181,7 @@
         display: grid;
       }
       dialog.viewer::backdrop {
-        background: rgb(23 20 18 / 0.6);
+        background: rgb(23 20 18 / 0.85);
       }
       /* The enlarged frame stays interactive: only the backdrop dismisses. */
       dialog.viewer .frame {
@@ -210,6 +221,11 @@
       const SUBTITLE = "Topic · what this covers";
       const W = 1280;
       const H = 800;
+      // Fixed vertical space every tile's frame is centered within, so
+      // captions align across the grid even when frames mix aspect ratios.
+      // Keep this close to what most frames in the file actually measure —
+      // too tall and short frames float in a lot of dead padding.
+      const SLOT_H = 200;
 
       // ---- Studio kit ------------------------------------------------------
       // Pieces of the real app, so a frame is the thing you are proposing rather
@@ -320,10 +336,12 @@
         .map(
           (state, i) => `
         <figure class="tile m-0 flex flex-col overflow-hidden rounded-xl bg-white p-3 shadow-sm">
-          <div class="frame self-center overflow-hidden rounded-lg ring-1 ring-black/5" data-label="${i + 1} · ${state.title}" data-w="${state.w || W}" data-h="${state.h || H}" style="--w:${state.w || W}px; --h:${state.h || H}px">
-            <div>${state.body}</div>
+          <div class="slot" style="--slot-h:${SLOT_H}px">
+            <div class="frame overflow-hidden rounded-lg ring-1 ring-black/5" data-label="${i + 1} · ${state.title}" data-w="${state.w || W}" data-h="${state.h || H}" style="--w:${state.w || W}px; --h:${state.h || H}px">
+              <div>${state.body}</div>
+            </div>
           </div>
-          <figcaption class="mt-3 flex-1 text-xs leading-5 text-muted-foreground">
+          <figcaption class="mt-3 text-xs leading-5 text-muted-foreground">
             <span class="mr-1.5 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-600">${i + 1}</span><span class="font-medium ${state.titleClass}">${state.title}.</span> ${state.note}
           </figcaption>
         </figure>`,
@@ -349,7 +367,8 @@
         const inner = (avail - GAP * (columns - 1)) / columns - PAD;
         rack.style.setProperty("--cols", columns);
         for (const frame of rack.querySelectorAll(".frame")) {
-          frame.style.setProperty("--s", Math.max(0.05, Math.min(inner / Number(frame.dataset.w), 1)));
+          const s = Math.min(inner / Number(frame.dataset.w), SLOT_H / Number(frame.dataset.h), 1);
+          frame.style.setProperty("--s", Math.max(0.05, s));
         }
       };
 
@@ -383,26 +402,46 @@
 
       // ---- enlarge ---------------------------------------------------------
       const viewer = document.querySelector("dialog.viewer");
+      let openIndex = -1;
+
+      /** Enlarges the frame at `index`, caption below it. Also how ←/→ move
+       *  to the next one, so the dialog never has to close and reopen to
+       *  browse the set. */
+      const showFrame = (index) => {
+        const state = states[index];
+        const tile = rack.querySelectorAll(".frame")[index];
+        if (!tile) return;
+        openIndex = index;
+        const clone = tile.cloneNode(true);
+        clone.style.setProperty(
+          "--s",
+          Math.min((innerWidth * 0.95) / Number(tile.dataset.w), (innerHeight * 0.95) / Number(tile.dataset.h)),
+        );
+        const caption = document.createElement("p");
+        caption.className = "mt-4 max-w-[min(90vw,44rem)] text-center text-sm leading-5 text-white";
+        caption.innerHTML = `<span class="mr-1.5 rounded bg-white/15 px-1.5 py-0.5 font-mono text-[10px] text-white/80">${index + 1}</span><span class="font-medium">${state.title}.</span> <span class="text-white/80">${state.note}</span>`;
+        const stack = document.createElement("div");
+        stack.className = "flex flex-col items-center";
+        stack.append(clone, caption);
+        viewer.replaceChildren(stack);
+        if (!viewer.open) viewer.showModal();
+      };
 
       rack.addEventListener("click", (event) => {
         const frame = event.target.closest(".frame");
         if (!frame) return;
-        const clone = frame.cloneNode(true);
-        clone.style.setProperty(
-          "--s",
-          Math.min((innerWidth * 0.95) / Number(frame.dataset.w), (innerHeight * 0.95) / Number(frame.dataset.h)),
-        );
-        const label = document.createElement("p");
-        label.className = "mt-3 text-center text-xs text-white/70";
-        label.textContent = frame.dataset.label;
-        const stack = document.createElement("div");
-        stack.append(clone, label);
-        viewer.replaceChildren(stack);
-        viewer.showModal();
+        showFrame([...rack.querySelectorAll(".frame")].indexOf(frame));
       });
 
       viewer.addEventListener("click", (event) => {
         if (event.target === viewer) viewer.close();
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (!viewer.open || (event.key !== "ArrowRight" && event.key !== "ArrowLeft")) return;
+        event.preventDefault();
+        const step = event.key === "ArrowRight" ? 1 : -1;
+        showFrame((openIndex + step + states.length) % states.length);
       });
 
       // ---- tab identity ----------------------------------------------------

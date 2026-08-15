@@ -110,6 +110,27 @@ describe("show", () => {
     expect(pane?.tabs).toHaveLength(1);
   });
 
+  // Existence is true for a directory as well, and the pane only has a file
+  // tab, so taking the success path hands the agent a tab nothing can render.
+  it("refuses a directory in the task", async () => {
+    const result = await run("output");
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatchInlineSnapshot(`
+      "show: "output" is a directory, so there is nothing to show. Name a file inside it.
+      "
+    `);
+    expect(await storedPane()).toBeUndefined();
+  });
+
+  it("refuses a directory under a shared folder", async () => {
+    const result = await run("/mnt/Photos");
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("is a directory");
+    expect(await storedPane()).toBeUndefined();
+  });
+
   it("refuses a path outside the task and the shared folders", async () => {
     const result = await run("/skills/some-skill/SKILL.md");
 

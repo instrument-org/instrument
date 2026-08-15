@@ -26,7 +26,7 @@ The template provides Tailwind v4, Studio's light-theme colors, Work Sans, JetBr
 
 ## Hand off quickly
 
-Treat the artifact as a repo-local visual answer for the human to review and decide whether to commit. After writing it, do not open it in a browser, take screenshots, test multiple widths, run theme synchronization, audit the content, or iterate on visual details unless the user explicitly asks or the creation step reported a concrete error. Do not knowingly include secrets or private operational data.
+Treat the artifact as a repo-local visual answer for the human to review and decide whether to commit. Open it when it is written (`open <path>` on macOS) so it is on screen rather than waiting to be found. Beyond that, do not take screenshots, test multiple widths, run theme synchronization, audit the content, or iterate on visual details unless the user explicitly asks or the creation step reported a concrete error. Do not knowingly include secrets or private operational data.
 
 The theme synchronizer is maintenance tooling for changes to the template or Studio theme, not part of ordinary artifact creation:
 

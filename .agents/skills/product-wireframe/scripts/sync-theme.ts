@@ -122,7 +122,7 @@ function buildThemeBlock(globalsCss: string): string {
     ["--shadow-xl", "--elevation-xl"],
   ] as const) {
     const value = light.get(elevation);
-    if (value) push(shadow, value);
+    if (value) push(shadow, resolve(value, light));
   }
   lines.push("");
 
@@ -164,11 +164,22 @@ function declarations(css: string): Map<string, string> {
   return out;
 }
 
-/** Follow `var(--x)` indirection so visual artifacts carry literal values. */
+/**
+ * Follow `var(--x)` indirection so visual artifacts carry literal values.
+ *
+ * Substitutes references nested inside a larger value, not just values that are
+ * a bare `var()`. Shadows are the case that needs it: `--elevation-sm` is a
+ * reference plus a literal ring, and leaving the reference in place ships a
+ * token the standalone file never defines, so the shadow silently disappears.
+ */
 function resolve(value: string, vals: Map<string, string>, depth = 0): string {
-  const match = /^var\((--[a-z0-9-]+)\)$/.exec(value.trim());
-  const target = match?.[1] && vals.get(match[1]);
-  return target && depth < 5 ? resolve(target, vals, depth + 1) : value.trim();
+  const trimmed = value.trim();
+  if (depth >= 5) return trimmed;
+  const next = trimmed.replaceAll(
+    /var\((--[a-z0-9-]+)\)/g,
+    (match, name: string) => vals.get(name)?.trim() ?? match,
+  );
+  return next === trimmed ? trimmed : resolve(next, vals, depth + 1);
 }
 
 /**

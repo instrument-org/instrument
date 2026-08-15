@@ -407,26 +407,22 @@ describe("sendCommand", () => {
       "Input.dispatchKeyEvent",
       "Input.imeSetComposition",
       "Input.insertText",
-    ])(
-      "reclaims guest focus and then dispatches %s",
-      async (method) => {
-        const { entry, requestGuestFocus, wcSendCommand } =
-          makeRepairableEntry();
-        const entries = new Map([[TARGET_ID, entry]]);
+    ])("reclaims guest focus and then dispatches %s", async (method) => {
+      const { entry, requestGuestFocus, wcSendCommand } = makeRepairableEntry();
+      const entries = new Map([[TARGET_ID, entry]]);
 
-        await sendCommand({
-          ensureDebuggerAttached: vi.fn(),
-          entries,
-          method,
-          params: { text: "hello" },
-          requestGuestFocus,
-          targetId: TARGET_ID,
-        });
+      await sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries,
+        method,
+        params: { text: "hello" },
+        requestGuestFocus,
+        targetId: TARGET_ID,
+      });
 
-        expect(requestGuestFocus).toHaveBeenCalledWith(TARGET_ID);
-        expect(wcSendCommand).toHaveBeenCalled();
-      },
-    );
+      expect(requestGuestFocus).toHaveBeenCalledWith(TARGET_ID);
+      expect(wcSendCommand).toHaveBeenCalled();
+    });
 
     it("does not ask for focus when the guest already holds it", async () => {
       const requestGuestFocus = vi.fn();

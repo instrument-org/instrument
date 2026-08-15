@@ -17,7 +17,7 @@ Name it `wireframes-<topic>.html`, put it beside the plan, and link it from the 
 
 Four constants sit at the top of the script:
 
-- `VERSION` drives the tab title and a generated favicon badge. Bump it when you revise. Several of these are usually open at once and they are otherwise indistinguishable.
+- `VERSION` drives the tab title and a generated favicon badge. Bump it when you revise. Several of these are usually open at once and they are otherwise indistinguishable. The badge is a green square; visual explanations use a dark one, so the two kinds separate in a row of tabs.
 - `SUBTITLE` is a short topic label under the title. Two or three words, not a sentence.
 - `W` and `H` are the default frame size. Individual states can override with `w` and `h`.
 
@@ -63,6 +63,7 @@ It reads `globals.css`, resolves the `var()` indirection to literal values, and 
 Corollaries:
 
 - The caption under each frame says **what the frame proves**, not what it depicts. "Nothing is sent by hovering" beats "the thumbs buttons".
+- Every frame is numbered automatically, in the caption and again under the enlarged view. Those numbers are how someone refers to one in conversation, so order the `states` array the way you would talk through it.
 - Put the burden of proof in the middle frame. That is where the reader looks first.
 - Draw no chrome that is not in question. No sidebar, title bar, or tab strip unless the proposal is about them.
 

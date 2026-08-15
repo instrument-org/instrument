@@ -13,6 +13,7 @@
     "apps/studio/resources/tailwind-browser.js",
     "dist/",
     "registry/",
+    "tools/oxlint/anti-slop/",
     "**/out/",
     "_tmp_*",
     ".claude/worktrees/",

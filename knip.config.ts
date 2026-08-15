@@ -12,7 +12,13 @@ import type { KnipConfig } from "knip";
 const projectFiles = "**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,css}!";
 
 const config: KnipConfig = {
-  ignore: ["registry/**/*", ".agents/skills/**/*", ".claude/skills/**/*"],
+  ignore: [
+    "registry/**/*",
+    ".agents/skills/**/*",
+    ".claude/skills/**/*",
+    // Vendored upstream, kept as its own tree so it can be re-synced.
+    "tools/oxlint/anti-slop/**/*",
+  ],
   // Namespace members are exported for organization (see AGENTS.md), not always
   // consumed cross-file. knip 5 did not check them; keep that scope under knip 6.
   rules: {

@@ -19,11 +19,7 @@
     "**/routeTree.gen.ts",
     ".claude/worktrees",
     "**/bin",
-    "**/tailwind-browser.js",
-    "tools/oxlint/anti-slop/**"
-  ],
-  "jsPlugins": [
-    { "name": "anti-slop", "specifier": "./tools/oxlint/anti-slop/index.ts" }
+    "**/tailwind-browser.js"
   ],
   "options": {
     "typeAware": true
@@ -56,17 +52,6 @@
   ],
   "plugins": ["unicorn", "typescript", "oxc", "import"],
   "rules": {
-    // anti-slop (tools/oxlint/anti-slop, vendored from dmmulroy/anti-slop). The
-    // plugin ships fifteen rules; these are the ones whose findings here were
-    // all true positives. The rest are left registered but off -- see
-    // docs/decisions/2026-08-15-anti-slop-rule-selection.md for the per-rule
-    // reasoning before turning one on.
-    "anti-slop/no-object-parameters": ["error"],
-    "anti-slop/no-reflect-apply": ["error"],
-    "anti-slop/no-reflect-get": ["error"],
-    "anti-slop/no-unknown-type-aliases": ["error"],
-    "anti-slop/no-widen-then-assert": ["error"],
-
     "import/no-cycle": ["error"],
     "import/no-named-as-default": ["error"],
 

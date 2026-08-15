@@ -44,9 +44,6 @@ function createMockClient(path: string[] = []): unknown {
   return new Proxy(call, {
     get(target, prop) {
       if (typeof prop !== "string") {
-        // A get trap forwarding a symbol to its target is what Reflect.get is
-        // for; anything else here needs a cast to index the function by symbol.
-        // oxlint-disable-next-line anti-slop/no-reflect-get
         return Reflect.get(target, prop) as unknown;
       }
       // Anything awaiting the proxy itself would otherwise treat `then` as

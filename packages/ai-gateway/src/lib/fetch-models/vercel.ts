@@ -9,7 +9,7 @@ import { AIGatewayModel } from "../../schemas/model";
 import { AIGatewayModelURI } from "../../schemas/model-uri";
 import { type AIGatewayProviderConfig } from "../../schemas/provider-config";
 import { addHeuristicTags } from "../add-heuristic-tags";
-import { getCachedResult, setCachedResult } from "../cache";
+import { createResultCache } from "../cache";
 import { TypedError } from "../errors";
 import { getModelFeatures } from "../get-model-features";
 import { getProviderMetadata } from "../providers/metadata";
@@ -20,11 +20,13 @@ import { getProviderMetadata } from "../providers/metadata";
 // to the disk cache instead of blocking startup.
 const MODELS_FETCH_TIMEOUT = ms("15 seconds");
 
+const modelsCache = createResultCache<AIGatewayModel.Type[]>();
+
 export function fetchModelsForVercel(config: AIGatewayProviderConfig.Type) {
   return Result.gen(function* () {
     const metadata = getProviderMetadata(config.type);
     const cacheKey = `vercel-models-${config.apiKey}`;
-    const cachedModels = getCachedResult<AIGatewayModel.Type[]>(cacheKey);
+    const cachedModels = modelsCache.get(cacheKey);
 
     if (cachedModels !== undefined) {
       return cachedModels;
@@ -94,7 +96,7 @@ export function fetchModelsForVercel(config: AIGatewayProviderConfig.Type) {
       );
     }
 
-    setCachedResult(cacheKey, validModels);
+    modelsCache.set(cacheKey, validModels);
     return validModels;
   });
 }

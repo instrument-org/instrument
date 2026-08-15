@@ -1,25 +1,28 @@
 import { LRUCache } from "lru-cache";
 import ms from "ms";
 
-const globalCache = new LRUCache<string, object>({
-  max: 1000,
-  ttl: ms("1 hour"),
-});
+// Held as the only thing the registry needs from them, so caches of unrelated
+// value types can share it.
+const caches = new Set<{ clear: () => void }>();
 
 export function clearCachedResults() {
-  globalCache.clear();
+  for (const cache of caches) {
+    cache.clear();
+  }
 }
 
-// oxlint-disable-next-line typescript/no-unnecessary-type-parameters
-export function getCachedResult<T>(key: string): T | undefined {
-  return globalCache.get(key) as T | undefined;
-}
-
-// oxlint-disable-next-line typescript/no-unnecessary-type-parameters
-export function setCachedResult<T extends object>(
-  key: string,
-  value: T,
-  { ttl }: { ttl?: number } = {},
-): void {
-  globalCache.set(key, value, { ttl });
+/**
+ * A cache for one kind of value.
+ *
+ * Each caller gets its own store rather than a slot in a shared one, so the
+ * value type is the type that was written and no read has to assert what it
+ * found. Every cache made here is cleared by `clearCachedResults`.
+ */
+export function createResultCache<T extends object>() {
+  const cache = new LRUCache<string, T>({
+    max: 1000,
+    ttl: ms("1 hour"),
+  });
+  caches.add(cache);
+  return cache;
 }

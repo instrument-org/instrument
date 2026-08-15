@@ -211,15 +211,83 @@
       const W = 1280;
       const H = 800;
 
-      // ---- shared pieces ---------------------------------------------------
-      // Anything the frames repeat becomes a function here, so each state below
-      // is its own content rather than a copy of the whole thing.
+      // ---- Studio kit ------------------------------------------------------
+      // Pieces of the real app, so a frame is the thing you are proposing rather
+      // than a window you rebuilt. Call what you need and delete the rest; a
+      // frame should draw no chrome the proposal is not about.
       //
       // Write class names out whole. Building them by interpolation
       // (`bg-${tone}-500`) hides them from Tailwind's scanner and they silently
       // produce no styles: pass `"bg-warning-500"` instead of `"warning"`.
+
+      /** Placeholder prose. Widths are CSS lengths: bars("100%", "72%"). */
       const bars = (...widths) =>
         widths.map((w) => `<div class="h-2.5 rounded-full bg-gray-300" style="width:${w}"></div>`).join("");
+
+      /** The whole window: sidebar, conversation, and an optional artifact panel. */
+      const appWindow = (sidebar, main, panel = "") => `
+        <div class="flex h-full bg-gray-50">
+          <aside class="w-64 shrink-0 border-r border-border bg-gray-100/70 p-4">
+            <div class="mb-4 h-9 rounded-lg bg-gray-200/70"></div>
+            ${sidebar}
+          </aside>
+          <section class="relative min-w-0 flex-1 p-8">${main}</section>
+          ${panel ? `<aside class="w-[420px] shrink-0 border-l border-border bg-white">${panel}</aside>` : ""}
+        </div>`;
+
+      /** A task row in the sidebar. */
+      const navItem = (label, { active = false, dot = "" } = {}) => `
+        <div class="flex items-center gap-2 rounded-md px-3 py-2 ${active ? "bg-gray-200" : ""}">
+          ${dot ? `<span class="size-2 shrink-0 rounded-full ${dot}"></span>` : ""}
+          <span class="text-[15px] ${active ? "font-medium" : "text-muted-foreground"}">${label}</span>
+        </div>`;
+
+      /** A group heading above a run of nav items. */
+      const navGroup = (text, toneClass = "text-muted-foreground") =>
+        `<p class="px-3 pt-4 pb-1 text-xs font-medium tracking-wide ${toneClass} uppercase">${text}</p>`;
+
+      /** The conversation column, centered the way the app centers it. */
+      const conversation = (inner) => `<div class="mx-auto max-w-2xl">${inner}</div>`;
+
+      /** Anchors its contents where the composer sits. Put the composer, or
+       *  whatever replaces it, in here. */
+      const dock = (inner) => `
+        <div class="absolute inset-x-8 bottom-8"><div class="mx-auto max-w-2xl">${inner}</div></div>`;
+
+      /** The composer at rest. `busy` swaps the send button for stop. */
+      const composerBox = ({ placeholder = "", busy = false } = {}) => `
+        <div class="grid h-20 grid-rows-[1fr_auto] rounded-[20px] bg-white p-4 shadow-sm">
+          ${placeholder ? `<span class="text-sm text-gray-400">${placeholder}</span>` : `<div class="h-2.5 w-32 rounded-full bg-gray-300"></div>`}
+          <div class="flex items-center justify-between pt-2">
+            <i class="ph ph-plus text-lg text-muted-foreground"></i>
+            <div class="grid size-8 place-items-center rounded-full ${busy ? "bg-gray-900" : "bg-gray-300"}">
+              <i class="ph ${busy ? "ph-stop" : "ph-arrow-up"} text-sm text-white"></i>
+            </div>
+          </div>
+        </div>`;
+
+      /** A user message. The one small corner against three large ones is the
+       *  most recognizable detail in the transcript, so keep it. */
+      const bubble = (text) => `
+        <div class="flex justify-end">
+          <div class="inline-block max-w-[80%] rounded-tl-xl rounded-tr-sm rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-2.5 shadow-sm">
+            <span class="text-sm">${text}</span>
+          </div>
+        </div>`;
+
+      /** A tool call, as the transcript shows one. */
+      const toolRow = (icon, text) => `
+        <div class="mt-2.5 flex items-center gap-2.5 rounded-lg border border-border bg-white px-3.5 py-2">
+          <i class="ph ${icon} text-base text-muted-foreground"></i>
+          <span class="text-sm text-muted-foreground">${text}</span>
+        </div>`;
+
+      /** One piece of UI on its own, for frames that are not a whole window.
+       *  Set a smaller w and h on those states. */
+      const surface = (inner) => `
+        <div class="h-full bg-gray-50 p-5">
+          <div class="h-full rounded-xl border border-border bg-white p-5 shadow-sm">${inner}</div>
+        </div>`;
 
       // ---- the frames ------------------------------------------------------
       // Draw each frame at the size the thing really is. A whole Studio window
@@ -234,10 +302,14 @@
           title: "State name",
           note: "What this frame proves, not what it shows.",
           titleClass: "text-foreground",
-          body: `
-            <div class="h-full bg-gray-50 p-8">
-              <div class="mx-auto max-w-2xl space-y-2.5">${bars("100%", "78%", "62%")}</div>
-            </div>`,
+          body: appWindow(
+            navItem("A task", { active: true }) + navItem("Another task"),
+            conversation(`
+              ${bubble("What the person asked for")}
+              <div class="mt-5 space-y-2.5">${bars("100%", "78%", "62%")}</div>
+              ${toolRow("ph-file-plus", "Something the agent did")}
+            `) + dock(composerBox({ busy: true })),
+          ),
         },
       ];
 

@@ -43,6 +43,19 @@ Tailwind v4 compiles in the page from the CDN browser build, with Studio's light
 
 Anything the frames repeat should become a small function returning a string, so each state is its own content rather than a copy of the whole window. That is most of what keeps these files short.
 
+## The Studio kit
+
+The template ships the pieces of the real app as functions, so a frame is the thing you are proposing rather than a window you rebuilt: `appWindow`, `navItem`, `navGroup`, `conversation`, `dock`, `composerBox`, `bubble`, `toolRow`, `surface`, `bars`.
+
+They exist because these files usually do not get committed, so a previous wireframe is rarely around to copy from. Without them every wireframe redraws the shell slightly differently, and the drift shows up as "this looks like some other product".
+
+Two rules for using them:
+
+- **Delete the ones you do not call.** They are a starting point, not furniture the file has to carry.
+- **They do not override the chrome rule.** Draw no sidebar, panel or composer the proposal is not about, even though drawing one is now a single call.
+
+Use `surface` and a smaller `w`/`h` when a frame is one piece of UI rather than a window. One file can mix both.
+
 This is the same shape as the `wireframe` skill we ship to users, with one difference: that one points at a Tailwind bundle served from the task, which only resolves inside that task. These have to render from a plain file and from a Notion HTML embed, so they load the CDN instead.
 
 The tokens are copied into each file, so a script keeps the copy honest:
@@ -69,7 +82,7 @@ Corollaries:
 
 ## Looking like this product
 
-Values worth getting right, since drift here is what makes a wireframe read as generic. Re-check against source if they look stale.
+The kit already encodes most of this. What follows is for the parts it does not cover, and for checking the kit itself against source when it looks stale.
 
 | Thing                 | Recipe                                                                                                                                                                                                                       |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

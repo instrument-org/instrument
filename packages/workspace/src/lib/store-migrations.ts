@@ -99,26 +99,27 @@ export function runStoreMigrations({
 }: {
   storage: WrappedStorage;
 }): ResultAsync<void, Error> {
-  return storage
-    .getItemRaw<number>(VERSION_KEY)
-    .andThen((stored) => {
-      const from = typeof stored === "number" ? stored : 0;
-      const pending = MIGRATIONS.slice(from);
-      if (pending.length === 0) {
-        return ResultAsync.fromSafePromise(Promise.resolve());
-      }
+  return storage.getItemRaw<number>(VERSION_KEY).andThen((stored) => {
+    const from = typeof stored === "number" ? stored : 0;
+    const pending = MIGRATIONS.slice(from);
+    // Nothing to run, and nothing to record either. A database carrying a
+    // version this build has never heard of came from a newer one and is ahead
+    // of us rather than behind: writing our own count over its marker would
+    // leave that build reading its own task as stale and migrating it again.
+    if (pending.length === 0) {
+      return ResultAsync.fromSafePromise(Promise.resolve());
+    }
 
-      return ResultAsync.fromPromise(
-        (async () => {
-          for (const migration of pending) {
-            await migration.run({ storage });
-          }
-        })(),
-        (error: unknown) =>
-          error instanceof Error ? error : new Error(String(error)),
-      );
-    })
-    .andThen(() => storage.setItemRaw(VERSION_KEY, MIGRATIONS.length));
+    return ResultAsync.fromPromise(
+      (async () => {
+        for (const migration of pending) {
+          await migration.run({ storage });
+        }
+      })(),
+      (error: unknown) =>
+        error instanceof Error ? error : new Error(String(error)),
+    ).andThen(() => storage.setItemRaw(VERSION_KEY, MIGRATIONS.length));
+  });
 }
 
 /** The stored value as the object it encodes, or undefined if it is neither. */

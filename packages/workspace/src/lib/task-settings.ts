@@ -95,7 +95,7 @@ async function writeMergedSettings(
     // through here, so that write is one the user need do nothing to provoke.
     const merged: Record<string, unknown> = {
       ...record.raw,
-      ...(record.settings ?? {}),
+      ...record.settings,
       ...updates,
     };
 

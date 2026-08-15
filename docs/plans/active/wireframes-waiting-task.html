@@ -3,17 +3,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Placeholder only. The real tab title is derived from the h1 by the
-         script at the end of the body, so the two cannot drift apart. -->
+    <!-- Title and the version digit on the favicon are set from VERSION at the
+         end of the body. Leave both placeholders alone. -->
     <title>Wireframe</title>
+    <link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg/%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap"
       rel="stylesheet"
     />
-    <!-- Phosphor regular, the icon set the app uses. Write <i class="ph ph-gear"></i>
-         and size it with Tailwind (text-sm is 14px, the app's action-row size). -->
     <link
       href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css"
       rel="stylesheet"
@@ -124,201 +123,326 @@
         /* sync:end */
       }
     </style>
+
+    <style>
+      /* A frame is drawn once at true size and shown at whatever scale fits.
+         transform, not zoom: zoom re-runs layout at the smaller size, so text
+         re-wraps and the miniature stops matching the thing it depicts. */
+      .frame {
+        width: calc(var(--w) * var(--s));
+        height: calc(var(--h) * var(--s));
+        overflow: hidden;
+        cursor: zoom-in;
+      }
+      .frame > * {
+        width: var(--w);
+        height: var(--h);
+        transform: scale(var(--s));
+        transform-origin: top left;
+      }
+
+      /* A real grid, not wrapped flex: cards in a row share a height, so
+         captions line up and no tile bleeds into its neighbour. */
+      #rack {
+        display: grid;
+        grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
+        gap: 1.25rem;
+      }
+      .tile {
+        scroll-margin-top: 5rem;
+      }
+
+      /* One small floating bar carries what you need to know and the only
+         control worth having. Everything else is canvas. */
+
+      dialog.viewer {
+        width: 100vw;
+        height: 100vh;
+        max-width: none;
+        max-height: none;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        place-items: center;
+      }
+      dialog.viewer[open] {
+        display: grid;
+      }
+      dialog.viewer::backdrop {
+        background: rgb(23 20 18 / 0.6);
+      }
+      /* The enlarged frame stays interactive: only the backdrop dismisses. */
+      dialog.viewer .frame {
+        cursor: default;
+      }
+      @media print {
+        * {
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+        }
+      }
+    </style>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   </head>
 
-  <body class="bg-gray-100 p-10 font-sans text-sm text-foreground antialiased">
-    <h1 class="text-[17px] font-semibold">A task that is waiting on you</h1>
-    <p class="mt-1 mb-8 max-w-[880px] text-[13px] text-muted-foreground">
-      The risk in letting the agent ask questions: someone presses go, walks away, and comes back to a
-      task that has been paused for two hours. Frame 1 is the failure. Frames 2 and 3 are the two ways
-      out, which are not mutually exclusive. Frame 4 is the return. Nothing here is built.
-    </p>
-
-    <div class="grid max-w-[1240px] grid-cols-4 gap-6">
-      <!-- 1 -->
-      <div>
-        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span class="grid size-4.5 place-items-center rounded-full bg-error-500 text-[11px] font-semibold text-white">1</span>
-          The failure
-        </div>
-        <div class="min-h-100 rounded-lg border border-border bg-gray-50 p-3.5">
-          <div class="overflow-hidden rounded-lg border border-border bg-white">
-            <div class="flex">
-              <div class="w-24 shrink-0 border-r border-border bg-gray-50 p-1.5">
-                <div class="rounded px-1.5 py-1 text-[9px] text-muted-foreground">Connect Linear</div>
-                <div class="rounded bg-gray-200 px-1.5 py-1 text-[9px] font-medium">Q3 report</div>
-                <div class="rounded px-1.5 py-1 text-[9px] text-muted-foreground">Invoices</div>
-              </div>
-              <div class="flex-1 p-2.5">
-                <div class="space-y-1">
-                  <div class="h-[6px] w-full rounded-full bg-gray-300"></div>
-                  <div class="h-[6px] w-[70%] rounded-full bg-gray-300"></div>
-                  <div class="h-[6px] w-[84%] rounded-full bg-gray-300"></div>
-                </div>
-                <div class="mt-6 h-8 rounded-xl bg-gray-100"></div>
-              </div>
-            </div>
-          </div>
-          <div class="mt-3 rounded-lg border border-error-300 bg-error-50 p-2.5">
-            <p class="text-[10px] leading-4 text-error-900">
-              The Linear task asked a question 40 minutes ago. The user is in a different task. Nothing
-              in this window says so.
-            </p>
-          </div>
-        </div>
-        <p class="mt-3 text-xs text-muted-foreground">
-          A blocked turn is invisible from anywhere except the task it happened in. This is the reason
-          not to ship the asking mechanism enabled by default.
-        </p>
+  <body class="min-h-screen bg-gray-100 font-sans text-sm text-foreground antialiased">
+    <div
+      id="hud"
+      class="fixed top-4 left-4 z-20 flex max-w-[min(38rem,calc(100vw-2rem))] items-center gap-3 rounded-xl border border-border bg-white/95 px-3 py-2 shadow-sm backdrop-blur"
+    >
+      <div class="min-w-0">
+        <h1 class="truncate text-[13px] leading-tight font-semibold">A task that is waiting on you</h1>
+        <p id="subtitle" class="truncate text-[11px] leading-tight text-muted-foreground"></p>
       </div>
-
-      <!-- 2 -->
-      <div>
-        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span class="grid size-4.5 place-items-center rounded-full bg-gray-900 text-[11px] font-semibold text-white">2</span>
-          It reaches you
-        </div>
-        <div class="min-h-100 rounded-lg border border-border bg-gray-50 p-3.5">
-          <div class="overflow-hidden rounded-lg border border-border bg-white">
-            <div class="flex">
-              <div class="w-24 shrink-0 border-r border-border bg-gray-50 p-1.5">
-                <p class="px-1.5 pb-1 text-[8px] font-medium tracking-wide text-warning-700 uppercase">Needs you</p>
-                <div class="flex items-center gap-1 rounded bg-warning-50 px-1.5 py-1">
-                  <span class="size-1 shrink-0 rounded-full bg-warning-500"></span>
-                  <span class="truncate text-[9px] font-medium">Connect Linear</span>
-                </div>
-                <p class="px-1.5 pt-2 pb-1 text-[8px] font-medium tracking-wide text-muted-foreground uppercase">Tasks</p>
-                <div class="rounded bg-gray-200 px-1.5 py-1 text-[9px] font-medium">Q3 report</div>
-                <div class="rounded px-1.5 py-1 text-[9px] text-muted-foreground">Invoices</div>
-              </div>
-              <div class="flex-1 p-2.5">
-                <div class="space-y-1">
-                  <div class="h-[6px] w-full rounded-full bg-gray-300"></div>
-                  <div class="h-[6px] w-[70%] rounded-full bg-gray-300"></div>
-                </div>
-                <div class="mt-6 h-8 rounded-xl bg-gray-100"></div>
-              </div>
-            </div>
-          </div>
-          <div class="mt-3 rounded-lg border border-border bg-white p-2.5 shadow-sm">
-            <div class="flex items-start gap-1.5">
-              <div class="mt-0.5 size-3.5 shrink-0 rounded bg-gray-900"></div>
-              <div class="min-w-0">
-                <p class="text-[10px] font-medium">Instrument</p>
-                <p class="text-[10px] leading-4 text-muted-foreground">Connect Linear needs a decision from you</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <p class="mt-3 text-xs text-muted-foreground">
-          A grouping above the task list, a dot on the row, and one system notification. The state has
-          somewhere to live in the interface rather than only inside the conversation.
-        </p>
-      </div>
-
-      <!-- 3 -->
-      <div>
-        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span class="grid size-4.5 place-items-center rounded-full bg-gray-900 text-[11px] font-semibold text-white">3</span>
-          It gives up on its own
-        </div>
-        <div class="min-h-100 rounded-lg border border-border bg-gray-50 p-3.5">
-          <div class="rounded-lg border border-border bg-white p-3">
-            <div class="flex items-center gap-1.5">
-              <i class="ph ph-clock-countdown text-[12px] text-muted-foreground"></i>
-              <span class="text-[10px] font-medium">Asked 40 minutes ago</span>
-            </div>
-            <div class="mt-2 h-1 overflow-hidden rounded-full bg-gray-100">
-              <div class="h-full w-2/3 rounded-full bg-warning-300"></div>
-            </div>
-            <p class="mt-2 text-[10px] leading-4 text-muted-foreground">
-              If nothing is answered, the agent stops waiting and writes down what it could not do.
-            </p>
-          </div>
-
-          <div class="mt-3 rounded-lg border border-border bg-white p-3">
-            <p class="text-[10px] font-medium">Two hours later</p>
-            <div class="mt-2 flex items-start gap-1.5 rounded-lg border border-border bg-gray-50 p-2">
-              <i class="ph ph-pause-circle mt-px text-[11px] text-muted-foreground"></i>
-              <p class="text-[10px] leading-4 text-muted-foreground">
-                Stopped: needed a Linear sign-in. Everything else is done. Pick this back up whenever.
-              </p>
-            </div>
-          </div>
-
-          <div class="mt-3 rounded-lg border border-warning-300 bg-warning-50 p-2.5">
-            <p class="text-[10px] leading-4 text-warning-900">
-              Cheap, and honest. But a user who <em>did</em> intend to answer comes back to a task that
-              quit on them, which reads as the product giving up.
-            </p>
-          </div>
-        </div>
-        <p class="mt-3 text-xs text-muted-foreground">
-          Expiry turns an indefinite pause into a finished turn with a legible reason. Whether that
-          feels considerate or abandoning is the open question, and it is worth asking real users.
-        </p>
-      </div>
-
-      <!-- 4 -->
-      <div>
-        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span class="grid size-4.5 place-items-center rounded-full bg-success-500 text-[11px] font-semibold text-white">4</span>
-          Coming back
-        </div>
-        <div class="min-h-100 rounded-lg border border-border bg-gray-50 p-3.5">
-          <div class="overflow-hidden rounded-lg border border-border bg-white p-2.5">
-            <div class="space-y-1">
-              <div class="h-[6px] w-full rounded-full bg-gray-300"></div>
-              <div class="h-[6px] w-[66%] rounded-full bg-gray-300"></div>
-            </div>
-            <div class="mt-2 flex items-center gap-1 rounded border border-border px-1.5 py-1">
-              <i class="ph ph-check text-[9px] text-success-500"></i>
-              <span class="text-[9px] text-muted-foreground">Wrote the plugin</span>
-            </div>
-
-            <div class="mt-3 rounded-xl bg-white p-2.5 ring-1 ring-gray-900/10">
-              <div class="flex items-start gap-1.5">
-                <i class="ph ph-signature mt-px text-[12px] text-gray-700"></i>
-                <div class="min-w-0">
-                  <p class="text-[10px] font-medium">Sign in to Linear</p>
-                  <p class="text-[9px] leading-4 text-muted-foreground">Asked 2 hours ago, still waiting</p>
-                </div>
-              </div>
-              <div class="mt-2 flex justify-end gap-1">
-                <span class="rounded px-1.5 py-0.5 text-[9px] text-muted-foreground">Not now</span>
-                <span class="rounded bg-gray-900 px-1.5 py-0.5 text-[9px] font-medium text-white">Open sign-in</span>
-              </div>
-            </div>
-          </div>
-          <div class="mt-3 rounded-lg border border-success-300 bg-success-50 p-2.5">
-            <p class="text-[10px] leading-4 text-success-900">
-              Survived a quit and relaunch. The half-filled form would too, because the question lives
-              in the task record rather than in memory.
-            </p>
-          </div>
-        </div>
-        <p class="mt-3 text-xs text-muted-foreground">
-          The question is still answerable and says how long it has been waiting. Durability is what
-          makes either policy above viable; without it, both are guesses about a state that was lost.
-        </p>
-      </div>
+      <span id="count" class="shrink-0 border-l border-border pl-3 text-[11px] whitespace-nowrap text-muted-foreground"></span>
+      <div id="views" class="flex shrink-0 items-center gap-0.5 rounded-lg bg-gray-200/70 p-0.5"></div>
     </div>
 
-    <p class="mt-10 max-w-[880px] text-xs leading-5 text-muted-foreground">
-      Frames 2 and 3 are alternatives to decide between, not a sequence, and they can also be combined:
-      surface it, and expire it much later. Today neither is possible, because the pending state lives
-      in machine memory and does not survive a restart at all. That is the prerequisite under all of
-      this.
-    </p>
+    <main>
+      <div id="rack" class="p-6 pt-[4.75rem]"></div>
+    </main>
 
-    <!-- The h1 leads the tab title: browsers truncate from the end, and a
-         shared prefix would render every open wireframe identical. -->
+    <dialog class="viewer"></dialog>
+
     <script>
-      const heading = document.querySelector("h1");
-      if (heading) {
-        document.title = `${heading.textContent.trim()} · Wireframe`;
-      }
+      const VERSION = "1";
+      const SUBTITLE = "Plugins · blocked tasks";
+      const W = 1280;
+      const H = 800;
+
+      // ---- shared pieces ---------------------------------------------------
+      // Class names are always written out whole. Building them by
+      // interpolation hides them from Tailwind's scanner and they produce
+      // no styles.
+      const bars = (...widths) =>
+        widths.map((w) => `<div class="h-2.5 rounded-full bg-gray-300" style="width:${w}"></div>`).join("");
+
+      const navItem = (label, { active = false, dot = "" } = {}) => `
+        <div class="flex items-center gap-2 rounded-md px-3 py-2 ${active ? "bg-gray-200" : ""}">
+          ${dot ? `<span class="size-2 shrink-0 rounded-full ${dot}"></span>` : ""}
+          <span class="text-[15px] ${active ? "font-medium" : "text-muted-foreground"}">${label}</span>
+        </div>`;
+
+      const groupLabel = (text, toneClass = "text-muted-foreground") =>
+        `<p class="px-3 pt-4 pb-1 text-xs font-medium tracking-wide ${toneClass} uppercase">${text}</p>`;
+
+      const composer = (inner) => `
+        <div class="absolute inset-x-8 bottom-8"><div class="mx-auto max-w-2xl">${inner}</div></div>`;
+
+      const emptyComposer = ({ live = true } = {}) => `
+        <div class="grid h-20 grid-rows-[1fr_auto] rounded-[20px] bg-white p-4 shadow-sm">
+          <div class="h-2.5 w-32 rounded-full bg-gray-300"></div>
+          <div class="flex items-center justify-between pt-2">
+            <i class="ph ph-plus text-lg text-muted-foreground"></i>
+            <div class="grid size-8 place-items-center rounded-full ${live ? "bg-gray-900" : "bg-gray-300"}">
+              <i class="ph ph-arrow-up text-sm text-white"></i>
+            </div>
+          </div>
+        </div>`;
+
+      const window_ = (side, main) => `
+        <div class="flex h-full bg-gray-50">
+          <aside class="w-64 shrink-0 border-r border-border bg-gray-100/70 p-4">
+            <div class="mb-4 h-9 rounded-lg bg-gray-200/70"></div>
+            ${side}
+          </aside>
+          <section class="relative flex-1 p-8">${main}</section>
+        </div>`;
+
+      // ---- the four states -------------------------------------------------
+      const states = [
+        {
+          title: "The failure",
+          note: "A blocked turn is invisible from anywhere but the task it happened in.",
+          titleClass: "text-error-700",
+          body: window_(
+            navItem("Connect Linear") + navItem("Q3 report", { active: true }) + navItem("Invoice cleanup"),
+            `<div class="mx-auto max-w-2xl space-y-2.5">${bars("100%", "82%", "64%")}</div>
+             <div class="absolute top-8 right-8 w-72 rounded-xl border border-error-300 bg-error-50 p-4">
+               <p class="text-sm leading-5 text-error-900">Connect Linear asked a question 40 minutes ago. Nothing in this window says so.</p>
+             </div>
+             ${composer(emptyComposer())}`,
+          ),
+        },
+        {
+          title: "It reaches you",
+          note: "A grouping above the task list, a dot on the row, one notification.",
+          titleClass: "text-foreground",
+          body: window_(
+            groupLabel("Needs you", "text-warning-700") +
+              navItem("Connect Linear", { dot: "bg-warning-500" }) +
+              groupLabel("Tasks") +
+              navItem("Q3 report", { active: true }) +
+              navItem("Invoice cleanup"),
+            `<div class="mx-auto max-w-2xl space-y-2.5">${bars("100%", "70%")}</div>
+             <div class="absolute top-6 right-6 w-80 rounded-xl border border-border bg-white p-4 shadow-sm">
+               <div class="flex items-start gap-3">
+                 <div class="mt-0.5 size-7 shrink-0 rounded bg-gray-900"></div>
+                 <div class="min-w-0">
+                   <p class="text-sm font-medium">Instrument</p>
+                   <p class="text-sm leading-5 text-muted-foreground">Connect Linear needs a decision from you</p>
+                 </div>
+               </div>
+             </div>
+             ${composer(emptyComposer())}`,
+          ),
+        },
+        {
+          title: "It gives up on its own",
+          note: "Honest, but a user who meant to answer finds a task that quit.",
+          titleClass: "text-warning-700",
+          body: window_(
+            navItem("Connect Linear", { active: true }),
+            `<div class="mx-auto max-w-2xl">
+               <div class="space-y-2.5">${bars("100%", "58%")}</div>
+               <div class="mt-6 rounded-xl border border-border bg-white p-5">
+                 <div class="flex items-center gap-2.5">
+                   <i class="ph ph-clock-countdown text-lg text-muted-foreground"></i>
+                   <span class="text-sm font-medium">Asked 40 minutes ago</span>
+                 </div>
+                 <div class="mt-3 h-2 overflow-hidden rounded-full bg-gray-100">
+                   <div class="h-full w-2/3 rounded-full bg-warning-300"></div>
+                 </div>
+               </div>
+               <div class="mt-3 flex items-start gap-3 rounded-xl border border-border bg-white p-5">
+                 <i class="ph ph-pause-circle mt-0.5 text-lg text-muted-foreground"></i>
+                 <div>
+                   <p class="text-sm font-medium">Two hours later</p>
+                   <p class="mt-1 text-sm leading-5 text-muted-foreground">Stopped: needed a Linear sign-in. Everything else is done. Pick this back up whenever.</p>
+                 </div>
+               </div>
+             </div>
+             ${composer(emptyComposer({ live: false }))}`,
+          ),
+        },
+        {
+          title: "Coming back",
+          note: "Survived a quit, because the question lives in the task record.",
+          titleClass: "text-success-700",
+          body: window_(
+            groupLabel("Needs you", "text-warning-700") +
+              navItem("Connect Linear", { dot: "bg-warning-500", active: true }),
+            `<div class="mx-auto max-w-2xl">
+               <div class="space-y-2.5">${bars("100%", "66%")}</div>
+               <div class="mt-4 inline-flex items-center gap-2 rounded-lg border border-border bg-white px-3.5 py-2">
+                 <i class="ph ph-check text-base text-success-500"></i>
+                 <span class="text-sm text-muted-foreground">Wrote the plugin</span>
+               </div>
+             </div>
+             ${composer(`
+               <div class="rounded-[20px] bg-white p-5 ring-1 ring-gray-900/10 shadow-sm">
+                 <div class="flex items-start gap-3">
+                   <i class="ph ph-signature mt-0.5 text-xl text-gray-700"></i>
+                   <div class="min-w-0 flex-1">
+                     <p class="text-[15px] font-medium">Sign in to Linear</p>
+                     <p class="mt-0.5 text-sm text-muted-foreground">Asked 2 hours ago, still waiting</p>
+                   </div>
+                 </div>
+                 <div class="mt-4 flex items-center justify-end gap-2">
+                   <span class="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground">Not now</span>
+                   <span class="rounded-md bg-gray-900 px-3.5 py-1.5 text-sm font-medium text-white">Open sign-in</span>
+                 </div>
+               </div>`)}`,
+          ),
+        },
+      ];
+
+      // ---- render ----------------------------------------------------------
+      const rack = document.querySelector("#rack");
+
+      rack.innerHTML = states
+        .map(
+          (state, i) => `
+        <figure id="f${i}" class="tile m-0 flex flex-col overflow-hidden rounded-xl bg-white p-3 shadow-sm">
+          <div class="frame self-center overflow-hidden rounded-lg ring-1 ring-black/5" data-w="${state.w || W}" data-h="${state.h || H}" style="--w:${state.w || W}px; --h:${state.h || H}px">
+            <div>${state.body}</div>
+          </div>
+          <figcaption class="mt-3 flex-1 text-xs leading-5 text-muted-foreground">
+            <span class="font-medium ${state.titleClass}">${i + 1} · ${state.title}.</span> ${state.note}
+          </figcaption>
+        </figure>`,
+        )
+        .join("");
+
+      document.querySelector("#count").textContent = `${states.length} frames`;
+
+      document.querySelector("#subtitle").textContent = SUBTITLE;
+
+      // ---- density ---------------------------------------------------------
+      // Fit as many tiles per row as the width allows, then derive the scale
+      // from the tile. Frames never render above their true size.
+      const TILE_MIN = 330;
+      const GAP = 20;
+      const PAD = 26; // card padding plus borders
+      let single = false;
+
+      const layout = () => {
+        const avail = rack.clientWidth - 48;
+        if (avail <= 0) return;
+        const columns = single ? 1 : Math.max(1, Math.floor((avail + GAP) / (TILE_MIN + GAP)));
+        const inner = (avail - GAP * (columns - 1)) / columns - PAD;
+        rack.style.setProperty("--cols", columns);
+        for (const frame of rack.querySelectorAll(".frame")) {
+          frame.style.setProperty("--s", Math.max(0.05, Math.min(inner / Number(frame.dataset.w), 1)));
+        }
+      };
+
+      new ResizeObserver(layout).observe(rack);
+      layout();
+
+      // ---- view mode -------------------------------------------------------
+      const VIEWS = [
+        ["grid", "ph-squares-four", "Grid"],
+        ["single", "ph-rows", "One per row"],
+      ];
+      const viewBox = document.querySelector("#views");
+
+      const paintViews = () => {
+        viewBox.innerHTML = VIEWS.map(
+          ([key, icon, title]) => `
+          <button data-view="${key}" title="${title}" class="grid size-7 place-items-center rounded-md ${
+            (key === "single") === single ? "bg-white text-foreground shadow-sm" : "text-muted-foreground"
+          }"><i class="ph ${icon}"></i></button>`,
+        ).join("");
+      };
+      paintViews();
+
+      viewBox.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-view]");
+        if (!button) return;
+        single = button.dataset.view === "single";
+        paintViews();
+        layout();
+      });
+
+      // ---- enlarge ---------------------------------------------------------
+      const viewer = document.querySelector("dialog.viewer");
+
+      rack.addEventListener("click", (event) => {
+        const frame = event.target.closest(".frame");
+        if (!frame) return;
+        const clone = frame.cloneNode(true);
+        clone.style.setProperty(
+          "--s",
+          Math.min((innerWidth * 0.95) / Number(frame.dataset.w), (innerHeight * 0.95) / Number(frame.dataset.h)),
+        );
+        viewer.replaceChildren(clone);
+        viewer.showModal();
+      });
+
+      viewer.addEventListener("click", (event) => {
+        if (event.target === viewer) viewer.close();
+      });
+
+      // ---- tab identity ----------------------------------------------------
+      const heading = document.querySelector("h1").textContent.trim();
+      document.title = `v${VERSION} · ${heading}`;
+      document.querySelector("#favicon").href =
+        "data:image/svg+xml," +
+        encodeURIComponent(
+          `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0e7869"/><text x="16" y="24" font-family="Helvetica,Arial,sans-serif" font-size="21" font-weight="bold" text-anchor="middle" fill="#ffffff">${VERSION}</text></svg>`,
+        );
     </script>
   </body>
 </html>

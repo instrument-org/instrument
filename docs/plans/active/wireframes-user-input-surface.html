@@ -3,17 +3,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Placeholder only. The real tab title is derived from the h1 by the
-         script at the end of the body, so the two cannot drift apart. -->
+    <!-- Title and the version digit on the favicon are set from VERSION at the
+         end of the body. Leave both placeholders alone. -->
     <title>Wireframe</title>
+    <link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg/%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap"
       rel="stylesheet"
     />
-    <!-- Phosphor regular, the icon set the app uses. Write <i class="ph ph-gear"></i>
-         and size it with Tailwind (text-sm is 14px, the app's action-row size). -->
     <link
       href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css"
       rel="stylesheet"
@@ -124,360 +123,390 @@
         /* sync:end */
       }
     </style>
+
+    <style>
+      /* A frame is drawn once at true size and shown at whatever scale fits.
+         transform, not zoom: zoom re-runs layout at the smaller size, so text
+         re-wraps and the miniature stops matching the thing it depicts. */
+      .frame {
+        width: calc(var(--w) * var(--s));
+        height: calc(var(--h) * var(--s));
+        overflow: hidden;
+        cursor: zoom-in;
+      }
+      .frame > * {
+        width: var(--w);
+        height: var(--h);
+        transform: scale(var(--s));
+        transform-origin: top left;
+      }
+
+      /* A real grid, not wrapped flex: cards in a row share a height, so
+         captions line up and no tile bleeds into its neighbour. */
+      #rack {
+        display: grid;
+        grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
+        gap: 1.25rem;
+      }
+      .tile {
+        scroll-margin-top: 5rem;
+      }
+
+      /* One small floating bar carries what you need to know and the only
+         control worth having. Everything else is canvas. */
+
+      dialog.viewer {
+        width: 100vw;
+        height: 100vh;
+        max-width: none;
+        max-height: none;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        place-items: center;
+      }
+      dialog.viewer[open] {
+        display: grid;
+      }
+      dialog.viewer::backdrop {
+        background: rgb(23 20 18 / 0.6);
+      }
+      /* The enlarged frame stays interactive: only the backdrop dismisses. */
+      dialog.viewer .frame {
+        cursor: default;
+      }
+      @media print {
+        * {
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+        }
+      }
+    </style>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   </head>
 
-  <body class="bg-gray-100 p-10 font-sans text-sm text-foreground antialiased">
-    <h1 class="text-[17px] font-semibold">Where the agent asks the user for something</h1>
-    <p class="mt-1 mb-8 max-w-[900px] text-[13px] text-muted-foreground">
-      Today an agent-initiated prompt renders as a tool card in the transcript, which means it can be
-      scrolled out of view while the composer stays live beneath it. This proposes moving the
-      interaction into the composer itself, and using one surface for every kind of request.
-    </p>
-
-    <div class="grid max-w-[1240px] grid-cols-4 gap-6">
-      <!-- 1 -->
-      <div>
-        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span class="grid size-4.5 place-items-center rounded-full bg-error-500 text-[11px] font-semibold text-white">1</span>
-          Today, in the stream
-        </div>
-        <div class="relative min-h-125 overflow-hidden rounded-lg border border-border bg-gray-50 p-4.5">
-          <!-- clipped card at the top edge -->
-          <div class="-mt-9 overflow-hidden rounded-2xl border border-border bg-card opacity-55">
-            <div class="border-b border-border px-3 py-2">
-              <div class="flex items-center gap-1.5">
-                <i class="ph ph-lock-key text-[13px] text-muted-foreground"></i>
-                <span class="text-[11px] font-medium">Connect Linear</span>
-              </div>
-            </div>
-            <div class="px-3 py-2.5">
-              <div class="h-7 rounded-md border border-input bg-muted"></div>
-            </div>
-          </div>
-          <div class="mt-1.5 flex items-center justify-center gap-1.5 rounded-md bg-error-50 px-2 py-1">
-            <i class="ph ph-arrow-up text-[11px] text-error-700"></i>
-            <span class="text-[10px] font-medium text-error-700">Scrolled past. Still waiting.</span>
-          </div>
-
-          <!-- subsequent messages push it away -->
-          <div class="mt-4 space-y-1.5">
-            <div class="h-[7px] w-full rounded-full bg-gray-300"></div>
-            <div class="h-[7px] w-[88%] rounded-full bg-gray-300"></div>
-            <div class="h-[7px] w-[62%] rounded-full bg-gray-300"></div>
-          </div>
-          <div class="mt-3 flex justify-end">
-            <div class="inline-block max-w-[80%] rounded-tl-xl rounded-tr-sm rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-2 shadow-sm">
-              <div class="space-y-1.5">
-                <div class="h-[7px] w-24 rounded-full bg-gray-300"></div>
-                <div class="h-[7px] w-16 rounded-full bg-gray-300"></div>
-              </div>
-            </div>
-          </div>
-          <div class="mt-3 space-y-1.5">
-            <div class="h-[7px] w-full rounded-full bg-gray-300"></div>
-            <div class="h-[7px] w-[74%] rounded-full bg-gray-300"></div>
-          </div>
-
-          <!-- composer, still live -->
-          <div class="absolute inset-x-4.5 bottom-4.5">
-            <div class="grid min-h-16 grid-rows-[minmax(2rem,1fr)_auto] rounded-[20px] bg-white p-3 shadow-sm">
-              <div class="pt-0.5">
-                <div class="h-[7px] w-20 rounded-full bg-gray-300"></div>
-              </div>
-              <div class="flex items-center justify-between pt-2">
-                <i class="ph ph-plus text-[13px] text-muted-foreground"></i>
-                <div class="grid size-6 place-items-center rounded-full bg-gray-900">
-                  <i class="ph ph-arrow-up text-[11px] text-white"></i>
-                </div>
-              </div>
-            </div>
-            <p class="mt-1.5 text-center text-[10px] text-error-700">User can type right past the question</p>
-          </div>
-        </div>
-        <p class="mt-3 text-xs text-muted-foreground">
-          A blocked turn can sit off-screen with a live composer under it. Nothing tells the user the
-          agent is waiting, and nothing stops them asking something else.
-        </p>
+  <body class="min-h-screen bg-gray-100 font-sans text-sm text-foreground antialiased">
+    <div
+      id="hud"
+      class="fixed top-4 left-4 z-20 flex max-w-[min(38rem,calc(100vw-2rem))] items-center gap-3 rounded-xl border border-border bg-white/95 px-3 py-2 shadow-sm backdrop-blur"
+    >
+      <div class="min-w-0">
+        <h1 class="truncate text-[13px] leading-tight font-semibold">Where the agent asks the user for something</h1>
+        <p id="subtitle" class="truncate text-[11px] leading-tight text-muted-foreground"></p>
       </div>
-
-      <!-- 2 -->
-      <div>
-        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span class="grid size-4.5 place-items-center rounded-full bg-gray-900 text-[11px] font-semibold text-white">2</span>
-          Docked at the composer
-        </div>
-        <div class="relative min-h-125 overflow-hidden rounded-lg border border-border bg-gray-50 p-4.5">
-          <div class="space-y-1.5">
-            <div class="h-[7px] w-full rounded-full bg-gray-300"></div>
-            <div class="h-[7px] w-[80%] rounded-full bg-gray-300"></div>
-          </div>
-          <div class="mt-3 flex justify-end">
-            <div class="inline-block max-w-[80%] rounded-tl-xl rounded-tr-sm rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-2 shadow-sm">
-              <div class="space-y-1.5">
-                <div class="h-[7px] w-28 rounded-full bg-gray-300"></div>
-              </div>
-            </div>
-          </div>
-          <div class="mt-3 space-y-1.5">
-            <div class="h-[7px] w-full rounded-full bg-gray-300"></div>
-            <div class="h-[7px] w-[66%] rounded-full bg-gray-300"></div>
-          </div>
-
-          <!-- the request, in place of the composer -->
-          <div class="absolute inset-x-4.5 bottom-4.5">
-            <div class="rounded-[20px] bg-white p-4 ring-1 ring-gray-900/10 shadow-sm">
-              <div class="flex items-start gap-2">
-                <i class="ph ph-lock-key mt-px text-[14px] text-gray-700"></i>
-                <div class="min-w-0 flex-1">
-                  <p class="text-[12px] font-medium">Linear needs an API key</p>
-                  <p class="mt-0.5 text-[11px] leading-4 text-muted-foreground">
-                    Stored encrypted on this Mac. The agent never sees it.
-                  </p>
-                </div>
-              </div>
-              <div class="mt-3 flex h-8 items-center rounded-lg border border-input bg-background px-2.5">
-                <span class="font-mono text-[11px] tracking-widest text-gray-400">••••••••••••</span>
-              </div>
-              <div class="mt-2.5 flex items-center justify-between">
-                <a class="text-[11px] text-muted-foreground underline decoration-gray-300 underline-offset-2">Where do I find this?</a>
-                <div class="flex items-center gap-1.5">
-                  <span class="rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground">Not now</span>
-                  <span class="rounded-md bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white">Connect</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <p class="mt-3 text-xs text-muted-foreground">
-          The request takes the composer's place, so it is where the cursor already is and cannot be
-          scrolled away from. Declining is a first-class answer, not an abandoned turn.
-        </p>
-      </div>
-
-      <!-- 3 -->
-      <div>
-        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span class="grid size-4.5 place-items-center rounded-full bg-gray-900 text-[11px] font-semibold text-white">3</span>
-          A form, not a field
-        </div>
-        <div class="relative min-h-125 overflow-hidden rounded-lg border border-border bg-gray-50 p-4.5">
-          <div class="space-y-1.5">
-            <div class="h-[7px] w-full rounded-full bg-gray-300"></div>
-            <div class="h-[7px] w-[72%] rounded-full bg-gray-300"></div>
-          </div>
-
-          <div class="absolute inset-x-4.5 bottom-4.5">
-            <div class="rounded-[20px] bg-white p-4 ring-1 ring-gray-900/10 shadow-sm">
-              <div class="flex items-start gap-2">
-                <i class="ph ph-sliders-horizontal mt-px text-[14px] text-gray-700"></i>
-                <div class="min-w-0 flex-1">
-                  <p class="text-[12px] font-medium">Set up the Shopify connection</p>
-                  <p class="mt-0.5 text-[11px] leading-4 text-muted-foreground">
-                    Three things the agent could not work out on its own.
-                  </p>
-                </div>
-              </div>
-
-              <div class="mt-3 space-y-2.5">
-                <div>
-                  <p class="mb-1 text-[10px] font-medium text-muted-foreground">Store domain</p>
-                  <div class="flex h-7 items-center rounded-lg border border-input bg-background px-2.5">
-                    <span class="text-[11px] text-gray-400">acme.myshopify.com</span>
-                  </div>
-                </div>
-                <div>
-                  <p class="mb-1 text-[10px] font-medium text-muted-foreground">API version</p>
-                  <div class="flex h-7 items-center justify-between rounded-lg border border-input bg-background px-2.5">
-                    <span class="text-[11px]">2026-07</span>
-                    <i class="ph ph-caret-down text-[10px] text-muted-foreground"></i>
-                  </div>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="grid size-3.5 place-items-center rounded-[3px] bg-gray-900">
-                    <i class="ph ph-check text-[8px] text-white"></i>
-                  </span>
-                  <span class="text-[11px]">Include draft orders</span>
-                </div>
-              </div>
-
-              <div class="mt-3 flex items-center justify-end gap-1.5">
-                <span class="rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground">Cancel</span>
-                <span class="rounded-md bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white">Continue</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <p class="mt-3 text-xs text-muted-foreground">
-          One request gathers a whole form. Without this the agent spends a turn per field, and each
-          turn is another chance for the user to answer something else.
-        </p>
-      </div>
-
-      <!-- 4 -->
-      <div>
-        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span class="grid size-4.5 place-items-center rounded-full bg-success-500 text-[11px] font-semibold text-white">4</span>
-          Answered
-        </div>
-        <div class="relative min-h-125 overflow-hidden rounded-lg border border-border bg-gray-50 p-4.5">
-          <div class="space-y-1.5">
-            <div class="h-[7px] w-full rounded-full bg-gray-300"></div>
-            <div class="h-[7px] w-[78%] rounded-full bg-gray-300"></div>
-          </div>
-
-          <!-- quiet record left behind -->
-          <div class="mt-3 flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5">
-            <i class="ph-fill ph-check-circle text-[13px] text-success-500"></i>
-            <span class="text-[11px] text-muted-foreground">Connected Linear</span>
-          </div>
-
-          <div class="mt-3 space-y-1.5">
-            <div class="h-[7px] w-full rounded-full bg-gray-300"></div>
-            <div class="h-[7px] w-[91%] rounded-full bg-gray-300"></div>
-            <div class="h-[7px] w-[55%] rounded-full bg-gray-300"></div>
-          </div>
-
-          <div class="absolute inset-x-4.5 bottom-4.5">
-            <div class="grid min-h-16 grid-rows-[minmax(2rem,1fr)_auto] rounded-[20px] bg-white p-3 shadow-sm">
-              <div class="pt-0.5">
-                <span class="text-[11px] text-gray-400">Reply to Instrument</span>
-              </div>
-              <div class="flex items-center justify-between pt-2">
-                <i class="ph ph-plus text-[13px] text-muted-foreground"></i>
-                <div class="grid size-6 place-items-center rounded-full bg-gray-300">
-                  <i class="ph ph-arrow-up text-[11px] text-white"></i>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <p class="mt-3 text-xs text-muted-foreground">
-          The composer comes back and the transcript keeps a one-line record. The stream stores what
-          was decided without ever owning the interaction.
-        </p>
-      </div>
+      <span id="count" class="shrink-0 border-l border-border pl-3 text-[11px] whitespace-nowrap text-muted-foreground"></span>
+      <div id="views" class="flex shrink-0 items-center gap-0.5 rounded-lg bg-gray-200/70 p-0.5"></div>
     </div>
 
-    <!-- ============================================================= -->
-    <h2 class="mt-12 text-[15px] font-semibold">One surface, four kinds of request</h2>
-    <p class="mt-1 mb-6 max-w-[900px] text-[13px] text-muted-foreground">
-      The argument against a tool type per interaction. All of these are the same thing to the
-      renderer: a schema, a prompt, and three possible answers.
-      <span class="text-foreground">Accept, decline, cancel</span> are the response actions MCP
-      elicitation already defines, so a connected MCP server's own request can render here too.
-    </p>
+    <main>
+      <div id="rack" class="p-6 pt-[4.75rem]"></div>
+    </main>
 
-    <div class="grid max-w-[1240px] grid-cols-4 gap-6">
-      <div>
-        <div class="mb-2.5 text-xs font-medium text-muted-foreground">Choice</div>
-        <div class="min-h-45 rounded-lg border border-border bg-gray-50 p-4.5">
-          <div class="rounded-[20px] bg-white p-3.5 ring-1 ring-gray-900/10 shadow-sm">
-            <p class="text-[12px] font-medium">Which Notion workspace?</p>
-            <div class="mt-2.5 space-y-1.5">
-              <div class="rounded-lg border border-input px-2.5 py-1.5 text-[11px]">Acme (personal)</div>
-              <div class="rounded-lg border border-gray-900 bg-gray-50 px-2.5 py-1.5 text-[11px] font-medium">Acme Engineering</div>
-              <div class="rounded-lg border border-input px-2.5 py-1.5 text-[11px]">Design Team</div>
-            </div>
-          </div>
-        </div>
-        <p class="mt-3 text-xs text-muted-foreground">
-          What <code class="font-mono text-[11px]">Choose</code> was always meant to be. Enum in the
-          schema, buttons in the surface.
-        </p>
-      </div>
+    <dialog class="viewer"></dialog>
 
-      <div>
-        <div class="mb-2.5 text-xs font-medium text-muted-foreground">Consent</div>
-        <div class="min-h-45 rounded-lg border border-border bg-gray-50 p-4.5">
-          <div class="rounded-[20px] bg-white p-3.5 ring-1 ring-warning-500/40 shadow-sm">
-            <div class="flex items-start gap-2">
-              <i class="ph-fill ph-warning mt-px text-[14px] text-warning-700"></i>
-              <div class="min-w-0">
-                <p class="text-[12px] font-medium">Run a server on your Mac?</p>
-                <p class="mt-1 rounded-md bg-muted p-2 font-mono text-[10px] leading-4 break-all">npx -y @modelcontextprotocol/server-filesystem</p>
-                <p class="mt-1.5 text-[11px] leading-4 text-muted-foreground">
-                  This executes code outside Instrument's sandbox with access to your files.
-                </p>
-              </div>
-            </div>
-            <div class="mt-2.5 flex items-center justify-end gap-1.5">
-              <span class="rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground">No</span>
-              <span class="rounded-md bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white">Run it</span>
-            </div>
-          </div>
-        </div>
-        <p class="mt-3 text-xs text-muted-foreground">
-          Spawning a local MCP server is arbitrary code execution. Same surface, raised weight, and
-          the exact command shown rather than described.
-        </p>
-      </div>
-
-      <div>
-        <div class="mb-2.5 text-xs font-medium text-muted-foreground">Form</div>
-        <div class="min-h-45 rounded-lg border border-border bg-gray-50 p-4.5">
-          <div class="rounded-[20px] bg-white p-3.5 ring-1 ring-gray-900/10 shadow-sm">
-            <p class="text-[12px] font-medium">Two more details</p>
-            <div class="mt-2.5 space-y-2">
-              <div class="h-7 rounded-lg border border-input bg-background"></div>
-              <div class="h-7 rounded-lg border border-input bg-background"></div>
-            </div>
-            <div class="mt-2.5 flex justify-end">
-              <span class="rounded-md bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white">Continue</span>
-            </div>
-          </div>
-        </div>
-        <p class="mt-3 text-xs text-muted-foreground">
-          Flat objects of primitives and enums, which is exactly the schema subset MCP elicitation
-          permits. No nesting to render.
-        </p>
-      </div>
-
-      <div>
-        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          Secret
-          <span class="rounded bg-error-100 px-1.5 py-0.5 text-[10px] font-medium text-error-700">different path</span>
-        </div>
-        <div class="min-h-45 rounded-lg border border-error-300 bg-error-50 p-4.5">
-          <div class="rounded-[20px] bg-white p-3.5 ring-1 ring-error-300 shadow-sm">
-            <div class="flex items-start gap-2">
-              <i class="ph ph-lock-key mt-px text-[14px] text-gray-700"></i>
-              <div class="min-w-0">
-                <p class="text-[12px] font-medium">API key</p>
-                <p class="mt-0.5 text-[11px] leading-4 text-muted-foreground">
-                  Goes straight to the encrypted store. Never enters the transcript or the model's
-                  context.
-                </p>
-              </div>
-            </div>
-            <div class="mt-2.5 flex h-7 items-center rounded-lg border border-input px-2.5">
-              <span class="font-mono text-[11px] tracking-widest text-gray-400">••••••••</span>
-            </div>
-          </div>
-        </div>
-        <p class="mt-3 text-xs text-muted-foreground">
-          Looks identical, is not. MCP elicitation forbids requesting secrets, so this shares the
-          surface but bypasses the model round-trip entirely.
-        </p>
-      </div>
-    </div>
-
-    <p class="mt-10 max-w-[900px] text-xs leading-5 text-muted-foreground">
-      Composer geometry taken from
-      <code class="font-mono text-[11px]">composer-frame.tsx</code> (<code class="font-mono text-[11px]">rounded-[20px] p-4</code>,
-      grid rows, <code class="font-mono text-[11px]">min-h-16</code>) and
-      <code class="font-mono text-[11px]">chat.tsx</code> (<code class="font-mono text-[11px]">max-w-3xl</code>).
-      Frames are drawn narrow to sit four across; the real surface is the full composer width.
-      The docked-request treatment itself is a proposal, not an existing component.
-    </p>
-
-    <!-- The h1 leads the tab title: browsers truncate from the end, and a
-         shared prefix would render every open wireframe identical. -->
     <script>
-      const heading = document.querySelector("h1");
-      if (heading) {
-        document.title = `${heading.textContent.trim()} · Wireframe`;
-      }
+      const VERSION = "1";
+      const SUBTITLE = "Plugins · asking for input";
+      const W = 1280;
+      const H = 800;
+
+      // ---- shared pieces ---------------------------------------------------
+      // Class names are always written out whole. Building them by
+      // interpolation hides them from Tailwind's scanner and they produce
+      // no styles.
+      const bars = (...widths) =>
+        widths.map((w) => `<div class="h-2.5 rounded-full bg-gray-300" style="width:${w}"></div>`).join("");
+
+      // The conversation column on its own, which is the only part of the
+      // window this question is about.
+      const column = (inner, docked) => `
+        <div class="relative h-full bg-gray-50 p-6">
+          <div class="space-y-3">${inner}</div>
+          <div class="absolute inset-x-6 bottom-6">${docked}</div>
+        </div>`;
+
+      const bubble = (text) => `
+        <div class="flex justify-end">
+          <div class="inline-block max-w-[80%] rounded-tl-xl rounded-tr-sm rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-2.5 shadow-sm">
+            <span class="text-sm">${text}</span>
+          </div>
+        </div>`;
+
+      const liveComposer = () => `
+        <div class="grid h-[70px] grid-rows-[1fr_auto] rounded-[20px] bg-white p-4 shadow-sm">
+          <div class="h-2.5 w-28 rounded-full bg-gray-300"></div>
+          <div class="flex items-center justify-between pt-1">
+            <i class="ph ph-plus text-base text-muted-foreground"></i>
+            <div class="grid size-7 place-items-center rounded-full bg-gray-900"><i class="ph ph-arrow-up text-xs text-white"></i></div>
+          </div>
+        </div>`;
+
+      const request = (inner, ring = "ring-gray-900/10") => `
+        <div class="rounded-[20px] bg-white p-4 ring-1 ${ring} shadow-sm">${inner}</div>`;
+
+      const requestHead = (icon, title, note) => `
+        <div class="flex items-start gap-2.5">
+          <i class="ph ${icon} mt-0.5 text-lg text-gray-700"></i>
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium">${title}</p>
+            ${note ? `<p class="mt-0.5 text-xs leading-4 text-muted-foreground">${note}</p>` : ""}
+          </div>
+        </div>`;
+
+      const actions = (primary, secondary = "Not now") => `
+        <div class="mt-3 flex items-center justify-end gap-2">
+          <span class="rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground">${secondary}</span>
+          <span class="rounded-md bg-gray-900 px-3 py-1 text-xs font-medium text-white">${primary}</span>
+        </div>`;
+
+      const field = (label, value) => `
+        <div>
+          <p class="mb-1 text-[11px] font-medium text-muted-foreground">${label}</p>
+          <div class="flex h-8 items-center rounded-lg border border-input bg-background px-2.5">
+            <span class="text-xs text-gray-400">${value}</span>
+          </div>
+        </div>`;
+
+      const COL = { w: 560, h: 760 };
+      const CARD = { w: 470, h: 300 };
+
+      // ---- the sequence, then the kinds that share the surface -------------
+      const states = [
+        {
+          ...COL,
+          title: "Today, in the stream",
+          note: "A blocked turn can sit off-screen with a live composer under it. Nothing says the agent is waiting, and nothing stops you asking something else.",
+          titleClass: "text-error-700",
+          body: column(
+            `<div class="-mt-12 overflow-hidden rounded-2xl border border-border bg-white opacity-55">
+               <div class="flex items-center gap-2 border-b border-border px-4 py-2.5">
+                 <i class="ph ph-lock-key text-sm text-muted-foreground"></i>
+                 <span class="text-xs font-medium">Connect Linear</span>
+               </div>
+               <div class="px-4 py-3"><div class="h-9 rounded-md border border-input bg-muted"></div></div>
+             </div>
+             <div class="flex items-center justify-center gap-2 rounded-md bg-error-50 px-3 py-1.5">
+               <i class="ph ph-arrow-up text-xs text-error-700"></i>
+               <span class="text-xs font-medium text-error-700">Scrolled past. Still waiting.</span>
+             </div>
+             <div class="space-y-2.5 pt-2">${bars("100%", "88%", "62%")}</div>
+             ${bubble("Actually, can you check the Q3 numbers first?")}
+             <div class="space-y-2.5">${bars("100%", "74%")}</div>`,
+            `${liveComposer()}
+             <p class="mt-2 text-center text-xs text-error-700">You can type right past the question</p>`,
+          ),
+        },
+        {
+          ...COL,
+          title: "Docked at the composer",
+          note: "The request takes the composer's place, so it is where the cursor already is. Declining is a first-class answer, not an abandoned turn.",
+          titleClass: "text-foreground",
+          body: column(
+            `<div class="space-y-2.5">${bars("100%", "80%")}</div>
+             ${bubble("Connect my Linear")}
+             <div class="space-y-2.5">${bars("100%", "66%")}</div>`,
+            request(`
+              ${requestHead("ph-lock-key", "Linear needs an API key", "Stored encrypted on this Mac. The agent never sees it.")}
+              <div class="mt-3 flex h-9 items-center rounded-lg border border-input bg-background px-3">
+                <span class="font-mono text-sm tracking-widest text-gray-400">••••••••••••</span>
+              </div>
+              <div class="mt-3 flex items-center justify-between">
+                <span class="text-xs text-muted-foreground underline decoration-gray-300 underline-offset-2">Where do I find this?</span>
+                <div class="flex items-center gap-2">
+                  <span class="rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground">Not now</span>
+                  <span class="rounded-md bg-gray-900 px-3 py-1 text-xs font-medium text-white">Connect</span>
+                </div>
+              </div>`),
+          ),
+        },
+        {
+          ...COL,
+          title: "A form, not a field",
+          note: "One request gathers a whole form. Otherwise the agent spends a turn per field, and each turn is another chance to answer something else.",
+          titleClass: "text-foreground",
+          body: column(
+            `<div class="space-y-2.5">${bars("100%", "72%")}</div>`,
+            request(`
+              ${requestHead("ph-sliders-horizontal", "Set up the Shopify connection", "Three things the agent could not work out on its own.")}
+              <div class="mt-3 space-y-3">
+                ${field("Store domain", "acme.myshopify.com")}
+                ${field("API version", "2026-07")}
+                <div class="flex items-center gap-2">
+                  <span class="grid size-4 place-items-center rounded-[4px] bg-gray-900"><i class="ph ph-check text-[9px] text-white"></i></span>
+                  <span class="text-xs">Include draft orders</span>
+                </div>
+              </div>
+              ${actions("Continue", "Cancel")}`),
+          ),
+        },
+        {
+          ...COL,
+          title: "Answered",
+          note: "The composer comes back and the transcript keeps a one-line record. The stream stores what was decided without owning the interaction.",
+          titleClass: "text-success-700",
+          body: column(
+            `<div class="space-y-2.5">${bars("100%", "78%")}</div>
+             <div class="inline-flex items-center gap-2 rounded-lg border border-border bg-white px-3 py-1.5">
+               <i class="ph-fill ph-check-circle text-base text-success-500"></i>
+               <span class="text-xs text-muted-foreground">Connected Linear</span>
+             </div>
+             <div class="space-y-2.5">${bars("100%", "91%", "55%")}</div>`,
+            `<div class="grid h-[70px] grid-rows-[1fr_auto] rounded-[20px] bg-white p-4 shadow-sm">
+               <span class="text-sm text-gray-400">Reply to Instrument</span>
+               <div class="flex items-center justify-between pt-1">
+                 <i class="ph ph-plus text-base text-muted-foreground"></i>
+                 <div class="grid size-7 place-items-center rounded-full bg-gray-300"><i class="ph ph-arrow-up text-xs text-white"></i></div>
+               </div>
+             </div>`,
+          ),
+        },
+        {
+          ...CARD,
+          title: "Choice",
+          note: "What Choose was always meant to be. An enum in the schema, buttons in the surface.",
+          titleClass: "text-foreground",
+          body: `<div class="h-full bg-gray-50 p-5">${request(`
+            <p class="text-sm font-medium">Which Notion workspace?</p>
+            <div class="mt-3 space-y-2">
+              <div class="rounded-lg border border-input px-3 py-2 text-xs">Acme (personal)</div>
+              <div class="rounded-lg border border-gray-900 bg-gray-50 px-3 py-2 text-xs font-medium">Acme Engineering</div>
+              <div class="rounded-lg border border-input px-3 py-2 text-xs">Design Team</div>
+            </div>`)}</div>`,
+        },
+        {
+          ...CARD,
+          h: 320,
+          title: "Consent",
+          note: "Spawning a local MCP server is arbitrary code execution. Same surface, raised weight, and the exact command shown rather than described.",
+          titleClass: "text-warning-700",
+          body: `<div class="h-full bg-gray-50 p-5">${request(`
+            ${requestHead("ph-warning", "Run a server on your Mac?", "")}
+            <p class="mt-2 rounded-md bg-muted p-2.5 font-mono text-[11px] leading-4 break-all">npx -y @modelcontextprotocol/server-filesystem</p>
+            <p class="mt-2 text-xs leading-4 text-muted-foreground">This executes code outside Instrument's sandbox with access to your files.</p>
+            ${actions("Run it", "No")}`, "ring-warning-500/40")}</div>`,
+        },
+        {
+          ...CARD,
+          title: "Form",
+          note: "Flat objects of primitives and enums, which is exactly the schema subset MCP elicitation permits. No nesting to render.",
+          titleClass: "text-foreground",
+          body: `<div class="h-full bg-gray-50 p-5">${request(`
+            <p class="text-sm font-medium">Two more details</p>
+            <div class="mt-3 space-y-2.5">
+              <div class="h-9 rounded-lg border border-input bg-background"></div>
+              <div class="h-9 rounded-lg border border-input bg-background"></div>
+            </div>
+            ${actions("Continue", "Cancel")}`)}</div>`,
+        },
+        {
+          ...CARD,
+          title: "Secret",
+          note: "Looks identical, is not. Elicitation forbids requesting secrets, so this shares the surface but bypasses the model round-trip entirely.",
+          titleClass: "text-error-700",
+          body: `<div class="h-full bg-error-50 p-5">${request(`
+            ${requestHead("ph-lock-key", "API key", "Goes straight to the encrypted store. Never enters the transcript or the model's context.")}
+            <div class="mt-3 flex h-9 items-center rounded-lg border border-input px-3">
+              <span class="font-mono text-sm tracking-widest text-gray-400">••••••••</span>
+            </div>`, "ring-error-300")}</div>`,
+        },
+      ];
+
+      // ---- render ----------------------------------------------------------
+      const rack = document.querySelector("#rack");
+
+      rack.innerHTML = states
+        .map(
+          (state, i) => `
+        <figure id="f${i}" class="tile m-0 flex flex-col overflow-hidden rounded-xl bg-white p-3 shadow-sm">
+          <div class="frame self-center overflow-hidden rounded-lg ring-1 ring-black/5" data-w="${state.w || W}" data-h="${state.h || H}" style="--w:${state.w || W}px; --h:${state.h || H}px">
+            <div>${state.body}</div>
+          </div>
+          <figcaption class="mt-3 flex-1 text-xs leading-5 text-muted-foreground">
+            <span class="font-medium ${state.titleClass}">${state.title}.</span> ${state.note}
+          </figcaption>
+        </figure>`,
+        )
+        .join("");
+
+      document.querySelector("#count").textContent = `${states.length} frames`;
+
+      document.querySelector("#subtitle").textContent = SUBTITLE;
+
+      // ---- density ---------------------------------------------------------
+      // Fit as many tiles per row as the width allows, then derive the scale
+      // from the tile. Frames never render above their true size.
+      const TILE_MIN = 330;
+      const GAP = 20;
+      const PAD = 26; // card padding plus borders
+      let single = false;
+
+      const layout = () => {
+        const avail = rack.clientWidth - 48;
+        if (avail <= 0) return;
+        const columns = single ? 1 : Math.max(1, Math.floor((avail + GAP) / (TILE_MIN + GAP)));
+        const inner = (avail - GAP * (columns - 1)) / columns - PAD;
+        rack.style.setProperty("--cols", columns);
+        for (const frame of rack.querySelectorAll(".frame")) {
+          frame.style.setProperty("--s", Math.max(0.05, Math.min(inner / Number(frame.dataset.w), 1)));
+        }
+      };
+
+      new ResizeObserver(layout).observe(rack);
+      layout();
+
+      // ---- view mode -------------------------------------------------------
+      const VIEWS = [
+        ["grid", "ph-squares-four", "Grid"],
+        ["single", "ph-rows", "One per row"],
+      ];
+      const viewBox = document.querySelector("#views");
+
+      const paintViews = () => {
+        viewBox.innerHTML = VIEWS.map(
+          ([key, icon, title]) => `
+          <button data-view="${key}" title="${title}" class="grid size-7 place-items-center rounded-md ${
+            (key === "single") === single ? "bg-white text-foreground shadow-sm" : "text-muted-foreground"
+          }"><i class="ph ${icon}"></i></button>`,
+        ).join("");
+      };
+      paintViews();
+
+      viewBox.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-view]");
+        if (!button) return;
+        single = button.dataset.view === "single";
+        paintViews();
+        layout();
+      });
+
+      // ---- enlarge ---------------------------------------------------------
+      const viewer = document.querySelector("dialog.viewer");
+
+      rack.addEventListener("click", (event) => {
+        const frame = event.target.closest(".frame");
+        if (!frame) return;
+        const clone = frame.cloneNode(true);
+        clone.style.setProperty(
+          "--s",
+          Math.min((innerWidth * 0.95) / Number(frame.dataset.w), (innerHeight * 0.95) / Number(frame.dataset.h)),
+        );
+        viewer.replaceChildren(clone);
+        viewer.showModal();
+      });
+
+      viewer.addEventListener("click", (event) => {
+        if (event.target === viewer) viewer.close();
+      });
+
+      // ---- tab identity ----------------------------------------------------
+      const heading = document.querySelector("h1").textContent.trim();
+      document.title = `v${VERSION} · ${heading}`;
+      document.querySelector("#favicon").href =
+        "data:image/svg+xml," +
+        encodeURIComponent(
+          `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0e7869"/><text x="16" y="24" font-family="Helvetica,Arial,sans-serif" font-size="21" font-weight="bold" text-anchor="middle" fill="#ffffff">${VERSION}</text></svg>`,
+        );
     </script>
   </body>
 </html>

@@ -3,17 +3,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Placeholder only. The real tab title is derived from the h1 by the
-         script at the end of the body, so the two cannot drift apart. -->
+    <!-- Title and the version digit on the favicon are set from VERSION at the
+         end of the body. Leave both placeholders alone. -->
     <title>Wireframe</title>
+    <link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg/%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap"
       rel="stylesheet"
     />
-    <!-- Phosphor regular, the icon set the app uses. Write <i class="ph ph-gear"></i>
-         and size it with Tailwind (text-sm is 14px, the app's action-row size). -->
     <link
       href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css"
       rel="stylesheet"
@@ -124,224 +123,335 @@
         /* sync:end */
       }
     </style>
+
+    <style>
+      /* A frame is drawn once at true size and shown at whatever scale fits.
+         transform, not zoom: zoom re-runs layout at the smaller size, so text
+         re-wraps and the miniature stops matching the thing it depicts. */
+      .frame {
+        width: calc(var(--w) * var(--s));
+        height: calc(var(--h) * var(--s));
+        overflow: hidden;
+        cursor: zoom-in;
+      }
+      .frame > * {
+        width: var(--w);
+        height: var(--h);
+        transform: scale(var(--s));
+        transform-origin: top left;
+      }
+
+      /* A real grid, not wrapped flex: cards in a row share a height, so
+         captions line up and no tile bleeds into its neighbour. */
+      #rack {
+        display: grid;
+        grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
+        gap: 1.25rem;
+      }
+      .tile {
+        scroll-margin-top: 5rem;
+      }
+
+      /* One small floating bar carries what you need to know and the only
+         control worth having. Everything else is canvas. */
+
+      dialog.viewer {
+        width: 100vw;
+        height: 100vh;
+        max-width: none;
+        max-height: none;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        place-items: center;
+      }
+      dialog.viewer[open] {
+        display: grid;
+      }
+      dialog.viewer::backdrop {
+        background: rgb(23 20 18 / 0.6);
+      }
+      /* The enlarged frame stays interactive: only the backdrop dismisses. */
+      dialog.viewer .frame {
+        cursor: default;
+      }
+      @media print {
+        * {
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+        }
+      }
+    </style>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   </head>
 
-  <body class="bg-gray-100 p-10 font-sans text-sm text-foreground antialiased">
-    <h1 class="text-[17px] font-semibold">Living with plugins</h1>
-    <p class="mt-1 mb-8 max-w-[860px] text-[13px] text-muted-foreground">
-      The surfaces after setup: where connections are managed when one service has two accounts, where
-      a user writes down how they want a plugin used, how skills and plugins relate in the interface,
-      and how a plugin gets reached from the composer. Nothing here is built.
-    </p>
-
-    <div class="grid max-w-[1240px] grid-cols-2 gap-6">
-      <!-- 1 -->
-      <div>
-        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span class="grid size-4.5 place-items-center rounded-full bg-gray-900 text-[11px] font-semibold text-white">1</span>
-          One plugin, two accounts
-        </div>
-        <div class="min-h-96 rounded-lg border border-border bg-gray-50 p-4.5">
-          <div class="rounded-xl border border-border bg-white p-4 shadow-sm">
-            <div class="flex items-center justify-between">
-              <span class="text-[12px] font-semibold">Plugins</span>
-              <span class="rounded-md border border-border px-2 py-0.5 text-[10px] font-medium">Add</span>
-            </div>
-
-            <!-- gmail with two connections -->
-            <div class="mt-3 rounded-lg border border-border">
-              <div class="flex items-center gap-2 px-2.5 py-2">
-                <div class="size-5 rounded bg-gray-200"></div>
-                <span class="flex-1 text-[11px] font-medium">Gmail</span>
-                <span class="text-[10px] text-muted-foreground">2 accounts</span>
-              </div>
-              <div class="border-t border-border">
-                <div class="flex items-center gap-2 px-2.5 py-1.5 pl-8">
-                  <span class="size-1.5 rounded-full bg-success-500"></span>
-                  <span class="flex-1 text-[11px]">Work</span>
-                  <span class="text-[10px] text-muted-foreground">jeremy@…</span>
-                  <i class="ph ph-dots-three text-[12px] text-muted-foreground"></i>
-                </div>
-                <div class="flex items-center gap-2 border-t border-border px-2.5 py-1.5 pl-8">
-                  <span class="size-1.5 rounded-full bg-warning-500"></span>
-                  <span class="flex-1 text-[11px]">Personal</span>
-                  <span class="text-[10px] text-warning-700">Sign in again</span>
-                  <i class="ph ph-dots-three text-[12px] text-muted-foreground"></i>
-                </div>
-              </div>
-            </div>
-
-            <div class="mt-2 flex items-center gap-2 rounded-lg border border-border px-2.5 py-2">
-              <div class="size-5 rounded bg-gray-200"></div>
-              <span class="flex-1 text-[11px] font-medium">Linear</span>
-              <span class="size-1.5 rounded-full bg-success-500"></span>
-            </div>
-
-            <!-- an attempt that did not finish -->
-            <div class="mt-2 flex items-center gap-2 rounded-lg border border-dashed border-border px-2.5 py-2">
-              <div class="size-5 rounded bg-gray-100"></div>
-              <div class="min-w-0 flex-1">
-                <p class="text-[11px] font-medium text-muted-foreground">Shopify</p>
-                <p class="text-[10px] text-muted-foreground">Setup unfinished, needs a store domain</p>
-              </div>
-              <span class="rounded-md border border-border px-1.5 py-0.5 text-[10px]">Resume</span>
-            </div>
-          </div>
-        </div>
-        <p class="mt-3 text-xs text-muted-foreground">
-          A connection, not a folder, is what the user manages. Two accounts sit under one plugin with
-          names they chose. An abandoned attempt stays visible and resumable instead of vanishing.
-        </p>
+  <body class="min-h-screen bg-gray-100 font-sans text-sm text-foreground antialiased">
+    <div
+      id="hud"
+      class="fixed top-4 left-4 z-20 flex max-w-[min(38rem,calc(100vw-2rem))] items-center gap-3 rounded-xl border border-border bg-white/95 px-3 py-2 shadow-sm backdrop-blur"
+    >
+      <div class="min-w-0">
+        <h1 class="truncate text-[13px] leading-tight font-semibold">Living with plugins</h1>
+        <p id="subtitle" class="truncate text-[11px] leading-tight text-muted-foreground"></p>
       </div>
-
-      <!-- 2 -->
-      <div>
-        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span class="grid size-4.5 place-items-center rounded-full bg-gray-900 text-[11px] font-semibold text-white">2</span>
-          How you want it used
-        </div>
-        <div class="min-h-96 rounded-lg border border-border bg-gray-50 p-4.5">
-          <div class="rounded-xl border border-border bg-white p-4 shadow-sm">
-            <div class="flex items-center gap-2">
-              <div class="size-5 rounded bg-gray-200"></div>
-              <span class="text-[12px] font-semibold">Gmail</span>
-              <span class="ml-auto text-[10px] text-muted-foreground">Work</span>
-            </div>
-
-            <p class="mt-3 text-[10px] font-medium tracking-[0.1em] text-muted-foreground uppercase">Guidance</p>
-            <div class="mt-1.5 rounded-lg border border-border bg-gray-50 p-2.5">
-              <p class="text-[11px] leading-5">Always save as a draft. Never send without asking me.</p>
-              <p class="mt-1.5 text-[11px] leading-5">Sign off as "Jeremy" not "Jeremy Mack".</p>
-              <p class="mt-1.5 text-[11px] leading-5 text-muted-foreground">Don't touch anything in the Receipts label.</p>
-            </div>
-            <div class="mt-1.5 flex items-center justify-between">
-              <span class="text-[10px] text-muted-foreground">Instrument added the last line on your behalf</span>
-              <span class="rounded-md border border-border px-1.5 py-0.5 text-[10px]">Edit</span>
-            </div>
-
-            <p class="mt-4 text-[10px] font-medium tracking-[0.1em] text-muted-foreground uppercase">Access</p>
-            <div class="mt-1.5 flex gap-1.5">
-              <div class="flex-1 rounded-lg border border-gray-900 bg-gray-50 px-2.5 py-2">
-                <p class="text-[11px] font-medium">Read and write</p>
-                <p class="mt-0.5 text-[10px] leading-4 text-muted-foreground">Follows your guidance above</p>
-              </div>
-              <div class="flex-1 rounded-lg border border-border px-2.5 py-2">
-                <p class="text-[11px] font-medium text-muted-foreground">Read only</p>
-                <p class="mt-0.5 text-[10px] leading-4 text-muted-foreground">Never changes anything</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <p class="mt-3 text-xs text-muted-foreground">
-          Guidance rather than a permission matrix. Two access levels matching the folder precedent,
-          and everything finer expressed as instructions the agent maintains alongside the user.
-        </p>
-      </div>
-
-      <!-- 3 -->
-      <div>
-        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span class="grid size-4.5 place-items-center rounded-full bg-gray-900 text-[11px] font-semibold text-white">3</span>
-          Skills and plugins, two lenses
-        </div>
-        <div class="min-h-96 rounded-lg border border-border bg-gray-50 p-4.5">
-          <div class="rounded-xl border border-border bg-white p-4 shadow-sm">
-            <div class="flex gap-1 rounded-lg bg-gray-100 p-0.5">
-              <div class="flex-1 rounded-md bg-white py-1 text-center text-[11px] font-medium shadow-sm">Skills</div>
-              <div class="flex-1 py-1 text-center text-[11px] text-muted-foreground">Plugins</div>
-            </div>
-            <div class="mt-3 space-y-1.5">
-              <div class="flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5">
-                <i class="ph ph-file-pdf text-[13px] text-muted-foreground"></i>
-                <span class="flex-1 text-[11px]">pdf</span>
-                <span class="rounded bg-gray-100 px-1.5 text-[9px] text-muted-foreground">built in</span>
-              </div>
-              <div class="flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5">
-                <i class="ph ph-table text-[13px] text-muted-foreground"></i>
-                <span class="flex-1 text-[11px]">spreadsheet</span>
-                <span class="rounded bg-gray-100 px-1.5 text-[9px] text-muted-foreground">built in</span>
-              </div>
-              <div class="flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-25 px-2.5 py-1.5">
-                <i class="ph ph-envelope-simple text-[13px] text-brand-600"></i>
-                <span class="flex-1 text-[11px]">using-gmail</span>
-                <span class="rounded bg-brand-100 px-1.5 text-[9px] text-brand-700">from Gmail</span>
-              </div>
-              <div class="flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-25 px-2.5 py-1.5">
-                <i class="ph ph-receipt text-[13px] text-brand-600"></i>
-                <span class="flex-1 text-[11px]">doing-your-taxes</span>
-                <span class="rounded bg-brand-100 px-1.5 text-[9px] text-brand-700">from Taxes</span>
-              </div>
-            </div>
-            <p class="mt-3 rounded-lg bg-gray-50 p-2.5 text-[10px] leading-4 text-muted-foreground">
-              A plugin can be nothing but skills. "Taxes" has no service behind it at all, just
-              guidance and scripts, and its skills show up here like any other.
-            </p>
-          </div>
-        </div>
-        <p class="mt-3 text-xs text-muted-foreground">
-          Skills stay a name users recognize while a plugin becomes the thing that ships them. The same
-          package is visible through either lens rather than being forced into one.
-        </p>
-      </div>
-
-      <!-- 4 -->
-      <div>
-        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span class="grid size-4.5 place-items-center rounded-full bg-gray-900 text-[11px] font-semibold text-white">4</span>
-          Reaching one from the composer
-        </div>
-        <div class="min-h-96 rounded-lg border border-border bg-gray-50 p-4.5">
-          <div class="mt-24">
-            <div class="rounded-xl border border-border bg-white p-1.5 shadow-sm">
-              <p class="px-2 py-1 text-[10px] font-medium tracking-[0.1em] text-muted-foreground uppercase">Plugins</p>
-              <div class="flex items-center gap-2 rounded-lg bg-gray-100 px-2 py-1.5">
-                <div class="size-4 rounded bg-gray-200"></div>
-                <span class="flex-1 text-[11px]">Gmail</span>
-                <span class="text-[10px] text-muted-foreground">Work</span>
-              </div>
-              <div class="flex items-center gap-2 px-2 py-1.5">
-                <div class="size-4 rounded bg-gray-200"></div>
-                <span class="flex-1 text-[11px]">Gmail</span>
-                <span class="text-[10px] text-muted-foreground">Personal</span>
-              </div>
-              <div class="flex items-center gap-2 px-2 py-1.5">
-                <div class="size-4 rounded bg-gray-200"></div>
-                <span class="flex-1 text-[11px]">Linear</span>
-              </div>
-              <div class="mt-1 border-t border-border px-2 py-1.5">
-                <span class="text-[11px] text-muted-foreground">Connect something else…</span>
-              </div>
-            </div>
-            <div class="mt-1.5 grid min-h-14 grid-rows-[1fr_auto] rounded-[20px] bg-white p-3 shadow-sm">
-              <span class="font-mono text-[11px]">@gmail<span class="text-gray-400">|</span></span>
-              <div class="flex items-center justify-between pt-2">
-                <i class="ph ph-plus text-[13px] text-muted-foreground"></i>
-                <div class="grid size-6 place-items-center rounded-full bg-gray-900"><i class="ph ph-arrow-up text-[10px] text-white"></i></div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <p class="mt-3 text-xs text-muted-foreground">
-          Accounts are distinguishable at the point of use, not just in settings. The empty path leads
-          somewhere rather than dead-ending, and it starts in this task rather than a new one.
-        </p>
-      </div>
+      <span id="count" class="shrink-0 border-l border-border pl-3 text-[11px] whitespace-nowrap text-muted-foreground"></span>
+      <div id="views" class="flex shrink-0 items-center gap-0.5 rounded-lg bg-gray-200/70 p-0.5"></div>
     </div>
 
-    <p class="mt-10 max-w-[820px] text-xs leading-5 text-muted-foreground">
-      The composer mention menu and a settings section for this exist in the connectors prototype; the
-      account-level detail, guidance, and the two-lens library are proposals. Sizes are drawn for
-      comparison, not for implementation.
-    </p>
+    <main>
+      <div id="rack" class="p-6 pt-[4.75rem]"></div>
+    </main>
 
-    <!-- The h1 leads the tab title: browsers truncate from the end, and a
-         shared prefix would render every open wireframe identical. -->
+    <dialog class="viewer"></dialog>
+
     <script>
-      const heading = document.querySelector("h1");
-      if (heading) {
-        document.title = `${heading.textContent.trim()} · Wireframe`;
-      }
+      const VERSION = "1";
+      const SUBTITLE = "Plugins · management";
+      const W = 520;
+      const H = 470;
+
+      // ---- shared pieces ---------------------------------------------------
+      // Class names are always written out whole. Building them by
+      // interpolation hides them from Tailwind's scanner and they silently
+      // produce no styles.
+      const panel = (inner) => `
+        <div class="h-full bg-gray-50 p-5">
+          <div class="h-full rounded-xl border border-border bg-white p-5 shadow-sm">${inner}</div>
+        </div>`;
+
+      const label = (text) =>
+        `<p class="text-[10px] font-medium tracking-[0.12em] text-muted-foreground uppercase">${text}</p>`;
+
+      const row = (inner, extra = "") =>
+        `<div class="flex items-center gap-2.5 rounded-lg border border-border px-3 py-2.5 ${extra}">${inner}</div>`;
+
+      const swatch = (tone = "bg-gray-200") => `<div class="size-7 shrink-0 rounded ${tone}"></div>`;
+
+      const dot = (tone) => `<span class="size-2 shrink-0 rounded-full ${tone}"></span>`;
+
+      // ---- the four surfaces -----------------------------------------------
+      const states = [
+        {
+          title: "One plugin, two accounts",
+          note: "A connection, not a folder, is what the user manages. Abandoned attempts stay resumable.",
+          body: panel(`
+            <div class="flex items-center justify-between">
+              <span class="text-base font-semibold">Plugins</span>
+              <span class="rounded-md border border-border px-2.5 py-1 text-xs font-medium">Add</span>
+            </div>
+            <div class="mt-4 rounded-lg border border-border">
+              <div class="flex items-center gap-2.5 px-3 py-2.5">
+                ${swatch()}<span class="flex-1 text-sm font-medium">Gmail</span>
+                <span class="text-xs text-muted-foreground">2 accounts</span>
+              </div>
+              <div class="border-t border-border">
+                <div class="flex items-center gap-2.5 py-2 pr-3 pl-11">
+                  ${dot("bg-success-500")}<span class="flex-1 text-sm">Work</span>
+                  <span class="text-xs text-muted-foreground">jeremy@…</span>
+                  <i class="ph ph-dots-three text-base text-muted-foreground"></i>
+                </div>
+                <div class="flex items-center gap-2.5 border-t border-border py-2 pr-3 pl-11">
+                  ${dot("bg-warning-500")}<span class="flex-1 text-sm">Personal</span>
+                  <span class="text-xs text-warning-700">Sign in again</span>
+                  <i class="ph ph-dots-three text-base text-muted-foreground"></i>
+                </div>
+              </div>
+            </div>
+            <div class="mt-2.5">
+              ${row(`${swatch()}<span class="flex-1 text-sm font-medium">Linear</span>${dot("bg-success-500")}`)}
+            </div>
+            <div class="mt-2.5">
+              ${row(
+                `${swatch("bg-gray-100")}
+                 <div class="min-w-0 flex-1">
+                   <p class="text-sm font-medium text-muted-foreground">Shopify</p>
+                   <p class="text-xs text-muted-foreground">Setup unfinished, needs a store domain</p>
+                 </div>
+                 <span class="rounded-md border border-border px-2 py-1 text-xs">Resume</span>`,
+                "border-dashed",
+              )}
+            </div>`),
+        },
+        {
+          title: "How you want it used",
+          note: "Guidance, not a permission matrix. Two coarse levels matching the folder precedent.",
+          body: panel(`
+            <div class="flex items-center gap-2.5">
+              ${swatch()}<span class="text-base font-semibold">Gmail</span>
+              <span class="ml-auto text-xs text-muted-foreground">Work</span>
+            </div>
+            <div class="mt-4">${label("Guidance")}</div>
+            <div class="mt-2 space-y-2 rounded-lg border border-border bg-gray-50 p-3.5">
+              <p class="text-sm leading-6">Always save as a draft. Never send without asking me.</p>
+              <p class="text-sm leading-6">Sign off as "Jeremy" not "Jeremy Mack".</p>
+              <p class="text-sm leading-6 text-muted-foreground">Don't touch anything in the Receipts label.</p>
+            </div>
+            <div class="mt-2 flex items-center justify-between">
+              <span class="text-xs text-muted-foreground">Instrument added the last line for you</span>
+              <span class="rounded-md border border-border px-2 py-0.5 text-xs">Edit</span>
+            </div>
+            <div class="mt-5">${label("Access")}</div>
+            <div class="mt-2 flex gap-2.5">
+              <div class="flex-1 rounded-lg border border-gray-900 bg-gray-50 px-3 py-2.5">
+                <p class="text-sm font-medium">Read and write</p>
+                <p class="mt-0.5 text-xs leading-4 text-muted-foreground">Follows your guidance above</p>
+              </div>
+              <div class="flex-1 rounded-lg border border-border px-3 py-2.5">
+                <p class="text-sm font-medium text-muted-foreground">Read only</p>
+                <p class="mt-0.5 text-xs leading-4 text-muted-foreground">Never changes anything</p>
+              </div>
+            </div>`),
+        },
+        {
+          title: "Two lenses",
+          note: "Skills stay a name users recognize; a plugin becomes the thing that ships them.",
+          body: panel(`
+            <div class="flex gap-1 rounded-lg bg-gray-100 p-1">
+              <div class="flex-1 rounded-md bg-white py-1.5 text-center text-sm font-medium shadow-sm">Skills</div>
+              <div class="flex-1 py-1.5 text-center text-sm text-muted-foreground">Plugins</div>
+            </div>
+            <div class="mt-4 space-y-2">
+              ${row(`<i class="ph ph-file-pdf text-base text-muted-foreground"></i><span class="flex-1 text-sm">pdf</span><span class="rounded bg-gray-100 px-2 py-0.5 text-xs text-muted-foreground">built in</span>`)}
+              ${row(`<i class="ph ph-table text-base text-muted-foreground"></i><span class="flex-1 text-sm">spreadsheet</span><span class="rounded bg-gray-100 px-2 py-0.5 text-xs text-muted-foreground">built in</span>`)}
+              ${row(`<i class="ph ph-envelope-simple text-base text-brand-600"></i><span class="flex-1 text-sm">using-gmail</span><span class="rounded bg-brand-100 px-2 py-0.5 text-xs text-brand-700">from Gmail</span>`, "border-brand-200 bg-brand-25")}
+              ${row(`<i class="ph ph-receipt text-base text-brand-600"></i><span class="flex-1 text-sm">doing-your-taxes</span><span class="rounded bg-brand-100 px-2 py-0.5 text-xs text-brand-700">from Taxes</span>`, "border-brand-200 bg-brand-25")}
+            </div>
+            <p class="mt-4 rounded-lg bg-gray-50 p-3 text-xs leading-5 text-muted-foreground">
+              A plugin can be nothing but skills. "Taxes" has no service behind it at all.
+            </p>`),
+        },
+        {
+          title: "Reaching one",
+          note: "Accounts are distinguishable at the point of use, and the empty path leads somewhere.",
+          body: `
+            <div class="flex h-full flex-col justify-end bg-gray-50 p-5">
+              <div class="rounded-xl border border-border bg-white p-2 shadow-sm">
+                <p class="px-2.5 py-1.5 text-[10px] font-medium tracking-[0.12em] text-muted-foreground uppercase">Plugins</p>
+                <div class="flex items-center gap-2.5 rounded-lg bg-gray-100 px-2.5 py-2">
+                  <div class="size-6 rounded bg-gray-200"></div>
+                  <span class="flex-1 text-sm">Gmail</span><span class="text-xs text-muted-foreground">Work</span>
+                </div>
+                <div class="flex items-center gap-2.5 px-2.5 py-2">
+                  <div class="size-6 rounded bg-gray-200"></div>
+                  <span class="flex-1 text-sm">Gmail</span><span class="text-xs text-muted-foreground">Personal</span>
+                </div>
+                <div class="flex items-center gap-2.5 px-2.5 py-2">
+                  <div class="size-6 rounded bg-gray-200"></div>
+                  <span class="flex-1 text-sm">Linear</span>
+                </div>
+                <div class="mt-1 border-t border-border px-2.5 py-2">
+                  <span class="text-sm text-muted-foreground">Connect something else…</span>
+                </div>
+              </div>
+              <div class="mt-2 grid h-16 grid-rows-[1fr_auto] rounded-[20px] bg-white p-3.5 shadow-sm">
+                <span class="font-mono text-sm">@gmail<span class="text-gray-400">|</span></span>
+                <div class="flex items-center justify-between pt-2">
+                  <i class="ph ph-plus text-base text-muted-foreground"></i>
+                  <div class="grid size-7 place-items-center rounded-full bg-gray-900">
+                    <i class="ph ph-arrow-up text-xs text-white"></i>
+                  </div>
+                </div>
+              </div>
+            </div>`,
+        },
+      ];
+
+      // ---- render ----------------------------------------------------------
+      const rack = document.querySelector("#rack");
+
+      rack.innerHTML = states
+        .map(
+          (state, i) => `
+        <figure id="f${i}" class="tile m-0 flex flex-col overflow-hidden rounded-xl bg-white p-3 shadow-sm">
+          <div class="frame self-center overflow-hidden rounded-lg ring-1 ring-black/5" data-w="${state.w || W}" data-h="${state.h || H}" style="--w:${state.w || W}px; --h:${state.h || H}px">
+            <div>${state.body}</div>
+          </div>
+          <figcaption class="mt-3 flex-1 text-xs leading-5 text-muted-foreground">
+            <span class="font-medium ${state.titleClass}">${state.title}.</span> ${state.note}
+          </figcaption>
+        </figure>`,
+        )
+        .join("");
+
+      document.querySelector("#count").textContent = `${states.length} frames`;
+
+      document.querySelector("#subtitle").textContent = SUBTITLE;
+
+      // ---- density ---------------------------------------------------------
+      // Fit as many tiles per row as the width allows, then derive the scale
+      // from the tile. Frames never render above their true size.
+      const TILE_MIN = 330;
+      const GAP = 20;
+      const PAD = 26; // card padding plus borders
+      let single = false;
+
+      const layout = () => {
+        const avail = rack.clientWidth - 48;
+        if (avail <= 0) return;
+        const columns = single ? 1 : Math.max(1, Math.floor((avail + GAP) / (TILE_MIN + GAP)));
+        const inner = (avail - GAP * (columns - 1)) / columns - PAD;
+        rack.style.setProperty("--cols", columns);
+        for (const frame of rack.querySelectorAll(".frame")) {
+          frame.style.setProperty("--s", Math.max(0.05, Math.min(inner / Number(frame.dataset.w), 1)));
+        }
+      };
+
+      new ResizeObserver(layout).observe(rack);
+      layout();
+
+      // ---- view mode -------------------------------------------------------
+      const VIEWS = [
+        ["grid", "ph-squares-four", "Grid"],
+        ["single", "ph-rows", "One per row"],
+      ];
+      const viewBox = document.querySelector("#views");
+
+      const paintViews = () => {
+        viewBox.innerHTML = VIEWS.map(
+          ([key, icon, title]) => `
+          <button data-view="${key}" title="${title}" class="grid size-7 place-items-center rounded-md ${
+            (key === "single") === single ? "bg-white text-foreground shadow-sm" : "text-muted-foreground"
+          }"><i class="ph ${icon}"></i></button>`,
+        ).join("");
+      };
+      paintViews();
+
+      viewBox.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-view]");
+        if (!button) return;
+        single = button.dataset.view === "single";
+        paintViews();
+        layout();
+      });
+
+      // ---- enlarge ---------------------------------------------------------
+      const viewer = document.querySelector("dialog.viewer");
+
+      rack.addEventListener("click", (event) => {
+        const frame = event.target.closest(".frame");
+        if (!frame) return;
+        const clone = frame.cloneNode(true);
+        clone.style.setProperty(
+          "--s",
+          Math.min((innerWidth * 0.95) / Number(frame.dataset.w), (innerHeight * 0.95) / Number(frame.dataset.h)),
+        );
+        viewer.replaceChildren(clone);
+        viewer.showModal();
+      });
+
+      viewer.addEventListener("click", (event) => {
+        if (event.target === viewer) viewer.close();
+      });
+
+      // ---- tab identity ----------------------------------------------------
+      const heading = document.querySelector("h1").textContent.trim();
+      document.title = `v${VERSION} · ${heading}`;
+      document.querySelector("#favicon").href =
+        "data:image/svg+xml," +
+        encodeURIComponent(
+          `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0e7869"/><text x="16" y="24" font-family="Helvetica,Arial,sans-serif" font-size="21" font-weight="bold" text-anchor="middle" fill="#ffffff">${VERSION}</text></svg>`,
+        );
     </script>
   </body>
 </html>

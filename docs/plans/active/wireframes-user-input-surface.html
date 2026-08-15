@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Placeholder only. The real tab title is derived from the h1 by the
+         script at the end of the body, so the two cannot drift apart. -->
+    <title>Wireframe</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Phosphor regular, the icon set the app uses. Write <i class="ph ph-gear"></i>
+         and size it with Tailwind (text-sm is 14px, the app's action-row size). -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <style type="text/tailwindcss">
+      @import "tailwindcss";
+
+      /* Studio's light theme, resolved from
+         apps/studio/src/client/styles/globals.css. Regenerate with the command
+         in SKILL.md rather than editing by hand. */
+      @theme {
+        /* sync:start */
+        --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+        --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+
+        --radius: 0.5rem;
+        --radius-sm: calc(var(--radius) - 4px);
+        --radius-md: calc(var(--radius) - 2px);
+        --radius-lg: var(--radius);
+        --radius-xl: calc(var(--radius) + 4px);
+
+        --shadow-sm: 0 2px 4px 0 rgb(10 13 18 / 0.04), 0 1px 2px -1px rgb(10 13 18 / 0.06), 0 0 0 1px rgb(10 13 18 / 0.06);
+        --shadow-xl: 0 12px 24px -4px rgb(10 13 18 / 0.07), 0 6px 10px -6px rgb(10 13 18 / 0.07), 0 0 0 1px rgb(10 13 18 / 0.06);
+
+        --color-gray-25: #fdfdfc;
+        --color-gray-50: #fafaf9;
+        --color-gray-100: #f5f5f4;
+        --color-gray-200: #e7e5e4;
+        --color-gray-300: #d7d3d0;
+        --color-gray-400: #a9a29d;
+        --color-gray-500: #79716b;
+        --color-gray-600: #57534e;
+        --color-gray-700: #44403c;
+        --color-gray-800: #292524;
+        --color-gray-900: #1c1917;
+        --color-gray-950: #171412;
+
+        --color-brand-25: #f1f4f2;
+        --color-brand-50: #e2eae7;
+        --color-brand-100: #c5d5d0;
+        --color-brand-200: #9dbfb6;
+        --color-brand-300: #6ca89c;
+        --color-brand-400: #338c81;
+        --color-brand-500: #0e7869;
+        --color-brand-600: #0b6056;
+        --color-brand-700: #0a4a42;
+        --color-brand-800: #093a34;
+        --color-brand-900: #082c28;
+        --color-brand-950: #051b18;
+
+        --color-error-50: #fbeef0;
+        --color-error-100: #f8e4e8;
+        --color-error-300: #e197a6;
+        --color-error-500: #b4324f;
+        --color-error-700: #7a1f30;
+        --color-error-900: #3f121a;
+
+        --color-warning-50: #fffaeb;
+        --color-warning-100: #fef0c7;
+        --color-warning-300: #fec84b;
+        --color-warning-500: #f79009;
+        --color-warning-700: #b54708;
+        --color-warning-900: #7a2e0e;
+
+        --color-success-50: #e9f5eb;
+        --color-success-100: #d9f1db;
+        --color-success-300: #7dcb87;
+        --color-success-500: #29a845;
+        --color-success-700: #176229;
+        --color-success-900: #0b3216;
+
+        --color-yellow-50: #fdf6e2;
+        --color-yellow-100: #fbebc9;
+        --color-yellow-300: #f1cc8e;
+        --color-yellow-500: #d58f4f;
+        --color-yellow-700: #b26747;
+        --color-yellow-900: #59301e;
+
+        --color-brown-50: #fcfbf8;
+        --color-brown-100: #f6f4f0;
+        --color-brown-300: #e8e3da;
+        --color-brown-500: #bbaa8e;
+        --color-brown-700: #937b5b;
+        --color-brown-900: #564538;
+
+        --color-background: #fafaf9;
+        --color-foreground: #171412;
+        --color-card: #ffffff;
+        --color-popover: #ffffff;
+        --color-primary: #171412;
+        --color-primary-foreground: #ffffff;
+        --color-secondary: #f5f5f4;
+        --color-secondary-foreground: #292524;
+        --color-muted: #f5f5f4;
+        --color-muted-foreground: #79716b;
+        --color-accent: #e7e5e4;
+        --color-accent-foreground: #292524;
+        --color-destructive: #b4324f;
+        --color-border: #e7e5e4;
+        --color-input: #e7e5e4;
+        --color-ring: #a9a29d;
+        /* sync:end */
+      }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  </head>
+
+  <body class="bg-gray-100 p-10 font-sans text-sm text-foreground antialiased">
+    <h1 class="text-[17px] font-semibold">Where the agent asks the user for something</h1>
+    <p class="mt-1 mb-8 max-w-[900px] text-[13px] text-muted-foreground">
+      Today an agent-initiated prompt renders as a tool card in the transcript, which means it can be
+      scrolled out of view while the composer stays live beneath it. This proposes moving the
+      interaction into the composer itself, and using one surface for every kind of request.
+    </p>
+
+    <div class="grid max-w-[1240px] grid-cols-4 gap-6">
+      <!-- 1 -->
+      <div>
+        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <span class="grid size-4.5 place-items-center rounded-full bg-error-500 text-[11px] font-semibold text-white">1</span>
+          Today, in the stream
+        </div>
+        <div class="relative min-h-125 overflow-hidden rounded-lg border border-border bg-gray-50 p-4.5">
+          <!-- clipped card at the top edge -->
+          <div class="-mt-9 overflow-hidden rounded-2xl border border-border bg-card opacity-55">
+            <div class="border-b border-border px-3 py-2">
+              <div class="flex items-center gap-1.5">
+                <i class="ph ph-lock-key text-[13px] text-muted-foreground"></i>
+                <span class="text-[11px] font-medium">Connect Linear</span>
+              </div>
+            </div>
+            <div class="px-3 py-2.5">
+              <div class="h-7 rounded-md border border-input bg-muted"></div>
+            </div>
+          </div>
+          <div class="mt-1.5 flex items-center justify-center gap-1.5 rounded-md bg-error-50 px-2 py-1">
+            <i class="ph ph-arrow-up text-[11px] text-error-700"></i>
+            <span class="text-[10px] font-medium text-error-700">Scrolled past. Still waiting.</span>
+          </div>
+
+          <!-- subsequent messages push it away -->
+          <div class="mt-4 space-y-1.5">
+            <div class="h-[7px] w-full rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-[88%] rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-[62%] rounded-full bg-gray-300"></div>
+          </div>
+          <div class="mt-3 flex justify-end">
+            <div class="inline-block max-w-[80%] rounded-tl-xl rounded-tr-sm rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-2 shadow-sm">
+              <div class="space-y-1.5">
+                <div class="h-[7px] w-24 rounded-full bg-gray-300"></div>
+                <div class="h-[7px] w-16 rounded-full bg-gray-300"></div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-3 space-y-1.5">
+            <div class="h-[7px] w-full rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-[74%] rounded-full bg-gray-300"></div>
+          </div>
+
+          <!-- composer, still live -->
+          <div class="absolute inset-x-4.5 bottom-4.5">
+            <div class="grid min-h-16 grid-rows-[minmax(2rem,1fr)_auto] rounded-[20px] bg-white p-3 shadow-sm">
+              <div class="pt-0.5">
+                <div class="h-[7px] w-20 rounded-full bg-gray-300"></div>
+              </div>
+              <div class="flex items-center justify-between pt-2">
+                <i class="ph ph-plus text-[13px] text-muted-foreground"></i>
+                <div class="grid size-6 place-items-center rounded-full bg-gray-900">
+                  <i class="ph ph-arrow-up text-[11px] text-white"></i>
+                </div>
+              </div>
+            </div>
+            <p class="mt-1.5 text-center text-[10px] text-error-700">User can type right past the question</p>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          A blocked turn can sit off-screen with a live composer under it. Nothing tells the user the
+          agent is waiting, and nothing stops them asking something else.
+        </p>
+      </div>
+
+      <!-- 2 -->
+      <div>
+        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <span class="grid size-4.5 place-items-center rounded-full bg-gray-900 text-[11px] font-semibold text-white">2</span>
+          Docked at the composer
+        </div>
+        <div class="relative min-h-125 overflow-hidden rounded-lg border border-border bg-gray-50 p-4.5">
+          <div class="space-y-1.5">
+            <div class="h-[7px] w-full rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-[80%] rounded-full bg-gray-300"></div>
+          </div>
+          <div class="mt-3 flex justify-end">
+            <div class="inline-block max-w-[80%] rounded-tl-xl rounded-tr-sm rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-2 shadow-sm">
+              <div class="space-y-1.5">
+                <div class="h-[7px] w-28 rounded-full bg-gray-300"></div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-3 space-y-1.5">
+            <div class="h-[7px] w-full rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-[66%] rounded-full bg-gray-300"></div>
+          </div>
+
+          <!-- the request, in place of the composer -->
+          <div class="absolute inset-x-4.5 bottom-4.5">
+            <div class="rounded-[20px] bg-white p-4 ring-1 ring-gray-900/10 shadow-sm">
+              <div class="flex items-start gap-2">
+                <i class="ph ph-lock-key mt-px text-[14px] text-gray-700"></i>
+                <div class="min-w-0 flex-1">
+                  <p class="text-[12px] font-medium">Linear needs an API key</p>
+                  <p class="mt-0.5 text-[11px] leading-4 text-muted-foreground">
+                    Stored encrypted on this Mac. The agent never sees it.
+                  </p>
+                </div>
+              </div>
+              <div class="mt-3 flex h-8 items-center rounded-lg border border-input bg-background px-2.5">
+                <span class="font-mono text-[11px] tracking-widest text-gray-400">••••••••••••</span>
+              </div>
+              <div class="mt-2.5 flex items-center justify-between">
+                <a class="text-[11px] text-muted-foreground underline decoration-gray-300 underline-offset-2">Where do I find this?</a>
+                <div class="flex items-center gap-1.5">
+                  <span class="rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground">Not now</span>
+                  <span class="rounded-md bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white">Connect</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          The request takes the composer's place, so it is where the cursor already is and cannot be
+          scrolled away from. Declining is a first-class answer, not an abandoned turn.
+        </p>
+      </div>
+
+      <!-- 3 -->
+      <div>
+        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <span class="grid size-4.5 place-items-center rounded-full bg-gray-900 text-[11px] font-semibold text-white">3</span>
+          A form, not a field
+        </div>
+        <div class="relative min-h-125 overflow-hidden rounded-lg border border-border bg-gray-50 p-4.5">
+          <div class="space-y-1.5">
+            <div class="h-[7px] w-full rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-[72%] rounded-full bg-gray-300"></div>
+          </div>
+
+          <div class="absolute inset-x-4.5 bottom-4.5">
+            <div class="rounded-[20px] bg-white p-4 ring-1 ring-gray-900/10 shadow-sm">
+              <div class="flex items-start gap-2">
+                <i class="ph ph-sliders-horizontal mt-px text-[14px] text-gray-700"></i>
+                <div class="min-w-0 flex-1">
+                  <p class="text-[12px] font-medium">Set up the Shopify connection</p>
+                  <p class="mt-0.5 text-[11px] leading-4 text-muted-foreground">
+                    Three things the agent could not work out on its own.
+                  </p>
+                </div>
+              </div>
+
+              <div class="mt-3 space-y-2.5">
+                <div>
+                  <p class="mb-1 text-[10px] font-medium text-muted-foreground">Store domain</p>
+                  <div class="flex h-7 items-center rounded-lg border border-input bg-background px-2.5">
+                    <span class="text-[11px] text-gray-400">acme.myshopify.com</span>
+                  </div>
+                </div>
+                <div>
+                  <p class="mb-1 text-[10px] font-medium text-muted-foreground">API version</p>
+                  <div class="flex h-7 items-center justify-between rounded-lg border border-input bg-background px-2.5">
+                    <span class="text-[11px]">2026-07</span>
+                    <i class="ph ph-caret-down text-[10px] text-muted-foreground"></i>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="grid size-3.5 place-items-center rounded-[3px] bg-gray-900">
+                    <i class="ph ph-check text-[8px] text-white"></i>
+                  </span>
+                  <span class="text-[11px]">Include draft orders</span>
+                </div>
+              </div>
+
+              <div class="mt-3 flex items-center justify-end gap-1.5">
+                <span class="rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground">Cancel</span>
+                <span class="rounded-md bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white">Continue</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          One request gathers a whole form. Without this the agent spends a turn per field, and each
+          turn is another chance for the user to answer something else.
+        </p>
+      </div>
+
+      <!-- 4 -->
+      <div>
+        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <span class="grid size-4.5 place-items-center rounded-full bg-success-500 text-[11px] font-semibold text-white">4</span>
+          Answered
+        </div>
+        <div class="relative min-h-125 overflow-hidden rounded-lg border border-border bg-gray-50 p-4.5">
+          <div class="space-y-1.5">
+            <div class="h-[7px] w-full rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-[78%] rounded-full bg-gray-300"></div>
+          </div>
+
+          <!-- quiet record left behind -->
+          <div class="mt-3 flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5">
+            <i class="ph-fill ph-check-circle text-[13px] text-success-500"></i>
+            <span class="text-[11px] text-muted-foreground">Connected Linear</span>
+          </div>
+
+          <div class="mt-3 space-y-1.5">
+            <div class="h-[7px] w-full rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-[91%] rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-[55%] rounded-full bg-gray-300"></div>
+          </div>
+
+          <div class="absolute inset-x-4.5 bottom-4.5">
+            <div class="grid min-h-16 grid-rows-[minmax(2rem,1fr)_auto] rounded-[20px] bg-white p-3 shadow-sm">
+              <div class="pt-0.5">
+                <span class="text-[11px] text-gray-400">Reply to Instrument</span>
+              </div>
+              <div class="flex items-center justify-between pt-2">
+                <i class="ph ph-plus text-[13px] text-muted-foreground"></i>
+                <div class="grid size-6 place-items-center rounded-full bg-gray-300">
+                  <i class="ph ph-arrow-up text-[11px] text-white"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          The composer comes back and the transcript keeps a one-line record. The stream stores what
+          was decided without ever owning the interaction.
+        </p>
+      </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <h2 class="mt-12 text-[15px] font-semibold">One surface, four kinds of request</h2>
+    <p class="mt-1 mb-6 max-w-[900px] text-[13px] text-muted-foreground">
+      The argument against a tool type per interaction. All of these are the same thing to the
+      renderer: a schema, a prompt, and three possible answers.
+      <span class="text-foreground">Accept, decline, cancel</span> are the response actions MCP
+      elicitation already defines, so a connected MCP server's own request can render here too.
+    </p>
+
+    <div class="grid max-w-[1240px] grid-cols-4 gap-6">
+      <div>
+        <div class="mb-2.5 text-xs font-medium text-muted-foreground">Choice</div>
+        <div class="min-h-45 rounded-lg border border-border bg-gray-50 p-4.5">
+          <div class="rounded-[20px] bg-white p-3.5 ring-1 ring-gray-900/10 shadow-sm">
+            <p class="text-[12px] font-medium">Which Notion workspace?</p>
+            <div class="mt-2.5 space-y-1.5">
+              <div class="rounded-lg border border-input px-2.5 py-1.5 text-[11px]">Acme (personal)</div>
+              <div class="rounded-lg border border-gray-900 bg-gray-50 px-2.5 py-1.5 text-[11px] font-medium">Acme Engineering</div>
+              <div class="rounded-lg border border-input px-2.5 py-1.5 text-[11px]">Design Team</div>
+            </div>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          What <code class="font-mono text-[11px]">Choose</code> was always meant to be. Enum in the
+          schema, buttons in the surface.
+        </p>
+      </div>
+
+      <div>
+        <div class="mb-2.5 text-xs font-medium text-muted-foreground">Consent</div>
+        <div class="min-h-45 rounded-lg border border-border bg-gray-50 p-4.5">
+          <div class="rounded-[20px] bg-white p-3.5 ring-1 ring-warning-500/40 shadow-sm">
+            <div class="flex items-start gap-2">
+              <i class="ph-fill ph-warning mt-px text-[14px] text-warning-700"></i>
+              <div class="min-w-0">
+                <p class="text-[12px] font-medium">Run a server on your Mac?</p>
+                <p class="mt-1 rounded-md bg-muted p-2 font-mono text-[10px] leading-4 break-all">npx -y @modelcontextprotocol/server-filesystem</p>
+                <p class="mt-1.5 text-[11px] leading-4 text-muted-foreground">
+                  This executes code outside Instrument's sandbox with access to your files.
+                </p>
+              </div>
+            </div>
+            <div class="mt-2.5 flex items-center justify-end gap-1.5">
+              <span class="rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground">No</span>
+              <span class="rounded-md bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white">Run it</span>
+            </div>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          Spawning a local MCP server is arbitrary code execution. Same surface, raised weight, and
+          the exact command shown rather than described.
+        </p>
+      </div>
+
+      <div>
+        <div class="mb-2.5 text-xs font-medium text-muted-foreground">Form</div>
+        <div class="min-h-45 rounded-lg border border-border bg-gray-50 p-4.5">
+          <div class="rounded-[20px] bg-white p-3.5 ring-1 ring-gray-900/10 shadow-sm">
+            <p class="text-[12px] font-medium">Two more details</p>
+            <div class="mt-2.5 space-y-2">
+              <div class="h-7 rounded-lg border border-input bg-background"></div>
+              <div class="h-7 rounded-lg border border-input bg-background"></div>
+            </div>
+            <div class="mt-2.5 flex justify-end">
+              <span class="rounded-md bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white">Continue</span>
+            </div>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          Flat objects of primitives and enums, which is exactly the schema subset MCP elicitation
+          permits. No nesting to render.
+        </p>
+      </div>
+
+      <div>
+        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          Secret
+          <span class="rounded bg-error-100 px-1.5 py-0.5 text-[10px] font-medium text-error-700">different path</span>
+        </div>
+        <div class="min-h-45 rounded-lg border border-error-300 bg-error-50 p-4.5">
+          <div class="rounded-[20px] bg-white p-3.5 ring-1 ring-error-300 shadow-sm">
+            <div class="flex items-start gap-2">
+              <i class="ph ph-lock-key mt-px text-[14px] text-gray-700"></i>
+              <div class="min-w-0">
+                <p class="text-[12px] font-medium">API key</p>
+                <p class="mt-0.5 text-[11px] leading-4 text-muted-foreground">
+                  Goes straight to the encrypted store. Never enters the transcript or the model's
+                  context.
+                </p>
+              </div>
+            </div>
+            <div class="mt-2.5 flex h-7 items-center rounded-lg border border-input px-2.5">
+              <span class="font-mono text-[11px] tracking-widest text-gray-400">••••••••</span>
+            </div>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          Looks identical, is not. MCP elicitation forbids requesting secrets, so this shares the
+          surface but bypasses the model round-trip entirely.
+        </p>
+      </div>
+    </div>
+
+    <p class="mt-10 max-w-[900px] text-xs leading-5 text-muted-foreground">
+      Composer geometry taken from
+      <code class="font-mono text-[11px]">composer-frame.tsx</code> (<code class="font-mono text-[11px]">rounded-[20px] p-4</code>,
+      grid rows, <code class="font-mono text-[11px]">min-h-16</code>) and
+      <code class="font-mono text-[11px]">chat.tsx</code> (<code class="font-mono text-[11px]">max-w-3xl</code>).
+      Frames are drawn narrow to sit four across; the real surface is the full composer width.
+      The docked-request treatment itself is a proposal, not an existing component.
+    </p>
+
+    <!-- The h1 leads the tab title: browsers truncate from the end, and a
+         shared prefix would render every open wireframe identical. -->
+    <script>
+      const heading = document.querySelector("h1");
+      if (heading) {
+        document.title = `${heading.textContent.trim()} · Wireframe`;
+      }
+    </script>
+  </body>
+</html>

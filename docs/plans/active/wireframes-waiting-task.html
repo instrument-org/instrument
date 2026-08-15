@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Placeholder only. The real tab title is derived from the h1 by the
+         script at the end of the body, so the two cannot drift apart. -->
+    <title>Wireframe</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Phosphor regular, the icon set the app uses. Write <i class="ph ph-gear"></i>
+         and size it with Tailwind (text-sm is 14px, the app's action-row size). -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <style type="text/tailwindcss">
+      @import "tailwindcss";
+
+      /* Studio's light theme, resolved from
+         apps/studio/src/client/styles/globals.css. Regenerate with the command
+         in SKILL.md rather than editing by hand. */
+      @theme {
+        /* sync:start */
+        --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+        --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+
+        --radius: 0.5rem;
+        --radius-sm: calc(var(--radius) - 4px);
+        --radius-md: calc(var(--radius) - 2px);
+        --radius-lg: var(--radius);
+        --radius-xl: calc(var(--radius) + 4px);
+
+        --shadow-sm: 0 2px 4px 0 rgb(10 13 18 / 0.04), 0 1px 2px -1px rgb(10 13 18 / 0.06), 0 0 0 1px rgb(10 13 18 / 0.06);
+        --shadow-xl: 0 12px 24px -4px rgb(10 13 18 / 0.07), 0 6px 10px -6px rgb(10 13 18 / 0.07), 0 0 0 1px rgb(10 13 18 / 0.06);
+
+        --color-gray-25: #fdfdfc;
+        --color-gray-50: #fafaf9;
+        --color-gray-100: #f5f5f4;
+        --color-gray-200: #e7e5e4;
+        --color-gray-300: #d7d3d0;
+        --color-gray-400: #a9a29d;
+        --color-gray-500: #79716b;
+        --color-gray-600: #57534e;
+        --color-gray-700: #44403c;
+        --color-gray-800: #292524;
+        --color-gray-900: #1c1917;
+        --color-gray-950: #171412;
+
+        --color-brand-25: #f1f4f2;
+        --color-brand-50: #e2eae7;
+        --color-brand-100: #c5d5d0;
+        --color-brand-200: #9dbfb6;
+        --color-brand-300: #6ca89c;
+        --color-brand-400: #338c81;
+        --color-brand-500: #0e7869;
+        --color-brand-600: #0b6056;
+        --color-brand-700: #0a4a42;
+        --color-brand-800: #093a34;
+        --color-brand-900: #082c28;
+        --color-brand-950: #051b18;
+
+        --color-error-50: #fbeef0;
+        --color-error-100: #f8e4e8;
+        --color-error-300: #e197a6;
+        --color-error-500: #b4324f;
+        --color-error-700: #7a1f30;
+        --color-error-900: #3f121a;
+
+        --color-warning-50: #fffaeb;
+        --color-warning-100: #fef0c7;
+        --color-warning-300: #fec84b;
+        --color-warning-500: #f79009;
+        --color-warning-700: #b54708;
+        --color-warning-900: #7a2e0e;
+
+        --color-success-50: #e9f5eb;
+        --color-success-100: #d9f1db;
+        --color-success-300: #7dcb87;
+        --color-success-500: #29a845;
+        --color-success-700: #176229;
+        --color-success-900: #0b3216;
+
+        --color-yellow-50: #fdf6e2;
+        --color-yellow-100: #fbebc9;
+        --color-yellow-300: #f1cc8e;
+        --color-yellow-500: #d58f4f;
+        --color-yellow-700: #b26747;
+        --color-yellow-900: #59301e;
+
+        --color-brown-50: #fcfbf8;
+        --color-brown-100: #f6f4f0;
+        --color-brown-300: #e8e3da;
+        --color-brown-500: #bbaa8e;
+        --color-brown-700: #937b5b;
+        --color-brown-900: #564538;
+
+        --color-background: #fafaf9;
+        --color-foreground: #171412;
+        --color-card: #ffffff;
+        --color-popover: #ffffff;
+        --color-primary: #171412;
+        --color-primary-foreground: #ffffff;
+        --color-secondary: #f5f5f4;
+        --color-secondary-foreground: #292524;
+        --color-muted: #f5f5f4;
+        --color-muted-foreground: #79716b;
+        --color-accent: #e7e5e4;
+        --color-accent-foreground: #292524;
+        --color-destructive: #b4324f;
+        --color-border: #e7e5e4;
+        --color-input: #e7e5e4;
+        --color-ring: #a9a29d;
+        /* sync:end */
+      }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  </head>
+
+  <body class="bg-gray-100 p-10 font-sans text-sm text-foreground antialiased">
+    <h1 class="text-[17px] font-semibold">A task that is waiting on you</h1>
+    <p class="mt-1 mb-8 max-w-[880px] text-[13px] text-muted-foreground">
+      The risk in letting the agent ask questions: someone presses go, walks away, and comes back to a
+      task that has been paused for two hours. Frame 1 is the failure. Frames 2 and 3 are the two ways
+      out, which are not mutually exclusive. Frame 4 is the return. Nothing here is built.
+    </p>
+
+    <div class="grid max-w-[1240px] grid-cols-4 gap-6">
+      <!-- 1 -->
+      <div>
+        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <span class="grid size-4.5 place-items-center rounded-full bg-error-500 text-[11px] font-semibold text-white">1</span>
+          The failure
+        </div>
+        <div class="min-h-100 rounded-lg border border-border bg-gray-50 p-3.5">
+          <div class="overflow-hidden rounded-lg border border-border bg-white">
+            <div class="flex">
+              <div class="w-24 shrink-0 border-r border-border bg-gray-50 p-1.5">
+                <div class="rounded px-1.5 py-1 text-[9px] text-muted-foreground">Connect Linear</div>
+                <div class="rounded bg-gray-200 px-1.5 py-1 text-[9px] font-medium">Q3 report</div>
+                <div class="rounded px-1.5 py-1 text-[9px] text-muted-foreground">Invoices</div>
+              </div>
+              <div class="flex-1 p-2.5">
+                <div class="space-y-1">
+                  <div class="h-[6px] w-full rounded-full bg-gray-300"></div>
+                  <div class="h-[6px] w-[70%] rounded-full bg-gray-300"></div>
+                  <div class="h-[6px] w-[84%] rounded-full bg-gray-300"></div>
+                </div>
+                <div class="mt-6 h-8 rounded-xl bg-gray-100"></div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-3 rounded-lg border border-error-300 bg-error-50 p-2.5">
+            <p class="text-[10px] leading-4 text-error-900">
+              The Linear task asked a question 40 minutes ago. The user is in a different task. Nothing
+              in this window says so.
+            </p>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          A blocked turn is invisible from anywhere except the task it happened in. This is the reason
+          not to ship the asking mechanism enabled by default.
+        </p>
+      </div>
+
+      <!-- 2 -->
+      <div>
+        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <span class="grid size-4.5 place-items-center rounded-full bg-gray-900 text-[11px] font-semibold text-white">2</span>
+          It reaches you
+        </div>
+        <div class="min-h-100 rounded-lg border border-border bg-gray-50 p-3.5">
+          <div class="overflow-hidden rounded-lg border border-border bg-white">
+            <div class="flex">
+              <div class="w-24 shrink-0 border-r border-border bg-gray-50 p-1.5">
+                <p class="px-1.5 pb-1 text-[8px] font-medium tracking-wide text-warning-700 uppercase">Needs you</p>
+                <div class="flex items-center gap-1 rounded bg-warning-50 px-1.5 py-1">
+                  <span class="size-1 shrink-0 rounded-full bg-warning-500"></span>
+                  <span class="truncate text-[9px] font-medium">Connect Linear</span>
+                </div>
+                <p class="px-1.5 pt-2 pb-1 text-[8px] font-medium tracking-wide text-muted-foreground uppercase">Tasks</p>
+                <div class="rounded bg-gray-200 px-1.5 py-1 text-[9px] font-medium">Q3 report</div>
+                <div class="rounded px-1.5 py-1 text-[9px] text-muted-foreground">Invoices</div>
+              </div>
+              <div class="flex-1 p-2.5">
+                <div class="space-y-1">
+                  <div class="h-[6px] w-full rounded-full bg-gray-300"></div>
+                  <div class="h-[6px] w-[70%] rounded-full bg-gray-300"></div>
+                </div>
+                <div class="mt-6 h-8 rounded-xl bg-gray-100"></div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-3 rounded-lg border border-border bg-white p-2.5 shadow-sm">
+            <div class="flex items-start gap-1.5">
+              <div class="mt-0.5 size-3.5 shrink-0 rounded bg-gray-900"></div>
+              <div class="min-w-0">
+                <p class="text-[10px] font-medium">Instrument</p>
+                <p class="text-[10px] leading-4 text-muted-foreground">Connect Linear needs a decision from you</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          A grouping above the task list, a dot on the row, and one system notification. The state has
+          somewhere to live in the interface rather than only inside the conversation.
+        </p>
+      </div>
+
+      <!-- 3 -->
+      <div>
+        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <span class="grid size-4.5 place-items-center rounded-full bg-gray-900 text-[11px] font-semibold text-white">3</span>
+          It gives up on its own
+        </div>
+        <div class="min-h-100 rounded-lg border border-border bg-gray-50 p-3.5">
+          <div class="rounded-lg border border-border bg-white p-3">
+            <div class="flex items-center gap-1.5">
+              <i class="ph ph-clock-countdown text-[12px] text-muted-foreground"></i>
+              <span class="text-[10px] font-medium">Asked 40 minutes ago</span>
+            </div>
+            <div class="mt-2 h-1 overflow-hidden rounded-full bg-gray-100">
+              <div class="h-full w-2/3 rounded-full bg-warning-300"></div>
+            </div>
+            <p class="mt-2 text-[10px] leading-4 text-muted-foreground">
+              If nothing is answered, the agent stops waiting and writes down what it could not do.
+            </p>
+          </div>
+
+          <div class="mt-3 rounded-lg border border-border bg-white p-3">
+            <p class="text-[10px] font-medium">Two hours later</p>
+            <div class="mt-2 flex items-start gap-1.5 rounded-lg border border-border bg-gray-50 p-2">
+              <i class="ph ph-pause-circle mt-px text-[11px] text-muted-foreground"></i>
+              <p class="text-[10px] leading-4 text-muted-foreground">
+                Stopped: needed a Linear sign-in. Everything else is done. Pick this back up whenever.
+              </p>
+            </div>
+          </div>
+
+          <div class="mt-3 rounded-lg border border-warning-300 bg-warning-50 p-2.5">
+            <p class="text-[10px] leading-4 text-warning-900">
+              Cheap, and honest. But a user who <em>did</em> intend to answer comes back to a task that
+              quit on them, which reads as the product giving up.
+            </p>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          Expiry turns an indefinite pause into a finished turn with a legible reason. Whether that
+          feels considerate or abandoning is the open question, and it is worth asking real users.
+        </p>
+      </div>
+
+      <!-- 4 -->
+      <div>
+        <div class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <span class="grid size-4.5 place-items-center rounded-full bg-success-500 text-[11px] font-semibold text-white">4</span>
+          Coming back
+        </div>
+        <div class="min-h-100 rounded-lg border border-border bg-gray-50 p-3.5">
+          <div class="overflow-hidden rounded-lg border border-border bg-white p-2.5">
+            <div class="space-y-1">
+              <div class="h-[6px] w-full rounded-full bg-gray-300"></div>
+              <div class="h-[6px] w-[66%] rounded-full bg-gray-300"></div>
+            </div>
+            <div class="mt-2 flex items-center gap-1 rounded border border-border px-1.5 py-1">
+              <i class="ph ph-check text-[9px] text-success-500"></i>
+              <span class="text-[9px] text-muted-foreground">Wrote the plugin</span>
+            </div>
+
+            <div class="mt-3 rounded-xl bg-white p-2.5 ring-1 ring-gray-900/10">
+              <div class="flex items-start gap-1.5">
+                <i class="ph ph-signature mt-px text-[12px] text-gray-700"></i>
+                <div class="min-w-0">
+                  <p class="text-[10px] font-medium">Sign in to Linear</p>
+                  <p class="text-[9px] leading-4 text-muted-foreground">Asked 2 hours ago, still waiting</p>
+                </div>
+              </div>
+              <div class="mt-2 flex justify-end gap-1">
+                <span class="rounded px-1.5 py-0.5 text-[9px] text-muted-foreground">Not now</span>
+                <span class="rounded bg-gray-900 px-1.5 py-0.5 text-[9px] font-medium text-white">Open sign-in</span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-3 rounded-lg border border-success-300 bg-success-50 p-2.5">
+            <p class="text-[10px] leading-4 text-success-900">
+              Survived a quit and relaunch. The half-filled form would too, because the question lives
+              in the task record rather than in memory.
+            </p>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          The question is still answerable and says how long it has been waiting. Durability is what
+          makes either policy above viable; without it, both are guesses about a state that was lost.
+        </p>
+      </div>
+    </div>
+
+    <p class="mt-10 max-w-[880px] text-xs leading-5 text-muted-foreground">
+      Frames 2 and 3 are alternatives to decide between, not a sequence, and they can also be combined:
+      surface it, and expire it much later. Today neither is possible, because the pending state lives
+      in machine memory and does not survive a restart at all. That is the prerequisite under all of
+      this.
+    </p>
+
+    <!-- The h1 leads the tab title: browsers truncate from the end, and a
+         shared prefix would render every open wireframe identical. -->
+    <script>
+      const heading = document.querySelector("h1");
+      if (heading) {
+        document.title = `${heading.textContent.trim()} · Wireframe`;
+      }
+    </script>
+  </body>
+</html>

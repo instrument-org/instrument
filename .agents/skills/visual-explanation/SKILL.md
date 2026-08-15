@@ -11,7 +11,7 @@ Create one HTML artifact whose form follows the question. This is a flexible exp
 
 1. Identify the exact thing the reader is trying to understand or decide. Use context and evidence already available in the task, inspecting only the additional source needed to avoid guessing.
 2. Copy `template.html` to `docs/visual-explanations/YYYY-MM-DD-<topic>.html` under the repository root without reading or rebuilding its theme shell. Create the directory when needed. Honor a different path only when it is also inside the repository.
-3. Replace the placeholder body with the clearest visual answer you can make. Choose any combination of causal chain, system map, sequence, lifecycle, timeline, before/after comparison, annotated UI, decision matrix, focused diff, evidence view, worked example, or another form better suited to the subject.
+3. Replace the placeholder body with the clearest visual answer you can make. Choose any combination of causal chain, system map, sequence, lifecycle, timeline, before/after comparison, annotated UI, decision matrix, focused diff, evidence view, worked example, or another form better suited to the subject. The tab title is derived from the `h1`, so write a real one and leave the `<title>` placeholder alone.
 4. Return a direct link to the HTML file and a one-sentence description of what it explains.
 
 ## Keep the latitude

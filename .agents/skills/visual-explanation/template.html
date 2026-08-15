@@ -3,7 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TITLE</title>
+    <!-- Placeholder only. The real tab title is derived from the h1 by the
+         script at the end of the body, so the two cannot drift apart. -->
+    <title>Visual explanation</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -146,5 +148,14 @@
         <p class="text-sm text-muted-foreground">Build the explanation here.</p>
       </section>
     </main>
+
+    <!-- The h1 leads the tab title: browsers truncate from the end, and a
+         shared prefix would render every open explanation identical. -->
+    <script>
+      const heading = document.querySelector("h1");
+      if (heading) {
+        document.title = `${heading.textContent.trim()} · Visual explanation`;
+      }
+    </script>
   </body>
 </html>

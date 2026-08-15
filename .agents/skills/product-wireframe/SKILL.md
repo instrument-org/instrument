@@ -13,6 +13,8 @@ cp .agents/skills/product-wireframe/template.html docs/plans/active/wireframes-<
 
 Name it `wireframes-<topic>.html`, put it beside the plan, and link it from the plan.
 
+The tab title is derived from the `h1`, so write a real one and leave the `<title>` placeholder alone. Several of these are usually open at once, and a title set by hand is a title that drifts.
+
 ## How it is styled
 
 Tailwind v4 compiles in the page from the CDN browser build, with Studio's light theme in an `@theme` block. Write ordinary Tailwind utilities. Do not build a class library in the `<style>` block; if a pattern repeats within one file, that is fine, and it should not graduate into this template.

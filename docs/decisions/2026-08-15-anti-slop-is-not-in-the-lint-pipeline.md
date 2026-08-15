@@ -30,14 +30,16 @@ Four findings across the repository's whole history. One is a false positive (a 
 
 **The high-volume rules fire on conventions chosen deliberately.** `no-known-value-widening` (159) flags `const LABELS: Record<ThemeOption, string> = {...}`, where the annotation is what makes the map exhaustive. `no-conditional-empty-object-spread` (27) flags `...(cond ? { key } : {})`, the way an optional property is omitted. `no-module-mocking` (81 across 43 files) would be a testing-strategy rewrite. `no-runtime-typeof` (165) and `no-unknown-parameters` / `no-unknown-returns` (148) both argue for parsing at the boundary and branching on the domain value, and their hits are largely the boundary parsers themselves — the rule cannot tell a guard's implementation from a caller that skipped one.
 
-**Loading it is not free.** The plugin is TypeScript source, transpiled on every oxlint run. Measured on the command `check:lint` actually runs:
+**Runtime cost is not the reason.** It is close to nothing. Measured on the command `check:lint` runs, four runs each, with the rules verified firing against a probe file:
 
 | | without | with |
 | --- | ---: | ---: |
-| `packages/workspace`, `oxlint --type-aware` | 0.47s | 1.85s |
-| `apps/studio`, `oxlint --type-aware` | 0.49s | 2.8s |
+| `packages/workspace`, `oxlint --type-aware` | 1.83–1.93s | 1.92–2.03s |
+| `apps/studio`, `oxlint --type-aware` | 2.75–2.79s | 2.75–2.89s |
 
-Pre-bundling the plugin to a single `.mjs` removes the difference entirely (0.48s in workspace), so the cost is transpile, not rule evaluation. That is a fixable cost — but the fix is a build step and a generated artifact for a plugin earning roughly one low-severity finding a month, on a lint the format hook runs every turn.
+Roughly +0.1s on workspace and nothing distinguishable from noise on studio. Any measurement claiming otherwise is probably reading an early exit: removing `jsPlugins` while leaving the `anti-slop/*` rules in the config makes oxlint fail with `Plugin 'anti-slop' not found` in about 0.48s without linting anything, which reads as a fast baseline and is not one.
+
+What the plugin does cost is 2,221 lines of vendored source and a `@oxlint/plugins` pin that has to move in lockstep with `oxlint` on every upgrade.
 
 ## What was kept
 
@@ -53,4 +55,8 @@ The findings, fixed in the four commits preceding the revert:
 
 ## If this comes up again
 
-The scan is cheap to repeat: vendor the plugin to a scratch directory, point a standalone oxlint config at it with all fifteen rules on, and run it against `apps packages`. What would change the decision is a rule set whose yield is bugs rather than type hygiene. Note that this repo already runs type-aware oxlint with `no-explicit-any`, the `no-unsafe-*` family, and `consistent-type-assertions`, which is why the casual version of these patterns is already absent and what remains is deliberate.
+The scan is cheap to repeat: vendor the plugin to a scratch directory, point a standalone oxlint config at it with all fifteen rules on, and run it against `apps packages`. Check the output has findings in it before trusting a run, since a misconfigured plugin fails fast and looks like a clean pass.
+
+This was a close call, and it rests on yield alone: three real findings in ten weeks, none of them bugs, against a vendored tree and a version pin. It would be reasonable to decide the other way, particularly if the vendored source is ever pruned to just the enabled rules. What would settle it is a rule set whose yield is bugs rather than type hygiene.
+
+Note that this repo already runs type-aware oxlint with `no-explicit-any`, the `no-unsafe-*` family, and `consistent-type-assertions`, which is why the casual version of these patterns is already absent and what remains is deliberate.

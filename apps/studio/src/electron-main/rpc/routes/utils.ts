@@ -41,7 +41,15 @@ import {
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 import { call, eventIterator } from "@orpc/server";
-import { app, clipboard, dialog, nativeImage, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  nativeImage,
+  shell,
+  webContents,
+} from "electron";
 import { isBinaryFile } from "isbinaryfile";
 import { exec, execFile } from "node:child_process";
 import fs from "node:fs/promises";
@@ -707,13 +715,23 @@ const copyFileToClipboard = base
     }
   });
 
+/** The window a call came from, so a dialog opens over it and nowhere else. */
+function callerWindow(webContentsId: number) {
+  const sender = webContents.fromId(webContentsId);
+  return sender ? BrowserWindow.fromWebContents(sender) : null;
+}
+
 const showFolderPicker = base
   .output(z.object({ path: z.string() }).nullable())
-  .handler(async () => {
+  .handler(async ({ context }) => {
     // Pass the parent window so macOS presents a window-modal sheet, which keeps
     // the open-panel service warm across opens. Without a parent it falls back to
     // app-modal and cold-starts the panel every time (~2-3s).
-    const parentWindow = getMainWindow();
+    //
+    // The window that asked, not the main one: a sheet attached to a different
+    // window than the one you clicked in appears somewhere you are not looking,
+    // over a window you may not even have open.
+    const parentWindow = callerWindow(context.webContentsId) ?? getMainWindow();
     const result = await (parentWindow
       ? dialog.showOpenDialog(parentWindow, {
           properties: ["openDirectory", "createDirectory"],

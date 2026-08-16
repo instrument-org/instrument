@@ -14,6 +14,7 @@ import {
   zoomOut,
 } from "@/electron-main/windows/main/controls";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
+import { getQuickCaptureOverlayWindow } from "@/electron-main/windows/overlay";
 import {
   resolveAccelerator,
   SHORTCUT_ENTRIES,
@@ -62,7 +63,13 @@ const SHORTCUT_ACTIONS: Record<ShortcutId, null | ShortcutAction> = {
     // useAppCommands + blockingModalCountAtom), so open modals stay put.
     sendAppCommand({ type: "close" });
   },
-  commandMenu: () => {
+  commandMenu: ({ focusedWindow }) => {
+    // The quick capture panel has its own search, and this chord would
+    // otherwise reach past it to open the main window's palette behind it --
+    // in a window the user cannot see from where they are standing.
+    if (focusedWindow && focusedWindow === getQuickCaptureOverlayWindow()) {
+      return;
+    }
     sendAppCommand({ type: "toggleCommandMenu" });
     focusMainContents();
   },

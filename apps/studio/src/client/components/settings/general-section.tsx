@@ -1,6 +1,8 @@
+import { featuresAtom } from "@/client/atoms/features";
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { AccountInfo } from "@/client/components/account-info";
 import { ExternalLink } from "@/client/components/external-link";
+import { QuickCaptureShortcut } from "@/client/components/settings/quick-capture-shortcut";
 import { ThemeToggle } from "@/client/components/theme-toggle";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
@@ -25,7 +27,7 @@ import {
 } from "@instrument-org/shared";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -53,6 +55,7 @@ export function GeneralSection() {
     <div className="space-y-4">
       <AccountInfo />
       <InterfaceAndTheme />
+      <QuickCapture />
       <Notifications />
       <About />
       <SettingsSection title="Advanced">
@@ -457,6 +460,22 @@ function Notifications() {
           </Select>
         </div>
       </Card>
+    </SettingsSection>
+  );
+}
+
+// Renders nothing while the flag is off, so the section disappears with the
+// feature rather than advertising a shortcut for a panel that cannot open.
+function QuickCapture() {
+  const features = useAtomValue(featuresAtom);
+
+  if (!features.quick_capture_overlay) {
+    return null;
+  }
+
+  return (
+    <SettingsSection title="Quick capture">
+      <QuickCaptureShortcut />
     </SettingsSection>
   );
 }

@@ -37,6 +37,10 @@ import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translat
 import { timeBootStep } from "./lib/boot-timing";
 import { createWorkspaceActor } from "./lib/create-workspace-actor";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
+import {
+  initQuickCaptureShortcut,
+  unregisterQuickCaptureShortcut,
+} from "./lib/quick-capture-shortcut";
 import { registerTelemetry } from "./lib/register-telemetry";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
 import {
@@ -206,6 +210,8 @@ async function bootstrapPrimaryInstance() {
     });
   });
 
+  initQuickCaptureShortcut();
+
   if (shouldShowOnboarding()) {
     openOnboardingWindow();
     void createMainWindow({ reveal: false });
@@ -294,6 +300,11 @@ function shouldShowOnboarding(): boolean {
 // agents first, so this only ever runs once that is settled.
 app.on("window-all-closed", () => {
   app.quit();
+});
+
+// OS-level bindings outlive the app unless handed back.
+app.on("will-quit", () => {
+  unregisterQuickCaptureShortcut();
 });
 
 function applyThemeToWindows() {

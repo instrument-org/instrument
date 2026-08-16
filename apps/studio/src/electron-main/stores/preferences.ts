@@ -1,5 +1,6 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { DEFAULT_QUICK_CAPTURE_ACCELERATOR } from "@/shared/constants";
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { app } from "electron";
 import Store from "electron-store";
@@ -31,6 +32,9 @@ export const PreferencesStoreSchema = z.object({
   lastLaunchedVersion: z.string().optional(),
   lastUpdateCheck: z.number().optional(),
   preferApiKeyOverAccount: z.boolean().catch(false),
+  // Electron accelerator for the quick capture overlay. Empty means the user
+  // cleared it, which is the only way to have the panel without a global chord.
+  quickCaptureAccelerator: z.string().catch(DEFAULT_QUICK_CAPTURE_ACCELERATOR),
   // Release channels are not exposed to the user and are used internally for testing
   releaseChannel: z
     .enum(["latest", "beta", "alpha"])

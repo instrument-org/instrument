@@ -30,6 +30,7 @@ function getPreferencesData() {
     enableUsageMetrics: preferencesStore.get("enableUsageMetrics"),
     lastUpdateCheck: preferencesStore.get("lastUpdateCheck"),
     preferApiKeyOverAccount: preferencesStore.get("preferApiKeyOverAccount"),
+    quickCaptureAccelerator: preferencesStore.get("quickCaptureAccelerator"),
     releaseChannel: preferencesStore.get("releaseChannel"),
     theme: preferencesStore.get("theme"),
   };

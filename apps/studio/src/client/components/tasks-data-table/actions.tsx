@@ -12,7 +12,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
-import { useTaskAgentStatus } from "@/client/hooks/use-task-agent-status";
+import { useTaskActivity } from "@/client/hooks/use-task-activity";
 import { rpcClient } from "@/client/rpc/client";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
@@ -42,8 +42,8 @@ export function TaskActionsCell({
   onStop: (id: TaskId) => void;
   projectId: null | ProjectId | undefined;
 }) {
-  const { data: taskAgentStatus } = useTaskAgentStatus({ id });
-  const sessionActors = taskAgentStatus?.sessionActors ?? [];
+  const { data: taskActivity } = useTaskActivity({ id });
+  const sessionActors = taskActivity?.sessionActors ?? [];
   const isRunning = sessionActors.some((actor) =>
     actor.tags.includes("agent.alive"),
   );

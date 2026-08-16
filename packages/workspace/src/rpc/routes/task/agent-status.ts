@@ -1,59 +1,9 @@
-import { mergeGenerators } from "@instrument-org/shared/merge-generators";
-import { eventIterator } from "@orpc/server";
-import { isEqual } from "radashi";
 import { z } from "zod";
 
 import { getTaskAgentStatus } from "../../../lib/get-task-agent-status";
 import { TaskAgentStatusSchema } from "../../../schemas/task-agent-status";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { base, toORPCError } from "../../base";
-import { publisher } from "../../publisher";
-
-const byId = base
-  .input(z.object({ id: TaskIdSchema }))
-  .output(eventIterator(TaskAgentStatusSchema))
-  .handler(async function* ({ context, errors, input, signal }) {
-    const { workspaceRef } = context;
-
-    const getOrThrow = () => {
-      const result = getTaskAgentStatus({
-        id: input.id,
-        workspaceRef,
-      });
-
-      if (result.isErr()) {
-        throw toORPCError(result.error, errors);
-      }
-
-      return result.value;
-    };
-
-    let previousState = getOrThrow();
-    yield previousState;
-
-    const relevantEvents = [
-      "session.added",
-      "session.done",
-      "session.tagsChanged",
-    ] as const;
-
-    const subscriptions = relevantEvents.map((eventName) =>
-      publisher.subscribe(eventName, { signal }),
-    );
-
-    for await (const payload of mergeGenerators(subscriptions)) {
-      if ("id" in payload && payload.id !== input.id) {
-        continue;
-      }
-
-      const currentState = getOrThrow();
-
-      if (!isEqual(currentState, previousState)) {
-        previousState = currentState;
-        yield currentState;
-      }
-    }
-  });
 
 const aliveAgentCount = base
   .input(z.void())
@@ -99,7 +49,4 @@ const byIds = base
 export const taskAgentStatus = {
   aliveAgentCount,
   byIds,
-  live: {
-    byId,
-  },
 };

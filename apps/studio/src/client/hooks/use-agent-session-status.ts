@@ -5,7 +5,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { skipToken } from "@tanstack/react-query";
 
-import { useTaskActivity } from "./use-task-agent-status";
+import { useTaskActivity } from "./use-task-activity";
 
 /**
  * Derives agent status for a specific session within a task app.

@@ -1,7 +1,7 @@
 import { type SessionTag, type TaskId } from "@instrument-org/workspace/client";
 import { PauseIcon } from "@phosphor-icons/react/Pause";
 
-import { useTaskActivity } from "../hooks/use-task-agent-status";
+import { useTaskActivity } from "../hooks/use-task-activity";
 import { cn } from "../lib/utils";
 import { Spinner } from "./ui/spinner";
 

@@ -17,7 +17,6 @@ import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { useQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { useMemo } from "react";
 
 export function StudioSidebar({
   ...props
@@ -33,23 +32,18 @@ export function StudioSidebar({
     rpcClient.workspace.project.live.list.experimental_liveOptions(),
   );
 
-  const { data: pinnedTaskIds, isPending: isPinsPending } = useQuery(
-    rpcClient.workspace.pin.live.listTaskIds.experimental_liveOptions(),
-  );
-
   const { data: tasksData, isPending: isTasksPending } = useQuery(
     rpcClient.workspace.task.live.list.experimental_liveOptions(),
   );
 
-  // All three read local workspace state and land within a frame or two of each
-  // other. Revealing each as it arrives makes the sidebar pop in three times,
-  // the last of which reorders the task list once pins are known, so hold the
-  // content until every section can render in its final form.
-  const isPending = isProjectsPending || isPinsPending || isTasksPending;
+  // Both read local workspace state and land within a frame or two of each
+  // other. Hold the content until both sections can render in their final form.
+  const isPending = isProjectsPending || isTasksPending;
 
-  const pinnedTaskIdSet = useMemo(
-    () => new Set(pinnedTaskIds ?? []),
-    [pinnedTaskIds],
+  const pinnedTaskIdSet = new Set(
+    tasksData?.tasks
+      .filter((task) => task.pinnedAt !== undefined)
+      .map((task) => task.id),
   );
 
   return (

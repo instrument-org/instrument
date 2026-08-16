@@ -39,7 +39,7 @@ export const FEATURE_METADATA: Record<
   },
   quick_capture_overlay: {
     description:
-      "Summon a floating panel from anywhere with Option+Space to start a task, switch between tasks, and read a transcript without opening the main window.",
+      "Summon a floating panel from anywhere to start a task, switch between tasks, and read a transcript without opening the main window. The chord is set in General settings.",
     title: "Quick Capture Overlay",
   },
   skills: {

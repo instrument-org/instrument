@@ -48,6 +48,8 @@ declare namespace NodeJS {
       SIGNTOOL_PATH: string | undefined;
       SKIP_MOVE_TO_APPLICATIONS: string | undefined;
       SKIP_ONBOARDING: string | undefined;
+      /** Dev only: why studio-drive launched this instance. */
+      STUDIO_DRIVE_PURPOSE: string | undefined;
       TARGET_PLATFORM: string | undefined;
       WIN_CERT_PATH: string | undefined;
       WIN_GCP_KMS_KEY_VERSION: string | undefined;

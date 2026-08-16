@@ -14,7 +14,7 @@ How to drive and inspect the Studio Electron app.
 ```bash
 DRIVE=.agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs
 
-node $DRIVE boot                                     # your own instance
+node $DRIVE boot --purpose "skills dialog"           # your own instance
 node $DRIVE goto /release-notes
 node $DRIVE state
 node $DRIVE snapshot --selector '[role=dialog]'
@@ -37,7 +37,9 @@ node $DRIVE eval 'document.querySelectorAll("button[aria-haspopup=menu]")[3].set
 node $DRIVE click --selector '[data-probe=kebab]'
 ```
 
-`boot` starts an instance on a port derived from the checkout you are standing in. It will not fall back to 48160 — that is the conventional port and almost always a window a person is using, so driving it means their clicks fight yours and their quit ends your run. Pass `--port` to target one deliberately.
+`boot` requires `--purpose` with a terse description of what this instance is testing, such as `"hotkeys"` or `"document viewer"`. Keep it to one or two short words; the launcher rejects anything over 24 characters. The purpose labels the instance for its lifetime so a person can distinguish agent-driven windows at a glance. Reusing the instance with the same purpose works normally; asking to reuse it with a different purpose fails and tells you to stop it first so the window never carries a stale label.
+
+The port is derived from the checkout you are standing in. `boot` will not fall back to 48160 because that is the conventional port and almost always a window a person is using, so driving it means their clicks fight yours and their quit ends your run. Pass `--port` to target one deliberately.
 
 It also clears `ELECTRON_RUN_AS_NODE` from the app's environment, so there is no need to unset it first. Some editor integrations set it, and with it set Electron runs as plain Node and exits without ever opening a window.
 
@@ -64,7 +66,7 @@ A command that arrives while the app is still restarting waits for it to come ba
 A plain `boot` uses the shared dev application-data directory, so what a run can reach depends on what that machine did last. `--workspace <fixture>` boots against a disposable one built from a committed description:
 
 ```bash
-node $DRIVE boot --workspace documents
+node $DRIVE boot --purpose "document viewer" --workspace documents
 node $DRIVE goto /tasks/generated-pdf --workspace documents
 ```
 

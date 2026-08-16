@@ -202,7 +202,7 @@ export async function resolvePort({ port, workspace } = {}) {
       `Pass --port ${CONVENTIONAL_PORT} if you mean to drive it anyway.`
     : `Nothing is running for ${target}.`;
   fail(
-    `${hint}\nRun \`studio-drive.mjs boot${workspace ? ` --workspace ${workspace}` : ""}\` to start an instance of your own.`,
+    `${hint}\nRun \`studio-drive.mjs boot --purpose <purpose>${workspace ? ` --workspace ${workspace}` : ""}\` to start an instance of your own.`,
   );
 }
 
@@ -214,7 +214,9 @@ async function pickTarget(origin) {
     const response = await fetch(`${origin}/json/list`);
     list = await response.json();
   } catch {
-    fail(`No debug endpoint on ${origin}. Run \`studio-drive.mjs boot\`.`);
+    fail(
+      `No debug endpoint on ${origin}. Run \`studio-drive.mjs boot --purpose <purpose>\`.`,
+    );
   }
   // The main window is one web contents holding the chrome and every tab.
   const page = list.find(

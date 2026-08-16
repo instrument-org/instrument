@@ -323,6 +323,14 @@ function debugPort() {
   return port > 0 ? port : undefined;
 }
 
+/** The terse human-facing reason studio-drive launched this dev instance. */
+function drivePurpose() {
+  if (app.isPackaged) {
+    return;
+  }
+  return process.env.STUDIO_DRIVE_PURPOSE || undefined;
+}
+
 /**
  * An instance pointed at its own user data directory -- a seeded workspace, say
  * -- is named by that directory. One on the shared dev directory has nothing to
@@ -359,6 +367,7 @@ const getAppEnvironment = devOnly
   .output(
     z.object({
       debugPort: z.number().optional(),
+      drivePurpose: z.string().optional(),
       isPackaged: z.boolean(),
       userData: z.string().optional(),
       worktree: z.string().optional(),
@@ -366,6 +375,7 @@ const getAppEnvironment = devOnly
   )
   .handler(() => ({
     debugPort: debugPort(),
+    drivePurpose: drivePurpose(),
     isPackaged: app.isPackaged,
     userData: userDataName(),
     worktree: worktreeName(),

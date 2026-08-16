@@ -7,7 +7,7 @@
 // perfectly well (it has press_key and type_text); this is about owning the
 // lifecycle, not about what it can dispatch.
 //
-//   node studio-drive.mjs boot          # start an instance this session owns
+//   node studio-drive.mjs boot --purpose "hotkeys"
 //   node studio-drive.mjs state
 //   node studio-drive.mjs goto /release-notes
 //   node studio-drive.mjs click --text "All file types"
@@ -36,9 +36,9 @@
 // route would return. Reading it out of `document.body.innerText` is a guess
 // about rendering; the route is the thing the UI itself renders from.
 //
-// `boot` starts an instance on a port derived from this checkout's path, and
-// every other command reads the record it writes. Two things it deliberately
-// does not do:
+// `boot` starts an instance labeled with a short purpose on a port derived from
+// this checkout's path, and every other command reads the record it writes. Two
+// things it deliberately does not do:
 //
 // - Fall back to the conventional 48160. That one is almost always a window a
 //   person is using: driving it means their clicks fight yours, their quit ends
@@ -57,7 +57,7 @@
 // every command of that run, not just `boot`: it selects both the port and the
 // instance record, so two workspaces from one checkout never collide.
 //
-//   node studio-drive.mjs boot --workspace documents
+//   node studio-drive.mjs boot --purpose "document viewer" --workspace documents
 //   node studio-drive.mjs shot task.png --workspace documents
 
 // The repo does not lint `.agents`, so these only ever fire when a changed-file
@@ -256,13 +256,20 @@ function reapWorkArtifacts(tasksDir) {
 
 // --- lifecycle ---------------------------------------------------------
 
-async function cmdBoot(explicitPort, { fresh }) {
+async function cmdBoot(explicitPort, { fresh, purpose: rawPurpose }) {
+  const purpose = normalizePurpose(rawPurpose);
   const existing = readSession(WORKSPACE);
   if (existing && (await isPortLive(existing.port))) {
     if (fresh) {
       fail(
         `--fresh rebuilds the workspace on disk and the instance on port ${existing.port} has it open.\n` +
           `Run \`studio-drive.mjs stop${WORKSPACE ? ` --workspace ${WORKSPACE}` : ""}\` first.`,
+      );
+    }
+    if (existing.purpose !== purpose) {
+      fail(
+        `The running instance is labeled ${JSON.stringify(existing.purpose ?? "unlabeled")}, not ${JSON.stringify(purpose)}.\n` +
+          `Run \`studio-drive.mjs stop${WORKSPACE ? ` --workspace ${WORKSPACE}` : ""}\`, then boot it with the new purpose.`,
       );
     }
     return { ...existing, reused: true };
@@ -321,6 +328,7 @@ async function cmdBoot(explicitPort, { fresh }) {
           process.env.PATH,
         ].join(path.delimiter),
         REMOTE_DEBUGGING_PORT: String(port),
+        STUDIO_DRIVE_PURPOSE: purpose,
         // A seeded workspace has no provider credentials and must not: they
         // cannot be committed. Without this the app opens the onboarding window
         // and never reveals the main one, which reads as a hang.
@@ -338,6 +346,7 @@ async function cmdBoot(explicitPort, { fresh }) {
     logFile,
     pid: child.pid,
     port,
+    purpose,
     startedAt: new Date().toISOString(),
     ...(workspace && { tasks: workspace.tasks, workspace: WORKSPACE }),
   };
@@ -510,6 +519,22 @@ function flag(argv, name, fallback) {
   return index === -1 ? fallback : argv[index + 1];
 }
 
+function normalizePurpose(rawPurpose) {
+  if (!rawPurpose || rawPurpose.startsWith("--")) {
+    fail(
+      'Pass --purpose with one or two short words describing this instance, such as --purpose "hotkeys".',
+    );
+  }
+  const purpose = rawPurpose.trim().replaceAll(/\s+/g, " ");
+  if (!purpose) {
+    fail("--purpose cannot be empty.");
+  }
+  if (purpose.length > 24) {
+    fail(`--purpose must be at most 24 characters; got ${purpose.length}.`);
+  }
+  return purpose;
+}
+
 function report(result) {
   // A tree is the one result worth more as text than as a field: JSON would
   // render it as one line of `\n`, which is the shape it is here to avoid.
@@ -543,6 +568,7 @@ try {
       report(
         await cmdBoot(flag(argv, "--port"), {
           fresh: argv.includes("--fresh"),
+          purpose: flag(argv, "--purpose"),
         }),
       );
 

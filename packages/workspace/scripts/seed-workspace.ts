@@ -6,8 +6,8 @@
 //
 // Idempotent, and cheap enough to run before every boot: a workspace whose
 // marker matches the fixtures' current contents is left alone. Prints a JSON
-// summary on stdout (`studio-drive.mjs boot --workspace` reads it), so progress
-// goes to stderr.
+// summary on stdout (`studio-drive.mjs boot --purpose <purpose> --workspace`
+// reads it), so progress goes to stderr.
 
 import "./lib/define-globals-apply";
 

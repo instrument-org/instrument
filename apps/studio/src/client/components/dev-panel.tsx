@@ -271,6 +271,16 @@ export function DevPanel() {
                 <span className="font-mono text-[9px] text-dev-700/80 dark:text-dev-300/70">
                   {appEnvironment?.isPackaged ? "packaged" : "unpackaged"}
                 </span>
+                {appEnvironment?.drivePurpose !== undefined && (
+                  <>
+                    <span className="font-mono text-[9px] text-dev-500/60 dark:text-dev-400/50">
+                      purpose
+                    </span>
+                    <span className="font-mono text-[9px] text-dev-700/80 dark:text-dev-300/70">
+                      {appEnvironment.drivePurpose}
+                    </span>
+                  </>
+                )}
                 {appEnvironment?.worktree !== undefined && (
                   <>
                     <span className="font-mono text-[9px] text-dev-500/60 dark:text-dev-400/50">
@@ -806,13 +816,19 @@ function FeatureFlagStrip({ features }: { features: Features }) {
 
 /**
  * Which of several dev instances this window is, for someone holding more than
- * one of them at once -- and only where it differs from the instance they start
- * by hand, so an empty label means that one. A worktree names itself, a custom
- * user data directory names the workspace it was seeded with, and a port off
- * the conventional one is the tell that something else booted this window: a
- * driven instance derives its port from the checkout path.
+ * one of them at once. A studio-drive purpose is the useful human description;
+ * without one, the worktree, custom user data directory, and nonconventional
+ * port provide the diagnostic identity.
  */
-function instanceLabel({ debugPort, userData, worktree }: AppEnvironment) {
+function instanceLabel({
+  debugPort,
+  drivePurpose,
+  userData,
+  worktree,
+}: AppEnvironment) {
+  if (drivePurpose) {
+    return drivePurpose;
+  }
   const where = [worktree, userData]
     .filter((part) => part !== undefined)
     .join("/");

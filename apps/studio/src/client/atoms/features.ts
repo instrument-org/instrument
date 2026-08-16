@@ -1,9 +1,8 @@
 import type { Features } from "@/shared/features";
 
-import { atomWithoutSuspense } from "@/client/lib/atom-without-suspense";
 import { logger } from "@/client/lib/logger";
 import { rpcClient } from "@/client/rpc/client";
-import { atomWithRefresh } from "jotai/utils";
+import { atom } from "jotai";
 
 const defaultFeatures: Features = {
   bash_summary_chip: false,
@@ -13,29 +12,29 @@ const defaultFeatures: Features = {
   skills: false,
 };
 
-async function listen(setAtom: () => void) {
-  const iterator = await rpcClient.features.live.getAll.call();
-  for await (const _payload of iterator) {
-    setAtom();
+async function listen(
+  setAtom: (features: Features) => void,
+  signal: AbortSignal,
+) {
+  const iterator = await rpcClient.features.live.getAll.call(undefined, {
+    signal,
+  });
+  for await (const features of iterator) {
+    setAtom(features);
   }
 }
 
-const baseFeaturesAtom = atomWithRefresh(async () => {
-  try {
-    return await rpcClient.features.getAll.call();
-  } catch (error) {
-    logger.error(`Error fetching features`, error);
-    return defaultFeatures;
-  }
-});
+export const featuresAtom = atom(defaultFeatures);
 
-baseFeaturesAtom.onMount = (setAtom) => {
-  listen(setAtom).catch((error: unknown) => {
-    logger.error(`Error listening to features updated`, error);
+featuresAtom.onMount = (setAtom) => {
+  const controller = new AbortController();
+  listen(setAtom, controller.signal).catch((error: unknown) => {
+    if (!controller.signal.aborted) {
+      logger.error("Error listening to feature updates", error);
+    }
   });
-};
 
-export const featuresAtom = atomWithoutSuspense(
-  baseFeaturesAtom,
-  defaultFeatures,
-);
+  return () => {
+    controller.abort();
+  };
+};

@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Title and the version digit on the favicon are set from VERSION at the
+         end of the body. Leave both placeholders alone. -->
+    <title>Wireframe</title>
+    <link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg/%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <style type="text/tailwindcss">
+      @import "tailwindcss";
+
+      /* Studio's light theme, resolved from
+         apps/studio/src/client/styles/globals.css. Regenerate with the command
+         in SKILL.md rather than editing by hand. */
+      @theme {
+        /* sync:start */
+        --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+        --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+
+        --radius: 0.5rem;
+        --radius-sm: calc(var(--radius) - 4px);
+        --radius-md: calc(var(--radius) - 2px);
+        --radius-lg: var(--radius);
+        --radius-xl: calc(var(--radius) + 4px);
+
+        --shadow-sm: 0 2px 4px 0 rgb(10 13 18 / 0.04), 0 1px 2px -1px rgb(10 13 18 / 0.06), 0 0 0 1px rgb(10 13 18 / 0.06);
+        --shadow-xl: 0 12px 24px -4px rgb(10 13 18 / 0.07), 0 6px 10px -6px rgb(10 13 18 / 0.07), 0 0 0 1px rgb(10 13 18 / 0.06);
+
+        --color-gray-25: #fdfdfc;
+        --color-gray-50: #fafaf9;
+        --color-gray-100: #f5f5f4;
+        --color-gray-200: #e7e5e4;
+        --color-gray-300: #d7d3d0;
+        --color-gray-400: #a9a29d;
+        --color-gray-500: #79716b;
+        --color-gray-600: #57534e;
+        --color-gray-700: #44403c;
+        --color-gray-800: #292524;
+        --color-gray-900: #1c1917;
+        --color-gray-950: #171412;
+
+        --color-brand-25: #f1f4f2;
+        --color-brand-50: #e2eae7;
+        --color-brand-100: #c5d5d0;
+        --color-brand-200: #9dbfb6;
+        --color-brand-300: #6ca89c;
+        --color-brand-400: #338c81;
+        --color-brand-500: #0e7869;
+        --color-brand-600: #0b6056;
+        --color-brand-700: #0a4a42;
+        --color-brand-800: #093a34;
+        --color-brand-900: #082c28;
+        --color-brand-950: #051b18;
+
+        --color-error-50: #fbeef0;
+        --color-error-100: #f8e4e8;
+        --color-error-300: #e197a6;
+        --color-error-500: #b4324f;
+        --color-error-700: #7a1f30;
+        --color-error-900: #3f121a;
+
+        --color-warning-50: #fffaeb;
+        --color-warning-100: #fef0c7;
+        --color-warning-300: #fec84b;
+        --color-warning-500: #f79009;
+        --color-warning-700: #b54708;
+        --color-warning-900: #7a2e0e;
+
+        --color-success-50: #e9f5eb;
+        --color-success-100: #d9f1db;
+        --color-success-300: #7dcb87;
+        --color-success-500: #29a845;
+        --color-success-700: #176229;
+        --color-success-900: #0b3216;
+
+        --color-yellow-50: #fdf6e2;
+        --color-yellow-100: #fbebc9;
+        --color-yellow-300: #f1cc8e;
+        --color-yellow-500: #d58f4f;
+        --color-yellow-700: #b26747;
+        --color-yellow-900: #59301e;
+
+        --color-brown-50: #fcfbf8;
+        --color-brown-100: #f6f4f0;
+        --color-brown-300: #e8e3da;
+        --color-brown-500: #bbaa8e;
+        --color-brown-700: #937b5b;
+        --color-brown-900: #564538;
+
+        --color-background: #fafaf9;
+        --color-foreground: #171412;
+        --color-card: #ffffff;
+        --color-popover: #ffffff;
+        --color-primary: #171412;
+        --color-primary-foreground: #ffffff;
+        --color-secondary: #f5f5f4;
+        --color-secondary-foreground: #292524;
+        --color-muted: #f5f5f4;
+        --color-muted-foreground: #79716b;
+        --color-accent: #e7e5e4;
+        --color-accent-foreground: #292524;
+        --color-destructive: #b4324f;
+        --color-border: #e7e5e4;
+        --color-input: #e7e5e4;
+        --color-ring: #a9a29d;
+        /* sync:end */
+      }
+    </style>
+
+    <style>
+      /* A frame is drawn once at true size and shown at whatever scale fits.
+         transform, not zoom: zoom re-runs layout at the smaller size, so text
+         re-wraps and the miniature stops matching the thing it depicts. */
+      .frame {
+        width: calc(var(--w) * var(--s));
+        height: calc(var(--h) * var(--s));
+        overflow: hidden;
+        cursor: zoom-in;
+      }
+      .frame > * {
+        width: var(--w);
+        height: var(--h);
+        transform: scale(var(--s));
+        transform-origin: top left;
+      }
+
+      /* Every tile reserves the same vertical space for its frame, whatever
+         the frame's own aspect ratio, so captions start on the same line
+         down the whole grid rather than only within a row. A frame shorter
+         than the slot is centered in it, not stretched. */
+      .slot {
+        height: var(--slot-h);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      /* A real grid, not wrapped flex: cards in a row share a height, so
+         captions line up and no tile bleeds into its neighbor. */
+      body {
+        overflow-anchor: none;
+      }
+      #rack {
+        display: grid;
+        grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
+        gap: 1.25rem;
+      }
+
+      /* One small floating bar carries what you need to know and the only
+         control worth having. Everything else is canvas. */
+
+      dialog.viewer {
+        width: 100vw;
+        height: 100vh;
+        max-width: none;
+        max-height: none;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        place-items: center;
+      }
+      dialog.viewer[open] {
+        display: grid;
+      }
+      dialog.viewer::backdrop {
+        background: rgb(23 20 18 / 0.85);
+      }
+      /* The enlarged frame stays interactive: only the backdrop dismisses. */
+      dialog.viewer .frame {
+        cursor: default;
+      }
+      @media print {
+        * {
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+        }
+      }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  </head>
+
+  <body class="min-h-screen bg-gray-100 font-sans text-sm text-foreground antialiased">
+    <div
+      id="hud"
+      class="fixed top-4 left-4 z-20 flex max-w-[min(38rem,calc(100vw-2rem))] items-center gap-3 rounded-xl border border-border bg-white/95 px-3 py-2 shadow-sm backdrop-blur"
+    >
+      <div class="min-w-0">
+        <h1 class="truncate text-[13px] leading-tight font-semibold">The step between typing and sending</h1>
+        <p id="subtitle" class="truncate text-[11px] leading-tight text-muted-foreground"></p>
+      </div>
+      <span id="count" class="shrink-0 border-l border-border pl-3 text-[11px] whitespace-nowrap text-muted-foreground"></span>
+      <div id="views" class="flex shrink-0 items-center gap-0.5 rounded-lg bg-gray-200/70 p-0.5"></div>
+    </div>
+
+    <main>
+      <div id="rack" class="p-6 pt-[4.75rem]"></div>
+    </main>
+
+    <dialog class="viewer"></dialog>
+
+    <script>
+      const VERSION = "2";
+      const SUBTITLE = "Quick capture · the options step, and how a row shows its value";
+      const W = 640;
+      const H = 360;
+      // Fixed vertical space every tile's frame is centered within, so
+      // captions align across the grid even when frames mix aspect ratios.
+      // Keep this close to what most frames in the file actually measure —
+      // too tall and short frames float in a lot of dead padding.
+      const SLOT_H = 200;
+
+      const PROMPT = "summarize yesterday’s deploy failures";
+
+      /** The panel: a transparent window with one rounded card in it. */
+      const panel = (inner) => `
+        <div class="relative h-full overflow-hidden rounded-xl border border-border bg-popover">${inner}</div>`;
+
+      const chord = (...keys) =>
+        keys
+          .map((k) => `<kbd class="rounded border border-border px-1 py-0.5 font-mono text-[10px] text-muted-foreground">${k}</kbd>`)
+          .join("");
+
+      /** The launcher's search field. */
+      const searchRow = (value) => `
+        <div class="flex items-center gap-2.5 border-b border-border px-4 py-3">
+          <i class="ph ph-magnifying-glass text-base text-muted-foreground"></i>
+          <span class="flex-1 truncate text-[15px] ${value ? "" : "text-gray-400"}">${value || "Search tasks, or type to start one…"}</span>
+        </div>`;
+
+      /** The options step's header: the way back, and the prompt itself, which
+       *  stays editable rather than becoming a label. */
+      const stepHeader = (text, { editing = false } = {}) => `
+        <div class="flex items-center gap-2.5 border-b border-border px-3 py-3">
+          <i class="ph ph-arrow-left text-base text-muted-foreground"></i>
+          <span class="min-w-0 flex-1 truncate text-[15px] ${editing ? "" : ""}">${text}${editing ? `<span class="ml-px inline-block h-4 w-px translate-y-0.5 bg-foreground"></span>` : ""}</span>
+          ${editing ? "" : chord("esc")}
+        </div>`;
+
+      const groupLabel = (text) => `<p class="px-4 pt-2.5 pb-1 text-xs font-medium text-muted-foreground">${text}</p>`;
+
+      /** A row whose right-hand side carries the value it is set to. The value
+       *  is the whole point of the screen: it is what you scan before sending. */
+      const optionRow = (icon, label, value, { selected = false, unset = false } = {}) => `
+        <div class="mx-1.5 flex items-center gap-2.5 rounded-lg px-2.5 py-2 ${selected ? "bg-accent" : ""}">
+          <i class="ph ${icon} text-sm text-muted-foreground/70"></i>
+          <span class="min-w-0 flex-1 truncate text-sm">${label}</span>
+          <span class="flex shrink-0 items-center gap-1.5 text-xs ${unset ? "text-muted-foreground/60" : "text-foreground"}">${value}</span>
+          <i class="ph ph-caret-right text-[10px] text-muted-foreground/50"></i>
+        </div>`;
+
+      /** The primary row: what Enter does the moment you arrive. */
+      const sendRow = ({ selected = true } = {}) => `
+        <div class="mx-1.5 flex items-center gap-2.5 rounded-lg px-2.5 py-2 ${selected ? "bg-accent" : ""}">
+          <i class="ph ph-arrow-up text-sm text-brand-600"></i>
+          <span class="min-w-0 flex-1 truncate text-sm font-medium">Start task</span>
+          ${chord("↵")}
+        </div>`;
+
+      const pickerRow = (icon, label, trailing, { selected = false } = {}) => `
+        <div class="mx-1.5 flex items-center gap-2.5 rounded-lg px-2.5 py-2 ${selected ? "bg-accent" : ""}">
+          <i class="ph ${icon} text-sm text-muted-foreground/70"></i>
+          <span class="min-w-0 flex-1 truncate text-sm">${label}</span>
+          ${trailing ? `<span class="shrink-0 text-xs text-muted-foreground">${trailing}</span>` : ""}
+        </div>`;
+
+      /** The bar along the bottom: what Enter does here, and the way out. */
+      const actionBar = (primary, primaryKeys, secondary = "") => `
+        <div class="absolute inset-x-0 bottom-0 flex items-center justify-between border-t border-border bg-popover px-3 py-2">
+          <span class="flex items-center gap-1.5 text-xs text-muted-foreground">${primary}${chord(...primaryKeys)}</span>
+          ${secondary ? `<span class="flex items-center gap-1.5 text-xs text-muted-foreground">${secondary}</span>` : ""}
+        </div>`;
+
+      const modelValue = (name = "GPT-5.6 Luna") =>
+        `<i class="ph ph-circles-three text-sm text-muted-foreground"></i>${name}`;
+
+      // ---- the frames ------------------------------------------------------
+      const states = [
+        {
+          title: "Typing, with two ways out",
+          note: "Enter steps into the options; ⌘↵ sends on the defaults without ever showing them. The model is named on the row either way, so the fast path is never a guess.",
+          titleClass: "text-foreground",
+          body: panel(`
+            ${searchRow(PROMPT)}
+            ${groupLabel("Actions")}
+            <div class="mx-1.5 flex items-center gap-2.5 rounded-lg bg-accent px-2.5 py-2">
+              <i class="ph ph-plus text-sm text-muted-foreground/70"></i>
+              <span class="min-w-0 flex-1 truncate text-sm">Start a task with <span class="font-medium">“${PROMPT}”</span></span>
+              <span class="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">${modelValue()}</span>
+            </div>
+            ${actionBar("Options", ["↵"], `<span class="flex items-center gap-1.5">Send now${chord("⌘", "↵")}</span>`)}
+          `),
+        },
+
+        {
+          title: "The options step, at rest",
+          note: "Not a form to fill in order: Start is already selected, so Enter twice from the launcher sends. Everything under it is optional and skippable.",
+          titleClass: "text-foreground",
+          body: panel(`
+            ${stepHeader(PROMPT)}
+            ${sendRow()}
+            ${groupLabel("Options")}
+            ${optionRow("ph-circles-three", "Model", modelValue(), {})}
+            ${optionRow("ph-paperclip", "Files", "None", { unset: true })}
+            ${optionRow("ph-folder-simple", "Folder", "None", { unset: true })}
+            ${optionRow("ph-cards-three", "Project", "None", { unset: true })}
+            ${actionBar("Start task", ["↵"], `<span class="flex items-center gap-1.5">Back${chord("esc")}</span>`)}
+          `),
+        },
+
+        {
+          title: "Set, and readable at a glance",
+          note: "The value on each row is the whole reason this screen exists — one pass down the right edge is the review before sending.",
+          titleClass: "text-foreground",
+          body: panel(`
+            ${stepHeader(PROMPT)}
+            ${sendRow()}
+            ${groupLabel("Options")}
+            ${optionRow("ph-circles-three", "Model", modelValue("Claude Opus 4.7"), {})}
+            ${optionRow("ph-paperclip", "Files", `<i class="ph ph-file text-sm text-muted-foreground"></i>3 files`, {})}
+            ${optionRow("ph-folder-simple", "Folder", `<i class="ph ph-folder-simple text-sm text-muted-foreground"></i>instrument`, {})}
+            ${optionRow("ph-cards-three", "Project", "Deploy tooling", {})}
+            ${actionBar("Start task", ["↵"], `<span class="flex items-center gap-1.5">Back${chord("esc")}</span>`)}
+          `),
+        },
+
+        {
+          title: "A picker replaces the list",
+          note: "Same window, same keys, one step back. Nothing floats over the panel, so the model list gets the whole height instead of hanging off the middle.",
+          titleClass: "text-foreground",
+          body: panel(`
+            <div class="flex items-center gap-2.5 border-b border-border px-3 py-3">
+              <i class="ph ph-arrow-left text-base text-muted-foreground"></i>
+              <span class="flex-1 truncate text-[15px] text-gray-400">Search models…</span>
+              ${chord("esc")}
+            </div>
+            ${groupLabel("Recommended")}
+            ${pickerRow("ph-circles-three", "Claude Opus 4.7", "Anthropic", { selected: true })}
+            ${pickerRow("ph-circles-three", "GPT-5.6 Luna", "OpenAI")}
+            ${pickerRow("ph-circles-three", "Claude Haiku 4.5", "Anthropic")}
+            ${pickerRow("ph-circles-three", "Claude Sonnet 5", "Anthropic")}
+            ${actionBar("Use this model", ["↵"], `<span class="flex items-center gap-1.5">Back${chord("esc")}</span>`)}
+          `),
+        },
+
+        {
+          title: "Files, after the dialog closes",
+          note: "The native picker takes focus and gives it back. Because the state lives in this list rather than in something modal, nothing was dismissed while it was open — the bug that killed the sheet cannot happen here.",
+          titleClass: "text-success-700",
+          body: panel(`
+            <div class="flex items-center gap-2.5 border-b border-border px-3 py-3">
+              <i class="ph ph-arrow-left text-base text-muted-foreground"></i>
+              <span class="min-w-0 flex-1 truncate text-[15px]">Files</span>
+              ${chord("esc")}
+            </div>
+            ${pickerRow("ph-plus", "Choose files…", "⌘O", { selected: true })}
+            ${groupLabel("Attached")}
+            ${pickerRow("ph-file-text", "deploy-2026-08-15.log", "⌫")}
+            ${pickerRow("ph-file-text", "rollback-notes.md", "⌫")}
+            ${pickerRow("ph-image", "error-panel.png", "⌫")}
+            ${actionBar("Done", ["↵"], `<span class="flex items-center gap-1.5">Remove${chord("⌫")}</span>`)}
+          `),
+        },
+
+        {
+          w: 640,
+          h: 360,
+          title: "Long values, and the scroll",
+          note: "The list scrolls under a pinned header and action bar, so no amount of attachment changes the window's shape. A value too long to fit truncates from the end rather than wrapping the row.",
+          titleClass: "text-foreground",
+          body: panel(`
+            ${stepHeader(PROMPT)}
+            ${sendRow()}
+            ${groupLabel("Options")}
+            ${optionRow("ph-circles-three", "Model", modelValue("Claude Opus 4.7"), {})}
+            ${optionRow("ph-paperclip", "Files", `<i class="ph ph-file text-sm text-muted-foreground"></i>12 files`, {})}
+            ${optionRow("ph-folder-simple", "Folder", `<span class="max-w-40 truncate">~/code/instrument/apps/studio</span>`, {})}
+            ${optionRow("ph-cards-three", "Project", "Deploy tooling", {})}
+            <div class="pointer-events-none absolute inset-x-0 bottom-9 h-6 bg-linear-to-t from-popover to-transparent"></div>
+            ${actionBar("Start task", ["↵"], `<span class="flex items-center gap-1.5">Back${chord("esc")}</span>`)}
+          `),
+        },
+
+        {
+          title: "The prompt stays editable",
+          note: "The header is the prompt, not a title of it. Arriving here is not a commitment to the words you typed — which is the one thing a step-by-step form gets right and is worth keeping.",
+          titleClass: "text-foreground",
+          body: panel(`
+            ${stepHeader("summarize yesterday’s deploy failures and group them by service", { editing: true })}
+            ${sendRow()}
+            ${groupLabel("Options")}
+            ${optionRow("ph-circles-three", "Model", modelValue(), {})}
+            ${optionRow("ph-paperclip", "Files", "None", { unset: true })}
+            ${optionRow("ph-folder-simple", "Folder", "None", { unset: true })}
+            ${actionBar("Start task", ["⌘", "↵"], `<span class="flex items-center gap-1.5">Typing edits the prompt</span>`)}
+          `),
+        },
+
+        {
+          w: 640,
+          h: 300,
+          title: "Three ways a row can carry its value",
+          note: "The open question, side by side. Count-and-icon holds up at any length and is the only one that survives twelve files in a 640px row.",
+          titleClass: "text-foreground",
+          body: `
+            <div class="h-full space-y-2 bg-gray-50 p-4">
+              <div class="rounded-xl border border-border bg-white p-2">
+                <p class="px-2 pt-1 pb-1.5 text-xs font-medium text-muted-foreground">Count and icon — scales</p>
+                ${optionRow("ph-paperclip", "Files", `<i class="ph ph-file text-sm text-muted-foreground"></i>12 files`, {})}
+              </div>
+              <div class="rounded-xl border border-border bg-white p-2">
+                <p class="px-2 pt-1 pb-1.5 text-xs font-medium text-muted-foreground">Names — dies past two</p>
+                ${optionRow("ph-paperclip", "Files", `<span class="max-w-52 truncate">deploy-2026-08-15.log, rollback-notes.md, error…</span>`, {})}
+              </div>
+              <div class="rounded-xl border border-border bg-white p-2">
+                <p class="px-2 pt-1 pb-1.5 text-xs font-medium text-muted-foreground">Chips — wraps the row</p>
+                <div class="mx-1.5 flex items-center gap-2.5 rounded-lg px-2.5 py-2">
+                  <i class="ph ph-paperclip text-sm text-muted-foreground/70"></i>
+                  <span class="min-w-0 flex-1 truncate text-sm">Files</span>
+                  <span class="flex shrink-0 items-center gap-1">
+                    <span class="rounded border border-border px-1.5 py-0.5 text-[11px]">deploy…log</span>
+                    <span class="rounded border border-border px-1.5 py-0.5 text-[11px]">rollback…md</span>
+                    <span class="text-[11px] text-muted-foreground">+10</span>
+                  </span>
+                </div>
+              </div>
+            </div>`,
+        },
+      ];
+
+      // ---- render ----------------------------------------------------------
+      const rack = document.querySelector("#rack");
+
+      rack.innerHTML = states
+        .map(
+          (state, i) => `
+        <figure class="tile m-0 flex flex-col overflow-hidden rounded-xl bg-white p-3 shadow-sm">
+          <div class="slot" style="--slot-h:${SLOT_H}px">
+            <div class="frame overflow-hidden rounded-lg ring-1 ring-black/5" data-label="${i + 1} · ${state.title}" data-w="${state.w || W}" data-h="${state.h || H}" style="--w:${state.w || W}px; --h:${state.h || H}px">
+              <div>${state.body}</div>
+            </div>
+          </div>
+          <figcaption class="mt-3 text-xs leading-5 text-muted-foreground">
+            <span class="mr-1.5 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-600">${i + 1}</span><span class="font-medium ${state.titleClass}">${state.title}.</span> ${state.note}
+          </figcaption>
+        </figure>`,
+        )
+        .join("");
+
+      document.querySelector("#count").textContent = `${states.length} frames`;
+
+      document.querySelector("#subtitle").textContent = SUBTITLE;
+
+      // ---- density ---------------------------------------------------------
+      // Fit as many tiles per row as the width allows, then derive the scale
+      // from the tile. Frames never render above their true size.
+      const TILE_MIN = 330;
+      const GAP = 20;
+      const PAD = 26; // card padding plus borders
+      let single = false;
+
+      const layout = () => {
+        const avail = rack.clientWidth - 48;
+        if (avail <= 0) return;
+        const columns = single ? 1 : Math.max(1, Math.floor((avail + GAP) / (TILE_MIN + GAP)));
+        const inner = (avail - GAP * (columns - 1)) / columns - PAD;
+        rack.style.setProperty("--cols", columns);
+        for (const frame of rack.querySelectorAll(".frame")) {
+          const s = Math.min(inner / Number(frame.dataset.w), SLOT_H / Number(frame.dataset.h), 1);
+          frame.style.setProperty("--s", Math.max(0.05, s));
+        }
+      };
+
+      new ResizeObserver(layout).observe(rack);
+      layout();
+
+      // ---- view mode -------------------------------------------------------
+      const VIEWS = [
+        ["grid", "ph-squares-four", "Grid"],
+        ["single", "ph-rows", "One per row"],
+      ];
+      const viewBox = document.querySelector("#views");
+
+      const paintViews = () => {
+        viewBox.innerHTML = VIEWS.map(
+          ([key, icon, title]) => `
+          <button data-view="${key}" title="${title}" class="grid size-7 place-items-center rounded-md ${
+            (key === "single") === single ? "bg-white text-foreground shadow-sm" : "text-muted-foreground"
+          }"><i class="ph ${icon}"></i></button>`,
+        ).join("");
+      };
+      paintViews();
+
+      viewBox.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-view]");
+        if (!button) return;
+        single = button.dataset.view === "single";
+        paintViews();
+        layout();
+      });
+
+      // ---- enlarge ---------------------------------------------------------
+      const viewer = document.querySelector("dialog.viewer");
+      let openIndex = -1;
+
+      /** Enlarges the frame at `index`, caption below it. Also how ←/→ move
+       *  to the next one, so the dialog never has to close and reopen to
+       *  browse the set. */
+      const showFrame = (index) => {
+        const state = states[index];
+        const tile = rack.querySelectorAll(".frame")[index];
+        if (!tile) return;
+        openIndex = index;
+        const clone = tile.cloneNode(true);
+        clone.style.setProperty(
+          "--s",
+          Math.min((innerWidth * 0.95) / Number(tile.dataset.w), (innerHeight * 0.95) / Number(tile.dataset.h)),
+        );
+        const caption = document.createElement("p");
+        caption.className = "mt-4 max-w-[min(90vw,44rem)] text-center text-sm leading-5 text-white";
+        caption.innerHTML = `<span class="mr-1.5 rounded bg-white/15 px-1.5 py-0.5 font-mono text-[10px] text-white/80">${index + 1}</span><span class="font-medium">${state.title}.</span> <span class="text-white/80">${state.note}</span>`;
+        const stack = document.createElement("div");
+        stack.className = "flex flex-col items-center";
+        stack.append(clone, caption);
+        viewer.replaceChildren(stack);
+        if (!viewer.open) viewer.showModal();
+      };
+
+      rack.addEventListener("click", (event) => {
+        const frame = event.target.closest(".frame");
+        if (!frame) return;
+        showFrame([...rack.querySelectorAll(".frame")].indexOf(frame));
+      });
+
+      viewer.addEventListener("click", (event) => {
+        if (event.target === viewer) viewer.close();
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (!viewer.open || (event.key !== "ArrowRight" && event.key !== "ArrowLeft")) return;
+        event.preventDefault();
+        const step = event.key === "ArrowRight" ? 1 : -1;
+        showFrame((openIndex + step + states.length) % states.length);
+      });
+
+      // ---- tab identity ----------------------------------------------------
+      const heading = document.querySelector("h1").textContent.trim();
+      document.title = `v${VERSION} · ${heading}`;
+      document.querySelector("#favicon").href =
+        "data:image/svg+xml," +
+        encodeURIComponent(
+          `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0e7869"/><text x="16" y="24" font-family="Helvetica,Arial,sans-serif" font-size="21" font-weight="bold" text-anchor="middle" fill="#ffffff">${VERSION}</text></svg>`,
+        );
+    </script>
+  </body>
+</html>

@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Title and the version digit on the favicon are set from VERSION at the
+         end of the body. Leave both placeholders alone. -->
+    <title>Wireframe</title>
+    <link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg/%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <style type="text/tailwindcss">
+      @import "tailwindcss";
+
+      /* Studio's light theme, resolved from
+         apps/studio/src/client/styles/globals.css. Regenerate with the command
+         in SKILL.md rather than editing by hand. */
+      @theme {
+        /* sync:start */
+        --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+        --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+
+        --radius: 0.5rem;
+        --radius-sm: calc(var(--radius) - 4px);
+        --radius-md: calc(var(--radius) - 2px);
+        --radius-lg: var(--radius);
+        --radius-xl: calc(var(--radius) + 4px);
+
+        --shadow-sm: 0 2px 4px 0 rgb(10 13 18 / 0.04), 0 1px 2px -1px rgb(10 13 18 / 0.06), 0 0 0 1px rgb(10 13 18 / 0.06);
+        --shadow-xl: 0 12px 24px -4px rgb(10 13 18 / 0.07), 0 6px 10px -6px rgb(10 13 18 / 0.07), 0 0 0 1px rgb(10 13 18 / 0.06);
+
+        --color-gray-25: #fdfdfc;
+        --color-gray-50: #fafaf9;
+        --color-gray-100: #f5f5f4;
+        --color-gray-200: #e7e5e4;
+        --color-gray-300: #d7d3d0;
+        --color-gray-400: #a9a29d;
+        --color-gray-500: #79716b;
+        --color-gray-600: #57534e;
+        --color-gray-700: #44403c;
+        --color-gray-800: #292524;
+        --color-gray-900: #1c1917;
+        --color-gray-950: #171412;
+
+        --color-brand-25: #f1f4f2;
+        --color-brand-50: #e2eae7;
+        --color-brand-100: #c5d5d0;
+        --color-brand-200: #9dbfb6;
+        --color-brand-300: #6ca89c;
+        --color-brand-400: #338c81;
+        --color-brand-500: #0e7869;
+        --color-brand-600: #0b6056;
+        --color-brand-700: #0a4a42;
+        --color-brand-800: #093a34;
+        --color-brand-900: #082c28;
+        --color-brand-950: #051b18;
+
+        --color-error-50: #fbeef0;
+        --color-error-100: #f8e4e8;
+        --color-error-300: #e197a6;
+        --color-error-500: #b4324f;
+        --color-error-700: #7a1f30;
+        --color-error-900: #3f121a;
+
+        --color-warning-50: #fffaeb;
+        --color-warning-100: #fef0c7;
+        --color-warning-300: #fec84b;
+        --color-warning-500: #f79009;
+        --color-warning-700: #b54708;
+        --color-warning-900: #7a2e0e;
+
+        --color-success-50: #e9f5eb;
+        --color-success-100: #d9f1db;
+        --color-success-300: #7dcb87;
+        --color-success-500: #29a845;
+        --color-success-700: #176229;
+        --color-success-900: #0b3216;
+
+        --color-yellow-50: #fdf6e2;
+        --color-yellow-100: #fbebc9;
+        --color-yellow-300: #f1cc8e;
+        --color-yellow-500: #d58f4f;
+        --color-yellow-700: #b26747;
+        --color-yellow-900: #59301e;
+
+        --color-brown-50: #fcfbf8;
+        --color-brown-100: #f6f4f0;
+        --color-brown-300: #e8e3da;
+        --color-brown-500: #bbaa8e;
+        --color-brown-700: #937b5b;
+        --color-brown-900: #564538;
+
+        --color-background: #fafaf9;
+        --color-foreground: #171412;
+        --color-card: #ffffff;
+        --color-popover: #ffffff;
+        --color-primary: #171412;
+        --color-primary-foreground: #ffffff;
+        --color-secondary: #f5f5f4;
+        --color-secondary-foreground: #292524;
+        --color-muted: #f5f5f4;
+        --color-muted-foreground: #79716b;
+        --color-accent: #e7e5e4;
+        --color-accent-foreground: #292524;
+        --color-destructive: #b4324f;
+        --color-border: #e7e5e4;
+        --color-input: #e7e5e4;
+        --color-ring: #a9a29d;
+        /* sync:end */
+      }
+    </style>
+
+    <style>
+      /* A frame is drawn once at true size and shown at whatever scale fits.
+         transform, not zoom: zoom re-runs layout at the smaller size, so text
+         re-wraps and the miniature stops matching the thing it depicts. */
+      .frame {
+        width: calc(var(--w) * var(--s));
+        height: calc(var(--h) * var(--s));
+        overflow: hidden;
+        cursor: zoom-in;
+      }
+      .frame > * {
+        width: var(--w);
+        height: var(--h);
+        transform: scale(var(--s));
+        transform-origin: top left;
+      }
+
+      /* Every tile reserves the same vertical space for its frame, whatever
+         the frame's own aspect ratio, so captions start on the same line
+         down the whole grid rather than only within a row. A frame shorter
+         than the slot is centered in it, not stretched. */
+      .slot {
+        height: var(--slot-h);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      /* A real grid, not wrapped flex: cards in a row share a height, so
+         captions line up and no tile bleeds into its neighbor. */
+      body {
+        overflow-anchor: none;
+      }
+      #rack {
+        display: grid;
+        grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
+        gap: 1.25rem;
+      }
+
+      /* One small floating bar carries what you need to know and the only
+         control worth having. Everything else is canvas. */
+
+      dialog.viewer {
+        width: 100vw;
+        height: 100vh;
+        max-width: none;
+        max-height: none;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        place-items: center;
+      }
+      dialog.viewer[open] {
+        display: grid;
+      }
+      dialog.viewer::backdrop {
+        background: rgb(23 20 18 / 0.85);
+      }
+      /* The enlarged frame stays interactive: only the backdrop dismisses. */
+      dialog.viewer .frame {
+        cursor: default;
+      }
+      @media print {
+        * {
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+        }
+      }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  </head>
+
+  <body class="min-h-screen bg-gray-100 font-sans text-sm text-foreground antialiased">
+    <div
+      id="hud"
+      class="fixed top-4 left-4 z-20 flex max-w-[min(38rem,calc(100vw-2rem))] items-center gap-3 rounded-xl border border-border bg-white/95 px-3 py-2 shadow-sm backdrop-blur"
+    >
+      <div class="min-w-0">
+        <h1 class="truncate text-[13px] leading-tight font-semibold">Model, files and folders in the launcher</h1>
+        <p id="subtitle" class="truncate text-[11px] leading-tight text-muted-foreground"></p>
+      </div>
+      <span id="count" class="shrink-0 border-l border-border pl-3 text-[11px] whitespace-nowrap text-muted-foreground"></span>
+      <div id="views" class="flex shrink-0 items-center gap-0.5 rounded-lg bg-gray-200/70 p-0.5"></div>
+    </div>
+
+    <main>
+      <div id="rack" class="p-6 pt-[4.75rem]"></div>
+    </main>
+
+    <dialog class="viewer"></dialog>
+
+    <script>
+      const VERSION = "1";
+      const SUBTITLE = "Quick capture · four ways to set a model, files and a folder";
+      const W = 640;
+      const H = 340;
+      // Fixed vertical space every tile's frame is centered within, so
+      // captions align across the grid even when frames mix aspect ratios.
+      // Keep this close to what most frames in the file actually measure —
+      // too tall and short frames float in a lot of dead padding.
+      const SLOT_H = 200;
+
+      // ---- the launcher, as it stands today --------------------------------
+
+      /** The panel: a transparent window with one rounded card in it. */
+      const panel = (inner, { dim = false } = {}) => `
+        <div class="relative h-full overflow-hidden rounded-xl border border-border bg-popover">
+          ${inner}
+          ${dim ? `<div class="absolute inset-0 bg-gray-950/25"></div>` : ""}
+        </div>`;
+
+      /** The one search field, which is also where a new task is typed. */
+      const searchRow = (value) => `
+        <div class="flex items-center gap-2.5 border-b border-border px-4 py-3">
+          <i class="ph ph-magnifying-glass text-base text-muted-foreground"></i>
+          <span class="flex-1 truncate text-[15px] ${value ? "" : "text-gray-400"}">${value || "Search tasks, or type to start one…"}</span>
+        </div>`;
+
+      const groupLabel = (text) => `<p class="px-4 pt-2.5 pb-1 text-xs font-medium text-muted-foreground">${text}</p>`;
+
+      /** A row in the list. `selected` is the one Enter acts on. */
+      const row = (icon, label, { selected = false, trailing = "", muted = false } = {}) => `
+        <div class="mx-1.5 flex items-center gap-2.5 rounded-lg px-2.5 py-2 ${selected ? "bg-accent" : ""}">
+          <i class="ph ${icon} text-sm text-muted-foreground/70"></i>
+          <span class="min-w-0 flex-1 truncate text-sm ${muted ? "text-muted-foreground" : ""}">${label}</span>
+          ${trailing ? `<span class="shrink-0 text-xs text-muted-foreground">${trailing}</span>` : ""}
+        </div>`;
+
+      /** The model, drawn the way the app draws a provider + name. */
+      const modelChip = (name = "GPT-5.6 Luna") => `
+        <span class="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+          <i class="ph ph-circles-three text-sm"></i>${name}
+        </span>`;
+
+      /** A keyboard chord, as a pair of caps. */
+      const chord = (...keys) =>
+        `<span class="flex shrink-0 items-center gap-1">${keys
+          .map((k) => `<kbd class="rounded border border-border px-1 py-0.5 font-mono text-[10px] text-muted-foreground">${k}</kbd>`)
+          .join("")}</span>`;
+
+      /** The bar Raycast keeps along the bottom: what Enter does, and the key
+       *  that opens everything else. */
+      const actionBar = (primary, secondary = "Actions") => `
+        <div class="absolute inset-x-0 bottom-0 flex items-center justify-between border-t border-border bg-popover px-3 py-2">
+          <span class="flex items-center gap-1.5 text-xs text-muted-foreground">${primary}${chord("↵")}</span>
+          <span class="flex items-center gap-1.5 text-xs text-muted-foreground">${secondary}${chord("⌘", "K")}</span>
+        </div>`;
+
+      // ---- the frames ------------------------------------------------------
+      // One problem frame, then four ways out of it, then the constraint that
+      // rules some of them out.
+      const states = [
+        {
+          title: "Where it stands",
+          note: "One line, and the model is only shown, never chosen. Files and a folder have nowhere to go at all.",
+          titleClass: "text-foreground",
+          body: panel(`
+            ${searchRow("summarize the deploy logs")}
+            ${groupLabel("Actions")}
+            <div class="mx-1.5 flex items-center gap-2.5 rounded-lg bg-accent px-2.5 py-2">
+              <i class="ph ph-plus text-sm text-muted-foreground/70"></i>
+              <span class="min-w-0 flex-1 truncate text-sm">Start a task with <span class="font-medium">“summarize the deploy logs”</span></span>
+              ${modelChip()}
+            </div>
+            ${row("ph-pencil-simple", "Edit prompt, attach files, pick a model", { muted: true })}
+            <p class="px-4 pt-3 text-xs leading-5 text-error-700">
+              One row for three unrelated things, and it opens a full composer that
+              covers the launcher.
+            </p>
+          `),
+        },
+
+        {
+          title: "A — Actions panel, the way Raycast does it",
+          note: "⌘K opens a list of what you can do to what you typed. Each thing is its own row, so nothing is bundled, and Escape closes just this list.",
+          titleClass: "text-foreground",
+          body: panel(`
+            ${searchRow("summarize the deploy logs")}
+            <div class="opacity-40">
+              ${groupLabel("Actions")}
+              ${row("ph-plus", "Start a task", {})}
+            </div>
+            <div class="absolute right-2 bottom-10 w-72 overflow-hidden rounded-xl border border-border bg-popover shadow-xl">
+              <p class="px-3 pt-2.5 pb-1 text-xs font-medium text-muted-foreground">Actions</p>
+              ${row("ph-arrow-up", "Start a task", { selected: true, trailing: "↵" })}
+              ${row("ph-circles-three", "Change model", { trailing: "⌘M" })}
+              ${row("ph-paperclip", "Attach files", { trailing: "⌘O" })}
+              ${row("ph-folder-simple", "Work in a folder", { trailing: "⌘F" })}
+              <div class="h-1.5"></div>
+            </div>
+            ${actionBar("Start a task")}
+          `),
+        },
+
+        {
+          title: "A (2) — a picker replaces the list, not the panel",
+          note: "Choosing a model reuses the same list and the same keys. You never leave the launcher, so Escape has one meaning: go back one step.",
+          titleClass: "text-foreground",
+          body: panel(`
+            <div class="flex items-center gap-2.5 border-b border-border px-4 py-3">
+              <i class="ph ph-circles-three text-base text-muted-foreground"></i>
+              <span class="flex-1 truncate text-[15px] text-gray-400">Search models…</span>
+              ${chord("esc")}
+            </div>
+            ${groupLabel("Recommended")}
+            ${row("ph-circles-three", "Claude Opus 4.7", { selected: true, trailing: "Anthropic" })}
+            ${row("ph-circles-three", "GPT-5.6 Luna", { trailing: "OpenAI" })}
+            ${row("ph-circles-three", "Claude Haiku 4.5", { trailing: "Anthropic" })}
+            ${actionBar("Use this model", "Back")}
+          `),
+        },
+
+        {
+          title: "B — a settings strip under the input",
+          note: "Always visible, nothing to open. Cheap to build and it fits the one-line shape, but a long file list has nowhere to go and it costs vertical room on every launch.",
+          titleClass: "text-foreground",
+          body: panel(`
+            ${searchRow("summarize the deploy logs")}
+            <div class="flex items-center gap-2 border-b border-border px-3 py-2">
+              <span class="flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs">
+                <i class="ph ph-circles-three text-sm text-muted-foreground"></i>GPT-5.6 Luna
+              </span>
+              <span class="flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">
+                <i class="ph ph-paperclip text-sm"></i>Attach
+              </span>
+              <span class="flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">
+                <i class="ph ph-folder-simple text-sm"></i>Folder
+              </span>
+              <span class="ml-auto">${chord("tab")}</span>
+            </div>
+            ${groupLabel("Actions")}
+            ${row("ph-plus", "Start a task", { selected: true })}
+            <p class="px-4 pt-4 text-xs leading-5 text-muted-foreground">
+              Every launch pays for a row most tasks never use.
+            </p>
+          `),
+        },
+
+        {
+          title: "C — tokens typed into the prompt",
+          note: "No modes at all: the list becomes the picker for whatever token you are on. Fastest once known, and nearly undiscoverable before that.",
+          titleClass: "text-foreground",
+          body: panel(`
+            <div class="flex items-center gap-2.5 border-b border-border px-4 py-3">
+              <i class="ph ph-magnifying-glass text-base text-muted-foreground"></i>
+              <span class="flex-1 truncate text-[15px]">summarize the deploy logs <span class="rounded bg-brand-50 px-1 font-medium text-brand-700">@model</span></span>
+            </div>
+            ${groupLabel("Models")}
+            ${row("ph-circles-three", "Claude Opus 4.7", { selected: true, trailing: "Anthropic" })}
+            ${row("ph-circles-three", "GPT-5.6 Luna", { trailing: "OpenAI" })}
+            <p class="px-4 pt-4 text-xs leading-5 text-muted-foreground">
+              Nothing on screen says <span class="font-mono">@model</span> exists.
+            </p>
+          `),
+        },
+
+        {
+          title: "D — a form you step into",
+          note: "Enter on “Edit” turns the list into fields you arrow through, each opening its own picker. Closest to what a full composer does, and the most to build.",
+          titleClass: "text-foreground",
+          body: panel(`
+            <div class="border-b border-border px-4 py-3">
+              <span class="text-[15px]">summarize the deploy logs</span>
+            </div>
+            ${groupLabel("Task")}
+            ${row("ph-circles-three", "Model", { selected: true, trailing: "GPT-5.6 Luna" })}
+            ${row("ph-paperclip", "Files", { trailing: "None" })}
+            ${row("ph-folder-simple", "Folder", { trailing: "None" })}
+            ${row("ph-cards-three", "Project", { trailing: "None" })}
+            ${actionBar("Start a task", "Back")}
+          `),
+        },
+
+        {
+          w: 640,
+          h: 300,
+          title: "The constraint that decides it",
+          note: "Attaching anything opens a native dialog, which takes focus. Any design that closes on focus loss — today's sheet included — dismisses itself the moment it is used. A picker inside the list never leaves the window, so it never has to survive this.",
+          titleClass: "text-error-700",
+          body: `
+            <div class="flex h-full items-center gap-4 bg-gray-50 p-5">
+              <div class="flex-1 rounded-xl border border-error-300 bg-white p-4">
+                <p class="text-sm font-medium text-error-700">Closes on blur</p>
+                <ul class="mt-2 space-y-1.5 text-xs leading-5 text-muted-foreground">
+                  <li>Today's composer sheet</li>
+                  <li>Anything modal over the panel</li>
+                </ul>
+                <p class="mt-3 text-xs leading-5 text-error-700">
+                  Opening the file picker dismisses it, and the choice is lost.
+                </p>
+              </div>
+              <i class="ph ph-arrow-right text-lg text-muted-foreground"></i>
+              <div class="flex-1 rounded-xl border border-success-300 bg-white p-4">
+                <p class="text-sm font-medium text-success-700">Survives it</p>
+                <ul class="mt-2 space-y-1.5 text-xs leading-5 text-muted-foreground">
+                  <li>A · actions panel</li>
+                  <li>B · settings strip</li>
+                  <li>D · form</li>
+                </ul>
+                <p class="mt-3 text-xs leading-5 text-success-700">
+                  State lives in the launcher, so a dialog can come and go.
+                </p>
+              </div>
+            </div>`,
+        },
+      ];
+
+      // ---- render ----------------------------------------------------------
+      const rack = document.querySelector("#rack");
+
+      rack.innerHTML = states
+        .map(
+          (state, i) => `
+        <figure class="tile m-0 flex flex-col overflow-hidden rounded-xl bg-white p-3 shadow-sm">
+          <div class="slot" style="--slot-h:${SLOT_H}px">
+            <div class="frame overflow-hidden rounded-lg ring-1 ring-black/5" data-label="${i + 1} · ${state.title}" data-w="${state.w || W}" data-h="${state.h || H}" style="--w:${state.w || W}px; --h:${state.h || H}px">
+              <div>${state.body}</div>
+            </div>
+          </div>
+          <figcaption class="mt-3 text-xs leading-5 text-muted-foreground">
+            <span class="mr-1.5 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-600">${i + 1}</span><span class="font-medium ${state.titleClass}">${state.title}.</span> ${state.note}
+          </figcaption>
+        </figure>`,
+        )
+        .join("");
+
+      document.querySelector("#count").textContent = `${states.length} frames`;
+
+      document.querySelector("#subtitle").textContent = SUBTITLE;
+
+      // ---- density ---------------------------------------------------------
+      // Fit as many tiles per row as the width allows, then derive the scale
+      // from the tile. Frames never render above their true size.
+      const TILE_MIN = 330;
+      const GAP = 20;
+      const PAD = 26; // card padding plus borders
+      let single = false;
+
+      const layout = () => {
+        const avail = rack.clientWidth - 48;
+        if (avail <= 0) return;
+        const columns = single ? 1 : Math.max(1, Math.floor((avail + GAP) / (TILE_MIN + GAP)));
+        const inner = (avail - GAP * (columns - 1)) / columns - PAD;
+        rack.style.setProperty("--cols", columns);
+        for (const frame of rack.querySelectorAll(".frame")) {
+          const s = Math.min(inner / Number(frame.dataset.w), SLOT_H / Number(frame.dataset.h), 1);
+          frame.style.setProperty("--s", Math.max(0.05, s));
+        }
+      };
+
+      new ResizeObserver(layout).observe(rack);
+      layout();
+
+      // ---- view mode -------------------------------------------------------
+      const VIEWS = [
+        ["grid", "ph-squares-four", "Grid"],
+        ["single", "ph-rows", "One per row"],
+      ];
+      const viewBox = document.querySelector("#views");
+
+      const paintViews = () => {
+        viewBox.innerHTML = VIEWS.map(
+          ([key, icon, title]) => `
+          <button data-view="${key}" title="${title}" class="grid size-7 place-items-center rounded-md ${
+            (key === "single") === single ? "bg-white text-foreground shadow-sm" : "text-muted-foreground"
+          }"><i class="ph ${icon}"></i></button>`,
+        ).join("");
+      };
+      paintViews();
+
+      viewBox.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-view]");
+        if (!button) return;
+        single = button.dataset.view === "single";
+        paintViews();
+        layout();
+      });
+
+      // ---- enlarge ---------------------------------------------------------
+      const viewer = document.querySelector("dialog.viewer");
+      let openIndex = -1;
+
+      /** Enlarges the frame at `index`, caption below it. Also how ←/→ move
+       *  to the next one, so the dialog never has to close and reopen to
+       *  browse the set. */
+      const showFrame = (index) => {
+        const state = states[index];
+        const tile = rack.querySelectorAll(".frame")[index];
+        if (!tile) return;
+        openIndex = index;
+        const clone = tile.cloneNode(true);
+        clone.style.setProperty(
+          "--s",
+          Math.min((innerWidth * 0.95) / Number(tile.dataset.w), (innerHeight * 0.95) / Number(tile.dataset.h)),
+        );
+        const caption = document.createElement("p");
+        caption.className = "mt-4 max-w-[min(90vw,44rem)] text-center text-sm leading-5 text-white";
+        caption.innerHTML = `<span class="mr-1.5 rounded bg-white/15 px-1.5 py-0.5 font-mono text-[10px] text-white/80">${index + 1}</span><span class="font-medium">${state.title}.</span> <span class="text-white/80">${state.note}</span>`;
+        const stack = document.createElement("div");
+        stack.className = "flex flex-col items-center";
+        stack.append(clone, caption);
+        viewer.replaceChildren(stack);
+        if (!viewer.open) viewer.showModal();
+      };
+
+      rack.addEventListener("click", (event) => {
+        const frame = event.target.closest(".frame");
+        if (!frame) return;
+        showFrame([...rack.querySelectorAll(".frame")].indexOf(frame));
+      });
+
+      viewer.addEventListener("click", (event) => {
+        if (event.target === viewer) viewer.close();
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (!viewer.open || (event.key !== "ArrowRight" && event.key !== "ArrowLeft")) return;
+        event.preventDefault();
+        const step = event.key === "ArrowRight" ? 1 : -1;
+        showFrame((openIndex + step + states.length) % states.length);
+      });
+
+      // ---- tab identity ----------------------------------------------------
+      const heading = document.querySelector("h1").textContent.trim();
+      document.title = `v${VERSION} · ${heading}`;
+      document.querySelector("#favicon").href =
+        "data:image/svg+xml," +
+        encodeURIComponent(
+          `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0e7869"/><text x="16" y="24" font-family="Helvetica,Arial,sans-serif" font-size="21" font-weight="bold" text-anchor="middle" fill="#ffffff">${VERSION}</text></svg>`,
+        );
+    </script>
+  </body>
+</html>

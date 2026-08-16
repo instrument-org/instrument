@@ -267,8 +267,15 @@ export function ModelPicker({
           <CaretDownIcon className="size-3 shrink-0" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-80 p-0">
-        <Command shouldFilter={false}>
+      {/* Capped at the room the popover actually has, so the model list scrolls
+          inside it instead of running off the screen. It only bites in a short
+          window -- the quick capture panel is a few hundred pixels tall -- and
+          leaves a full-height window looking exactly as it did. */}
+      <PopoverContent
+        align="start"
+        className="flex max-h-(--radix-popover-content-available-height) w-80 flex-col p-0"
+      >
+        <Command className="min-h-0 flex-1" shouldFilter={false}>
           <AutoModeSwitch
             autoModel={autoModel}
             checked={isAutoMode}
@@ -295,7 +302,7 @@ export function ModelPicker({
           )}
           <CommandList
             className={cn(
-              "max-h-none! overflow-visible!",
+              "max-h-none! min-h-0 flex-1 overflow-y-auto!",
               hideModelList && "hidden",
             )}
           >

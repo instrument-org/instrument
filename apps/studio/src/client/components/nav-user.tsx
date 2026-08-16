@@ -17,7 +17,7 @@ import { useLiveSubscriptionStatus } from "../hooks/use-live-subscription-status
 import { useLiveUser } from "../hooks/use-live-user";
 
 const rowClassName =
-  "flex w-full items-center gap-3 pr-5 pl-4 hover:bg-black/5 dark:hover:bg-white/5";
+  "flex w-full items-center gap-3 pr-5 pl-4 outline-hidden hover:bg-black/5 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sidebar-ring focus-visible:[outline-style:solid] dark:hover:bg-white/5";
 
 export function NavUser() {
   // Resolves from the main process without an API round trip, so it settles

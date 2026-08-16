@@ -52,13 +52,14 @@ export const STEP_RUN = "-my-1 flex flex-col";
  * - `gap-2` is the space between the indicator and the label. `PlanningDotSlot`
  *   cancels this exact value when its dot leaves, so it is not free to change on
  *   its own.
+ * - `rounded-lg` gives every interactive row the same focus-outline shape.
  * - No height and no leading override. The label's own 20px line box holds the
  *   row, and it is the same 20px a tool icon and the planning dot each take, so
  *   every row is 20px of content whatever is in it.
  * - `group/run-row` is the hover target the labels and chevrons read.
  */
 export const TRANSCRIPT_ROW =
-  "group/run-row flex min-w-0 items-center gap-2 py-1";
+  "group/run-row flex min-w-0 items-center gap-2 rounded-lg py-1";
 
 /**
  * The box around a run of steps and the head line over it.

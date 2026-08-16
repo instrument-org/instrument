@@ -46,6 +46,15 @@ body {
   background: var(--background);
 }
 
+@layer base {
+  /* Plain focusable primitives share the muted theme ring used by designed
+     controls; component utilities can still override its geometry or color. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 0;
+  }
+}
+
 /* =========================
    BASELINE THEME VARIABLES 🎨
    ========================= */

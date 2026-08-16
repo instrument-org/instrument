@@ -103,7 +103,7 @@ export function MediaCardShell({
               a bare `button` reachable by position and nothing else. */}
           <button
             aria-label={`Open ${file.filename}`}
-            className="absolute inset-0 z-0 size-full"
+            className="absolute inset-0 z-0 size-full rounded-2xl outline-hidden focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:[outline-style:solid]"
             onClick={onClick}
             type="button"
           />

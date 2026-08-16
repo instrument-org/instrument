@@ -9,9 +9,11 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as OverlayRouteRouteImport } from './routes/overlay/route'
 import { Route as OnboardingRouteRouteImport } from './routes/onboarding/route'
 import { Route as AppRouteRouteImport } from './routes/_app/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as OverlayIndexRouteImport } from './routes/overlay/index'
 import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
 import { Route as OnboardingThemeRouteImport } from './routes/onboarding/theme'
 import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
@@ -48,6 +50,11 @@ import { Route as AppDebugComponentsOnboardingProvidersRouteImport } from './rou
 import { Route as AppDebugComponentsOnboardingLoginRouteImport } from './routes/_app/debug/components/onboarding/login'
 import { Route as AppDebugComponentsOnboardingCompleteRouteImport } from './routes/_app/debug/components/onboarding/complete'
 
+const OverlayRouteRoute = OverlayRouteRouteImport.update({
+  id: '/overlay',
+  path: '/overlay',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OnboardingRouteRoute = OnboardingRouteRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
@@ -61,6 +68,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const OverlayIndexRoute = OverlayIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => OverlayRouteRoute,
 } as any)
 const OnboardingIndexRoute = OnboardingIndexRouteImport.update({
   id: '/',
@@ -255,6 +267,7 @@ const AppDebugComponentsOnboardingCompleteRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/onboarding': typeof OnboardingRouteRouteWithChildren
+  '/overlay': typeof OverlayRouteRouteWithChildren
   '/debug': typeof AppDebugRouteRouteWithChildren
   '/skills': typeof AppSkillsRouteRouteWithChildren
   '/new-tab': typeof AppNewTabRoute
@@ -263,6 +276,7 @@ export interface FileRoutesByFullPath {
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/onboarding/': typeof OnboardingIndexRoute
+  '/overlay/': typeof OverlayIndexRoute
   '/subscribe': typeof AppAuthenticatedSubscribeRoute
   '/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/debug/components': typeof AppDebugComponentsRouteWithChildren
@@ -298,6 +312,7 @@ export interface FileRoutesByTo {
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/onboarding': typeof OnboardingIndexRoute
+  '/overlay': typeof OverlayIndexRoute
   '/subscribe': typeof AppAuthenticatedSubscribeRoute
   '/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/debug/errors': typeof AppDebugErrorsRoute
@@ -328,6 +343,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_app': typeof AppRouteRouteWithChildren
   '/onboarding': typeof OnboardingRouteRouteWithChildren
+  '/overlay': typeof OverlayRouteRouteWithChildren
   '/_app/_authenticated': typeof AppAuthenticatedRouteRouteWithChildren
   '/_app/debug': typeof AppDebugRouteRouteWithChildren
   '/_app/skills': typeof AppSkillsRouteRouteWithChildren
@@ -337,6 +353,7 @@ export interface FileRoutesById {
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/onboarding/': typeof OnboardingIndexRoute
+  '/overlay/': typeof OverlayIndexRoute
   '/_app/_authenticated/subscribe': typeof AppAuthenticatedSubscribeRoute
   '/_app/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/_app/debug/components': typeof AppDebugComponentsRouteWithChildren
@@ -369,6 +386,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/onboarding'
+    | '/overlay'
     | '/debug'
     | '/skills'
     | '/new-tab'
@@ -377,6 +395,7 @@ export interface FileRouteTypes {
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/onboarding/'
+    | '/overlay/'
     | '/subscribe'
     | '/debug/browser-views'
     | '/debug/components'
@@ -412,6 +431,7 @@ export interface FileRouteTypes {
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/onboarding'
+    | '/overlay'
     | '/subscribe'
     | '/debug/browser-views'
     | '/debug/errors'
@@ -441,6 +461,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_app'
     | '/onboarding'
+    | '/overlay'
     | '/_app/_authenticated'
     | '/_app/debug'
     | '/_app/skills'
@@ -450,6 +471,7 @@ export interface FileRouteTypes {
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/onboarding/'
+    | '/overlay/'
     | '/_app/_authenticated/subscribe'
     | '/_app/debug/browser-views'
     | '/_app/debug/components'
@@ -482,10 +504,18 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRouteRoute: typeof AppRouteRouteWithChildren
   OnboardingRouteRoute: typeof OnboardingRouteRouteWithChildren
+  OverlayRouteRoute: typeof OverlayRouteRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/overlay': {
+      id: '/overlay'
+      path: '/overlay'
+      fullPath: '/overlay'
+      preLoaderRoute: typeof OverlayRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/onboarding': {
       id: '/onboarding'
       path: '/onboarding'
@@ -506,6 +536,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/overlay/': {
+      id: '/overlay/'
+      path: '/'
+      fullPath: '/overlay/'
+      preLoaderRoute: typeof OverlayIndexRouteImport
+      parentRoute: typeof OverlayRouteRoute
     }
     '/onboarding/': {
       id: '/onboarding/'
@@ -903,10 +940,23 @@ const OnboardingRouteRouteWithChildren = OnboardingRouteRoute._addFileChildren(
   OnboardingRouteRouteChildren,
 )
 
+interface OverlayRouteRouteChildren {
+  OverlayIndexRoute: typeof OverlayIndexRoute
+}
+
+const OverlayRouteRouteChildren: OverlayRouteRouteChildren = {
+  OverlayIndexRoute: OverlayIndexRoute,
+}
+
+const OverlayRouteRouteWithChildren = OverlayRouteRoute._addFileChildren(
+  OverlayRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRouteRoute: AppRouteRouteWithChildren,
   OnboardingRouteRoute: OnboardingRouteRouteWithChildren,
+  OverlayRouteRoute: OverlayRouteRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

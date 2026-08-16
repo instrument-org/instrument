@@ -28,6 +28,9 @@ interface PublisherEvents {
   "browser.targets-changed": null;
   "debug.browser-view-manager.updated": null;
   "features.updated": null;
+  // The quick capture panel was dismissed, as opposed to merely losing focus
+  // or being covered by a dialog. Only main can tell those apart.
+  "overlay.dismissed": null;
   "preferences.updated": null;
   "provider-config.updated": null;
   "server-exception": {

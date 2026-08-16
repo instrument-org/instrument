@@ -7,6 +7,7 @@ import { debug } from "./debug";
 import { features } from "./features";
 import { gateway } from "./gateway";
 import { onboarding } from "./onboarding";
+import { overlay } from "./overlay";
 import { plans } from "./plans";
 import { preferences } from "./preferences";
 import { providerConfig } from "./provider-config";
@@ -26,6 +27,7 @@ export const router = {
   features,
   gateway,
   onboarding,
+  overlay,
   plans,
   preferences,
   providerConfig,

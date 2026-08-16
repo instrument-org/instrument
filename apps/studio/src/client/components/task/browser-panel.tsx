@@ -156,14 +156,22 @@ export function TaskBrowserPanel({
   // Targets this panel has already auto-opened, so a reap (active -> false)
   // doesn't re-create the guest in a loop and defeat the reaper. After a reap
   // the user re-opens explicitly via the "Reopen browser" button.
+  //
+  // Held until the pane has finished sliding. Opening a target ends in the
+  // renderer mounting a `<webview>`, which costs a WebContents and a compositor
+  // surface -- work in the browser and GPU processes that the host cannot yield
+  // around, so it drops whatever frames are left in the slide. It is a
+  // once-per-target cost, which is why only the open that creates the guest ever
+  // stutters. Nothing is lost by waiting: this panel shows the same "Opening
+  // browser..." state for the round trip either way.
   const autoOpenedRef = useRef<Set<BrowserTargetId>>(new Set());
   useEffect(() => {
-    if (active || autoOpenedRef.current.has(targetId)) {
+    if (sliding || active || autoOpenedRef.current.has(targetId)) {
       return;
     }
     autoOpenedRef.current.add(targetId);
     openBrowser({ id: taskId, sessionId });
-  }, [active, openBrowser, sessionId, targetId, taskId]);
+  }, [active, openBrowser, sessionId, sliding, targetId, taskId]);
 
   // Mirror the guest's URL + nav availability into the controls (it navigates
   // from agent CDP commands too, not just user input), and track main-frame

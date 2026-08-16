@@ -98,8 +98,16 @@ export function TaskPaneSplit({
   // animate.
   const [isMounted, setIsMounted] = useState(isPaneOpen);
   const [isSliding, setIsSliding] = useState(false);
+  // Declared here rather than left to the layout effect below, which is where
+  // every other slide starts. A child's effects run before its parent's, so the
+  // pane's contents mount and act one commit before that effect gets to say a
+  // slide is running -- and what they do on mount is the expensive part (see the
+  // browser panel, which spawns a WebContents). The runs that arrive at a state
+  // instead of animating clear this in `settle`, in the same commit, so nothing
+  // is drawn as sliding that isn't.
   if (isPaneOpen && !isMounted) {
     setIsMounted(true);
+    setIsSliding(true);
   }
 
   // Read the latest share from inside the effects without making it a

@@ -108,6 +108,7 @@ const FEATURE_CODES: Record<FeatureName, string> = {
   context_ring: "c",
   external_browser: "x",
   prompt_queue: "q",
+  quick_capture_overlay: "k",
   skills: "s",
 };
 

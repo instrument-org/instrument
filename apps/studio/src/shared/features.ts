@@ -5,6 +5,7 @@ export const FeatureNameSchema = z.enum([
   "context_ring",
   "external_browser",
   "prompt_queue",
+  "quick_capture_overlay",
   "skills",
 ]);
 export type FeatureName = z.output<typeof FeatureNameSchema>;
@@ -35,6 +36,11 @@ export const FEATURE_METADATA: Record<
     description:
       "Queue follow-up prompts while the agent is running; each is sent automatically when the current turn finishes.",
     title: "Prompt Queue",
+  },
+  quick_capture_overlay: {
+    description:
+      "Summon a floating panel from anywhere with Option+Space to start a task, switch between tasks, and read a transcript without opening the main window.",
+    title: "Quick Capture Overlay",
   },
   skills: {
     description:

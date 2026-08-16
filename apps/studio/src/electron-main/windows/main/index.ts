@@ -30,6 +30,10 @@ import {
   getOrCreateMainWindow,
   setMainWindow,
 } from "@/electron-main/windows/main/instance";
+import {
+  destroyQuickCaptureOverlay,
+  getQuickCaptureOverlayWindow,
+} from "@/electron-main/windows/overlay";
 import { is } from "@electron-toolkit/utils";
 import { type BaseWindow, BrowserWindow } from "electron";
 import path from "node:path";
@@ -176,6 +180,10 @@ async function createMainWindowInstance() {
     debouncedSaveState.cancel();
     saveState();
     clearMainWindow(mainWindow);
+    // A hidden window still counts as one, so leaving the overlay behind would
+    // stop `window-all-closed` firing and keep the app running with nothing on
+    // screen.
+    destroyQuickCaptureOverlay();
   });
 
   // Windows delivers mouse thumb buttons (back/forward) as native app-commands
@@ -244,9 +252,15 @@ async function createMainWindowInstance() {
 }
 
 // Whether closing this window ends the app. A window is still listed while its
-// own `close` is being handled, so the last one sees a count of 1.
+// own `close` is being handled, so the last one sees a count of 1. The quick
+// capture overlay does not count: it spends most of its life hidden, and it is
+// torn down with this window rather than keeping the app alive on its own.
 function isLastWindow() {
-  return BrowserWindow.getAllWindows().length <= 1;
+  const overlayWindow = getQuickCaptureOverlayWindow();
+  return (
+    BrowserWindow.getAllWindows().filter((window) => window !== overlayWindow)
+      .length <= 1
+  );
 }
 
 function isWindowNormal(mainWindow: BrowserWindow) {

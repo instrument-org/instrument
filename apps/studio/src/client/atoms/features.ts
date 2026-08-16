@@ -9,6 +9,7 @@ const defaultFeatures: Features = {
   context_ring: false,
   external_browser: false,
   prompt_queue: false,
+  quick_capture_overlay: false,
   skills: false,
 };
 

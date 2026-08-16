@@ -15,7 +15,7 @@ declare global {
       homeDir: string;
       // Dev-only: forward a renderer log entry to the main-process dev log.
       rendererLog?: (entry: { args: unknown[]; level: string }) => void;
-      windowType?: "main" | "onboarding";
+      windowType?: "main" | "onboarding" | "overlay";
     };
     electron: ElectronAPI;
   }

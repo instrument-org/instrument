@@ -8,6 +8,7 @@ import { initBrowserPool } from "./lib/browser-pool";
 import { initDebugRpcBridge } from "./lib/debug-rpc-bridge";
 import { initRendererLogForwarding } from "./lib/forward-renderer-logs";
 import { initStudioDrive } from "./lib/studio-drive";
+import { OverlayApp } from "./overlay-app";
 
 declare global {
   var __studioRoot: Root | undefined;
@@ -27,8 +28,18 @@ if (rootElement) {
 
   // The main window hosts the whole tabbed app in this one web contents
   // (MainWindow). The onboarding web contents keeps using the single-router App.
-  const isMainWindow = window.api.windowType === "main";
-  root.render(isMainWindow ? <MainWindow /> : <App />);
+  // Quick capture gets its own root: same router, no shared zoom (see OverlayApp).
+  const windowType = window.api.windowType;
+  const isMainWindow = windowType === "main";
+  root.render(
+    isMainWindow ? (
+      <MainWindow />
+    ) : windowType === "overlay" ? (
+      <OverlayApp />
+    ) : (
+      <App />
+    ),
+  );
 
   if (isMainWindow) {
     // Subscribe the browser webview pool to main-process mount/unmount

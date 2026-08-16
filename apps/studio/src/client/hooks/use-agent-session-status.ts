@@ -3,10 +3,9 @@ import {
   type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { skipToken } from "@tanstack/react-query";
 
-import { rpcClient } from "../rpc/client";
-import { useTaskAgentStatus } from "./use-task-agent-status";
+import { useTaskActivity } from "./use-task-agent-status";
 
 /**
  * Derives agent status for a specific session within a task app.
@@ -23,19 +22,13 @@ export function useAgentSessionStatus({
   isReplayActive?: boolean;
   sessionId: StoreId.Session | typeof skipToken | undefined;
 }) {
-  const { data: taskAgentStatus } = useTaskAgentStatus({ id });
-  const sessionActors = taskAgentStatus?.sessionActors ?? [];
-
-  const { data: replayStatus } = useQuery(
-    rpcClient.workspace.replay.live.statusByTaskId.experimental_liveOptions({
-      input: sessionId && sessionId !== skipToken ? { id } : skipToken,
-    }),
-  );
+  const { data: taskActivity } = useTaskActivity({ id });
+  const sessionActors = taskActivity?.sessionActors ?? [];
   const isReplayActiveForSession =
     isReplayActive ||
     (!!sessionId &&
       sessionId !== skipToken &&
-      (replayStatus?.activeSessionIds.includes(sessionId) ?? false));
+      (taskActivity?.activeReplaySessionIds.includes(sessionId) ?? false));
 
   if (!sessionId || sessionId === skipToken) {
     return { isAgentAlive: isReplayActive, isAgentRunning: isReplayActive };

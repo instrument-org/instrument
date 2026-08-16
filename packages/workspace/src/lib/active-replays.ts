@@ -25,6 +25,12 @@ export const ActiveReplays = {
     }
     return result;
   },
+  getActiveSessions() {
+    return [...activeReplays].map(([sessionId, entry]) => ({
+      id: entry.id,
+      sessionId,
+    }));
+  },
   getTaskId(sessionId: StoreId.Session): TaskId | undefined {
     return activeReplays.get(sessionId)?.id;
   },

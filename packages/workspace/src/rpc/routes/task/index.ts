@@ -48,6 +48,7 @@ import { TaskIdSchema } from "../../../schemas/task-id";
 import { TaskSettingsUpdateSchema } from "../../../schemas/task-settings";
 import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
+import { liveTaskActivity, taskActivity } from "./activity";
 import { taskAgentStatus } from "./agent-status";
 import { taskFiles } from "./files";
 import { taskState } from "./state";
@@ -717,6 +718,7 @@ const liveUsageSummary = base
   });
 
 export const task = {
+  activity: taskActivity,
   agentStatus: taskAgentStatus,
   branch,
   byId,
@@ -730,6 +732,7 @@ export const task = {
   list,
   live: {
     ...live,
+    activity: liveTaskActivity,
     usageSummary: liveUsageSummary,
   },
   markUnread,

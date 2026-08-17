@@ -106,9 +106,9 @@ describe("browser state", () => {
     });
     await recordBrowserUse({ sessionId, taskId, url: "https://example.org" });
 
-    expect(
-      (await getBrowserState(taskId, sessionId))._unsafeUnwrap(),
-    ).toMatchObject({ lastTitle: undefined, lastUrl: "https://example.org" });
+    const state = await getBrowserState(taskId, sessionId);
+    expect(state._unsafeUnwrap()?.lastTitle).toBeUndefined();
+    expect(state._unsafeUnwrap()?.lastUrl).toBe("https://example.org");
   });
 
   it("preserves the last known page when a later observation has none", async () => {

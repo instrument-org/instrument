@@ -15,12 +15,19 @@ import { reconcileProjectFolders } from "./reconcile-project-folders";
 import { Store } from "./store";
 import { taskDir } from "./task-dir-utils";
 import { getTaskState, setTaskState } from "./task-record";
+import { getTaskSettings } from "./task-settings";
 import { effectiveFolderAccess } from "./workspace-fs-layout";
 
 /**
- * Compares the live project against the task's frozen project snapshot (folded
- * with any earlier changes) when a user message is sent, and reports drift in
- * instructions or attached folders. No watcher: a single read at send time.
+ * Compares the live project against what the task last took from it when a user
+ * message is sent, and reports drift in instructions or attached folders. No
+ * watcher: a single read at send time.
+ *
+ * Which project, if any, is the task's own settings. The frozen snapshot in its
+ * transcript answers only what the agent was told, which is not the same
+ * question: a task moved into a project has no snapshot and would never take on
+ * its folders, and one moved out keeps its snapshot and would go on tracking a
+ * project it has left.
  *
  * Folder additions, removals, and access changes are applied to the task's
  * attached folders here so they become standing context; the returned
@@ -29,14 +36,13 @@ import { effectiveFolderAccess } from "./workspace-fs-layout";
  * state and so reports one however it was made. Which of the two sides an
  * inherited folder follows is settled by reconcileProjectFolders, not here: a
  * task may edit what it inherited, and the later edit is the one that holds.
- * Because instructions
- * are read from the latest change part and folders from task state, an
- * already-reported change won't re-announce on the next message. Names for the whole surviving+new folder set are
- * recomputed on every run, even with nothing added/removed -- cheap and
- * idempotent, so it also corrects any folder named under an earlier version of
- * assignMountNames without a separate migration. Returns undefined for
- * non-project tasks, the first message (snapshot not yet persisted), a deleted
- * project, or no change.
+ * Because instructions are read from the latest change part and folders from
+ * task state, an already-reported change won't re-announce on the next message.
+ * Names for the whole surviving+new folder set are recomputed on every run, even
+ * with nothing added/removed -- cheap and idempotent, so it also corrects any
+ * folder named under an earlier version of assignMountNames without a separate
+ * migration. Returns undefined for a task in no project, the first message of a
+ * session, a deleted project, or no change.
  */
 export function detectProjectChanges({
   messageId,
@@ -56,17 +62,26 @@ export function detectProjectChanges({
         { signal },
       );
 
-      const effective = getEffectiveProjectContext(
-        messages.flatMap((message) => message.parts),
-      );
-      // No snapshot: not a project task, or the first message hasn't persisted
-      // its snapshot yet. Either way there is no baseline to diff against.
-      if (!effective) {
+      // Nothing persisted yet is the first message of a session, whose own
+      // parts are not written until after this runs. There is no earlier state
+      // to diff against, and the snapshot it is about to carry is the baseline
+      // for the next one.
+      if (messages.length === 0) {
         return ok(undefined);
       }
 
-      const projectResult = await getProject(effective.projectId);
-      // Project deleted/unreadable: the snapshot keeps the task working;
+      // Membership is the task's settings, not the snapshot in its transcript:
+      // a task moved into a project has no snapshot and would never take on its
+      // folders, and one moved out keeps its snapshot and would go on tracking
+      // a project it has left.
+      const dir = taskDir(taskId);
+      const settings = await getTaskSettings(dir);
+      if (!settings?.projectId) {
+        return ok(undefined);
+      }
+
+      const projectResult = await getProject(settings.projectId);
+      // Project deleted/unreadable: the task keeps working with what it has;
       // orphaned references are swept elsewhere. Nothing to report here.
       if (projectResult.isErr()) {
         return ok(undefined);
@@ -80,12 +95,18 @@ export function detectProjectChanges({
       const liveInstructions = normalizeProjectInstructions(
         project.instructions,
       );
-      const effectiveInstructions = normalizeProjectInstructions(
-        effective.instructions ?? "",
+      const effective = getEffectiveProjectContext(
+        messages.flatMap((message) => message.parts),
       );
-      const instructionsChanged = liveInstructions !== effectiveInstructions;
+      // Without a snapshot there is no record of which instructions this session
+      // was told, so there is nothing to call a change. The folders below still
+      // reconcile, and the session context carries the current instructions on
+      // its next rebuild.
+      const instructionsChanged =
+        effective !== undefined &&
+        liveInstructions !==
+          normalizeProjectInstructions(effective.instructions ?? "");
 
-      const dir = taskDir(taskId);
       const taskState = await getTaskState(dir);
       const attachedFolders = taskState.attachedFolders ?? {};
 

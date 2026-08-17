@@ -11,6 +11,8 @@ import {
   setProjectFolderAccess,
   updateProject,
 } from "../../../lib/project";
+import { taskDir } from "../../../lib/task-dir-utils";
+import { getTaskState, setTaskState } from "../../../lib/task-record";
 import { updateTaskSettings } from "../../../lib/task-settings";
 import { FolderAttachment } from "../../../schemas/folder-attachment";
 import { ProjectFolderSchema, ProjectSchema } from "../../../schemas/project";
@@ -111,6 +113,24 @@ const removeTask = base
     const result = await updateTaskSettings(input.taskId, { projectId: null });
     if (result.isErr()) {
       throw toORPCError(result.error, errors);
+    }
+
+    // The folders it inherited become its own. Detaching them instead would
+    // take the work's material away mid-task, and leaving them marked as the
+    // project's would describe them to the agent as coming from a project this
+    // task is no longer in. The baseline goes with the project it described.
+    const dir = taskDir(input.taskId);
+    const state = await getTaskState(dir);
+    if (state.attachedFolders) {
+      await setTaskState(dir, {
+        attachedFolders: Object.fromEntries(
+          Object.entries(state.attachedFolders).map(([mountName, folder]) => [
+            mountName,
+            { ...folder, source: "user" as const },
+          ]),
+        ),
+        projectFolderBaseline: {},
+      });
     }
     publisher.publish("project.updated", null);
     context.workspaceConfig.captureEvent("project.task_removed");

@@ -5,6 +5,7 @@ import {
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { displayPath, folderNameFromPath } from "@/client/lib/path-utils";
 import { rpcClient } from "@/client/rpc/client";
+import { APP_NAME } from "@instrument-org/shared";
 import { type FolderAttachment } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -61,7 +62,10 @@ export function FolderAttachmentRow({
   };
 
   return (
-    <div className="flex items-center gap-1.5 pr-1">
+    // pr-1.5 lands the × on the same glyph column as the collapse chevrons in
+    // the section headings above it, which the button's own hit area otherwise
+    // pushes two pixels past.
+    <div className="flex items-center gap-1.5 pr-1.5">
       {/* px-3 is what puts the folder icon under the section heading above it,
           on the same keyline as the file rows. */}
       <SidebarMenuButton
@@ -113,17 +117,17 @@ export function FolderAttachmentRow({
           >
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>{`Remove "${name}"?`}</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {`Remove “${name}” from this task?`}
+                </AlertDialogTitle>
                 <AlertDialogDescription>
-                  The agent loses access to this folder here. Nothing is deleted
-                  and the folder stays where it is on your computer.
+                  {APP_NAME} will lose access to the folder within this task.
+                  The folder on your computer will not be changed or deleted.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={onRemove}>
-                  {removeLabel}
-                </AlertDialogAction>
+                <AlertDialogAction onClick={onRemove}>Remove</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>

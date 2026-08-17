@@ -50,13 +50,11 @@ describe("FolderAttachmentRow", () => {
 
     const confirm = screen.getByRole("alertdialog");
     expect(confirm.textContent).toMatchInlineSnapshot(
-      `"Remove "Downloads"?The agent loses access to this folder here. Nothing is deleted and the folder stays where it is on your computer.CancelRemove from task"`,
+      `"Remove “Downloads” from this task?Instrument will lose access to the folder within this task. The folder on your computer will not be changed or deleted.CancelRemove"`,
     );
     expect(onRemove).not.toHaveBeenCalled();
 
-    fireEvent.click(
-      within(confirm).getByRole("button", { name: "Remove from task" }),
-    );
+    fireEvent.click(within(confirm).getByRole("button", { name: "Remove" }));
 
     expect(onRemove).toHaveBeenCalledOnce();
   });

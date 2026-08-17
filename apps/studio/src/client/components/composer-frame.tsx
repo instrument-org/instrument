@@ -45,7 +45,7 @@ export function ComposerFrame({
         // relative also lifts the box over the folder tray tucked under its top
         // edge.
         "relative isolate grid min-h-16 w-full grid-rows-[auto_minmax(3rem,1fr)_auto] rounded-[20px] p-4",
-        "bg-white shadow-xs-soft transition-shadow dark:bg-gray-800",
+        "bg-white shadow-sm-soft transition-shadow dark:bg-gray-800",
         "focus-within:ring-1 focus-within:ring-black/5 dark:focus-within:ring-white/5",
       )}
       data-slot="composer-frame"

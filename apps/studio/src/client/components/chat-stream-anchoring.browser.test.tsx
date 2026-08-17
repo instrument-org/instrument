@@ -39,6 +39,32 @@ const task: Task = {
   updatedAt: new Date(0),
 };
 
+/** The row that opens a named phase, as its own assistant message. */
+function activityStep(title: string) {
+  return {
+    id: StoreId.newMessageId(),
+    metadata: { createdAt: new Date(0), sessionId },
+    parts: [
+      {
+        input: { title },
+        metadata: {
+          createdAt: new Date(0),
+          endedAt: new Date(2),
+          id: StoreId.newPartId(),
+          messageId: StoreId.newMessageId(),
+          sessionId,
+          startedAt: new Date(1),
+        },
+        output: {},
+        state: "output-available",
+        toolCallId: StoreId.ToolCallSchema.parse(`call-${title}`),
+        type: "tool-start_activity",
+      },
+    ],
+    role: "assistant",
+  };
+}
+
 function message(
   role: "assistant" | "user",
   text: string,
@@ -149,10 +175,13 @@ function distanceFromEnd() {
 function Harness({
   isAgentRunning = true,
   steps,
+  zoom = 1,
 }: {
   /** One value per step where a turn ends partway through the run. */
   isAgentRunning?: boolean | boolean[];
   steps: unknown[][];
+  /** The app's own zoom, which the whole main window is drawn under. */
+  zoom?: number;
 }) {
   const [index, setIndex] = useState(0);
   const isRunning = Array.isArray(isAgentRunning)
@@ -163,7 +192,7 @@ function Harness({
   const isSettlingTurn = useTurnSettleWindow(isRunning);
 
   return (
-    <div className="flex flex-col" style={{ width: 640 }}>
+    <div className="flex flex-col" style={{ width: 640, zoom }}>
       <button
         onClick={() => {
           setIndex((current) => current + 1);
@@ -227,10 +256,49 @@ function spacerHeight() {
   return spacer ? Math.round(spacer.getBoundingClientRect().height) : 0;
 }
 
+// The one line in the transcript reading exactly this, wherever it is currently
+// drawn from. A step is drawn as a copy while its phase is folded and as itself
+// once it is open, so a reference taken before a click is stale after it.
+function stepLine(label: string) {
+  const line = [...document.querySelectorAll<HTMLElement>("*")].find(
+    (element) => element.children.length === 0 && element.textContent === label,
+  );
+
+  if (!line) {
+    throw new Error(`no step reading "${label}"`);
+  }
+
+  return line;
+}
+
 // Every line the transcript drew inside those rows, found by the group each one
 // names itself with.
 function stepRowCount() {
   return document.querySelectorAll('[class*="group/run-row"]').length;
+}
+
+/** One finished thought, as its own assistant message. */
+function thoughtStep(text: string) {
+  return {
+    id: StoreId.newMessageId(),
+    metadata: { createdAt: new Date(0), sessionId },
+    parts: [
+      {
+        metadata: {
+          createdAt: new Date(0),
+          endedAt: new Date(2),
+          id: StoreId.newPartId(),
+          messageId: StoreId.newMessageId(),
+          sessionId,
+          startedAt: new Date(1),
+        },
+        state: "done",
+        text,
+        type: "reasoning",
+      },
+    ],
+    role: "assistant",
+  };
 }
 
 function Transcript({
@@ -392,6 +460,66 @@ test("holds the end of a turn in view when its last rows land with the session",
   expect(mediaCardCount()).toBeGreaterThan(0);
   expect(rowCount()).toBe(streamingRowCount);
   expect(distanceFromEnd()).toBe(0);
+});
+
+// The step a folded phase is showing, and so the one a reader can click.
+const FOLDED_STEP = "Thought for 1s";
+
+/**
+ * A phase the agent is still in: the reader sees its heading and a copy of the
+ * step it is on, and the five steps behind that copy draw nothing. Opening the
+ * copy opens the phase, which puts those five between the heading and the row
+ * that was clicked -- and the row itself was the copy, so it is not where it
+ * was.
+ */
+const foldedPhase = [
+  ...history,
+  message("user", "Check the numbers"),
+  activityStep("Checking the numbers"),
+  ...["q1.csv", "q2.csv", "q3.csv", "q4.csv", "q5.csv"].map(readStep),
+  // A thought rather than a sixth read: what it opens is a paragraph, where a
+  // read opens a file card and the highlighter behind it, and none of that is
+  // what is being measured here.
+  thoughtStep("The last quarter is the one that moved."),
+];
+
+test("holds a step where it was clicked when opening it unfolds its phase", async () => {
+  await renderInBrowser(<Harness steps={[foldedPhase]} />);
+  await settle();
+
+  const closed = viewportOffset(stepLine(FOLDED_STEP));
+  const closedStepCount = stepRowCount();
+  expect(closed).toBeGreaterThan(0);
+  expect(closed).toBeLessThan(VIEWPORT_HEIGHT);
+
+  // Clicking has to be a plain dispatch: a driver click scrolls its target into
+  // view first, which is the movement under test.
+  stepLine(FOLDED_STEP).click();
+  await settle();
+
+  // The premise: opening really does unfold the phase, so the row is being drawn
+  // somewhere else entirely. Without that this passes whatever the transcript
+  // did with the scroll position.
+  expect(stepRowCount()).toBeGreaterThan(closedStepCount);
+  expect(viewportOffset(stepLine(FOLDED_STEP))).toBe(closed);
+});
+
+// Holding a row still is measured in on-screen px and corrected in scroll px,
+// and the app's zoom is the difference between them. At 1x the two are the same
+// number and a correction that ignored the zoom would pass the case above.
+test("holds it there under the app's zoom", async () => {
+  await renderInBrowser(<Harness steps={[foldedPhase]} zoom={1.5} />);
+  await settle();
+
+  const closed = viewportOffset(stepLine(FOLDED_STEP));
+  const closedStepCount = stepRowCount();
+  expect(closed).toBeGreaterThan(0);
+
+  stepLine(FOLDED_STEP).click();
+  await settle();
+
+  expect(stepRowCount()).toBeGreaterThan(closedStepCount);
+  expect(viewportOffset(stepLine(FOLDED_STEP))).toBe(closed);
 });
 
 test("leaves an idle transcript where it is when a folded run is opened", async () => {

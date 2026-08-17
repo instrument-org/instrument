@@ -1,6 +1,6 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { differenceInMinutes } from "date-fns";
-import { ok, Result } from "neverthrow";
+import { err, ok, Result } from "neverthrow";
 import { alphabetical } from "radashi";
 
 import { type AnyAgent } from "../agents/types";
@@ -39,8 +39,12 @@ export async function prepareModelMessages({
     { signal },
   );
 
+  // Every failure is re-wrapped rather than returned as it came. A neverthrow
+  // `Err` carries the success type of the result it came from, so passing the
+  // store's along would leave this function's success type a union of model
+  // messages and stored ones, and a caller free to read the wrong shape.
   if (messageResults.isErr()) {
-    return messageResults;
+    return err(messageResults.error);
   }
   const messages = messageResults.value;
 
@@ -74,7 +78,7 @@ export async function prepareModelMessages({
 
     const combinedResult = Result.combine(saveResults);
     if (combinedResult.isErr()) {
-      return combinedResult;
+      return err(combinedResult.error);
     }
 
     return ok(newContextMessages);
@@ -98,13 +102,13 @@ export async function prepareModelMessages({
         );
 
         if (removeResult.isErr()) {
-          return removeResult;
+          return err(removeResult.error);
         }
       }
 
       const createResult = await createAndSaveContextMessages();
       if (createResult.isErr()) {
-        return createResult;
+        return err(createResult.error);
       }
       contextMessages = createResult.value;
     } else {
@@ -113,7 +117,7 @@ export async function prepareModelMessages({
   } else {
     const createResult = await createAndSaveContextMessages();
     if (createResult.isErr()) {
-      return createResult;
+      return err(createResult.error);
     }
     contextMessages = createResult.value;
   }

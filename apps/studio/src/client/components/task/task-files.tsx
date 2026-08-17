@@ -242,30 +242,21 @@ function AttachedFolderRow({
     }),
   );
 
-  // The project owns the folders it contributes: they are re-synced onto every
-  // one of its tasks when a message is sent, along with the access it granted
-  // them, so removing one here or re-granting it would undo itself. Both belong
-  // in the project, and only a folder attached to this task is this task's.
-  const isOwnFolder = folder.source !== "project";
-
+  // Every folder the task carries, including the ones it inherited: a task is
+  // where the work happens, so what it may reach is decided here as well as in
+  // the project. The project's later edits still arrive (see
+  // `projectFolderBaseline`), which is what keeps editing the project the way
+  // to change every task at once.
   return (
     <SidebarMenuItem>
       <FolderAttachmentRow
         access={folder.access}
-        onAccessChange={
-          isOwnFolder
-            ? (access) => {
-                setFolderAccess({ access, folderId: folder.id, id: taskId });
-              }
-            : undefined
-        }
-        onRemove={
-          isOwnFolder
-            ? () => {
-                removeFolder({ folderId: folder.id, id: taskId });
-              }
-            : undefined
-        }
+        onAccessChange={(access) => {
+          setFolderAccess({ access, folderId: folder.id, id: taskId });
+        }}
+        onRemove={() => {
+          removeFolder({ folderId: folder.id, id: taskId });
+        }}
         path={folder.path}
         removeLabel="Remove from task"
       />

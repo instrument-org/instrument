@@ -21,6 +21,7 @@ import { getProject } from "../../../lib/project";
 import { normalizeProjectInstructions } from "../../../lib/project-instructions";
 import { Store } from "../../../lib/store";
 import { taskDir } from "../../../lib/task-dir-utils";
+import { setTaskState } from "../../../lib/task-record";
 import {
   clearTaskIndicator,
   setTaskIndicator,
@@ -253,6 +254,16 @@ const create = base
               source: "project" as const,
             })),
         ];
+
+        // What the project said at the moment this task took its folders on.
+        // Recorded here rather than left to the next message, because a folder
+        // detached before that message would otherwise read as one the project
+        // had just added and come straight back.
+        await setTaskState(taskDir(taskId), {
+          projectFolderBaseline: Object.fromEntries(
+            project.folders.map((folder) => [folder.path, folder.access]),
+          ),
+        });
       }
 
       // Frozen snapshot of the project's identity and instructions for this task.

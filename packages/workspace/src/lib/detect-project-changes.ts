@@ -11,6 +11,7 @@ import { getEffectiveProjectContext } from "./effective-project-context";
 import { getCurrentDate } from "./get-current-date";
 import { getProject } from "./project";
 import { normalizeProjectInstructions } from "./project-instructions";
+import { reconcileProjectFolders } from "./reconcile-project-folders";
 import { Store } from "./store";
 import { taskDir } from "./task-dir-utils";
 import { getTaskState, setTaskState } from "./task-record";
@@ -25,7 +26,10 @@ import { effectiveFolderAccess } from "./workspace-fs-layout";
  * attached folders here so they become standing context; the returned
  * `data-projectChanges` part announces the additions and removals. An access
  * change is announced by detectAttachedFolderChanges instead, which diffs task
- * state and so reports one however it was made. Because instructions
+ * state and so reports one however it was made. Which of the two sides an
+ * inherited folder follows is settled by reconcileProjectFolders, not here: a
+ * task may edit what it inherited, and the later edit is the one that holds.
+ * Because instructions
  * are read from the latest change part and folders from task state, an
  * already-reported change won't re-announce on the next message. Names for the whole surviving+new folder set are
  * recomputed on every run, even with nothing added/removed -- cheap and
@@ -85,39 +89,30 @@ export function detectProjectChanges({
       const taskState = await getTaskState(dir);
       const attachedFolders = taskState.attachedFolders ?? {};
 
-      const liveFolderAccess = new Map(
-        project.folders.map((folder) => [folder.path, folder.access]),
-      );
-      const attachedPaths = new Set<string>(
-        Object.values(attachedFolders).map((folder) => folder.path),
-      );
+      const baseline = taskState.projectFolderBaseline ?? {};
+      const settled = reconcileProjectFolders({
+        attached: Object.values(attachedFolders),
+        baseline,
+        projectFolders: project.folders,
+      });
 
-      const foldersRemoved: { name: string; path: string }[] = [];
-      const survivingFolders: FolderAttachment.Type[] = [];
-      let accessChanged = false;
-      for (const folder of Object.values(attachedFolders)) {
-        if (folder.source !== "project") {
-          survivingFolders.push(folder);
-          continue;
-        }
-        const liveAccess = liveFolderAccess.get(folder.path);
-        if (liveAccess === undefined) {
-          foldersRemoved.push({ name: folder.mountName, path: folder.path });
-          continue;
-        }
-        // The project owns the access level of the folders it contributes, so
-        // a change there reaches every task that carries them.
-        if (liveAccess !== folder.access) {
-          accessChanged = true;
-        }
-        survivingFolders.push({ ...folder, access: liveAccess });
-      }
+      const foldersRemoved = settled.removed.map((folder) => ({
+        name: folder.mountName,
+        path: folder.path,
+      }));
+      const survivingFolders = settled.surviving;
+      const accessBefore = new Map(
+        Object.values(attachedFolders).map((folder) => [
+          folder.id,
+          folder.access,
+        ]),
+      );
+      const accessChanged = survivingFolders.some(
+        (folder) => accessBefore.get(folder.id) !== folder.access,
+      );
 
       const newFolders: FolderAttachment.Type[] = [];
-      for (const { access, path: folderPath } of project.folders) {
-        if (attachedPaths.has(folderPath)) {
-          continue;
-        }
+      for (const { access, path: folderPath } of settled.toAttach) {
         const parsedPath = AbsolutePathSchema.safeParse(folderPath);
         if (!parsedPath.success) {
           continue;
@@ -149,12 +144,26 @@ export function detectProjectChanges({
         nextFolders[mountName] = { ...folder, mountName };
       }
 
-      if (!instructionsChanged && !stateChanged) {
-        return ok(undefined);
+      // Everything the project offers now, whether or not this task carries it,
+      // so a folder the task declined stays declined and one the project moves
+      // is read as moved next time. Rebuilt rather than merged: a path the
+      // project dropped has nothing left to supersede.
+      const nextBaseline = settled.nextBaseline;
+      const baselineChanged =
+        Object.keys(nextBaseline).length !== Object.keys(baseline).length ||
+        Object.entries(nextBaseline).some(
+          ([folderPath, access]) => baseline[folderPath] !== access,
+        );
+
+      if (stateChanged || baselineChanged) {
+        await setTaskState(dir, {
+          ...(stateChanged && { attachedFolders: nextFolders }),
+          projectFolderBaseline: nextBaseline,
+        });
       }
 
-      if (stateChanged) {
-        await setTaskState(dir, { attachedFolders: nextFolders });
+      if (!instructionsChanged && !stateChanged) {
+        return ok(undefined);
       }
 
       const foldersAdded = newFolders.map((folder) => ({

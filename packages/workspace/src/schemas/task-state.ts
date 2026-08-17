@@ -29,6 +29,18 @@ export const StoredTaskStateSchema = z
     // it, which the record's silent catch would otherwise write away.
     // eslint-disable-next-line unicorn/prefer-top-level-await -- zod's catch, not a promise's
     pane: TaskPane.Schema.optional().catch(undefined),
+    // The project's folders, path to access, as this task last saw them. What
+    // makes a task's own edit to an inherited folder survive the next message:
+    // a folder whose live access still matches what is recorded here has not
+    // been touched in the project since, so the task's version is the newer
+    // edit and stands. A path recorded here but no longer attached is one the
+    // task detached, which is the same rule read the other way.
+    //
+    // Not in the RPC shape below, for the reason `projectFolderName` is not: it
+    // decides what the agent may reach, so it is not a client's to set.
+    projectFolderBaseline: z
+      .record(z.string(), FolderAttachment.AccessSchema)
+      .optional(),
     projectFolderName: z.string().optional(),
     promptDraft: z.string().optional(),
     selectedModelURI: z.string().optional(),

@@ -53,7 +53,9 @@ Route and modal commands go through `window.__studioDrive`, a dev-only handle th
 node $DRIVE wait 'document.querySelectorAll("[data-slot]").length > 40'
 ```
 
-Hot reload is on in every instance this boots, so any write in the checkout — another agent's edit, a commit, a formatter — relaunches the app or hot-updates the renderer, and takes the state a run navigated to with it. When that has happened since the previous command, the next one says so on stderr:
+An instance this boots holds its main process and preload scripts at the bytes it started with, so another agent's edit under `electron-main/` or `packages/` no longer relaunches the app underneath a run. The cost is that a change you make there does not reach it: stop and boot again, or add `--hot` to the boot for a run that is iterating on main or testing reload behavior. A hand-started instance (`pnpm dev:studio`, the VS Code launch configs, port 48160) is unaffected and hot reloads everything.
+
+Renderer HMR stays on, so any write under `src/client` — another agent's edit, a commit, a formatter — still rebuilds component state, and a change HMR cannot apply reloads the page and takes the state a run navigated to with it. When that has happened since the previous command, the next one says so on stderr:
 
 ```plaintext
 studio-drive: the app reloaded since the last command. Whatever was navigated to, opened, or typed is gone; ...
@@ -106,7 +108,7 @@ Why this and not a command apiece: a primitive costs 0.3ms to 30ms over a held c
 - **Every call is traced.** The result is `{ok, steps, trace}` plus your return value, and a failure keeps the trace: `ok: false`, `stoppedAt`, and the failing step's own error. A run that dies at step 7 still reports the six that worked, so there is nothing to reconstruct.
 - **`waitFor` replaces `sleep`.** A string is evaluated in the page, a function runs in Node. It reports `waitedMs`, which is usually a fraction of the sleep it replaces.
 - **`expect` fails on the step that was wrong**, with your message, rather than surfacing three steps later as something unrelated.
-- **A reload stops the run.** Any write in the checkout relaunches the app or hot-updates the renderer, and a long sequence is a larger thing to lose that way than one command is. If the load changes mid-run the step is marked `reloaded` and the run stops there. Pass `--allow-reload` when the sequence expects one, or is testing one.
+- **A reload stops the run.** A write under `src/client` hot-updates the renderer, and one HMR cannot apply reloads the page; a long sequence is a larger thing to lose that way than one command is. If the load changes mid-run the step is marked `reloaded` and the run stops there. Pass `--allow-reload` when the sequence expects one, or is testing one.
 
 ## Asking the app instead of reading the page
 

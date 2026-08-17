@@ -50,6 +50,19 @@
 //
 // Pass `--port` to target a specific instance on purpose.
 //
+// An instance booted here freezes its main process and preload scripts at the
+// bytes they started with (`DISABLE_DEV_RELAUNCH`), because their hot reload is
+// a hard kill of the app and a full reload of the renderer respectively, and in
+// this checkout it fires on whatever anyone else is writing. Renderer HMR stays
+// on: a hot update rebuilds component state, which a run can re-establish, and
+// it is the half that pays for itself when the change is the run's own. Pass
+// `--hot` to boot an instance that reloads all three, for a run that is testing
+// reload behavior or iterating on main. A hand-started instance -- `pnpm dev`,
+// `pnpm dev:studio`, the VS Code launch configs, all of which sit on the
+// conventional 48160 -- is untouched by this and hot reloads everything.
+//
+//   node studio-drive.mjs boot --hot --purpose "main process"
+//
 // `--workspace <fixture>` boots against a disposable workspace built from a
 // committed fixture (fixtures/workspaces/) instead of the shared dev
 // application-data directory, so a run does not depend on what the developer
@@ -256,7 +269,7 @@ function reapWorkArtifacts(tasksDir) {
 
 // --- lifecycle ---------------------------------------------------------
 
-async function cmdBoot(explicitPort, { fresh, purpose: rawPurpose }) {
+async function cmdBoot(explicitPort, { fresh, hot, purpose: rawPurpose }) {
   const purpose = normalizePurpose(rawPurpose);
   const existing = readSession(WORKSPACE);
   if (existing && (await isPortLive(existing.port))) {
@@ -270,6 +283,18 @@ async function cmdBoot(explicitPort, { fresh, purpose: rawPurpose }) {
       fail(
         `The running instance is labeled ${JSON.stringify(existing.purpose ?? "unlabeled")}, not ${JSON.stringify(purpose)}.\n` +
           `Run \`studio-drive.mjs stop${WORKSPACE ? ` --workspace ${WORKSPACE}` : ""}\`, then boot it with the new purpose.`,
+      );
+    }
+    // Reload behavior is fixed when the dev server starts, so it is the running
+    // instance's and not this command's. Said out loud rather than silently
+    // ignored: a run that asked for one mode and got the other would otherwise
+    // discover it as an app that did or did not restart when it expected.
+    // Skipped when the record predates the field, since which mode that
+    // instance is in is exactly what it does not say.
+    if (existing.hot !== undefined && existing.hot !== hot) {
+      console.error(
+        `studio-drive: reusing the instance on port ${existing.port}, which was booted ` +
+          `${existing.hot ? "with" : "without"} main/preload hot reload. Stop it first to boot the other way.`,
       );
     }
     return { ...existing, reused: true };
@@ -315,6 +340,11 @@ async function cmdBoot(explicitPort, { fresh, purpose: rawPurpose }) {
       detached: true,
       env: {
         ...process.env,
+        // Main and preload stay at the bytes this boot builds, so nobody else's
+        // write kills the app or reloads the renderer under a run. `--hot` opts
+        // back into electron-vite's default. See the header for why the
+        // renderer is not included.
+        DISABLE_DEV_RELAUNCH: hot ? undefined : "true",
         // Set by some editor integrations; leaving it on makes Electron run as
         // plain Node and exit without ever opening a window.
         ELECTRON_RUN_AS_NODE: undefined,
@@ -343,6 +373,7 @@ async function cmdBoot(explicitPort, { fresh, purpose: rawPurpose }) {
   child.unref();
 
   const session = {
+    hot: Boolean(hot),
     logFile,
     pid: child.pid,
     port,
@@ -568,6 +599,7 @@ try {
       report(
         await cmdBoot(flag(argv, "--port"), {
           fresh: argv.includes("--fresh"),
+          hot: argv.includes("--hot"),
           purpose: flag(argv, "--purpose"),
         }),
       );
@@ -614,11 +646,14 @@ try {
 /**
  * Says so when the app has reloaded since the last command ran against it.
  *
- * Any write in the checkout relaunches the main process or hot-updates the
- * renderer, so an instance can be reset by another agent, a commit, or a
- * formatter mid-run. Unreported, that arrives as a click that stopped working
- * or a screenshot of a route nobody left, and the time goes into debugging the
- * app rather than the harness.
+ * A write under `src/client` hot-updates the renderer, and one the update
+ * cannot be applied to reloads the page outright, so an instance can still be
+ * reset by another agent, a commit, or a formatter mid-run. Unreported, that
+ * arrives as a click that stopped working or a screenshot of a route nobody
+ * left, and the time goes into debugging the app rather than the harness. An
+ * instance booted here holds its main process and preload scripts still, so the
+ * larger reset -- the app relaunching underneath the run -- is not among the
+ * things this has to catch; a `--hot` one is exposed to that too.
  *
  * On stderr, so it cannot be mistaken for the command's own output. Only
  * tracked for an instance this script booted, since the last-seen values live

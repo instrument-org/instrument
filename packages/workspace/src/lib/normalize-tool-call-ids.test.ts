@@ -42,13 +42,17 @@ describe("normalizeToolCallIds", () => {
     );
   });
 
+  // The shape that makes this pass necessary rather than defensive. Anthropic
+  // refuses a `tool_use` id outside `^[a-zA-Z0-9_-]+$`, some models number
+  // their calls as `functions.<tool>:<n>`, and a session that switches models
+  // replays the ids the earlier one wrote.
   it("rewrites a call and its result to the same id", () => {
     const messages: ModelMessage[] = [
       {
         content: [
           {
             input: { command: "ls" },
-            toolCallId: "call/with:special.chars",
+            toolCallId: "functions.bash:9",
             toolName: "bash",
             type: "tool-call",
           },
@@ -59,7 +63,7 @@ describe("normalizeToolCallIds", () => {
         content: [
           {
             output: { type: "text", value: "a-file.txt" },
-            toolCallId: "call/with:special.chars",
+            toolCallId: "functions.bash:9",
             toolName: "bash",
             type: "tool-result",
           },
@@ -72,8 +76,8 @@ describe("normalizeToolCallIds", () => {
       toolCallIds(normalizeToolCallIds({ messages, model: anthropicModel })),
     ).toMatchInlineSnapshot(`
         [
-          "assistant/tool-call: call_with_special_chars",
-          "tool/tool-result: call_with_special_chars",
+          "assistant/tool-call: functions_bash_9",
+          "tool/tool-result: functions_bash_9",
         ]
       `);
   });

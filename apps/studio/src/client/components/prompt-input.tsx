@@ -570,7 +570,37 @@ export const PromptInput = ({
 
     if (!canSubmit) {
       if (!modelURI || !selectedModel) {
-        toast.error("Select a model");
+        // A model is unresolvable for four different reasons, and only the last
+        // is something the user can act on by picking one. The first three are
+        // what the picker is already showing beside this prompt, so they say the
+        // same thing here.
+        if (modelsIsLoading) {
+          toast.info("Loading models", {
+            description: "Send again in a moment.",
+          });
+        } else if (modelsIsError) {
+          toast.error("Failed to load models", {
+            action: {
+              label: "Retry",
+              onClick: () => {
+                void modelsRefetch();
+              },
+            },
+          });
+        } else if (models?.length) {
+          toast.error("Select a model");
+        } else {
+          toast.error("No models available", {
+            action: {
+              label: "Add a provider",
+              onClick: () => {
+                openLogin(
+                  hasToken ? { reason: "provider-required" } : undefined,
+                );
+              },
+            },
+          });
+        }
       }
       return false;
     }

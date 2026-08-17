@@ -578,7 +578,10 @@ export const PromptInput = ({
           toast.info("Loading models", {
             description: "Send again in a moment.",
           });
-        } else if (modelsIsError) {
+        } else if (modelsIsError || modelsErrors?.length) {
+          // A provider that answers with an error contributes nothing to the
+          // list, so an empty one here can mean a reachable provider refusing
+          // rather than no provider at all. Outranks the no-models case below.
           toast.error("Failed to load models", {
             action: {
               label: "Retry",
@@ -586,6 +589,7 @@ export const PromptInput = ({
                 void modelsRefetch();
               },
             },
+            description: modelsErrors?.[0]?.message,
           });
         } else if (models?.length) {
           toast.error("Select a model");

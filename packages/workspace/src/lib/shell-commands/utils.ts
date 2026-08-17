@@ -29,6 +29,33 @@ export function attachedMountLiteralError(subject: string): string {
 }
 
 /**
+ * The first attached-folder path a shim was pointed at, whether through an
+ * argument or through the working directory it inherited, or undefined.
+ *
+ * `resolveNativeHostPath` quarantines a `/mnt/...` path to a non-existent
+ * location inside the task, which is the containment working as designed --
+ * but the resulting failure describes the quarantined path, not the mount the
+ * agent actually named, so the report reads like a path bug in the sandbox
+ * rather than the boundary it is. Callers use this to answer with the mount
+ * the agent asked for before spawning anything.
+ */
+export function attachedMountReference(
+  args: string[],
+  virtualCwd: string,
+): string | undefined {
+  const underMount = (value: string) =>
+    value === MOUNT.attachedFolders ||
+    value.startsWith(`${MOUNT.attachedFolders}/`);
+
+  if (underMount(normalizePath(virtualCwd))) {
+    return normalizePath(virtualCwd);
+  }
+  return args
+    .map((arg) => normalizePath(arg.slice(arg.indexOf("=") + 1)))
+    .find((value) => underMount(value));
+}
+
+/**
  * Rewrite the value of a `--flag=<path>` token that points at a
  * sandbox-virtual absolute path (`--env-file=/task/work/.env`) so the real
  * subprocess resolves it, relative to taskCwd so the host dir stays hidden.

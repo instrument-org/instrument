@@ -64,7 +64,7 @@ export function buildAttachedFoldersText({
     readOnly
       ? `Writing into a read-only folder fails -- it reflects the user's real files on disk and is not yours to change.`
       : null,
-    `\`rg\` searches mount paths directly too. What cannot resolve one, at any access level, is a real interpreter process (python, node, ffmpeg, pnpm): to process a file with one, copy it into the task first (e.g. \`cp '<mount path>/file' attachments/\`) and work on the copy${writable ? `, then move the result back with \`mv\` if it belongs in the folder` : ""}.`,
+    `\`rg\` searches mount paths directly too. What cannot resolve one, at any access level, is a real subprocess (python, node, ffmpeg, pnpm, git): to process a file with one, copy it into the task first (e.g. \`cp '<mount path>/file' attachments/\`) and work on the copy${writable ? `, then move the result back with \`mv\` if it belongs in the folder` : ""}. That includes reading a repository's history: copy the whole repository (\`cp -R '<mount path>' work/\`) before running \`git\` on it, since \`.git\` alone has no working tree and reports every file as deleted.`,
   ]
     .filter((line) => line !== null)
     .join(" ");

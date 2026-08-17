@@ -129,6 +129,47 @@ describe("createGitCommand arg policy", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("points outside the task directory");
   });
+
+  // An attached folder resolves to a quarantined path inside the task, so
+  // without this the agent is told it cannot change to './mnt/<folder>' --
+  // a path it never named, describing a boundary it cannot see.
+  it.each([
+    { args: ["-C", "/mnt/repo", "log"], label: "-C" },
+    { args: ["--git-dir=/mnt/repo/.git", "log"], label: "--git-dir=" },
+    { args: ["--work-tree", "/mnt/repo", "status"], label: "--work-tree" },
+  ])("names the attached folder for $label", async ({ args }) => {
+    const result = await command.execute(args, mockCtx);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("/mnt/repo");
+    expect(result.stderr).toContain("attached folder, which git cannot read");
+    expect(result.stderr).not.toContain("./mnt");
+  });
+
+  it("names the attached folder when git is run from inside one", async () => {
+    const result = await command.execute(
+      ["log"],
+      createCommandContext({
+        cwd: "/mnt/repo",
+        env: new Map<string, string>(),
+        fs: new InMemoryFs(),
+        stdin: EMPTY_BYTES,
+      }),
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("/mnt/repo");
+    expect(result.stderr).toContain("copy it into the task");
+  });
+
+  it("says why copying .git alone does not work", async () => {
+    const result = await command.execute(
+      ["-C", "/mnt/repo", "status"],
+      mockCtx,
+    );
+
+    expect(result.stderr).toContain("reports every file as deleted");
+  });
 });
 
 // Runs the bundled dugite git for real. No network: `init` + `commit` is enough

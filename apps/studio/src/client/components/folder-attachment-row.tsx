@@ -62,8 +62,10 @@ export function FolderAttachmentRow({
 
   return (
     <div className="flex items-center gap-1.5 pr-1">
+      {/* px-3 is what puts the folder icon under the section heading above it,
+          on the same keyline as the file rows. */}
       <SidebarMenuButton
-        className="h-auto min-h-14 flex-1 items-center gap-3 px-2 py-2 text-xs hover:bg-muted/50"
+        className="h-auto min-h-14 flex-1 items-center gap-3 px-3 py-2 text-xs hover:bg-muted/50"
         onClick={() => void handleOpen()}
       >
         <MacFolderIcon className="size-8! shrink-0" />

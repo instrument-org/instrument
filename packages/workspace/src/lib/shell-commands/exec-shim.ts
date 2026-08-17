@@ -43,8 +43,67 @@ export async function execShim(
     // narrowing rather than asserting keeps that guarantee checked.
     all: typeof result.all === "string" ? result.all : "",
     exitCode: result.exitCode,
+    // The binary that was launched, kept so a diagnostic can name the command
+    // the way the agent spells it rather than by its path on this machine.
+    file,
     // Set when the subprocess failed without producing output of its own, which
     // is the only diagnostic a shim can report in that case.
     shortMessage: result.shortMessage,
   };
+}
+
+/**
+ * The output to report for a finished shim, with a diagnostic substituted when
+ * the subprocess never ran.
+ *
+ * A process that fails to spawn -- a cwd that does not exist, a missing binary
+ * -- writes nothing, and every shim coerces its missing exit code to 1. The
+ * agent then sees a bare `exit 1` with no text whatsoever, which is the least
+ * debuggable failure the sandbox can produce: nothing distinguishes it from a
+ * command that ran and legitimately found nothing, so the agent guesses.
+ * `shortMessage` is execa's description of the spawn failure.
+ *
+ * The test is `exitCode === undefined`, which execa sets only when the process
+ * did not run; a process that ran and exited non-zero always reports a number.
+ * Output is otherwise passed through untouched, because empty output alongside
+ * a non-zero exit is an ordinary and meaningful result -- it is how `rg`
+ * reports no matches and how `git diff --quiet` reports a difference.
+ *
+ * The message is sanitized before it goes out. execa opens `shortMessage` with
+ * `Command failed with <code>: <resolved binary> <args>`, and the resolved
+ * binary is a real host path (the bundled dugite git, the app's ffmpeg) that
+ * the sandbox otherwise never shows -- `filterShellOutput` masks the task dir
+ * and the home dir, neither of which covers a path inside an installed app
+ * bundle. That opening line is dropped and any remaining mention of the binary
+ * becomes the command name, leaving the part that actually diagnoses the
+ * failure: which cwd was invalid, or which file was not found.
+ */
+export function shimOutput(
+  result: {
+    all: string;
+    exitCode: number | undefined;
+    file?: string;
+    shortMessage?: string;
+  },
+  commandName: string,
+): string {
+  if (result.exitCode !== undefined) {
+    return result.all;
+  }
+  if (result.all) {
+    return result.all;
+  }
+
+  const detail = (result.shortMessage ?? "")
+    .split("\n")
+    .slice(1)
+    .map((line) =>
+      result.file ? line.replaceAll(result.file, commandName) : line,
+    )
+    .join("\n")
+    .trim();
+
+  return detail
+    ? `${commandName} could not start.\n${detail}\n`
+    : `${commandName} failed without diagnostic output.\n`;
 }

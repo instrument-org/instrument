@@ -15,7 +15,7 @@ import {
   resolveReadOnlyHostPath,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
-import { execShim } from "./exec-shim";
+import { execShim, shimOutput } from "./exec-shim";
 import {
   privateDirLiteralError,
   resolveCommandContext,
@@ -136,7 +136,7 @@ export function createRgCommand({
       exitCode: result.exitCode ?? 1,
       stderr: "",
       stdout: filterShellOutput(
-        virtualizeOutput(result.all, layout),
+        virtualizeOutput(shimOutput(result, RG_COMMAND.name), layout),
         taskDir(taskId),
         // `--path-separator=/` already makes ripgrep print POSIX paths, so the
         // separator rewrite has nothing to fix here and would only corrupt

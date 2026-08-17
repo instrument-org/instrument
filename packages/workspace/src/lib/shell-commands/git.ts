@@ -5,7 +5,7 @@ import { type TaskId } from "../../schemas/task-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { gitBinaryPath } from "../git";
 import { taskDir } from "../task-dir-utils";
-import { execShim } from "./exec-shim";
+import { execShim, shimOutput } from "./exec-shim";
 import {
   bridgeFlagValuePath,
   resolveCommandContext,
@@ -184,7 +184,10 @@ export function createGitCommand(taskId: TaskId) {
     return {
       exitCode: result.exitCode ?? 1,
       stderr: "",
-      stdout: filterShellOutput(collapseProgress(result.all), taskDir(taskId)),
+      stdout: filterShellOutput(
+        collapseProgress(shimOutput(result, GIT_COMMAND.name)),
+        taskDir(taskId),
+      ),
     };
   });
 }

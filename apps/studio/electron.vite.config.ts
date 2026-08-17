@@ -15,6 +15,19 @@ import { analyzer } from "vite-bundle-analyzer";
 
 const isAnalyzing = process.env.ANALYZE_BUILD === "true";
 
+// electron-vite's dev watcher does two destructive things on a rebuild: a main
+// rebuild hard-kills the Electron child and starts a new one, and a preload
+// rebuild sends the renderer a full reload, which takes every task's `<webview>`
+// and the agent-browser sessions attached to it. Neither waits for a graceful
+// teardown, and in a checkout where several agents write at once, either can
+// fire on an edit the instance being driven knows nothing about.
+//
+// Set on an instance that is being driven, so its main and preload stay at the
+// bytes they booted with and only a deliberate restart changes them. The
+// renderer keeps its dev server and its HMR either way: that is the half worth
+// having, and it costs component state rather than the process.
+const freezeNative = process.env.DISABLE_DEV_RELAUNCH === "true";
+
 // electron-vite passes `--remote-debugging-port` to the Electron child only
 // when this is set, so without a default a hand-started dev instance has no
 // debug endpoint and cannot be driven or handed to an agent. Defaulted here
@@ -272,7 +285,7 @@ const require = __cjs_mod__.createRequire(import.meta.url);
           },
         },
         sourcemap: isProduction,
-        watch: {}, // Enable hot reloading
+        watch: freezeNative ? null : {}, // Rebuild and relaunch on a source change
       },
       define: {
         __AGENT_BROWSER_BIN_DIR__: JSON.stringify(agentBrowserBinDir),
@@ -297,7 +310,7 @@ const require = __cjs_mod__.createRequire(import.meta.url);
           entry: path.join(process.cwd(), "src/electron-preload/index.ts"),
         },
         sourcemap: isProduction,
-        watch: {}, // Enable hot reloading
+        watch: freezeNative ? null : {}, // Rebuild and full-reload the renderer on a source change
       },
       plugins: [
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),

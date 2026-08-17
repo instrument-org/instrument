@@ -4,7 +4,9 @@ Electron desktop app.
 
 ## Dev hot reload
 
-`pnpm dev` hot reloads all 3 targets (`watch: {}` in `electron.vite.config.ts`). Renderer = HMR; main/preload edits auto-rebuild + relaunch. Don't tell user to manually restart for main-process changes (menus, IPC, windows) — save = auto-relaunch.
+`pnpm dev` hot reloads all 3 targets (`watch` in `electron.vite.config.ts`). Renderer = HMR; main edits auto-rebuild + relaunch, preload edits auto-rebuild + full-reload the renderer. Don't tell user to manually restart for main-process changes (menus, IPC, windows) — save = auto-relaunch.
+
+`DISABLE_DEV_RELAUNCH=true` drops the main/preload half, leaving those two at the bytes they booted with while the renderer keeps HMR. It exists for an instance an agent is driving, where a relaunch is a hard kill that takes the run's state, every task `<webview>`, and any agent turn in flight — see `.agents/skills/studio-chrome-devtools/SKILL.md`. `studio-drive.mjs boot` sets it; nothing else does, so a hand-started instance behaves as above.
 
 ## Dependencies vs devDependencies
 

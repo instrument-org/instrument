@@ -32,6 +32,8 @@ declare namespace NodeJS {
       CI: string | undefined;
       DEVELOPER_DIR: string | undefined;
       DISABLE_AUTO_UPDATE_POLLING: string | undefined;
+      /** Dev only: keep main and preload at the bytes they booted with. */
+      DISABLE_DEV_RELAUNCH: string | undefined;
       ELECTRON_BUILDER_OUTPUT_DIR: string | undefined;
       ELECTRON_DEV_USER_FOLDER_SUFFIX: string | undefined;
       ELECTRON_ENABLE_CONSOLE_LOGGING: string | undefined;

@@ -133,6 +133,18 @@ export namespace SessionMessage {
       // Custom string type to allow for TypeScript auto-completion
       (v) => typeof v === "string",
     ),
+    /**
+     * The model the provider reports having actually served, which is not
+     * always the one that was asked for: `modelId` records the request, and a
+     * request for a routing alias such as `auto` names a decision rather than a
+     * model. Without this, a session run through an alias cannot be attributed
+     * to anything -- every step reads `auto`, and which model wrote a given
+     * answer is unrecoverable after the fact.
+     *
+     * Absent when the provider does not report one, and absent on a synthetic
+     * message, which no provider served.
+     */
+    modelIdServed: z.string().optional(),
     msToFinish: z.number().optional(),
     msToFirstChunk: z.number().optional(),
     providerId: z.string(),

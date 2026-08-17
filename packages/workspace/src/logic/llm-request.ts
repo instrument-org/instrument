@@ -280,7 +280,12 @@ export const llmRequestLogic = fromPromise<
           break;
         }
         case "finish-step": {
-          // We only run one step, so this is covered by "finish"
+          // We only run one step, so the rest of this is covered by "finish",
+          // which has no response metadata of its own to read the served model
+          // from. Recorded even when it equals the requested id, so a step that
+          // went through a routing alias and one that named a model outright
+          // are read the same way.
+          assistantMessage.metadata.modelIdServed = part.response.modelId;
           break;
         }
         case "raw": {

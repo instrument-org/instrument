@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { Session } from "../schemas/session";
+import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import {
   buildSessionFrontMatter,
@@ -296,6 +297,35 @@ describe("session diagnostics", () => {
         "userMessageCount": 1,
       }
     `);
+  });
+
+  // A step run through a routing alias records `auto` as the model, so without
+  // the served id the transcript cannot say what answered.
+  it("names the served model when it differs from the requested one", () => {
+    const assistantMessage = session.messages.find(
+      (message) => message.role === "assistant",
+    );
+    const lines = renderAssistantMetadata({
+      ...assistantMessage?.metadata,
+      modelId: "auto",
+      modelIdServed: "x-ai/grok-4.5",
+    } as SessionMessage.Assistant["metadata"]);
+
+    expect(lines[0]).toContain("model=auto");
+    expect(lines[0]).toContain("served=x-ai/grok-4.5");
+  });
+
+  it("omits the served model when it matches the requested one", () => {
+    const assistantMessage = session.messages.find(
+      (message) => message.role === "assistant",
+    );
+    const lines = renderAssistantMetadata({
+      ...assistantMessage?.metadata,
+      modelId: "x-ai/grok-4.5",
+      modelIdServed: "x-ai/grok-4.5",
+    } as SessionMessage.Assistant["metadata"]);
+
+    expect(lines[0]).not.toContain("served=");
   });
 
   it("renders response-level model, usage, timing, and error metadata", () => {

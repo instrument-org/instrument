@@ -54,10 +54,10 @@ function getModelCacheStore(): Store<ModelCacheStore> {
 }
 
 // Last value persisted per provider in this process, used to skip redundant
-// disk writes. fetchModel resolves a model on every LLM turn (via a network
-// response that fetchJson caches in-memory for an hour), so without this the
-// unchanged list would be re-serialized and atomically rewritten to disk every
-// turn.
+// disk writes. Every surface that mounts the model picker refetches the list
+// (via a network response that fetchJson caches in-memory for an hour), so
+// without this the unchanged list would be re-serialized and atomically
+// rewritten to disk each time.
 const lastWrittenByIdentifier = new Map<string, string>();
 
 export const diskModelCache: ModelCache = {

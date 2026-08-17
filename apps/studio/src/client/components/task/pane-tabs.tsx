@@ -85,7 +85,14 @@ export function PaneTabs({
   // is selected, a task switch swapping the row out -- and those are arrivals
   // at a state rather than something to watch happen, so a tab slides in from
   // wherever the tab before it happened to end.
-  const [isDragging, setIsDragging] = useState(false);
+  //
+  // Which tab is being dragged rather than whether one is, so the strip can
+  // answer that question itself. The tab it names ends the drag, and it can be
+  // gone before it does: the agent closes a pane tab, the run of drawn tabs
+  // shifts, the task changes. Motion keeps a pan session alive across an unmount
+  // mid-drag on purpose, so nothing about the tab going away brings the flag
+  // down with it, and left up it animates every later width change again.
+  const [draggingKey, setDraggingKey] = useState<string>();
   const [{ density, fixedIsNamed, selectedDensity, visibleCount }, setLayout] =
     useState(() => stripLayout(0, fileCount));
 
@@ -144,6 +151,13 @@ export function PaneTabs({
   );
   const visibleTabs = fileTabs.slice(start, start + visibleCount);
   const visibleKeys = fileKeys.slice(start, start + visibleCount);
+
+  // A tab the strip is no longer drawing is not a tab being dragged, whatever
+  // its own callback got to say.
+  if (draggingKey !== undefined && !visibleKeys.includes(draggingKey)) {
+    setDraggingKey(undefined);
+  }
+  const isDragging = draggingKey !== undefined;
 
   // Focus follows the selection while the strip holds it. The arrow keys move
   // both themselves, but a selection that lands past the run above moves the
@@ -255,10 +269,10 @@ export function PaneTabs({
                   onClose(key);
                 }}
                 onDragEnd={() => {
-                  setIsDragging(false);
+                  setDraggingKey(undefined);
                 }}
                 onDragStart={() => {
-                  setIsDragging(true);
+                  setDraggingKey(key);
                 }}
                 onSelect={() => {
                   onSelect(key);

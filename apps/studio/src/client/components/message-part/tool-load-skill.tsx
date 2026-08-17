@@ -4,7 +4,7 @@ import { getToolLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
 import { SessionMarkdown } from "../session-markdown";
 import { useToolCallSession } from "./tool-call-session";
-import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";
+import { ToolCard, ToolCardEmpty, ToolCardHeader, ToolCardSection } from "./tool-card";
 
 type LoadSkillPart = Extract<
   SessionMessagePart.ToolPart,
@@ -14,7 +14,7 @@ type LoadSkillPart = Extract<
 export function ToolLoadSkill({ part }: { part: LoadSkillPart }) {
   const { isStreaming } = useToolCallSession();
   if (!part.input || isStreaming) {
-    return null;
+    return <ToolCardEmpty message="The skill has not arrived yet." />;
   }
 
   const successOutput =
@@ -41,7 +41,7 @@ export function ToolLoadSkill({ part }: { part: LoadSkillPart }) {
       </ToolCardHeader>
 
       {successOutput && (
-        <ToolCardSection maxHeight="max-h-52">
+        <ToolCardSection collapsedHeight={208}>
           <SessionMarkdown
             className={cn(
               "w-full",
@@ -79,7 +79,7 @@ export function ToolLoadSkill({ part }: { part: LoadSkillPart }) {
       )}
 
       {notFoundOutput && (
-        <ToolCardSection copyText={availableText} maxHeight="max-h-52">
+        <ToolCardSection collapsedHeight={208} copyText={availableText}>
           <p className="text-sm text-muted-foreground">
             Skill{" "}
             <span className="font-mono text-foreground">

@@ -26,7 +26,7 @@ export function ToolUnavailable({
       </ToolCardHeader>
 
       {prettyJson && (
-        <ToolCardSection copyText={prettyJson} maxHeight="max-h-64">
+        <ToolCardSection collapsedHeight={256} copyText={prettyJson}>
           {highlightedHtml ? (
             <div
               className="font-mono text-xs [&_.shiki]:bg-transparent [&_pre]:break-all [&_pre]:whitespace-pre-wrap"

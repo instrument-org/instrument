@@ -21,13 +21,7 @@ import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
 import { isActiveToolPart } from "../transcript-layout";
 import { ToolCapabilityFailure } from "./tool-capability-failure";
-import {
-  ToolCard,
-  ToolCardActions,
-  ToolCardHeader,
-  ToolCardSection,
-  ToolChip,
-} from "./tool-card";
+import { ToolCard, ToolCardActions, ToolCardEmpty, ToolCardHeader, ToolCardSection, ToolChip } from "./tool-card";
 
 /**
  * The room the picture takes, held from the moment the tool starts drawing.
@@ -126,7 +120,7 @@ export function ToolGenerateImage({
   const { openFiles } = useTaskPaneActions(id);
 
   if (!part.input) {
-    return null;
+    return <ToolCardEmpty message="The prompt has not arrived yet." />;
   }
 
   const successOutput =
@@ -206,7 +200,7 @@ export function ToolGenerateImage({
       )}
 
       {!failureOutput && (
-        <ToolCardSection maxHeight="max-h-32">
+        <ToolCardSection collapsedHeight={128}>
           {(modelName || parameterTags.length > 0) && (
             <div className="mb-2 flex flex-wrap gap-1">
               {modelName && (

@@ -4,6 +4,7 @@ import {
 } from "@instrument-org/workspace/client";
 
 import { FileToolCard } from "./file-tool-card";
+import { ToolCardEmpty } from "./tool-card";
 
 type WriteFilePart = Extract<
   SessionMessagePart.ToolPart,
@@ -27,7 +28,7 @@ export function ToolWriteFile({
     part.state === "output-available" ? part.output.modifiedAt : undefined;
 
   if (!filePath) {
-    return null;
+    return <ToolCardEmpty message="The file being written has not arrived yet." />;
   }
 
   return (

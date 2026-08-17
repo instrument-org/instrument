@@ -4,7 +4,12 @@ import { getToolLabel } from "../../lib/tool-display";
 import { SessionMarkdown } from "../session-markdown";
 import { SourceLink } from "../source-link";
 import { useToolCallSession } from "./tool-call-session";
-import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";
+import {
+  ToolCard,
+  ToolCardEmpty,
+  ToolCardHeader,
+  ToolCardSection,
+} from "./tool-card";
 
 type WebFetchPart = Extract<
   SessionMessagePart.ToolPart,
@@ -14,7 +19,7 @@ type WebFetchPart = Extract<
 export function ToolWebFetch({ part }: { part: WebFetchPart }) {
   const { isStreaming } = useToolCallSession();
   if (!part.input) {
-    return null;
+    return <ToolCardEmpty message="The address has not arrived yet." />;
   }
 
   const url = typeof part.input.url === "string" ? part.input.url : "";
@@ -28,7 +33,7 @@ export function ToolWebFetch({ part }: { part: WebFetchPart }) {
       : null;
 
   if (!url && !successOutput && !failureOutput) {
-    return null;
+    return <ToolCardEmpty message="Nothing came back from the page." />;
   }
 
   const label = failureOutput
@@ -52,7 +57,7 @@ export function ToolWebFetch({ part }: { part: WebFetchPart }) {
       )}
 
       {failureOutput && (
-        <ToolCardSection maxHeight="max-h-40">
+        <ToolCardSection collapsedHeight={160}>
           <p className="text-xs text-muted-foreground">
             {failureOutput.errorMessage}
           </p>
@@ -60,7 +65,7 @@ export function ToolWebFetch({ part }: { part: WebFetchPart }) {
       )}
 
       {hasContent && (
-        <ToolCardSection maxHeight="max-h-[28rem]">
+        <ToolCardSection collapsedHeight={448}>
           {successOutput.format === "markdown" ? (
             <SessionMarkdown className="w-full" markdown={successOutput.text} />
           ) : (

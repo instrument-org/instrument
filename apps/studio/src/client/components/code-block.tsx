@@ -68,10 +68,12 @@ export const BlockToolbarButton = ({
  * token could not fit a line of its own -- a URL or a base64 blob wraps, an
  * ordinary identifier stays whole.
  *
- * Reached through a descendant selector because the block is a `<pre>` this
- * component wrote in one case and one the highlighter wrote in the other.
+ * Reached through a descendant selector because the `<pre>` it acts on is one
+ * the caller wrote in some cases and one the highlighter wrote in others. Put
+ * it on whatever element scrolls, so dropping it leaves the unwrapped lines
+ * somewhere to go.
  */
-const wrapLinesClassName =
+export const wrapLinesClassName =
   "[&_pre]:wrap-break-word [&_pre]:whitespace-pre-wrap";
 
 /**
@@ -82,6 +84,48 @@ const wrapLinesClassName =
  */
 const COLLAPSIBLE_LINES = 24;
 const COLLAPSED_HEIGHT = "[&_pre]:max-h-[20lh]";
+
+/**
+ * The mask that ends a clamped region, fading its content out rather than
+ * cutting it off, so the stop reads as "there is more" and not as a line that
+ * happened to end there.
+ */
+export const collapsedFadeClassName =
+  "[mask-image:linear-gradient(to_bottom,black_calc(100%_-_3rem),transparent)]";
+
+/**
+ * The control that opens a clamped region and closes it again.
+ *
+ * Collapsed it is the only thing saying there is more, so it is on screen
+ * whether or not anything is hovered. Expanded it is chrome like the rest, and
+ * the caller passes the classes that fade it back out -- which group answers a
+ * hover is the caller's to name, since a named group matches any ancestor
+ * carrying the name rather than the nearest, and these regions nest.
+ */
+export const BlockExpandButton = ({
+  className,
+  collapsedLabel,
+  isExpanded,
+  onToggle,
+}: {
+  className?: string;
+  /** What there is more of, e.g. "Show all 62 lines". */
+  collapsedLabel: string;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) => (
+  <button
+    className={cn(
+      "absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-md border border-border/50 bg-background px-2 py-1 text-xs text-muted-foreground hover:bg-card hover:text-foreground",
+      isExpanded && className,
+    )}
+    onClick={onToggle}
+    type="button"
+  >
+    {isExpanded ? <CaretUpIcon size={12} /> : <CaretDownIcon size={12} />}
+    {isExpanded ? "Show less" : collapsedLabel}
+  </button>
+);
 
 export const CodeWithCopy = ({
   children,
@@ -220,6 +264,9 @@ export const MarkdownCodeBlock = ({
           // The mask fades the block's own background out with the code, so the
           // cut reads as the block continuing under the message rather than as
           // a line that happens to end there.
+          // The `[&_pre]:` form of the fade, spelled out rather than built from
+          // the shared one: Tailwind scans source for whole class names, and a
+          // variant glued on at runtime is a class it never generates.
           isCollapsed &&
             `${COLLAPSED_HEIGHT} [&_pre]:overflow-y-hidden [&_pre]:[mask-image:linear-gradient(to_bottom,black_calc(100%_-_3rem),transparent)]`,
           label && "[&_pre]:pt-8",
@@ -229,23 +276,14 @@ export const MarkdownCodeBlock = ({
       </div>
 
       {isCollapsible && (
-        <button
-          className={cn(
-            "absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-md border border-border/50 bg-background px-2 py-1 text-xs text-muted-foreground hover:bg-card hover:text-foreground",
-            // Collapsed, this is the only thing saying there is more code, so it
-            // is on screen whether or not the block is hovered. Expanded, it is
-            // chrome like the rest and sits over the last line of code.
-            isExpanded &&
-              "opacity-0 group-hover/block-toolbar:opacity-100 focus-visible:opacity-100",
-          )}
-          onClick={() => {
+        <BlockExpandButton
+          className="opacity-0 group-hover/block-toolbar:opacity-100 focus-visible:opacity-100"
+          collapsedLabel={`Show all ${lineCount} lines`}
+          isExpanded={isExpanded}
+          onToggle={() => {
             setIsExpanded(!isExpanded);
           }}
-          type="button"
-        >
-          {isExpanded ? <CaretUpIcon size={12} /> : <CaretDownIcon size={12} />}
-          {isExpanded ? "Show less" : `Show all ${lineCount} lines`}
-        </button>
+        />
       )}
     </div>
   );

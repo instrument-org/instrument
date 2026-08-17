@@ -12,6 +12,7 @@ import { useToolCallSession } from "./tool-call-session";
 import { ToolCapabilityFailure } from "./tool-capability-failure";
 import {
   ToolCard,
+  ToolCardEmpty,
   ToolCardHeader,
   ToolCardSection,
   ToolChip,
@@ -45,7 +46,7 @@ export function ToolWebSearch({
 }) {
   const { isStreaming } = useToolCallSession();
   if (!part.input) {
-    return null;
+    return <ToolCardEmpty message="The query has not arrived yet." />;
   }
 
   const results =
@@ -62,7 +63,7 @@ export function ToolWebSearch({
       (results.kind === "summary" && results.text.trim().length > 0));
 
   if (!failureOutput && !hasSearchContent) {
-    return null;
+    return <ToolCardEmpty message="The search returned nothing." />;
   }
 
   const label = failureOutput
@@ -90,7 +91,7 @@ export function ToolWebSearch({
       )}
 
       {results && hasSearchContent && (
-        <ToolCardSection maxHeight="max-h-[28rem]">
+        <ToolCardSection collapsedHeight={448}>
           {results.kind === "summary" ? (
             <>
               <SessionMarkdown className="w-full" markdown={results.text} />

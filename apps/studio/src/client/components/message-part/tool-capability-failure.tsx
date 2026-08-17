@@ -33,7 +33,7 @@ export function ToolCapabilityFailure({
   }
 
   return (
-    <ToolCardSection maxHeight="max-h-64">
+    <ToolCardSection collapsedHeight={256}>
       <div>
         <p className="text-sm text-muted-foreground">{errorMessage}</p>
 

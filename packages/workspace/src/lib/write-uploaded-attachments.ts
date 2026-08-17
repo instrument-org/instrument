@@ -128,21 +128,22 @@ export async function writeUploadedAttachments({
 
       // A path already attached is not attached twice: two mounts over one
       // directory get two names and can disagree about access, and the agent
-      // would be free to write through the permissive one. Re-attaching can
-      // still tighten access -- an explicit read-only attach is the user
-      // narrowing the grant -- but never widen it silently.
+      // would be free to write through the permissive one. Attaching it again
+      // is instead how that one mount is re-granted, in either direction: the
+      // access the folder arrives with is the access the user just picked for
+      // it, and it replaces the one on record.
       const existingByPath = new Map(
         existingFolders.map((folder) => [folder.path, folder]),
       );
       const newFolders: FolderAttachment.Type[] = [];
-      const tightened = new Map<string, FolderAttachment.Access>();
+      const regranted = new Map<string, FolderAttachment.Access>();
       for (const folder of folders) {
         const folderPath = AbsolutePathSchema.parse(folder.path);
         const access = folder.access ?? "read-only";
         const existing = existingByPath.get(folderPath);
         if (existing) {
-          if (existing.access === "read-write" && access === "read-only") {
-            tightened.set(folderPath, access);
+          if (existing.access !== access) {
+            regranted.set(folderPath, access);
           }
           continue;
         }
@@ -158,7 +159,7 @@ export async function writeUploadedAttachments({
 
       const allFolders = [
         ...existingFolders.map((folder) => {
-          const access = tightened.get(folder.path);
+          const access = regranted.get(folder.path);
           return access ? { ...folder, access } : folder;
         }),
         ...newFolders,

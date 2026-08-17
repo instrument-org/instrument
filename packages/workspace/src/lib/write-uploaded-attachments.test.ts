@@ -5,8 +5,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASK_FOLDER_NAMES } from "../constants";
 import { FileUpload } from "../schemas/file-upload";
+import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type TaskDir, TaskDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
+import { getTaskState } from "./task-record";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
 const CONTENT = "a photo, as far as the copy is concerned";
@@ -37,6 +39,27 @@ async function attach(files: FileUpload.Type[]) {
     throw result.error;
   }
   return result.value.part.data.files;
+}
+
+async function attachFolder(
+  folderPath: string,
+  access: FolderAttachment.Access,
+) {
+  const result = await writeUploadedAttachments({
+    dir,
+    folders: [{ access, path: folderPath }],
+    messageId: StoreId.newMessageId(),
+    sessionId: StoreId.newSessionId(),
+  });
+  if (result.isErr()) {
+    throw result.error;
+  }
+  return result.value.part.data.folders ?? [];
+}
+
+async function folderState() {
+  const state = await getTaskState(dir);
+  return Object.values(state.attachedFolders ?? {});
 }
 
 // Writes `content` at `filePath` and describes it the way the composer does.
@@ -110,5 +133,51 @@ describe("writeUploadedAttachments", () => {
     expect(attached?.filePath).toBe(
       `${TASK_FOLDER_NAMES.attachments}/photo-1.jpg`,
     );
+  });
+
+  describe("attached folders", () => {
+    // Attaching a folder that is already attached is how the composer says
+    // "this one, with this access", so the grant it arrives with wins in both
+    // directions. Widening used to be dropped, which left a folder attached
+    // read-only with no way to make it writable at all.
+    it.each([
+      { from: "read-only", to: "read-write" },
+      { from: "read-write", to: "read-only" },
+    ] as const)("re-attaching regrants $from to $to", async ({ from, to }) => {
+      const folderPath = path.join(root, "Notes");
+      await fs.mkdir(folderPath);
+
+      await attachFolder(folderPath, from);
+      const first = await folderState();
+      await attachFolder(folderPath, to);
+      const second = await folderState();
+
+      expect(second).toHaveLength(1);
+      expect(second[0]?.access).toBe(to);
+      // The same attachment throughout: a second mount over one directory could
+      // disagree with the first about what the agent may do there.
+      expect(second[0]?.id).toBe(first[0]?.id);
+      expect(second[0]?.createdAt).toBe(first[0]?.createdAt);
+    });
+
+    // Only the folder that was re-attached: the message carries the access for
+    // the folders in it, and says nothing about the rest.
+    it("leaves the other folders alone", async () => {
+      const notes = path.join(root, "Notes");
+      const photos = path.join(root, "Photos");
+      await fs.mkdir(notes);
+      await fs.mkdir(photos);
+
+      await attachFolder(notes, "read-only");
+      await attachFolder(photos, "read-only");
+      await attachFolder(notes, "read-write");
+
+      const attached = await folderState();
+      const byPath = new Map<string, FolderAttachment.Access>(
+        attached.map((folder) => [folder.path, folder.access]),
+      );
+      expect(byPath.get(notes)).toBe("read-write");
+      expect(byPath.get(photos)).toBe("read-only");
+    });
   });
 });

@@ -9,6 +9,7 @@ import {
   setTaskState,
   updateTaskPane,
 } from "../../../lib/task-record";
+import { FolderAttachment } from "../../../schemas/folder-attachment";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { TaskPane } from "../../../schemas/task-pane";
 import { TaskStateSchema } from "../../../schemas/task-state";
@@ -101,6 +102,55 @@ const removeFolder = base
     publisher.publish("task.updated", { id: input.id });
   });
 
+/**
+ * Change what the agent may do with a folder already attached to this task.
+ *
+ * The grant is the user's to revise after the fact, so it is edited where the
+ * folder is listed rather than by attaching it a second time. Only a folder the
+ * task owns: a project's folders carry the project's access onto every one of
+ * its tasks on each message, so a change here would undo itself next turn.
+ */
+const setFolderAccess = base
+  .errors({
+    FOLDER_OWNED_BY_PROJECT: {
+      message: "That folder's access belongs to its project",
+    },
+  })
+  .input(
+    z.object({
+      access: FolderAttachment.AccessSchema,
+      folderId: z.string(),
+      id: TaskIdSchema,
+    }),
+  )
+  .output(z.void())
+  .handler(async ({ errors, input }) => {
+    const dir = taskDir(input.id);
+    const current = await getTaskState(dir);
+    const entries = Object.entries(current.attachedFolders ?? {});
+    const target = entries.find(([, folder]) => folder.id === input.folderId);
+
+    if (!target) {
+      throw errors.NOT_FOUND({ message: "That folder is not attached." });
+    }
+    if (target[1].source === "project") {
+      throw errors.FOLDER_OWNED_BY_PROJECT({
+        message: "Change this folder's access in its project.",
+      });
+    }
+
+    const updated = Object.fromEntries(
+      entries.map(([mountName, folder]) =>
+        folder.id === input.folderId
+          ? [mountName, { ...folder, access: input.access }]
+          : [mountName, folder],
+      ),
+    );
+
+    await setTaskState(dir, { attachedFolders: updated });
+    publisher.publish("task.updated", { id: input.id });
+  });
+
 const live = {
   get: base
     .input(z.object({ id: TaskIdSchema }))
@@ -129,4 +179,5 @@ export const taskState = {
   live,
   removeFolder,
   set,
+  setFolderAccess,
 };

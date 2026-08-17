@@ -43,16 +43,14 @@ export function attachedMountReference(
   args: string[],
   virtualCwd: string,
 ): string | undefined {
-  const underMount = (value: string) =>
-    value === MOUNT.attachedFolders ||
-    value.startsWith(`${MOUNT.attachedFolders}/`);
-
-  if (underMount(normalizePath(virtualCwd))) {
+  if (isUnderAttachedMount(normalizePath(virtualCwd))) {
     return normalizePath(virtualCwd);
   }
+  // Slicing past an `=` covers `--git-dir=/mnt/x` and leaves a bare `/mnt/x`
+  // whole, since indexOf returns -1 when there is no `=`.
   return args
     .map((arg) => normalizePath(arg.slice(arg.indexOf("=") + 1)))
-    .find((value) => underMount(value));
+    .find((value) => isUnderAttachedMount(value));
 }
 
 /**
@@ -357,6 +355,13 @@ function isOptionToken(token: { kind: string }): token is {
   value: string | undefined;
 } {
   return token.kind === "option";
+}
+
+function isUnderAttachedMount(value: string): boolean {
+  return (
+    value === MOUNT.attachedFolders ||
+    value.startsWith(`${MOUNT.attachedFolders}/`)
+  );
 }
 
 /**

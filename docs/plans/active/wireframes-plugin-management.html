@@ -206,7 +206,7 @@
     <dialog class="viewer"></dialog>
 
     <script>
-      const VERSION = "1";
+      const VERSION = "2";
       const SUBTITLE = "Plugins · management";
       const W = 520;
       const H = 470;
@@ -230,7 +230,7 @@
 
       const dot = (tone) => `<span class="size-2 shrink-0 rounded-full ${tone}"></span>`;
 
-      // ---- the four surfaces -----------------------------------------------
+      // ---- the five surfaces -----------------------------------------------
       const states = [
         {
           title: "One plugin, two accounts",
@@ -354,6 +354,37 @@
                 </div>
               </div>
             </div>`,
+        },
+        {
+          title: "Two grants, one connection",
+          note: "Programmatic access and a browser session are different things to hold, so the second is asked for when a task needs it rather than at setup.",
+          body: panel(`
+            <div class="flex items-center gap-2.5">
+              ${swatch()}<span class="text-base font-semibold">Gmail</span>
+              <span class="ml-auto text-xs text-muted-foreground">Work</span>
+            </div>
+            <div class="mt-4">${label("Access it has")}</div>
+            <div class="mt-2 space-y-2">
+              ${row(`
+                <i class="ph ph-plugs-connected text-base text-muted-foreground"></i>
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-medium">API access</p>
+                  <p class="text-xs text-muted-foreground">Reads and drafts without a window open</p>
+                </div>
+                ${dot("bg-success-500")}`)}
+              ${row(
+                `<i class="ph ph-globe text-base text-muted-foreground"></i>
+                 <div class="min-w-0 flex-1">
+                   <p class="text-sm font-medium text-muted-foreground">Browser session</p>
+                   <p class="text-xs text-muted-foreground">For pages the API cannot reach</p>
+                 </div>
+                 <span class="rounded-md border border-border px-2 py-1 text-xs">Sign in</span>`,
+                "border-dashed",
+              )}
+            </div>
+            <p class="mt-3 rounded-lg bg-gray-50 p-3 text-xs leading-5 text-muted-foreground">
+              The in-app browser keeps its own cookies, so this is a second sign-in rather than the one already open in your own browser.
+            </p>`),
         },
       ];
 

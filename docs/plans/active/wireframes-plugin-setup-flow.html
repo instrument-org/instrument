@@ -206,7 +206,7 @@
     <dialog class="viewer"></dialog>
 
     <script>
-      const VERSION = "1";
+      const VERSION = "2";
       const SUBTITLE = "Plugins · setup";
       const W = 1280;
       const H = 800;
@@ -254,7 +254,66 @@
           ${right ? `<aside class="w-[420px] shrink-0 border-l border-border bg-white">${right}</aside>` : ""}
         </div>`;
 
-      // ---- the four states -------------------------------------------------
+      // The user's own browser, as a window of its own. Whether setup leaves
+      // the app is the whole question here, so the app cannot be the only
+      // thing on the canvas.
+      const browserWindow = (inner, position, { tab, url }) => `
+        <div class="absolute ${position} overflow-hidden rounded-xl bg-white shadow-xl ring-1 ring-black/15">
+          <div class="flex items-center gap-2 bg-gray-200 px-3 pt-2.5">
+            <div class="flex shrink-0 gap-1.5 pb-2.5">
+              <span class="size-2.5 rounded-full bg-gray-400"></span>
+              <span class="size-2.5 rounded-full bg-gray-400"></span>
+              <span class="size-2.5 rounded-full bg-gray-400"></span>
+            </div>
+            <div class="flex min-w-0 items-end gap-1 pl-2">
+              <div class="rounded-t-lg bg-white px-3 py-1.5 text-xs whitespace-nowrap">${tab}</div>
+              <div class="px-3 py-1.5 text-xs whitespace-nowrap text-gray-500">Inbox (12)</div>
+              <div class="px-3 py-1.5 text-xs whitespace-nowrap text-gray-500">Q3 planning</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2.5 border-b border-border bg-white px-3 py-2">
+            <i class="ph ph-caret-left text-sm text-gray-400"></i>
+            <i class="ph ph-caret-right text-sm text-gray-300"></i>
+            <div class="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-full bg-gray-100 px-3">
+              <i class="ph ph-lock-simple text-xs text-success-500"></i>
+              <span class="truncate font-mono text-xs text-gray-600">${url}</span>
+            </div>
+            <div class="size-6 shrink-0 rounded-full bg-brand-200"></div>
+          </div>
+          ${inner}
+        </div>`;
+
+      // The account row is the point of the frame: consent is one click
+      // because the session is already there.
+      const consentPage = `
+        <div class="grid h-[420px] place-items-center bg-gray-50 px-8">
+          <div class="w-[380px] rounded-xl border border-border bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-center gap-3">
+              <div class="size-9 rounded-lg bg-gray-900"></div>
+              <i class="ph ph-arrows-left-right text-sm text-muted-foreground"></i>
+              <div class="size-9 rounded-lg bg-brand-500"></div>
+            </div>
+            <p class="mt-4 text-center text-sm font-medium">Instrument wants to access your Linear account</p>
+            <div class="mt-4 flex items-center gap-2.5 rounded-lg border border-border bg-gray-50 px-3 py-2">
+              <div class="size-6 shrink-0 rounded-full bg-brand-200"></div>
+              <div class="min-w-0">
+                <p class="text-xs font-medium">jeremy@finalpoint.co</p>
+                <p class="text-[11px] text-muted-foreground">Finalpoint workspace</p>
+              </div>
+              <span class="ml-auto text-[11px] text-muted-foreground">Switch</span>
+            </div>
+            <div class="mt-4 space-y-2">
+              <div class="flex items-center gap-2"><i class="ph ph-check text-xs text-success-500"></i><span class="text-xs text-muted-foreground">Read your issues</span></div>
+              <div class="flex items-center gap-2"><i class="ph ph-check text-xs text-success-500"></i><span class="text-xs text-muted-foreground">Read your teams</span></div>
+            </div>
+            <div class="mt-5 flex items-center gap-2">
+              <div class="flex-1 rounded-md border border-border py-2 text-center text-xs font-medium text-muted-foreground">Cancel</div>
+              <div class="flex-1 rounded-md bg-gray-900 py-2 text-center text-xs font-medium text-white">Authorize</div>
+            </div>
+          </div>
+        </div>`;
+
+      // ---- the six states --------------------------------------------------
       const states = [
         {
           title: "Working",
@@ -277,7 +336,7 @@
         },
         {
           title: "It needs something only you have",
-          note: "The request takes the composer's place, so it cannot be scrolled away from. An alternative route stays visible.",
+          note: "The request takes the composer's place, so it cannot be scrolled away from. The default route is the one that costs the user the least to finish, and a cheaper-to-explain alternative stays visible.",
           titleClass: "text-warning-700",
           body: window_(
             navItem("Connect my Linear", { active: true, dot: "bg-warning-500" }) + navItem("Q3 report draft"),
@@ -291,52 +350,77 @@
                    <i class="ph ph-signature mt-0.5 text-xl text-gray-700"></i>
                    <div class="min-w-0 flex-1">
                      <p class="text-[15px] font-medium">Sign in to Linear</p>
-                     <p class="mt-0.5 text-sm leading-5 text-muted-foreground">Opens Linear's own sign-in beside this conversation. Nothing leaves your Mac.</p>
+                     <p class="mt-0.5 text-sm leading-5 text-muted-foreground">Opens in your browser, where you are probably already signed in. Instrument never sees your password.</p>
                    </div>
                  </div>
                  <div class="mt-4 flex items-center justify-between">
                    <span class="text-xs text-muted-foreground">Rather paste an API key?</span>
                    <div class="flex items-center gap-2">
                      <span class="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground">Not now</span>
-                     <span class="rounded-md bg-gray-900 px-3.5 py-1.5 text-sm font-medium text-white">Open sign-in</span>
+                     <span class="rounded-md bg-gray-900 px-3.5 py-1.5 text-sm font-medium text-white">Open browser</span>
                    </div>
                  </div>
                </div>`)}`,
           ),
         },
         {
-          title: "The provider's own page, beside the work",
-          note: "Sign-in happens in the panel the browser already lives in, never the user's own browser. The reason for the prompt stays on screen.",
+          title: "Their browser, with the session they already have",
+          note: "Consent is one click and no password is typed, because the provider recognizes the browser. An embedded view starts from a login form instead, and some providers refuse to render in one at all.",
           titleClass: "text-foreground",
-          body: window_(
-            navItem("Connect my Linear", { active: true, dot: "bg-warning-500" }),
-            `<div class="mx-auto max-w-lg">
-               <div class="space-y-2.5">${bars("100%", "58%")}</div>
-             </div>
-             ${composer(`
-               <div class="flex items-center gap-3 rounded-[20px] bg-white p-5 ring-1 ring-gray-900/10 shadow-sm">
-                 <i class="ph ph-circle-notch text-lg text-muted-foreground"></i>
-                 <div class="min-w-0">
-                   <p class="text-sm font-medium">Waiting for you to finish signing in</p>
-                   <p class="text-xs text-muted-foreground">Cancel to try an API key instead</p>
-                 </div>
-               </div>`)}`,
-            `<div class="flex items-center gap-2 border-b border-border px-4 py-2.5">
-               <i class="ph ph-lock-simple text-xs text-success-500"></i>
-               <span class="truncate font-mono text-xs text-muted-foreground">linear.app/oauth/authorize</span>
-             </div>
-             <div class="p-8">
-               <div class="mx-auto mt-8 w-72 rounded-xl border border-border p-6 shadow-sm">
-                 <div class="mx-auto size-10 rounded-lg bg-gray-900"></div>
-                 <p class="mt-4 text-center text-sm font-medium">Instrument wants access</p>
-                 <div class="mt-4 space-y-2">
-                   <div class="flex items-center gap-2"><i class="ph ph-check text-xs text-success-500"></i><span class="text-xs text-muted-foreground">Read your issues</span></div>
-                   <div class="flex items-center gap-2"><i class="ph ph-check text-xs text-success-500"></i><span class="text-xs text-muted-foreground">Read your teams</span></div>
-                 </div>
-                 <div class="mt-5 rounded-md bg-gray-900 py-2 text-center text-xs font-medium text-white">Authorize</div>
-               </div>
-             </div>`,
-          ),
+          body: `
+            <div class="relative h-full bg-gray-300">
+              <div class="absolute inset-x-10 top-10 bottom-10 overflow-hidden rounded-xl shadow-xl ring-1 ring-black/10">
+                ${window_(
+                  navItem("Connect my Linear", { active: true, dot: "bg-warning-500" }),
+                  `<div class="mx-auto max-w-lg">
+                     <div class="space-y-2.5">${bars("100%", "58%")}</div>
+                   </div>
+                   ${composer(`
+                     <div class="flex items-center gap-3 rounded-[20px] bg-white p-5 ring-1 ring-gray-900/10 shadow-sm">
+                       <i class="ph ph-circle-notch text-lg text-muted-foreground"></i>
+                       <div class="min-w-0">
+                         <p class="text-sm font-medium">Waiting for your browser</p>
+                         <p class="text-xs text-muted-foreground">Cancel to paste an API key instead</p>
+                       </div>
+                     </div>`)}`,
+                )}
+                <div class="absolute inset-0 bg-white/45"></div>
+              </div>
+              ${browserWindow(consentPage, "top-24 left-52 w-[800px]", {
+                tab: "Authorize Instrument",
+                url: "linear.app/oauth/authorize?client_id=…",
+              })}
+            </div>`,
+        },
+        {
+          title: "It comes back on its own",
+          note: "The provider redirects to a callback the app is listening on, and Studio raises itself. Leaving the window is only acceptable if returning costs the user nothing.",
+          titleClass: "text-foreground",
+          body: `
+            <div class="relative h-full bg-gray-300">
+              ${browserWindow(
+                `<div class="grid h-[300px] place-items-center bg-gray-50 px-8">
+                   <div class="text-center">
+                     <i class="ph-fill ph-check-circle text-2xl text-success-500"></i>
+                     <p class="mt-2 text-sm font-medium">You can close this tab</p>
+                     <p class="mt-1 text-xs text-muted-foreground">Instrument has what it needs</p>
+                   </div>
+                 </div>`,
+                "top-6 left-40 w-[800px]",
+                { tab: "Instrument", url: "127.0.0.1:8471/callback?code=…" },
+              )}
+              <div class="absolute inset-x-10 top-24 bottom-6 overflow-hidden rounded-xl shadow-xl ring-1 ring-black/10">
+                ${window_(
+                  navItem("Connect my Linear", { active: true }) + navItem("Q3 report draft"),
+                  `<div class="mx-auto max-w-2xl">
+                     <div class="space-y-2.5">${bars("100%", "70%")}</div>
+                     ${step("ph-check", "Signed in as jeremy@finalpoint.co")}
+                     ${step("ph-key", "Stored the token in the encrypted store")}
+                   </div>
+                   ${composer(emptyComposer())}`,
+                )}
+              </div>
+            </div>`,
         },
         {
           title: "Connected, and named",
@@ -359,6 +443,47 @@
                </div>
              </div>
              ${composer(emptyComposer({ live: false, placeholder: "Reply to Instrument" }))}`,
+          ),
+        },
+        {
+          title: "The last rung, for a service with no API",
+          note: "The in-app browser is an explicit per-service choice after the rungs above have failed, not the default. It opens at a login form, because it cannot see the session the user's own browser holds.",
+          titleClass: "text-warning-700",
+          body: window_(
+            navItem("Book the Tuesday court", { active: true, dot: "bg-warning-500" }),
+            `<div class="mx-auto max-w-lg">
+               <div class="space-y-2.5">${bars("100%", "58%")}</div>
+               ${step("ph-warning", "No MCP server, no public API, no token to ask for")}
+             </div>
+             ${composer(`
+               <div class="rounded-[20px] bg-white p-5 ring-1 ring-warning-500/40 shadow-sm">
+                 <div class="flex items-start gap-3">
+                   <i class="ph ph-globe mt-0.5 text-xl text-gray-700"></i>
+                   <div class="min-w-0 flex-1">
+                     <p class="text-[15px] font-medium">Sign in here instead?</p>
+                     <p class="mt-0.5 text-sm leading-5 text-muted-foreground">Instrument keeps the session it captures. It cannot reuse the one in your own browser, so you will sign in again.</p>
+                   </div>
+                 </div>
+                 <div class="mt-4 flex items-center justify-end gap-2">
+                   <span class="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground">Not now</span>
+                   <span class="rounded-md bg-gray-900 px-3.5 py-1.5 text-sm font-medium text-white">Sign in here</span>
+                 </div>
+               </div>`)}`,
+            `<div class="flex items-center gap-2 border-b border-border px-4 py-2.5">
+               <i class="ph ph-lock-simple text-xs text-success-500"></i>
+               <span class="truncate font-mono text-xs text-muted-foreground">members.oakhillclub.com/login</span>
+             </div>
+             <div class="p-8">
+               <div class="mx-auto mt-8 w-72 rounded-xl border border-border p-6 shadow-sm">
+                 <div class="mx-auto size-10 rounded-lg bg-gray-300"></div>
+                 <p class="mt-4 text-center text-sm font-medium">Member sign in</p>
+                 <div class="mt-4 space-y-2.5">
+                   <div class="h-9 rounded-md border border-input bg-background"></div>
+                   <div class="h-9 rounded-md border border-input bg-background"></div>
+                 </div>
+                 <div class="mt-4 rounded-md bg-gray-900 py-2 text-center text-xs font-medium text-white">Sign in</div>
+               </div>
+             </div>`,
           ),
         },
       ];

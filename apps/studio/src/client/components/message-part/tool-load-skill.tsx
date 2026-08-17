@@ -4,7 +4,12 @@ import { getToolLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
 import { SessionMarkdown } from "../session-markdown";
 import { useToolCallSession } from "./tool-call-session";
-import { ToolCard, ToolCardEmpty, ToolCardHeader, ToolCardSection } from "./tool-card";
+import {
+  ToolCard,
+  ToolCardEmpty,
+  ToolCardHeader,
+  ToolCardSection,
+} from "./tool-card";
 
 type LoadSkillPart = Extract<
   SessionMessagePart.ToolPart,

@@ -3,7 +3,12 @@ import { CheckIcon } from "@phosphor-icons/react/Check";
 
 import { getToolLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
-import { ToolCard, ToolCardEmpty, ToolCardHeader, ToolCardSection } from "./tool-card";
+import {
+  ToolCard,
+  ToolCardEmpty,
+  ToolCardHeader,
+  ToolCardSection,
+} from "./tool-card";
 
 type ChoosePart = Extract<SessionMessagePart.ToolPart, { type: "tool-choose" }>;
 

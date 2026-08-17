@@ -56,8 +56,8 @@ describe("reconcileProjectFolders", () => {
   it("takes on a folder the project added", () => {
     expect(
       settle({
-        baseline: { [NOTES]: "read-only" },
         attached: [attachment()],
+        baseline: { [NOTES]: "read-only" },
         projectFolders: [
           { access: "read-only", path: NOTES },
           { access: "read-write", path: PHOTOS },

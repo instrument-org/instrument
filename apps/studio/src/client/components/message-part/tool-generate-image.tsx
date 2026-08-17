@@ -21,7 +21,14 @@ import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
 import { isActiveToolPart } from "../transcript-layout";
 import { ToolCapabilityFailure } from "./tool-capability-failure";
-import { ToolCard, ToolCardActions, ToolCardEmpty, ToolCardHeader, ToolCardSection, ToolChip } from "./tool-card";
+import {
+  ToolCard,
+  ToolCardActions,
+  ToolCardEmpty,
+  ToolCardHeader,
+  ToolCardSection,
+  ToolChip,
+} from "./tool-card";
 
 /**
  * The room the picture takes, held from the moment the tool starts drawing.

@@ -64,6 +64,15 @@ afterEach(async () => {
   await fs.rm(root, { force: true, recursive: true });
 });
 
+async function attachedFolders() {
+  const state = await getTaskState(taskDir(taskId));
+  return Object.values(state.attachedFolders ?? {}).map((folder) => ({
+    access: folder.access,
+    path: folder.path,
+    source: folder.source,
+  }));
+}
+
 async function projectWithNotes(): Promise<ProjectId> {
   const project = await createProject({
     folders: [{ access: "read-only", path: notesDir }],
@@ -85,15 +94,6 @@ async function run() {
     throw result.error;
   }
   return result.value;
-}
-
-async function attachedFolders() {
-  const state = await getTaskState(taskDir(taskId));
-  return Object.values(state.attachedFolders ?? {}).map((folder) => ({
-    access: folder.access,
-    path: folder.path,
-    source: folder.source,
-  }));
 }
 
 describe("detectProjectChanges", () => {

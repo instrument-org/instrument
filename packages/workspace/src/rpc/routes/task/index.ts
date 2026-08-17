@@ -21,11 +21,11 @@ import { getProject } from "../../../lib/project";
 import { normalizeProjectInstructions } from "../../../lib/project-instructions";
 import { Store } from "../../../lib/store";
 import { taskDir } from "../../../lib/task-dir-utils";
-import { setTaskState } from "../../../lib/task-record";
 import {
   clearTaskIndicator,
   setTaskIndicator,
 } from "../../../lib/task-indicators";
+import { setTaskState } from "../../../lib/task-record";
 import {
   getTaskSettings,
   updateTaskSettings,

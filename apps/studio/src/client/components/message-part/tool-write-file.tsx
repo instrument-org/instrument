@@ -28,7 +28,9 @@ export function ToolWriteFile({
     part.state === "output-available" ? part.output.modifiedAt : undefined;
 
   if (!filePath) {
-    return <ToolCardEmpty message="The file being written has not arrived yet." />;
+    return (
+      <ToolCardEmpty message="The file being written has not arrived yet." />
+    );
   }
 
   return (

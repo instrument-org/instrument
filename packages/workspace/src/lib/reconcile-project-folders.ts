@@ -35,12 +35,12 @@ export function reconcileProjectFolders({
   baseline: Record<string, FolderAttachment.Access>;
   projectFolders: ProjectFolder[];
 }): {
+  /** What the project says now, to compare against next time. */
+  nextBaseline: Record<string, FolderAttachment.Access>;
   /** Attached folders the project no longer offers, dropped from the task. */
   removed: FolderAttachment.Type[];
   /** Every folder the task keeps, with each inherited access settled. */
   surviving: FolderAttachment.Type[];
-  /** What the project says now, to compare against next time. */
-  nextBaseline: Record<string, FolderAttachment.Access>;
   /** Project folders the task should take on. */
   toAttach: ProjectFolder[];
 } {

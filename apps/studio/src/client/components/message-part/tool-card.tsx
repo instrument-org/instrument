@@ -86,7 +86,7 @@ export function ToolCardActions({ children }: { children: ReactNode }) {
   );
 }
 
-export function ToolCardCopyButton({ text }: { text: string }) {
+function ToolCardCopyButton({ text }: { text: string }) {
   return (
     <CopyButton
       className={blockToolbarButtonClassName}
@@ -145,7 +145,7 @@ export function ToolCardHeader({
  * an unnamed group answers any hovered ancestor, so the output's controls would
  * light while the reader is over the command.
  */
-export function ToolCardOverlay({ children }: { children: ReactNode }) {
+function ToolCardOverlay({ children }: { children: ReactNode }) {
   return (
     // `focus-within` as well as hover: the buttons stay in the tab order while
     // they are transparent, so without it a keyboard user lands on a control

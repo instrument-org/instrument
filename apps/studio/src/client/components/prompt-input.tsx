@@ -374,7 +374,7 @@ export const PromptInput = ({
         const names = duplicates.join(", ");
         toast.info(
           duplicates.length === 1
-            ? `"${names}" is already added`
+            ? `“${names}” is already added`
             : `Some folders are already added`,
           {
             description:
@@ -439,7 +439,7 @@ export const PromptInput = ({
     if (
       attachedItems.some((i) => i.type === "folder" && i.path === folderPath)
     ) {
-      toast.info(`"${folderNameFromPath(folderPath)}" is already added`, {
+      toast.info(`“${folderNameFromPath(folderPath)}” is already added`, {
         description:
           "That folder has already been attached. Each folder can only be added once.",
       });

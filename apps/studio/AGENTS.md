@@ -49,6 +49,12 @@ Closing the last window quits the app on **every** platform, macOS included, and
 - **Contextual** (`delete-project`): `<Dialog>` inline next to its trigger with local `useState`. Use for a small number of co-located triggers.
 - `useBlockTabNavigation(open)` opts a modal out of tab shortcuts (Cmd+T/W/etc.) while open.
 
+## Copy
+
+Quote a user's own name for something — a folder, a project, a skill, a search they typed — in curly quotes: `Remove “${name}” from this task?`, not `"${name}"`. Straight quotes are for code: SQL identifiers, CSS selectors, developer-facing `throw`s, and prompt text written for the model rather than shown as chrome.
+
+Name the app with `APP_NAME` from `@instrument-org/shared` rather than typing it, and only where the sentence needs a subject ("Instrument will lose access to the folder"). Most copy should not mention it at all, since the user knows where they are.
+
 ## UI zoom
 
 The whole main window scales with CSS `zoom` on `ZoomRoot` (`zoomAtom`, user-adjustable 0.5x–2x). `zoom` compounds down the tree and floating-ui doesn't yet correct for an ancestor's zoom, so anything positioned, sized, or measured against the viewport needs care when zoom ≠ 1 — and it's silently fine at the 1x default, so check other levels. `docs/architecture/responsive-layout.md` and `use-app-zoom.ts` carry the full rationale and the per-unit rules; what you need before reading them:

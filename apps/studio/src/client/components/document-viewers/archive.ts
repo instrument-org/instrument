@@ -70,7 +70,7 @@ export async function readArchiveMember({
       return null;
     }
     if (entry.uncompressedSize > maxBytes) {
-      throw new Error(`"${name}" is larger than this preview allows.`);
+      throw new Error(`“${name}” is larger than this preview allows.`);
     }
     return await inflateBounded({ entry, maxBytes });
   } finally {
@@ -135,7 +135,7 @@ async function inflateBounded({
     // plumbing.
     if (written > maxBytes) {
       throw new Error(
-        `"${entry.filename}" is larger than this preview allows.`,
+        `“${entry.filename}” is larger than this preview allows.`,
       );
     }
     throw error;

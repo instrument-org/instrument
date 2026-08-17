@@ -265,7 +265,7 @@ describe("PromptEditor in a browser", () => {
       expect(menu.left).toBeCloseTo(composer.left, 0);
       // Below it here: this harness sits at the top of the window, so that is
       // the side with the room.
-      expect(menu.top - composer.bottom).toBeCloseTo(4, 0);
+      expect(menu.top - composer.bottom).toBeCloseTo(8, 0);
     });
   });
 

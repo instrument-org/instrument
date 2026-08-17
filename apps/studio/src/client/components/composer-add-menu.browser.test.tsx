@@ -23,7 +23,7 @@ const noop = () => {
 // its button row is inset by -- the overlap this menu used to open inside.
 const COMPOSER_WIDTH = 480;
 const COMPOSER_PADDING = 16;
-const GAP = 4;
+const GAP = 8;
 
 function Composer({ top }: { top: number }) {
   // State rather than a ref: the menu measures this box from its own layout
@@ -130,8 +130,9 @@ describe("ComposerAddMenu in a browser", () => {
   // Zoom is where this goes wrong quietly: the menu is portalled out of the
   // zoomed tree and re-applies zoom to itself, so a width or a gap handed to
   // Radix in the wrong one of the two spaces still looks right at 1x. A width
-  // that was never converted comes out `zoom` times too wide, and a gap that was
-  // converted twice comes out at 2.7 on-screen px instead of 6.
+  // that was never converted comes out `zoom` times too wide, and a gap divided
+  // where it should have been multiplied comes out at 5.3 on-screen px at 1.5x
+  // rather than 12.
   it.each([1.5, 0.75])(
     "holds the gap and the width at %sx zoom",
     async (zoom) => {
@@ -154,7 +155,7 @@ describe("ComposerAddMenu in a browser", () => {
         ).toBeLessThanOrEqual(ROUNDING);
         expect(offBy(menu.width, composer.width)).toBeLessThanOrEqual(ROUNDING);
         expect(offBy(menu.left, composer.left)).toBeLessThanOrEqual(ROUNDING);
-        // 4 layout px, which is what 4px reads as at every zoom level.
+        // The gap in layout px, which is what it reads as at every zoom level.
         expect(
           offBy(menu.top - composer.bottom, GAP * zoom),
         ).toBeLessThanOrEqual(ROUNDING);

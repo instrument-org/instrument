@@ -3,7 +3,7 @@ import { useAtomValue } from "jotai";
 import { type RefObject, useLayoutEffect, useState } from "react";
 
 /** Layout px held between the composer and a menu of its own. */
-const COMPOSER_MENU_GAP = 4;
+const COMPOSER_MENU_GAP = 8;
 
 /**
  * Layout px: the 18rem cap both composer menus carry, which is the most room

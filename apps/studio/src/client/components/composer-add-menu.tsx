@@ -120,7 +120,11 @@ export function ComposerAddMenu({
         // Room for the first group and a few skills, and no more: left to the
         // available height a full skills list becomes a column as tall as the
         // window. The same cap the slash menu keeps, over the same entries.
-        className="max-h-[min(18rem,calc(var(--radix-dropdown-menu-content-available-height)/var(--content-zoom)))]"
+        //
+        // The corner is the composer's own rather than the menu radius every
+        // other dropdown wears, since this one is read against the edge of the
+        // box it hangs off.
+        className="max-h-[min(18rem,calc(var(--radix-dropdown-menu-content-available-height)/var(--content-zoom)))] rounded-[20px]"
         // Everything on offer here is something the prompt is about to carry,
         // so the caret goes back to the prompt rather than to the button that
         // opened this -- including out of the project picker, which is a

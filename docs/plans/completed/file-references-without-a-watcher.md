@@ -4,7 +4,7 @@ Status: **landed.** All five steps are in. What remains of the idea is the two r
 
 Three mechanisms currently infer, from disk, what the user should see and how fresh it is: a recursive watcher over the task directory, a per-turn diff of that watcher into a change card, and a per-reference existence query at render. All three exist because the app had to guess what a turn produced. It no longer has to guess: a ` ```files ` fence says what the reply hands over ([presentation-syntax.md](presentation-syntax.md)) and `show` says what goes on screen ([pane-tabs-and-the-show-command.md](../completed/pane-tabs-and-the-show-command.md)). This deletes the guessing.
 
-The forcing function is [user-chosen-working-folder.md](user-chosen-working-folder.md): the work is about to live in a folder the user picked, which can be a monorepo. A recursive index over that is not a thing to tune, it is a thing not to build.
+The forcing function is [user-chosen-working-folder.md](../active/user-chosen-working-folder.md): the work is about to live in a folder the user picked, which can be a monorepo. A recursive index over that is not a thing to tune, it is a thing not to build.
 
 ## The two rules
 

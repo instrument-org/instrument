@@ -1,5 +1,7 @@
 # Local transcription: engine choice
 
+**Status:** open, unmeasured, nothing acted on. The engine comparison is deliberately left unresolved: the measurement that would settle it has not been run.
+
 A user attached a multi-gigabyte podcast MP4, asked for a transcript, and stopped the task after an hour with nothing produced (FP-1245). This records what was measured about the engine underneath that path, and whether the JavaScript implementation it replaced was better.
 
 Nothing here has been acted on. The engine comparison is deliberately left unresolved, because the measurement that would settle it has not been run.

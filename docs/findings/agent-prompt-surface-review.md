@@ -1,5 +1,7 @@
 # Agent prompt surface: what we measured, and what is still open
 
+**Status:** open items, measured once. The "Open work" section is the live part; "Already correct -- do not regress in a cleanup" is the part to read before editing prompt text. Prompt copy moves faster than this document, so re-read the surface it names before acting.
+
 A review of the text our agent actually reads -- the main system prompt (`packages/workspace/src/agents/main.ts`) and the tool descriptions (`packages/workspace/src/tools/`, plus `lib/create-bash-env.ts`) -- against [Anthropic's "new rules of context engineering for Claude 5 generation models"](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models), our own recorded sessions, and the equivalent surfaces in other agent harnesses.
 
 This is the prompt-language counterpart to [`agent-tool-surface-review.md`](./agent-tool-surface-review.md), which covered tool *capabilities*.

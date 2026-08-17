@@ -1,5 +1,7 @@
 # Quit teardown can livelock, and every guard on that path is blind to it
 
+**Status:** guards landed, root cause unidentified. Which loop actually spun could not be confirmed; `actor.stop()` is the strongest candidate. Observed once on 1.6.0-beta.2 (macOS).
+
 A spin in quit teardown leaves the worst possible corpse: a process with no window that still holds the single-instance lock. The Dock icon, deep links, and every relaunch route back to it and go nowhere, and a staged update never installs because Squirrel's `ShipIt` is waiting for an exit that will never come. The user's only way out is `kill -9`, and there is nothing in the log to say what happened.
 
 Observed once on 1.6.0-beta.2 (macOS), on an install triggered from the update prompt. The process sat at 100% CPU for an hour before it was killed.

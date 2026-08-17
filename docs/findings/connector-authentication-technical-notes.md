@@ -1,5 +1,7 @@
 # Connector authentication: technical notes
 
+**Status:** reference. Nothing here is built; the summary table ranks the identified changes by size and what each one buys.
+
 Where connector authentication stands, and what each identified change actually involves.
 
 ## Where things stand

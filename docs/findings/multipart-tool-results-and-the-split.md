@@ -1,5 +1,7 @@
 # Splitting media out of tool results
 
+**Status:** partly retired. OpenRouter is cleared and no longer splits; every other provider still does, and `openai-compatible` cannot be cleared at all.
+
 A tool result can carry text and media together. Some providers accept that; others take only a string there. For the ones that do not, [split-multipart-tool-results.ts](../../packages/workspace/src/lib/split-multipart-tool-results.ts) rewrites the tool result down to its text and re-attaches the media as a following user message.
 
 That rewrite is not free, and for OpenRouter it is no longer needed. This records why it exists, what it costs, how OpenRouter was cleared, and what would have to be true to clear another provider.

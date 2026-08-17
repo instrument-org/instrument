@@ -42,7 +42,7 @@ Electron wires `window.opener`/`postMessage` to whatever `WebContents` we return
 
 ### The central hosting decision
 
-This forces a fork, because normal tabs are `<webview>` guests (renderer-hosted, CSS/zoom-composited within the React tree -- see [responsive-layout.md](../architecture/responsive-layout.md) for why that model was chosen) while an opener-preserving popup must be a `WebContentsView` (main-hosted, main-managed bounds):
+This forces a fork, because normal tabs are `<webview>` guests (renderer-hosted, CSS/zoom-composited within the React tree -- see [responsive-layout.md](../../architecture/responsive-layout.md) for why that model was chosen) while an opener-preserving popup must be a `WebContentsView` (main-hosted, main-managed bounds):
 
 - **Option A -- mixed hosting.** Regular tabs stay `<webview>` guests; popup tabs are `WebContentsView`s slotted into the same tab UI. Smaller change, but two backends: bounds tracking, zoom, focus, screencast, and teardown all need a `WebContentsView` path in addition to the existing `<webview>` path.
 - **Option B -- unify on `WebContentsView`.** Migrate all browser tabs to main-hosted `WebContentsView`s. One backend, popups are not special, agent targeting is uniform -- but it reintroduces the main-process-over-zoomed-layout bounds problem the `<webview>` pool was built to avoid, for _every_ tab.

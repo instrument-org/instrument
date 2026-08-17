@@ -1,5 +1,7 @@
 # A dev rebuild wipes the running main process's bundle
 
+**Status:** fixed. Kept for the diagnosis trail and the rejected alternatives, which is the part that is expensive to rediscover.
+
 ## Symptom
 
 In development, a bash tool call fails instantly (single-digit ms) with a

@@ -1,5 +1,7 @@
 # Prompt cache provider affinity and breakpoint gaps
 
+**Status:** open, deliberately deferred. See "Why this remains deferred" for what would have to change first.
+
 ## Finding
 
 Byte-stable prompts are necessary but not sufficient for reliable prompt-cache reuse. The current harness has provider-specific gaps that can lower hit rates even after the nonce and immutable-session-context work removes avoidable byte changes.

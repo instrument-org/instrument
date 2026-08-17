@@ -1,5 +1,7 @@
 # Agent tool surface: gaps against three reference harnesses
 
+**Status:** partly overtaken, not re-audited in full. Recorded against the tool surface as it stood; several items have since been resolved or made moot, so verify any item below against the code before acting on it. Known movement: the atomic `grep` and `glob` tools no longer exist — search moved into the shell on the real ripgrep binary ([2026-07-28](../decisions/2026-07-28-real-ripgrep-in-the-sandbox.md)), which retires sections A4, B1 and B2; `web_fetch` (C1) shipped; and A1, A3, A5 and A6 are fixed in the current tools.
+
 A review of our atomic agent tools (`packages/workspace/src/tools/`) against the built-in tool surfaces of three other coding-agent harnesses: `opencode` (`sst/opencode`), `codex` (OpenAI Codex CLI), and `pi-mono` (`badlogic/pi-mono`). Two of our tools are already adapted from the first and third, so this is partly a check for upstream drift.
 
 The focus is the atomic set -- read, write, edit, glob, grep, bash -- and how it overlaps our just-bash sandbox.

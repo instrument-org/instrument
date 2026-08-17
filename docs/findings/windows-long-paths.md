@@ -1,5 +1,7 @@
 # Windows long paths in the task directory
 
+**Status:** partly fixed. Git is fixed; the 260-character ceiling is not, so anything else the agent runs can still hit it.
+
 ## Symptom
 
 On Windows, `git clone` inside a task transfers every object and then fails at

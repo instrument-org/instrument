@@ -1,6 +1,6 @@
 # Plan: cut the harness cost of an agent driving Studio
 
-Status: proposal, partly addressed. Owner: TBD. Evidence base: every Claude Code session recorded against this checkout, 2026-07-07 through 2026-08-14, plus the dev-instance logs under `apps/studio/.logs/`. Complements [../findings/driving-studio-for-ui-capture.md](../findings/driving-studio-for-ui-capture.md), which catalogued the traps found in one capture run; this one measures how much they cost across every run since, and which ones survived the fixes that finding proposed.
+Status: proposal, partly addressed. Owner: TBD. Evidence base: every Claude Code session recorded against this checkout, 2026-07-07 through 2026-08-14, plus the dev-instance logs under `apps/studio/.logs/`. Complements [../findings/driving-studio-for-ui-capture.md](../../findings/driving-studio-for-ui-capture.md), which catalogued the traps found in one capture run; this one measures how much they cost across every run since, and which ones survived the fixes that finding proposed.
 
 Boot latency has since been worked on directly: `studio-drive boot` polls at 100ms instead of 2s and spawns `electron-vite` rather than paying for the `pnpm run` and `cross-env` hops, and the renderer dev server warms only its entry after warming the whole route tree turned out to delay first paint by about a second. Those cut the fixed cost of a boot. They do not touch the two things that dominate a long run: reload landing mid-run, and waiting for a route to finish filling in.
 
@@ -18,7 +18,7 @@ Out of scope: build and boot speed (owned elsewhere), and the eval harness (owne
 
 `apps/studio/electron.vite.config.ts` set `watch: {}` on all three builds with no env escape hatch, so any write anywhere in the checkout reset the app under a run in flight.
 
-The two halves turned out to be worth separating, because they are not equally destructive and they are not equally useful. A **main** rebuild runs electron-vite's watch hook, which is `ps.kill(); startElectron()` — a hard kill, no graceful teardown. A **preload** rebuild sends the renderer `{type: 'full-reload'}`, which per [../findings/app-reload-destroys-the-task-browser.md](../findings/app-reload-destroys-the-task-browser.md) destroys every task `<webview>` and closes the `agent-browser` sessions under a running agent. Renderer HMR, by contrast, costs component state that a run can re-establish.
+The two halves turned out to be worth separating, because they are not equally destructive and they are not equally useful. A **main** rebuild runs electron-vite's watch hook, which is `ps.kill(); startElectron()` — a hard kill, no graceful teardown. A **preload** rebuild sends the renderer `{type: 'full-reload'}`, which per [../findings/app-reload-destroys-the-task-browser.md](../../findings/app-reload-destroys-the-task-browser.md) destroys every task `<webview>` and closes the `agent-browser` sessions under a running agent. Renderer HMR, by contrast, costs component state that a run can re-establish.
 
 Two measurements settled it. Of 2,359 driving commands in the corpus, only **146 (6.2%)** followed a renderer edit with no reboot in between — the edit-then-look loop HMR exists for — and 26 followed a main or package edit, where watch forced a relaunch and HMR contributed nothing. And of 1,561 recorded dev instances, **1,039 (67%) had a successor log `Detected non-graceful exit from previous session`** against 147 that recorded a graceful quit. Two thirds of every Studio instance this repo has run were hard-killed, the large majority by a watch relaunch nobody asked for: August saw 442 process starts against 62 deliberate `boot` commands.
 
@@ -42,7 +42,7 @@ The instinct that hot reload is usually right is correct, and the fix was not to
 
 What is still open is the renderer half, which the freeze deliberately leaves alone and which no longer has an obvious answer: suppressing HMR would mean a driven instance whose `src/client` code is stale in a way nothing announces, and that is the fail-safe problem the earlier draft of this item worried about. Worth revisiting only if the reload reporter turns out to be insufficient in practice.
 
-Note that the two-dev-servers-share-`out/main` variant of this is already fixed (`emptyOutDir: isProduction`, see [../findings/dev-rebuild-wipes-live-main-bundle.md](../findings/dev-rebuild-wipes-live-main-bundle.md)). Freezing main compounds well with it: a driven instance is no longer a *writer* of `out/main`, and because superseded chunks are content-hashed and never deleted, another dev server's rebuilds cannot pull a chunk out from under its frozen process either.
+Note that the two-dev-servers-share-`out/main` variant of this is already fixed (`emptyOutDir: isProduction`, see [../findings/dev-rebuild-wipes-live-main-bundle.md](../../findings/dev-rebuild-wipes-live-main-bundle.md)). Freezing main compounds well with it: a driven instance is no longer a *writer* of `out/main`, and because superseded chunks are content-hashed and never deleted, another dev server's rebuilds cannot pull a chunk out from under its frozen process either.
 
 ### 2. There is no "wait until ready" primitive, so agents guess with `sleep`
 
@@ -100,7 +100,7 @@ Landed since: the main/preload freeze described in problem 1, which was the item
 
 ## Related
 
-- [../findings/driving-studio-for-ui-capture.md](../findings/driving-studio-for-ui-capture.md) — the trap catalogue and what has already landed against it.
-- [../findings/dev-rebuild-wipes-live-main-bundle.md](../findings/dev-rebuild-wipes-live-main-bundle.md) — the concurrent-dev-server variant of the reload hazard, fixed.
+- [../findings/driving-studio-for-ui-capture.md](../../findings/driving-studio-for-ui-capture.md) — the trap catalogue and what has already landed against it.
+- [../findings/dev-rebuild-wipes-live-main-bundle.md](../../findings/dev-rebuild-wipes-live-main-bundle.md) — the concurrent-dev-server variant of the reload hazard, fixed.
 - [seeded-test-workspaces.md](seeded-test-workspaces.md) — `boot --workspace` removes the ambient-state dependency; adoption is 3 sessions so far.
 - `.agents/skills/studio-chrome-devtools/SKILL.md` — the operator's guide these problems are felt through.

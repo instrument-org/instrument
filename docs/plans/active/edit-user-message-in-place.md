@@ -1,5 +1,7 @@
 # Edit a user message in place (rewind + rerun)
 
+Status: **proposed, not started.** Owner: TBD. Nothing in the app edits or rewinds a user message today.
+
 ## Goal
 
 Let a user edit one of their own past messages in the chat, Save or Cancel. Saving rewinds the conversation to that message and re-runs the agent from it, **in the same task** (not a fork). Assistant messages are not editable.

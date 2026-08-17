@@ -44,8 +44,10 @@ That path keeps pointer cancellation everywhere, which is its real advantage. We
 
 ## Implementation
 
-- [The activation helper and the `detail === 0` test that tells a synthetic click from a real one](../../apps/studio/src/client/lib/immediate-click.ts)
+The two files this decision added were deleted when it was superseded; they are named here rather than linked.
+
+- The activation helper and the `detail === 0` test that tells a synthetic click from a real one (`immediate-click.ts`)
 - [Where the default and its exceptions are resolved](../../apps/studio/src/client/components/ui/button.tsx)
 - [Navigation on press, including the ctrl-click and new-tab paths](../../apps/studio/src/client/components/internal-link.tsx)
 - [Hover-delay interaction with press activation](../../apps/studio/src/client/components/media-card-shell.tsx)
-- [Behavior pinned by tests, including the cancellation tradeoff and the ancestor double-fire](../../apps/studio/src/client/lib/immediate-click.browser.test.tsx)
+- Behavior pinned by tests, including the cancellation tradeoff and the ancestor double-fire (`immediate-click.browser.test.tsx`)

@@ -1,6 +1,6 @@
 # Zooming into images to read fine detail
 
-Status: **active (all five phases landed in this repo)**. Owner: TBD. The plumbing, the region read, the prompt guidance, the eval that measures them, and the corrections that came out of a corpus of real sessions are in. One thing is deliberately outstanding: phase 3's `agent-browser` cross-reference, which belongs in the skills repo because the registry is read-only here.
+Status: **complete**. Owner: TBD. The plumbing, the region read, the prompt guidance, the eval that measures them, and the corrections that came out of a corpus of real sessions are in. One thing is deliberately outstanding: phase 3's `agent-browser` cross-reference, which belongs in the skills repo because the registry is read-only here.
 
 ## Source
 
@@ -199,8 +199,8 @@ Re-running phase 4's cases confirms it, and turned up one more shape while doing
 
 The image work put a validation pass at the send boundary, which turned out to be the right place for a problem larger than images:
 
-- [session-recovery-from-unsendable-content.md](session-recovery-from-unsendable-content.md) -- a rejected part is permanent, because parts are persisted before they are validated and the whole transcript is replayed every turn. The image validation here is the prevention half; classification and recovery are not built.
-- [context-compaction.md](context-compaction.md) -- the same permanent-failure shape from a different cause, and the escalation path recovery needs.
+- [session-recovery-from-unsendable-content.md](../active/session-recovery-from-unsendable-content.md) -- a rejected part is permanent, because parts are persisted before they are validated and the whole transcript is replayed every turn. The image validation here is the prevention half; classification and recovery are not built.
+- [context-compaction.md](../active/context-compaction.md) -- the same permanent-failure shape from a different cause, and the escalation path recovery needs.
 
 ## Out of scope
 

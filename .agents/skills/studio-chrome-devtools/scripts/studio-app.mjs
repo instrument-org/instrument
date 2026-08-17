@@ -360,15 +360,21 @@ const RECT_FOR = (kind, needle) => `(() => {
   const onScreen = (r) =>
     r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth;
 
+  // Every role a menu item can carry, not just [role=menuitem]: a checkable row
+  // (Radix's CheckboxItem/RadioItem, which is how a menu offers a choice rather
+  // than an action) takes one of the other two, and leaving them out made a
+  // whole class of menu unclickable by name.
+  const CLICKABLE = "button, a, [role=button], [role=menuitem], [role=menuitemcheckbox], [role=menuitemradio], [role=tab]";
+
   let el = null;
   if (${JSON.stringify(kind)} === "selector") {
     el = document.querySelector(needle);
   } else {
-    const named = Array.from(document.querySelectorAll("button, a, [role=button], [role=menuitem], [role=tab]"))
+    const named = Array.from(document.querySelectorAll(CLICKABLE))
       .filter((n) => rendered(n) && ((n.getAttribute("aria-label") ?? "") === needle || (n.innerText ?? "").trim() === needle));
     el = named[0] ?? Array.from(document.querySelectorAll("*"))
       .filter((n) => n.children.length === 0 && (n.textContent ?? "").trim() === needle && rendered(n))
-      .map((n) => n.closest("button, a, [role=button], [role=menuitem], [role=tab]") ?? n)[0] ?? null;
+      .map((n) => n.closest(CLICKABLE) ?? n)[0] ?? null;
   }
   if (!el) return null;
 

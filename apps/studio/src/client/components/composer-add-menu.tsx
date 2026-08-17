@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectId } from "@instrument-org/workspace/client";
@@ -48,12 +49,14 @@ export type ComposerMenuView = "projects" | "root";
  * The plus button and everything it offers: what the composer can be given,
  * then the skills that can be run.
  *
- * Sized to the composer rather than to its own trigger, because the skills read
- * as a line of name, description and source -- the width a typed slash gives
- * them.
+ * Sized and placed to the composer rather than to its own trigger. The skills
+ * read as a line of name, description and source -- the width a typed slash
+ * gives them -- and the prompt this is adding to stays in view beside the menu
+ * rather than under it.
  */
 export function ComposerAddMenu({
   actions,
+  bounds,
   disabled,
   onReturnFocus,
   onSelectProject,
@@ -62,9 +65,10 @@ export function ComposerAddMenu({
   projectId,
   skills,
   view,
-  width,
 }: {
   actions: ComposerAction[];
+  /** The composer box this hangs off, rather than overlays. */
+  bounds: HTMLElement | null;
   disabled?: boolean;
   /** Puts the caret back in the prompt, once something has been chosen here. */
   onReturnFocus: () => void;
@@ -75,13 +79,17 @@ export function ComposerAddMenu({
   projectId?: null | ProjectId;
   skills: ComposerSkill[];
   view: ComposerMenuView | null;
-  /** Layout px, measured off the composer. Unset until it has been. */
-  width?: number;
 }) {
   // Whether this closed because something was chosen, which is the only case
   // where the menu owns where focus lands next. Dismissing it is the user
   // going somewhere themselves, and Radix's own handling is right for that.
   const chose = useRef(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const { alignOffset, side, sideOffset, width } = useComposerMenuPlacement({
+    anchorRef: triggerRef,
+    bounds,
+    open: view !== null,
+  });
 
   return (
     <DropdownMenu
@@ -98,6 +106,7 @@ export function ComposerAddMenu({
           // theme and lighten in the other, which no single token does.
           className="size-8 bg-muted p-0 text-foreground/60 not-disabled:hover:bg-black/10 dark:not-disabled:hover:bg-white/15"
           disabled={disabled}
+          ref={triggerRef}
           size="sm"
           variant="ghost"
         >
@@ -106,6 +115,8 @@ export function ComposerAddMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
+        alignOffset={alignOffset}
+        avoidCollisions={false}
         // Room for the first group and a few skills, and no more: left to the
         // available height a full skills list becomes a column as tall as the
         // window. The same cap the slash menu keeps, over the same entries.
@@ -122,6 +133,8 @@ export function ComposerAddMenu({
           event.preventDefault();
           onReturnFocus();
         }}
+        side={side}
+        sideOffset={sideOffset}
         style={{ width }}
       >
         {view === "projects" && onSelectProject ? (

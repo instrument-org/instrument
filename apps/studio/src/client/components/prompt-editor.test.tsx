@@ -19,6 +19,9 @@ const noop = () => {
 
 const editorProps = {
   actions: [],
+  // The box the editor's menu is placed against. Nothing here opens it, and
+  // jsdom has no layout to measure against anyway.
+  bounds: null,
   disabled: false,
   onPaste: () => false,
   onSubmit: noop,

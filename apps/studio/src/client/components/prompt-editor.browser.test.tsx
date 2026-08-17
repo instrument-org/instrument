@@ -1,6 +1,12 @@
 // The scroll fade is a real stylesheet rule driven by a real scroll timeline,
 // so this file needs the app's CSS rather than bare markup.
-import { type ComponentProps, createRef } from "react";
+import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
+import {
+  type ComponentProps,
+  createRef,
+  type RefObject,
+  useState,
+} from "react";
 import { describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page, userEvent } from "vitest/browser";
@@ -21,12 +27,52 @@ const noop = () => {
 };
 
 const editorProps = {
-  actions: [],
+  actions: [] as ComponentProps<typeof PromptEditor>["actions"],
   disabled: false,
   onPaste: () => false,
   onSubmit: noop,
   skills: [] as ComponentProps<typeof PromptEditor>["skills"],
 };
+
+// The editor fills the column it is given, so the height it has to work within
+// belongs to the host -- here a stand-in for the composer's box, which is also
+// the box a typed slash opens its menu against. The box is state rather than a
+// ref because the editor measures it from a layout effect, which runs before a
+// ref on it would have been attached.
+function EditorHost({
+  actions,
+  defaultValue,
+  editorRef,
+  onChange,
+  skills,
+}: {
+  actions: ComponentProps<typeof PromptEditor>["actions"];
+  defaultValue: string;
+  editorRef: RefObject<null | PromptEditorRef>;
+  onChange: () => void;
+  skills: ComponentProps<typeof PromptEditor>["skills"];
+}) {
+  const [bounds, setBounds] = useState<HTMLDivElement | null>(null);
+
+  return (
+    <div
+      data-composer=""
+      ref={setBounds}
+      style={{ display: "flex", flexDirection: "column", height: 200 }}
+    >
+      <PromptEditor
+        {...editorProps}
+        actions={actions}
+        autoFocus
+        bounds={bounds}
+        defaultValue={defaultValue}
+        onChange={onChange}
+        ref={editorRef}
+        skills={skills}
+      />
+    </div>
+  );
+}
 
 const ffmpegSkill = {
   aliases: ["instrument:ffmpeg"],
@@ -39,23 +85,22 @@ const ffmpegSkill = {
   title: "FFmpeg",
 } satisfies ComponentProps<typeof PromptEditor>["skills"][number];
 
-function renderEditor(defaultValue = "", skills = editorProps.skills) {
+function renderEditor(
+  defaultValue = "",
+  skills = editorProps.skills,
+  actions = editorProps.actions,
+) {
   const onChange = vi.fn();
   const ref = createRef<PromptEditorRef>();
-  // The editor fills the column it is given, so the height it has to work
-  // within belongs to the host -- here a stand-in for the composer's box.
   // `render` reports a thenable so it can be awaited; nothing here needs to.
   void render(
-    <div style={{ display: "flex", flexDirection: "column", height: 200 }}>
-      <PromptEditor
-        {...editorProps}
-        autoFocus
-        defaultValue={defaultValue}
-        onChange={onChange}
-        ref={ref}
-        skills={skills}
-      />
-    </div>,
+    <EditorHost
+      actions={actions}
+      defaultValue={defaultValue}
+      editorRef={ref}
+      onChange={onChange}
+      skills={skills}
+    />,
   );
   return { onChange, ref };
 }
@@ -181,6 +226,46 @@ describe("PromptEditor in a browser", () => {
 
     await vi.waitFor(() => {
       expect(getComputedStyle(scroller()).maskImage).toBe("none");
+    });
+  });
+
+  // The menu a slash opens belongs to the composer rather than to the line the
+  // caret is on: it spans the composer and hangs off its edge, the way the plus
+  // button's does, so the draft it is being added to stays in view beside it.
+  // An action rather than a skill, because a skill row carries a tooltip and
+  // this file mounts no provider for one.
+  it("opens the slash menu against the composer rather than over it", async () => {
+    renderEditor(
+      "",
+      [],
+      [
+        {
+          icon: PaperclipIcon,
+          id: "add-files",
+          label: "Add files",
+          onSelect: noop,
+        },
+      ],
+    );
+    const box = (selector: string) => {
+      const found = document.querySelector<HTMLElement>(selector);
+      if (!found) {
+        throw new Error(`${selector} is not mounted`);
+      }
+      return found.getBoundingClientRect();
+    };
+
+    await userEvent.click(editor());
+    await userEvent.keyboard("/");
+
+    await vi.waitFor(() => {
+      const composer = box("[data-composer]");
+      const menu = box('[data-slot="popover-content"]');
+      expect(menu.width).toBeCloseTo(composer.width, 0);
+      expect(menu.left).toBeCloseTo(composer.left, 0);
+      // Below it here: this harness sits at the top of the window, so that is
+      // the side with the room.
+      expect(menu.top - composer.bottom).toBeCloseTo(4, 0);
     });
   });
 

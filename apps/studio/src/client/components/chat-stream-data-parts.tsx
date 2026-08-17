@@ -1,5 +1,4 @@
 import {
-  attachedFolderChangesModelNote,
   browserStatusModelNote,
   isAddressableTaskFilePath,
   maxStepsModelNote,
@@ -10,6 +9,7 @@ import {
 import { type ReactNode } from "react";
 
 import { FilePathsGrid } from "./agent-files-block";
+import { AttachedFolderChangesNote } from "./attached-folder-changes-note";
 import { type RenderPartContext } from "./chat-stream-render-part";
 import { ModelContextDebugCard } from "./model-context-debug-card";
 import { ProjectChangesNote } from "./project-changes-note";
@@ -26,7 +26,7 @@ type DataPartType = SessionMessagePart.DataPart["type"];
 type DataPartVisibility = "always" | "dev" | "hidden";
 
 const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
-  "data-attachedFolderChanges": "dev",
+  "data-attachedFolderChanges": "always",
   "data-attachments": "hidden",
   "data-browserStatus": "dev",
   // Retired, and shown to everyone rather than to developers, which is the
@@ -83,14 +83,9 @@ export function renderDataPart({
 
   switch (part.type) {
     case "data-attachedFolderChanges": {
-      const note = attachedFolderChangesModelNote(part.data);
-      return note ? (
-        <ModelContextDebugCard
-          className="mt-2"
-          key={part.metadata.id}
-          text={note}
-        />
-      ) : null;
+      return (
+        <AttachedFolderChangesNote data={part.data} key={part.metadata.id} />
+      );
     }
     case "data-attachments":
     case "data-projectContext": {

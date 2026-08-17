@@ -13,7 +13,7 @@ Measured over one production research session that issued 13 searches:
 - 10 of 53 distinct URLs came back more than once. One repository README arrived four separate times, in four different searches.
 - The queries that produced them were near-duplicates by construction: a bare topic query, a `site:` query against the vendor docs, and a `site:` query against the community forum all ranked the same pages.
 
-This is the cheapest context in the window to recover, because nothing is lost by removing it. A [character budget](tool-result-context-budgets.md) shortens passages the model has not read yet; deduplication removes bytes it has already been shown.
+This is the cheapest context in the window to recover, because nothing is lost by removing it. A [character budget](../completed/tool-result-context-budgets.md) shortens passages the model has not read yet; deduplication removes bytes it has already been shown.
 
 ## Goal
 
@@ -68,5 +68,5 @@ The same page can also enter the window through `web_fetch` and through `agent-b
 
 ## Related
 
-- [Tool result context budgets](tool-result-context-budgets.md) bounds a single search. This removes what two searches paid for twice; the two are independent and compose.
+- [Tool result context budgets](../completed/tool-result-context-budgets.md) bounds a single search. This removes what two searches paid for twice; the two are independent and compose.
 - [Context compaction](context-compaction.md) decides which messages are in the window at all, which this pass has to read before it can be correct.

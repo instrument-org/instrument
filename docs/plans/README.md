@@ -16,7 +16,6 @@ When a plan moves, fix the links pointing at it. Sibling links inside one direct
 | Plan | Status |
 | --- | --- |
 | [Context compaction](active/context-compaction.md) — let a task outlive the model's context window | proposed |
-| [Tool result context budgets](active/tool-result-context-budgets.md) — bound one step's combined results | proposed |
 | [Repeat search results](active/repeat-search-results.md) — stop paying for the same excerpt twice | proposed |
 | [Immutable session context](active/immutable-session-context.md) — append-only corrections, for cache reuse | proposed |
 | [Session recovery from unsendable content](active/session-recovery-from-unsendable-content.md) | in progress |
@@ -92,3 +91,4 @@ When a plan moves, fix the links pointing at it. Sibling links inside one direct
 | [Skill creation flow](completed/skill-creation-flow.md) | complete |
 | [Uncontrolled prompt editor](completed/uncontrolled-prompt-editor.md) | done |
 | [pnpm 10 to 11 migration](completed/pnpm-11-migration.md) | complete |
+| [Tool result context budgets](completed/tool-result-context-budgets.md) | complete, two of three phases; arrives with its branch |

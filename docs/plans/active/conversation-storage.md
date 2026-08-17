@@ -122,6 +122,40 @@ Today they live under `work/` inside the task directory, and the transcript refe
 
 The consequence for the asset origin is concrete and belongs on both plans: it gains a root that is neither the working folder nor a mount the agent has. Whether the agent can *write* there through the ordinary mount set, or only through the tools that produce these files, is an open question — the tools already write them without the agent naming a path, so the narrower answer is available.
 
+## What the sidebar needs, and why the index is not optional
+
+The list view is about to want things it cannot have today: how many messages a conversation holds, and **which files the agent linked or produced in it**. The second is the point of the [presentation](presentation-syntax.md) work — an agent that can richly reference files is only half a feature if those references are invisible until you open the conversation.
+
+**Neither is reachable now, and that is a deliberate cost boundary rather than an oversight.** [get-tasks.ts](../../../packages/workspace/src/lib/get-tasks.ts) globs the tasks directory and does a few small metadata reads per task, concurrency-capped, with a comment recording that a serial loop otherwise dominates list latency. It never opens `task.db`. The [Task schema](../../../packages/workspace/src/schemas/task.ts) matches that budget exactly: every field on it is answerable from a small file sitting beside the conversation, and none is derived from the conversation body. Message counts and linked files are the first two fields that fall on the wrong side of that line.
+
+The naive versions both fail, and they fail the same way:
+
+- **Opening N SQLite databases** to count messages. This is the fan-out the [Problem](#problem) section already rejects for search, and it is worse for a list view, which runs on every window open rather than on demand.
+- **Reading N JSONL files** to extract file references. Cheaper per file than opening a database, and still O(total bytes ever written) for a screen of twenty rows.
+
+### Caching is the wrong primitive
+
+Worth being explicit, because "cache it" is the reflex: a cache over per-conversation files still pays the full N-file read once, needs per-file invalidation, and goes stale silently when a file changes behind its back. It converts a permanent cost into an intermittent one.
+
+**An index written on the same append that produces the data never pays the N-file read at all, and cannot be stale**, because there is no window in which the file and the index disagree. The rebuild path exists for schema changes and corruption, not for normal operation. That is the difference between a cache and a projection, and it is why this belongs in phase 3 rather than being bolted on later.
+
+### This qualifies the plan's cheapness argument
+
+[Options](#options) claims D is cheap because "the index does not need to index content." Linked files are content-derived, so that sentence needs narrowing rather than deleting:
+
+- **Full text stays out of the index.** Content search remains ripgrep over the JSONL. No FTS table, no content staleness, no reindex on every append.
+- **Structured references go in.** A file reference extracted from a part is small, bounded, and enumerable — roughly one row per (conversation, path, kind), not a copy of the conversation.
+
+So the index carries list-view scalars, `(ordinal, byte offset)` per item, and a projection table of references. That is still far short of indexing content, and it is what makes the sidebar a query instead of a scan.
+
+The prior art supports the shape directly. Reference A's documented pattern is exactly this: store the blob, promote a field to a column when a query needs one — they added an `item_type` column after the fact, backfilled it with `json_extract`, and put a partial index on it. Reference C promotes file-summary data straight onto the session row (`summary_files`, `summary_additions`, `summary_deletions`, plus a JSON `summary_diffs`), so a list view can render a per-session file summary without touching messages. Reference B keeps `entry_materialized` for the same reason.
+
+### Two couplings this creates
+
+**The link parser becomes shared infrastructure.** The presentation plan's rule that everything parses into one schema currently serves the renderer. If the indexer extracts references too, both must extract the *same* set from the same text, or the sidebar lists files the transcript does not show, or misses ones it does. Extract once, at append time, and let the renderer and the index read the same parsed nodes.
+
+**An indexed reference is not a guarantee the file exists.** Under [user-chosen-working-folder.md](user-chosen-working-folder.md) a linked file may live in a folder the user owns, edits, moves, or disconnects. The index records that a conversation referred to a path; whether that path resolves is a question for render time, and the sidebar needs an answer for "linked, but gone" that is not a broken row.
+
 ## Sequencing across the plans
 
 Four plans now interlock, and the order matters more than usual because two of them change what a path means. The dependencies are narrower than they look:
@@ -130,7 +164,7 @@ Four plans now interlock, and the order matters more than usual because two of t
 2. **[The folder work's phases 1 and 2](user-chosen-working-folder.md#phases)** — the `WorkingDir` brand, then the mount rename with the asset origin moving in the same change. This is what makes "the agent's mount set" a thing that can vary per task rather than a constant.
 3. **This plan's phases 1 through 3** — prototype the write path, introduce the storage seam, build the metadata index. Independent of the folder work and can run in parallel with it; Reference B is the evidence that the seam is worth having before the backing decision, not after.
 4. **Conversation-scoped assets** need both: a conversation that owns a directory (this plan) and an origin that serves more than one root (the folder plan). It is the join point, and it is where the two plans stop being separable.
-5. **[Presentation](presentation-syntax.md) and [chat file links](chat-file-links.md)** sit on top of all of it and are shippable ahead of it, because they extend a mechanism (a markdown link resolved against the asset origin) whose interface does not change even though everything under it does.
+5. **[Presentation](presentation-syntax.md) and [chat file links](../completed/chat-file-links.md)** sit on top of all of it and are shippable ahead of it, because they extend a mechanism (a markdown link resolved against the asset origin) whose interface does not change even though everything under it does.
 
 The one ordering trap: the agent's cross-conversation search capability (phase 6 here) reads much better after the folder work, because "find the task where I set up the deploy script" is far more useful when tasks are associated with real folders the user recognizes than when they are associated with directories we invented.
 
@@ -143,7 +177,7 @@ The one ordering trap: the agent's cross-conversation search capability (phase 6
 | **C.** Per-task SQLite plus a central metadata index          | Fast                    | No, still a blob           | Yes                     | Medium |
 | **D.** JSONL per conversation as truth, plus a metadata index | Fast, and ripgrep works | Yes                        | Yes, per file           | Medium |
 
-D is cheaper than this document previously claimed, for one specific reason: **the index does not need to index content.** Content search is ripgrep over the JSONL. The index only carries what a list view needs (title, timestamps, counts, cost, sort keys) plus offsets for seeking. That removes FTS, content indexing, and content staleness from the design entirely.
+D is cheaper than this document previously claimed, for one specific reason: **the index does not need to index content.** Content search is ripgrep over the JSONL. The index carries what a list view needs (title, timestamps, counts, cost, sort keys), offsets for seeking, and a bounded projection of structured references such as linked files — never the text itself. That removes FTS, content indexing, and content staleness from the design entirely. See [What the sidebar needs](#what-the-sidebar-needs-and-why-the-index-is-not-optional) for why the reference projection is required and why it does not reintroduce them.
 
 **The cost column deliberately excludes migration.** We are in private beta with a handful of users, so conversion effort and the risk of losing old conversations are close to free right now, and they are the main thing that would otherwise make B look cheap and D look expensive. Judge these on the end state they produce, not on how hard they are to reach from here. See [Timing](#timing).
 
@@ -157,7 +191,8 @@ Specifically:
 
 - One append-only JSONL per conversation, in application data, as the source of truth.
 - A single central SQLite index holding list-view metadata plus `(ordinal, byte offset)` per item, so readers seek instead of replaying.
-- The index is rebuildable from the files, and a rebuild path exists and is tested from day one. Not "we could rebuild it," but a function that does.
+- A projection table in that index for structured references the list view needs — linked and produced files above all — written on append rather than derived on read. See [What the sidebar needs](#what-the-sidebar-needs-and-why-the-index-is-not-optional).
+- The index is rebuildable from the files, and a rebuild path exists and is tested from day one. Not "we could rebuild it," but a function that does. It carries a schema generation so a format change triggers the rebuild rather than serving wrong rows.
 - Content search is ripgrep against the JSONL directory, joined to the index for ordering and pagination, with an in-process scan fallback.
 - Entries are append-only with parent pointers, so message editing and branching are natural rather than destructive.
 
@@ -188,7 +223,7 @@ The corollary is that we should not build compatibility scaffolding we would onl
 0. **Split the id from the title.** A generated time-sortable id as key, filename, and origin label; today's prompt-derived slug becomes an editable `title` field. Small, and it gates everything after it, because phases 1 and 4 both choose durable names.
 1. **Prototype the write path.** Append-and-fold with byte offsets, against a real long session. Measure turn latency, file size, and time to open a conversation. Decide D versus C on the numbers.
 2. **Introduce the storage seam.** Make `getSessionsStoreStorage` return an interface rather than an unstorage instance. Worth doing regardless of the outcome, and Reference B runs two backings behind exactly this contract today.
-3. **The metadata index.** Central, rebuildable, with the rebuild tested. This is needed under both D and C, so it is not a bet.
+3. **The metadata index.** Central, rebuildable, with the rebuild tested, and carrying the reference projection the sidebar needs rather than scalars alone. This is needed under both D and C, so it is not a bet — and it is the phase that unblocks message counts and linked files in the list view, which are not reachable today at any price short of a fan-out.
 4. **New backing store** behind the seam. Swap outright rather than running both; there is no population to keep on the old path.
 5. **One-shot converter**, sentinel-guarded, best-effort, deleted a release later.
 6. **Agent capability.** Search over history via the existing grep tooling, then reorganization.
@@ -204,4 +239,6 @@ Phases 2 and 3 pay off under either option, so the irreversible choice happens a
 - What happens to `task-database-query` and `session-transcript` once the data is readable? Both likely collapse into ordinary file reads, which is the clearest signal that the direction is right.
 - Does project identity come from the repository (Reference C hashes the initial commit) or from the path? The repository answer is strictly better where one exists and undefined where one does not, so the real question is what the fallback is for the non-code tasks that are most of our usage.
 - Can the agent write to the conversation's own asset directory through the ordinary mount set, or only indirectly through the tools that produce those files? The narrower answer is already available, since nothing currently makes the agent name those paths.
+- What counts as a "linked file" for the projection: only what the agent explicitly referenced, or also what it wrote and what the user attached? The three have different lifetimes and the sidebar probably wants them distinguished rather than merged.
+- How does the list view render a reference whose file no longer resolves? Under the folder plan the target can move or be disconnected, so "linked, but gone" is a normal state, not an error.
 - Does content search use ripgrep over files (Reference A) or FTS5 with triggers (Reference B)? Both are now represented in the prior art. Ripgrep needs no index and no staleness story but requires JSON-escaping the query; FTS5 ranks and paginates natively but must be maintained on every write.

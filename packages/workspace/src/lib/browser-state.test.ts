@@ -80,6 +80,37 @@ describe("browser state", () => {
     });
   });
 
+  it("keeps the page's title when a later command names it without one", async () => {
+    await recordBrowserUse({
+      sessionId,
+      taskId,
+      title: "Example",
+      url: "https://example.com",
+    });
+    // `show <url>` carries no title. Pointed at the page the session is already
+    // on, it is asking for that page to be revealed rather than reporting a
+    // different one, so the title it does not carry is still the page's own.
+    await recordBrowserUse({ sessionId, taskId, url: "https://example.com" });
+
+    expect(await getBrowserState(taskId, sessionId)).toMatchObject({
+      value: { lastTitle: "Example", lastUrl: "https://example.com" },
+    });
+  });
+
+  it("drops the title of the page a new one replaced", async () => {
+    await recordBrowserUse({
+      sessionId,
+      taskId,
+      title: "Example",
+      url: "https://example.com",
+    });
+    await recordBrowserUse({ sessionId, taskId, url: "https://example.org" });
+
+    expect(
+      (await getBrowserState(taskId, sessionId))._unsafeUnwrap(),
+    ).toMatchObject({ lastTitle: undefined, lastUrl: "https://example.org" });
+  });
+
   it("preserves the last known page when a later observation has none", async () => {
     await recordBrowserUse({
       sessionId,

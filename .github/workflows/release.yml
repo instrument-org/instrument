@@ -143,9 +143,22 @@ jobs:
         run: |
           rm ~/.private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
 
+      # signtool ships with the Windows SDK on the runner image but is not on PATH.
+      # Resolving it inline rather than through an action keeps every non-Windows leg
+      # from having to download a Windows-only dependency during job setup, which
+      # Actions does for every referenced action regardless of its `if` condition.
       - if: matrix.os == 'windows-latest'
-        uses: KamaranL/add-signtool-action@d0027a4cf430f8dfdb15fba53410d0c76b7566f4 # v1
-        id: signtool
+        name: Add signtool to PATH
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Where-Object { $_.FullName -like '*\x64\*' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $signtool) { throw "signtool.exe not found in the Windows SDK." }
+          Write-Output "Using $($signtool.FullName)"
+          Add-Content -Path $env:GITHUB_PATH -Value $signtool.DirectoryName
 
       - if: matrix.os == 'windows-latest'
         id: auth-google-cloud

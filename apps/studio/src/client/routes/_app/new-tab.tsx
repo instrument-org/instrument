@@ -18,7 +18,7 @@ import {
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -62,6 +62,11 @@ function RouteComponent() {
   const createTaskMutation = useMutation(
     rpcClient.workspace.task.create.mutationOptions(),
   );
+  // The task exists once the mutation resolves, but its page has a loader to
+  // run before the navigation commits. Held through that stretch so the
+  // composer stays visibly busy rather than going idle over the prompt it just
+  // emptied, which reads as a submit that went nowhere.
+  const [isNavigating, setIsNavigating] = useState(false);
 
   useEffect(() => {
     // Preload the task route chunk for faster navigation
@@ -85,7 +90,7 @@ function RouteComponent() {
           autoFocus
           autoResizeMaxHeight={300}
           draftKey={{ scope: "compose", tabId }}
-          isLoading={createTaskMutation.isPending}
+          isLoading={createTaskMutation.isPending || isNavigating}
           modelURI={selectedModelURI}
           onModelChange={setSelectedModelURI}
           onSubmit={({
@@ -107,6 +112,9 @@ function RouteComponent() {
                   );
                 },
                 onSuccess: ({ id, sessionId }) => {
+                  // Before navigating, not after: the ref is gone once this
+                  // page unmounts, and the draft would outlive the task it was
+                  // sent to.
                   promptInputRef.current?.clear();
                   if (openInNewTab) {
                     void addTab(
@@ -117,13 +125,18 @@ function RouteComponent() {
                       },
                       { select: false },
                     );
-                  } else {
-                    void navigate({
-                      params: { id },
-                      search: { selectedSessionId: sessionId },
-                      to: "/tasks/$id",
-                    });
+                    return;
                   }
+                  setIsNavigating(true);
+                  void navigate({
+                    params: { id },
+                    search: { selectedSessionId: sessionId },
+                    to: "/tasks/$id",
+                  }).finally(() => {
+                    // Only reached when the navigation fails, since committing
+                    // one unmounts this page.
+                    setIsNavigating(false);
+                  });
                 },
               },
             );

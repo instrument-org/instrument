@@ -354,7 +354,7 @@ describe("markdown code block", () => {
     const capped = pre.getBoundingClientRect().height;
     expect(pre.scrollHeight).toBeGreaterThan(pre.clientHeight);
 
-    const expand = screen.getByRole("button", { name: "Show all 60 lines" });
+    const expand = screen.getByRole("button", { name: "Show more" });
     expect(expand.element().getBoundingClientRect().bottom).toBeLessThanOrEqual(
       pre.getBoundingClientRect().bottom,
     );

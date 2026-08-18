@@ -325,7 +325,6 @@ export function ToolCardSection({
           // saying the region is holding something back, and it says it without
           // putting a widget on every long card in the transcript.
           className="opacity-0 group-hover/section:opacity-100 focus-visible:opacity-100"
-          collapsedLabel="Show more"
           isExpanded={isExpanded}
           onToggle={() => {
             setIsExpanded(!isExpanded);

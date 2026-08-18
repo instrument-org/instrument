@@ -96,6 +96,12 @@ export const collapsedFadeClassName =
 /**
  * The control that opens a clamped region and closes it again.
  *
+ * The wording is fixed. It used to name what opening would cost -- "Show all
+ * 340 lines" -- which is a price worth quoting only where opening is expensive,
+ * and reads as trivia everywhere else. It also put a number in lines against
+ * regions clamped in pixels, so the two rarely agreed about how much was
+ * actually hidden.
+ *
  * The caller passes the classes that fade it out and says in which states,
  * because how loud it has to be depends on what else is saying there is more.
  * Which group answers a hover is the caller's too: a named group matches any
@@ -103,13 +109,10 @@ export const collapsedFadeClassName =
  */
 export const BlockExpandButton = ({
   className,
-  collapsedLabel,
   isExpanded,
   onToggle,
 }: {
   className?: string;
-  /** What there is more of, e.g. "Show more". */
-  collapsedLabel: string;
   isExpanded: boolean;
   onToggle: () => void;
 }) => (
@@ -122,7 +125,7 @@ export const BlockExpandButton = ({
     type="button"
   >
     {isExpanded ? <CaretUpIcon size={12} /> : <CaretDownIcon size={12} />}
-    {isExpanded ? "Show less" : collapsedLabel}
+    {isExpanded ? "Show less" : "Show more"}
   </button>
 );
 
@@ -283,7 +286,6 @@ export const MarkdownCodeBlock = ({
               ? "opacity-0 group-hover/block-toolbar:opacity-100 focus-visible:opacity-100"
               : undefined
           }
-          collapsedLabel={`Show all ${lineCount} lines`}
           isExpanded={isExpanded}
           onToggle={() => {
             setIsExpanded(!isExpanded);

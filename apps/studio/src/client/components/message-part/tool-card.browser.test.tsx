@@ -9,10 +9,11 @@ import { ToolCard, ToolCardSection } from "./tool-card";
 const LONG_LINE = `stderr: ${"detail ".repeat(80)}`;
 
 const COLLAPSED_HEIGHT = 176;
+// The height an opened region stands at, from `tool-card.tsx`.
+const EXPANDED_HEIGHT = 480;
 
 const renderSection = (props?: {
   copyText?: string;
-  lineCount?: number;
   text?: string;
   wrappable?: boolean;
 }) =>
@@ -22,7 +23,6 @@ const renderSection = (props?: {
         <ToolCardSection
           collapsedHeight={COLLAPSED_HEIGHT}
           copyText={props?.copyText}
-          lineCount={props?.lineCount}
           wrappable={props?.wrappable}
         >
           <pre className="font-mono text-sm">{props?.text ?? LONG_LINE}</pre>
@@ -113,18 +113,47 @@ describe("tool card section", () => {
       ).toBeLessThan(COLLAPSED_HEIGHT * 2);
     });
 
-    it("takes the clamp off rather than scrolling within it", async () => {
-      const screen = await renderSection({ wrappable: true });
+    // Opening grows the region to a bounded height and scrolls inside it. Laid
+    // out in full instead, a four-hundred-line log is a card taller than the
+    // window, and everything after it in the transcript is pushed past reach.
+    it("grows to a bounded height rather than to whatever the content measures", async () => {
+      const screen = await renderSection({
+        text: Array.from({ length: 400 }, (_, i) => `line ${i}`).join("\n"),
+        wrappable: true,
+      });
       const pre = preIn(screen.container);
 
       await screen.getByRole("button", { name: /Show more/ }).click();
 
       const card = cardOf(screen.container).getBoundingClientRect();
       expect(card.height).toBeGreaterThan(COLLAPSED_HEIGHT);
-      // Everything is laid out, not parked behind a scroller inside the card.
-      expect(pre.getBoundingClientRect().bottom).toBeLessThanOrEqual(
-        card.bottom,
-      );
+      expect(card.height).toBeLessThan(600);
+      // The content is far taller than the card holding it, which is what makes
+      // the region a scroller rather than a full layout.
+      expect(pre.getBoundingClientRect().height).toBeGreaterThan(card.height);
+    });
+
+    // Measured rather than read off the computed style or driven by scrollTop:
+    // `overflow-y` reports `auto` whenever the other axis is `auto`, and a
+    // clipped box still scrolls under a script, so both of those pass against a
+    // region that cannot scroll. What is true either way is the size of the
+    // window and how much is behind it.
+    it("holds a bounded window onto the rest once opened", async () => {
+      const screen = await renderSection({
+        text: Array.from({ length: 400 }, (_, i) => `line ${i}`).join("\n"),
+        wrappable: true,
+      });
+      const scroller = preIn(screen.container).parentElement?.parentElement;
+      if (!scroller) {
+        throw new Error("no scroller around the content");
+      }
+
+      expect(scroller.clientHeight).toBe(COLLAPSED_HEIGHT);
+
+      await screen.getByRole("button", { name: /Show more/ }).click();
+
+      expect(scroller.clientHeight).toBe(EXPANDED_HEIGHT);
+      expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);
     });
 
     it("closes again", async () => {
@@ -139,27 +168,16 @@ describe("tool card section", () => {
       ).toBeLessThan(opened);
     });
 
-    // What it costs to open, for the sections whose content has countable lines
-    // at all. Markdown and rows do not, and say "Show more" instead.
-    it("says how much there is when the caller can count it", async () => {
-      const screen = await renderSection({ lineCount: 62, wrappable: true });
-
-      await expect
-        .element(screen.getByRole("button", { name: "Show all 62 lines" }))
-        .toBeVisible();
-    });
-
     // Measured rather than counted from the text: one 500-character line fills
     // the clamp on its own once it wraps, and a line count would call it short.
     it("offers the rest of a single line long enough to fill the clamp", async () => {
       const screen = await renderSection({
-        lineCount: 1,
         text: "x".repeat(4000),
         wrappable: true,
       });
 
       await expect
-        .element(screen.getByRole("button", { name: "Show all 1 lines" }))
+        .element(screen.getByRole("button", { name: /Show more/ }))
         .toBeVisible();
     });
 

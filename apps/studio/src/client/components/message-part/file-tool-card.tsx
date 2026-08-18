@@ -97,7 +97,6 @@ export function FileToolCard({
       <ToolCardSection
         collapsedHeight={COLLAPSED_HEIGHT}
         copyText={isStreaming ? undefined : cleanedContent}
-        lineCount={cleanedContent.split("\n").length}
         wrappable
       >
         {/* Sized here because nothing under it is: the highlighter's `<pre>`

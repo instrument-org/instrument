@@ -97,7 +97,6 @@ export function ToolBash({ part }: { part: BashPart }) {
         borderBottom={hasOutput || isError}
         collapsedHeight={128}
         copyText={isStreaming ? undefined : command}
-        lineCount={command.split("\n").length}
         wrappable
       >
         <div className="flex font-mono text-sm leading-relaxed">
@@ -121,7 +120,6 @@ export function ToolBash({ part }: { part: BashPart }) {
         <ToolCardSection
           collapsedHeight={176}
           copyText={isStreaming ? undefined : outputText}
-          lineCount={outputText.split("\n").length}
           wrappable
         >
           {outputText.length > 0 ? (

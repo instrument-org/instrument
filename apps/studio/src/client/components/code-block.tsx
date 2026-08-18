@@ -96,11 +96,10 @@ export const collapsedFadeClassName =
 /**
  * The control that opens a clamped region and closes it again.
  *
- * Collapsed it is the only thing saying there is more, so it is on screen
- * whether or not anything is hovered. Expanded it is chrome like the rest, and
- * the caller passes the classes that fade it back out -- which group answers a
- * hover is the caller's to name, since a named group matches any ancestor
- * carrying the name rather than the nearest, and these regions nest.
+ * The caller passes the classes that fade it out and says in which states,
+ * because how loud it has to be depends on what else is saying there is more.
+ * Which group answers a hover is the caller's too: a named group matches any
+ * ancestor carrying the name rather than the nearest, and these regions nest.
  */
 export const BlockExpandButton = ({
   className,
@@ -109,7 +108,7 @@ export const BlockExpandButton = ({
   onToggle,
 }: {
   className?: string;
-  /** What there is more of, e.g. "Show all 62 lines". */
+  /** What there is more of, e.g. "Show more". */
   collapsedLabel: string;
   isExpanded: boolean;
   onToggle: () => void;
@@ -117,7 +116,7 @@ export const BlockExpandButton = ({
   <button
     className={cn(
       "absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-md border border-border/50 bg-background px-2 py-1 text-xs text-muted-foreground hover:bg-card hover:text-foreground",
-      isExpanded && className,
+      className,
     )}
     onClick={onToggle}
     type="button"
@@ -277,7 +276,13 @@ export const MarkdownCodeBlock = ({
 
       {isCollapsible && (
         <BlockExpandButton
-          className="opacity-0 group-hover/block-toolbar:opacity-100 focus-visible:opacity-100"
+          // Collapsed it is the only thing offering the rest, so it stays on
+          // screen. Expanded it is chrome like the rest of the toolbar.
+          className={
+            isExpanded
+              ? "opacity-0 group-hover/block-toolbar:opacity-100 focus-visible:opacity-100"
+              : undefined
+          }
           collapsedLabel={`Show all ${lineCount} lines`}
           isExpanded={isExpanded}
           onToggle={() => {

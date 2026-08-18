@@ -86,19 +86,6 @@ export function ToolCardActions({ children }: { children: ReactNode }) {
   );
 }
 
-function ToolCardCopyButton({ text }: { text: string }) {
-  return (
-    <CopyButton
-      className={blockToolbarButtonClassName}
-      iconSize={12}
-      onCopy={async () => {
-        await navigator.clipboard.writeText(text);
-      }}
-      tooltip="Copy"
-    />
-  );
-}
-
 /**
  * The body of a call that has nothing to draw.
  *
@@ -137,6 +124,19 @@ export function ToolCardHeader({
   );
 }
 
+function ToolCardCopyButton({ text }: { text: string }) {
+  return (
+    <CopyButton
+      className={blockToolbarButtonClassName}
+      iconSize={12}
+      onCopy={async () => {
+        await navigator.clipboard.writeText(text);
+      }}
+      tooltip="Copy"
+    />
+  );
+}
+
 /**
  * The corner cluster of controls acting on one region of a card.
  *
@@ -157,6 +157,13 @@ function ToolCardOverlay({ children }: { children: ReactNode }) {
 }
 
 /**
+ * How tall an opened region may stand. Roughly two and a half times the height
+ * most sections rest at: enough to read a stack trace without leaving the
+ * transcript, short enough that two open at once do not own it.
+ */
+const EXPANDED_HEIGHT = 480;
+
+/**
  * One region of a card, clamped until the reader asks for the rest, with the
  * controls that act on it floating in its corner.
  *
@@ -168,18 +175,24 @@ function ToolCardOverlay({ children }: { children: ReactNode }) {
  * the same way. A reader who has learned `↵` there should not have to learn it
  * twice.
  *
- * Clamped rather than scrolled: a scroller inside a transcript that is itself
- * scrolling catches the wheel and strands the reader, and it hides how much is
- * left behind a thumb nobody looks at. Opening one has no cap, the way a code
- * block's does not, so the section is either a fixed slot or the whole thing --
- * never an eight-line window onto four hundred lines.
+ * Clamped rather than scrolled: a scroller nobody opened catches the wheel of a
+ * reader on their way past, which is what makes one inside a transcript a trap.
+ * Opening the region is what asks for it, so that is where the scrolling goes
+ * -- and opening grows to `EXPANDED_HEIGHT` rather than to whatever the content
+ * measures, because a four-hundred-line log laid out in full is a card taller
+ * than the window, and scrolling the transcript past it costs more than the
+ * scroller inside it ever did.
+ *
+ * Bounding it is also what retires the line count. Naming the price only earns
+ * its noise while the price is unbounded; opened, every region is the same
+ * height, so there is nothing to warn about and the control can just say what
+ * it does.
  */
 export function ToolCardSection({
   borderBottom = false,
   children,
   collapsedHeight,
   copyText,
-  lineCount,
   wrappable = false,
 }: {
   borderBottom?: boolean;
@@ -194,11 +207,6 @@ export function ToolCardSection({
    */
   collapsedHeight: number;
   copyText?: string;
-  /**
-   * Lines in the region, when it is the kind of content that has them, so the
-   * control can say what opening it costs before the reader commits.
-   */
-  lineCount?: number;
   /**
    * Whether the region holds preformatted text wide enough to be worth seeing
    * unwrapped. Off for prose and for anything laid out as rows, where there are
@@ -259,10 +267,19 @@ export function ToolCardSection({
           // Horizontal only. Vertical is the clamp's, and a box that scrolls
           // both ways would put back the trap the clamp is here to avoid.
           "scrollbar-thin scrollbar-color overflow-x-auto",
-          !isExpanded && "overflow-y-hidden",
+          // Scrolls only once opened, and chains rather than containing, so
+          // reaching the end of a log carries on down the transcript instead of
+          // stopping dead in a box.
+          isExpanded ? "overflow-y-auto" : "overflow-y-hidden",
           isCollapsed && collapsedFadeClassName,
         )}
-        style={{ maxHeight: isExpanded ? undefined : collapsedHeight }}
+        style={{
+          maxHeight: isExpanded
+            ? // Never shorter than it rested at: a section can be clamped taller
+              // than this closed, and opening one must not shrink it.
+              Math.max(collapsedHeight, EXPANDED_HEIGHT)
+            : collapsedHeight,
+        }}
       >
         <div
           className={cn(
@@ -304,12 +321,11 @@ export function ToolCardSection({
 
       {isOverflowing && (
         <BlockExpandButton
+          // Quiet in both states, unlike a code block's. The fade is already
+          // saying the region is holding something back, and it says it without
+          // putting a widget on every long card in the transcript.
           className="opacity-0 group-hover/section:opacity-100 focus-visible:opacity-100"
-          collapsedLabel={
-            lineCount === undefined
-              ? "Show more"
-              : `Show all ${lineCount} lines`
-          }
+          collapsedLabel="Show more"
           isExpanded={isExpanded}
           onToggle={() => {
             setIsExpanded(!isExpanded);

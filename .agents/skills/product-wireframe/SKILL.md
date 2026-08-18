@@ -5,13 +5,15 @@ description: Build a static HTML wireframe of a proposed Studio flow, styled wit
 
 # Product wireframe
 
-One self-contained HTML file showing a **flow across states**, embedded in a plan or a Notion page. Not a prototype, not a component spec. It exists to make a proposal legible to someone who will not read the plan.
+One self-contained HTML file showing a **flow across states**. Not a prototype, not a component spec. It exists to make a proposal legible to someone who will not read the plan.
 
 ```bash
 cp .agents/skills/product-wireframe/template.html docs/plans/active/wireframes-<topic>.html
 ```
 
-Name it `wireframes-<topic>.html`, put it beside the plan, and link it from the plan.
+Name it `wireframes-<topic>.html`.
+
+`docs/plans/**/wireframes-*.html` is gitignored, so the file is a scratch artifact for the conversation that asked for one, not history. Do not link it from a plan: the link resolves on the machine that wrote it and nowhere else, and a doc that points at a file nobody else has is worse than one that does not mention it. Say what the wireframe shows in the plan's own prose, and share the file itself the way Publishing describes. Ask before committing one, which is the exception rather than the finish line.
 
 **Copy the template, then edit only the `states` array and the constants above it.** Everything else in the file is machinery, and about two thirds of it is a theme block a script maintains. Writing one of these from scratch means retyping all of that for nothing.
 

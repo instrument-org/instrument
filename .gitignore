@@ -54,3 +54,10 @@ node_modules/
 # now. Kept on disk as a surfacing spot, not as history. Ask for one to be
 # committed if it should outlive the conversation that produced it.
 /docs/visual-explanations/
+
+# Wireframes: single-use pictures of a proposal, for the conversation that asked
+# for one. They reach anyone else as a Notion embed or a screenshot, so the file
+# is a scratch artifact rather than history, and one linked from a committed doc
+# is a link nobody else can follow. Ask for one to be committed if it should
+# outlive the conversation that produced it.
+/docs/plans/**/wireframes-*.html

@@ -70,8 +70,6 @@ Needs design before implementation. Start that conversation during phase 1, not 
 - Decline and cancel as distinct outcomes, and abandonment as a supported state rather than a leak.
 - Credential entry sharing the surface but bypassing the model entirely.
 
-Wireframes for the conversation: [the input surface](wireframes-user-input-surface.html), [setup in context](wireframes-plugin-setup-flow.html), [management surfaces](wireframes-plugin-management.html), [a task that is waiting](wireframes-waiting-task.html).
-
 ## Phase 4: make it robust
 
 This is the phase that delivers the product bar. Until it lands, the system connects the easy cases.

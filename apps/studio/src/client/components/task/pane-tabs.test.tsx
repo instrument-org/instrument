@@ -1,11 +1,18 @@
 import { renderWithProviders } from "@/tests/render";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { fireEvent, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PaneTabs } from "./pane-tabs";
 
+const isAgentUsingBrowser = vi.fn<() => boolean>();
+vi.mock("@/client/hooks/use-browser-agent-activity", () => ({
+  useBrowserAgentActivity: () => isAgentUsingBrowser(),
+}));
+
 const taskId = TaskIdSchema.parse("pane-tabs-test");
+
+const AT_WORK = "Agent is working in the browser";
 
 function renderStrip({
   onSelect = vi.fn(),
@@ -28,6 +35,10 @@ function renderStrip({
 }
 
 describe("PaneTabs", () => {
+  beforeEach(() => {
+    isAgentUsingBrowser.mockReturnValue(false);
+  });
+
   it("exposes the strip as a tab list, with the browser first", () => {
     renderStrip();
 
@@ -78,5 +89,29 @@ describe("PaneTabs", () => {
 
     expect(onSelect).toHaveBeenCalledWith("file:output/chart.png");
     expect(document.activeElement).toBe(tabs.at(-1));
+  });
+
+  // The globe stays put and carries the state as light on it -- plus the words,
+  // since a shimmer says nothing to a screen reader. The name is not part of
+  // it, which is the half worth asserting: a lit label reads as a different
+  // label.
+  it("marks the browser tab while the agent is driving the page", () => {
+    isAgentUsingBrowser.mockReturnValue(true);
+    renderStrip({ selectedKey: "file:output/report.pdf" });
+
+    const [browser] = screen.getAllByRole("tab");
+    expect(browser?.textContent).toContain(AT_WORK);
+    expect(
+      browser?.querySelector(".brand-shiny-icon-highlight"),
+    ).not.toBeNull();
+    expect(browser?.querySelector(".brand-shiny-text")).toBeNull();
+  });
+
+  it("leaves the tab as it was when the agent is elsewhere", () => {
+    renderStrip({ selectedKey: "file:output/report.pdf" });
+
+    const [browser] = screen.getAllByRole("tab");
+    expect(browser?.textContent).toBe("Browser");
+    expect(browser?.querySelector(".brand-shiny-text")).toBeNull();
   });
 });

@@ -784,6 +784,18 @@ a.cursor-pointer {
   }
 }
 
+/* `shine`, driving a mask instead of a background, so the same band can sweep
+* an icon. Text takes the highlight through `background-clip`, which only ever
+* paints glyphs; an SVG has to be lit by revealing a brighter copy of itself. */
+@keyframes shine-mask {
+  0% {
+    mask-position: 100%;
+  }
+  100% {
+    mask-position: -100%;
+  }
+}
+
 /* Each word of a message still streaming in; see `rehype-animate-words`, which
  * is what puts the attribute there and only while the text is still growing.
  *
@@ -938,6 +950,35 @@ a.cursor-pointer {
     animation: planning-dot-shockwave-ring 1.5s ease-out infinite;
     pointer-events: none;
     will-change: transform, opacity;
+  }
+
+  /* `brand-shiny-text` for an icon: the same traveling highlight on the same
+   * 3s period. Two copies of the icon stacked in a cell -- the base, and a
+   * brighter one revealed only where the band is, since a highlight brighter
+   * than what it crosses cannot be painted by dimming, which is all a mask can
+   * do on its own.
+   *
+   * One base in both modes, where the word needs two. The word's pair exists
+   * because thin glyph strokes at the light base fall to 2.3:1 on the dark
+   * surface; an icon is a filled shape carrying several times that ink, so the
+   * brighter of the two already clears 3:1 against the light surface and 5.4:1
+   * against the dark one. Taking the word's light base as well would only make
+   * the icon read as a heavy dark blob beside the gray icons it sits with,
+   * which is the same ink difference working the other way. */
+  .brand-shiny-icon {
+    color: #2e9e79;
+  }
+
+  .brand-shiny-icon-highlight {
+    color: #55e8bb;
+    mask-image: linear-gradient(
+      270deg,
+      transparent 24.14%,
+      black 34.66%,
+      transparent 60.34%
+    );
+    mask-size: 200% 100%;
+    animation: shine-mask 3s linear infinite;
   }
 }
 

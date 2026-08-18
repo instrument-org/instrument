@@ -1,5 +1,6 @@
 import { renderInBrowser } from "@/tests/render-browser";
 import { describe, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { TRANSCRIPT_ROW } from "./message-part/transcript-group";
 import { RunRowChevron } from "./run-row-chevron";
@@ -10,6 +11,7 @@ import { RunRowChevron } from "./run-row-chevron";
 const renderRow = (isOpen: boolean) =>
   renderInBrowser(
     <div style={{ width: 480 }}>
+      <p className="pb-8">away</p>
       <button className={TRANSCRIPT_ROW} type="button">
         <span className="min-w-0 truncate text-sm">Ran a command</span>
         <RunRowChevron isOpen={isOpen} />
@@ -55,15 +57,24 @@ describe("RunRowChevron", () => {
 
   // Quiet at rest is the point of it; what changed is that being quiet no longer
   // means being absent.
+  //
+  // The pointer is parked deliberately. The browser project shares one page
+  // across a file, so it sits wherever the last interaction left it -- which
+  // over a run of tests is sometimes on the row, and an assertion about a hover
+  // state then passes or fails on where the mouse happened to stop.
   it("is drawn but invisible until the row is hovered", async () => {
     const screen = await renderRow(false);
     const chevron = screen.container.querySelector("svg");
-    if (!chevron) {
+    const row = screen.container.querySelector("button");
+    if (!chevron || !row) {
       throw new Error("no chevron rendered");
     }
 
-    const style = globalThis.getComputedStyle(chevron);
-    expect(style.opacity).toBe("0");
-    expect(style.display).not.toBe("none");
+    await userEvent.hover(screen.getByText("away"));
+    expect(globalThis.getComputedStyle(chevron).opacity).toBe("0");
+    expect(globalThis.getComputedStyle(chevron).display).not.toBe("none");
+
+    await userEvent.hover(screen.getByText("Ran a command"));
+    expect(globalThis.getComputedStyle(chevron).opacity).toBe("1");
   });
 });

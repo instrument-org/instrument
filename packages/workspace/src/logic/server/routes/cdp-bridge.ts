@@ -7,6 +7,7 @@ import { type ServerType } from "@hono/node-server";
 import { Hono } from "hono";
 import { WebSocket, WebSocketServer } from "ws";
 
+import { publisher } from "../../../rpc/publisher";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import {
   type BrowserTargetId,
@@ -122,6 +123,13 @@ const INTERCEPTED_TARGET_COMMANDS = new Set([
   "Target.setAutoAttach",
   "Target.setDiscoverTargets",
 ]);
+
+// Agent traffic that is not the agent doing anything: a recording session acks
+// every frame it is handed, so counting those would report the browser as busy
+// for as long as the recording runs rather than while something is happening in
+// it. Everything else -- clicking, typing, navigating, reading the page --
+// counts, because from outside the pane they are all the same news.
+const SILENT_COMMANDS = new Set(["Page.screencastFrameAck"]);
 
 function handleCdpClient(
   clientWs: WebSocket,
@@ -239,6 +247,9 @@ function handleCdpClient(
           targetId,
         },
       });
+      if (!SILENT_COMMANDS.has(method)) {
+        publisher.publish("browser.agentActivity", { id: meta.id });
+      }
     }
 
     // sessionId is present when agent-browser uses flat session mode after

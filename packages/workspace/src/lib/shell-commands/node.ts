@@ -116,7 +116,10 @@ export function createNodeCommand(taskId: TaskId) {
         taskCwd,
         env,
       );
-      const combined = filterShellOutput(shimOutput(execResult, NODE_COMMAND.name), taskDir(taskId));
+      const combined = filterShellOutput(
+        shimOutput(execResult, NODE_COMMAND.name),
+        taskDir(taskId),
+      );
       return {
         exitCode: execResult.exitCode ?? 1,
         stderr: "",
@@ -172,7 +175,10 @@ export function createNodeCommand(taskId: TaskId) {
         env,
         subprocessStdin(ctx.stdin),
       );
-      const combined = filterShellOutput(shimOutput(execResult, NODE_COMMAND.name), taskDir(taskId));
+      const combined = filterShellOutput(
+        shimOutput(execResult, NODE_COMMAND.name),
+        taskDir(taskId),
+      );
       return {
         exitCode: execResult.exitCode ?? 1,
         stderr: "",
@@ -200,7 +206,10 @@ export function createNodeCommand(taskId: TaskId) {
         return {
           exitCode: execResult.exitCode ?? 1,
           stderr: "",
-          stdout: filterShellOutput(shimOutput(execResult, NODE_COMMAND.name), taskDir(taskId)),
+          stdout: filterShellOutput(
+            shimOutput(execResult, NODE_COMMAND.name),
+            taskDir(taskId),
+          ),
         };
       }
 
@@ -242,7 +251,10 @@ export function createNodeCommand(taskId: TaskId) {
       env,
       subprocessStdin(ctx.stdin),
     );
-    const combined = filterShellOutput(shimOutput(execResult, NODE_COMMAND.name), taskDir(taskId));
+    const combined = filterShellOutput(
+      shimOutput(execResult, NODE_COMMAND.name),
+      taskDir(taskId),
+    );
 
     return {
       exitCode: execResult.exitCode ?? 1,

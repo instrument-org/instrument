@@ -7,7 +7,7 @@ import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
-import { execShim } from "./exec-shim";
+import { execShim, shimOutput } from "./exec-shim";
 import { TS_COMMAND } from "./ts";
 import {
   bridgeFlagValuePath,
@@ -116,7 +116,7 @@ export function createNodeCommand(taskId: TaskId) {
         taskCwd,
         env,
       );
-      const combined = filterShellOutput(execResult.all, taskDir(taskId));
+      const combined = filterShellOutput(shimOutput(execResult, NODE_COMMAND.name), taskDir(taskId));
       return {
         exitCode: execResult.exitCode ?? 1,
         stderr: "",
@@ -172,7 +172,7 @@ export function createNodeCommand(taskId: TaskId) {
         env,
         subprocessStdin(ctx.stdin),
       );
-      const combined = filterShellOutput(execResult.all, taskDir(taskId));
+      const combined = filterShellOutput(shimOutput(execResult, NODE_COMMAND.name), taskDir(taskId));
       return {
         exitCode: execResult.exitCode ?? 1,
         stderr: "",
@@ -200,7 +200,7 @@ export function createNodeCommand(taskId: TaskId) {
         return {
           exitCode: execResult.exitCode ?? 1,
           stderr: "",
-          stdout: filterShellOutput(execResult.all, taskDir(taskId)),
+          stdout: filterShellOutput(shimOutput(execResult, NODE_COMMAND.name), taskDir(taskId)),
         };
       }
 
@@ -242,7 +242,7 @@ export function createNodeCommand(taskId: TaskId) {
       env,
       subprocessStdin(ctx.stdin),
     );
-    const combined = filterShellOutput(execResult.all, taskDir(taskId));
+    const combined = filterShellOutput(shimOutput(execResult, NODE_COMMAND.name), taskDir(taskId));
 
     return {
       exitCode: execResult.exitCode ?? 1,

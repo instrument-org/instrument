@@ -51,9 +51,7 @@ Closing the last window quits the app on **every** platform, macOS included, and
 
 ## Copy
 
-Quote a user's own name for something — a folder, a project, a skill, a search they typed — in curly quotes: `Remove “${name}” from this task?`, not `"${name}"`. Straight quotes are for code: SQL identifiers, CSS selectors, developer-facing `throw`s, and prompt text written for the model rather than shown as chrome.
-
-Name the app with `APP_NAME` from `@instrument-org/shared` rather than typing it, and only where the sentence needs a subject ("Instrument will lose access to the folder"). Most copy should not mention it at all, since the user knows where they are.
+Quote a name the user chose — a folder, project, skill, or their own search text — in curly quotes: `Remove “${name}”?`. Straight quotes are syntax: SQL identifiers, CSS selectors, `throw`s, prompt text for the model.
 
 ## UI zoom
 

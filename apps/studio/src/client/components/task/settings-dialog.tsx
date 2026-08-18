@@ -1,3 +1,4 @@
+import { markTitleRenamedByUser } from "@/client/hooks/use-title-arrival";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task } from "@instrument-org/workspace/client";
 import { useForm } from "@tanstack/react-form";
@@ -58,6 +59,7 @@ function RenameForm({
       name: task.title,
     },
     onSubmit: async ({ value }) => {
+      markTitleRenamedByUser(task.id, value.name);
       await updateTask({
         id: task.id,
         name: value.name,

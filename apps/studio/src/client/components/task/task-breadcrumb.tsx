@@ -10,6 +10,8 @@ import {
   type MenuComponents,
 } from "@/client/components/ui/menu-components";
 import { type useInlineRename } from "@/client/hooks/use-inline-rename";
+import { useTitleArrival } from "@/client/hooks/use-title-arrival";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task } from "@instrument-org/workspace/client";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
@@ -43,6 +45,8 @@ export function TaskBreadcrumb({
 
   const titleRef = useRef<HTMLButtonElement>(null);
   const [fieldWidth, setFieldWidth] = useState<number>();
+
+  const titleArrival = useTitleArrival(task.id, task.title);
 
   // Nothing here is text to select: clicking the title is how a rename starts,
   // and a caret plus a highlighted word under it reads as an edit that did not
@@ -146,7 +150,20 @@ export function TaskBreadcrumb({
               ref={titleRef}
               type="button"
             >
-              <span className="min-w-0 flex-1 truncate">{task.title}</span>
+              {/*
+                The arrival sweep goes on the text and not the button around
+                it: the button is the hover surface, and a mask over that would
+                sweep the fill in along with the name.
+              */}
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate",
+                  titleArrival.className,
+                )}
+                onAnimationEnd={titleArrival.onAnimationEnd}
+              >
+                {task.title}
+              </span>
             </button>
           </ContextMenuTrigger>
           <ContextMenuContent className="w-56">

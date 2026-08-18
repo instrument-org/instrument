@@ -816,6 +816,42 @@ a.cursor-pointer {
   }
 }
 
+/* A task's name arriving in place of the one before it; see `useTitleArrival`,
+ * which puts the class there and only for a name the reader did not type.
+ *
+ * A mask rather than a plain fade. The old name leaves the moment the new one
+ * is committed, so a fade of the whole line starts from an empty row and the
+ * name has to appear out of nothing; swept, the row is filling from the first
+ * frame and the eye follows the name in the direction it is read.
+ *
+ * The gradient is three times the width of the box it masks, so the band it
+ * fades across is about a full title wide: at the halfway point the whole name
+ * is on screen at a slope rather than half of it at full strength, which is
+ * what keeps this a wash and not a wipe. Eased out, so the name is legible in
+ * the first half and the tail is the part still settling. */
+@utility title-arrival {
+  animation: title-arrival 700ms ease-out both;
+  mask-image: linear-gradient(to right, black 0 33%, transparent 66% 100%);
+  mask-repeat: no-repeat;
+  mask-size: 300% 100%;
+
+  /* Both, not just the animation: held at its first frame the mask is what
+     hides the name, so dropping the motion alone would leave a blank row. */
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    mask-image: none;
+  }
+}
+
+@keyframes title-arrival {
+  from {
+    mask-position: 100% 0;
+  }
+  to {
+    mask-position: 0 0;
+  }
+}
+
 /* Semantic component classes. Defined in @layer components so the
  * better-tailwindcss/no-unknown-classes ESLint rule recognizes them
  * automatically via detectComponentClasses — no manual ignore entries needed. */

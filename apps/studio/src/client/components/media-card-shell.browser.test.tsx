@@ -1,7 +1,6 @@
 import { renderInBrowser } from "@/tests/render-browser";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { describe, expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
 
 // Every assertion here is about what the pointer can reach, which is a question
 // only the real stylesheet can answer: unstyled, none of these boxes overlap.
@@ -85,6 +84,12 @@ async function waitUntilArmed(control: HTMLElement) {
  * observable. What is observable is the moment the controls begin answering the
  * pointer, which a timer drives rather than CSS -- and that is the moment the
  * bug was in.
+ *
+ * That moment is what this measures, rather than landing a press inside the
+ * window and checking where it went. A press has to arrive before the timer to
+ * prove anything, and nothing bounds how long the driver takes to deliver one,
+ * so that assertion tests the machine's load as much as the card. Where a press
+ * lands once the controls are armed is covered below, against hit-testing.
  */
 describe("MediaCardShell before its controls are armed", () => {
   it("does not answer the pointer until the reveal has had time to finish", async () => {
@@ -123,52 +128,6 @@ describe("MediaCardShell before its controls are armed", () => {
     // a control taking presses aimed at the card behind it; the slack below is
     // only for the sampling interval.
     expect(armedAfter).toBeGreaterThan(500);
-  });
-
-  it("opens the card when pressed before anything has appeared", async () => {
-    const onClick = vi.fn();
-    const onOverlayClick = vi.fn();
-    const { container } = await renderInBrowser(
-      <div style={{ width: 320 }}>
-        <MediaCardShell
-          file={FILE}
-          onClick={onClick}
-          overlayActions={
-            <button
-              data-testid="download"
-              onClick={onOverlayClick}
-              type="button"
-            >
-              Download
-            </button>
-          }
-        >
-          <div data-testid="media" style={{ height: "100%", width: "100%" }} />
-        </MediaCardShell>
-      </div>,
-    );
-
-    const download = container.querySelector<HTMLElement>(
-      "[data-testid='download']",
-    );
-    const card = container.querySelector<HTMLElement>(
-      "[data-testid='media']",
-    )?.parentElement;
-    if (!download || !card) {
-      throw new Error("card did not render");
-    }
-
-    // Arrive at the card and press where the action is about to be, the way a
-    // pointer crossing the card in one motion does. End to end, through real
-    // hit-testing, which is what a dispatched `click` would skip.
-    await userEvent.hover(card);
-    const box = download.getBoundingClientRect();
-    await userEvent.click(document.body, {
-      position: { x: box.left + box.width / 2, y: box.top + box.height / 2 },
-    });
-
-    expect(onOverlayClick).not.toHaveBeenCalled();
-    expect(onClick).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -20,6 +20,42 @@ import { PaneTabs } from "./pane-tabs";
 
 const taskId = TaskIdSchema.parse("pane-tabs-browser");
 
+/**
+ * Resolve once the row has stopped moving.
+ *
+ * The strip lays out for a width of zero first -- every tab, full density --
+ * and corrects in a layout effect off a `ResizeObserver`. Both land before the
+ * frame is painted, so the app never shows the first one. A test does not get
+ * that guarantee by waiting a frame: the delivery and the commit it schedules
+ * are what the frame is racing, and on a loaded machine a fixed number of
+ * frames is a guess that comes back as a strip drawing the wrong tabs.
+ *
+ * Stability rather than a deadline, so this reads the row when it is done
+ * rather than when a stopwatch says it ought to be.
+ */
+async function settled(list: HTMLElement) {
+  const read = () =>
+    [
+      list.dataset.density,
+      ...[...list.querySelectorAll<HTMLElement>('[role="tab"]')].map(
+        (tab) => `${tab.title}:${tab.offsetWidth}`,
+      ),
+    ].join("|");
+
+  let previous = read();
+  for (let frame = 0; frame < 120; frame++) {
+    await new Promise((resolve) => {
+      requestAnimationFrame(resolve);
+    });
+    const current = read();
+    if (current === previous) {
+      return;
+    }
+    previous = current;
+  }
+  throw new Error("the tab strip never settled");
+}
+
 const FILES = [
   "output/quarterly-report-2026.pdf",
   "output/chart.png",
@@ -59,14 +95,11 @@ async function strip(
     </div>,
   );
 
-  // The strip settles in a layout effect off a `ResizeObserver`, which delivers
-  // before the frame is painted but after the render resolves. The app never
-  // shows the state in between; a test that read here would.
-  await new Promise((resolve) => {
-    requestAnimationFrame(resolve);
-  });
-
   const list = container.querySelector<HTMLElement>('[role="tablist"]');
+  if (list) {
+    await settled(list);
+  }
+
   const tabs = [...(list?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [])];
 
   return {

@@ -20,6 +20,18 @@ import { installWindowStubs } from "./window-stubs";
 // open for the next one.
 afterEach(resetStudioModals);
 
+// Persisted atoms outlive more than that. `atomWithStorage` writes through to
+// `localStorage`, which every file in this project shares -- same origin, and
+// isolating a file into its own iframe does not give it its own storage. An
+// atom declared `getOnInit` then reads whatever the last file left there, so a
+// test that sets UI zoom to 0.75x hands the next file a window laid out at
+// 0.75x. What that looks like from the far end is a placement test failing by
+// exactly its zoom factor, in a file that never mentions zoom, depending on
+// what ran before it.
+afterEach(() => {
+  localStorage.clear();
+});
+
 installWindowStubs();
 
 // A real browser runs the transitions and keyframes the app declares, and a

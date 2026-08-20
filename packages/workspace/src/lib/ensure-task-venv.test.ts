@@ -25,6 +25,10 @@ describe("ensureTaskVenvForTask", () => {
 
     await expect(ensureTaskVenvForTask({ taskId })).resolves.toBeUndefined();
     expect(runUvCommand).toHaveBeenCalledTimes(1);
+    // `--clear` is what lets uv replace the unusable venv rather than refuse.
+    expect(vi.mocked(runUvCommand).mock.calls[0]?.[0].args).toContain(
+      "--clear",
+    );
   });
 
   it("lets one caller cancel without cancelling shared venv creation", async () => {

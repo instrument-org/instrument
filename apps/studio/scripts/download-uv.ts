@@ -22,7 +22,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 // Pin the uv release. Bump deliberately; the binary is checksum-verified below.
-const UV_VERSION = "0.9.7";
+const UV_VERSION = "0.12.4";
 
 const RESOURCES_UV_DIR = path.resolve(import.meta.dirname, "../resources/uv");
 

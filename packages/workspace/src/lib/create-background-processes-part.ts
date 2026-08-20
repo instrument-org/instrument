@@ -60,7 +60,8 @@ export async function createBackgroundProcessesPart({
     const previous = reported.isOk() ? reported.value : [];
 
     const now = getCurrentDate().getTime();
-    const running = listBackgroundProcesses(sessionId)
+    const processes = listBackgroundProcesses(sessionId);
+    const running = processes
       .filter((process) => process.status === "running")
       .map((process) => ({
         command: process.command,
@@ -68,8 +69,23 @@ export async function createBackgroundProcessesPart({
         runningForMs: Math.max(0, now - process.startedAt.getTime()),
       }));
 
-    const runningIds = new Set(running.map((process) => process.id));
-    const ended = previous.filter((process) => !runningIds.has(process.id));
+    // A stop that timed out leaves a process that may or may not still be there,
+    // which is what `termination-uncertain` means and what `fg` says about one in
+    // words. It is therefore in neither list: calling it running would claim a
+    // server is up, and calling it ended would tell the agent to start a second
+    // copy of something still holding the port. It stays in what this session has
+    // been told, so it is reported as ended once it settles or the app restarts.
+    const stillThere = processes
+      .filter(
+        (process) =>
+          process.status === "running" ||
+          process.status === "termination-uncertain",
+      )
+      .map(({ command, id }) => ({ command, id }));
+    const stillThereIds = new Set(stillThere.map((process) => process.id));
+    const ended = previous.filter(
+      (process) => !stillThereIds.has(process.id),
+    );
 
     // Nothing running and nothing to correct is the common case.
     if (running.length === 0 && ended.length === 0) {
@@ -79,8 +95,8 @@ export async function createBackgroundProcessesPart({
     // own and are not news; what is running is.
     if (
       ended.length === 0 &&
-      previous.length === running.length &&
-      running.every((process) =>
+      previous.length === stillThere.length &&
+      stillThere.every((process) =>
         previous.some((earlier) => earlier.id === process.id),
       )
     ) {
@@ -89,7 +105,7 @@ export async function createBackgroundProcessesPart({
 
     await setParsedStorageItem(
       StorageKey.backgroundProcessesReported(sessionId),
-      running.map(({ command, id }) => ({ command, id })),
+      stillThere,
       ReportedProcessesSchema,
       storage.value,
     );

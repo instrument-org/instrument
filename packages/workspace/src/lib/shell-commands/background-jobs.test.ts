@@ -161,4 +161,20 @@ describe("background job commands", () => {
     const after = await bash("jobs");
     expect(after.output).not.toContain("running");
   }, 30_000);
+
+  // `fg bg_1 && pnpm test` is the idiom the description sells, so a process that
+  // was stopped rather than finished must not read as success: the work the
+  // chained command depends on was cut short. Interrupting the interpreter
+  // usually leaves a real 124 behind, but a stop that never confirms leaves no
+  // exit code at all, and that is the case a `?? 0` would have called success.
+  it("fails a wait on a process that was stopped rather than finished", async () => {
+    const processId = await startTicker();
+    await bash(`kill ${processId}`);
+
+    const waited = await bash(`fg ${processId}`);
+    expect(waited.exitCode).not.toBe(0);
+
+    const chained = await bash(`fg ${processId} && echo reached`);
+    expect(chained.output).not.toContain("reached");
+  }, 30_000);
 });

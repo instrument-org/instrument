@@ -112,87 +112,123 @@ const STATIC_STUB_COMMANDS = [
   ),
 ];
 
+/**
+ * Visits the name of every simple command in a script, including the ones inside
+ * loops, conditionals, function bodies and command substitutions.
+ *
+ * Shared because two plugins want the same traversal for opposite reasons: one
+ * reads the names, the other rewrites one of them. Walking twice is cheap; two
+ * copies of this recursion drifting apart is not.
+ */
+function forEachCommandName(
+  ast: ScriptNode,
+  visit: (name: { type: "Literal"; value: string }) => void,
+) {
+  walkScript(ast);
+
+  function walkScript(node: ScriptNode) {
+    for (const stmt of node.statements) {
+      walkStatement(stmt);
+    }
+  }
+
+  function walkStatement(stmt: StatementNode) {
+    for (const pipeline of stmt.pipelines) {
+      for (const cmd of pipeline.commands) {
+        walkCommand(cmd);
+      }
+    }
+  }
+
+  function walkCommand(node: CommandNode) {
+    switch (node.type) {
+      case "For":
+      case "Group":
+      case "Subshell":
+      case "Until":
+      case "While": {
+        const stmts = [
+          ...("condition" in node ? node.condition : []),
+          ...node.body,
+        ];
+        for (const stmt of stmts) {
+          walkStatement(stmt);
+        }
+        break;
+      }
+      case "FunctionDef": {
+        walkCommand(node.body);
+        break;
+      }
+      case "If": {
+        for (const clause of node.clauses) {
+          for (const stmt of [...clause.condition, ...clause.body]) {
+            walkStatement(stmt);
+          }
+        }
+        for (const stmt of node.elseBody ?? []) {
+          walkStatement(stmt);
+        }
+        break;
+      }
+      case "SimpleCommand": {
+        const part = node.name?.parts[0];
+        if (part?.type === "Literal") {
+          visit(part);
+        }
+        for (const arg of node.args) {
+          for (const p of arg.parts) {
+            if (p.type === "CommandSubstitution") {
+              walkScript(p.body);
+            }
+          }
+        }
+        break;
+      }
+    }
+  }
+}
+
+/**
+ * Rewrites `wait` to the `fg` command.
+ *
+ * `wait` is an interpreter builtin, so a custom command cannot shadow it the way
+ * `jobs` and `kill` are shadowed. Left alone it exits 0 with no output, which
+ * reads as "the process finished and wrote nothing" -- the one wrong answer here
+ * that looks right. Nothing can legitimately reach the builtin either, since `&`
+ * is unsupported and there are never shell jobs to wait for.
+ *
+ * Its own plugin rather than a line inside `command-order`, because this decides
+ * what runs. A rewrite that rides along inside a plugin registered to collect
+ * metadata stops happening the moment that plugin is made conditional or
+ * skipped, and what comes back is the builtin whose answer looks right.
+ */
+const waitAliasPlugin: TransformPlugin<Record<string, never>> = {
+  name: "wait-alias",
+  transform(context: { ast: ScriptNode; metadata: Record<string, unknown> }) {
+    forEachCommandName(context.ast, (name) => {
+      if (name.value === "wait") {
+        name.value = FG_COMMAND.name;
+      }
+    });
+    return { ast: context.ast };
+  },
+};
+
+/** Records which commands a script runs, in order, for the tool's metadata. */
 const commandOrderPlugin: TransformPlugin<{ commands: string[] }> = {
   name: "command-order",
   transform(context: { ast: ScriptNode; metadata: Record<string, unknown> }) {
     const seen = new Set<string>();
     const commands: string[] = [];
 
-    function walkScript(node: ScriptNode) {
-      for (const stmt of node.statements) {
-        walkStatement(stmt);
+    forEachCommandName(context.ast, (name) => {
+      if (!seen.has(name.value)) {
+        seen.add(name.value);
+        commands.push(name.value);
       }
-    }
+    });
 
-    function walkStatement(stmt: StatementNode) {
-      for (const pipeline of stmt.pipelines) {
-        for (const cmd of pipeline.commands) {
-          walkCommand(cmd);
-        }
-      }
-    }
-
-    function walkCommand(node: CommandNode) {
-      switch (node.type) {
-        case "For":
-        case "Group":
-        case "Subshell":
-        case "Until":
-        case "While": {
-          const stmts = [
-            ...("condition" in node ? node.condition : []),
-            ...node.body,
-          ];
-          for (const stmt of stmts) {
-            walkStatement(stmt);
-          }
-          break;
-        }
-        case "FunctionDef": {
-          walkCommand(node.body);
-          break;
-        }
-        case "If": {
-          for (const clause of node.clauses) {
-            for (const stmt of [...clause.condition, ...clause.body]) {
-              walkStatement(stmt);
-            }
-          }
-          for (const stmt of node.elseBody ?? []) {
-            walkStatement(stmt);
-          }
-          break;
-        }
-        case "SimpleCommand": {
-          const part = node.name?.parts[0];
-          if (part?.type === "Literal") {
-            // `wait` is an interpreter builtin, so a custom command cannot
-            // shadow it the way `jobs` and `kill` are shadowed. Left alone it
-            // exits 0 with no output, which reads as "the process finished and
-            // wrote nothing" -- the one wrong answer here that looks right.
-            // Nothing can legitimately reach it either, since `&` is
-            // unsupported and there are never shell jobs to wait for.
-            if (part.value === "wait") {
-              part.value = FG_COMMAND.name;
-            }
-            if (!seen.has(part.value)) {
-              seen.add(part.value);
-              commands.push(part.value);
-            }
-          }
-          for (const arg of node.args) {
-            for (const p of arg.parts) {
-              if (p.type === "CommandSubstitution") {
-                walkScript(p.body);
-              }
-            }
-          }
-          break;
-        }
-      }
-    }
-
-    walkScript(context.ast);
     return { ast: context.ast, metadata: { commands } };
   },
 };
@@ -499,6 +535,9 @@ export async function createBashEnv({
     fs,
   });
 
+  // Order matters: the alias runs first so the recorded command list names
+  // what actually ran rather than what was typed.
+  bash.registerTransformPlugin(waitAliasPlugin);
   bash.registerTransformPlugin(commandOrderPlugin);
 
   return bash;

@@ -90,9 +90,7 @@ export function createFgCommand({
         continue;
       }
       sections.push(formatRead(read));
-      // Still running is not a failure: it is the answer a snapshot asked for,
-      // and reporting it as one would color an ordinary poll as an error.
-      exitCode = read.info.status === "running" ? 0 : (read.info.exitCode ?? 0);
+      exitCode = foregroundExitCode(read.info);
     }
 
     const text = `${sections.join("\n\n")}\n`;
@@ -172,6 +170,23 @@ function describeStatus(process: BackgroundProcessInfo) {
 
 function fail(command: string, message: string) {
   return { exitCode: 1, stderr: `${command}: ${message}\n`, stdout: "" };
+}
+
+/**
+ * What `fg` exits with, which is what decides whether `fg bg_1 && ...` runs.
+ *
+ * Still running is not a failure: it is the answer a snapshot asked for, and
+ * reporting it as one would color an ordinary poll as an error. Ending without
+ * an exit code is, though. A process that was killed, that hit the age cap, or
+ * that never confirmed it stopped never ran to completion, so reporting success
+ * would run the chained command against work that was cut short -- and the text
+ * printed directly above it says so in words.
+ */
+function foregroundExitCode(info: BackgroundProcessInfo): number {
+  if (info.status === "running") {
+    return 0;
+  }
+  return info.exitCode ?? 1;
 }
 
 function formatRead(read: {

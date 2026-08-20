@@ -63,7 +63,6 @@ export interface BackgroundProcessInfo {
   logWriteError?: string;
   startedAt: Date;
   status: BackgroundProcessStatus;
-  totalOutputBytes: number;
 }
 
 export interface BackgroundProcessRead {
@@ -75,8 +74,6 @@ export interface BackgroundProcessRead {
   omittedBytes: number;
   /** Output produced since the previous read. */
   output: string;
-  /** True when the process was still running when this read stopped waiting. */
-  timedOut: boolean;
 }
 
 /**
@@ -96,6 +93,14 @@ export interface BackgroundRunHandle {
    * call just handed off.
    */
   detachCaller: () => void;
+  /**
+   * Whether any live subprocess output reached the sink.
+   *
+   * Kept here rather than read off the buffer, which is shared: `finish` writes
+   * its own text into that buffer, so a non-empty buffer does not mean the
+   * process wrote anything.
+   */
+  hasStreamedOutput: () => boolean;
   /** Compares final shell output with all live subprocess output by content. */
   matchesStreamedOutput: (output: string) => boolean;
   /** Set at promotion so later chunks reach the log file and wake readers. */
@@ -497,7 +502,6 @@ export async function readBackgroundProcess({
     info: toInfo(record),
     omittedBytes: omittedBytes + collected.omittedBytes,
     output: collected.toString(),
-    timedOut: record.status === "running",
   };
 }
 
@@ -540,6 +544,7 @@ export function startBackgroundRun({
   let chunkListener: ShellOutputSink | undefined;
   const streamedHash = createHash("sha256");
   let streamedEndsWithNewline = false;
+  let streamedAnything = false;
   const sink: ShellOutputSink = async (rawText) => {
     // The one place every streamed chunk passes through before it becomes
     // model-visible and lands in the process log, so redaction belongs here
@@ -563,6 +568,7 @@ export function startBackgroundRun({
     }
     streamedHash.update(comparableOutput(text));
     streamedEndsWithNewline = text.endsWith("\n");
+    streamedAnything = true;
     buffer.write(text);
     await chunkListener?.(text);
   };
@@ -593,8 +599,9 @@ export function startBackgroundRun({
     detachCaller: () => {
       callerSignal.removeEventListener("abort", abort);
     },
+    hasStreamedOutput: () => streamedAnything,
     matchesStreamedOutput: (output) => {
-      if (buffer.totalBytes === 0) {
+      if (!streamedAnything) {
         return output === "";
       }
       if (!output) {
@@ -668,7 +675,7 @@ function appendFinalOutput({
   output: string;
   record: BackgroundProcessRecord;
 }) {
-  if (record.buffer.totalBytes === 0) {
+  if (!record.handle.hasStreamedOutput()) {
     if (output) {
       const terminated = output.endsWith("\n") ? output : `${output}\n`;
       record.buffer.write(terminated);
@@ -890,7 +897,6 @@ function toInfo(record: BackgroundProcessRecord): BackgroundProcessInfo {
       : {}),
     startedAt: record.startedAt,
     status: record.status,
-    totalOutputBytes: record.buffer.totalBytes,
   };
 }
 

@@ -172,7 +172,6 @@ describe("background processes", () => {
     const result = await read;
     expect(result?.info.status).toBe("exited");
     expect(result?.info.exitCode).toBe(0);
-    expect(result?.timedOut).toBe(false);
     // The final shell output includes a builtin line that did not stream, so it
     // is labeled and appended instead of being silently lost.
     expect(result?.output).toMatchInlineSnapshot(`

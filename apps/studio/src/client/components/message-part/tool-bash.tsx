@@ -84,9 +84,16 @@ export function ToolBash({ part }: { part: BashPart }) {
 
   const hasExitError = hasOutput && isFailedBashExitCode(part.output.exitCode);
   const isFailed = isError || hasExitError;
-  const label = isStreaming
-    ? getToolStreamingLabel("bash")
-    : getToolLabel("bash");
+  // A command that outlived its yield window kept running after the call
+  // returned, so the past tense would be a claim the output cannot support: what
+  // is shown is the first few seconds of something still going. It carries no
+  // exit code either, so nothing else on the card distinguishes it from a
+  // command that finished and printed exactly this.
+  const isStillRunning = hasOutput && part.output.processId !== undefined;
+  const label =
+    isStreaming || isStillRunning
+      ? getToolStreamingLabel("bash")
+      : getToolLabel("bash");
 
   return (
     <ToolCard>

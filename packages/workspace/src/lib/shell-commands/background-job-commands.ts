@@ -46,7 +46,7 @@ export const KILL_COMMAND = {
 export const FG_COMMAND = {
   description: dedent`
     Bring a background process to the foreground: print what it has written since your last read, and block until it exits.
-    Usage: \`fg [<id>...] [--timeout <ms>]\`. With no id it takes everything still running. Exits with the process's own exit code once it finishes, so \`fg bg_1 && pnpm test\` runs the tests only on success.
+    Usage: \`fg [<id>...] [--timeout <ms>]\`. With no id it takes everything still running. Exits with the process's own exit code once it finishes, so \`fg bg_1 && pnpm test\` runs the tests only on success. A process that was stopped, or that hit the age cap, never ran to completion and so exits non-zero however far it got.
     \`--timeout 0\` returns immediately with whatever is pending, which is how you glance at a server that never exits. Otherwise it blocks until the process exits, so this is how you wait out a build in one call rather than polling.
     IMPORTANT: it never waits past this \`bash\` call's own \`yieldMs\`; it returns what has arrived by then instead. To wait out something longer, raise \`yieldMs\` on the \`bash\` call rather than the timeout here.
     IMPORTANT: reading consumes -- each call returns only what arrived since the last one, so piping into a filter (\`fg bg_1 | rg error\`) discards the rest. The complete output is always in the process's log file.

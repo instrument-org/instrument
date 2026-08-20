@@ -216,8 +216,6 @@ It looks like a tool row and is not one, so it takes the row's appearance and no
 
 Without the row, a finished task spontaneously starts talking and the feature reads as the app acting unprompted. This is the single most important piece of UI in the change.
 
-Without the second one, a finished task spontaneously starts talking and the feature reads as the app acting unprompted. This is the single most important piece of UI in the change.
-
 ## Races
 
 User sends a message at the same moment a job exits. Already handled: `runTurn` routes to the live session when one exists, and `ProcessingQueuedMessages` drains the queue before the machine reaches `Done`. The debounce is only needed for several jobs finishing together.

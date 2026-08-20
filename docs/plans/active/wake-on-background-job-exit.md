@@ -46,8 +46,14 @@ So the work is a second subscriber on `backgroundProcesses.changed` that, when a
 
 1. checks the session is not alive,
 2. debounces a burst of exits into one turn, **naming every one of them**,
-3. calls `newMessage()` with a system-authored prompt naming the job, its exit code, and **the path to its log**, not the output itself,
+3. calls `newMessage()` with **no text and one data part**, `data-wake`, holding the jobs, their exit codes, their descriptions, and **the path to each log** rather than the output,
 4. calls the same path `session.run` takes.
+
+A sibling part rather than an extension of `data-backgroundProcesses`: that one answers "what is running right now" on every turn, and this one answers "these just ended, and it is why you are awake". Different questions, different renderers, and the codebase already keeps parts one-question-wide.
+
+Nothing fabricates a user turn. A message with a data part and no text is an existing supported case, the same one produced by attaching a file and typing nothing, and `toModelMessages` skips the `<user_message>` fence when there is no user content to fence. The model therefore reads a `<instrument-system-note>` in the harness's own voice, alongside the notes it already gets for browser status and attached folders.
+
+Because the part type is what distinguishes the message, no authorship field is needed on user messages and nothing stored has to be migrated.
 
 Point at the log rather than inlining it. Claude Code's own notification is five lines (task id, tool-use id, output file, status, one-sentence summary) and the agent reads the file if it cares, so a wake costs the same context whether the job printed one line or ten thousand. We already record `logFilePath` on every promoted process, so this is free.
 
@@ -55,14 +61,22 @@ Step 4 is why this is small: try-again already solved "start a turn without a us
 
 ### Which jobs wake
 
-**Decision: an explicit opt-in on the `bash` call.** A new optional input, `wakeOnExit`, defaulting false.
+**Decision: an explicit opt-in on the `bash` call, carrying its own description.** One new optional input:
 
-The alternative is inferring intent from shape (exited on its own, was started with a small `yieldMs`, ran under some duration). Rejected because the rule would be invisible to both the agent and the user: a dev server crashing overnight would start an unattended turn nobody asked for, and "why did it not come back" would have no answer anyone can read. The flag costs one field and makes the intent inspectable in the transcript and in the process list.
+```ts
+wakeOnExit: z.string().optional()   // "the production build"
+```
+
+Presence is the opt-in; the value is what the job is *for*, in the user's terms. There is no boolean and no second field, so there is no way to express "wake me but say nothing", and no nullable pair where one half is meaningless without the other.
+
+That shape is doing real work rather than saving a field. The label on the transcript row is written from this string, so the agent cannot arm a wake without also saying what it is waiting for. It is the same forcing function the reference harness uses on its monitor tool, whose description field is required precisely because it appears in every notification.
+
+The alternative to opting in at all is inferring intent from shape (exited on its own, was started with a small `yieldMs`, ran under some duration). Rejected because the rule would be invisible to both the agent and the user: a dev server crashing overnight would start an unattended turn nobody asked for, and "why did it not come back" would have no answer anyone can read. The flag costs one field and makes the intent inspectable in the transcript and in the process list.
 
 Consequences:
 
-- The tool description gains a short paragraph: what the flag does, the `until` idiom, and the coverage rule below.
-- The process registry records the flag so `jobs` and the UI can show it.
+- The tool description gains a short paragraph: what the field does, the `until` idiom, and the coverage rule below. It should say the description is user-facing, or it will read as a code comment.
+- The process registry records it so `jobs`, the header popover, and the woken row can all use the same words.
 - The agent states intent at the moment it has it, rather than the system reconstructing it later.
 
 ### Coverage rule for the prompt
@@ -179,15 +193,28 @@ The session's `Done` state is `type: "final"`, so the actor genuinely terminates
 | Cancel is the job's own Stop | Killing the process cancels the wake; the control already exists in the header popover |
 | Stop button returns on its own when the wake fires | The new session tags `agent.alive` like any other turn |
 
-Two things to add:
+Two things to add.
 
-**On the process row**, a line stating the promise, so the pending wake is visible before it fires:
+**On the process row in the header popover**, a line stating the promise, so a pending wake is visible before it fires:
 
 > Will continue the task when this finishes
 
-**Above the woken turn**, a marker the *user* reads, not only the turn-start part the model reads:
+**In the transcript, a run row**, not a card and not a divider. It uses the same grammar as every other step (`TRANSCRIPT_ROW`): a 20px icon square at `bg-black/5`, one truncating muted line, a `ToolChip` carrying the command, and a chevron, with the whole row as the collapsible trigger.
 
-> Continued because `bg_2` finished.
+| | |
+| --- | --- |
+| Label, with a description | `Continued when the production build finished` |
+| Label, without one | `Continued when the command finished` |
+| Failed | `Continued when the tests failed`, with the tone in the icon |
+| Several at once | `Continued when two things finished`, chip reading `2 commands` |
+
+The label is written from the `wakeOnExit` string, which is why that field exists. The second row is the defensive fallback for a blank or missing one, not the expected case.
+
+Opening it reveals a `ToolCard` in the shape the bash tool already uses: muted header with one small label, then the command drawn with the `$` gutter, then the outcome and the log path. **That is the only place a raw command appears**, and only after a click. Nothing raw is on screen by default, which is the standing rule this feature was breaking in an earlier draft.
+
+It looks like a tool row and is not one, so it takes the row's appearance and none of its machinery. No `useTranscriptGroup`, no group head, no participation in step runs: a wake is a seam between turns and has nothing above it to be grouped under.
+
+Without the row, a finished task spontaneously starts talking and the feature reads as the app acting unprompted. This is the single most important piece of UI in the change.
 
 Without the second one, a finished task spontaneously starts talking and the feature reads as the app acting unprompted. This is the single most important piece of UI in the change.
 

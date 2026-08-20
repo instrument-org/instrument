@@ -277,10 +277,18 @@ Inline lost on a point that is not about taste -- a transcript is a log and this
 is live state, so it is the one placement that cannot stay correct. The same
 reasoning keeps the data part developer-only in the chat stream.
 
-**Still open.** Nothing warns the user when the two-hour cap fires, so a server
-stopping on its own reads as a bug rather than a policy. And the sidebar shows
-nothing, so a task you are not looking at can hold a running process invisibly --
-the one question the header pill cannot answer.
+**The two-hour cap says so.** It is the only one of the three ways a process ends
+that nobody performs, so it is the only one that can read as a bug. The agent is
+told the cap exists in the `bash` description, a capped process settles as
+`expired` rather than `killed` -- which is what a `kill` and the user's Stop
+produce -- and `fg` on one spells out that nobody asked for it to stop and that
+starting it again is fine. The popover names the cap alongside the other two.
+
+**Still open.** The cap fires with no warning first, and nothing is said in the
+transcript when it does, so a user who was not watching the header sees only that
+the pill is gone. And the sidebar shows nothing, so a task you are not looking at
+can hold a running process invisibly -- the one question the header pill cannot
+answer.
 
 ## Subagents: same lifecycle, different read model
 

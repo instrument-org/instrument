@@ -97,10 +97,13 @@ export function TaskBackgroundProcesses({ taskId }: { taskId: TaskId }) {
             <div className="text-[13px] font-medium">Still running</div>
             {/* The explanation the header pill has no room for. Says who
                 started them and what ends them, because neither is obvious to
-                someone who only asked for a website. */}
+                someone who only asked for a website. The two hours is named
+                rather than left out: it is the one of the three that happens
+                without anybody doing anything, so a server that disappears on
+                its own is otherwise indistinguishable from a bug. */}
             <p className="mt-0.5 text-xs text-muted-foreground">
               Started while working on this task. They keep running until you
-              stop them or quit {APP_NAME}.
+              stop them, you quit {APP_NAME}, or two hours pass.
             </p>
           </div>
           {running.length > 1 && (

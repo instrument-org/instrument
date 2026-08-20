@@ -9,6 +9,7 @@ import {
   type StatementNode,
   type TransformPlugin,
 } from "just-bash";
+import ms from "ms";
 import { dedent } from "radashi";
 
 import { MOUNT } from "../mount-points";
@@ -21,6 +22,7 @@ import {
   agentBrowserCommandDescription,
   createAgentBrowserCommand,
 } from "./shell-commands/agent-browser";
+import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
 import {
   createFgCommand,
   createJobsCommand,
@@ -381,6 +383,7 @@ export function createBashDescription() {
     IMPORTANT: Interactive input is not supported -- there is no terminal, so a command that waits at a prompt waits forever. Pass non-interactive flags (\`-y\`, \`--yes\`, \`--no-input\`) instead.
     A command goes to the background by outliving \`yieldMs\`, NOT by \`&\` (\`&\`, \`nohup\` and \`disown\` are unsupported). A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`${JOBS_COMMAND.name}\`, \`${FG_COMMAND.name}\` and \`${KILL_COMMAND.name}\` manage it from there. Start a server or watcher with a small \`yieldMs\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
     Those three are ordinary commands, so they compose: \`${FG_COMMAND.name} bg_1 | rg -i error\` filters before you pay for the output, \`${FG_COMMAND.name} bg_1 && ${PNPM_COMMAND.name} test\` runs only on success, and \`${KILL_COMMAND.name} bg_1 bg_2; ${JOBS_COMMAND.name}\` cleans up and confirms in one call.
+    A background process is stopped once it has run for ${ms(MAX_RUNNING_AGE_MS, { long: true })}, whatever it is doing. \`${JOBS_COMMAND.name}\` reports that as \`stopped (${ms(MAX_RUNNING_AGE_MS)} cap)\` rather than as a failure or a kill; start it again if the work still needs it.
     Only output written by real binaries (\`${PNPM_COMMAND.name}\`, \`${TS_COMMAND.name}\`, \`${PYTHON_COMMAND.name}\`, \`${UV_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, ...) streams while a process runs; a long shell pipeline of builtins reports its output only when it finishes.
 
     IMPORTANT: \`curl\`/\`wget\` refuse private and loopback addresses, so they cannot reach a server you started, and they fail with a bare exit 7 and no message. Make that request from a real process instead: a \`${TS_COMMAND.name}\` or \`${PYTHON_COMMAND.name}\` script fetching \`http://127.0.0.1:<port>/\`. Pick an explicit port when you start the server so you know which one to call.

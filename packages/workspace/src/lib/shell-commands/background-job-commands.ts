@@ -14,6 +14,17 @@ import { dedent } from "radashi";
 /** Ceiling on one `fg`, matching the longest a single tool call may run. */
 export const MAX_WAIT_MS = ms("10 minutes");
 
+/**
+ * A promoted run nobody polls or kills is stopped at this age: long enough to
+ * cover a slow build or a dev server the user is still looking at, short enough
+ * that a leaked process does not outlive interest in it.
+ *
+ * Here with the descriptions rather than with the registry that enforces it,
+ * because it is a number the agent and the user are both told, and only the
+ * descriptions can be read from the renderer.
+ */
+export const MAX_RUNNING_AGE_MS = ms("2 hours");
+
 export const JOBS_COMMAND = {
   description: dedent`
     List the background processes this session started, with their status, run time and command.

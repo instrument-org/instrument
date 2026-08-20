@@ -12,6 +12,7 @@ import {
   FG_COMMAND,
   JOBS_COMMAND,
   KILL_COMMAND,
+  MAX_RUNNING_AGE_MS,
   MAX_WAIT_MS,
 } from "./background-job-commands";
 
@@ -158,6 +159,12 @@ function describeStatus(process: BackgroundProcessInfo) {
   if (process.status === "termination-uncertain") {
     return "stopping?";
   }
+  // Spelled out rather than left as the bare status, because the one-word form
+  // reads like the command timed out on its own rather than like a cap nobody
+  // asked for stopping a process that was working.
+  if (process.status === "expired") {
+    return `stopped (${ms(MAX_RUNNING_AGE_MS)} cap)`;
+  }
   return process.exitCode === undefined
     ? process.status
     : `${process.status} (${process.exitCode})`;
@@ -178,9 +185,11 @@ function formatRead(read: {
       ? `${read.info.id} is still running (${elapsed} so far).`
       : read.info.status === "termination-uncertain"
         ? `${read.info.id} did not confirm termination after ${elapsed}; it may still be running.`
-        : read.info.exitCode === undefined
-          ? `${read.info.id} is no longer running (${read.info.status}) after ${elapsed}.`
-          : `${read.info.id} finished with exit code ${read.info.exitCode} after ${elapsed}.`;
+        : read.info.status === "expired"
+          ? `${read.info.id} was stopped after ${elapsed} because a background process may run for at most ${ms(MAX_RUNNING_AGE_MS, { long: true })}. Nobody asked for it to stop and it did not fail; start it again if the work still needs it.`
+          : read.info.exitCode === undefined
+            ? `${read.info.id} is no longer running (${read.info.status}) after ${elapsed}.`
+            : `${read.info.id} finished with exit code ${read.info.exitCode} after ${elapsed}.`;
 
   const notices: string[] = [];
   if (read.omittedBytes > 0) {

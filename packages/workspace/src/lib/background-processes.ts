@@ -14,6 +14,7 @@ import { BoundedLogWriter } from "./bounded-log-writer";
 import { BoundedText } from "./bounded-text";
 import { filterShellOutput } from "./filter-shell-output";
 import { getCurrentDate } from "./get-current-date";
+import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
 import {
   type ShellOutputSink,
   withShellOutputSink,
@@ -47,13 +48,6 @@ const TERMINATION_GRACE_MS = ms("6 seconds");
 /** Ceiling on what one read may accumulate while it waits out its window. */
 const READ_HEAD_BYTES = 512 * 1024;
 const READ_TAIL_BYTES = 512 * 1024;
-
-/**
- * A promoted run nobody polls or kills is stopped at this age: long enough to
- * cover a slow build or a dev server the user is still looking at, short enough
- * that a leaked process does not outlive interest in it.
- */
-const MAX_RUNNING_AGE_MS = ms("2 hours");
 
 export interface BackgroundProcessInfo {
   command: string;
@@ -127,14 +121,15 @@ interface BackgroundProcessRecord {
   prePromotionOmittedBytes: number;
   startedAt: Date;
   status: BackgroundProcessStatus;
-  /** Set once a stop was asked for, so the outcome is labeled a kill. */
-  stopRequested: boolean;
+  /** Set once a stop was asked for, and by what, so the outcome is labeled. */
+  stopReason?: StopReason;
   taskId: TaskId;
   waiters: Set<() => void>;
 }
 
 type BackgroundProcessStatus =
   | "exited"
+  | "expired"
   | "failed"
   | "killed"
   | "running"
@@ -143,6 +138,14 @@ type BackgroundProcessStatus =
 type BackgroundRunOutcome =
   | { errorMessage: string; terminationConfirmed: boolean }
   | { exitCode: number; output: string };
+
+/**
+ * Why a stop happened, kept apart because the agent reads the two differently.
+ * `requested` is somebody deciding this should end; `expired` is the age cap
+ * firing on a process nobody asked about, which reported as a kill would have
+ * the agent conclude the user stopped the server it was told to run.
+ */
+type StopReason = "expired" | "requested";
 
 /**
  * Process-local and deliberately not persisted: a record describes a live child
@@ -334,7 +337,7 @@ export function promoteBackgroundProcess({
     new Map<string, BackgroundProcessRecord>();
   recordsBySession.set(sessionId, records);
 
-  reapExpired(records);
+  reapFinished(records);
 
   const running = [...recordsBySession.entries()].flatMap(
     ([recordsSessionId, sessionRecords]) =>
@@ -393,7 +396,6 @@ export function promoteBackgroundProcess({
     prePromotionOmittedBytes: handle.buffer.omittedBytesSoFar(),
     startedAt: handle.startedAt,
     status: "running",
-    stopRequested: false,
     taskId,
     waiters: new Set(),
   };
@@ -404,7 +406,7 @@ export function promoteBackgroundProcess({
       (getCurrentDate().getTime() - handle.startedAt.getTime()),
   );
   record.ageTimer = setTimeout(() => {
-    void stopRecord(record);
+    void stopRecord(record, "expired");
   }, ageRemaining);
   record.ageTimer.unref();
 
@@ -717,7 +719,7 @@ function finish({
         record.exitCode = outcome.exitCode;
         appendFinalOutput({ output: outcome.output, record });
       }
-      record.status = record.stopRequested ? "killed" : "failed";
+      record.status = stoppedStatus(record) ?? "failed";
       notify(record);
       publishChanged(record.taskId);
     }
@@ -726,10 +728,10 @@ function finish({
   record.endedAt = getCurrentDate();
   clearTimeout(record.ageTimer);
 
-  // A stop that was asked for reads as a kill however the run happened to end,
+  // A stop that was asked for reads as a stop however the run happened to end,
   // so that a race between the kill and the process exiting on its own does not
   // change what the agent is told it did.
-  const requested = record.stopRequested ? "killed" : undefined;
+  const requested = stoppedStatus(record);
   if ("errorMessage" in outcome) {
     record.status = outcome.terminationConfirmed
       ? (requested ?? (outcome.errorMessage ? "failed" : "killed"))
@@ -799,7 +801,7 @@ function publishChanged(taskId: TaskId) {
 }
 
 /** Drops stale finished records. */
-function reapExpired(records: Map<string, BackgroundProcessRecord>) {
+function reapFinished(records: Map<string, BackgroundProcessRecord>) {
   const finished = [...records.values()]
     .filter((record) => record.status !== "running")
     .sort((a, b) => (a.endedAt?.getTime() ?? 0) - (b.endedAt?.getTime() ?? 0));
@@ -815,6 +817,23 @@ function reapExpired(records: Map<string, BackgroundProcessRecord>) {
   }
 }
 
+/** The terminal status a stop produces, or nothing if none was asked for. */
+function stoppedStatus(
+  record: BackgroundProcessRecord,
+): BackgroundProcessStatus | undefined {
+  switch (record.stopReason) {
+    case "expired": {
+      return "expired";
+    }
+    case "requested": {
+      return "killed";
+    }
+    default: {
+      return undefined;
+    }
+  }
+}
+
 /**
  * Stops a run and waits for it to actually be gone.
  *
@@ -825,11 +844,14 @@ function reapExpired(records: Map<string, BackgroundProcessRecord>) {
  * SIGTERM cannot hang the turn either -- past the deadline the record is settled
  * anyway and says so.
  */
-async function stopRecord(record: BackgroundProcessRecord) {
+async function stopRecord(
+  record: BackgroundProcessRecord,
+  reason: StopReason = "requested",
+) {
   if (record.status !== "running") {
     return record.status !== "termination-uncertain";
   }
-  record.stopRequested = true;
+  record.stopReason = reason;
   record.handle.abort();
 
   const settled = await Promise.race([

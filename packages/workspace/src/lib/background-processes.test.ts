@@ -16,6 +16,7 @@ import {
   readBackgroundProcess,
   startBackgroundRun,
 } from "./background-processes";
+import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
 import { currentShellOutputSink } from "./shell-commands/output-sink";
 import { taskDir } from "./task-dir-utils";
 
@@ -773,15 +774,18 @@ describe("background processes", () => {
         "node work/forgotten-server.js",
       );
 
-      await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
+      await vi.advanceTimersByTimeAsync(MAX_RUNNING_AGE_MS);
       await Promise.resolve();
 
       expect(controllable.aborted).toBe(true);
+      // Not "killed": that is what `kill` and the user's Stop produce, and an
+      // agent told its dev server was killed concludes somebody wanted it gone
+      // rather than that a cap fired on a process nobody had asked about.
       expect(
         listBackgroundProcesses(owner.sessionId).find(
           (process) => process.id === info.id,
         )?.status,
-      ).toBe("killed");
+      ).toBe("expired");
     } finally {
       vi.useRealTimers();
     }

@@ -55,19 +55,22 @@ export function buildAttachedFoldersText({
   const writable = folders.some(({ access }) => access === "read-write");
   const readOnly = folders.some(({ access }) => access !== "read-write");
 
+  // Lines, not a `- ` list: the folder list above already is one, and a second
+  // list under it reads as more folders.
   const guidance = [
-    `Call a folder by its quoted name when you write to the user -- that is what they call it. The mount path is where it is mounted for you, not what the folder is named, so never present one as the folder's name.`,
-    `Read, list, and search them by their mount path with \`${TOOL_NAMES.readFile}\` or the bash tool (\`ls\`, \`rg\`, \`find\`), just like any other directory.`,
+    `Call a folder by its quoted name when you write to the user. The mount path is its address, not its name.`,
+    `Read, list, and search by mount path with \`${TOOL_NAMES.readFile}\` or bash (\`ls\`, \`rg\`, \`find\`), like any other directory.`,
     writable
-      ? `In the read-and-write folders you may also create, edit, move, rename, and delete files with \`${TOOL_NAMES.writeFile}\`, \`${TOOL_NAMES.editFile}\`, and bash (\`mv\`, \`cp\`, \`mkdir\`, \`rm\`). These are the user's own files, so every change is immediate and there is no undo: prefer moving and renaming over deleting, and tell the user what you changed.`
+      ? `In the read-and-write folders you may also create, edit, move, rename, and delete, with \`${TOOL_NAMES.writeFile}\`, \`${TOOL_NAMES.editFile}\`, and bash. These are the user's real files: every change is immediate and there is no undo, so prefer moving and renaming over deleting, and tell them what you changed.`
       : null,
     readOnly
-      ? `Writing into a read-only folder fails -- it reflects the user's real files on disk and is not yours to change.`
+      ? `Writing into a read-only folder fails. It mirrors the user's real files and is not yours to change.`
       : null,
-    `\`rg\` searches mount paths directly too. What cannot resolve one, at any access level, is a real interpreter process (python, node, ffmpeg, pnpm): to process a file with one, copy it into the task first (e.g. \`cp '<mount path>/file' attachments/\`) and work on the copy${writable ? `, then move the result back with \`mv\` if it belongs in the folder` : ""}.`,
+    `A real subprocess (python, node, ffmpeg, pnpm, git) cannot see a mount at all. Copy into the task first and work on the copy: \`cp '<mount path>/file' attachments/\`${writable ? `, then \`mv\` the result back if it belongs in the folder` : ""}.`,
+    `That includes \`git\`: copy the whole repository (\`cp -R '<mount path>' work/\`), not just \`.git\`, which without a working tree beside it reports every file as deleted.`,
   ]
     .filter((line) => line !== null)
-    .join(" ");
+    .join("\n");
 
   return dedent`
     <attached_folders>

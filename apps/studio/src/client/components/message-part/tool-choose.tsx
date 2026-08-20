@@ -3,13 +3,18 @@ import { CheckIcon } from "@phosphor-icons/react/Check";
 
 import { getToolLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
-import { ToolCard, ToolCardHeader, ToolCardSection } from "./tool-card";
+import {
+  ToolCard,
+  ToolCardEmpty,
+  ToolCardHeader,
+  ToolCardSection,
+} from "./tool-card";
 
 type ChoosePart = Extract<SessionMessagePart.ToolPart, { type: "tool-choose" }>;
 
 export function ToolChoose({ part }: { part: ChoosePart }) {
   if (!part.input) {
-    return null;
+    return <ToolCardEmpty message="The question has not arrived yet." />;
   }
 
   const hasOutput = part.state === "output-available";
@@ -23,7 +28,7 @@ export function ToolChoose({ part }: { part: ChoosePart }) {
         </p>
       </ToolCardHeader>
 
-      <ToolCardSection maxHeight="max-h-64">
+      <ToolCardSection collapsedHeight={256}>
         <p className="mb-3 text-sm">{part.input.question}</p>
         <div className="space-y-1">
           {part.input.choices?.map((choice, index) => {

@@ -3,15 +3,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Wireframe: TITLE</title>
+    <!-- Title and the version digit on the favicon are set from VERSION at the
+         end of the body. Leave both placeholders alone. -->
+    <title>Wireframe</title>
+    <link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg/%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap"
       rel="stylesheet"
     />
-    <!-- Phosphor regular, the icon set the app uses. Write <i class="ph ph-gear"></i>
-         and size it with Tailwind (text-sm is 14px, the app's action-row size). -->
     <link
       href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css"
       rel="stylesheet"
@@ -122,35 +123,335 @@
         /* sync:end */
       }
     </style>
+
+    <style>
+      /* A frame is drawn once at true size and shown at whatever scale fits.
+         transform, not zoom: zoom re-runs layout at the smaller size, so text
+         re-wraps and the miniature stops matching the thing it depicts. */
+      .frame {
+        width: calc(var(--w) * var(--s));
+        height: calc(var(--h) * var(--s));
+        overflow: hidden;
+        cursor: zoom-in;
+      }
+      .frame > * {
+        width: var(--w);
+        height: var(--h);
+        transform: scale(var(--s));
+        transform-origin: top left;
+      }
+
+      /* Every tile reserves the same vertical space for its frame, whatever
+         the frame's own aspect ratio, so captions start on the same line
+         down the whole grid rather than only within a row. A frame shorter
+         than the slot is centered in it, not stretched. */
+      .slot {
+        height: var(--slot-h);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      /* A real grid, not wrapped flex: cards in a row share a height, so
+         captions line up and no tile bleeds into its neighbor. */
+      body {
+        overflow-anchor: none;
+      }
+      #rack {
+        display: grid;
+        grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
+        gap: 1.25rem;
+      }
+
+      /* One small floating bar carries what you need to know and the only
+         control worth having. Everything else is canvas. */
+
+      dialog.viewer {
+        width: 100vw;
+        height: 100vh;
+        max-width: none;
+        max-height: none;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        place-items: center;
+      }
+      dialog.viewer[open] {
+        display: grid;
+      }
+      dialog.viewer::backdrop {
+        background: rgb(23 20 18 / 0.85);
+      }
+      /* The enlarged frame stays interactive: only the backdrop dismisses. */
+      dialog.viewer .frame {
+        cursor: default;
+      }
+      @media print {
+        * {
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+        }
+      }
+    </style>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   </head>
 
-  <body class="bg-gray-100 p-10 font-sans text-sm text-foreground antialiased">
-    <h1 class="text-[17px] font-semibold">TITLE</h1>
-    <p class="mt-1 mb-8 text-[13px] text-muted-foreground">
-      One line saying what the flow is.
-    </p>
-
-    <!-- One column per state. Raise min-h once the content is final so every
-         frame bottoms out together and the captions align. -->
-    <div class="grid max-w-[1240px] grid-cols-3 gap-6">
-      <div>
-        <div
-          class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground"
-        >
-          <span
-            class="grid size-4.5 place-items-center rounded-full bg-gray-300 text-[11px] font-semibold text-white"
-            >1</span
-          >
-          State name
-        </div>
-        <div class="min-h-105 rounded-lg border border-border bg-gray-50 p-4.5">
-          <!-- Build the state here. -->
-        </div>
-        <p class="mt-3 text-xs text-muted-foreground">
-          What this frame proves, not what it shows.
-        </p>
+  <body class="min-h-screen bg-gray-100 font-sans text-sm text-foreground antialiased">
+    <div
+      id="hud"
+      class="fixed top-4 left-4 z-20 flex max-w-[min(38rem,calc(100vw-2rem))] items-center gap-3 rounded-xl border border-border bg-white/95 px-3 py-2 shadow-sm backdrop-blur"
+    >
+      <div class="min-w-0">
+        <h1 class="truncate text-[13px] leading-tight font-semibold">TITLE</h1>
+        <p id="subtitle" class="truncate text-[11px] leading-tight text-muted-foreground"></p>
       </div>
+      <span id="count" class="shrink-0 border-l border-border pl-3 text-[11px] whitespace-nowrap text-muted-foreground"></span>
+      <div id="views" class="flex shrink-0 items-center gap-0.5 rounded-lg bg-gray-200/70 p-0.5"></div>
     </div>
+
+    <main>
+      <div id="rack" class="p-6 pt-[4.75rem]"></div>
+    </main>
+
+    <dialog class="viewer"></dialog>
+
+    <script>
+      const VERSION = "1";
+      const SUBTITLE = "Topic · what this covers";
+      const W = 1280;
+      const H = 800;
+      // Fixed vertical space every tile's frame is centered within, so
+      // captions align across the grid even when frames mix aspect ratios.
+      // Keep this close to what most frames in the file actually measure —
+      // too tall and short frames float in a lot of dead padding.
+      const SLOT_H = 200;
+
+      // ---- Studio kit ------------------------------------------------------
+      // Pieces of the real app, so a frame is the thing you are proposing rather
+      // than a window you rebuilt. Call what you need and delete the rest; a
+      // frame should draw no chrome the proposal is not about.
+      //
+      // Write class names out whole. Building them by interpolation
+      // (`bg-${tone}-500`) hides them from Tailwind's scanner and they silently
+      // produce no styles: pass `"bg-warning-500"` instead of `"warning"`.
+
+      /** Placeholder prose. Widths are CSS lengths: bars("100%", "72%"). */
+      const bars = (...widths) =>
+        widths.map((w) => `<div class="h-2.5 rounded-full bg-gray-300" style="width:${w}"></div>`).join("");
+
+      /** The whole window: sidebar, conversation, and an optional artifact panel. */
+      const appWindow = (sidebar, main, panel = "") => `
+        <div class="flex h-full bg-gray-50">
+          <aside class="w-64 shrink-0 border-r border-border bg-gray-100/70 p-4">
+            <div class="mb-4 h-9 rounded-lg bg-gray-200/70"></div>
+            ${sidebar}
+          </aside>
+          <section class="relative min-w-0 flex-1 p-8">${main}</section>
+          ${panel ? `<aside class="w-[420px] shrink-0 border-l border-border bg-white">${panel}</aside>` : ""}
+        </div>`;
+
+      /** A task row in the sidebar. */
+      const navItem = (label, { active = false, dot = "" } = {}) => `
+        <div class="flex items-center gap-2 rounded-md px-3 py-2 ${active ? "bg-gray-200" : ""}">
+          ${dot ? `<span class="size-2 shrink-0 rounded-full ${dot}"></span>` : ""}
+          <span class="text-[15px] ${active ? "font-medium" : "text-muted-foreground"}">${label}</span>
+        </div>`;
+
+      /** A group heading above a run of nav items. */
+      const navGroup = (text, toneClass = "text-muted-foreground") =>
+        `<p class="px-3 pt-4 pb-1 text-xs font-medium tracking-wide ${toneClass} uppercase">${text}</p>`;
+
+      /** The conversation column, centered the way the app centers it. */
+      const conversation = (inner) => `<div class="mx-auto max-w-2xl">${inner}</div>`;
+
+      /** Anchors its contents where the composer sits. Put the composer, or
+       *  whatever replaces it, in here. */
+      const dock = (inner) => `
+        <div class="absolute inset-x-8 bottom-8"><div class="mx-auto max-w-2xl">${inner}</div></div>`;
+
+      /** The composer at rest. `busy` swaps the send button for stop. */
+      const composerBox = ({ placeholder = "", busy = false } = {}) => `
+        <div class="grid h-20 grid-rows-[1fr_auto] rounded-[20px] bg-white p-4 shadow-sm">
+          ${placeholder ? `<span class="text-sm text-gray-400">${placeholder}</span>` : `<div class="h-2.5 w-32 rounded-full bg-gray-300"></div>`}
+          <div class="flex items-center justify-between pt-2">
+            <i class="ph ph-plus text-lg text-muted-foreground"></i>
+            <div class="grid size-8 place-items-center rounded-full ${busy ? "bg-gray-900" : "bg-gray-300"}">
+              <i class="ph ${busy ? "ph-stop" : "ph-arrow-up"} text-sm text-white"></i>
+            </div>
+          </div>
+        </div>`;
+
+      /** A user message. The one small corner against three large ones is the
+       *  most recognizable detail in the transcript, so keep it. */
+      const bubble = (text) => `
+        <div class="flex justify-end">
+          <div class="inline-block max-w-[80%] rounded-tl-xl rounded-tr-sm rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-2.5 shadow-sm">
+            <span class="text-sm">${text}</span>
+          </div>
+        </div>`;
+
+      /** A tool call, as the transcript shows one. */
+      const toolRow = (icon, text) => `
+        <div class="mt-2.5 flex items-center gap-2.5 rounded-lg border border-border bg-white px-3.5 py-2">
+          <i class="ph ${icon} text-base text-muted-foreground"></i>
+          <span class="text-sm text-muted-foreground">${text}</span>
+        </div>`;
+
+      /** One piece of UI on its own, for frames that are not a whole window.
+       *  Set a smaller w and h on those states. */
+      const surface = (inner) => `
+        <div class="h-full bg-gray-50 p-5">
+          <div class="h-full rounded-xl border border-border bg-white p-5 shadow-sm">${inner}</div>
+        </div>`;
+
+      // ---- the frames ------------------------------------------------------
+      // Draw each frame at the size the thing really is. A whole Studio window
+      // is 1280x800; a panel or a menu is whatever it actually measures. The
+      // page works out how many fit per row and scales them to match, so never
+      // shrink the drawing by hand.
+      //
+      // w and h fall back to W and H above. Set them per state when one file
+      // mixes shapes.
+      const states = [
+        {
+          title: "State name",
+          note: "What this frame proves, not what it shows.",
+          titleClass: "text-foreground",
+          body: appWindow(
+            navItem("A task", { active: true }) + navItem("Another task"),
+            conversation(`
+              ${bubble("What the person asked for")}
+              <div class="mt-5 space-y-2.5">${bars("100%", "78%", "62%")}</div>
+              ${toolRow("ph-file-plus", "Something the agent did")}
+            `) + dock(composerBox({ busy: true })),
+          ),
+        },
+      ];
+
+      // ---- render ----------------------------------------------------------
+      const rack = document.querySelector("#rack");
+
+      rack.innerHTML = states
+        .map(
+          (state, i) => `
+        <figure class="tile m-0 flex flex-col overflow-hidden rounded-xl bg-white p-3 shadow-sm">
+          <div class="slot" style="--slot-h:${SLOT_H}px">
+            <div class="frame overflow-hidden rounded-lg ring-1 ring-black/5" data-label="${i + 1} · ${state.title}" data-w="${state.w || W}" data-h="${state.h || H}" style="--w:${state.w || W}px; --h:${state.h || H}px">
+              <div>${state.body}</div>
+            </div>
+          </div>
+          <figcaption class="mt-3 text-xs leading-5 text-muted-foreground">
+            <span class="mr-1.5 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-600">${i + 1}</span><span class="font-medium ${state.titleClass}">${state.title}.</span> ${state.note}
+          </figcaption>
+        </figure>`,
+        )
+        .join("");
+
+      document.querySelector("#count").textContent = `${states.length} frames`;
+
+      document.querySelector("#subtitle").textContent = SUBTITLE;
+
+      // ---- density ---------------------------------------------------------
+      // Fit as many tiles per row as the width allows, then derive the scale
+      // from the tile. Frames never render above their true size.
+      const TILE_MIN = 330;
+      const GAP = 20;
+      const PAD = 26; // card padding plus borders
+      let single = false;
+
+      const layout = () => {
+        const avail = rack.clientWidth - 48;
+        if (avail <= 0) return;
+        const columns = single ? 1 : Math.max(1, Math.floor((avail + GAP) / (TILE_MIN + GAP)));
+        const inner = (avail - GAP * (columns - 1)) / columns - PAD;
+        rack.style.setProperty("--cols", columns);
+        for (const frame of rack.querySelectorAll(".frame")) {
+          const s = Math.min(inner / Number(frame.dataset.w), SLOT_H / Number(frame.dataset.h), 1);
+          frame.style.setProperty("--s", Math.max(0.05, s));
+        }
+      };
+
+      new ResizeObserver(layout).observe(rack);
+      layout();
+
+      // ---- view mode -------------------------------------------------------
+      const VIEWS = [
+        ["grid", "ph-squares-four", "Grid"],
+        ["single", "ph-rows", "One per row"],
+      ];
+      const viewBox = document.querySelector("#views");
+
+      const paintViews = () => {
+        viewBox.innerHTML = VIEWS.map(
+          ([key, icon, title]) => `
+          <button data-view="${key}" title="${title}" class="grid size-7 place-items-center rounded-md ${
+            (key === "single") === single ? "bg-white text-foreground shadow-sm" : "text-muted-foreground"
+          }"><i class="ph ${icon}"></i></button>`,
+        ).join("");
+      };
+      paintViews();
+
+      viewBox.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-view]");
+        if (!button) return;
+        single = button.dataset.view === "single";
+        paintViews();
+        layout();
+      });
+
+      // ---- enlarge ---------------------------------------------------------
+      const viewer = document.querySelector("dialog.viewer");
+      let openIndex = -1;
+
+      /** Enlarges the frame at `index`, caption below it. Also how ←/→ move
+       *  to the next one, so the dialog never has to close and reopen to
+       *  browse the set. */
+      const showFrame = (index) => {
+        const state = states[index];
+        const tile = rack.querySelectorAll(".frame")[index];
+        if (!tile) return;
+        openIndex = index;
+        const clone = tile.cloneNode(true);
+        clone.style.setProperty(
+          "--s",
+          Math.min((innerWidth * 0.95) / Number(tile.dataset.w), (innerHeight * 0.95) / Number(tile.dataset.h)),
+        );
+        const caption = document.createElement("p");
+        caption.className = "mt-4 max-w-[min(90vw,44rem)] text-center text-sm leading-5 text-white";
+        caption.innerHTML = `<span class="mr-1.5 rounded bg-white/15 px-1.5 py-0.5 font-mono text-[10px] text-white/80">${index + 1}</span><span class="font-medium">${state.title}.</span> <span class="text-white/80">${state.note}</span>`;
+        const stack = document.createElement("div");
+        stack.className = "flex flex-col items-center";
+        stack.append(clone, caption);
+        viewer.replaceChildren(stack);
+        if (!viewer.open) viewer.showModal();
+      };
+
+      rack.addEventListener("click", (event) => {
+        const frame = event.target.closest(".frame");
+        if (!frame) return;
+        showFrame([...rack.querySelectorAll(".frame")].indexOf(frame));
+      });
+
+      viewer.addEventListener("click", (event) => {
+        if (event.target === viewer) viewer.close();
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (!viewer.open || (event.key !== "ArrowRight" && event.key !== "ArrowLeft")) return;
+        event.preventDefault();
+        const step = event.key === "ArrowRight" ? 1 : -1;
+        showFrame((openIndex + step + states.length) % states.length);
+      });
+
+      // ---- tab identity ----------------------------------------------------
+      const heading = document.querySelector("h1").textContent.trim();
+      document.title = `v${VERSION} · ${heading}`;
+      document.querySelector("#favicon").href =
+        "data:image/svg+xml," +
+        encodeURIComponent(
+          `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0e7869"/><text x="16" y="24" font-family="Helvetica,Arial,sans-serif" font-size="21" font-weight="bold" text-anchor="middle" fill="#ffffff">${VERSION}</text></svg>`,
+        );
+    </script>
   </body>
 </html>

@@ -1,6 +1,9 @@
-import { preferencesAtom } from "@/client/atoms/preferences";
-import { useAtomValue } from "jotai";
+import { rpcClient } from "@/client/rpc/client";
+import { useQuery } from "@tanstack/react-query";
 
 export function useDeveloperMode() {
-  return useAtomValue(preferencesAtom).developerMode;
+  const { data: preferences } = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  return preferences?.developerMode ?? false;
 }

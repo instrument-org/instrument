@@ -9,6 +9,7 @@ import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { BrowserTargetIdSchema } from "../../types";
 import { base } from "../base";
+import { publisher } from "../publisher";
 
 const PresenceSchema = z.object({ active: z.literal(true) });
 
@@ -105,7 +106,39 @@ const presence = base
     }
   });
 
+/**
+ * Ticks while the agent is driving this task's browser.
+ *
+ * A counter rather than a flag, because where a stretch of agent browser work
+ * ends is not a question this side can answer: the commands arrive as separate
+ * tool calls seconds apart, and only whoever is drawing the result knows how
+ * long a gap should still read as one piece of work. So this reports arrivals
+ * and the client decides how long each one lasts.
+ *
+ * Revision 0 is emitted as soon as the subscription is live, before any
+ * command, so a stream that has yet to see one still yields. It also means a
+ * client can tell "nothing has happened here" from its first real tick.
+ */
+const agentActivity = base
+  .input(z.object({ id: TaskIdSchema }))
+  .output(eventIterator(z.object({ revision: z.number() })))
+  .handler(async function* ({ input, signal }) {
+    let revision = 0;
+    yield { revision };
+    for await (const event of publisher.subscribe("browser.agentActivity", {
+      signal,
+    })) {
+      if (event.id === input.id) {
+        revision += 1;
+        yield { revision };
+      }
+    }
+  });
+
 export const browser = {
+  events: {
+    agentActivity,
+  },
   live: {
     presence,
   },

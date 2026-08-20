@@ -1,5 +1,7 @@
 # Driving Studio over CDP: what makes it flaky
 
+**Status:** partly addressed. Most of the list below landed behind `studio-drive`; an HMR freeze for scripted runs is still open, and the native quit dialog is uncapturable by CDP by construction.
+
 ## Symptom
 
 Scripted runs against the dev app (screenshot capture for a UI review queue, smoke tests, repro work) spend most of their time on the harness rather than on the thing being tested. The failures are quiet: a click that returns success and does nothing, a screenshot that is a valid PNG of a black rectangle, a route that reports as loaded while the app shows something else.

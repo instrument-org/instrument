@@ -209,8 +209,8 @@ async function resolveShowPath(
   ctx: {
     cwd: string;
     fs: {
-      exists(path: string): Promise<boolean>;
       resolvePath(cwd: string, path: string): string;
+      stat(path: string): Promise<{ isDirectory: boolean; isFile: boolean }>;
     };
   },
 ): Promise<{ error: string } | { filePath: string }> {
@@ -234,8 +234,21 @@ async function resolveShowPath(
     };
   }
 
-  if (!(await ctx.fs.exists(virtualPath))) {
+  // Stat rather than existence, because the tab this becomes is a file tab: a
+  // directory exists just as well and would open a tab with nothing to render
+  // in it, while the command reported it as shown.
+  let stat;
+  try {
+    stat = await ctx.fs.stat(virtualPath);
+  } catch {
     return { error: `"${arg}" does not exist.` };
+  }
+  if (!stat.isFile) {
+    return {
+      error: stat.isDirectory
+        ? `"${arg}" is a directory, so there is nothing to show. Name a file inside it.`
+        : `"${arg}" is not a file, so there is nothing to show.`,
+    };
   }
 
   return { filePath };

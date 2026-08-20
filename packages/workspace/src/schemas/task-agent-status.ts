@@ -24,3 +24,9 @@ export const TaskAgentStatusSchema = z.object({
 });
 
 export type TaskAgentStatus = z.output<typeof TaskAgentStatusSchema>;
+
+export const TaskActivitySchema = TaskAgentStatusSchema.extend({
+  activeReplaySessionIds: z.array(StoreId.SessionSchema),
+});
+
+export type TaskActivity = z.output<typeof TaskActivitySchema>;

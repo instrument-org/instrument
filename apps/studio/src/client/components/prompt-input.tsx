@@ -188,15 +188,19 @@ export const PromptInput = ({
   const [menuView, setMenuView] = useState<ComposerMenuView | null>(null);
   const openFilePreview = useSetAtom(openFilePreviewAtom);
   const promptEditorRef = useRef<PromptEditorRef>(null);
-  const composerRef = useRef<HTMLDivElement>(null);
+  // The box the prompt is written in: what this composer's menus are sized and
+  // placed against, so they read as an extension of the prompt rather than as
+  // something dropped on top of it. The frame itself rather than everything
+  // around it, so the target is the same on every surface whether or not a
+  // folder tray is out. Held in state rather than a ref because the menus
+  // measure it from their own layout effects, which run before a ref on this
+  // element would have been attached.
+  const [composerBounds, setComposerBounds] = useState<HTMLDivElement | null>(
+    null,
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useAtom(promptDraftAtom(draftKey));
   const setInputRef = useSetAtom(promptDraftRefAtom(draftKey));
-  // The plus menu lists skills the way a typed slash does -- name, description
-  // and source on one line -- so it is sized to the composer rather than to the
-  // 32px button it hangs off. Layout px, which is the unit the menu re-applies
-  // zoom to.
-  const [menuWidth, setMenuWidth] = useState<number>();
 
   const {
     data: modelsData,
@@ -264,25 +268,6 @@ export const PromptInput = ({
       setInputRef(null);
     };
   }, [setInputRef]);
-
-  useEffect(() => {
-    const composer = composerRef.current;
-    if (!composer) {
-      return;
-    }
-    // The content box rather than the border box: what the menu should span is
-    // the button row it hangs off, which is the composer inside its padding.
-    const observer = new ResizeObserver(([entry]) => {
-      const inlineSize = entry?.contentBoxSize[0]?.inlineSize;
-      if (inlineSize !== undefined) {
-        setMenuWidth(inlineSize);
-      }
-    });
-    observer.observe(composer);
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
 
   // A transient draft belongs to the surface that mounted it, so drop it when
   // that surface goes away or re-keys. Without this it would outlive the page
@@ -389,7 +374,7 @@ export const PromptInput = ({
         const names = duplicates.join(", ");
         toast.info(
           duplicates.length === 1
-            ? `"${names}" is already added`
+            ? `“${names}” is already added`
             : `Some folders are already added`,
           {
             description:
@@ -454,7 +439,7 @@ export const PromptInput = ({
     if (
       attachedItems.some((i) => i.type === "folder" && i.path === folderPath)
     ) {
-      toast.info(`"${folderNameFromPath(folderPath)}" is already added`, {
+      toast.info(`“${folderNameFromPath(folderPath)}” is already added`, {
         description:
           "That folder has already been attached. Each folder can only be added once.",
       });
@@ -585,7 +570,41 @@ export const PromptInput = ({
 
     if (!canSubmit) {
       if (!modelURI || !selectedModel) {
-        toast.error("Select a model");
+        // A model is unresolvable for four different reasons, and only the last
+        // is something the user can act on by picking one. The first three are
+        // what the picker is already showing beside this prompt, so they say the
+        // same thing here.
+        if (modelsIsLoading) {
+          toast.info("Loading models", {
+            description: "Send again in a moment.",
+          });
+        } else if (modelsIsError || modelsErrors?.length) {
+          // A provider that answers with an error contributes nothing to the
+          // list, so an empty one here can mean a reachable provider refusing
+          // rather than no provider at all. Outranks the no-models case below.
+          toast.error("Failed to load models", {
+            action: {
+              label: "Retry",
+              onClick: () => {
+                void modelsRefetch();
+              },
+            },
+            description: modelsErrors?.[0]?.message,
+          });
+        } else if (models?.length) {
+          toast.error("Select a model");
+        } else {
+          toast.error("No models available", {
+            action: {
+              label: "Add a provider",
+              onClick: () => {
+                openLogin(
+                  hasToken ? { reason: "provider-required" } : undefined,
+                );
+              },
+            },
+          });
+        }
       }
       return false;
     }
@@ -757,6 +776,7 @@ export const PromptInput = ({
             <div className="flex min-w-0 shrink-0 items-center gap-1">
               <ComposerAddMenu
                 actions={actions}
+                bounds={composerBounds}
                 disabled={disabled || isLoading}
                 onReturnFocus={() => {
                   promptEditorRef.current?.focus();
@@ -773,7 +793,6 @@ export const PromptInput = ({
                 projectId={selectedProjectId}
                 skills={userInvocableSkills}
                 view={menuView}
-                width={menuWidth}
               />
 
               {allowWorkInProject && selectedProjectId && (
@@ -903,7 +922,7 @@ export const PromptInput = ({
             </div>
           )
         }
-        ref={composerRef}
+        ref={setComposerBounds}
       >
         {/* Keyed by draft: the editor reads its text once, at mount, so a
             surface that swaps which draft it is composing (one skill page to
@@ -911,6 +930,7 @@ export const PromptInput = ({
         <PromptEditor
           actions={actions}
           autoFocus={autoFocus}
+          bounds={composerBounds}
           defaultValue={value}
           disabled={disabled || isLoading}
           key={draftKeyString(draftKey)}

@@ -21,7 +21,7 @@ Known ways to produce unsendable content:
 
 ## What already exists
 
-Landed with the image work (see [image-zoom-for-fine-detail.md](image-zoom-for-fine-detail.md)):
+Landed with the image work (see [image-zoom-for-fine-detail.md](../completed/image-zoom-for-fine-detail.md)):
 
 - [normalize-model-images.ts](../../../packages/workspace/src/lib/normalize-model-images.ts) runs over every outgoing message on every turn. It resizes over-budget images, corrects a media type the bytes contradict, and drops undecodable bytes with a text note rather than sending them. Because it runs over the whole history and not just new messages, **it is already a repair pass**: a session poisoned before a fix ships gets repaired the next turn the fix is deployed. That property is worth protecting deliberately rather than keeping by accident.
 - [sanitize-model-text.ts](../../../packages/workspace/src/lib/sanitize-model-text.ts) strips unpaired surrogates from outgoing text, including the text a tool returned, and `truncateWithoutSplitting` stops `read_file` from creating them. Tool results were skipped until [the coordinate contract review](../completed/image-read-coordinate-contract.md) caught it, which is worth remembering: the pass had a doc comment claiming it covered everything, and the gap was in the role carrying the most text we did not write.

@@ -232,24 +232,31 @@ function AttachedFolderRow({
       },
     }),
   );
+  const { mutate: setFolderAccess } = useMutation(
+    rpcClient.workspace.task.state.setFolderAccess.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to change folder access", {
+          description: error.message,
+        });
+      },
+    }),
+  );
 
-  // The project owns the folders it contributes: they are re-synced onto every
-  // one of its tasks when a message is sent, so removing one here would undo
-  // itself. Detaching it belongs in the project, and only a folder attached to
-  // this task can be detached from it.
-  const canRemove = folder.source !== "project";
-
+  // Every folder the task carries, including the ones it inherited: a task is
+  // where the work happens, so what it may reach is decided here as well as in
+  // the project. The project's later edits still arrive (see
+  // `projectFolderBaseline`), which is what keeps editing the project the way
+  // to change every task at once.
   return (
     <SidebarMenuItem>
       <FolderAttachmentRow
         access={folder.access}
-        onRemove={
-          canRemove
-            ? () => {
-                removeFolder({ folderId: folder.id, id: taskId });
-              }
-            : undefined
-        }
+        onAccessChange={(access) => {
+          setFolderAccess({ access, folderId: folder.id, id: taskId });
+        }}
+        onRemove={() => {
+          removeFolder({ folderId: folder.id, id: taskId });
+        }}
         path={folder.path}
         removeLabel="Remove from task"
       />

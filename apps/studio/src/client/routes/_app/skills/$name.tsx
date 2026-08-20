@@ -85,7 +85,7 @@ export const Route = createFileRoute("/_app/skills/$name")({
     if (skill || preload) {
       return;
     }
-    toast.info(`No skill named "${params.name}" in this workspace`, {
+    toast.info(`No skill named “${params.name}” in this workspace`, {
       id: `skill-missing:${params.name}`,
     });
     // oxlint-disable-next-line typescript/only-throw-error
@@ -168,7 +168,7 @@ function SkillPage() {
         queryKey: rpcClient.workspace.skill.list.key(),
       });
       setDeleteDialogOpen(false);
-      toast.success(`Deleted "${skill.title}"`);
+      toast.success(`Deleted “${skill.title}”`);
       await navigate({ to: "/skills" });
     } catch (error) {
       toast.error("Failed to delete skill", {
@@ -332,7 +332,7 @@ function SkillPage() {
         >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>{`Delete "${skill.title}"?`}</AlertDialogTitle>
+              <AlertDialogTitle>{`Delete “${skill.title}”?`}</AlertDialogTitle>
               <AlertDialogDescription>
                 Permanently deletes this skill folder from the workspace.
               </AlertDialogDescription>

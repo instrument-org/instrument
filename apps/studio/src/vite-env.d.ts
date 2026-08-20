@@ -32,6 +32,8 @@ declare namespace NodeJS {
       CI: string | undefined;
       DEVELOPER_DIR: string | undefined;
       DISABLE_AUTO_UPDATE_POLLING: string | undefined;
+      /** Dev only: keep main and preload at the bytes they booted with. */
+      DISABLE_DEV_RELAUNCH: string | undefined;
       ELECTRON_BUILDER_OUTPUT_DIR: string | undefined;
       ELECTRON_DEV_USER_FOLDER_SUFFIX: string | undefined;
       ELECTRON_ENABLE_CONSOLE_LOGGING: string | undefined;
@@ -48,6 +50,8 @@ declare namespace NodeJS {
       SIGNTOOL_PATH: string | undefined;
       SKIP_MOVE_TO_APPLICATIONS: string | undefined;
       SKIP_ONBOARDING: string | undefined;
+      /** Dev only: why studio-drive launched this instance. */
+      STUDIO_DRIVE_PURPOSE: string | undefined;
       TARGET_PLATFORM: string | undefined;
       WIN_CERT_PATH: string | undefined;
       WIN_GCP_KMS_KEY_VERSION: string | undefined;

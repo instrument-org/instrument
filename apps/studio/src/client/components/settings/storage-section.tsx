@@ -134,9 +134,9 @@ function UnrecognizedFolders() {
       await queryClient.invalidateQueries({
         queryKey: rpcClient.workspace.storage.invalidFolders.list.key(),
       });
-      toast.success(`Moved "${folder.name}" to the trash`);
+      toast.success(`Moved “${folder.name}” to the trash`);
     } catch {
-      toast.error(`Couldn't move "${folder.name}" to the trash`);
+      toast.error(`Couldn't move “${folder.name}” to the trash`);
     }
   };
 
@@ -192,7 +192,7 @@ function UnrecognizedFolders() {
           <AlertDialogHeader>
             <AlertDialogTitle>
               {folderToTrash
-                ? `Move "${folderToTrash.name}" to the trash?`
+                ? `Move “${folderToTrash.name}” to the trash?`
                 : ""}
             </AlertDialogTitle>
             <AlertDialogDescription>

@@ -16,14 +16,11 @@ export const ActiveReplays = {
       activeReplays.delete(sessionId);
     }
   },
-  getActiveSessionIds(id: TaskId): StoreId.Session[] {
-    const result: StoreId.Session[] = [];
-    for (const [sessionId, entry] of activeReplays) {
-      if (entry.id === id) {
-        result.push(sessionId);
-      }
-    }
-    return result;
+  getActiveSessions() {
+    return [...activeReplays].map(([sessionId, entry]) => ({
+      id: entry.id,
+      sessionId,
+    }));
   },
   getTaskId(sessionId: StoreId.Session): TaskId | undefined {
     return activeReplays.get(sessionId)?.id;

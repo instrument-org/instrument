@@ -244,15 +244,15 @@ describe("Markdown fences", () => {
     ).toEqual(["Copy"]);
   });
 
-  it("holds a long block back behind its line count", () => {
+  it("holds a block past the collapse threshold back until asked", () => {
     const lines = (count: number) =>
       `\`\`\`\n${Array.from({ length: count }, (_, index) => `line ${index}`).join("\n")}\n\`\`\``;
 
     renderMarkdown(lines(24));
-    expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Show more/ })).toBeNull();
 
     renderMarkdown(lines(25));
-    fireEvent.click(screen.getByRole("button", { name: "Show all 25 lines" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }));
     expect(screen.getByRole("button", { name: "Show less" })).toBeTruthy();
   });
 });

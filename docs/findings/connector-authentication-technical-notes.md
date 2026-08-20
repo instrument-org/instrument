@@ -1,5 +1,7 @@
 # Connector authentication: technical notes
 
+**Status:** reference. Nothing here is built; the summary table ranks the identified changes by size and what each one buys.
+
 Where connector authentication stands, and what each identified change actually involves.
 
 ## Where things stand
@@ -10,6 +12,8 @@ Connectors come in two shapes, defined by the manifest schema:
 - **`mcp`** connectors call tools on a hosted MCP server over Streamable HTTP. Auth kinds are `bearer`, `header`, `none`, `oauth`.
 
 Interactive sign-in therefore exists in exactly one place: `mcp` connectors with `auth.kind: "oauth"`. That path relies on the MCP SDK for discovery, dynamic client registration (RFC 7591), PKCE, and token exchange. Our OAuth provider advertises `token_endpoint_auth_method: "none"`, so it only works against servers that support DCR and public clients.
+
+That is a narrower foundation than it looks. As of the MCP 2026-07-28 revision, dynamic client registration is deprecated in favor of Client ID Metadata Documents. It remains available for backwards compatibility, and the twelve-month minimum deprecation window means nothing breaks soon, but it is no longer the mechanism to build new work on. See change 3 below for what replaces it.
 
 Agents author connectors themselves: they write `connector.json` plus `guide.md` under the connectors mount, then run `connector_test`, which validates the manifest, scans for embedded secrets, and fires a canary request before flipping `enabled`. Credentials and OAuth artifacts live in the app's encrypted store, never in connector files and never in model context.
 
@@ -48,15 +52,25 @@ Almost all the pieces exist. The catalog is already exposed over RPC, the compos
 
 Worth deciding alongside it: whether user-initiated setup should reuse the agent-driven route (hand the current task a request and let the agent author the manifest, which is what Set up does today, just into the wrong task) or connect directly from the interface for catalog entries where nothing needs authoring.
 
-### 3. Pre-registered OAuth clients, for providers without DCR
+### 3. Client identity, as a ladder rather than a special case
 
 Slack and GitHub both run real MCP servers, both support the standard discovery documents, and both refuse dynamic registration. Slack states this outright and additionally requires that clients be backed by a registered app with a fixed, hardcoded app ID, published to their marketplace.
 
 The tempting move is a bespoke OAuth flow per provider. Resist it. The originating implementation went that way and ended up with separate hand-written flows for Google, Slack, and Microsoft, each with its own token lifecycle to maintain.
 
-The cheaper path: our provider already reads client identity from the store rather than assuming DCR produced it. Seeding a static client ID for a known provider, and skipping the registration step, leaves discovery, PKCE, token exchange, refresh, retry, and encrypted storage untouched. Tier-2 providers become a small amount of configuration rather than a parallel implementation.
+The specification defines a priority order, and taking it whole is cheaper than treating any one provider as special:
 
-Slack specifics that matter for this:
+1. **Pre-registered.** A real app registered with the provider, whose client ID we hold. What the major platforms require for one-click sign-in. Our provider already reads client identity from the store rather than assuming DCR produced it, so seeding a known provider's client ID and skipping registration leaves discovery, PKCE, token exchange, refresh, retry, and encrypted storage untouched. These IDs should be fetched from a service we control rather than shipped inside connector files, so they can be rotated without an app release.
+2. **Client ID Metadata Document.** We host one JSON document at an HTTPS URL, and that URL is the client ID. The authorization server fetches it, checks the `client_id` inside matches the URL, and validates the redirect URI against the list in the document. Used where the authorization server advertises `client_id_metadata_document_supported`. These identities are portable across authorization servers with no re-registration, so this is the rung that scales to the long tail. It requires hosting on a domain we control, which makes it partly an infrastructure decision.
+3. **Dynamic client registration.** What we do today. Deprecated, retained for servers implementing the older specification.
+4. **Ask the user.** The specification's floor: prompt for client information when nothing else is available. This is what keeps a service from being completely unreachable.
+
+Two constraints that fall out of this and are cheap now, unpleasant later:
+
+- Persisted client credentials **must be keyed by the authorization server's `issuer`**, not by a local slug, and must not be reused across authorization servers. Our OAuth store keys the registration by connector slug. One connector usually means one authorization server, so this behaves until a server's authorization server changes, at which point a registration issued by the old one is silently reused against the new one.
+- Metadata-document and pre-registered identities both carry fixed redirect URIs, which turns change 4 below from a bug fix into a prerequisite.
+
+Slack specifics that matter for rung 1:
 
 - PKCE is supported, so we ship a client ID and no secret. Enabling PKCE marks the app a public client permanently and cannot be undone without contacting them.
 - Loopback redirects count as desktop redirects once PKCE is on, so no custom URL scheme is needed.
@@ -113,8 +127,12 @@ That asymmetry is the argument for keeping every provider that has an MCP server
 | ------------------------------------- | ------------------- | ------------------------------------------------------------------ |
 | Catalog lookup tool for the agent     | Small               | Highest payoff per unit of work                                    |
 | In-task path to connect something new | Small               | Mostly client work; the catalog is already exposed over RPC        |
-| Pin the OAuth callback port           | Small               | Bug today, blocker for tier 2                                      |
+| Pin the OAuth callback port           | Small               | Bug today, prerequisite for fixed redirect URIs                    |
+| Key registrations by issuer           | Small               | Silent misuse when a server's authorization server changes         |
 | `needs_reauth` state and revalidate   | Small               | Removes the worst failure moment                                   |
-| Pre-registered clients for tier 2     | Small once decided  | Configuration, not a parallel implementation, if kept on this path |
+| Client identity ladder                | Small once decided  | Configuration, not a parallel implementation, if kept on this path |
+| Host a client ID metadata document    | Small, plus hosting | Partly infrastructure; scales to the long tail                     |
 | Local MCP servers                     | Medium              | Mostly policy decisions, not transport work                        |
 | OAuth for `api` connectors            | Medium, plus Google | Only for Gmail via direct integration                              |
+
+The shape this work now sits inside is recorded in [Plugins over connectors](../decisions/2026-08-15-plugins-over-connectors.md), with the build order in [the plugins plan](../plans/active/plugins.md).

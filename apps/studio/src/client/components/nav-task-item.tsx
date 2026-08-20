@@ -22,6 +22,11 @@ import {
   SidebarMenuItem,
 } from "@/client/components/ui/sidebar";
 import { useInlineRename } from "@/client/hooks/use-inline-rename";
+import {
+  markTitleRenamedByUser,
+  useTitleArrival,
+} from "@/client/hooks/use-title-arrival";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task, type TaskId } from "@instrument-org/workspace/client";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
@@ -58,10 +63,13 @@ export const NavTaskItem = memo(function NavTaskItem({
 
   const rename = useInlineRename({
     onSave: async (next) => {
+      markTitleRenamedByUser(task.id, next);
       await renameTask({ id: task.id, name: next });
     },
     value: task.title,
   });
+
+  const titleArrival = useTitleArrival(task.id, task.title);
 
   const { mutate: addPin } = useMutation(
     rpcClient.workspace.pin.add.mutationOptions({
@@ -136,7 +144,11 @@ export const NavTaskItem = memo(function NavTaskItem({
                   {isPinned && (
                     <PushPinIcon className="size-4 shrink-0 text-gray-400 [[data-active=true]_&]:text-sidebar-foreground" />
                   )}
-                  <span className="truncate" data-task-title>
+                  <span
+                    className={cn("truncate", titleArrival.className)}
+                    data-task-title
+                    onAnimationEnd={titleArrival.onAnimationEnd}
+                  >
                     {task.title}
                   </span>
                 </InternalLink>

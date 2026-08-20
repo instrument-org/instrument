@@ -245,13 +245,9 @@ export const FIXTURES: Record<string, unknown> = {
   "workspace.session.list": [],
   "workspace.skill.events.changed": undefined,
   "workspace.skill.list": skills,
-  // Keyed by task, so this one reads its input: no task has a running agent.
-  "workspace.task.agentStatus.live.byId": (input: unknown) => ({
-    sessionActors: [],
-    taskId: (input as { id: string }).id,
-  }),
   "workspace.task.byId": byId,
   "workspace.task.list": { tasks, total: tasks.length },
+  "workspace.task.live.activity": [],
   "workspace.task.live.byId": byId,
   "workspace.task.live.list": { tasks, total: tasks.length },
 };

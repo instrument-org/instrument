@@ -8,6 +8,7 @@ import { isFailedBashExitCode } from "./bash-exit-status";
 import { useToolCallSession } from "./tool-call-session";
 import {
   ToolCard,
+  ToolCardEmpty,
   ToolCardHeader,
   ToolCardSection,
   ToolChip,
@@ -71,7 +72,7 @@ export function ToolBash({ part }: { part: BashPart }) {
   });
 
   if (!part.input) {
-    return null;
+    return <ToolCardEmpty message="The command has not arrived yet." />;
   }
 
   const outputTrimmed = hasOutput ? part.output.output.trim() : "";
@@ -95,33 +96,37 @@ export function ToolBash({ part }: { part: BashPart }) {
 
       <ToolCardSection
         borderBottom={hasOutput || isError}
+        collapsedHeight={128}
         copyText={isStreaming ? undefined : command}
-        maxHeight="max-h-32"
+        wrappable
       >
-        <div className="flex pr-7 font-mono text-sm leading-relaxed">
+        <div className="flex font-mono text-sm leading-relaxed">
           <span className="mr-2 shrink-0 text-muted-foreground select-none">
             $
           </span>
+          {/* A `<pre>` either way, highlighted or not, because that is what the
+              section's wrap toggle reaches for. */}
           {highlightedHtml ? (
             <div
-              className="min-w-0 [&_.shiki]:bg-transparent [&_pre]:break-all [&_pre]:whitespace-pre-wrap"
+              className="min-w-0 [&_.shiki]:bg-transparent"
               dangerouslySetInnerHTML={{ __html: highlightedHtml.join("\n") }}
             />
           ) : (
-            <span className="break-all whitespace-pre-wrap">{command}</span>
+            <pre className="min-w-0">{command}</pre>
           )}
         </div>
       </ToolCardSection>
 
       {(hasOutput || isError) && (
         <ToolCardSection
+          collapsedHeight={176}
           copyText={isStreaming ? undefined : outputText}
-          maxHeight="max-h-44"
+          wrappable
         >
           {outputText.length > 0 ? (
             <pre
               className={cn(
-                "pr-7 font-mono text-sm break-words whitespace-pre-wrap",
+                "font-mono text-sm",
                 isFailed
                   ? "text-destructive"
                   : "text-success-700 dark:text-success-300",

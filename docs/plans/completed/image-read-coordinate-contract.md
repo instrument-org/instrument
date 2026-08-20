@@ -1,6 +1,6 @@
 # Making the image coordinate contract sound
 
-Status: **complete**. Owner: TBD. Corrections to the work described in [image-zoom-for-fine-detail.md](../active/image-zoom-for-fine-detail.md), from a review of that branch. Everything here was agreed as a real defect, and all five have landed.
+Status: **complete**. Owner: TBD. Corrections to the work described in [image-zoom-for-fine-detail.md](image-zoom-for-fine-detail.md), from a review of that branch. Everything here was agreed as a real defect, and all five have landed.
 
 ## The through-line
 
@@ -115,4 +115,4 @@ Items 3, 2, 5, and the tool-output half of 4 landed in that order, then item 1, 
 
 ## What this does not settle
 
-The region read is still unmeasured. These fixes make the contract sound; whether the feature earns its cost is phase 4 of [image-zoom-for-fine-detail.md](../active/image-zoom-for-fine-detail.md), and that eval can now run, since a broken coordinate space would have measured nothing.
+The region read is still unmeasured. These fixes make the contract sound; whether the feature earns its cost is phase 4 of [image-zoom-for-fine-detail.md](image-zoom-for-fine-detail.md), and that eval can now run, since a broken coordinate space would have measured nothing.

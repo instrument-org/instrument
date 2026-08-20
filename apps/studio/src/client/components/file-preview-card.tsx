@@ -52,7 +52,16 @@ export function FilePreviewCard({
   const handleMouseEnter = () => {
     if (fileType === "video" && videoRef.current) {
       videoTimeoutRef.current = window.setTimeout(() => {
-        void videoRef.current?.play();
+        // Every way this rejects is ordinary: the pointer leaving pauses the
+        // element and aborts the play still resolving, a source the platform
+        // cannot decode never starts one, and autoplay policy can refuse
+        // outright. So it is caught rather than reported -- unhandled is what
+        // `void` on its own leaves it -- and the playing state, claimed
+        // optimistically above, goes back to what the element is actually
+        // doing.
+        void videoRef.current?.play().catch(() => {
+          setIsPlaying(false);
+        });
         setIsPlaying(true);
       }, 500);
     }

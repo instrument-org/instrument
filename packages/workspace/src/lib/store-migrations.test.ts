@@ -165,6 +165,20 @@ describe("store migrations", () => {
     expect(await openAndReadStoredPart()).toEqual(afterFirst);
   });
 
+  // A database a newer build has migrated is ahead of us rather than behind:
+  // writing this build's count over its marker would tell that build the task
+  // is stale and make it run everything it knows again.
+  it("leaves a version written by a newer build alone", async () => {
+    await seedStoredPart({ text: "hello", type: "text" });
+    const seeded = unwrap(await getSessionsStoreStorage(taskId));
+    unwrap(await seeded.setItemRaw(VERSION_KEY, 2));
+    unwrap(await disposeSessionsStoreStorage(id));
+
+    const storage = unwrap(await getSessionsStoreStorage(taskId));
+
+    expect(unwrap(await storage.getItemRaw<number>(VERSION_KEY))).toBe(2);
+  });
+
   it("records the version so a migrated task does not scan again", async () => {
     await seedStoredPart({ text: "hello", type: "text" });
 

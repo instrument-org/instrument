@@ -27,7 +27,7 @@ const ZOOM_TOAST_MS = 2200;
  * including the readout {@link ZoomLevelMenu} substitutes in.
  */
 const zoomStepperSegmentClassName =
-  "hover:bg-secondary dark:hover:bg-gray-600 disabled:pointer-events-none disabled:opacity-40";
+  "hover:bg-secondary focus-visible:-outline-offset-2 dark:hover:bg-gray-600 disabled:pointer-events-none disabled:opacity-40";
 
 /**
  * The stepper's readout, opened up into a menu of fixed levels.

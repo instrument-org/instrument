@@ -159,11 +159,11 @@ A real turn was driven in the running app at 1x and 2x and held at the reading l
 ## Risks and open questions
 
 - **A short reply leaves reserved blank below it.** That is the feature working, and it is what makes the turn hold still, but it is the most likely thing to read as a bug in review. The spacer collapses on the next content change, on `scrollToEnd`, and on the scroll-to-latest button.
-- **The composer moving inside the viewport now conflicts.** [full-height-transcript-scrollbar.md](full-height-transcript-scrollbar.md) proposes a sticky composer inside `MessageScrollerViewport`. This landed first, so that plan is the one that has to account for it, and the arithmetic is worked out under "What anchoring costs this plan" there.
+- **The composer moving inside the viewport now conflicts.** [full-height-transcript-scrollbar.md](../active/full-height-transcript-scrollbar.md) proposes a sticky composer inside `MessageScrollerViewport`. This landed first, so that plan is the one that has to account for it, and the arithmetic is worked out under "What anchoring costs this plan" there.
 - **A batch of user messages.** `hasMultipleNewScrollAnchors` deliberately keeps following the end rather than anchoring the first of a batch. Worth confirming that a queue dispatch that lands two prompts in one commit behaves sensibly.
 - **`ScrollToEndBridge` on submit.** It forces the end (spacer to 0, mode to following-bottom) and then the arriving user message anchors, so there are two movements in quick succession. Keep it at first, since it is the only thing that recovers a reader scrolled far back if the message never arrives, and watch whether the double move reads badly.
 - **`defaultScrollPosition="last-anchor"`.** Reopening a task on the last turn rather than the last pixel is a real improvement and is one prop, but it changes restore behavior for every task. Take it as a follow-up with its own look, not folded in here.
-- **Turn model.** [chat-stream-turn-model-refactor.md](chat-stream-turn-model-refactor.md) would make a turn a single row, at which point the anchor is the turn rather than the user message inside it. Nothing here blocks that, and the `scrollAnchor` opt-in moves with the row.
+- **Turn model.** [chat-stream-turn-model-refactor.md](../active/chat-stream-turn-model-refactor.md) would make a turn a single row, at which point the anchor is the turn rather than the user message inside it. Nothing here blocks that, and the `scrollAnchor` opt-in moves with the row.
 
 ## Non-goals
 

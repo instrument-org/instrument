@@ -6,6 +6,7 @@ import { toolbarClassName } from "@/client/components/ui/toggle";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useInlineRename } from "@/client/hooks/use-inline-rename";
 import { useTaskPane } from "@/client/hooks/use-task-pane";
+import { markTitleRenamedByUser } from "@/client/hooks/use-title-arrival";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type StoreId, type Task } from "@instrument-org/workspace/client";
 import { FoldersIcon } from "@phosphor-icons/react/Folders";
@@ -54,6 +55,7 @@ export function TaskToolbar({
   );
   const rename = useInlineRename({
     onSave: async (next) => {
+      markTitleRenamedByUser(task.id, next);
       await renameTask({ id: task.id, name: next });
     },
     value: task.title,

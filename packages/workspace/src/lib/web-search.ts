@@ -8,6 +8,7 @@ import { OUR_MODELS, type WorkspaceServerURL } from "@instrument-org/shared";
 import { APICallError, type LanguageModelUsage, streamText } from "ai";
 import { err, ok, type Result } from "neverthrow";
 import { dedent } from "radashi";
+import { z } from "zod";
 
 import { type WebSearchResult } from "../schemas/web-search";
 import { type WorkspaceConfig } from "../types";
@@ -136,43 +137,29 @@ function delay(ms: number, signal: AbortSignal) {
   });
 }
 
+// Perplexity's tool output is not part of any provider contract the SDK types,
+// so it is parsed here. Entries missing a field are dropped rather than failing
+// the whole result set: a partial list of sources is still worth showing.
+const PerplexityResultSchema = z.object({
+  snippet: z.string(),
+  title: z.string(),
+  url: z.string(),
+});
+
+const PerplexityOutputSchema = z.object({
+  results: z.array(z.unknown()),
+});
+
 function getPerplexityResults(output: unknown) {
-  if (!output || typeof output !== "object" || !("results" in output)) {
+  const parsed = PerplexityOutputSchema.safeParse(output);
+  if (!parsed.success) {
     return [];
   }
 
-  const rawResults = getUnknownProperty(output, "results");
-  if (!Array.isArray(rawResults)) {
-    return [];
-  }
-
-  const results: unknown[] = rawResults;
-  return results.filter(
-    (
-      result,
-    ): result is {
-      date?: string;
-      snippet: string;
-      title: string;
-      url: string;
-    } =>
-      typeof result === "object" &&
-      result !== null &&
-      hasStringProperty(result, "snippet") &&
-      hasStringProperty(result, "title") &&
-      hasStringProperty(result, "url"),
-  );
-}
-
-function getUnknownProperty(value: object, property: string): unknown {
-  return Object.getOwnPropertyDescriptor(value, property)?.value;
-}
-
-function hasStringProperty(
-  value: object,
-  property: "snippet" | "title" | "url",
-) {
-  return typeof getUnknownProperty(value, property) === "string";
+  return parsed.data.results
+    .map((result) => PerplexityResultSchema.safeParse(result))
+    .filter((result) => result.success)
+    .map((result) => result.data);
 }
 
 async function requestPlatformSearch({

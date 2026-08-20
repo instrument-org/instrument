@@ -1,5 +1,7 @@
 # CSS zoom: mixing rect (on-screen px) with layout px
 
+**Status:** guidance, with an audit heuristic. The sites listed below are fixed; the open candidates are not.
+
 ## Symptom
 
 Scroll and virtualization UI misbehaves only when the app UI zoom is not 1x (`zoomAtom`, 0.5x-2x). Two observed shapes:

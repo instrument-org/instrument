@@ -13,6 +13,7 @@ import {
   PopoverAnchor,
   PopoverContent,
 } from "@/client/components/ui/popover";
+import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
 import { matchComposerActions } from "@/client/lib/composer-action-search";
 import { matchSkills, type SkillMatch } from "@/client/lib/skill-search";
 import { cn } from "@/client/lib/utils";
@@ -161,6 +162,7 @@ const preventDefault = (event: Event) => {
 export function PromptEditor({
   actions,
   autoFocus,
+  bounds,
   defaultValue,
   disabled,
   onChange,
@@ -173,6 +175,8 @@ export function PromptEditor({
   /** What the plus button offers, offered here too. */
   actions: ComposerAction[];
   autoFocus: boolean;
+  /** The composer box a typed slash opens its menu against. */
+  bounds: HTMLElement | null;
   /** Read once, when the document is built. Later changes are ignored. */
   defaultValue: string;
   disabled: boolean;
@@ -184,6 +188,7 @@ export function PromptEditor({
   skills: ComposerSkill[];
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
+  const columnRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView>(null);
   const actionsRef = useRef(actions);
   const skillsRef = useRef(skills);
@@ -232,6 +237,12 @@ export function PromptEditor({
   // Where the skills start, so the rule that names them is drawn once and only
   // when there is something above it to separate them from.
   const firstSkillIndex = entries.findIndex((entry) => entry.type === "skill");
+  const menuOpen = menu !== null && entries.length > 0;
+  const { alignOffset, side, sideOffset, width } = useComposerMenuPlacement({
+    anchorRef: columnRef,
+    bounds,
+    open: menuOpen,
+  });
 
   const updateMenu = (view: EditorView) => {
     const { empty, from } = view.state.selection;
@@ -525,12 +536,12 @@ export function PromptEditor({
   }));
 
   return (
-    <Popover open={menu !== null && entries.length > 0}>
+    <Popover open={menuOpen}>
       {/* Fills the column it is placed in rather than carrying a height of its
           own: what there is room for is the composer's question to answer, and
           the scroller below takes whatever that turns out to be. */}
       <PopoverAnchor asChild>
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col" ref={columnRef}>
           {/* The fade masks the text only: the composer's background sits on
               the container around this, so the faded edge dissolves into it
               whichever theme is on. */}
@@ -567,23 +578,30 @@ export function PromptEditor({
         The caret owns this menu, so the content must never take focus or claim
         the pointer: the editor keeps both, and closing is driven by where the
         caret ends up (`updateMenu`) or by the editor losing focus. Radix is here
-        for the portal, the collision-aware placement and the zoom correction,
-        not for its dismissal behavior.
+        for the portal and the zoom correction, not for its dismissal behavior --
+        and not for where it lands either, which the composer decides so that a
+        typed slash and the plus button open the same menu in the same place.
 
-        `--radix-popover-trigger-width` and `--radix-popover-content-available-
-        height` are measured on screen, while the content re-applies zoom to its
-        own layout units, so both are divided by `--content-zoom` to land back at
-        the composer's width and inside the window.
+        `--radix-popover-content-available-height` is measured on screen, while
+        the content re-applies zoom to its own layout units, so it is divided by
+        `--content-zoom` to land back inside the window.
+
+        The corner is the composer's own rather than the popover radius, for the
+        same reason the width is the composer's: this is read against the edge of
+        the box it hangs off.
       */}
       <PopoverContent
         align="start"
-        className="max-h-[min(18rem,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] w-[calc(var(--radix-popover-trigger-width)/var(--content-zoom))] overflow-y-auto p-1 shadow-lg"
+        alignOffset={alignOffset}
+        avoidCollisions={false}
+        className="max-h-[min(18rem,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] overflow-y-auto rounded-[20px] p-1 shadow-lg"
         onCloseAutoFocus={preventDefault}
         onFocusOutside={preventDefault}
         onInteractOutside={preventDefault}
         onOpenAutoFocus={preventDefault}
-        side="top"
-        sideOffset={8}
+        side={side}
+        sideOffset={sideOffset}
+        style={{ width }}
       >
         {entries.map((entry, index) => (
           <Fragment

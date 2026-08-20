@@ -1,6 +1,6 @@
 {
   "name": "@instrument-org/studio",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Private AI workspace on your computer",
   "repository": {
     "type": "git",
@@ -146,7 +146,7 @@
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@rolldown/plugin-babel": "^0.2.0",
-    "@shadcn/react": "github:mutewinter/ui#6bf567454444f55f4e698f7a812ff395aea02625",
+    "@shadcn/react": "github:mutewinter/ui#83bafff9a6312d885ff152be2e594a18ab82122c",
     "@sqlite.org/sqlite-wasm": "3.53.0-build1",
     "@tailwindcss/browser": "^4.2.2",
     "@tailwindcss/typography": "^0.5.19",

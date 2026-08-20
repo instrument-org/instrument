@@ -45,6 +45,7 @@ import {
   type TranscriptGroup as TranscriptGroupData,
   type TranscriptRow,
 } from "./transcript-layout";
+import { useHoldRowInPlace } from "./transcript-row-position";
 import { useReleaseAutoScroll } from "./transcript-scroll-context";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
@@ -147,6 +148,7 @@ export function ChatStream({
 }: ChatStreamProps) {
   const assetBaseUrl = getAssetBaseUrl(task.id);
   const releaseAutoScroll = useReleaseAutoScroll();
+  const holdRowInPlace = useHoldRowInPlace();
 
   // Every group starts closed, a reopened task included: what a finished task
   // did is a list of the phases it went through, and the steps inside a phase
@@ -261,6 +263,10 @@ export function ChatStream({
     setRowExpanded: (rowId, isExpanded) => {
       releaseAutoScroll();
       if (isExpanded) {
+        // Opening the phase draws its other steps above this one, so the row
+        // the reader clicked is no longer where they clicked it. Held in place,
+        // the phase unfolds above the row instead of carrying it off screen.
+        holdRowInPlace(rowId);
         expandRows([rowId]);
         return;
       }

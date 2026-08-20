@@ -31,7 +31,7 @@ What is committed and what gets built from it is drawn in [fixtures/workspaces/R
 Driving it:
 
 ```
-studio-drive.mjs boot --workspace documents
+studio-drive.mjs boot --purpose "document viewer" --workspace documents
   │
   ├─ seed if the fixture has changed since last time (or is absent):
   │     create the tasks, write the recorded messages, copy files/ into place
@@ -80,8 +80,8 @@ It takes a task directory or an export zip, drops the persisted system-prompt sn
 ### 3. Wire it into studio-drive
 
 ```
-studio-drive.mjs boot --workspace <name>   # seeds if absent, then boots against it
-studio-drive.mjs boot --workspace <name> --fresh   # rebuild from the description first
+studio-drive.mjs boot --purpose <purpose> --workspace <name>   # seeds if absent, then boots against it
+studio-drive.mjs boot --purpose <purpose> --workspace <name> --fresh   # rebuild from the description first
 ```
 
 `boot` already controls the child environment, so this is setting `ELECTRON_USER_DATA_DIR` and `SKIP_ONBOARDING` and nothing more. The port and the instance record are both keyed by workspace as well as by checkout, so a fixture run and a plain dev run can be up at once; `--workspace` therefore belongs on every command of a run, not only `boot`.

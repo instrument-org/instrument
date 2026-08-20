@@ -1,7 +1,8 @@
 import { FileIcon } from "@/client/components/file-icon";
+import { useBrowserAgentActivity } from "@/client/hooks/use-browser-agent-activity";
 import { cn } from "@/client/lib/utils";
 import { TaskPane } from "@instrument-org/workspace/client";
-import { GlobeIcon } from "@phosphor-icons/react/Globe";
+import { GlobeSimpleIcon } from "@phosphor-icons/react/GlobeSimple";
 import { XIcon } from "@phosphor-icons/react/X";
 import { Reorder } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -77,6 +78,8 @@ export function PaneTabs({
   const orderedKeys = ["browser", ...fileKeys];
   const fileCount = fileTabs.length;
 
+  const isBrowserBusy = useBrowserAgentActivity(taskId);
+
   const stripRef = useRef<HTMLDivElement>(null);
   const tabAreaRef = useRef<HTMLDivElement>(null);
   // Motion's layout animation is here for the drag and nothing else: it is what
@@ -85,7 +88,14 @@ export function PaneTabs({
   // is selected, a task switch swapping the row out -- and those are arrivals
   // at a state rather than something to watch happen, so a tab slides in from
   // wherever the tab before it happened to end.
-  const [isDragging, setIsDragging] = useState(false);
+  //
+  // Which tab is being dragged rather than whether one is, so the strip can
+  // answer that question itself. The tab it names ends the drag, and it can be
+  // gone before it does: the agent closes a pane tab, the run of drawn tabs
+  // shifts, the task changes. Motion keeps a pan session alive across an unmount
+  // mid-drag on purpose, so nothing about the tab going away brings the flag
+  // down with it, and left up it animates every later width change again.
+  const [draggingKey, setDraggingKey] = useState<string>();
   const [{ density, fixedIsNamed, selectedDensity, visibleCount }, setLayout] =
     useState(() => stripLayout(0, fileCount));
 
@@ -144,6 +154,13 @@ export function PaneTabs({
   );
   const visibleTabs = fileTabs.slice(start, start + visibleCount);
   const visibleKeys = fileKeys.slice(start, start + visibleCount);
+
+  // A tab the strip is no longer drawing is not a tab being dragged, whatever
+  // its own callback got to say.
+  if (draggingKey !== undefined && !visibleKeys.includes(draggingKey)) {
+    setDraggingKey(undefined);
+  }
+  const isDragging = draggingKey !== undefined;
 
   // Focus follows the selection while the strip holds it. The arrow keys move
   // both themselves, but a selection that lands past the run above moves the
@@ -205,6 +222,7 @@ export function PaneTabs({
           // rest of them, and a row of icons with one word at the head of it
           // reads as a row that failed to finish compressing.
           density={selectedKey === "browser" || fixedIsNamed ? "full" : "icon"}
+          isBusy={isBrowserBusy}
           isSelected={selectedKey === "browser"}
           // A rule between the fixed tab and the task's own. The gap it sits in
           // is held open whether or not the rule is drawn, so a selection
@@ -255,10 +273,10 @@ export function PaneTabs({
                   onClose(key);
                 }}
                 onDragEnd={() => {
-                  setIsDragging(false);
+                  setDraggingKey(undefined);
                 }}
                 onDragStart={() => {
-                  setIsDragging(true);
+                  setDraggingKey(key);
                 }}
                 onSelect={() => {
                   onSelect(key);
@@ -299,6 +317,7 @@ function focusSiblingTab(from: Element, direction: -1 | 1) {
 
 function PaneTab({
   density,
+  isBusy,
   isDragging,
   isSelected,
   nextIsSelected,
@@ -312,6 +331,9 @@ function PaneTab({
   value,
 }: {
   density: TabDensity;
+  // The agent is working in the browser. Only the fixed tab is ever told this;
+  // nothing drives a file tab from underneath the way the agent drives a page.
+  isBusy?: boolean;
   // Whether a tab on the strip is being dragged, which is the one time a tab
   // moving to a new place is worth watching.
   isDragging?: boolean;
@@ -402,8 +424,10 @@ function PaneTab({
     <>
       {tab.type === "file" ? (
         <FileIcon className="size-4 shrink-0" filename={filename} />
+      ) : isBusy ? (
+        <ShinyGlobeIcon />
       ) : (
-        <GlobeIcon className="size-4 shrink-0" />
+        <GlobeSimpleIcon className="size-4 shrink-0" />
       )}
 
       {/* The close sits over the name's last few pixels rather than beside it,
@@ -436,6 +460,13 @@ function PaneTab({
       >
         {filename}
       </span>
+
+      {/* The shimmer is the whole of what the mark is, and a shimmer is not
+          available to a screen reader. So the state is said in words, off the
+          strip, rather than left to the one channel that cannot carry it. */}
+      {isBusy && (
+        <span className="sr-only">Agent is working in the browser</span>
+      )}
 
       {/* Held open for the selected tab, since the one being read is the one
           most likely to be closed. The browser has no close at all: it is the
@@ -526,6 +557,32 @@ function PaneTab({
     >
       {contents}
     </Reorder.Item>
+  );
+}
+
+/**
+ * The browser tab's icon while the agent is in there.
+ *
+ * The globe stays: it is what says the tab is a browser, and a tab that stops
+ * looking like one to say something about it has traded the wrong thing. What
+ * moves is the light on it -- the same traveling highlight `brand-shiny-text`
+ * runs across a word, on the same period.
+ *
+ * The name beside it is left alone. The tab is a label the eye returns to for
+ * what the tab is, and a word that changes color is read as different words
+ * before it is read as the same ones lit; the icon carries the state and the
+ * name goes on saying what the tab is called.
+ *
+ * Two copies of the icon stacked in one cell, because a highlight brighter than
+ * the thing it crosses cannot be painted by dimming: the mask reveals the
+ * brighter globe in a band, and the base one shows everywhere else.
+ */
+function ShinyGlobeIcon() {
+  return (
+    <span className="grid size-4 shrink-0 place-items-center">
+      <GlobeSimpleIcon className="brand-shiny-icon col-start-1 row-start-1 size-4" />
+      <GlobeSimpleIcon className="brand-shiny-icon-highlight col-start-1 row-start-1 size-4" />
+    </span>
   );
 }
 

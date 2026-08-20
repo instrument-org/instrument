@@ -4,7 +4,7 @@
 
 ## Context
 
-`tasks/<id>/.instrument/` holds task internals the agent has no reason to read: `task.db`, `state.json` (which carries attached-folder **host** paths, a machine-layout leak), and settings. Before PR #66 nothing stopped `cat .instrument/state.json`.
+`tasks/<id>/.instrument/` holds task internals the agent has no reason to read: `task.db` and `settings.json`, which carries attached-folder **host** paths under its `state` key -- a machine-layout leak. (When this was recorded the state lived in a separate `state.json`; it has since been folded into the settings file.) Before PR #66 nothing stopped `cat .instrument/settings.json`.
 
 PR #66 masks the directory at every layer that routes through the virtual filesystem: the bash sandbox (a decorator on the task mount), the dedicated file tools (`resolveAgentPath` / `resolveToolPath`), and the native-argument bridge (`resolveNativeHostPath` quarantine plus `bridgeInlineCodePaths`).
 
@@ -15,15 +15,15 @@ PR #66 masks the directory at every layer that routes through the virtual filesy
 Reproduced in one sandbox session via `pnpm --silent script:run-bash`:
 
 ```
-python -c "open('.instrument/state.json','w').write('SECRET_MARKER_XYZ')"
+python -c "open('.instrument/marker.txt','w').write('SECRET_MARKER_XYZ')"
 
-cat .instrument/state.json   ->  BLOCKED (no such file or directory)
+cat .instrument/marker.txt   ->  BLOCKED (no such file or directory)
 ls -a                        ->  .instrument absent from the listing
-python -c "print(open('.instrument/state.json').read())"
+python -c "print(open('.instrument/marker.txt').read())"
                              ->  SECRET_MARKER_XYZ
 ```
 
-Native code both **reads and writes** the directory freely. `bridgeInlineCodePaths` only rejects _quoted_ `/task/.instrument` literals in `-c` / `-e` source; a relative `.instrument/state.json` inside the script is not that, and a path assembled at runtime never appears in the source at all. This is inherent to the "real-binary escape hatch" described in `docs/architecture/agent-sandbox.md` — it is not a defect in the mask.
+A throwaway filename, so the repro demonstrates the write without clobbering a real task file; the mask does not distinguish between them. Native code both **reads and writes** the directory freely. `bridgeInlineCodePaths` only rejects _quoted_ `/task/.instrument` literals in `-c` / `-e` source; a relative `.instrument/marker.txt` inside the script is not that, and a path assembled at runtime never appears in the source at all. This is inherent to the "real-binary escape hatch" described in `docs/architecture/agent-sandbox.md` — it is not a defect in the mask.
 
 Things that _are_ covered, and were checked rather than assumed:
 
@@ -34,7 +34,7 @@ Things that _are_ covered, and were checked rather than assumed:
 
 Move the private dir **out of the task root**, so it is not reachable by a relative path from a native process's `cwd` (e.g. a sibling `tasks/<id>.private/` or a central store). Then there is nothing to mask, and the bash decorator, the file-tool checks, and the inline-code guard can all be deleted.
 
-The cost is the on-disk layout change: `tasks/<id>/.instrument/{task.db,state.json}` is documented in `CLAUDE.md` and assumed by task export/zip and `get-task-files` / `task-dir-utils`.
+The cost is the on-disk layout change: `tasks/<id>/.instrument/{task.db,settings.json}` is documented in `CLAUDE.md` and assumed by task export/zip and `get-task-files` / `task-dir-utils`.
 
 ## Guidance
 

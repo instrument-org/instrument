@@ -90,6 +90,34 @@ describe("updateTaskSettings", () => {
     );
   });
 
+  // The settings view is parsed as one object, so a single unreadable field
+  // takes the whole view with it. Every activity stamp writes through this, so
+  // a write that fills the gap with defaults erases the title of any task a
+  // newer build -- or a hand edit -- left one bad field in.
+  it("keeps the fields a malformed sibling makes unreadable", async () => {
+    const recordPath = path.join(
+      getTaskPrivateDir(taskDir(taskId)),
+      "settings.json",
+    );
+    await fs.mkdir(getTaskPrivateDir(taskDir(taskId)), { recursive: true });
+    await fs.writeFile(
+      recordPath,
+      JSON.stringify({ name: "Keep this name", pinnedAt: "not-a-date" }),
+      "utf8",
+    );
+
+    const stamped = await updateTaskSettings(taskId, {
+      lastActivityAt: new Date("2026-02-03T04:05:06.000Z"),
+    });
+
+    expect(stamped.isOk()).toBe(true);
+    expect(JSON.parse(await fs.readFile(recordPath, "utf8"))).toEqual({
+      lastActivityAt: "2026-02-03T04:05:06.000Z",
+      name: "Keep this name",
+      pinnedAt: "not-a-date",
+    });
+  });
+
   it("clears a pin with null while a concurrent update keeps its own field", async () => {
     await updateTaskSettings(taskId, {
       name: "Pinned",

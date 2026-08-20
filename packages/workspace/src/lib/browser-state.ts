@@ -140,9 +140,23 @@ export function recordBrowserUse({
     // one worth keeping: every command that opens a target for a task that
     // needs no page at all passes through here.
     const nextUrl = url === BLANK_PAGE_URL ? undefined : url;
+    // A page the browser did not have before, which decides both what the pane
+    // does below and what becomes of the title.
+    const isNewPage = nextUrl !== undefined && nextUrl !== current?.lastUrl;
     const state: BrowserState = {
       ...current,
-      ...(nextUrl ? { lastTitle: title, lastUrl: nextUrl } : {}),
+      ...(nextUrl
+        ? {
+            // A title belongs to the page it was read from: arriving somewhere
+            // new drops the one the last page had, and naming the page already
+            // recorded keeps it. Only some of the traffic through here carries a
+            // title at all -- `show <url>` carries none -- so a command that
+            // reveals the page the session is already on would otherwise throw
+            // that page's own title away.
+            lastTitle: isNewPage ? title : (title ?? current?.lastTitle),
+            lastUrl: nextUrl,
+          }
+        : {}),
       lastUsedAt: new Date(),
     };
     yield* setParsedStorageItem(
@@ -158,7 +172,7 @@ export function recordBrowserUse({
     // the rest of the traffic through here: a target opened for a command that
     // only reads state carries none, and a command that read the page it was
     // already on carries the one already recorded.
-    if (nextUrl !== undefined && nextUrl !== current?.lastUrl) {
+    if (isNewPage) {
       await revealBrowserTab({ sessionId, signal, storage, taskId });
     }
     return ok(undefined);

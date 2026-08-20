@@ -307,6 +307,7 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
+            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -389,6 +390,7 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2.5,
             "finishReason": "stop",
+            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -473,6 +475,7 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
+            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -559,6 +562,7 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
+            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -649,6 +653,7 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
+            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -742,6 +747,7 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
+            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -819,6 +825,7 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
+            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -908,6 +915,7 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2.5,
             "finishReason": "stop",
+            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -986,6 +994,7 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
+            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -1069,6 +1078,7 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
+            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -1147,6 +1157,7 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
+            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -1243,6 +1254,7 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2.5,
             "finishReason": "stop",
+            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -2329,6 +2341,7 @@ describe("llmRequestLogic", () => {
             "metadata": {
               "completionTokensPerSecond": 2,
               "finishReason": "stop",
+              "modelIdServed": "mock-model-id",
               "sessionId": "ses_00000000018888888888888888",
             },
             "parts": [
@@ -2434,6 +2447,7 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 1.6666666666666667,
             "finishReason": "stop",
+            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [

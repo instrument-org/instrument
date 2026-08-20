@@ -148,8 +148,9 @@ function property(value: unknown, key: string): unknown {
   if (typeof value !== "object" || value === null) {
     return;
   }
-  const found: unknown = Reflect.get(value, key);
-  return found;
+  // Own properties only, so a body carrying `constructor` or `toString` reads as
+  // absent rather than resolving to something off Object.prototype.
+  return Object.getOwnPropertyDescriptor(value, key)?.value;
 }
 
 /**

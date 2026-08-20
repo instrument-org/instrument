@@ -5,7 +5,7 @@ import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
  * `work/` project, scaffolding, scratch -- is hidden. Root-level files are also
  * surfaced (see `shouldFilterTaskFile`).
  */
-const PROMINENT_TOP_LEVEL_DIRS = new Set([
+const PROMINENT_TOP_LEVEL_DIRS = new Set<string>([
   TASK_FOLDER_NAMES.attachments,
   TASK_FOLDER_NAMES.downloads,
   TASK_FOLDER_NAMES.output,
@@ -25,7 +25,7 @@ export function shouldFilterTaskFile(filePath: string): boolean {
     // the `.gitignore` written during task setup, which stay hidden.
     return filePath.startsWith(".");
   }
-  return !PROMINENT_TOP_LEVEL_DIRS.has(dir as never);
+  return !PROMINENT_TOP_LEVEL_DIRS.has(dir);
 }
 
 function topLevelDir(filePath: string): string | undefined {

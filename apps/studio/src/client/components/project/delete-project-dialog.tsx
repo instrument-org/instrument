@@ -39,7 +39,7 @@ export function DeleteProjectDialog({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent maxWidth="28rem">
         <DialogHeader>
-          <DialogTitle>Delete {`"${projectName}"`}?</DialogTitle>
+          <DialogTitle>Delete {`“${projectName}”`}?</DialogTitle>
           <DialogDescription>
             The project will be moved to your system trash. Its tasks are kept
             and simply removed from the project.

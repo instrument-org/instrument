@@ -10,7 +10,7 @@ import { FileIcon } from "../file-icon";
 import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
 import { FileToolCard } from "./file-tool-card";
-import { ToolCardActions } from "./tool-card";
+import { ToolCardActions, ToolCardEmpty } from "./tool-card";
 
 type ReadFilePart = Extract<
   SessionMessagePart.ToolPart,
@@ -42,7 +42,7 @@ const UNSUPPORTED_FORMAT_MESSAGES: Record<UnsupportedFormatReason, string> = {
 
 export function ToolReadFile({ id, part }: { id: TaskId; part: ReadFilePart }) {
   if (part.state !== "output-available") {
-    return null;
+    return <ToolCardEmpty message="Nothing has been read yet." />;
   }
 
   const { output } = part;

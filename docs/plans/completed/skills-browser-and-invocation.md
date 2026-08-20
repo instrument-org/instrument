@@ -1,5 +1,7 @@
 # Skills browser and invocation
 
+Status: **complete.** The Skills area lists installed skills, opens one at `skills/$name`, and invokes it. See [skills-in-studio.md](skills-in-studio.md) for the design rationale.
+
 ## Goal
 
 Make installed Agent Skills discoverable, inspectable, and manually invocable from Studio without adding skill creation or import flows.

@@ -1,5 +1,7 @@
 # agent-browser snapshot refs die on the daemon idle timeout
 
+**Status:** fixed by raising the daemon idle timeout to five minutes. The rejected alternatives are recorded below because each looks reasonable until the reason it fails is stated.
+
 ## Symptom
 
 An agent runs `agent-browser snapshot -i`, gets refs (`@e49`), then a following

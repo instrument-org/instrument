@@ -4,7 +4,7 @@ import path from "node:path";
 import { setTimeout as setTimeoutPromise } from "node:timers/promises";
 import { describe, expect, it } from "vitest";
 
-import { execShim } from "./exec-shim";
+import { execShim, shimOutput } from "./exec-shim";
 import { withShellOutputSink } from "./output-sink";
 
 const runNode = (code: string) => execShim(process.execPath, ["-e", code], {});
@@ -90,6 +90,55 @@ describe("execShim", () => {
       }
     },
   );
+});
+
+describe("shimOutput", () => {
+  it("substitutes a diagnostic when the cwd does not exist", async () => {
+    const result = await execShim(process.execPath, ["-e", ""], {
+      cwd: "/no/such/directory",
+    });
+
+    expect(result.all).toBe("");
+    expect(result.exitCode).toBeUndefined();
+
+    const output = shimOutput(result, "node");
+    expect(output).toContain("node could not start.");
+    expect(output).toContain("/no/such/directory");
+  });
+
+  // execa opens shortMessage with the resolved binary path, which for the
+  // bundled git and ffmpeg is a real path inside the installed app bundle that
+  // no other sandbox output would ever show.
+  it("never leaks the resolved binary path", async () => {
+    const result = await execShim(process.execPath, ["-e", ""], {
+      cwd: "/no/such/directory",
+    });
+
+    const output = shimOutput(result, "node");
+    expect(output).not.toContain(process.execPath);
+    expect(output).not.toContain("Command failed with");
+  });
+
+  it("substitutes a diagnostic when the binary is missing", async () => {
+    const result = await execShim("instrument-no-such-binary", [], {});
+
+    expect(shimOutput(result, "nope")).toContain("ENOENT");
+  });
+
+  // rg reports no matches this way, and git diff --quiet reports a difference
+  // this way. Both are answers, not failures, so neither may grow a diagnostic.
+  it("leaves empty output alone when the process ran and exited non-zero", async () => {
+    const result = await runNode("process.exit(1)");
+
+    expect(result.exitCode).toBe(1);
+    expect(shimOutput(result, "rg")).toBe("");
+  });
+
+  it("passes successful output through unchanged", async () => {
+    const result = await runNode("console.log('ok')");
+
+    expect(shimOutput(result, "node")).toBe("ok\n");
+  });
 });
 
 function processExists(pid: number) {

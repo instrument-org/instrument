@@ -65,4 +65,4 @@ Not worth changing for the per-call caps. The caps sit well above ordinary usage
 ## Related
 
 - [Context compaction](../plans/active/context-compaction.md) owns the window-relative budget and the reported-usage path.
-- [Tool result context budgets](../plans/active/tool-result-context-budgets.md) is where the question was raised and deferred.
+- [Tool result context budgets](../plans/completed/tool-result-context-budgets.md) is where the question was raised and deferred.

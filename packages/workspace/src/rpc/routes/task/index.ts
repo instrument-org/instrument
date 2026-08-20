@@ -25,6 +25,7 @@ import {
   clearTaskIndicator,
   setTaskIndicator,
 } from "../../../lib/task-indicators";
+import { setTaskState } from "../../../lib/task-record";
 import {
   getTaskSettings,
   updateTaskSettings,
@@ -48,6 +49,7 @@ import { TaskIdSchema } from "../../../schemas/task-id";
 import { TaskSettingsUpdateSchema } from "../../../schemas/task-settings";
 import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
+import { liveTaskActivity, taskActivity } from "./activity";
 import { taskAgentStatus } from "./agent-status";
 import { taskBackgroundProcesses } from "./background-processes";
 import { taskFiles } from "./files";
@@ -253,6 +255,16 @@ const create = base
               source: "project" as const,
             })),
         ];
+
+        // What the project said at the moment this task took its folders on.
+        // Recorded here rather than left to the next message, because a folder
+        // detached before that message would otherwise read as one the project
+        // had just added and come straight back.
+        await setTaskState(taskDir(taskId), {
+          projectFolderBaseline: Object.fromEntries(
+            project.folders.map((folder) => [folder.path, folder.access]),
+          ),
+        });
       }
 
       // Frozen snapshot of the project's identity and instructions for this task.
@@ -718,6 +730,7 @@ const liveUsageSummary = base
   });
 
 export const task = {
+  activity: taskActivity,
   agentStatus: taskAgentStatus,
   backgroundProcesses: taskBackgroundProcesses,
   branch,
@@ -732,6 +745,7 @@ export const task = {
   list,
   live: {
     ...live,
+    activity: liveTaskActivity,
     usageSummary: liveUsageSummary,
   },
   markUnread,

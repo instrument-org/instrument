@@ -107,9 +107,6 @@ function SettingsModalContent({
       maxHeight="45rem"
       maxWidth="56.25rem"
       onExitComplete={onExitComplete}
-      onOpenAutoFocus={(event) => {
-        event.preventDefault();
-      }}
       showCloseButton={false}
     >
       <DialogTitle className="sr-only">Settings</DialogTitle>
@@ -137,8 +134,8 @@ function SettingsModalContent({
                       <SidebarMenuButton
                         className={
                           item.isDeveloperMode
-                            ? "text-dev-700 group-hover:bg-white/10 dark:text-dev-300 [&>svg]:text-dev-700 dark:[&>svg]:text-dev-300"
-                            : "group-hover:bg-black/10 dark:group-hover:bg-white/10"
+                            ? "text-dev-700 group-hover:bg-white/10 focus-visible:-outline-offset-2 dark:text-dev-300 [&>svg]:text-dev-700 dark:[&>svg]:text-dev-300"
+                            : "group-hover:bg-black/10 focus-visible:-outline-offset-2 dark:group-hover:bg-white/10"
                         }
                         isActive={item.tab === activeTab}
                         onClick={() => {

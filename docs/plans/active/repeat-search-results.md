@@ -13,7 +13,7 @@ Measured over one production research session that issued 13 searches:
 - 10 of 53 distinct URLs came back more than once. One repository README arrived four separate times, in four different searches.
 - The queries that produced them were near-duplicates by construction: a bare topic query, a `site:` query against the vendor docs, and a `site:` query against the community forum all ranked the same pages.
 
-This is the cheapest context in the window to recover, because nothing is lost by removing it. A [character budget](completed/tool-result-context-budgets.md) shortens passages the model has not read yet; deduplication removes bytes it has already been shown.
+This is the cheapest context in the window to recover, because nothing is lost by removing it. A [character budget](../completed/tool-result-context-budgets.md) shortens passages the model has not read yet; deduplication removes bytes it has already been shown.
 
 ## Goal
 
@@ -32,7 +32,7 @@ An excerpt whose URL has already been shown in this session does not spend the w
 
 `WebSearch.toModelOutput` receives `{ input, output, toolCallId }` and nothing else, so a tool transform cannot see what an earlier search already showed. `SessionMessage.toModelMessages` hands parts to the AI SDK, which invokes `toModelOutput` per part, so there is no injection point inside that walk either.
 
-The workable seam is a pass in [prepare-model-messages.ts](../../packages/workspace/src/lib/prepare-model-messages.ts) over `SessionMessage.WithParts[]`, before `toModelMessages`. At that point a `web_search` part still carries structured `results.sources[]` with a `url` on each, so the pass can walk oldest to newest, track seen URLs, and hand `toModelOutput` a copied part whose repeat sources carry a pointer instead of a body. Copy, never mutate: the stored part is what the transcript and the UI read.
+The workable seam is a pass in [prepare-model-messages.ts](../../../packages/workspace/src/lib/prepare-model-messages.ts) over `SessionMessage.WithParts[]`, before `toModelMessages`. At that point a `web_search` part still carries structured `results.sources[]` with a `url` on each, so the pass can walk oldest to newest, track seen URLs, and hand `toModelOutput` a copied part whose repeat sources carry a pointer instead of a body. Copy, never mutate: the stored part is what the transcript and the UI read.
 
 Doing it by re-parsing rendered text after `toModelMessages` is the wrong seam. The rendered form is inside a nonce-bounded block, and a pass that edits that text has to reproduce the boundary exactly or every message after it reads as quoted page content.
 
@@ -44,7 +44,7 @@ So the seen-URL set has to be built from the messages that survive the rollover,
 
 ## The hazard this shares with the reverted aggregate
 
-The pass runs on every replay, so an excerpt the model read whole on one turn becomes a pointer on a later one. [Dropping the always-on per-step budget](../decisions/2026-08-12-no-always-on-per-step-tool-result-budget.md) named exactly that behavior as one of the three things that made a fixed budget not worth its cost, alongside a result the model had already quoted becoming unreachable.
+The pass runs on every replay, so an excerpt the model read whole on one turn becomes a pointer on a later one. Dropping the always-on per-step budget (`workspace: drop the always-on per-step tool-result budget`) named exactly that behavior as one of the three things that made a fixed budget not worth its cost, alongside a result the model had already quoted becoming unreachable.
 
 Deduplication is a better trade than that budget was, because the removed bytes are still in the window under a different tool call rather than gone. It is not automatically an acceptable one. Whichever direction is taken has to be deliberate:
 
@@ -68,5 +68,5 @@ The same page can also enter the window through `web_fetch` and through `agent-b
 
 ## Related
 
-- [Tool result context budgets](completed/tool-result-context-budgets.md) bounds a single search. This removes what two searches paid for twice; the two are independent and compose.
+- [Tool result context budgets](../completed/tool-result-context-budgets.md) bounds a single search. This removes what two searches paid for twice; the two are independent and compose.
 - [Context compaction](context-compaction.md) decides which messages are in the window at all, which this pass has to read before it can be correct.

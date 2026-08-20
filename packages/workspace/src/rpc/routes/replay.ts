@@ -3,7 +3,6 @@ import { z } from "zod";
 
 import { ActiveReplays } from "../../lib/active-replays";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
 import { base } from "../base";
 import { publisher } from "../publisher";
 
@@ -45,28 +44,6 @@ const live = {
       })) {
         if (payload.sessionId === input.sessionId) {
           yield { isActive: payload.isActive };
-        }
-      }
-    }),
-  statusByTaskId: base
-    .input(z.object({ id: TaskIdSchema }))
-    .output(
-      eventIterator(
-        z.object({ activeSessionIds: z.array(StoreId.SessionSchema) }),
-      ),
-    )
-    .handler(async function* ({ input, signal }) {
-      yield {
-        activeSessionIds: ActiveReplays.getActiveSessionIds(input.id),
-      };
-
-      for await (const payload of publisher.subscribe("replay.changed", {
-        signal,
-      })) {
-        if (payload.id === input.id) {
-          yield {
-            activeSessionIds: ActiveReplays.getActiveSessionIds(input.id),
-          };
         }
       }
     }),

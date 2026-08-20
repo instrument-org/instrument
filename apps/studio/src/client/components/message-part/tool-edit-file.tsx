@@ -4,6 +4,8 @@ import {
 } from "@instrument-org/workspace/client";
 
 import { FileToolCard } from "./file-tool-card";
+import { stripPatchHeader } from "./tool-call-utils";
+import { ToolCardEmpty } from "./tool-card";
 
 type EditFilePart = Extract<
   SessionMessagePart.ToolPart,
@@ -17,18 +19,20 @@ export function ToolEditFile({ id, part }: { id: TaskId; part: EditFilePart }) {
       : (part.input?.filePath ?? "");
 
   if (!filePath) {
-    return null;
+    return (
+      <ToolCardEmpty message="The file being edited has not arrived yet." />
+    );
   }
 
   const isDone = part.state === "output-available";
 
-  // When done show diff (trimming the file/===/ ---/+++ /@ header lines),
-  // while streaming show the replacement string being written.
+  // When done show the diff, while streaming show the replacement string being
+  // written.
   let content: string;
   let language: string | undefined;
 
   if (isDone && part.output.diff) {
-    content = part.output.diff.split("\n").slice(5).join("\n");
+    content = stripPatchHeader(part.output.diff);
     language = "diff";
   } else {
     content = part.input?.newString ?? "";

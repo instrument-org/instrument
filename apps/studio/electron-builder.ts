@@ -212,7 +212,10 @@ const config: Configuration = {
   publish: publishConfig,
   win: {
     signtoolOptions: {
-      publisherName: "Finalpoint, LLC",
+      // Both casings the certificate subject has been issued under. An update is
+      // rejected unless the installed build's list contains the incoming
+      // installer's CN verbatim, and the comparison is case sensitive.
+      publisherName: ["Finalpoint, LLC", "FINALPOINT, LLC"],
       sign: "electron-builder/win-cloud-hsm-sign.js",
     },
     target: ["nsis"],

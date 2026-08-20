@@ -24,6 +24,7 @@ import { ToolCapabilityFailure } from "./tool-capability-failure";
 import {
   ToolCard,
   ToolCardActions,
+  ToolCardEmpty,
   ToolCardHeader,
   ToolCardSection,
   ToolChip,
@@ -126,7 +127,7 @@ export function ToolGenerateImage({
   const { openFiles } = useTaskPaneActions(id);
 
   if (!part.input) {
-    return null;
+    return <ToolCardEmpty message="The prompt has not arrived yet." />;
   }
 
   const successOutput =
@@ -206,7 +207,7 @@ export function ToolGenerateImage({
       )}
 
       {!failureOutput && (
-        <ToolCardSection maxHeight="max-h-32">
+        <ToolCardSection collapsedHeight={128}>
           {(modelName || parameterTags.length > 0) && (
             <div className="mb-2 flex flex-wrap gap-1">
               {modelName && (

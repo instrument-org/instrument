@@ -175,6 +175,85 @@ export const summarize = async (source: string, destination: string) => {
 \`\`\``,
 ].join("\n\n");
 
+/**
+ * Output whose lines run well past the column, which is the whole of what the
+ * wrap toggle answers: wrapped it is a readable paragraph of nonsense, unwrapped
+ * it is columns that line up. Neither is right for every log, which is why the
+ * control exists rather than a default.
+ */
+const WIDE_OUTPUT = `packages/core/src/transform/normalize-record.ts:118:7    warning  Prefer a named export so the module can be re-exported without an alias   import/no-default-export
+packages/core/src/transform/collapse-whitespace.ts:44:19  warning  This expression has an unbounded quantifier inside a group and can backtrack  regexp/no-super-linear-backtracking
+packages/core/src/transform/parse-frontmatter.ts:203:11   warning  Awaiting inside a loop serializes work that has no dependency between turns  no-await-in-loop
+packages/ui/src/components/data-table/column-sizing.ts:87:3  warning  This effect reads a ref during render, which the compiler cannot verify  react-hooks/refs`;
+
+/**
+ * One line long enough to fill the clamp on its own once it wraps.
+ *
+ * The case that decides whether "is there more" is measured or counted: by line
+ * count this is the shortest output there is, and it is four times the height of
+ * the section holding it.
+ */
+const ONE_WIDE_LINE = `{"level":"error","ts":"2026-08-14T09:41:22.118Z","service":"billing-webhooks","event":"invoice.payment_failed","invoice":"in_1PqR4kL2eZvKYlo2CvB8xNqA","customer":"cus_QeT8mWvXyZ1234","attempt":4,"next_attempt":null,"reason":"card_declined","decline_code":"insufficient_funds","message":"The payment intent could not be confirmed and no further retries are scheduled, so the subscription will be marked past_due at the end of the grace period."}`;
+
+/** Long enough that the section is a window onto it rather than a view of it. */
+const INSTALL_LOG = `Lockfile is up to date, resolution step is skipped
+Packages: +412
+Progress: resolved 412, reused 401, downloaded 11, added 412, done
+
+devDependencies:
++ @testing-library/react 16.3.0
++ @types/node 24.15.1
++ @vitejs/plugin-react 5.0.2
++ happy-dom 15.11.7
++ oxlint 1.14.0
++ playwright 1.56.0
++ typescript 5.9.2
++ vite 8.0.1
++ vitest 4.1.10
+
+dependencies:
++ date-fns 4.1.0
++ hono 4.6.14
++ neverthrow 8.1.1
++ radashi 12.6.2
++ zod 4.1.5
+
+Done in 4.2s
+
+> build
+> vite build
+
+vite v8.0.1 building for production...
+transforming...
+✓ 1284 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                    0.71 kB │ gzip:  0.38 kB
+dist/assets/index-BQhdFMY1.css    42.18 kB │ gzip:  7.94 kB
+dist/assets/vendor-DMm9YOAa.js   318.44 kB │ gzip: 98.12 kB
+dist/assets/index-DRggAlZN.js    112.60 kB │ gzip: 34.71 kB
+✓ built in 3.81s`;
+
+/** Fetched prose, which has no lines to count and so offers "more" instead. */
+const FETCHED_GUIDE = `# Configuring the runner
+
+The runner reads \`runner.config.ts\` from the package root. Anything not set there falls back to the workspace default, and anything set in both places is taken from the package.
+
+## Where the config is read from
+
+Resolution walks up from the file being run until it finds a config or reaches the workspace root, so a package can override one field without restating the rest. A config found outside the workspace is ignored rather than merged, which is what keeps a stray file in a home directory from changing what CI does.
+
+## The fields that matter
+
+- \`include\` decides which files are collected. It is a list of globs, and a file matching none of them is not an error.
+- \`environment\` picks what each file runs against. Changing it per file is done by extension rather than by config, so a file declares what it needs by what it is.
+- \`retry\` is off locally and on in CI. A flake worth seeing is one that fails in front of you.
+- \`pool\` decides isolation. The default forks a process per file, which is slower and catches the state one file leaks into the next.
+
+## What it does not do
+
+The runner will not create a config for you, and it will not read one from a parent workspace you are not part of. Both are cases where the thing it would guess is worth less than the error.`;
+
 /** A file long enough that the card holding it has to decide how much to show. */
 const HELPERS = `import { format, parseISO } from "date-fns";
 
@@ -844,6 +923,95 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
     script: [
       user("Show me what you wrote, and the output it produced."),
       prose(CODE_BLOCKS, 90),
+    ],
+  },
+  {
+    about:
+      "The controls an opened call carries, which are the ones a fenced code block carries: wrap, copy, and how much is worth showing before the reader asks for the rest. Open every call. Each is a case those controls have to answer -- output wider than the column, output longer than the card, one line that is both, a command that is a script, a file card where copy sits on the body it takes and opening the file stays in the header beside its name, and a call whose body is empty, which says so rather than opening onto nothing.",
+    id: "card-controls",
+    name: "Card controls",
+    script: [
+      user("Run the checks, then show me what you changed."),
+      activity("Running the checks"),
+      // Wider than the column and short enough to need nothing else, so the
+      // wrap toggle is the only control doing anything.
+      ranAndFailed({
+        command: "pnpm lint --format compact",
+        explanation: "Linting every package",
+        output: WIDE_OUTPUT,
+      }),
+      // Longer than the card, so the control says what opening it costs.
+      ran({
+        command: "pnpm install && pnpm build",
+        explanation: "A clean install and build",
+        output: INSTALL_LOG,
+      }),
+      // One line by any count, four clamps tall once it wraps.
+      ran({
+        command: "tail -n 1 logs/billing.jsonl",
+        explanation: "The last billing error",
+        output: ONE_WIDE_LINE,
+      }),
+      // The command is the long thing here rather than the output, which is the
+      // only place the top section of a bash card clamps.
+      ran({
+        command: `for pkg in packages/*/; do
+  name=$(basename "$pkg")
+  echo "=== $name ==="
+  if [ -f "$pkg/package.json" ]; then
+    pnpm --filter "./$pkg" run check:types 2>&1 | tail -n 3
+  else
+    echo "  (not a package, skipping)"
+  fi
+done`,
+        explanation: "Typechecking each package in turn",
+        output:
+          "=== core ===\n=== ui ===\n=== config ===\n  (not a package, skipping)",
+      }),
+      // Nothing to wrap and nothing to hold back: the section that draws a copy
+      // control and stops there.
+      ran({
+        command: "git rev-parse --short HEAD",
+        explanation: "The commit under test",
+        output: "18f0b1512",
+      }),
+      activity("Showing the changes"),
+      // The file cards: copy over the body it takes, opening beside the name.
+      read({
+        content: HELPERS,
+        explanation: "Reading the helpers",
+        filePath: "./src/utils/helpers.ts",
+      }),
+      edited({
+        explanation: "Slugifying on a stricter pattern",
+        filePath: "./src/utils/helpers.ts",
+        newString: 'str.replace(/[^a-z0-9]+/g, "-")',
+        oldString: 'str.replace(/[_-]+/g, "-")',
+      }),
+      wrote({
+        content: HELPERS,
+        explanation: "Copying the helpers into the runner",
+        filePath: "./src/runner/helpers.ts",
+      }),
+      // A body with nothing in it, which every call can produce and none can
+      // predict from the row. Opening it has to land on something: a chevron
+      // that opens onto blank space reads as a control that did not work, and
+      // that is what a diff stripped one line too far looked like.
+      read({
+        content: "",
+        explanation: "Reading the empty placeholder",
+        filePath: "./src/runner/.keep",
+      }),
+      // Prose rather than lines: the same control, with nothing to count, so it
+      // offers more instead of saying how much.
+      fetched({
+        explanation: "Reading the runner guide",
+        text: FETCHED_GUIDE,
+        url: "https://example.com/runner/config/",
+      }),
+      prose(
+        "Lint is failing in four places, the build is clean, and the slugify change is in. The runner guide says the config is read per package, so the override we have is doing what we thought.",
+      ),
     ],
   },
   {

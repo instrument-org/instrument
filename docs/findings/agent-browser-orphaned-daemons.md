@@ -1,5 +1,7 @@
 # Orphaned agent-browser daemons
 
+**Status:** partly fixed. Per-session close presents the right daemon fingerprint; `close --all` still does not, so a clean quit can start the orphans it meant to reap. Recorded 2026-08-05, quit-path recurrence observed 2026-08-12 on the installed macOS `v1.6.0-beta.4` build.
+
 ## Symptom
 
 Long-lived `agent-browser-<platform>` daemon processes accumulate on the
@@ -43,7 +45,9 @@ invocation's fingerprint differs from the one that started it, and `close
 --session <id>` goes through `ensure_daemon`. We started every session daemon
 with `AGENT_BROWSER_IDLE_TIMEOUT_MS=30000` (set in the bash-command path) but the
 cleanup helpers (`closeAgentBrowserSessionsForSessions`,
-`closeAllAgentBrowserSessions`) omitted it. So each per-task reap's `close`
+`closeAllAgentBrowserSessions`) omitted it. (The constant has since moved to
+five minutes; what matters is that the two sides agree, not the value.) So each
+per-task reap's `close`
 presented a _different_ fingerprint, causing the CLI to spawn a fresh daemon and
 close the replacement while the original 30s-idle daemon kept running and later
 self-terminated into the deadlock above.
@@ -72,12 +76,67 @@ by both the bash-command spawn path
 ([shell-commands/agent-browser.ts](../../packages/workspace/src/lib/shell-commands/agent-browser.ts))
 and the cleanup helpers
 ([agent-browser-cleanup.ts](../../packages/workspace/src/lib/agent-browser-cleanup.ts)),
-so every invocation for a session presents an identical daemon-config
-fingerprint and `close` reaps the daemon it targeted instead of replacing it.
+so every **per-session** invocation presents an identical daemon-config
+fingerprint and `close --session` reaps the daemon it targeted instead of
+replacing it.
 
-This removes the daemon-restart-on-close bug. It does **not** rescue a daemon
-that has already deadlocked (its `.pid` is gone); those must be killed by pid.
-See "Not yet done" for the backstop.
+This removes the daemon-restart-on-close bug for per-session cleanup. It does
+**not** rescue a daemon that has already deadlocked (its `.pid` is gone); those
+must be killed by pid. See "Not yet done" for the backstop.
+
+### The quit path was not covered, and still is not
+
+`closeAllAgentBrowserSessions` passes only `AGENT_BROWSER_SOCKET_DIR`, so
+`close --all` presents the CLI's default one-hour idle timeout against sessions
+started at `AGENT_BROWSER_IDLE_TIMEOUT_MS` (`ms("5 minutes")`). That is the same
+fingerprint mismatch as bug 2, on the one path that runs at quit.
+
+Observed 2026-08-12 quitting the installed `v1.6.0-beta.4` build after a UI
+review. Teardown logged clean and fast:
+
+```text
+[2026-08-12 17:32:54.368] Quit teardown started
+[2026-08-12 17:32:54.378] Quit teardown: tearing down browser views
+[2026-08-12 17:32:54.379] Quit teardown: skills watcher and telemetry settled
+[2026-08-12 17:32:54.379] Quit teardown: stopping the workspace actor
+[2026-08-12 17:32:54.380] Quit teardown: exiting
+```
+
+Two bundled `agent-browser` processes then survived under ppid 1, one for the
+managed session and one for its `-ext` sibling:
+
+```text
+/tmp/.instrument-browser/ses_01KZVQF83DGCT5HJBTFN72KG6H.sock
+/tmp/.instrument-browser/ses_01KZVQF83DGCT5HJBTFN72KG6H-ext.sock
+```
+
+Their elapsed times matched the seconds since quit, so quit **started** them
+rather than leaving them behind. Both were idle at 0% CPU on loopback only, so
+this is not the [quit livelock](quit-teardown-can-livelock-the-app.md). The
+`close --all` call resolved without hitting its three-second timeout and
+reported success.
+
+The fix is to pass the same environment the other two paths already pass:
+
+```ts
+env: { AGENT_BROWSER_IDLE_TIMEOUT_MS, AGENT_BROWSER_SOCKET_DIR }
+```
+
+A mocked-`execa` unit test can pin the environment contract, but only a
+subprocess test proves the upstream fingerprint behavior. Reproduce against a
+disposable socket dir: start a session and its `-ext` sibling at a nondefault
+idle timeout, run `close --all` with and without the timeout, and inspect
+processes and sockets after each.
+
+At the product level: launch the packaged app on a task using both the managed
+and external browser, quit normally, confirm the main process and helpers
+exited, then check for survivors.
+
+```bash
+ps -axo pid=,ppid=,%cpu=,etime=,state=,command= | rg '/Applications/Instrument\.app/.*/agent-browser'
+```
+
+Expected is no surviving bundled daemon; observed was one per session variant.
 
 ## Storage locations (for reference)
 
@@ -101,6 +160,8 @@ collide across installs. The only cross-install hazard is the undiscriminating
 
 ## Not yet done
 
+- **The `close --all` environment**, described above. The smallest item here and
+  the one that runs on every quit.
 - **Pid backstop.** Record `<sessionId>.pid` while the session is live and, on
   quit and on boot, SIGKILL any recorded pid still alive (guarding against pid
   reuse). This is the only thing that reaps an already-deadlocked daemon. Cross

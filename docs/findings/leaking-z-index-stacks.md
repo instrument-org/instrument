@@ -1,6 +1,6 @@
 # Leaking z-index stacks in the renderer
 
-Status: resolved for the surfaces listed below; the rule stands for new ones.
+**Status:** resolved for the surfaces listed below; the rule stands for new ones.
 
 ## The problem
 

@@ -49,6 +49,10 @@ interface PricingPlan {
   yearlyPrice: number;
 }
 
+// The plans the card has styling for. The API names the plan, so a plan we do
+// not style yet has to read as "no variant" rather than as one of these.
+const STYLED_PLANS = ["Basic", "Free", "Pro"] as const;
+
 const planCardVariants = tv({
   slots: {
     card: "relative flex flex-col overflow-hidden bg-card p-6",
@@ -304,7 +308,7 @@ function SubscribePage() {
                 }
 
                 const { card, title } = planCardVariants({
-                  plan: plan.name as "Basic" | "Free" | "Pro",
+                  plan: STYLED_PLANS.find((name) => name === plan.name),
                 });
 
                 return (

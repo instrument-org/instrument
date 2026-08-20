@@ -13,6 +13,7 @@ import { reasoningDisplayText } from "./reasoning-utils";
 import { RunRowChevron } from "./run-row-chevron";
 import { SessionMarkdown } from "./session-markdown";
 import { useRowExpansion } from "./transcript-expansion";
+import { transcriptRowAttributes } from "./transcript-row-position";
 import {
   Collapsible,
   CollapsibleContent,
@@ -135,6 +136,7 @@ export const ReasoningMessage = memo(function ReasoningMessage({
       <CollapsibleTrigger
         className={cn(TRANSCRIPT_ROW, "cursor-default text-left")}
         disabled={groupHead === null && !hasText}
+        {...transcriptRowAttributes(rowId)}
       >
         <PlanningDotSlot isRunning={showsLiveIndicator} />
         <span

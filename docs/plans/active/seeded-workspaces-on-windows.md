@@ -6,7 +6,7 @@ Owner: whoever owns `.agents/skills/test-studio-on-windows/`. The seeder side is
 
 ## What this is for
 
-`studio-drive.mjs boot --workspace <fixture>` builds a disposable workspace from a committed description and boots Studio against it, so a scripted run stops depending on what the machine happened to do last. That works on macOS and Linux. On Windows it is unreachable, and the reason is structural rather than a bug.
+`studio-drive.mjs boot --purpose <purpose> --workspace <fixture>` builds a disposable workspace from a committed description and boots Studio against it, so a scripted run stops depending on what the machine happened to do last. That works on macOS and Linux. On Windows it is unreachable, and the reason is structural rather than a bug.
 
 The goal: `windows-studio-host.mjs start --host <ssh-host> --target dev-seeded --workspace documents` brings up the Windows dev build against a seeded workspace, and everything downstream (`goto`, `click`, `shot` through the tunnel) works unchanged.
 

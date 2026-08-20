@@ -98,8 +98,16 @@ export function TaskPaneSplit({
   // animate.
   const [isMounted, setIsMounted] = useState(isPaneOpen);
   const [isSliding, setIsSliding] = useState(false);
+  // Declared here rather than left to the layout effect below, which is where
+  // every other slide starts. A child's effects run before its parent's, so the
+  // pane's contents mount and act one commit before that effect gets to say a
+  // slide is running -- and what they do on mount is the expensive part (see the
+  // browser panel, which spawns a WebContents). The runs that arrive at a state
+  // instead of animating clear this in `settle`, in the same commit, so nothing
+  // is drawn as sliding that isn't.
   if (isPaneOpen && !isMounted) {
     setIsMounted(true);
+    setIsSliding(true);
   }
 
   // Read the latest share from inside the effects without making it a
@@ -478,7 +486,10 @@ export function TaskPaneSplit({
               "group/pane-handle absolute inset-y-0 left-0 z-20 w-3 -translate-x-1/2 cursor-col-resize select-none",
               "after:absolute after:top-1/2 after:left-1/2 after:h-10 after:w-1 after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-full",
               "after:bg-transparent after:transition-colors after:duration-150",
-              "hover:after:bg-muted-foreground/40 active:after:bg-primary/60",
+              // The grip takes the focus mark, the way the sidebar's own
+              // handle does. An outline would ring the whole grab strip, which
+              // is the height of the pane and reads as a border around it.
+              "outline-hidden hover:after:bg-muted-foreground/40 focus-visible:after:bg-ring active:after:bg-primary/60",
             )}
             onDoubleClick={handleDoubleClick}
             onKeyDown={handleKeyDown}

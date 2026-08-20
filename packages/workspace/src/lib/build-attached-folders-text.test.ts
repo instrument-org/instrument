@@ -42,7 +42,7 @@ describe("buildAttachedFoldersText", () => {
     });
 
     expect(text).toContain("Call a folder by its quoted name");
-    expect(text).toContain("never present one as the folder's name");
+    expect(text).toContain("The mount path is its address, not its name");
   });
 
   it("leaves a name unqualified when nothing else shares it", () => {

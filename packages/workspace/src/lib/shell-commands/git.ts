@@ -5,8 +5,9 @@ import { type TaskId } from "../../schemas/task-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { gitBinaryPath } from "../git";
 import { taskDir } from "../task-dir-utils";
-import { execShim } from "./exec-shim";
+import { execShim, shimOutput } from "./exec-shim";
 import {
+  attachedMountReference,
   bridgeFlagValuePath,
   resolveCommandContext,
   resolvePathArgs,
@@ -136,6 +137,29 @@ export function createGitCommand(taskId: TaskId) {
       };
     }
 
+    // git is a real subprocess, so an attached-folder mount is not a place it
+    // can be pointed at -- not with -C, not with --git-dir, and not by being
+    // launched with one as its working directory. Answering here names the
+    // mount the agent asked for; letting it through instead reports the
+    // quarantined path the mount resolves to, which reads as the sandbox
+    // mangling the path rather than refusing to cross the boundary.
+    const mountReference = attachedMountReference(
+      args,
+      ctx.fs.resolvePath(ctx.cwd, "."),
+    );
+    if (mountReference) {
+      return {
+        exitCode: 1,
+        stderr:
+          `${GIT_COMMAND.name}: ${mountReference} is an attached folder, which git cannot read. ` +
+          `Attached-folder mounts are visible to the sandbox shell and file tools only, never to a ` +
+          `real subprocess. To work with the history of a repository there, copy it into the task ` +
+          `first (cp -R '${mountReference}' work/) and run git on the copy; a copy of .git alone ` +
+          `reports every file as deleted, because it has no working tree beside it.\n`,
+        stdout: "",
+      };
+    }
+
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
     // resolvePathArgs only rewrites arguments that start with `/`, so bridge
     // the inline `--git-dir=/task/...` form first. Without this it reaches the
@@ -184,7 +208,10 @@ export function createGitCommand(taskId: TaskId) {
     return {
       exitCode: result.exitCode ?? 1,
       stderr: "",
-      stdout: filterShellOutput(collapseProgress(result.all), taskDir(taskId)),
+      stdout: filterShellOutput(
+        collapseProgress(shimOutput(result, GIT_COMMAND.name)),
+        taskDir(taskId),
+      ),
     };
   });
 }

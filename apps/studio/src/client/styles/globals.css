@@ -46,6 +46,15 @@ body {
   background: var(--background);
 }
 
+@layer base {
+  /* Plain focusable primitives share the muted theme ring used by designed
+     controls; component utilities can still override its geometry or color. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 0;
+  }
+}
+
 /* =========================
    BASELINE THEME VARIABLES 🎨
    ========================= */
@@ -775,6 +784,18 @@ a.cursor-pointer {
   }
 }
 
+/* `shine`, driving a mask instead of a background, so the same band can sweep
+* an icon. Text takes the highlight through `background-clip`, which only ever
+* paints glyphs; an SVG has to be lit by revealing a brighter copy of itself. */
+@keyframes shine-mask {
+  0% {
+    mask-position: 100%;
+  }
+  100% {
+    mask-position: -100%;
+  }
+}
+
 /* Each word of a message still streaming in; see `rehype-animate-words`, which
  * is what puts the attribute there and only while the text is still growing.
  *
@@ -804,6 +825,42 @@ a.cursor-pointer {
 @media (prefers-reduced-motion: reduce) {
   [data-stream-word] {
     animation: none;
+  }
+}
+
+/* A task's name arriving in place of the one before it; see `useTitleArrival`,
+ * which puts the class there and only for a name the reader did not type.
+ *
+ * A mask rather than a plain fade. The old name leaves the moment the new one
+ * is committed, so a fade of the whole line starts from an empty row and the
+ * name has to appear out of nothing; swept, the row is filling from the first
+ * frame and the eye follows the name in the direction it is read.
+ *
+ * The gradient is three times the width of the box it masks, so the band it
+ * fades across is about a full title wide: at the halfway point the whole name
+ * is on screen at a slope rather than half of it at full strength, which is
+ * what keeps this a wash and not a wipe. Eased out, so the name is legible in
+ * the first half and the tail is the part still settling. */
+@utility title-arrival {
+  animation: title-arrival 700ms ease-out both;
+  mask-image: linear-gradient(to right, black 0 33%, transparent 66% 100%);
+  mask-repeat: no-repeat;
+  mask-size: 300% 100%;
+
+  /* Both, not just the animation: held at its first frame the mask is what
+     hides the name, so dropping the motion alone would leave a blank row. */
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    mask-image: none;
+  }
+}
+
+@keyframes title-arrival {
+  from {
+    mask-position: 100% 0;
+  }
+  to {
+    mask-position: 0 0;
   }
 }
 
@@ -893,6 +950,35 @@ a.cursor-pointer {
     animation: planning-dot-shockwave-ring 1.5s ease-out infinite;
     pointer-events: none;
     will-change: transform, opacity;
+  }
+
+  /* `brand-shiny-text` for an icon: the same traveling highlight on the same
+   * 3s period. Two copies of the icon stacked in a cell -- the base, and a
+   * brighter one revealed only where the band is, since a highlight brighter
+   * than what it crosses cannot be painted by dimming, which is all a mask can
+   * do on its own.
+   *
+   * One base in both modes, where the word needs two. The word's pair exists
+   * because thin glyph strokes at the light base fall to 2.3:1 on the dark
+   * surface; an icon is a filled shape carrying several times that ink, so the
+   * brighter of the two already clears 3:1 against the light surface and 5.4:1
+   * against the dark one. Taking the word's light base as well would only make
+   * the icon read as a heavy dark blob beside the gray icons it sits with,
+   * which is the same ink difference working the other way. */
+  .brand-shiny-icon {
+    color: #2e9e79;
+  }
+
+  .brand-shiny-icon-highlight {
+    color: #55e8bb;
+    mask-image: linear-gradient(
+      270deg,
+      transparent 24.14%,
+      black 34.66%,
+      transparent 60.34%
+    );
+    mask-size: 200% 100%;
+    animation: shine-mask 3s linear infinite;
   }
 }
 

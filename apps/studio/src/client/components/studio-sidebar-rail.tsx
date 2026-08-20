@@ -236,7 +236,7 @@ export function StudioSidebarRail({
           className={cn(
             "absolute inset-y-0 right-0 z-20 w-2 translate-x-1/2 cursor-col-resize select-none",
             "after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent",
-            "hover:after:bg-muted-foreground/40 active:after:bg-primary/50",
+            "outline-hidden hover:after:bg-muted-foreground/40 focus-visible:after:w-0.5 focus-visible:after:bg-ring active:after:bg-primary/50",
           )}
           onDoubleClick={() => {
             animate(panelWidth, SIDEBAR_WIDTH, RAIL_SLIDE_TRANSITION);

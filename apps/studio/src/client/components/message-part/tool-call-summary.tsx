@@ -19,6 +19,7 @@ import { cn } from "../../lib/utils";
 import { PlanningDotIcon } from "../icons/planning-dot";
 import { RunRowChevron } from "../run-row-chevron";
 import { useRowExpansion } from "../transcript-expansion";
+import { transcriptRowAttributes } from "../transcript-row-position";
 import {
   Collapsible,
   CollapsibleContent,
@@ -112,7 +113,10 @@ export function ToolCallSummary({
     // Inline, unlike the rows that are a whole line: a call's chips follow its
     // label and the hover target ends with them rather than running to the
     // margin.
-    <div className={cn(TRANSCRIPT_ROW, "inline-flex max-w-full")}>
+    <div
+      className={cn(TRANSCRIPT_ROW, "inline-flex max-w-full")}
+      {...transcriptRowAttributes(part.metadata.id)}
+    >
       {isDeadDevMode ? (
         <span className="flex shrink-0 items-center gap-1 rounded-full border border-dev-500/30 bg-dev-500/10 px-1.5 py-0.5 text-[10px] font-medium text-dev-500 uppercase">
           <EyeIcon className="size-2.5" />

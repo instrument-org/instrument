@@ -20,6 +20,7 @@ import {
 } from "@/client/components/ui/menu-components";
 import { UnreadDot } from "@/client/components/unread-dot";
 import { useInlineRename } from "@/client/hooks/use-inline-rename";
+import { markTitleRenamedByUser } from "@/client/hooks/use-title-arrival";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task } from "@instrument-org/workspace/client";
@@ -48,6 +49,7 @@ export function ProjectTaskRow({
   );
   const rename = useInlineRename({
     onSave: async (next) => {
+      markTitleRenamedByUser(task.id, next);
       await renameTask({ id: task.id, name: next });
     },
     value: task.title,

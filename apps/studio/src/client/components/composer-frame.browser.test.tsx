@@ -57,6 +57,9 @@ async function renderFrame({
         <PromptEditor
           actions={[]}
           autoFocus={false}
+          // The editor places its menu against the composer around it.
+          // Nothing here opens one, so there is no box to place it against.
+          bounds={null}
           defaultValue={draft}
           disabled={false}
           onChange={noop}

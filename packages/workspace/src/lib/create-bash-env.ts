@@ -95,7 +95,10 @@ function stubCommand(
 // upstream gap, are registered in docs/architecture/just-bash-upstream.md with
 // what has to be true before each can go. A workaround that outlives its bug
 // keeps the model avoiding something that works, so retire both together.
-const BROKEN_COMMANDS = new Set<CommandName>([
+// Declared as a set of strings so membership can be tested against the names
+// just-bash reports, which it types as plain `string`; the constructor's own
+// type parameter still holds these entries to real command names.
+const BROKEN_COMMANDS: ReadonlySet<string> = new Set<CommandName>([
   "html-to-markdown", // depends on `turndown`, which requires `@mixmark-io/domino` as an undeclared peer dependency
   "which", // always errors in this environment; replaced with a stub below
 ]);
@@ -344,7 +347,7 @@ const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
 
 export function createBashDescription() {
   const allowedCommandNames = getCommandNames().filter(
-    (name) => !BROKEN_COMMANDS.has(name as CommandName),
+    (name) => !BROKEN_COMMANDS.has(name),
   );
 
   const namedOnly = allowedCommandNames
@@ -435,9 +438,7 @@ export async function createBashEnv({
   const allowedCommands = [
     ...getCommandNames(),
     ...getNetworkCommandNames(),
-  ].filter(
-    (name) => !BROKEN_COMMANDS.has(name as CommandName),
-  ) as CommandName[];
+  ].filter((name) => !BROKEN_COMMANDS.has(name)) as CommandName[];
 
   const bash = new Bash({
     commands: allowedCommands,

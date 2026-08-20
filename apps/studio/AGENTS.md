@@ -4,7 +4,9 @@ Electron desktop app.
 
 ## Dev hot reload
 
-`pnpm dev` hot reloads all 3 targets (`watch: {}` in `electron.vite.config.ts`). Renderer = HMR; main/preload edits auto-rebuild + relaunch. Don't tell user to manually restart for main-process changes (menus, IPC, windows) — save = auto-relaunch.
+`pnpm dev` hot reloads all 3 targets (`watch` in `electron.vite.config.ts`). Renderer = HMR; main edits auto-rebuild + relaunch, preload edits auto-rebuild + full-reload the renderer. Don't tell user to manually restart for main-process changes (menus, IPC, windows) — save = auto-relaunch.
+
+`DISABLE_DEV_RELAUNCH=true` drops the main/preload half, leaving those two at the bytes they booted with while the renderer keeps HMR. It exists for an instance an agent is driving, where a relaunch is a hard kill that takes the run's state, every task `<webview>`, and any agent turn in flight — see `.agents/skills/studio-chrome-devtools/SKILL.md`. `studio-drive.mjs boot` sets it; nothing else does, so a hand-started instance behaves as above.
 
 ## Dependencies vs devDependencies
 
@@ -47,6 +49,10 @@ Closing the last window quits the app on **every** platform, macOS included, and
 - **Contextual** (`delete-project`): `<Dialog>` inline next to its trigger with local `useState`. Use for a small number of co-located triggers.
 - `useBlockTabNavigation(open)` opts a modal out of tab shortcuts (Cmd+T/W/etc.) while open.
 
+## Copy
+
+Quote a name the user chose — a folder, project, skill, or their own search text — in curly quotes: `Remove “${name}”?`. Straight quotes are syntax: SQL identifiers, CSS selectors, `throw`s, prompt text for the model.
+
 ## UI zoom
 
 The whole main window scales with CSS `zoom` on `ZoomRoot` (`zoomAtom`, user-adjustable 0.5x–2x). `zoom` compounds down the tree and floating-ui doesn't yet correct for an ancestor's zoom, so anything positioned, sized, or measured against the viewport needs care when zoom ≠ 1 — and it's silently fine at the 1x default, so check other levels. `docs/architecture/responsive-layout.md` and `use-app-zoom.ts` carry the full rationale and the per-unit rules; what you need before reading them:
@@ -60,27 +66,17 @@ The whole main window scales with CSS `zoom` on `ZoomRoot` (`zoomAtom`, user-adj
 
 ## Tests
 
-Three Vitest projects, chosen by extension so a file declares which it wants by what it is. Reach for the cheapest one that can actually observe the behavior:
+Three Vitest projects, chosen by extension: `*.test.ts` node, `*.test.tsx` jsdom, `*.browser.test.tsx` real Chromium. `vitest.config.ts` says what each one can see and why it is configured as it is. Reach for the cheapest that can observe the behavior, knowing jsdom has no layout engine and never delivers `selectionchange`: anything measured, scrolled, or driven by the browser's own selection passes there whether the code works or not.
 
-- `*.test.ts` → **node**, no DOM. Plain logic, parsers, schemas. Fast, and most tests belong here.
-- `*.test.tsx` → **dom** (jsdom). Rendering, props, refs, what ends up in the DOM. Adds `@testing-library/react` and `afterEach(cleanup)`.
-- `*.browser.test.tsx` → **browser** (real Chromium via Playwright). Typing, selection, caret, measured layout. Uses `vitest-browser-react`'s `render` and `page` locators, not Testing Library.
+Render through the helpers rather than `render` directly. Each carries the docblock that says when to pick it:
 
-Render jsdom tests through `renderWithProviders` (`src/tests/render.tsx`), which supplies a **fresh** Jotai store and query cache per call, so module-level atom families don't carry a value between tests. It returns the store for seeding or reading atoms. Its sibling `renderWithDefaultStore` mounts no Jotai `Provider`, the way the app itself runs — read the docblock before testing anything that writes through `getDefaultStore()`. Neither supplies a router: anything with an `InternalLink` needs one per test.
+- `renderWithProviders` / `renderWithDefaultStore` — `src/tests/render.tsx`. The second is for code that writes through `getDefaultStore()`, which every `openX()` modal setter does.
+- `renderInBrowser` — `src/tests/render-browser.tsx`.
+- `ariaSnapshot` — `src/tests/aria-snapshot.ts`. Structure rather than pixels, and the only honest test for an icon-only control.
 
-Render browser tests through `renderInBrowser` (`src/tests/render-browser.tsx`), the same idea for the browser project: fresh store and query cache per call, plus the tooltip provider Radix requires and a context-only router, which nearly everything worth rendering here needs. It's async, and it returns the render result (locators included) alongside the store and query client. Don't import `globals.css` or install `window.electron`/`window.api` per file — `src/tests/setup-browser.ts` does both for the project, along with pinning the platform to darwin and cutting CSS animations and transitions to zero. The viewport is pinned at 1280x900.
+Confirm an assertion fails against the unfixed code before keeping it. A DOM test passes for reasons unrelated to what it claims to cover far more easily than a node test does.
 
-`ariaSnapshot` (`src/tests/aria-snapshot.ts`) serializes the accessibility tree under a locator to YAML, via a Playwright command registered in `vitest.config.ts`. Reach for it when the claim is about structure rather than pixels or measurements: what a thing _is_, what each part is called, what a screen reader (or a script driving the app) can address. It survives refactors that a rendered-HTML assertion wouldn't, and it's the honest test for an icon-only control, which arrives as a bare `- button` when it has no accessible name. Pair it with `toMatchInlineSnapshot`. It reads the tree once rather than polling, so await whatever is still arriving first.
-
-A failing browser test writes a Playwright trace next to itself under `__traces__/` (gitignored, `retain-on-failure`): a DOM snapshot per action plus console and network, openable at [trace.playwright.dev](https://trace.playwright.dev). Read that before reproducing a failure by hand.
-
-jsdom has no layout engine and never delivers `selectionchange`, so anything measured, scrolled, or driven by the browser's own selection is invisible to it — a test written that way passes whether the code works or not. That is what the browser project is for. It is slower and needs `pnpm exec playwright install chromium`, so send a test there only when jsdom genuinely cannot see the behavior.
-
-Whatever you assert, confirm it fails against the unfixed code before keeping it. This matters more here than in node tests: a DOM test can easily pass for reasons that have nothing to do with what it claims to cover.
-
-CI runs node and dom in the main check job (`test:ci`) and the browser project in a separate one (`test:browser`), so a Chromium download never sits in front of the rest of the checks and a browser flake reads as its own failure. That job caches Chromium by lockfile hash and reinstalls its system libraries every run, since those land in the runner rather than the cached directory. Browser tests retry twice under `CI`; locally they don't, because there a flake is worth seeing.
-
-Locally, run them with `pnpm test:browser` after `pnpm exec playwright install chromium` once.
+Browser tests need `pnpm exec playwright install chromium` once, then `pnpm test:browser`; a failure leaves a Playwright trace under `__traces__/`.
 
 ## Where things are
 

@@ -94,13 +94,15 @@ behavior is worth guarding permanently. Details in
 ## Rung 4: the running app
 
 ```bash
-node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs boot
+node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs boot --purpose "change check"
 ```
 
-Start it this way and no other. `boot` reuses the instance already running for
-this checkout instead of adding a second one, takes a debug port derived from
-the checkout path so two checkouts never contend for one, and records what it
-started so it can be stopped again. It runs the same `electron-vite dev`
+Start it this way and no other, replacing the purpose with one or two short
+words that identify what you are checking. `boot` reuses the instance already
+running for this checkout instead of adding a second one, takes a debug port
+derived from the checkout path so two checkouts never contend for one, and
+records what it started so it can be stopped again. It runs the same
+`electron-vite dev`
 underneath, so main-process edits still relaunch the app and renderer edits
 still hot reload: an edit landing mid-run resets the state you navigated to.
 

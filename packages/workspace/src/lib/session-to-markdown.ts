@@ -85,6 +85,18 @@ export function buildSessionFrontMatter(
     });
   }
 
+  // Kept apart from modelsUsed, which answers what the session asked for. A
+  // session run entirely on one routing alias asks for one thing and can be
+  // served by several, and that set is the one worth having when a transcript
+  // is read to explain how a turn went.
+  const modelsServed = [
+    ...new Set(
+      assistantMessages.flatMap(({ metadata }) =>
+        metadata.modelIdServed ? [metadata.modelIdServed] : [],
+      ),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+
   const toolCallCount = session.messages
     .flatMap((message) => message.parts)
     .filter(isToolPart).length;
@@ -100,6 +112,7 @@ export function buildSessionFrontMatter(
         ? lastActivityAt.getTime() - firstActivityAt.getTime()
         : undefined,
     messageCount: session.messages.length,
+    ...(modelsServed.length > 0 ? { modelsServed } : {}),
     modelsUsed: [...modelMap.values()].sort((a, b) =>
       `${a.providerId}/${a.modelId}`.localeCompare(
         `${b.providerId}/${b.modelId}`,
@@ -155,6 +168,11 @@ export function renderAssistantMetadata(
     `provider=${metadata.providerId}`,
     `model=${metadata.modelId}`,
   ];
+  // Only when it differs, so the line stays short for a step that named its
+  // model outright and carries the answer for one that went through an alias.
+  if (metadata.modelIdServed && metadata.modelIdServed !== metadata.modelId) {
+    fields.push(`served=${metadata.modelIdServed}`);
+  }
   if (metadata.aiGatewayModel) {
     fields.push(`modelUri=${metadata.aiGatewayModel.uri}`);
   }

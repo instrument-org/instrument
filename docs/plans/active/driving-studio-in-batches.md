@@ -113,5 +113,5 @@ Context is a secondary win. Driving commands emitted 1.31 M characters of output
 ## Related
 
 - [agent-driving-studio-friction.md](agent-driving-studio-friction.md) — the per-command friction this reframes, and the source of the HMR freeze proposal.
-- [../findings/driving-studio-for-ui-capture.md](../findings/driving-studio-for-ui-capture.md) — the trap catalogue behind the primitives a batch would call.
+- [../findings/driving-studio-for-ui-capture.md](../../findings/driving-studio-for-ui-capture.md) — the trap catalogue behind the primitives a batch would call.
 - `.agents/skills/studio-chrome-devtools/SKILL.md` — the operator's guide a session mode would need a section in.

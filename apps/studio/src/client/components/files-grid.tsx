@@ -86,7 +86,15 @@ export function FilesGrid({
   // Undefined once the grid is measured and found to fit: the clamp is applied
   // from the first paint, and taken off again rather than left to cut a grid
   // that has nothing to hide.
-  const [collapsedHeight, setCollapsedHeight] = useState<number | undefined>(
+  //
+  // A ref, and written straight to the node, because the height this resolves
+  // to is what everything above the grid measures the transcript by. Routed
+  // through state it would be a re-render, and React holds that until every
+  // layout effect in the commit has run -- so an ancestor's effect, which runs
+  // after this one, reads the clamped height and acts on a transcript hundreds
+  // of pixels shorter than the one about to be painted. The scroller did
+  // exactly that, and opened tasks part-way up.
+  const collapsedHeightRef = useRef<number | undefined>(
     COLLAPSED_MAX_HEIGHT_PX,
   );
   const [hiddenFileCount, setHiddenFileCount] = useState(0);
@@ -132,12 +140,22 @@ export function FilesGrid({
       return;
     }
 
+    // The clamp, as the node's own style. Written here rather than rendered so
+    // the height is settled for whatever measures the grid next; see
+    // `collapsedHeightRef`. Expanding is a render like any other, so this runs
+    // for it too, which is what `isExpanded` is in the deps for.
+    const applyClamp = () => {
+      const height = collapsedHeightRef.current;
+      grid.style.maxHeight =
+        isExpanded || height === undefined ? "" : `${height}px`;
+    };
+
     // Where each file lands, at the size it lands, in the units the clamp is
     // written in. Clipping does not move anything, so this reads the same
     // collapsed or expanded, and the count survives the expand it triggers.
     //
-    // Three pieces of state rather than the one object `collapseFor` returns,
-    // so a measurement that lands on the same numbers costs nothing.
+    // The fade and the button are still state: they draw, they do not size the
+    // grid, and a paint is the right place for them.
     const measure = () => {
       const collapse = collapseFor(
         [...grid.querySelectorAll<HTMLElement>(FILE_ITEM_SELECTOR)].map(
@@ -152,11 +170,15 @@ export function FilesGrid({
         ),
       );
 
-      setCollapsedHeight(collapse.height);
+      collapsedHeightRef.current = collapse.height;
+      applyClamp();
       setHiddenFileCount(collapse.hiddenFiles);
       setIsClipped(collapse.clipped);
     };
 
+    // Clamped before it is measured, so a grid that overruns is never painted
+    // hard-cut at its full height on the way to being cut properly.
+    applyClamp();
     measure();
 
     // Width decides how the sections wrap, and it moves under a splitter drag
@@ -176,7 +198,7 @@ export function FilesGrid({
       cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [itemCount, hasPendingMediaTile]);
+  }, [itemCount, hasPendingMediaTile, isExpanded]);
 
   const hasMoreFiles = hiddenFileCount > 0;
   const isCollapsed = isClipped && !isExpanded;
@@ -307,6 +329,7 @@ export function FilesGrid({
         onFocus={(event) => {
           const grid = gridRef.current;
           const item = event.target.closest<HTMLElement>(FILE_ITEM_SELECTOR);
+          const collapsedHeight = collapsedHeightRef.current;
           if (
             isCollapsed &&
             grid &&
@@ -319,11 +342,13 @@ export function FilesGrid({
           }
         }}
         ref={gridRef}
+        // No `maxHeight` here: the layout effect owns it, so that the height is
+        // settled before anything above the grid measures it. Rendering it too
+        // would put React and the effect in a fight over the same property.
         style={{
           maskImage: isCollapsed
             ? `linear-gradient(to bottom, black calc(100% - ${FADE_HEIGHT_PX}px), transparent)`
             : undefined,
-          maxHeight: isExpanded ? undefined : collapsedHeight,
         }}
       >
         {/* What the measurement watches. The clamped box above it is pinned to

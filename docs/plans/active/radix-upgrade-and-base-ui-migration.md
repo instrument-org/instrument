@@ -51,7 +51,7 @@ Steps:
 
 Do not start a migration without this. It is the piece no upstream migration knowledge covers.
 
-Pick select or dropdown-menu, build it on Base UI beside the existing wrapper, and exercise it at several UI zoom levels with the browser panel open. The question to answer is how the zoom compensation in [responsive-layout.md](../architecture/responsive-layout.md) re-expresses itself when positioning moves onto a separate Positioner node and the vars are renamed. Nothing about this typechecks; it is only visible by clicking.
+Pick select or dropdown-menu, build it on Base UI beside the existing wrapper, and exercise it at several UI zoom levels with the browser panel open. The question to answer is how the zoom compensation in [responsive-layout.md](../../architecture/responsive-layout.md) re-expresses itself when positioning moves onto a separate Positioner node and the vars are renamed. Nothing about this typechecks; it is only visible by clicking.
 
 If that comes out clean, the remaining wrappers are mechanical. If it does not, the whole migration is a multi-week grind and the answer is to stay on Radix.
 
@@ -102,8 +102,8 @@ Portal container support survives: Base UI's Portal parts accept `container`, so
 ## Risks specific to this app
 
 - **Zoom compensation.** The highest risk, covered in phase 1. Neither library has special handling for CSS `zoom` in anchoring, so the workaround stays a workaround; it just has to be re-derived on renamed vars and a different node.
-- **Press activation.** [2026-07-27-controls-activate-on-press.md](../decisions/2026-07-27-controls-activate-on-press.md) and [2026-07-29-controls-activate-on-release.md](../decisions/2026-07-29-controls-activate-on-release.md) reason from Radix's per-primitive press timing and its handler composition. Base UI ships its own Button primitive with its own semantics, so the evidence behind both decisions has to be re-gathered and the docs rewritten.
-- **Electron overlays.** Webview pointer-event interplay, non-modal overlays above the browser view, and [leaking-z-index-stacks.md](../findings/leaking-z-index-stacks.md) were all tuned against Radix's dismissable layer. Base UI has far less Electron exposure, so bugs we hit will be newer and less reported.
+- **Press activation.** [2026-07-27-controls-activate-on-press.md](../../decisions/2026-07-27-controls-activate-on-press.md) and [2026-07-29-controls-activate-on-release.md](../../decisions/2026-07-29-controls-activate-on-release.md) reason from Radix's per-primitive press timing and its handler composition. Base UI ships its own Button primitive with its own semantics, so the evidence behind both decisions has to be re-gathered and the docs rewritten.
+- **Electron overlays.** Webview pointer-event interplay, non-modal overlays above the browser view, and [leaking-z-index-stacks.md](../../findings/leaking-z-index-stacks.md) were all tuned against Radix's dismissable layer. Base UI has far less Electron exposure, so bugs we hit will be newer and less reported.
 - **Silent visual regressions.** 154 state selectors and an animation idiom change are wide, mechanical, and untypechecked.
 
 ## Recommendation
@@ -112,6 +112,6 @@ Do phase 0 now. Treat phases 1 to 4 as optional and sequenced behind a quiet `co
 
 ## Docs to update if this lands
 
-- [responsive-layout.md](../architecture/responsive-layout.md): var names and which node carries zoom.
+- [responsive-layout.md](../../architecture/responsive-layout.md): var names and which node carries zoom.
 - The two press-activation decisions, once re-verified.
-- [leaking-z-index-stacks.md](../findings/leaking-z-index-stacks.md): the portal claim is Radix-specific as written.
+- [leaking-z-index-stacks.md](../../findings/leaking-z-index-stacks.md): the portal claim is Radix-specific as written.

@@ -1,7 +1,7 @@
 import ms from "ms";
 import { type AsyncResult, Result } from "typescript-result";
 
-import { getCachedResult, setCachedResult } from "./cache";
+import { createResultCache } from "./cache";
 import { TypedError } from "./errors";
 
 // Multiple open tabs in the Studio can fire concurrent requests to the same URL.
@@ -11,6 +11,10 @@ const inFlightRequests = new Map<
 >();
 
 const ERROR_CACHE_TTL = ms("5 seconds");
+
+const responseCache = createResultCache<
+  { error: TypedError.Fetch | TypedError.Parse } | { success: object }
+>();
 
 // Bound every request so a provider that accepts the connection but never
 // responds (slow/hanging endpoint) fails fast instead of blocking startup on
@@ -31,9 +35,7 @@ export function fetchJson({
   const cacheKey = createCacheKey(url, headers);
 
   if (cache) {
-    const cachedData = getCachedResult<
-      { error: TypedError.Fetch | TypedError.Parse } | { success: object }
-    >(cacheKey);
+    const cachedData = responseCache.get(cacheKey);
     if (cachedData !== undefined) {
       if ("error" in cachedData) {
         return Result.error(cachedData.error);
@@ -69,11 +71,11 @@ export function fetchJson({
     ).then((result) => {
       if (result.ok) {
         if (cache) {
-          setCachedResult(cacheKey, { success: result.value });
+          responseCache.set(cacheKey, { success: result.value });
         }
       } else {
         if (cache) {
-          setCachedResult(
+          responseCache.set(
             cacheKey,
             { error: result.error },
             { ttl: ERROR_CACHE_TTL },

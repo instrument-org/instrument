@@ -1,5 +1,7 @@
 # agent-browser `download` never restores the browser's download behavior
 
+**Status:** open. A skill caveat steers the agent around it; the upstream fix is written but unpublished and needs an explicit go-ahead to file.
+
 ## Issue
 
 Upstream agent-browser's `download` command sends

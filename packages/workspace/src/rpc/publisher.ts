@@ -15,6 +15,15 @@ export const publisher = new EventPublisher<{
   "backgroundProcesses.changed": {
     id: TaskId;
   };
+  /**
+   * The agent sent a command to this task's browser. One per command rather
+   * than a start/stop pair: the agent's browser work arrives as separate tool
+   * calls seconds apart, so where one stretch of it ends is a question for
+   * whoever is displaying it, not one this can answer.
+   */
+  "browser.agentActivity": {
+    id: TaskId;
+  };
   "message.removed": {
     id: TaskId;
     messageId: StoreId.Message;

@@ -6,7 +6,7 @@ import { ensureTaskVenvForTask } from "../ensure-task-venv";
 import { filterShellOutput } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
 import { getUvBinPath } from "../uv";
-import { execShim } from "./exec-shim";
+import { execShim, shimOutput } from "./exec-shim";
 import {
   resolveCommandContext,
   resolvePathArgs,
@@ -92,9 +92,7 @@ export async function runUv({
   return {
     exitCode: result.exitCode ?? 1,
     stdout: filterShellOutput(
-      result.all ||
-        result.shortMessage ||
-        "uv failed without diagnostic output.",
+      shimOutput(result, UV_COMMAND.name),
       taskDir(taskId),
     ),
   };

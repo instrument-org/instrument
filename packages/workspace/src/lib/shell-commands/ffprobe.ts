@@ -5,7 +5,7 @@ import { FFPROBE_PATH } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
-import { execShim } from "./exec-shim";
+import { execShim, shimOutput } from "./exec-shim";
 import {
   resolveCommandContext,
   resolvePathArgs,
@@ -39,7 +39,10 @@ export function createFfprobeCommand(taskId: TaskId) {
       },
     );
 
-    const combined = filterShellOutput(result.all, taskDir(taskId));
+    const combined = filterShellOutput(
+      shimOutput(result, FFPROBE_COMMAND.name),
+      taskDir(taskId),
+    );
     return {
       exitCode: result.exitCode ?? 1,
       stderr: "",

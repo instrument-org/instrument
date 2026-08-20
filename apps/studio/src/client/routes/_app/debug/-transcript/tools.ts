@@ -57,7 +57,18 @@ export function edited({
   return call({
     input: { explanation, filePath, newString, oldString },
     output: {
-      diff: `- ${oldString}\n+ ${newString}`,
+      // The shape `createTwoFilesPatch` writes, preamble included, because the
+      // card strips that preamble before drawing. A bare pair of +/- lines is
+      // not what the tool returns, and a card fed one drew nothing at all.
+      diff: [
+        `Index: ${filePath}`,
+        "===================================================================",
+        `--- ${filePath}`,
+        `+++ ${filePath}`,
+        "@@ -1,1 +1,1 @@",
+        `-${oldString}`,
+        `+${newString}`,
+      ].join("\n"),
       filePath,
       modifiedAt: MODIFIED_AT,
     },

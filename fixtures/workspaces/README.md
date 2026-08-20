@@ -27,7 +27,7 @@ Idempotent: a workspace whose contents already match the fixture is left alone, 
 Usually you want `studio-drive` to do all of it:
 
 ```bash
-node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs boot --workspace documents
+node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs boot --purpose "document viewer" --workspace documents
 node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs goto /tasks/generated-pdf --workspace documents
 ```
 

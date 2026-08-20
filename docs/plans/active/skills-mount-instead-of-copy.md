@@ -1,6 +1,6 @@
 # Skills mount instead of copy, and a task installs once
 
-Status: in progress. Steps 1 and 2 landed; step 3 pending.
+Status: in progress. Steps 1 and 2 landed, and step 3's mounts are live in the mount table. What is left of step 3 is the part that removes the copy: materializing the bundled set, rewriting `load_skill`, and threading the skill mounts through the native bridge's callers.
 
 Supersedes one stated consequence of [skills as a mount, not a tool](../../decisions/2026-07-20-skills-as-a-mount-not-a-tool.md): "Running a skill's script still means loading the skill and running the copy under `work/skills/`."
 

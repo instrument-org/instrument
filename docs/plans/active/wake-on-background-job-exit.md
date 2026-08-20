@@ -131,6 +131,20 @@ Practically this means the cap counts *unanswered* wakes rather than consecutive
 
 When the cap trips, say so in the transcript rather than going quiet. A feature that silently stops is worse than one that never started.
 
+## Interaction with context rollover
+
+The context-rollover work in flight is compatible in mechanism and conflicts in one semantic, sharply.
+
+Compatible: rollover is a view over messages that all stay on disk, so nothing it does interferes with `session.run`, with spawning a session over stored messages, or with a wake arriving later. It also helps. A long wake chain is precisely the unbounded-growth case rollover exists for, and without it a chain of any length eventually fails a turn on request size instead of resetting. Treat rollover as something closer to a prerequisite than a neighbor.
+
+The conflict is what rollover keeps. Its rule is to retain user messages and discard assistant ones, on the reasoning that "the user's words are the part that cannot be reconstructed: a constraint given forty turns ago is still binding." A wake message is created through `newMessage()`, so it is a user-role message, and `retainNewestUserMessages` selects on `role === "user"` and nothing else.
+
+That inverts the intent exactly. In a long wake chain that exhausts the window, rollover would carry forward a stack of "bg_7 finished, exit 0" notices and drop every assistant turn where the work happened. And a wake notice is the one kind of user-role message that is *not* durable: it is true once and meaningless afterwards, which is the opposite of the premise the retention rule is built on.
+
+**Both features need the same missing concept**, which is the useful part. The runaway cap resets on human-authored input and not on machine-authored input; rollover needs the same predicate to decide what is worth carrying. One marker on the message serves both, and it should be added deliberately once rather than invented twice. Whichever of the two lands second inherits the job.
+
+One smaller interaction worth knowing. `contextBudgetNotice` tells an agent at `exhausted` to "write your handoff notes now, before doing anything else." A wake turn that arrives in that state is therefore the single most likely place for a dropped re-arm, since the notice competes directly with arming the next watcher. That is an argument for the absence-of-a-watcher signal above, not against the notice.
+
 ## Deliberately out of scope
 
 - **Surviving app quit.** The process registry is in memory and dies with the app. That is accepted: a wake is a within-session promise, and the existing background-processes part already retracts stale claims after a restart.

@@ -25,6 +25,9 @@ node_modules/
 # Local folders
 *.local/
 
+# Machine-local agent-reference config; personal paths never reach a commit
+agent-reference.local.json
+
 # Turbo
 .turbo
 

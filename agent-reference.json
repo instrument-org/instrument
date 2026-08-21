@@ -1,0 +1,49 @@
+{
+  "$schema": "https://unpkg.com/agent-reference/schema/agent-reference.schema.json",
+  "packages": {
+    "electron": {
+      "version": "42.3.3",
+      "directory": ".",
+      "description": "The Electron apps/studio builds against. docs/api/ covers the APIs this build ships, lib/ the browser and renderer JS behind them, spec/ the maintainers' tests. directory is \".\" and it reports unverified because the repository root manifest is @electron-ci/dev-root and default_app/ claims the package name without a version; both are deliberate."
+    },
+    "radashi": {
+      "version": "12.6.0",
+      "ref": "v12.6.0",
+      "description": "Lodash-style helpers this repo standardizes on; read src/ and its co-located tests, which the published dist/ omits. ref is pinned because radashi keeps package.json at 12.2.0 on every branch and tag and publishes from CI, so version matching always falls back to the default branch. Move version and ref together."
+    }
+  },
+  "git": {
+    "just-bash": {
+      "repository": "github:vercel-labs/just-bash",
+      "description": "Upstream of the workspace sandbox; read before steering the agent around sandbox behavior"
+    },
+    "agent-browser": {
+      "repository": "github:vercel-labs/agent-browser",
+      "description": "Browser-automation CLI for agents, a native Rust binary. Upstream of the agent's browser tool."
+    }
+  },
+  "sets": [
+    {
+      "name": "harnesses",
+      "description": "Agent harness reference repos",
+      "git": [
+        {
+          "repository": "github:anomalyco/opencode",
+          "description": "The open source terminal AI coding agent."
+        },
+        {
+          "repository": "github:openai/codex",
+          "description": "OpenAI's terminal coding agent (Rust), runs locally."
+        },
+        {
+          "repository": "github:badlogic/pi-mono",
+          "description": "Pi agent harness monorepo: coding-agent CLI, agent runtime, and a multi-provider LLM API."
+        },
+        {
+          "repository": "github:xai-org/grok-build",
+          "description": "Grok Build (`grok`): xAI's terminal coding agent, a full-screen Rust TUI."
+        }
+      ]
+    }
+  ]
+}

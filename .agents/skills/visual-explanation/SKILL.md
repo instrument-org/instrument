@@ -10,7 +10,7 @@ Create one HTML artifact whose form follows the question. This is a flexible exp
 ## Make the artifact
 
 1. Identify the exact thing the reader is trying to understand or decide. Use context and evidence already available in the task, inspecting only the additional source needed to avoid guessing.
-2. Copy `template.html` to `docs/visual-explanations/YYYY-MM-DD-<topic>.html` under the repository root without reading or rebuilding its theme shell. Create the directory when needed. Honor a different path only when it is also inside the repository.
+2. Choose the output path before writing. When `docs/visual-explanations/` already exists under the repository root, the repository has opted into keeping these and is normally ignoring them in git, so copy `template.html` there as `YYYY-MM-DD-<topic>.html`. When it does not exist, write to the OS temporary directory instead, and do not create it. A repository that has not opted in should not gain an untracked directory as a side effect of one explanation. Honor a different path when the user names one. Either way, do not read or rebuild the template's theme shell.
 3. Copy the template rather than writing the file; two thirds of it is a theme block a script maintains, and the tab title and favicon derive from the `h1`. Replace the placeholder body with the clearest visual answer you can make. Choose any combination of causal chain, system map, sequence, lifecycle, timeline, before/after comparison, annotated UI, decision matrix, focused diff, evidence view, worked example, or another form better suited to the subject. The tab title is derived from the `h1`, so write a real one and leave the `<title>` placeholder alone.
 4. Return a direct link to the HTML file and a one-sentence description of what it explains.
 
@@ -56,7 +56,7 @@ Three rules:
 
 ## Hand off quickly
 
-Treat the artifact as a single-use visual answer for the human reading it now. `docs/visual-explanations/` is gitignored, so these are not history and nothing has to be pruned; if one should outlive the conversation, the user will ask for it to be committed or for its content to move into a durable doc under `docs/`. Open it when it is written (`open <path>` on macOS) so it is on screen rather than waiting to be found. Beyond that, do not take screenshots, test multiple widths, run theme synchronization, audit the content, or iterate on visual details unless the user explicitly asks or the creation step reported a concrete error. Do not knowingly include secrets or private operational data.
+Treat the artifact as a single-use visual answer for the human reading it now. Whether it lands in an ignored `docs/visual-explanations/` or the temporary directory, it is not history and nothing has to be pruned; if one should outlive the conversation, the user will ask for it to be committed or for its content to move into a durable doc under `docs/`. Open it when it is written (`open <path>` on macOS) so it is on screen rather than waiting to be found. Beyond that, do not take screenshots, test multiple widths, run theme synchronization, audit the content, or iterate on visual details unless the user explicitly asks or the creation step reported a concrete error. Do not knowingly include secrets or private operational data.
 
 The theme synchronizer is maintenance tooling for changes to the template or Studio theme, not part of ordinary artifact creation:
 

@@ -2,6 +2,7 @@ import { tabsAtom } from "@/client/atoms/tabs";
 import { zoomAtom } from "@/client/atoms/zoom";
 import { AppChrome } from "@/client/components/app-chrome";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
+import { WindowBorder } from "@/client/components/window-border";
 import { ZoomToast } from "@/client/components/zoom-controls";
 import { ZoomRoot } from "@/client/components/zoom-root";
 import {
@@ -107,6 +108,7 @@ export function MainWindow() {
                 ) : null}
               </ZoomRoot>
               <ZoomToast />
+              <WindowBorder />
             </IconContext.Provider>
           </CatchBoundary>
         </TooltipProvider>

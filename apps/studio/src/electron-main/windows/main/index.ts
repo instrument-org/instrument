@@ -283,11 +283,20 @@ function setupWindowEventListeners({
   // in sync with OS-driven maximize (snap, double-click, Win+Up).
   mainWindow.on("maximize", () => {
     onResize();
-    publisher.publish("window.maximized-changed", null);
+    publisher.publish("window.state-changed", null);
   });
   mainWindow.on("unmaximize", () => {
     onResize();
-    publisher.publish("window.maximized-changed", null);
+    publisher.publish("window.state-changed", null);
+  });
+
+  // The Linux window border (see WindowBorder) hides itself whenever an edge
+  // sits against the screen, so it needs the fullscreen transitions too.
+  mainWindow.on("enter-full-screen", () => {
+    publisher.publish("window.state-changed", null);
+  });
+  mainWindow.on("leave-full-screen", () => {
+    publisher.publish("window.state-changed", null);
   });
 }
 

@@ -20,6 +20,7 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import { setMainWindowZoom } from "@/electron-main/stores/window-state";
 import {
   closeMainWindow,
+  isMainWindowFullScreen,
   isMainWindowMaximized,
   minimizeMainWindow,
   setTrafficLightForZoom,
@@ -608,20 +609,33 @@ const live = {
         yield getServerExceptions();
       }
     }),
-  // Current maximized state, so the custom controls can toggle the
-  // maximize/restore glyph. Re-yields on OS-driven maximize/unmaximize.
-  windowMaximized: base
-    .output(eventIterator(z.object({ maximized: z.boolean() })))
+  // The window states the renderer draws differently: the custom controls pick
+  // the maximize/restore glyph, and the Linux window border hides itself when an
+  // edge sits against the screen. Re-yields on OS-driven transitions too (snap,
+  // double-click, Win+Up).
+  windowState: base
+    .output(
+      eventIterator(
+        z.object({ fullScreen: z.boolean(), maximized: z.boolean() }),
+      ),
+    )
     .handler(async function* ({ signal }) {
-      yield { maximized: isMainWindowMaximized() };
+      yield readMainWindowState();
 
-      for await (const _ of publisher.subscribe("window.maximized-changed", {
+      for await (const _ of publisher.subscribe("window.state-changed", {
         signal,
       })) {
-        yield { maximized: isMainWindowMaximized() };
+        yield readMainWindowState();
       }
     }),
 };
+
+function readMainWindowState() {
+  return {
+    fullScreen: isMainWindowFullScreen(),
+    maximized: isMainWindowMaximized(),
+  };
+}
 
 const copyTaskPathToClipboard = base
   .input(

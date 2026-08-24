@@ -93,6 +93,7 @@ body {
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-border: var(--border);
+  --color-window-border: var(--window-border);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-sidebar: var(--sidebar);
@@ -226,6 +227,10 @@ body {
   --accent-foreground: var(--gray-800);
   --destructive: var(--error-500);
   --border: var(--gray-200);
+  /* Outlines the whole window against an unknown desktop background, so it is
+   * pitched darker than `--border`, which only has to separate two of our own
+   * surfaces. Against a white window behind it, `--border` is nearly invisible. */
+  --window-border: var(--gray-400);
   --input: var(--gray-200);
   --ring: var(--gray-400);
   --sidebar: var(--background);
@@ -363,6 +368,10 @@ body {
   --accent-foreground: #ffffff;
   --destructive: var(--error-500);
   --border: rgb(255 255 255 / 10%);
+  /* Composited over the window background rather than the desktop (the window
+   * is opaque), so it needs more than `--border`'s 10% to read as an edge when
+   * the window sits on a dark background. */
+  --window-border: rgb(255 255 255 / 20%);
   --input: rgb(255 255 255 / 10%);
   --ring: rgb(255 255 255 / 30%);
   --brand-text: var(--brand-400);

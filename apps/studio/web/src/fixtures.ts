@@ -231,7 +231,9 @@ export const FIXTURES: Record<string, unknown> = {
   "user.live.subscriptionStatus": null,
   "utils.events.windowFocusChanged": undefined,
   "utils.live.serverExceptions": undefined,
-  "utils.live.windowMaximized": false,
+  // A page is neither, so the custom controls show the maximize glyph and the
+  // Linux window border draws.
+  "utils.live.windowState": { fullScreen: false, maximized: false },
   // A browser cannot raise the native folder panel, so picking one always
   // lands on the same folder. Enough for the composer's folder tray, which is
   // what a page here is for.

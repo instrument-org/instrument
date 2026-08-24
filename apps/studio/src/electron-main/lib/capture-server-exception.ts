@@ -4,7 +4,7 @@ import { unique } from "radashi";
 
 import { getAppStateStore } from "../stores/app-state";
 import { isDeveloperMode } from "../stores/preferences";
-import { describeError } from "./describe-error";
+import { describeCauses, describeError } from "./describe-error";
 import { logger } from "./electron-logger";
 import { addServerException } from "./server-exceptions";
 import { getSystemProperties } from "./system-properties";
@@ -37,6 +37,9 @@ export const captureServerException: CaptureExceptionFunction = function (
       : undefined;
 
   const { details, message } = describeError(error);
+  // What the message cannot say: a wrapper reports one sentence for every way
+  // the thing it wrapped can fail, and the stack ends at the wrapper too.
+  const causes = describeCauses(error);
 
   const finalProperties = {
     ...additionalProperties,
@@ -44,6 +47,7 @@ export const captureServerException: CaptureExceptionFunction = function (
     scopes: unique(["studio", ...(additionalProperties?.scopes ?? [])]),
     version: app.getVersion(),
     ...getSystemProperties(),
+    ...(causes ? { error_causes: causes } : {}),
     ...(errorCode ? { error_code: errorCode } : {}),
     ...(errorData ? { error_data: errorData } : {}),
     // A non-`Error` has no stack to carry the rest of what it said, so the

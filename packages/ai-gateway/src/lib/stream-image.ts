@@ -43,7 +43,10 @@ const ImageStreamEventSchema = z.discriminatedUnion("type", [
     usage: UsageSchema.nullish(),
   }),
   z.object({
-    error: z.object({ message: z.string().nullish() }).nullish(),
+    // Loose: a rejection carries more than the sentence we show. OpenRouter
+    // nests the upstream provider's own reply under `metadata`, and that copy
+    // is the unabridged one when the summary has been cut to a length.
+    error: z.looseObject({ message: z.string().nullish() }).nullish(),
     type: z.literal("error"),
   }),
 ]);
@@ -136,6 +139,7 @@ export async function* streamOpenRouterImage({
         sawError = true;
         yield {
           message: event.error?.message ?? "Image generation failed",
+          responseBody: errorDetail(event.error),
           type: "error",
         };
         break;
@@ -168,6 +172,19 @@ export async function* streamOpenRouterImage({
       type: "error",
     };
   }
+}
+
+// The whole rejection object, for the caller to show under the sentence it
+// summarizes. Withheld when the object is only that sentence, so the detail
+// pane appears when it has something the message does not already say.
+function errorDetail(
+  error: null | Record<string, unknown> | undefined,
+): string | undefined {
+  if (!error) {
+    return undefined;
+  }
+  const beyondMessage = Object.keys(error).filter((key) => key !== "message");
+  return beyondMessage.length > 0 ? JSON.stringify(error, null, 2) : undefined;
 }
 
 function toUsage(

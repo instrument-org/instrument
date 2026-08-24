@@ -2,7 +2,10 @@ export {
   closeAllAgentBrowserSessions,
   pruneExternalBrowserTmp,
 } from "./lib/agent-browser-cleanup";
-export { killAllBackgroundProcesses } from "./lib/background-processes";
+export {
+  BACKGROUND_PROCESS_TEARDOWN_MS,
+  killAllBackgroundProcesses,
+} from "./lib/background-processes";
 export { applyCommandLineToolsEnv } from "./lib/command-line-tools-env";
 export { findAvailableName } from "./lib/find-available-name";
 export {

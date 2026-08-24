@@ -13,6 +13,7 @@ import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
 import { APP_NAME } from "@instrument-org/shared";
 import {
+  BACKGROUND_PROCESS_TEARDOWN_MS,
   clearOrphanedProjectRefs,
   closeAllAgentBrowserSessions,
   killAllBackgroundProcesses,
@@ -24,6 +25,7 @@ import {
 } from "@instrument-org/workspace/electron";
 import { call } from "@orpc/server";
 import { app, dialog, shell } from "electron";
+import ms from "ms";
 import path from "node:path";
 import { noop } from "radashi";
 import { createActor } from "xstate";
@@ -39,6 +41,13 @@ import { getPNPMBinPath, getUvBinPath } from "./setup-bin-directory";
 const REGISTRY_DIR_NAME = "registry";
 const DEFAULT_TASK_TEMPLATE_DIR_NAME = "default-task-template";
 const SYSTEM_SKILLS_DIR_NAME = "system-skills";
+
+/**
+ * What quit teardown allows the skills watcher and the telemetry flush on top of
+ * the slowest thing it waits for. Enough that a background process taking its
+ * whole grace period does not spend the other two's budget as well.
+ */
+const QUIT_TEARDOWN_SLACK_MS = ms("2 seconds");
 let UNPACKAGED_REGISTRY_DIR = path.resolve(
   import.meta.dirname,
   `../../../../${REGISTRY_DIR_NAME}`,
@@ -354,7 +363,16 @@ export function createWorkspaceActor({
           // is torn down while Node frees the environment, so stop the skills
           // watcher and await its unsubscribe before app.exit. Bounded so a
           // stuck unsubscribe can't wedge the quit.
-          const forceFinalize = setTimeout(finalize, 7000);
+          //
+          // The three below run concurrently, so the deadline is the slowest
+          // one's own bound plus room for the other two. Killing background
+          // processes is that slowest one, and it is derived rather than
+          // restated here: a hand-picked number would go quietly wrong the next
+          // time the termination grace moves.
+          const forceFinalize = setTimeout(
+            finalize,
+            BACKGROUND_PROCESS_TEARDOWN_MS + QUIT_TEARDOWN_SLACK_MS,
+          );
           void Promise.all([
             stopWorkspaceSkillWatcher().catch(noop),
             // Agent-started servers and watchers outlive the turn that started

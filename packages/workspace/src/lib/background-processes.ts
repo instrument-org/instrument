@@ -45,6 +45,17 @@ const LOG_CONTENT_CAP_BYTES = 16 * 1024 * 1024;
  */
 const TERMINATION_GRACE_MS = ms("6 seconds");
 
+/**
+ * The longest `killAllBackgroundProcesses` can take, for whoever is bounding a
+ * shutdown around it. Every record's stop races the same grace concurrently, so
+ * the whole teardown is one grace period however many processes are running.
+ *
+ * Exported so the quit deadline is derived rather than guessed: the two were
+ * separately chosen numbers a second apart, which meant raising the grace here
+ * would silently push the kill past a deadline set somewhere else.
+ */
+export const BACKGROUND_PROCESS_TEARDOWN_MS = TERMINATION_GRACE_MS;
+
 /** Ceiling on what one read may accumulate while it waits out its window. */
 const READ_HEAD_BYTES = 512 * 1024;
 const READ_TAIL_BYTES = 512 * 1024;

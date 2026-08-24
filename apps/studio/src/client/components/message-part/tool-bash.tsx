@@ -61,7 +61,7 @@ export function BrowserChip({ info }: { info: BrowserInfo }) {
 }
 
 export function ToolBash({ part }: { part: BashPart }) {
-  const { isStreaming } = useToolCallSession();
+  const { isBackgroundRunning, isStreaming } = useToolCallSession();
   const command = part.input?.command ?? "";
   const hasOutput = part.state === "output-available";
   const isError = part.state === "output-error";
@@ -89,9 +89,13 @@ export function ToolBash({ part }: { part: BashPart }) {
   // is shown is the first few seconds of something still going. It carries no
   // exit code either, so nothing else on the card distinguishes it from a
   // command that finished and printed exactly this.
-  const isStillRunning = hasOutput && part.output.processId !== undefined;
+  //
+  // Read live rather than from `processId`, which is written once and never
+  // cleared: the same card is scrolled back to after the process has ended and
+  // after a restart took the whole registry with it, and it has to stop
+  // claiming then.
   const label =
-    isStreaming || isStillRunning
+    isStreaming || isBackgroundRunning
       ? getToolStreamingLabel("bash")
       : getToolLabel("bash");
 
@@ -143,7 +147,11 @@ export function ToolBash({ part }: { part: BashPart }) {
             </pre>
           ) : (
             <p className="font-mono text-sm leading-relaxed text-muted-foreground italic">
-              No output
+              {/* A promoted command has not finished, so "No output" would be
+                  reporting a result it has not reached: only real binaries
+                  stream, and a watcher loop or a server that has not logged yet
+                  yields nothing inside the window. */}
+              {isBackgroundRunning ? "No output yet" : "No output"}
             </p>
           )}
         </ToolCardSection>

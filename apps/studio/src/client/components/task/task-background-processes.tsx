@@ -2,10 +2,11 @@ import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { type TaskId } from "@instrument-org/workspace/client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { useTaskBackgroundProcesses } from "../../hooks/use-task-background-processes";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 
 /**
@@ -22,31 +23,9 @@ const ELAPSED_TICK_MS = 30_000;
  * one that is reporting rather than offering.
  */
 export function TaskBackgroundProcesses({ taskId }: { taskId: TaskId }) {
-  const queryClient = useQueryClient();
   const now = useNow();
 
-  const listOptions =
-    rpcClient.workspace.task.backgroundProcesses.list.queryOptions({
-      input: { id: taskId },
-    });
-  const { data: processes } = useQuery(listOptions);
-
-  // A revision counter, not the list: the popover is usually closed, and what
-  // changes is whether anything is running at all.
-  const { data: changed } = useQuery(
-    rpcClient.workspace.task.backgroundProcesses.events.changed.experimental_liveOptions(
-      { input: { id: taskId } },
-    ),
-  );
-  const revision = changed?.revision;
-  useEffect(() => {
-    if (revision === undefined) {
-      return;
-    }
-    void queryClient.invalidateQueries({
-      queryKey: rpcClient.workspace.task.backgroundProcesses.key(),
-    });
-  }, [revision, queryClient]);
+  const running = useTaskBackgroundProcesses(taskId);
 
   const { isPending: isStopping, mutate: stop } = useMutation(
     rpcClient.workspace.task.backgroundProcesses.stop.mutationOptions({
@@ -63,7 +42,6 @@ export function TaskBackgroundProcesses({ taskId }: { taskId: TaskId }) {
     }),
   );
 
-  const running = processes ?? [];
   if (running.length === 0) {
     return null;
   }

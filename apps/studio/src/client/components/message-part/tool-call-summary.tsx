@@ -44,7 +44,7 @@ export function ToolCallSummary({
   part: SessionMessagePart.ToolPart;
 }) {
   const features = useAtomValue(featuresAtom);
-  const { isRunning, isStreaming } = useToolCallSession();
+  const { isBackgroundRunning, isRunning, isStreaming } = useToolCallSession();
   const group = useTranscriptGroup();
   const { isExpanded, setIsExpanded } = useRowExpansion(part.metadata.id);
 
@@ -67,7 +67,13 @@ export function ToolCallSummary({
   // calls included. A second row moving under the head line would read as two
   // things happening at once, and a call waiting its turn is not work in
   // progress worth announcing: what it is waiting on is already saying so.
-  const showsLiveIndicator = isRunning && (group === null || group.isHead);
+  // A command that outlived its call is the same promise to the reader as the
+  // agent working: something is happening and the row is where it is happening.
+  // It takes the same indicator rather than a second one, and it is not held to
+  // the one-row rule, because several commands genuinely do run at once and the
+  // turn that started them is over.
+  const showsLiveIndicator =
+    (isRunning && (group === null || group.isHead)) || isBackgroundRunning;
 
   const toolName = getToolNameByType(part.type);
   const browserInfo = getBrowserInfo(part);

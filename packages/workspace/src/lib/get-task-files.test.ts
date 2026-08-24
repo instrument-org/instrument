@@ -214,4 +214,130 @@ describe("getTaskFileIndex", () => {
       ]
     `);
   });
+
+  // `\logs\out.txt` is one legal filename here, and the shape an agent leaves
+  // behind when it spells a path the Windows way. Normalized it reads as
+  // absolute, which the ignore matcher rejects outright.
+  it("skips filenames that normalize into an absolute path instead of aborting", async () => {
+    await fs.writeFile(path.join(taskDirPath, "\\notes.md"), "adversarial");
+    await fs.mkdir(path.join(taskDirPath, "\\logs"));
+    await fs.writeFile(path.join(taskDirPath, "\\logs", "out.txt"), "spilled");
+
+    const result = await getTaskFileIndex(dir);
+
+    expect(result.isOk()).toBe(true);
+    if (result.isErr()) {
+      return;
+    }
+
+    expect([...result.value.keys()]).toMatchInlineSnapshot(`
+      [
+        ".gitignore",
+        "notes.md",
+        "output/chart.png",
+      ]
+    `);
+  });
+
+  it("skips a subtree it is not allowed to read instead of failing the whole index", async () => {
+    await fs.mkdir(path.join(taskDirPath, "locked"));
+    await fs.writeFile(path.join(taskDirPath, "locked", "secret.txt"), "s");
+
+    // chmod is the real-world cause, but the process may be running as a user
+    // it cannot stop, so state the refusal directly.
+    const lockedDir = path.join(taskDirPath, "locked");
+    const realReaddir = fs.readdir;
+    vi.spyOn(fs, "readdir").mockImplementation(
+      (...args: Parameters<typeof realReaddir>) => {
+        if (args[0] === lockedDir) {
+          return Promise.reject(
+            Object.assign(
+              new Error(`EACCES: permission denied, scandir '${lockedDir}'`),
+              { code: "EACCES" },
+            ),
+          );
+        }
+        return realReaddir(...args);
+      },
+    );
+
+    const result = await getTaskFileIndex(dir);
+    vi.restoreAllMocks();
+
+    expect(result.isOk()).toBe(true);
+    if (result.isErr()) {
+      return;
+    }
+
+    expect([...result.value.keys()]).toMatchInlineSnapshot(`
+      [
+        ".gitignore",
+        "notes.md",
+        "output/chart.png",
+      ]
+    `);
+  });
+
+  it("keeps listing when the task holds a directory named .gitignore", async () => {
+    await fs.rm(path.join(taskDirPath, ".gitignore"));
+    await fs.mkdir(path.join(taskDirPath, ".gitignore"));
+
+    const result = await getTaskFileIndex(dir);
+
+    expect(result.isOk()).toBe(true);
+    if (result.isErr()) {
+      return;
+    }
+
+    // Nothing is ignored now, so the file the .gitignore had covered is listed.
+    expect([...result.value.keys()]).toMatchInlineSnapshot(`
+      [
+        "ignored.txt",
+        "notes.md",
+        "output/chart.png",
+      ]
+    `);
+  });
+
+  // The panel polls while it is open, so a task trashed under it asks once more
+  // for files that are gone. That is the task being over, not a failure worth
+  // reporting.
+  it("reports a task whose directory is gone as not found", async () => {
+    await fs.rm(taskDirPath, { force: true, recursive: true });
+
+    const result = await getTaskFileIndex(dir);
+
+    expect(result.isErr()).toBe(true);
+    if (result.isOk()) {
+      return;
+    }
+
+    expect(result.error.type).toMatchInlineSnapshot(`"workspace-not-found-error"`);
+  });
+
+  // Every walk failure carried the same sentence, which left a report of one
+  // unable to say which failure it was.
+  it("names the failure when the walk fails for a reason of its own", async () => {
+    const realReaddir = fs.readdir;
+    vi.spyOn(fs, "readdir").mockImplementation(
+      (...args: Parameters<typeof realReaddir>) => {
+        if (args[0] === taskDirPath) {
+          return Promise.reject(
+            Object.assign(new Error("EIO: i/o error, scandir"), { code: "EIO" }),
+          );
+        }
+        return realReaddir(...args);
+      },
+    );
+
+    const result = await getTaskFileIndex(dir);
+    vi.restoreAllMocks();
+
+    expect(result.isErr()).toBe(true);
+    if (result.isOk()) {
+      return;
+    }
+
+    expect(result.error.message).toMatchInlineSnapshot(`"Error listing task files (EIO)"`);
+  });
 });

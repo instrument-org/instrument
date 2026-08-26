@@ -707,4 +707,58 @@ describe("SessionMessage.toModelMessages", () => {
     expect(text).toContain("/mnt/Home-Downloads");
     expect(text).not.toContain("/mnt/undefined");
   });
+
+  // A tool's output schema outgrows the sessions already recorded against it,
+  // and every one of those results is mapped again on each turn and each
+  // transcript render. Reading a field the record predates used to fail the
+  // whole conversion rather than the one result it could not describe.
+  it("falls back to the raw output when a tool result predates its schema", async () => {
+    const { messageId, messageMetadata, partMetadata } = baseMetadata();
+    const legacyStoredPart = SessionMessagePart.coerce({
+      input: { name: "barcodes" },
+      metadata: { ...partMetadata, toolName: "load_skill" },
+      output: { content: "# Barcodes", name: "barcodes" },
+      state: "output-available",
+      toolCallId: StoreId.ToolCallSchema.parse("call_legacy"),
+      type: "tool-load_skill",
+    });
+
+    const result = await SessionMessage.toModelMessages(
+      [
+        {
+          id: messageId,
+          metadata: {
+            ...messageMetadata,
+            aiGatewayModel: undefined,
+            finishReason: "tool-calls",
+            modelId: "gpt-4o",
+            providerId: "openai",
+          },
+          parts: [legacyStoredPart],
+          role: "assistant",
+        },
+      ],
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    expect(result.at(-1)).toMatchInlineSnapshot(`
+      {
+        "content": [
+          {
+            "output": {
+              "type": "json",
+              "value": {
+                "content": "# Barcodes",
+                "name": "barcodes",
+              },
+            },
+            "toolCallId": "call_legacy",
+            "toolName": "load_skill",
+            "type": "tool-result",
+          },
+        ],
+        "role": "tool",
+      }
+    `);
+  });
 });

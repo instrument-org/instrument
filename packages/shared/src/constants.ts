@@ -18,7 +18,11 @@ export const APP_REPO_URL = `https://github.com/${GITHUB_ORG}/${APP_REPO_NAME}`;
 export const APP_DOMAIN = "tryinstrument.com";
 export const APP_URL = `https://${APP_DOMAIN}`;
 export const FAUX_STUDIO_URL = `https://studio.${APP_DOMAIN}`;
-export const NEW_ISSUE_URL = `${APP_REPO_URL}/issues/new/choose`;
+// Bug reports are filed as discussions in the triage category, not as issues.
+// The category is deep-linked rather than routed through the chooser so a
+// report started from inside the app cannot land in a category that never asks
+// for the version, platform, and model it needs.
+export const BUG_REPORT_URL = `${APP_REPO_URL}/discussions/new?category=issue-triage`;
 export const REGISTRY_REPO_NAME = "registry";
 export const REGISTRY_REPO_URL = `https://github.com/${GITHUB_ORG}/${REGISTRY_REPO_NAME}`;
 export const RELEASE_NOTES_URL = `${APP_REPO_URL}/releases`;

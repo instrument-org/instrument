@@ -1,5 +1,5 @@
 import { ExternalLink } from "@/client/components/external-link";
-import { NEW_ISSUE_URL, SUPPORT_URL } from "@instrument-org/shared";
+import { BUG_REPORT_URL, SUPPORT_URL } from "@instrument-org/shared";
 
 export function NavSupport() {
   return (
@@ -13,7 +13,7 @@ export function NavSupport() {
       </ExternalLink>
       <ExternalLink
         className="hover:text-black/60 dark:hover:text-white/60"
-        href={NEW_ISSUE_URL}
+        href={BUG_REPORT_URL}
       >
         Report a Bug
       </ExternalLink>

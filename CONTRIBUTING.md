@@ -4,13 +4,13 @@ Instrument is in private beta, and feedback from people running it on their own 
 
 ## Where things go
 
-| You want to | Go here |
-| --- | --- |
-| Report something broken | [Open a bug report](https://github.com/instrument-org/instrument/issues/new?template=bug.yml) |
-| Ask for a specific feature | [Open a feature request](https://github.com/instrument-org/instrument/issues/new?template=feature.yml) |
-| Ask a question, or get help with setup | [Q&A discussions](https://github.com/instrument-org/instrument/discussions/new?category=q-a) |
+| You want to                                      | Go here                                                                                                                             |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Report something broken                          | [Open a bug report](https://github.com/instrument-org/instrument/issues/new?template=bug.yml)                                       |
+| Ask for a specific feature                       | [Open a feature request](https://github.com/instrument-org/instrument/issues/new?template=feature.yml)                              |
+| Ask a question, or get help with setup           | [Q&A discussions](https://github.com/instrument-org/instrument/discussions/new?category=q-a)                                        |
 | Float an idea that is not a specific request yet | [Feature Requests, Ideas discussions](https://github.com/instrument-org/instrument/discussions/new?category=feature-requests-ideas) |
-| Report a security vulnerability | Email `security@tryinstrument.com`. Please do not open a public issue. See [SECURITY.md](.github/SECURITY.md). |
+| Report a security vulnerability                  | Email `security@tryinstrument.com`. Please do not open a public issue. See [SECURITY.md](.github/SECURITY.md).                      |
 
 Issues are for work we intend to track. Discussions are for everything that is still a conversation. If you file in the wrong place we will move it, so pick whichever feels closer and do not worry about it.
 

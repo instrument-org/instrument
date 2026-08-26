@@ -9,6 +9,12 @@ import { cn } from "@/client/lib/utils";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
+// How long the overlay survives without a `dragover`. Generous, because the
+// only cost of waiting is an overlay that lingers a moment after a drag it
+// never saw end, and the cost of being wrong the other way is an overlay taken
+// down while the file is still in the air.
+const STALE_DRAG_MS = 1000;
+
 /**
  * The area of the window that takes a dropped file, and the only thing that
  * says so.
@@ -76,76 +82,105 @@ export function FileDropRegion({
       return;
     }
 
+    let staleTimer: number | undefined;
+
+    const endDrag = () => {
+      window.clearTimeout(staleTimer);
+      staleTimer = undefined;
+      dragDepthRef.current = 0;
+      setIsDragging(false);
+    };
+
+    // `dragover` keeps firing while a drag is over the element, on a timer of
+    // its own rather than on movement, so silence means the drag is gone:
+    // dropped on another window, cancelled with Escape, or ended while this app
+    // was behind another. Only the overlay rides on this -- a drop is handled
+    // whether or not the overlay is up -- so clearing a beat early costs
+    // nothing, while leaving it up leaves an overlay nobody can dismiss.
+    const keepAlive = () => {
+      window.clearTimeout(staleTimer);
+      staleTimer = window.setTimeout(endDrag, STALE_DRAG_MS);
+    };
+
     const handleDragEnter = (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
       dragDepthRef.current++;
       if (e.dataTransfer?.types.includes("Files")) {
         setIsDragging(true);
+        keepAlive();
       }
     };
 
     const handleDragLeave = (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      dragDepthRef.current--;
+      // Clamped, because a drag already in flight when these listeners bind --
+      // the tab was switched away and back mid-drag -- delivers a `dragleave`
+      // whose `dragenter` went to nobody. Unclamped, the count passes zero on
+      // the way down and never returns to it, which is an overlay that stays up
+      // for the life of the region.
+      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
       if (dragDepthRef.current === 0) {
-        setIsDragging(false);
+        endDrag();
       }
     };
 
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      keepAlive();
     };
 
     const handleDrop = (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      setIsDragging(false);
-      dragDepthRef.current = 0;
+      endDrag();
 
       if (!e.dataTransfer) {
         return;
       }
 
-      const items = [...e.dataTransfer.items];
-      const files = e.dataTransfer.files;
+      // Split by what each item is rather than passing the whole file list on:
+      // a folder rides in `dataTransfer.files` as well, so a drop mixing the two
+      // would otherwise hand the folder to the file handler as a file with no
+      // bytes behind it.
+      const folders: DroppedFolder[] = [];
+      const files = new DataTransfer();
+      let sawFolder = false;
 
-      const folderItems = items.filter(
-        (item) => item.webkitGetAsEntry()?.isDirectory,
-      );
-
-      const fileItems = items.filter(
-        (item) => !item.webkitGetAsEntry()?.isDirectory,
-      );
-
-      if (folderItems.length > 0) {
-        const folders: DroppedFolder[] = [];
-
-        for (const folderItem of folderItems) {
-          if (folderItem.kind === "file") {
-            const file = folderItem.getAsFile();
-            if (file) {
-              const path = window.api.getFilePath(file);
-              if (path) {
-                folders.push({ path, type: "folder" });
-              }
-            }
-          }
+      for (const item of e.dataTransfer.items) {
+        if (item.kind !== "file") {
+          continue;
         }
 
-        if (folders.length > 0) {
-          handlers.current.onFoldersDropped?.(folders);
-        } else {
-          captureException(
-            new Error("Could not get folder paths from dropped items"),
-          );
+        const isDirectory = item.webkitGetAsEntry()?.isDirectory ?? false;
+        const file = item.getAsFile();
+
+        if (!isDirectory) {
+          if (file) {
+            files.items.add(file);
+          }
+          continue;
+        }
+
+        sawFolder = true;
+        const path = file ? window.api.getFilePath(file) : undefined;
+        if (path) {
+          folders.push({ path, type: "folder" });
         }
       }
 
-      if (fileItems.length > 0 && files.length > 0) {
-        handlers.current.onFilesDropped(files);
+      if (folders.length > 0) {
+        handlers.current.onFoldersDropped?.(folders);
+      } else if (sawFolder) {
+        captureException(
+          new Error("Could not get folder paths from dropped items"),
+        );
+      }
+
+      if (files.files.length > 0) {
+        handlers.current.onFilesDropped(files.files);
       }
     };
 
@@ -155,8 +190,7 @@ export function FileDropRegion({
     region.addEventListener("drop", handleDrop);
 
     return () => {
-      dragDepthRef.current = 0;
-      setIsDragging(false);
+      endDrag();
       region.removeEventListener("dragenter", handleDragEnter);
       region.removeEventListener("dragleave", handleDragLeave);
       region.removeEventListener("dragover", handleDragOver);

@@ -245,12 +245,6 @@ importers:
       read-pkg:
         specifier: ^9.0.1
         version: 9.0.1
-      rehype-sanitize:
-        specifier: ^6.0.0
-        version: 6.0.0
-      rehype-slug:
-        specifier: ^6.0.0
-        version: 6.0.0
       semver:
         specifier: ^7.7.2
         version: 7.8.5
@@ -603,6 +597,12 @@ importers:
       rehype-raw:
         specifier: ^7.0.0
         version: 7.0.0
+      rehype-sanitize:
+        specifier: ^6.0.0
+        version: 6.0.0
+      rehype-slug:
+        specifier: ^6.0.0
+        version: 6.0.0
       remark-breaks:
         specifier: ^4.0.0
         version: 4.0.0

@@ -28,14 +28,14 @@ describe("createBashDescription", () => {
 
       TIP: Heredoc pipes/redirects go on the \`<<EOF\` line, not after \`EOF\`: \`cmd <<'EOF' | jq\` (not \`cmd <<'EOF'\` ... \`EOF\` ... \`| jq\`).
 
-      Available commands (this is the complete set of unix builtins; if a command is not listed here it is NOT available, so use one of these or a specialized command below instead of assuming): alias, awk, base64, basename, bash, cat, chmod, clear, column, comm, cp, cut, date, diff, dirname, du, echo, egrep, env, expand, expr, false, fgrep, file, find, fold, grep, gunzip, gzip, head, help, history, hostname, join, ln, ls, md5sum, mkdir, mv, nl, od, paste, printenv, printf, pwd, readlink, rev, rm, rmdir, sed, seq, sh, sha1sum, sha256sum, sleep, sort, split, stat, strings, tac, tail, tar, tee, time, timeout, touch, tr, tree, true, unalias, unexpand, uniq, wc, whoami, xargs, zcat
+      Available commands (this is the complete set of unix builtins; if a command is not listed here it is NOT available, so use one of these or a specialized command below instead of assuming): alias, awk, base64, basename, bash, cat, chmod, clear, column, comm, cp, cut, date, diff, dirname, du, echo, egrep, env, expand, expr, false, fgrep, file, find, fold, grep, gunzip, gzip, head, help, history, hostname, html-to-markdown, join, ln, ls, md5sum, mkdir, mv, nl, od, paste, printenv, printf, pwd, readlink, rev, rm, rmdir, sed, seq, sh, sha1sum, sha256sum, sleep, sort, split, stat, strings, tac, tail, tar, tee, time, timeout, touch, tr, tree, true, unalias, unexpand, uniq, wc, whoami, xargs, zcat
 
       IMPORTANT: Specialized commands below (e.g. ffmpeg, ffprobe) are invoked by bare name only -- never by an absolute path. \`which\`/\`command -v\`/\`type\` may report a path like /usr/bin/ffmpeg, but that path does NOT exist; ignore it. These binaries are also on PATH inside tsx/node scripts, so a script may shell out to \`ffmpeg\`/\`ffprobe\` directly.
 
       Specialized commands:
         jq - Parse and manipulate JSON
         rg - Search file contents and list files with ripgrep. Pipe and redirect its output like any other command (e.g. \`rg -l TODO | head\`).
-        sqlite3 - Query SQLite database files. Dot commands (\`.tables\`, \`.schema\`) are NOT implemented -- list tables with \`select name from sqlite_master where type='table'\`. Pass \`-bail\` or a SQL error still exits 0. \`-box\`/\`-json\`/\`-csv -header\` control output
+        sqlite3 - Query SQLite database files. Dot commands (\`.tables\`, \`.schema\`) are NOT implemented -- list tables with \`select name from sqlite_master where type='table'\`. \`-box\`/\`-json\`/\`-csv -header\` control output
         xan - Fast CSV processing, filtering, aggregation, and visualization
         yq - Parse and manipulate YAML (like jq but for YAML; e.g. \`yq '.key' file.yaml\`)
         agent-browser - Control a browser to navigate the web, interact with pages, and extract content.

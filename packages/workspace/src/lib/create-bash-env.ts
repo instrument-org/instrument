@@ -90,7 +90,6 @@ function stubCommand(
 // just-bash reports, which it types as plain `string`; the constructor's own
 // type parameter still holds these entries to real command names.
 const BROKEN_COMMANDS: ReadonlySet<string> = new Set<CommandName>([
-  "html-to-markdown", // depends on `turndown`, which requires `@mixmark-io/domino` as an undeclared peer dependency
   "which", // always errors in this environment; replaced with a stub below
 ]);
 
@@ -181,7 +180,7 @@ const DESCRIBED_COMMANDS: Record<string, string> = {
   jq: "Parse and manipulate JSON",
   rg: RG_COMMAND.description,
   sqlite3:
-    "Query SQLite database files. Dot commands (`.tables`, `.schema`) are NOT implemented -- list tables with `select name from sqlite_master where type='table'`. Pass `-bail` or a SQL error still exits 0. `-box`/`-json`/`-csv -header` control output",
+    "Query SQLite database files. Dot commands (`.tables`, `.schema`) are NOT implemented -- list tables with `select name from sqlite_master where type='table'`. `-box`/`-json`/`-csv -header` control output",
   xan: "Fast CSV processing, filtering, aggregation, and visualization",
   yq: "Parse and manipulate YAML (like jq but for YAML; e.g. `yq '.key' file.yaml`)",
 };

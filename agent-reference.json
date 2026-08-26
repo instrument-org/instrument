@@ -19,6 +19,10 @@
       "source": "github:vercel-labs/agent-browser",
       "description": "Browser-automation CLI for agents, a native Rust binary. Upstream of the agent's browser tool."
     },
+    "vscode": {
+      "source": "github:microsoft/vscode",
+      "description": "Microsoft's editor, and the largest Electron app whose source is readable. The reference for how a desktop app of this shape solves a platform problem: src/vs/platform for the service layer, src/vs/workbench/contrib for features, src/vs/base/browser/dnd.ts and the electron-main/electron-browser folders for native OS integration."
+    },
     "harnesses": {
       "description": "Agent harness reference repos",
       "references": {

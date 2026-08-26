@@ -200,6 +200,22 @@ export const bumpPromptFocusAtom = atom(null, (get, set, tabId: TabId) => {
   set(signal, get(signal) + 1);
 });
 
+// A per-tab nudge, bumped only when a navigation resolves to the location the
+// tab is already showing: "New task" pressed on the new task page, the chord
+// for it, the sidebar entry for the page under the cursor. Nothing about the
+// page can change to acknowledge that press, so the composer the page is built
+// around answers for it (see `nudgeOnReentry`).
+const promptNudgeSignalFamily = atomFamily((_tabId: TabId) => atom(0));
+
+export function promptNudgeSignalAtom(tabId: TabId) {
+  return promptNudgeSignalFamily(tabId);
+}
+
+export const bumpPromptNudgeAtom = atom(null, (get, set, tabId: TabId) => {
+  const signal = promptNudgeSignalFamily(tabId);
+  set(signal, get(signal) + 1);
+});
+
 /**
  * Add something to a draft from outside the composer: a file path, a folder.
  *

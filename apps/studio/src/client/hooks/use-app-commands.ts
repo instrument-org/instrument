@@ -1,10 +1,15 @@
 import { toggleCommandMenu } from "@/client/atoms/command-menu";
+import {
+  bumpPromptFocusAtom,
+  bumpPromptNudgeAtom,
+} from "@/client/atoms/prompt-value";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
 import { tabsAtom } from "@/client/atoms/tabs";
 import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
 import { toggleSidebar } from "@/client/hooks/use-sidebar";
+import { isCurrentLocation } from "@/client/lib/current-location";
 import {
   requestBrowserFind,
   requestBrowserReload,
@@ -135,7 +140,8 @@ export function useAppCommands() {
                 break;
               }
               case "navigate": {
-                const router = getTabRouter(store.get(tabsAtom).selectedId);
+                const selectedId = store.get(tabsAtom).selectedId;
+                const router = getTabRouter(selectedId);
                 // `to` is a typed StudioPath; params/search are loose IPC data,
                 // so cast the combined target to the router's options here.
                 const target = {
@@ -153,6 +159,19 @@ export function useAppCommands() {
                   break;
                 }
                 if (router) {
+                  // A chord for the page the tab already shows navigates
+                  // nowhere, so it gets the same answer a click on the same
+                  // destination gets (see `navigateTab`).
+                  if (
+                    selectedId &&
+                    isCurrentLocation(
+                      router,
+                      target as Parameters<typeof router.buildLocation>[0],
+                    )
+                  ) {
+                    store.set(bumpPromptFocusAtom, selectedId);
+                    store.set(bumpPromptNudgeAtom, selectedId);
+                  }
                   void router.navigate(
                     target as Parameters<typeof router.navigate>[0],
                   );

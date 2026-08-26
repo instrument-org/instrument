@@ -1,5 +1,9 @@
-import { bumpPromptFocusAtom } from "@/client/atoms/prompt-value";
+import {
+  bumpPromptFocusAtom,
+  bumpPromptNudgeAtom,
+} from "@/client/atoms/prompt-value";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
+import { isCurrentLocation } from "@/client/lib/current-location";
 import { type StudioPath } from "@/shared/studio-path";
 import { type TabId } from "@/shared/tabs";
 import {
@@ -21,6 +25,7 @@ export function useTabActions() {
   const router = useRouter();
   const controller = useTabsController();
   const bumpPromptFocus = useSetAtom(bumpPromptFocusAtom);
+  const bumpPromptNudge = useSetAtom(bumpPromptNudgeAtom);
 
   const buildUrlPath = <
     TTo extends string | undefined,
@@ -72,6 +77,17 @@ export function useTabActions() {
       const selectedId = controller.model.selectedId;
       if (selectedId) {
         bumpPromptFocus(selectedId);
+        // That no-op case, specifically: the destination has no way to answer
+        // a press that asked for the page it is already on, so the page is
+        // told to answer it itself.
+        if (
+          isCurrentLocation(
+            router,
+            opts as Parameters<typeof router.buildLocation>[0],
+          )
+        ) {
+          bumpPromptNudge(selectedId);
+        }
       }
       return router.navigate(opts as Parameters<typeof router.navigate>[0]);
     },

@@ -1,4 +1,5 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { FileDropRegion } from "@/client/components/file-drop-region";
 import { TaskChat } from "@/client/components/task/chat";
 import { type RPCOutput } from "@/client/rpc/client";
 import { type StoreId, type Task } from "@instrument-org/workspace/client";
@@ -22,7 +23,10 @@ export function TaskSidebar({
   task: Task;
 }) {
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-background">
+    // The chat column is the drop region, so the pane beside it -- a file
+    // viewer, or the in-app browser's `<webview>` -- stays outside it without
+    // anyone having to subtract it.
+    <FileDropRegion className="flex h-full flex-col overflow-hidden bg-background">
       <TaskToolbar
         activeFilePath={activeFilePath}
         attachedFolders={attachedFolders}
@@ -34,6 +38,6 @@ export function TaskSidebar({
       <div className="min-h-0 flex-1 overflow-hidden">
         <TaskChat {...chatProps} />
       </div>
-    </div>
+    </FileDropRegion>
   );
 }

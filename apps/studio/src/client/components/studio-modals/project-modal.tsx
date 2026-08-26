@@ -1,4 +1,5 @@
 import { projectModalAtom } from "@/client/atoms/project-modal";
+import { FileDropRegion } from "@/client/components/file-drop-region";
 import {
   DEFAULT_FOLDER_ACCESS,
   type FolderAccess,
@@ -23,8 +24,6 @@ import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { displayPath, folderNameFromPath } from "@/client/lib/path-utils";
-import { useWindowFileDrop } from "@/client/lib/use-window-file-drop";
-import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type Project,
@@ -186,17 +185,6 @@ function ProjectModalForm({
     );
   };
 
-  const { isDragging } = useWindowFileDrop({
-    onFilesDropped: () => {
-      toast.info("Only folders can be attached to a project");
-    },
-    onFoldersDropped: (dropped) => {
-      for (const folder of dropped) {
-        addFolderPath(folder.path);
-      }
-    },
-  });
-
   const { isPending: isCreating, mutateAsync: createProject } = useMutation(
     rpcClient.workspace.project.create.mutationOptions(),
   );
@@ -271,6 +259,7 @@ function ProjectModalForm({
 
   return (
     <DialogContent
+      className="p-0"
       maxWidth="32rem"
       onExitComplete={onExitComplete}
       onOpenAutoFocus={(e) => {
@@ -286,91 +275,81 @@ function ProjectModalForm({
           </Button>
         </DialogClose>
       </div>
-      <DialogHeader>
-        <DialogTitle className="text-center font-serif text-2xl font-medium">
-          {isEditing ? "Edit project" : "New project"}
-        </DialogTitle>
-        <DialogDescription className="sr-only">
-          {isEditing
-            ? "Edit this project's name and description."
-            : "Create a project to group tasks and share instructions across them."}
-        </DialogDescription>
-      </DialogHeader>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void form.handleSubmit();
+      {/* The only surface whose note is not the composer's: this one takes
+          folders and refuses files outright. Declared here rather than through
+          `useFileDropRegion`, since this component draws the region itself. */}
+      <FileDropRegion
+        className="grid gap-4 p-6"
+        note="Drop a folder to attach it to this project"
+        onFilesDropped={() => {
+          toast.info("Only folders can be attached to a project");
+        }}
+        onFoldersDropped={(dropped) => {
+          for (const folder of dropped) {
+            addFolderPath(folder.path);
+          }
         }}
       >
-        <div className="grid grid-cols-1 gap-4 py-4">
-          <form.Field
-            name="name"
-            validators={{
-              onChange: ({ value }) => {
-                if (!value.trim()) {
-                  return "Name is required.";
-                }
-                return;
-              },
-            }}
-          >
-            {(field) => {
-              const isInvalid =
-                field.state.meta.isTouched && !field.state.meta.isValid;
-              return (
-                <Field data-invalid={isInvalid}>
-                  <FieldLabel htmlFor={field.name}>Name</FieldLabel>
-                  <Input
-                    aria-invalid={isInvalid}
-                    disabled={isPending}
-                    id={field.name}
-                    name={field.name}
-                    onBlur={field.handleBlur}
-                    onChange={(e) => {
-                      field.handleChange(e.target.value);
-                    }}
-                    placeholder="Project name"
-                    ref={nameInputRef}
-                    value={field.state.value}
-                  />
-                  {isInvalid && <FieldError errors={field.state.meta.errors} />}
-                </Field>
-              );
-            }}
-          </form.Field>
+        <DialogHeader>
+          <DialogTitle className="text-center font-serif text-2xl font-medium">
+            {isEditing ? "Edit project" : "New project"}
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            {isEditing
+              ? "Edit this project's name and description."
+              : "Create a project to group tasks and share instructions across them."}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void form.handleSubmit();
+          }}
+        >
+          <div className="grid grid-cols-1 gap-4 py-4">
+            <form.Field
+              name="name"
+              validators={{
+                onChange: ({ value }) => {
+                  if (!value.trim()) {
+                    return "Name is required.";
+                  }
+                  return;
+                },
+              }}
+            >
+              {(field) => {
+                const isInvalid =
+                  field.state.meta.isTouched && !field.state.meta.isValid;
+                return (
+                  <Field data-invalid={isInvalid}>
+                    <FieldLabel htmlFor={field.name}>Name</FieldLabel>
+                    <Input
+                      aria-invalid={isInvalid}
+                      disabled={isPending}
+                      id={field.name}
+                      name={field.name}
+                      onBlur={field.handleBlur}
+                      onChange={(e) => {
+                        field.handleChange(e.target.value);
+                      }}
+                      placeholder="Project name"
+                      ref={nameInputRef}
+                      value={field.state.value}
+                    />
+                    {isInvalid && (
+                      <FieldError errors={field.state.meta.errors} />
+                    )}
+                  </Field>
+                );
+              }}
+            </form.Field>
 
-          <form.Field name="description">
-            {(field) => (
-              <Field>
-                <FieldLabel htmlFor={field.name}>Description</FieldLabel>
-                <Input
-                  disabled={isPending}
-                  id={field.name}
-                  name={field.name}
-                  onBlur={field.handleBlur}
-                  onChange={(e) => {
-                    field.handleChange(e.target.value);
-                  }}
-                  placeholder="Short description of your project"
-                  value={field.state.value}
-                />
-              </Field>
-            )}
-          </form.Field>
-
-          {!isEditing && (
-            <form.Field name="instructions">
+            <form.Field name="description">
               {(field) => (
                 <Field>
-                  <div className="flex flex-col gap-0.5">
-                    <FieldLabel htmlFor={field.name}>Instructions</FieldLabel>
-                    <p className="text-xs text-muted-foreground">
-                      Add details about this project for Instrument to remember
-                      for each task
-                    </p>
-                  </div>
-                  <Textarea
-                    className="max-h-40 min-h-24 overflow-y-auto"
+                  <FieldLabel htmlFor={field.name}>Description</FieldLabel>
+                  <Input
                     disabled={isPending}
                     id={field.name}
                     name={field.name}
@@ -378,116 +357,139 @@ function ProjectModalForm({
                     onChange={(e) => {
                       field.handleChange(e.target.value);
                     }}
+                    placeholder="Short description of your project"
                     value={field.state.value}
                   />
                 </Field>
               )}
             </form.Field>
-          )}
 
-          {!isEditing && (
-            <div className="flex flex-col gap-2">
-              {/* One rounded block with rules between the folders rather than
+            {!isEditing && (
+              <form.Field name="instructions">
+                {(field) => (
+                  <Field>
+                    <div className="flex flex-col gap-0.5">
+                      <FieldLabel htmlFor={field.name}>Instructions</FieldLabel>
+                      <p className="text-xs text-muted-foreground">
+                        Add details about this project for Instrument to
+                        remember for each task
+                      </p>
+                    </div>
+                    <Textarea
+                      className="max-h-40 min-h-24 overflow-y-auto"
+                      disabled={isPending}
+                      id={field.name}
+                      name={field.name}
+                      onBlur={field.handleBlur}
+                      onChange={(e) => {
+                        field.handleChange(e.target.value);
+                      }}
+                      value={field.state.value}
+                    />
+                  </Field>
+                )}
+              </form.Field>
+            )}
+
+            {!isEditing && (
+              <div className="flex flex-col gap-2">
+                {/* One rounded block with rules between the folders rather than
                   a card each: at this size a stack of separate cards reads as
                   several controls instead of one list. */}
-              <div className="divide-y overflow-hidden rounded-md border empty:hidden">
-                {folders.map((folder) => (
-                  <div
-                    className="flex min-w-0 items-center gap-x-2 px-4 py-2"
-                    key={folder.path}
-                  >
-                    <MacFolderIcon className="size-7 shrink-0" />
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-sm font-medium">
-                        {folderNameFromPath(folder.path)}
-                      </span>
-                      <span
-                        className="truncate text-xs text-muted-foreground"
-                        title={folder.path}
-                      >
-                        {displayPath(folder.path)}
-                      </span>
-                    </div>
-                    <FolderAccessControl
-                      access={folder.access}
-                      folderName={folderNameFromPath(folder.path)}
-                      onChange={(access) => {
-                        setFolders((prev) =>
-                          prev.map((f) =>
-                            f.path === folder.path ? { ...f, access } : f,
-                          ),
-                        );
-                      }}
-                    />
-                    <button
-                      aria-label="Remove folder"
-                      className="-mr-1 shrink-0 rounded-sm p-1 text-muted-foreground opacity-50 hover:bg-muted/50 hover:opacity-100"
-                      onClick={() => {
-                        setFolders((prev) =>
-                          prev.filter((f) => f.path !== folder.path),
-                        );
-                      }}
-                      type="button"
+                <div className="divide-y overflow-hidden rounded-md border empty:hidden">
+                  {folders.map((folder) => (
+                    <div
+                      className="flex min-w-0 items-center gap-x-2 px-4 py-2"
+                      key={folder.path}
                     >
-                      <XIcon className="size-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              {/* Below the list: attaching a folder appends to what is already
+                      <MacFolderIcon className="size-7 shrink-0" />
+                      <div className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-sm font-medium">
+                          {folderNameFromPath(folder.path)}
+                        </span>
+                        <span
+                          className="truncate text-xs text-muted-foreground"
+                          title={folder.path}
+                        >
+                          {displayPath(folder.path)}
+                        </span>
+                      </div>
+                      <FolderAccessControl
+                        access={folder.access}
+                        folderName={folderNameFromPath(folder.path)}
+                        onChange={(access) => {
+                          setFolders((prev) =>
+                            prev.map((f) =>
+                              f.path === folder.path ? { ...f, access } : f,
+                            ),
+                          );
+                        }}
+                      />
+                      <button
+                        aria-label="Remove folder"
+                        className="-mr-1 shrink-0 rounded-sm p-1 text-muted-foreground opacity-50 hover:bg-muted/50 hover:opacity-100"
+                        onClick={() => {
+                          setFolders((prev) =>
+                            prev.filter((f) => f.path !== folder.path),
+                          );
+                        }}
+                        type="button"
+                      >
+                        <XIcon className="size-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {/* Below the list: attaching a folder appends to what is already
                   there, so the button sits where the next row will appear. */}
-              <Button
-                className={cn(
-                  "w-full justify-between",
-                  isDragging && "bg-accent text-foreground",
-                )}
-                onClick={() => void handlePickFolder()}
-                type="button"
-                variant="secondary"
-              >
-                <span>
-                  {isDragging ? "Drop folders to attach" : "Attach folders"}
-                </span>
-                <PlusIcon className="size-4" />
-              </Button>
-            </div>
-          )}
-        </div>
-        <form.Subscribe selector={(state) => state.errorMap.onSubmit}>
-          {(submitError) =>
-            typeof submitError === "string" ? (
-              <FieldError className="pb-2" errors={[submitError]} />
-            ) : null
-          }
-        </form.Subscribe>
-        <DialogFooter>
-          <Button
-            disabled={isPending}
-            onClick={() => {
-              close();
-            }}
-            type="button"
-            variant="outline"
-          >
-            Cancel
-          </Button>
-          <form.Subscribe
-            selector={(state) => ({
-              canSubmit: state.canSubmit,
-              isSubmitting: state.isSubmitting,
-            })}
-          >
-            {({ canSubmit, isSubmitting }) => (
-              <Button
-                disabled={!canSubmit || isSubmitting || isPending}
-                type="submit"
-              >
-                {isEditing ? "Save" : "Create"}
-              </Button>
+                <Button
+                  className="w-full justify-between"
+                  onClick={() => void handlePickFolder()}
+                  type="button"
+                  variant="secondary"
+                >
+                  <span>Attach folders</span>
+                  <PlusIcon className="size-4" />
+                </Button>
+              </div>
             )}
+          </div>
+          <form.Subscribe selector={(state) => state.errorMap.onSubmit}>
+            {(submitError) =>
+              typeof submitError === "string" ? (
+                <FieldError className="pb-2" errors={[submitError]} />
+              ) : null
+            }
           </form.Subscribe>
-        </DialogFooter>
-      </form>
+          <DialogFooter>
+            <Button
+              disabled={isPending}
+              onClick={() => {
+                close();
+              }}
+              type="button"
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <form.Subscribe
+              selector={(state) => ({
+                canSubmit: state.canSubmit,
+                isSubmitting: state.isSubmitting,
+              })}
+            >
+              {({ canSubmit, isSubmitting }) => (
+                <Button
+                  disabled={!canSubmit || isSubmitting || isPending}
+                  type="submit"
+                >
+                  {isEditing ? "Save" : "Create"}
+                </Button>
+              )}
+            </form.Subscribe>
+          </DialogFooter>
+        </form>
+      </FileDropRegion>
     </DialogContent>
   );
 }

@@ -1,5 +1,6 @@
 import { openWelcome } from "@/client/atoms/welcome-modal";
 import { AnimatedOutlineBrandIconGlyph } from "@/client/components/brand-icon";
+import { FileDropRegion } from "@/client/components/file-drop-region";
 import {
   PromptInput,
   type PromptInputRef,
@@ -74,7 +75,7 @@ function RouteComponent() {
   }, [router]);
 
   return (
-    <div className="grid h-full w-full flex-1 place-items-center px-8">
+    <FileDropRegion className="grid h-full w-full flex-1 place-items-center px-8">
       <div className="relative w-full max-w-2xl">
         <div className="absolute bottom-full left-1/2 mb-12 flex -translate-x-1/2 flex-col items-center gap-y-5">
           <div className="text-brown-300/34 dark:text-brown-900/34">
@@ -147,6 +148,6 @@ function RouteComponent() {
           showWorkInFolder
         />
       </div>
-    </div>
+    </FileDropRegion>
   );
 }

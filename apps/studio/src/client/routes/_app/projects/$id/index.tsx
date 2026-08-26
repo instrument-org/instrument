@@ -1,6 +1,7 @@
 import { openDeleteTask } from "@/client/atoms/delete-task-modal";
 import { openEditProject } from "@/client/atoms/project-modal";
 import { ProjectDevDiskMenuItems } from "@/client/components/dev-disk-menu-items";
+import { FileDropRegion } from "@/client/components/file-drop-region";
 import { DeleteProjectDialog } from "@/client/components/project/delete-project-dialog";
 import { ProjectFolders } from "@/client/components/project/project-folders";
 import { ProjectInstructions } from "@/client/components/project/project-instructions";
@@ -173,7 +174,7 @@ function RouteComponent() {
   }
 
   return (
-    <div className="h-full overflow-y-auto">
+    <FileDropRegion className="h-full overflow-y-auto">
       {/*
         One column of content with the details panel beside it once there's room
         for both at full width. Only the panel is placed explicitly; the heading,
@@ -339,6 +340,6 @@ function RouteComponent() {
         projectId={projectData.id}
         projectName={projectData.name}
       />
-    </div>
+    </FileDropRegion>
   );
 }

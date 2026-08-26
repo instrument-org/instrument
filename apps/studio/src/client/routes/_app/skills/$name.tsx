@@ -1,6 +1,7 @@
 import { setPromptDraftAtom } from "@/client/atoms/prompt-value";
 import { openEditSkill } from "@/client/atoms/skill-modal";
 import { CopyButton } from "@/client/components/copy-button";
+import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileIcon } from "@/client/components/file-icon";
 import { InternalLink } from "@/client/components/internal-link";
 import { Markdown } from "@/client/components/markdown";
@@ -179,7 +180,7 @@ function SkillPage() {
   };
 
   return (
-    <div className="h-full overflow-y-auto scroll-fade-y">
+    <FileDropRegion className="h-full overflow-y-auto scroll-fade-y">
       <div className="mx-auto w-full max-w-5xl px-8 py-12">
         <InternalLink
           className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
@@ -429,7 +430,7 @@ function SkillPage() {
           ) : null}
         </div>
       </div>
-    </div>
+    </FileDropRegion>
   );
 }
 

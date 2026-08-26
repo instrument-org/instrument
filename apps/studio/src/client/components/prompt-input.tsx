@@ -15,14 +15,14 @@ import {
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
+import {
+  type DroppedFolder,
+  useFileDropRegion,
+} from "@/client/hooks/use-file-drop-region";
 import { BLOCK_CLOSE, BLOCK_OPEN, ITEM_IN } from "@/client/lib/motion";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { folderNameFromPath } from "@/client/lib/path-utils";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
-import {
-  type DroppedFolder,
-  useWindowFileDrop,
-} from "@/client/lib/use-window-file-drop";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
@@ -41,7 +41,6 @@ import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { StopIcon } from "@phosphor-icons/react/Stop";
-import { UploadSimpleIcon } from "@phosphor-icons/react/UploadSimple";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { AnimatePresence, motion } from "motion/react";
@@ -359,8 +358,11 @@ export const PromptInput = ({
     }
   };
 
-  const { isDragging } = useWindowFileDrop({
+  useFileDropRegion({
     enabled: isActiveTab,
+    // The message, not the task: this composer is also a new tab, a project
+    // page and a skill page, and the file lands in the message on all of them.
+    note: "Drop to attach to your message",
     onFilesDropped: processFiles,
     onFoldersDropped: (folders: DroppedFolder[]) => {
       // Split the drop against the rendered list so the toast happens here,
@@ -929,14 +931,6 @@ export const PromptInput = ({
         maxHeight={autoResizeMaxHeight}
         overlay={
           <>
-            {isDragging && (
-              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-[20px] border border-dashed border-foreground/20 bg-background/70">
-                <UploadSimpleIcon className="size-8 text-primary" />
-                <span className="text-sm font-medium text-primary">
-                  Drop files or folders to add them
-                </span>
-              </div>
-            )}
             {/* Just outside the box rather than on it, so the ring reads as
                 something arriving around the composer and never crowds what is
                 written in it. */}

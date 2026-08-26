@@ -8,24 +8,22 @@ The failure mode this page exists to prevent is a workaround outliving the bug. 
 
 We are on the published npm package, not a fork.
 
-- `just-bash@^3.2.0` from npm, declared in `packages/workspace/package.json`.
-- Plus one local patch, `patches/just-bash@3.2.0.patch`, registered under `patchedDependencies` in `pnpm-workspace.yaml`.
+- `just-bash@^3.4.1` from npm, declared in `packages/workspace/package.json`.
+- No local patches.
 
-npm `latest` is 3.2.0. Upstream cuts releases through changesets and has merged a great deal since the release that produced it, so **a fix being on upstream `main` does not mean we have it**. Check the published version, not the branch, before assuming a workaround can go.
+`minimumReleaseAge` in `pnpm-workspace.yaml` holds installs to releases at least seven days old, so the newest published version is routinely not the newest installable one. `minimumReleaseAgeExclude` is for dependencies deliberately pinned to an exact version, not for reaching a fresh release early; the way past the gate is to wait.
+
+Upstream cuts releases through changesets and merges a great deal between them, so **a fix being on upstream `main` does not mean we have it**. Check the published version, not the branch, before assuming a workaround can go.
 
 ## Moving to a fork build
 
-Not currently worth it. Consuming a fork means rebuilding `dist/` ourselves, re-applying or dropping the patch, and carrying divergence that grows every time upstream lands something. Against that, the fixes we are waiting on are real but not blocking: they make the agent wrong in specific ways rather than stopping it working.
+Not currently worth it. Consuming a fork means rebuilding `dist/` ourselves and carrying divergence that grows every time upstream lands something. Against that, the fixes we are waiting on are real but not blocking: they make the agent wrong in specific ways rather than stopping it working.
 
 Adopt a fork build only when a gap is blocking a shipped feature, or when a merged fix is sitting unreleased for long enough that waiting costs more than diverging. If we do, the branch to consume is `combined/ls-and-touch-fixes` on our fork, which merges the branches behind the open PRs below.
 
 ## Local patches
 
-| patch | why | upstream | remove when | guard |
-| --- | --- | --- | --- | --- |
-| `patches/just-bash@3.2.0.patch` | The ESM bundle inlines undici's CommonJS module, so the dynamic import's namespace carries it under `default` alone and the pinned connection owner constructs an `undefined` `Agent`. With `denyPrivateRanges` on, every `curl` fails as `DNS pinning unavailable for private IP enforcement`. | Fixed upstream, merged, unreleased | a release carries the fix | `create-bash-env-network.test.ts` |
-
-The patch edits minified bundle output, so read the upstream source change rather than the patch diff if you need to understand it.
+None. `patches/just-bash@3.2.0.patch` normalized the namespace of the dynamic `import("undici")` so the pinned connection owner could read `Agent` off it; without that every `curl` failed as `DNS pinning unavailable for private IP enforcement`. Upstream #339 is the same fix and shipped in 3.3.0, so the patch is gone. `create-bash-env-network.test.ts` is the guard that would catch a regression.
 
 ## Agent-facing workarounds
 
@@ -33,16 +31,14 @@ Text we put in front of the model, or commands we withhold from it, because of a
 
 | where | what it does | upstream gap | remove when |
 | --- | --- | --- | --- |
-| `sqlite3` description in `create-bash-env.ts` | Tells the agent dot commands are unimplemented and to list tables with a `sqlite_master` query | Dot commands are still a parse error on upstream `main`; the tracking issues were closed rather than fixed | upstream implements them, which may be never; revisit if the issues reopen |
-| `sqlite3` description in `create-bash-env.ts` | Tells the agent a SQL error still exits 0 even with `-bail` | Fixed upstream, merged, unreleased | a release carries the fix, at which point this sentence is actively misleading |
-| `BROKEN_COMMANDS` in `create-bash-env.ts` | Withholds `html-to-markdown` | Depends on `turndown`, which needs `@mixmark-io/domino` as an undeclared peer dependency | the dependency is declared upstream |
-| `BROKEN_COMMANDS` in `create-bash-env.ts` | Withholds `which` | Always errors in this environment | investigated and fixed, or confirmed unfixable |
+| `sqlite3` description in `create-bash-env.ts` | Tells the agent dot commands are unimplemented and to list tables with a `sqlite_master` query | Dot commands are still a parse error on 3.4.1; the tracking issues were closed rather than fixed | upstream implements them, which may be never; revisit if the issues reopen |
+| `BROKEN_COMMANDS` in `create-bash-env.ts` | Withholds `which` | None. The built-in resolves against a real filesystem, which this sandbox does not have | never; see below |
 
-Two things deliberately not in this table, because they are permanent rather than pending. The `npm` stub pointing at `pnpm` is a product choice about which package manager tasks use. The `<system_info>` line telling the agent its shell is GNU coreutils rather than BSD is a description of what just-bash is, not a workaround for a defect: it will be true for as long as we use it.
+`which` is in that table because it is withheld, not because it is pending. The `createWhichCommand` stub answers from the actual registered command set, so it knows the custom shims (`python`, `agent-browser`, `ffmpeg`) that a filesystem-based `which` cannot see, and it is registered as a custom command, which shadows the built-in whether or not the name is withheld. It belongs with the permanent adaptations rather than the workarounds: the `npm` stub pointing at `pnpm` is a product choice about which package manager tasks use, and the `<system_info>` line telling the agent its shell is GNU coreutils rather than BSD is a description of what just-bash is.
 
 ## Open upstream pull requests
 
-Ours, all against `vercel-labs/just-bash`. Volatile by nature; the point of listing them is that a merged-and-released one usually retires a row from a register above.
+Ours, all against `vercel-labs/just-bash`. Volatile by nature; the point of listing them is that a merged-and-released one usually retires a row from a register above. None had merged as of 3.4.1.
 
 | PR | what | affects us |
 | --- | --- | --- |
@@ -53,8 +49,13 @@ Ours, all against `vercel-labs/just-bash`. Volatile by nature; the point of list
 
 ## Known gaps with no fix in flight
 
-Not workarounds, so they carry no removal trigger. They are here because each one is a way the sandbox can hand the agent a confident wrong answer, and knowing about them is cheaper than rediscovering them.
+Not workarounds, so they carry no removal trigger. They are here because each one is a way the sandbox can hand the agent a confident wrong answer, and knowing about them is cheaper than rediscovering them. Each was checked against 3.4.1 and against upstream `main`.
 
+- **`ln -s` does not work, and says the wrong thing about why.** `ln -s a.txt b.link` on an ordinary file exits 1 with `ln: 'a.txt': hard link not allowed for directory`. It is neither a hard link nor a directory, so an agent reading it reasonably concludes the target is at fault and tries something else. Symlink creation is off for the virtual filesystem (`allowSymlinks`), which is the real answer.
+- **Symlink support depends on who is asking.** The virtual filesystem refuses to create one, so `cp -R` of a `node_modules` tree fails with `EPERM: operation not permitted, symlink ...`. A real subprocess writes to the host directory directly and is not subject to that, so a Python script can create thousands of symlinks in the same folder where `cp -R` just failed. Nothing in the sandbox surfaces the difference.
+- **`find -type l` and `cp -L` do not exist.** `find`'s type is `"f" | "d"` upstream, and `cp` has no dereference flag. Together they make a symlinked tree awkward to inspect or flatten, which is how the `cp -R` failure above usually gets discovered.
+- **Pipelines are not streaming.** Each stage runs to completion and its whole stdout is buffered as a string, so `tar -cf - big | tar -xf -` trips `total output size exceeded` against `maxOutputSize` even though nothing was headed for the agent. The message names `executionLimits.maxOutputSize`, which reads as "your output is too large" rather than "an intermediate did not fit".
+- **A parse error fails the whole script.** An unsupported construct anywhere means no statement runs, and the message locates the offending column without naming the construct. Every command before it is silently skipped.
 - **`ls -l` prints timestamps in host-local time.** `date` defaults to UTC unless `$TZ` is set, deliberately, so the host's zone does not leak. `ls`'s formatter uses local components instead, so the two commands disagree about what time a file carries, and a correctly stored UTC instant can display as the previous day. Found while fixing `touch`; reported on #364 rather than fixed, because the fix belongs in `ls` and would move every `ls -l` timestamp in the suite.
 - **`sqlite3` dot commands are a parse error.** Already covered as a prompt workaround above; noted here too because it is the one gap upstream has declined rather than deferred.
 
@@ -62,7 +63,14 @@ Not workarounds, so they carry no removal trigger. They are here because each on
 
 ```bash
 npm view just-bash version                       # what latest actually is
+npm view just-bash time --json                   # when each version published, against minimumReleaseAge
 pnpm why just-bash                               # what we resolve to
 ```
 
-When the published version moves, walk both registers above and delete every row whose trigger has fired, including the prompt text. Removing a stale line from the `sqlite3` description matters as much as dropping the patch: a model told a working command is broken will route around it for as long as the sentence survives.
+When the published version moves, walk both registers above and delete every row whose trigger has fired, including the prompt text. Removing a stale line from the `sqlite3` description matters as much as dropping a patch: a model told a working command is broken will route around it for as long as the sentence survives.
+
+Verify against the installed build rather than the changelog. `packages/workspace/scripts/run-bash.ts` boots the same sandbox the agent gets, so a claim about behavior is one command away:
+
+```bash
+pnpm --silent script:run-bash -- "<command>"
+```

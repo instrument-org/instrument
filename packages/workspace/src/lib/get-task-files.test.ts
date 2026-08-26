@@ -312,7 +312,9 @@ describe("getTaskFileIndex", () => {
       return;
     }
 
-    expect(result.error.type).toMatchInlineSnapshot(`"workspace-not-found-error"`);
+    expect(result.error.type).toMatchInlineSnapshot(
+      `"workspace-not-found-error"`,
+    );
   });
 
   // Every walk failure carried the same sentence, which left a report of one
@@ -323,7 +325,9 @@ describe("getTaskFileIndex", () => {
       (...args: Parameters<typeof realReaddir>) => {
         if (args[0] === taskDirPath) {
           return Promise.reject(
-            Object.assign(new Error("EIO: i/o error, scandir"), { code: "EIO" }),
+            Object.assign(new Error("EIO: i/o error, scandir"), {
+              code: "EIO",
+            }),
           );
         }
         return realReaddir(...args);
@@ -338,6 +342,8 @@ describe("getTaskFileIndex", () => {
       return;
     }
 
-    expect(result.error.message).toMatchInlineSnapshot(`"Error listing task files (EIO)"`);
+    expect(result.error.message).toMatchInlineSnapshot(
+      `"Error listing task files (EIO)"`,
+    );
   });
 });

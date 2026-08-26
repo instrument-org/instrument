@@ -6,12 +6,12 @@ Instrument is in beta, and feedback from people running it on their own machines
 
 Everything starts as a discussion. The issue tracker is not the front door.
 
-| You want to | Go here |
-| --- | --- |
-| Report something broken | [Issue Triage discussion](https://github.com/instrument-org/instrument/discussions/new?category=issue-triage) |
-| Ask for a feature, or float an idea | [Feature Requests, Ideas discussion](https://github.com/instrument-org/instrument/discussions/new?category=feature-requests-ideas) |
-| Ask a question, or get help with setup | [Q&A discussion](https://github.com/instrument-org/instrument/discussions/new?category=q-a) |
-| Report a security vulnerability | Email `security@tryinstrument.com`. Please do not file in public. See [SECURITY.md](.github/SECURITY.md). |
+| You want to                            | Go here                                                                                                                            |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Report something broken                | [Issue Triage discussion](https://github.com/instrument-org/instrument/discussions/new?category=issue-triage)                      |
+| Ask for a feature, or float an idea    | [Feature Requests, Ideas discussion](https://github.com/instrument-org/instrument/discussions/new?category=feature-requests-ideas) |
+| Ask a question, or get help with setup | [Q&A discussion](https://github.com/instrument-org/instrument/discussions/new?category=q-a)                                        |
+| Report a security vulnerability        | Email `security@tryinstrument.com`. Please do not file in public. See [SECURITY.md](.github/SECURITY.md).                          |
 
 **Pay attention to the category.** Only Issue Triage asks for the version, platform, and model details a bug report needs. A bug filed under Q&A or Feature Requests means we have to come back and ask for all of it by hand, which is slower for you than filling the form was.
 

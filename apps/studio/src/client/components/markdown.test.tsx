@@ -56,6 +56,12 @@ vi.mock("@/client/rpc/client", () => ({
   },
 }));
 
+// The first document in a run that carries HTML pays to load the parser behind
+// `rehype-raw`, which is the largest thing this component fetches. Under a full
+// suite that outlasts `waitFor`'s default, and the test reads the render from
+// before the plugins arrived.
+const RAW_HTML_TIMEOUT = 10_000;
+
 const TASK_ID = TaskIdSchema.parse("a-task");
 const ASSET_BASE = "http://assets.a-task.localhost:1234";
 
@@ -364,9 +370,12 @@ describe("Markdown heading anchors", () => {
 
     // The sanitize pass rewrites the id, so the link and its target only meet
     // once that has happened.
-    await waitFor(() => {
-      expect(container.querySelector("#user-content-t-420")).not.toBeNull();
-    });
+    await waitFor(
+      () => {
+        expect(container.querySelector("#user-content-t-420")).not.toBeNull();
+      },
+      { timeout: RAW_HTML_TIMEOUT },
+    );
 
     expect(clickThrough("jump")).toBe(
       container.querySelector("#user-content-t-420"),
@@ -386,9 +395,12 @@ describe("Markdown raw HTML", () => {
   // showing rather than asserting over whichever render it caught.
   const renderDrawn = async (markdown: string) => {
     const { container } = renderMarkdown(markdown);
-    await waitFor(() => {
-      expect(container.textContent).not.toContain("<");
-    });
+    await waitFor(
+      () => {
+        expect(container.textContent).not.toContain("<");
+      },
+      { timeout: RAW_HTML_TIMEOUT },
+    );
     return container;
   };
 

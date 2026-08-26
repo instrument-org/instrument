@@ -251,12 +251,6 @@ importers:
       shiki:
         specifier: ^3.21.0
         version: 3.21.0
-      tailwind-merge:
-        specifier: ^3.3.1
-        version: 3.3.1
-      tailwind-variants:
-        specifier: ^3.2.2
-        version: 3.2.2(tailwind-merge@3.3.1)(tailwindcss@4.3.3)
       ulid:
         specifier: ^3.0.1
         version: 3.0.1
@@ -618,6 +612,12 @@ importers:
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(patch_hash=22b16004d10f44d3ea7fef7bc84bfb401b07f878993d914696c7b0a1586bcb29)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+      tailwind-merge:
+        specifier: ^3.3.1
+        version: 3.3.1
+      tailwind-variants:
+        specifier: ^3.2.2
+        version: 3.2.2(tailwind-merge@3.3.1)(tailwindcss@4.3.3)
       tailwindcss:
         specifier: ^4.1.18
         version: 4.3.3

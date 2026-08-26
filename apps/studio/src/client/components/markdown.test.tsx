@@ -445,4 +445,38 @@ describe("Markdown raw HTML", () => {
 
     expect(container.textContent).toContain("Array<string>");
   });
+
+  // A model that ends a line with `<br>` has written the break the newline
+  // after it already stands for, and honoring both leaves a blank line above
+  // whatever comes next. The `kbd` is the gate: it is drawn only once the
+  // parser has landed, which is also when the `br` this counts exists.
+  it("reads a break written as HTML and the newline after it as one break", async () => {
+    const { container } = renderMarkdown(
+      "Press <kbd>K</kbd>:<br>\n![The chart](output/chart.png)",
+    );
+
+    await waitFor(
+      () => {
+        expect(container.querySelector("kbd")).toBeTruthy();
+      },
+      { timeout: RAW_HTML_TIMEOUT },
+    );
+
+    expect(container.querySelectorAll("br")).toHaveLength(1);
+  });
+
+  // A blank line is the one thing a doubled break is good for, so a document
+  // that opens one on purpose keeps it.
+  it("keeps a blank line written as two breaks", async () => {
+    const { container } = renderMarkdown("Above.<br><br>Below.");
+
+    await waitFor(
+      () => {
+        expect(container.querySelectorAll("br").length).toBeGreaterThan(0);
+      },
+      { timeout: RAW_HTML_TIMEOUT },
+    );
+
+    expect(container.querySelectorAll("br")).toHaveLength(2);
+  });
 });

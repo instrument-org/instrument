@@ -38,6 +38,7 @@ import {
   prefetchMermaid,
 } from "../lib/mermaid";
 import { rehypeAnimateWords } from "../lib/rehype-animate-words";
+import { remarkDropBreakAfterBr } from "../lib/remark-drop-break-after-br";
 import { isTaskFileHref, taskFilePathFromHref } from "../lib/task-file-href";
 import { cn } from "../lib/utils";
 import { AgentFilesBlock } from "./agent-files-block";
@@ -614,7 +615,12 @@ export const Markdown = memo(
             pre: markdownPre,
           }}
           rehypePlugins={streamingRehypePlugins}
-          remarkPlugins={[remarkGfm, remarkBreaks, ...remarkPlugins]}
+          remarkPlugins={[
+            remarkGfm,
+            remarkBreaks,
+            remarkDropBreakAfterBr,
+            ...remarkPlugins,
+          ]}
           urlTransform={markdownUrlTransform}
         >
           {remend(markdown)}

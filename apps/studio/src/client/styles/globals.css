@@ -882,6 +882,92 @@ a.cursor-pointer {
   }
 }
 
+/* The composer answering a press that asked for the page it was already on; see
+ * `nudgeOnReentry`, which mounts a ring on the box for one play of this.
+ *
+ * An outline that holds for a moment, with a brighter length of it travelling
+ * the way the eye reads: the line alone is a border that blinked, and the glint
+ * crossing it is what reads as an answer to something. Nothing moves and
+ * nothing about the composer is repainted, so a draft mid-sentence is
+ * undisturbed by the app agreeing with a click.
+ *
+ * On the press and not a moment after: the outline is at full strength in the
+ * first frame, and the band comes in over the left edge right behind it at its
+ * fastest, easing out into the far side. Anything at the front of this -- a
+ * ramp onto the line, a slow start, a longer run in from off the box -- is time
+ * in which the click looks like it did nothing, which is the one thing the
+ * whole gesture is here to answer.
+ *
+ * Ink rather than the brand, and pale: this is the app noticing a press, not an
+ * accent worth spending a color on, and `--foreground` inverts with the theme
+ * so the line contrasts with the box it hugs in both.
+ *
+ * The ring is the whole element, the glint is a band of background lit through
+ * it -- the mask keeps the border box and drops the padding box, leaving a 2px
+ * ring for both to paint on. The band is three boxes wide so its lit stretch is
+ * a fraction of a box, and it starts just off the left edge and ends just off
+ * the right, which is what makes it a pass rather than a fade.
+ *
+ * Held long enough to be caught by an eye still on the button that was pressed,
+ * short enough that a second press is a second pass and not an interruption.
+ *
+ * Under reduced motion the pass is dropped and the ring still answers: the band
+ * is parked off the left edge, so what is left is the outline fading in and
+ * out. */
+@utility composer-nudge {
+  --composer-nudge-line: color-mix(
+    in oklab,
+    var(--foreground) 12%,
+    transparent
+  );
+  --composer-nudge-glint: color-mix(
+    in oklab,
+    var(--foreground) 42%,
+    transparent
+  );
+
+  border: 2px solid var(--composer-nudge-line);
+  background: linear-gradient(
+      115deg,
+      transparent 45%,
+      var(--composer-nudge-glint) 50%,
+      transparent 55%
+    )
+    border-box;
+  background-position: 100% 0;
+  background-size: 300% 100%;
+  mask:
+    linear-gradient(#000 0 0) padding-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation:
+    composer-nudge-glint 550ms ease-out,
+    composer-nudge-ring 750ms ease-out both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: composer-nudge-ring 750ms ease-out both;
+  }
+}
+
+@keyframes composer-nudge-glint {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+@keyframes composer-nudge-ring {
+  0%,
+  76% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 /* Semantic component classes. Defined in @layer components so the
  * better-tailwindcss/no-unknown-classes ESLint rule recognizes them
  * automatically via detectComponentClasses — no manual ignore entries needed. */

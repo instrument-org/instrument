@@ -62,6 +62,7 @@ import {
   type PromptDraftKey,
   promptDraftRefAtom,
   promptFocusSignalAtom,
+  promptNudgeSignalAtom,
   removeTransientDraft,
 } from "../atoms/prompt-value";
 import { PromptProjectChip } from "./project/prompt-project-chip";
@@ -134,6 +135,11 @@ interface PromptInputProps {
   isStoppable?: boolean;
   isSubmittable?: boolean;
   modelURI?: AIGatewayModelURI.Type;
+  // Whether a navigation that landed on the page this composer is already on is
+  // answered here. On where the composer is what the page is for, so pressing
+  // "New task" from the new task page has something to point at; off where the
+  // page is about something else and its composer is a place to reply.
+  nudgeOnReentry?: boolean;
   onFolderCountChange?: (count: number) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onStop?: () => void;
@@ -169,6 +175,7 @@ export const PromptInput = ({
   isStoppable = false,
   isSubmittable = true,
   modelURI,
+  nudgeOnReentry = false,
   onFolderCountChange,
   onModelChange,
   onStop,
@@ -180,7 +187,15 @@ export const PromptInput = ({
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
-  const focusSignal = useAtomValue(promptFocusSignalAtom(useTabId()));
+  const tabId = useTabId();
+  const focusSignal = useAtomValue(promptFocusSignalAtom(tabId));
+  const nudgeSignal = useAtomValue(promptNudgeSignalAtom(tabId));
+  // The signal only counts up, and a composer arriving on a tab that was nudged
+  // before is not the one being nudged now, so what it mounted at is the floor.
+  const [nudgeFloor] = useState(nudgeSignal);
+  // Keys the ring, so each bump is its own element and its own play of the
+  // animation rather than one that has already finished.
+  const nudgeKey = nudgeOnReentry && nudgeSignal > nudgeFloor ? nudgeSignal : 0;
   const [attachedItems, setAttachedItems] = useState<AttachedItem[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<null | ProjectId>(
     null,
@@ -913,14 +928,26 @@ export const PromptInput = ({
         }
         maxHeight={autoResizeMaxHeight}
         overlay={
-          isDragging && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-[20px] border border-dashed border-foreground/20 bg-background/70">
-              <UploadSimpleIcon className="size-8 text-primary" />
-              <span className="text-sm font-medium text-primary">
-                Drop files or folders to add them
-              </span>
-            </div>
-          )
+          <>
+            {isDragging && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-[20px] border border-dashed border-foreground/20 bg-background/70">
+                <UploadSimpleIcon className="size-8 text-primary" />
+                <span className="text-sm font-medium text-primary">
+                  Drop files or folders to add them
+                </span>
+              </div>
+            )}
+            {/* Just outside the box rather than on it, so the ring reads as
+                something arriving around the composer and never crowds what is
+                written in it. */}
+            {nudgeKey > 0 && (
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -inset-0.5 z-10 composer-nudge rounded-[22px]"
+                key={nudgeKey}
+              />
+            )}
+          </>
         }
         ref={setComposerBounds}
       >

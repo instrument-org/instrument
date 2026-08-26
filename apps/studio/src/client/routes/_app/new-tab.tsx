@@ -92,6 +92,7 @@ function RouteComponent() {
           draftKey={{ scope: "compose", tabId }}
           isLoading={createTaskMutation.isPending || isNavigating}
           modelURI={selectedModelURI}
+          nudgeOnReentry
           onModelChange={setSelectedModelURI}
           onSubmit={({
             files,

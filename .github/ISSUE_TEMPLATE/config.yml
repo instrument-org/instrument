@@ -1,4 +1,9 @@
-blank_issues_enabled: false
+# The repository restricts issue creation to collaborators, so the gate no
+# longer has to be built out of a template chooser with no way through it. What
+# reaches this file is either a maintainer writing up accepted work, who needs a
+# blank issue, or someone without access, who cannot open one regardless and is
+# better served by the links below than by a dead end.
+blank_issues_enabled: true
 contact_links:
   - about: Something is broken or behaving unexpectedly. Start here for every bug, and fill the template in completely.
     name: Report a Bug

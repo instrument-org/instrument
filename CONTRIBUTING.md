@@ -21,7 +21,7 @@ The [issue tracker](https://github.com/instrument-org/instrument/issues) holds w
 
 A discussion that reaches a clear, well-understood, actionable conclusion gets promoted to an issue. Everything still being figured out stays a discussion, where it can gather replies and upvotes without cluttering the list of what is ready to be worked on. The point of the split is that every open issue is genuinely ready for someone to pick up.
 
-This is why the New Issue button offers you links rather than a form.
+Issue creation is restricted to the team, which is why the New Issue button offers you links rather than a form. The tracker itself stays public and readable, so you can always see what has been accepted and what is being worked on.
 
 ## Filing a good bug
 

@@ -30,13 +30,17 @@ The bug template requires the two fields that most often decide whether a report
 
 Because miscategorization is the known failure mode of this design, each template opens by naming the categories it is not, and the chooser labels every destination by what the reader is trying to do rather than by category name.
 
+The routing is enforced by the repository rather than by convention: `issueCreationPolicy` is set to collaborators only, which GitHub surfaces on the Issues tab. The chooser's contact links are what someone without access sees when they try, so the restriction reads as a redirection rather than as a closed door.
+
+The tracker stays public and browsable. It is the record of what has been accepted and what is being worked on, which is worth more to a reader outside the team than it costs to keep visible.
+
 ## Consequences
 
 Reports arrive structured, and the tracker stays a list of accepted work rather than a queue of unverified inbound.
 
 Nothing reaches the issue tracker, and therefore the issue tracker's downstream integrations, until a maintainer promotes it. That is the intended filter, and it means promotion has to actually happen or reports accumulate unactioned in a place nothing else watches.
 
-Maintainers lose the blank-issue escape hatch along with everyone else, since `blank_issues_enabled` stays `false`. Internal work is tracked elsewhere, so this costs little.
+Blank issues are enabled. While the chooser was the gate, disabling them was what closed it, at the cost of leaving no way to open an issue by hand for anyone at all. With the repository enforcing access directly, that cost buys nothing: the only people who reach the chooser with permission to act on it are maintainers writing up accepted work, and they are exactly who needs a blank issue.
 
 A bug report started from inside the app deep-links to the triage category rather than the chooser, because the category is already known at that point and sending a reporter through a chooser is how bugs end up in Q&A.
 

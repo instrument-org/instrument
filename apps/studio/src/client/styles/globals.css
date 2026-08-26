@@ -439,6 +439,15 @@ body {
     margin-bottom: 0;
   }
 
+  /* Tailwind Typography gives an image 2em of air above and below, enough that
+     it reads as a section of its own. An image here is nearly always the answer
+     to the sentence that introduces it, so it sits on the same rhythm as a
+     paragraph instead. */
+  img {
+    margin-top: 1.25em;
+    margin-bottom: 1.25em;
+  }
+
   h1,
   h2,
   h3,

@@ -12,14 +12,17 @@ import { sleep } from "radashi";
 // transport failure doesn't spin.
 const RECONNECT_DELAY_MS = 500;
 
-// Chromium rasterizes a guest's compositor surface to at most 1.3x the host
-// window's content box, per axis. A guest laid out larger than that renders and
-// reports its full size -- `window.innerWidth` inside the page and
-// `Page.getLayoutMetrics` both agree with what was asked for -- while captures
-// come back cropped to the cap, so nothing downstream can tell a cropped frame
-// from a whole one. Measured at exactly 1.3 on macOS, Linux and Windows and
-// never below it, so flooring the product is the only margin needed. See
-// docs/findings/browser-guest-raster-cap.md.
+// A guest is a remote frame, and Blink rasterizes one only within its
+// compositing rect: this document's viewport, outset by 15% of that viewport on
+// each side to cover scrolling, then clamped to the frame's own size
+// (`RemoteFrameView::ComputeCompositingRect`). So a guest laid out beyond
+// `innerWidth`/`innerHeight` x 1.3 is painted only that far, while it and
+// `Page.getLayoutMetrics` both keep reporting the size it was laid out at --
+// nothing downstream can tell a cropped frame from a whole one. The exact bound
+// is `v + 2 * ceil(0.15 * v)`, never below `1.3v`, so flooring the product stays
+// under it and absorbs device-pixel rounding as well. The viewport it follows is
+// this window's, not the OS window's, which is why `innerWidth` is the input.
+// See docs/findings/browser-guest-raster-cap.md.
 const GUEST_RASTER_BUDGET = 1.3;
 
 /**

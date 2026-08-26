@@ -11,6 +11,7 @@ import {
   DEFAULT_VIEWPORT_WIDTH,
 } from "./device-metrics";
 import { applyDownloadBehavior } from "./downloads";
+import { clearGuestSurface, requestGuestSurface } from "./guest-surface";
 import { log } from "./log";
 import { withMacEditingCommands } from "./mac-editing-commands";
 import { handlePrintToPDF } from "./print-to-pdf";
@@ -141,24 +142,34 @@ export async function sendCommand({
     return applyDownloadBehavior(entry, params);
   }
 
-  // Device emulation (Emulation.setDeviceMetricsOverride) isn't supported for
-  // agent-browser, for the same underlying reason captureBeyondViewport isn't
-  // (above): this guest's compositor can't reliably rasterize a layout much
-  // larger than its actual on-screen size. Two different attempts at making
-  // an override "safe" (scaling it to fit the panel, then routing capture
-  // through real CDP instead of capturePage()) each traded the corruption for
-  // a different one -- capturePage() painted only a corner of the emulated
-  // layout and left the rest transparent; real CDP capture at the full
-  // emulated size hit Chromium's own tiling limitation and returned the
-  // page's content repeated in a grid instead of laid out once. Refuse it
-  // outright rather than keep chasing new failure modes; agents needing a
-  // larger capture should use PDF export instead (see above). The browser
-  // panel's own device-preview menu (device-emulation.ts) is unaffected: it
-  // only offers a few bounded, real device sizes, which don't provoke this.
+  // A viewport request resizes the guest element itself rather than overriding
+  // device metrics. The guest's layout viewport follows its element size
+  // exactly, so there is never a second, larger layout for the compositor to
+  // fall short of -- which is what corrupted both earlier attempts at honoring
+  // this command as a real override (see in-app-browser-device-emulation).
+  // The size applies while the guest is parked; a panel showing the guest sizes
+  // it to the panel, and the request takes over again once it parks. Sizes past
+  // what this window can rasterize are refused rather than clamped, because a
+  // clamped guest still reports the size it was asked for.
   if (method === "Emulation.setDeviceMetricsOverride") {
-    throw new Error(
-      "Device/viewport emulation is not supported in this browser. The guest always renders at its on-screen panel size; to capture more than what's visible, export to PDF instead: `agent-browser pdf <path>`.",
-    );
+    const p = (params ??
+      {}) as Protocol.Emulation.SetDeviceMetricsOverrideRequest;
+    const requested = requestGuestSurface({
+      size: { height: p.height, width: p.width },
+      targetId,
+    });
+    if (!requested.ok) {
+      throw new Error(requested.error);
+    }
+    return {};
+  }
+
+  // Not forwarded to the debugger: the guest was resized rather than emulated,
+  // so there is no override to clear, and the panel clears its own preview when
+  // it parks.
+  if (method === "Emulation.clearDeviceMetricsOverride") {
+    clearGuestSurface(targetId);
+    return {};
   }
 
   if (

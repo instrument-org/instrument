@@ -1,6 +1,6 @@
 # In-app browser: device/viewport emulation isn't safe for agent-browser
 
-**Status:** closed — rejected outright (same treatment as full-page screenshots). Last updated 2026-07-08.
+**Status:** superseded — the request is honored again, by a different mechanism. Last updated 2026-08-26.
 
 ## Symptom
 
@@ -23,12 +23,20 @@ Same root cause as the sibling full-page-screenshot finding: this guest's compos
    - Also found and fixed independently, but doesn't change the verdict: the renderer's own reconciliation deduped against the last value _it_ sent, which could suppress the corrective "clear" RPC even on a legitimate resize/reopen, since it never accounted for an agent's CDP call changing the guest's actual state out-of-band.
 3. **Push an immediate resync to the renderer the moment an agent's CDP call changes emulation**, so the panel could self-heal without a manual resize. Considered, not implemented: `agent-browser` chains `set viewport` and `screenshot` as one shell command with minimal gap between them. An immediate same-process IPC resync could plausibly race into that gap and silently revert the agent's own screenshot to the wrong size before it's even taken — a worse, silent failure mode than the visible one it would fix.
 
-## Current behavior (workaround)
+## How it was resolved
 
-`Emulation.setDeviceMetricsOverride` is rejected outright for agent-browser callers, same treatment as `captureBeyondViewport`, pointing the agent at PDF export. See `apps/studio/src/electron-main/browser-view/dispatch-command.ts`.
+Both rejected attempts argued with Chromium over the *layout* while leaving the compositor surface at the panel's size. The third mechanism moves the surface: an agent's `Emulation.setDeviceMetricsOverride` is read as a size for the guest **element**, applied by the renderer pool, and no override is set at all. A guest's layout viewport follows its element size exactly, so the mismatch the two attempts were trying to survive never arises.
 
-The browser panel's own first-party "View as" menu (Mobile/Tablet/Desktop presets) uses the same underlying CDP mechanism but stays safe, and is kept: it only offers a few bounded, real device sizes, always computes `scale` from the panel's live, freshly-measured bounds at the moment it's applied (never a stale or reported value), and is a pure visual preview with no corresponding capture action — so it never intersects with either failure mode above. See `apps/studio/src/electron-main/browser-view/device-emulation.ts`.
+That works because a parked guest is not bounded by the panel — it is a fixed, near-transparent element that can be any size. It is bounded by something else, measured afterwards: Chromium rasterizes at most 1.3x the window's content box per axis and crops past that while the page keeps reporting the larger size. Requests over that budget are refused with the maximum rather than clamped, since a clamped guest would report a viewport its own screenshots disagree with. See [browser-guest-raster-cap](browser-guest-raster-cap.md).
 
-## What might resolve it later
+What has not changed: an agent still cannot capture more than a viewport, and PDF export is still the answer for a whole page. The sibling [full-page screenshot finding](in-app-browser-full-page-screenshots.md) is unaffected.
 
-Whatever eventually resolves the sibling full-page-screenshot finding (scroll-and-stitch, or an Electron/Chromium capability to rasterize a guest surface larger than its on-screen size) would likely also unlock safe agent-driven device emulation, since it's the same underlying compositor limitation. Short of that, don't retry either of the two approaches above without a materially different mechanism — both were verified live and both reproduce real corruption, not theoretical edge cases.
+## Previous behavior, while the command was refused
+
+`Emulation.setDeviceMetricsOverride` was rejected outright for agent-browser callers, same treatment as `captureBeyondViewport`, pointing the agent at PDF export. See `apps/studio/src/electron-main/browser-view/dispatch-command.ts`.
+
+## What still stands
+
+The two attempts above remain dead ends: both were verified live and both reproduce real corruption, not theoretical edge cases. What unblocked this was not a third attempt at an override but abandoning the override entirely, which is the bar any future change here should clear.
+
+The panel's own "View as" menu is unaffected and still uses a real CDP override with a computed `scale` — it is a bounded visual preview with no capture attached, so it never meets either failure mode. See `apps/studio/src/electron-main/browser-view/device-emulation.ts`.

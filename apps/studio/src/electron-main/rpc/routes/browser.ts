@@ -1,3 +1,7 @@
+import {
+  getDesiredGuestSurfaces,
+  setRasterBudget,
+} from "@/electron-main/browser-view/guest-surface";
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
@@ -26,6 +30,20 @@ const events = {
       signal,
     })) {
       yield null;
+    }
+  }),
+  // Sizes for parked guests. Replays what is already recorded before streaming
+  // changes, so a renderer reload restores every size the model asked for
+  // rather than silently reverting its guests to the panel's last bounds.
+  setGuestSurface: base.handler(async function* ({ signal }) {
+    for (const [targetId, size] of getDesiredGuestSurfaces()) {
+      yield { size, targetId };
+    }
+
+    for await (const event of publisher.subscribe("browser.set-guest-surface", {
+      signal,
+    })) {
+      yield event;
     }
   }),
 };
@@ -60,6 +78,15 @@ const syncHostFocus = base.handler(() => {
   getBrowserViewManager()?.setHostFocus();
 });
 
+// How large a guest this window can rasterize in full, reported by the pool on
+// startup and on every window resize. Main has no way to measure it and needs it
+// to answer an agent asking for a viewport.
+const syncRasterBudget = base
+  .input(z.object({ height: z.number(), width: z.number() }))
+  .handler(({ input }) => {
+    setRasterBudget(input);
+  });
+
 // The browser panel's device-preview menu calls this on every show and on
 // every device change; `device: null` clears emulation (also the no-op-safe
 // default that self-heals a guest left emulated by a stale session).
@@ -86,4 +113,5 @@ export const browser = {
   setEmulatedDevice,
   syncFocus,
   syncHostFocus,
+  syncRasterBudget,
 };

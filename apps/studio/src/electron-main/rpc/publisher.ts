@@ -23,6 +23,13 @@ interface PublisherEvents {
   // Agent-driven browser input can move Chromium keyboard focus into a guest.
   // The renderer owns the exact Studio element that must be restored.
   "browser.restore-host-focus": null;
+  // The size a target's parked guest should lay out at, or null to fall back to
+  // the size the panel last showed it at. Only the renderer can resize a guest:
+  // the `<webview>` element is its DOM.
+  "browser.set-guest-surface": {
+    size: null | { height: number; width: number };
+    targetId: BrowserTargetId;
+  };
   // Fired whenever the set of browser targets (entries) changes, so the
   // renderer pool can reconcile its `<webview>` guests to the desired set.
   "browser.targets-changed": null;

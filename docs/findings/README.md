@@ -38,6 +38,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Snapshot refs die on the idle timeout](agent-browser-ref-map-idle-ttl.md) | open |
 | [App reload destroys every task browser](app-reload-destroys-the-task-browser.md) | contained |
 | [CDP keyboard input follows window focus](cdp-keyboard-input-follows-window-focus.md) | mitigated by a focus gate |
+| [The guest's raster surface is capped at 1.3x the window](browser-guest-raster-cap.md) — larger than the window works, past the cap it crops invisibly | open, measured on three platforms |
 | [Device/viewport emulation is not safe](in-app-browser-device-emulation.md) | closed, rejected |
 | [Full-page screenshots are not supported](in-app-browser-full-page-screenshots.md) | open, workaround in place |
 | [HTML artifacts: in-iframe navigation](html-artifact-iframe-navigation.md) | open, minimal reset shipped |

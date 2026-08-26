@@ -12,6 +12,16 @@ import { sleep } from "radashi";
 // transport failure doesn't spin.
 const RECONNECT_DELAY_MS = 500;
 
+// Chromium rasterizes a guest's compositor surface to at most 1.3x the host
+// window's content box, per axis. A guest laid out larger than that renders and
+// reports its full size -- `window.innerWidth` inside the page and
+// `Page.getLayoutMetrics` both agree with what was asked for -- while captures
+// come back cropped to the cap, so nothing downstream can tell a cropped frame
+// from a whole one. Measured at exactly 1.3 on macOS, Linux and Windows and
+// never below it, so flooring the product is the only margin needed. See
+// docs/findings/browser-guest-raster-cap.md.
+const GUEST_RASTER_BUDGET = 1.3;
+
 /**
  * Renderer-owned pool of browser `<webview>` guests. The main process owns
  * which targets should exist and streams that desired set over
@@ -173,6 +183,7 @@ export function initBrowserPool(): () => void {
   const controller = new AbortController();
   const { signal } = controller;
   document.addEventListener("focusin", recordHostFocus);
+  window.addEventListener("resize", reclampParkedGuests);
 
   async function run() {
     while (true) {
@@ -253,6 +264,7 @@ export function initBrowserPool(): () => void {
   return () => {
     controller.abort();
     document.removeEventListener("focusin", recordHostFocus);
+    window.removeEventListener("resize", reclampParkedGuests);
   };
 }
 
@@ -357,11 +369,15 @@ export function subscribeAttachedTargets(listener: () => void): () => void {
 
 // On-screen-sized but visually hidden. NOT display:none / far-offscreen, which
 // would drop the compositor surface and break CDP capture/input. Held at the
-// last visible size (or a default before first shown) so re-showing doesn't jump.
+// last visible size (or a default before first shown) so re-showing doesn't jump,
+// and clamped to what this window can actually rasterize: a guest shown in a
+// panel is bounded by the window anyway, but the default is not, so in a window
+// narrower than 985px or shorter than 616px it would otherwise park over the cap.
 function applyPaintHost(pooled: PooledWebview) {
   const { container, lastVisibleBounds, webview } = pooled;
-  const width = lastVisibleBounds?.width ?? VIEW_W;
-  const height = lastVisibleBounds?.height ?? VIEW_H;
+  const budget = maxRasterSize();
+  const width = Math.min(lastVisibleBounds?.width ?? VIEW_W, budget.width);
+  const height = Math.min(lastVisibleBounds?.height ?? VIEW_H, budget.height);
 
   Object.assign(container.style, {
     borderRadius: "",
@@ -400,6 +416,26 @@ function disposeWebview(targetId: BrowserTargetId) {
   pooled.container.remove();
   pool.delete(targetId);
   paintOwners.delete(targetId);
+}
+
+/** The largest guest, in CSS px, this window can rasterize in full. */
+function maxRasterSize() {
+  return {
+    height: Math.floor(window.innerHeight * GUEST_RASTER_BUDGET),
+    width: Math.floor(window.innerWidth * GUEST_RASTER_BUDGET),
+  };
+}
+
+// The budget follows the window, so a guest parked at a size the window could
+// afford stops being affordable when the window shrinks under it. Only parked
+// guests need this: a guest a slot is showing is re-measured against the slot,
+// which the window bounds anyway.
+function reclampParkedGuests() {
+  for (const [targetId, pooled] of pool) {
+    if (!paintOwners.has(targetId)) {
+      applyPaintHost(pooled);
+    }
+  }
 }
 
 // Guest creation happens only here, driven by `reconcile` off the main

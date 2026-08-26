@@ -38,11 +38,20 @@ function WindowBorderOutline() {
   // An edge against the screen has nothing to separate the window from, and a
   // line there reads as an artifact. Chromium drops its own frame border in
   // these states for the same reason.
-  if (data?.fullScreen || data?.maximized) {
+  if (!data || data.fullScreen || data.maximized) {
     return null;
   }
 
+  // Sized from the window rather than stretched to the viewport with `inset-0`.
+  // Under a fractional display scale the viewport rounds up past the surface the
+  // compositor paints -- at 1.25x a 1406px-wide window reports a viewport 1.5
+  // device pixels wider -- so a hairline on its right or bottom edge lands
+  // outside the window and never reaches the screen, leaving only the top and
+  // left visible.
   return (
-    <div className="pointer-events-none fixed inset-0 z-100 border border-window-border" />
+    <div
+      className="pointer-events-none fixed top-0 left-0 z-100 border border-window-border"
+      style={{ height: data.contentHeight, width: data.contentWidth }}
+    />
   );
 }

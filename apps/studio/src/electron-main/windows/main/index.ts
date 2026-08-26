@@ -264,6 +264,13 @@ function setupWindowEventListeners({
   mainWindow: BrowserWindow;
   onResize: () => void;
 }) {
+  // The Linux window border sizes itself to the content area, so it has to be
+  // told when that changes. Debounced because this fires continuously through a
+  // drag, and the border only has to be right once the drag settles.
+  const publishResizedState = debounce({ delay: 100 }, () => {
+    publisher.publish("window.state-changed", null);
+  });
+
   // Required on macOS and Linux
   // On macOS, unfocused resizes (e.g. Amethyst) won't be tracked
   // On Linux, maximize / unmaximize may not fire reliably
@@ -272,6 +279,7 @@ function setupWindowEventListeners({
   });
   mainWindow.on("resize", () => {
     onResize();
+    publishResizedState();
   });
   mainWindow.on("move", () => {
     onResize();

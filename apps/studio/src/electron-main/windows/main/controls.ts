@@ -25,6 +25,18 @@ export function focusMainContents() {
   getMainWindow()?.webContents.focus();
 }
 
+/**
+ * The content area as the window itself measures it. Under a fractional display
+ * scale the renderer's own viewport is not a safe substitute: it rounds up past
+ * the surface the compositor actually paints, by more than a hairline's width,
+ * so anything drawn against its right or bottom edge falls outside the window
+ * and is clipped away (see WindowBorder).
+ */
+export function getMainWindowContentSize() {
+  const bounds = getMainWindow()?.getContentBounds();
+  return { height: bounds?.height ?? 0, width: bounds?.width ?? 0 };
+}
+
 export function goBack() {
   // A focused agent-browser guest navigates its own history; otherwise route the
   // active tab's own history in the renderer.

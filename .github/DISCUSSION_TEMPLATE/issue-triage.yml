@@ -1,9 +1,12 @@
 body:
   - attributes:
       value: |
-        Thanks for taking the time to report this. Please search [existing issues](https://github.com/instrument-org/instrument/issues?q=is%3Aissue) first so we keep one thread per problem.
+        > [!IMPORTANT]
+        > This category is for bugs only. If you want a feature, use [Feature Requests, Ideas](https://github.com/instrument-org/instrument/discussions/new?category=feature-requests-ideas). If you have a question, use [Q&A](https://github.com/instrument-org/instrument/discussions/new?category=q-a).
+        >
+        > Those categories do not ask for the details below, so a bug filed there means we have to come back and ask for all of it by hand.
 
-        Have a question rather than a bug? [Ask in Q&A](https://github.com/instrument-org/instrument/discussions/new?category=q-a) instead.
+        Please search [existing discussions](https://github.com/instrument-org/instrument/discussions) and [issues](https://github.com/instrument-org/instrument/issues) first. If you find a match, add a reaction rather than a comment, so everyone subscribed is not emailed.
     type: markdown
   - attributes:
       description: What went wrong, and what did you expect instead? Screenshots and screen recordings help a lot.
@@ -13,6 +16,7 @@ body:
     validations:
       required: true
   - attributes:
+      description: The smallest sequence that reproduces it. If you cannot reproduce it on demand, say so and describe what you were doing when it happened.
       label: Steps to reproduce
       placeholder: |
         1. Open a new task.
@@ -41,7 +45,7 @@ body:
     validations:
       required: true
   - attributes:
-      description: On Linux, include the distribution and desktop environment.
+      description: On Linux, include the distribution and the desktop environment. Both matter more often than you would expect.
       label: Operating system version
       placeholder: Ubuntu 24.04, GNOME 46
     id: os-version
@@ -49,7 +53,7 @@ body:
     validations:
       required: true
   - attributes:
-      description: Open the model picker next to the send button to check.
+      description: Open the model picker next to the send button to check. Auto often selects a different provider than people assume, and that is frequently the whole explanation.
       label: Which model were you using?
       options:
         - Instrument Auto
@@ -67,11 +71,9 @@ body:
     id: model
     type: input
   - attributes:
-      description: Paste the full text rather than a screenshot of it, so it is searchable. Remove any API keys first.
+      description: Paste the full text rather than a screenshot of it, so it turns up in search later. Remove any API keys first.
       label: Error message or logs
       render: text
     id: logs
     type: textarea
-description: Something in Instrument is not working the way it should.
-labels: ["bug", "needs-triage"]
-name: Bug Report
+labels: ["needs-triage"]

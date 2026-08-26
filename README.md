@@ -21,12 +21,14 @@ Works with Claude, GPT, Gemini, or local models.
 
 ## Support and feedback
 
-- **Something broken?** [Open a bug report](https://github.com/instrument-org/instrument/issues/new?template=bug.yml).
-- **Want a feature?** [Open a feature request](https://github.com/instrument-org/instrument/issues/new?template=feature.yml).
-- **Question, or an idea you are still turning over?** [Start a discussion](https://github.com/instrument-org/instrument/discussions).
+Reports and requests start as discussions, not issues. Please pick the matching category, because only Issue Triage asks for the details a bug needs.
+
+- **Something broken?** [Open an Issue Triage discussion](https://github.com/instrument-org/instrument/discussions/new?category=issue-triage).
+- **Want a feature, or have an idea?** [Open a Feature Requests, Ideas discussion](https://github.com/instrument-org/instrument/discussions/new?category=feature-requests-ideas).
+- **Question, or need help with setup?** [Open a Q&A discussion](https://github.com/instrument-org/instrument/discussions/new?category=q-a).
 - **Security vulnerability?** Email `security@tryinstrument.com` rather than filing publicly. See [SECURITY.md](.github/SECURITY.md).
 
-[CONTRIBUTING.md](CONTRIBUTING.md) has the full routing and what makes a report actionable.
+The [issue tracker](https://github.com/instrument-org/instrument/issues) holds work we have accepted; discussions get promoted to issues once they reach an actionable conclusion. [CONTRIBUTING.md](CONTRIBUTING.md) has the full routing and what makes a report actionable.
 
 ---
 

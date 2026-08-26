@@ -10,7 +10,7 @@ Newest first. A struck-through entry has been superseded.
 
 | Date | Decision |
 | --- | --- |
-| 2026-08-26 | [GitHub Issues are the front door for bugs](2026-08-26-github-issues-as-the-front-door.md) |
+| 2026-08-26 | [Discussions are the front door, issues are the accepted backlog](2026-08-26-discussions-are-the-front-door.md) |
 | 2026-08-15 | [Plugins over connectors](2026-08-15-plugins-over-connectors.md) |
 | 2026-08-15 | [anti-slop is not part of the lint pipeline](2026-08-15-anti-slop-is-not-in-the-lint-pipeline.md) |
 | 2026-08-12 | [Try again runs the turn again rather than speaking for the user](2026-08-12-try-again-runs-the-turn-rather-than-speaking-for-the-user.md) |

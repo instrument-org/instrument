@@ -1,5 +1,5 @@
 {
-  "$schema": "https://unpkg.com/agent-reference@1/schema/agent-reference.schema.json",
+  "$schema": "https://agent-reference.dev/schema/agent-reference.schema.json",
   "references": {
     "electron": {
       "source": "npm:electron@42.3.3",

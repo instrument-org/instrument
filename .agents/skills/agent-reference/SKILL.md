@@ -1,6 +1,6 @@
 ---
 name: agent-reference
-description: Get readable upstream source on demand - any dependency at its exact installed version, any git repository, any declared local folder - by name, via the agent-reference CLI. Use whenever a task needs to look inside a library rather than just call it ("how does X actually implement this", "how do the maintainers test X", "why does X behave this way", "look at this library I might adopt"), whenever the user asks to add something as a reference, whenever the user asks to set up or initialize agent-reference in a project, whenever the user names a repository, app, or folder that is not in this repo and gives no path for it, and whenever a repo contains agent-reference.json or agent-reference.local.json.
+description: Get readable upstream source on demand - any dependency at its exact installed version, any git repository, any declared local file or folder - by name, via the agent-reference CLI. Use whenever a task needs a library's real source rather than a memory of it. That covers writing code against an API you cannot recall exactly ("use the combobox from this component library", "wire this up with X"), because the checkout carries that version's own README, docs, examples, and changelog while a docs site carries whatever shipped last, and it covers asking how X implements something, how its maintainers test it, why it behaves this way, or whether it is worth adopting. Also whenever the user asks to add something as a reference, whenever the user asks to set up or initialize agent-reference in a project, whenever the user names a repository, app, folder, or file that is not in this repo and gives no path for it, and whenever a repo contains agent-reference.json or agent-reference.local.json.
 ---
 
 # agent-reference
@@ -10,9 +10,15 @@ One verb does the work: `agent-reference get <spec>` materializes a reference an
 ```sh
 agent-reference get zod                     # the version in this project's lockfile
 agent-reference get zod@3.22.0              # any other version, coexisting with the first
-agent-reference get vercel-labs/just-bash   # any GitHub repo; git URLs and file:../repo too
-agent-reference get design-notes            # a configured reference, by name
+agent-reference get vercel-labs/just-bash   # any GitHub repo; git URLs too
+agent-reference get design-notes            # a configured reference or set, by name
 ```
+
+## Writing code against a library
+
+Before writing against an API you cannot recall exactly, `get` the library and read that version's own `README`, `docs/`, `examples/`, and changelog. Your memory holds whatever was current at training and a docs site holds whatever shipped last; the checkout holds what this project installs. `node_modules` is not the same answer: it carries the published build and almost none of the prose, so which of two exported names is the current one, and what a required option is for, is usually only in the repository.
+
+Reach for it when the library is unfamiliar, when its API has moved recently, or when a first attempt did not work. Not for a library you know cold.
 
 ## Run `agent-reference guide` before writing anything
 
@@ -22,7 +28,7 @@ Run it before adding a reference, before editing `agent-reference.json` or `agen
 
 ## Finding where something is
 
-When the user names a repository, app, or folder and you have no path for it, read `agent-reference.json` and `agent-reference.local.json` directly. They are the index: names, paths, and descriptions, resolved without fetching anything or running a command. A name that is not there is not declared, so say so and ask for the path rather than searching the filesystem for it. `get` is for when you need the source itself.
+When the user names a repository, app, folder, or file and you have no path for it, read `agent-reference.json` and `agent-reference.local.json` directly. They are the index: names, paths, and descriptions, resolved without fetching anything or running a command. A name that is not there is not declared, so say so and ask for the path rather than searching the filesystem for it. `get` is for when you need the source itself.
 
 ## Safety rules
 

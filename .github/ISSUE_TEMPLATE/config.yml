@@ -1,5 +1,11 @@
 blank_issues_enabled: false
 contact_links:
-  - about: Our preferred starting point if you have any questions, feature requests, or bug reports.
-    name: Bug Reports, Feature Requests & Questions
-    url: https://github.com/instrument-org/instrument/discussions/new/choose
+  - about: Ask how to do something, or get help with setup, providers, and API keys.
+    name: Questions and Help
+    url: https://github.com/instrument-org/instrument/discussions/new?category=q-a
+  - about: Float a direction you would like Instrument to take, when it is not a specific request yet.
+    name: Open-Ended Ideas
+    url: https://github.com/instrument-org/instrument/discussions/new?category=feature-requests-ideas
+  - about: Please disclose privately by email rather than opening a public issue.
+    name: Report a Security Vulnerability
+    url: https://github.com/instrument-org/instrument/security/policy

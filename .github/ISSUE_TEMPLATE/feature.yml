@@ -1,0 +1,26 @@
+body:
+  - attributes:
+      value: |
+        This form is for a specific, scoped request. If you are still thinking out loud about a direction, [start a discussion under Feature Requests, Ideas](https://github.com/instrument-org/instrument/discussions/new?category=feature-requests-ideas) instead, where it can gather votes and replies.
+    type: markdown
+  - attributes:
+      description: Describe the situation you are in when you hit this, rather than the solution. Knowing the goal often changes what we build.
+      label: What are you trying to do?
+    id: problem
+    type: textarea
+    validations:
+      required: true
+  - attributes:
+      label: What would you like Instrument to do?
+    id: proposal
+    type: textarea
+    validations:
+      required: true
+  - attributes:
+      description: Workarounds you use now, inside Instrument or in another tool.
+      label: How do you handle it today?
+    id: alternatives
+    type: textarea
+description: Ask for something specific that Instrument does not do yet.
+labels: ["enhancement", "needs-triage"]
+name: Feature Request

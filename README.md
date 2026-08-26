@@ -19,6 +19,17 @@ Works with Claude, GPT, Gemini, or local models.
 
 ---
 
+## Support and feedback
+
+- **Something broken?** [Open a bug report](https://github.com/instrument-org/instrument/issues/new?template=bug.yml).
+- **Want a feature?** [Open a feature request](https://github.com/instrument-org/instrument/issues/new?template=feature.yml).
+- **Question, or an idea you are still turning over?** [Start a discussion](https://github.com/instrument-org/instrument/discussions).
+- **Security vulnerability?** Email `security@tryinstrument.com` rather than filing publicly. See [SECURITY.md](.github/SECURITY.md).
+
+[CONTRIBUTING.md](CONTRIBUTING.md) has the full routing and what makes a report actionable.
+
+---
+
 ## Setup for development
 
 Prerequisites: [.agents/setup.md](.agents/setup.md). Environment variables: [.agents/env.md](.agents/env.md).

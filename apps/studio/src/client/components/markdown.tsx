@@ -24,6 +24,8 @@ import ReactMarkdown, {
   type ExtraProps,
   type Options,
 } from "react-markdown";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import rehypeSlug from "rehype-slug";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remend from "remend";
@@ -53,7 +55,6 @@ import {
 import { contextMenuComponents } from "./ui/menu-components";
 
 interface MarkdownProps {
-  allowRawHtml?: boolean;
   assetBaseUrl?: string;
   // Drops the images the allow-list rejects instead of standing a placeholder
   // in for them. For markdown scraped from a page rather than authored for us:
@@ -74,7 +75,6 @@ interface MarkdownProps {
 type PluginList = NonNullable<Options["rehypePlugins"]>;
 type RemarkPluginList = NonNullable<Options["remarkPlugins"]>;
 
-const emptyPluginList: PluginList = [];
 const emptyRemarkPluginList: RemarkPluginList = [];
 
 type FenceNode = NonNullable<ExtraProps["node"]>;
@@ -84,6 +84,41 @@ function containsMathSyntax(markdown: string) {
     markdown,
   );
 }
+
+/**
+ * What raw HTML is held to once `rehype-raw` has re-parsed it: an author's
+ * `<details>` and a README's `<img width>` are drawn, while an `onerror`, a
+ * `<script>`, or a `style` never reaches the renderer process. The markdown
+ * here is not ours -- a model wrote it, or it is a `.md` file that arrived in a
+ * download or a folder the user shared -- so the allow-list is what makes
+ * parsing it at all safe.
+ *
+ * One departure from the default: `file:` is how a model spells a link to a
+ * file it just wrote, which `markdownUrlTransform` reduces to a path and
+ * `TaskFileLink` then judges against the task and its mounts.
+ */
+const sanitizeSchema = {
+  ...defaultSchema,
+  protocols: {
+    ...defaultSchema.protocols,
+    href: [...(defaultSchema.protocols?.href ?? []), "file"],
+  },
+};
+
+// Only a document carrying HTML this renderer would actually draw is worth
+// re-parsing, which is why this reads the allow-list rather than looking for
+// anything angle-bracketed. Prose holding `Array<string>` keeps rendering as
+// itself: turning the parser on for it would cost the word, since an unknown
+// tag is unwrapped rather than shown.
+const rawHtmlPattern = new RegExp(
+  `<!--|</?(?:${(defaultSchema.tagNames ?? []).join("|")})(?=[\\s/>])`,
+  "i",
+);
+
+// `rehype-slug` is what makes a link to a heading resolve to anything, so it
+// runs for every document rather than waiting on the effect below -- an id that
+// only appears on the second render is one a reader can click through first.
+const baseRehypePlugins: PluginList = [rehypeSlug];
 
 const nodeText = (node: FenceNode["children"][number]): string => {
   if (node.type === "text") {
@@ -302,8 +337,17 @@ const MarkdownLink: Components["a"] = ({
   // Whatever `urlTransform` refused arrives with its href emptied: a `file:` URL
   // that does not parse, a `javascript:` one. There is nothing left to open, and
   // an anchor with an empty href reads as a live link and does nothing.
+  //
+  // An anchor that never had an href is the other thing this shape covers: a
+  // link target rather than a link, which is how a document written for another
+  // renderer names a place in itself. Nothing to open there either, but the name
+  // is the whole point of it, so the id comes along.
   if (!href) {
-    return <span className={className}>{children}</span>;
+    return (
+      <span className={className} id={props.id}>
+        {children}
+      </span>
+    );
   }
 
   if (href.startsWith("#")) {
@@ -439,7 +483,6 @@ const resolveImageSrc = (
 
 export const Markdown = memo(
   ({
-    allowRawHtml,
     assetBaseUrl,
     hideImages,
     isStreaming,
@@ -448,11 +491,15 @@ export const Markdown = memo(
   }: MarkdownProps) => {
     const openFilePreview = useSetAtom(openFilePreviewAtom);
     const [rehypePlugins, setRehypePlugins] =
-      useState<PluginList>(emptyPluginList);
+      useState<PluginList>(baseRehypePlugins);
     const [remarkPlugins, setRemarkPlugins] = useState<RemarkPluginList>(
       emptyRemarkPluginList,
     );
     const needsMath = useMemo(() => containsMathSyntax(markdown), [markdown]);
+    const needsRawHtml = useMemo(
+      () => rawHtmlPattern.test(markdown),
+      [markdown],
+    );
     const needsMermaid = containsMermaidFence(markdown);
 
     const handleImageClick = useCallback(
@@ -473,10 +520,20 @@ export const Markdown = memo(
         const nextRehypePlugins: PluginList = [];
         const nextRemarkPlugins: RemarkPluginList = [];
 
-        if (allowRawHtml) {
+        // The HTML parser behind `rehype-raw` is the largest thing this
+        // component can pull in, so it waits for a document that has HTML in
+        // it. Sanitizing is only meaningful over a tree it has re-parsed, so
+        // the pair goes in together.
+        if (needsRawHtml) {
           const { default: rehypeRaw } = await import("rehype-raw");
-          nextRehypePlugins.push(rehypeRaw);
+
+          nextRehypePlugins.push(rehypeRaw, [rehypeSanitize, sanitizeSchema]);
         }
+
+        // After the sanitize pass, so the ids it generates are the ones a
+        // heading link in the same document was written against rather than
+        // the clobber-prefixed spelling.
+        nextRehypePlugins.push(...baseRehypePlugins);
 
         if (needsMath) {
           const [{ default: rehypeKatex }, { default: remarkMath }] =
@@ -503,7 +560,7 @@ export const Markdown = memo(
       return () => {
         isCancelled = true;
       };
-    }, [allowRawHtml, needsMath]);
+    }, [needsMath, needsRawHtml]);
 
     // Mermaid is not a plugin, so it loads on its own schedule — but on the
     // same terms as the math bundle above: multiple megabytes that only

@@ -1,6 +1,6 @@
 import { renderWithProviders } from "@/tests/render";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Markdown } from "./markdown";
@@ -323,5 +323,114 @@ describe("Markdown streaming words", () => {
     const { container } = renderMarkdown("Reading the config");
 
     expect(container.querySelectorAll("[data-stream-word]")).toHaveLength(0);
+  });
+});
+
+// A long document navigates by linking its own headings, which is the only
+// intra-document navigation Markdown itself can express -- and the reason an
+// author does not have to hand-write anchor targets to get one.
+describe("Markdown heading anchors", () => {
+  // jsdom has no scrolling, so what a click can be asked is which element the
+  // hook resolved the fragment to. Which is the whole question: the lookup is
+  // what a heading named `0700` breaks, an id selector being unable to start
+  // with a digit.
+  const clickThrough = (name: string) => {
+    const scrolled: Element[] = [];
+    Element.prototype.scrollIntoView = function scrollIntoView(this: Element) {
+      scrolled.push(this);
+    };
+    fireEvent.click(screen.getByRole("link", { name }));
+    return scrolled[0];
+  };
+
+  it("names a heading after its own text", () => {
+    const { container } = renderMarkdown("## Slide map\n\nWhat follows.");
+
+    expect(container.querySelector("h2")?.id).toBe("slide-map");
+  });
+
+  it("reaches a heading whose name is all digits", () => {
+    const { container } = renderMarkdown(
+      "[07:00](#0700)\n\n### 07:00\n\nWhat was said.",
+    );
+
+    expect(clickThrough("07:00")).toBe(container.querySelector("h3"));
+  });
+
+  it("reaches a target written as raw HTML under the name its author wrote", async () => {
+    const { container } = renderMarkdown(
+      '[jump](#t-420)\n\n<a id="t-420"></a>\n\n### 07:00',
+    );
+
+    // The sanitize pass rewrites the id, so the link and its target only meet
+    // once that has happened.
+    await waitFor(() => {
+      expect(container.querySelector("#user-content-t-420")).not.toBeNull();
+    });
+
+    expect(clickThrough("jump")).toBe(
+      container.querySelector("#user-content-t-420"),
+    );
+  });
+});
+
+// HTML inside a Markdown document is drawn rather than printed, which is what a
+// collapsible section, a README's sized screenshot, and GitHub's image
+// attachments all depend on. None of that markup is ours -- a model wrote it,
+// or it arrived in a download or a shared folder -- so what renders is an
+// allow-list and everything outside it is dropped.
+describe("Markdown raw HTML", () => {
+  // The parser that draws it is fetched on demand, and until it lands the
+  // document renders with its markup printed as text. Every case here is about
+  // what the second render says, so each one waits for the source to stop
+  // showing rather than asserting over whichever render it caught.
+  const renderDrawn = async (markdown: string) => {
+    const { container } = renderMarkdown(markdown);
+    await waitFor(() => {
+      expect(container.textContent).not.toContain("<");
+    });
+    return container;
+  };
+
+  it("draws a construct Markdown has no syntax for", async () => {
+    const container = await renderDrawn(
+      "<details><summary>More</summary>\n\nHidden.\n\n</details>",
+    );
+
+    expect(container.querySelector("details > summary")?.textContent).toBe(
+      "More",
+    );
+  });
+
+  it.each([
+    ["a script", "<div><script>globalThis.owned = true</script></div>"],
+    ["a frame", '<div><iframe src="https://example.com"></iframe></div>'],
+    ["an inline style", '<p style="position:fixed;inset:0">text</p>'],
+  ])("drops %s", async (_case, html) => {
+    const container = await renderDrawn(html);
+
+    expect(container.querySelector("script")).toBeNull();
+    expect(container.querySelector("iframe")).toBeNull();
+    expect(container.querySelector("[style]")).toBeNull();
+  });
+
+  // A model spells a link to a file it just wrote as a `file:` URL, which the
+  // allow-list a browser would apply does not know as a scheme.
+  it("still opens a file: link in a document that holds HTML", async () => {
+    await renderDrawn(
+      "<p>Note.</p>\n\nWrote [`notes.md`](file:///mnt/Shared/notes.md).",
+    );
+
+    expect(screen.getByRole("button", { name: "notes.md" }).title).toBe(
+      "/mnt/Shared/notes.md",
+    );
+  });
+
+  // Turning the parser on for prose that merely holds angle brackets would cost
+  // the word between them, an unknown tag being unwrapped rather than shown.
+  it("leaves a type parameter in prose as the text it is", () => {
+    const { container } = renderMarkdown("It returns Array<string> here.");
+
+    expect(container.textContent).toContain("Array<string>");
   });
 });

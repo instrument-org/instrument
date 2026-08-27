@@ -91,6 +91,7 @@ export function SourceImagesChip({
         const src = getAssetUrl({
           assetBase: assetBaseUrl,
           filePath: file.filePath,
+          version: file.modifiedAt,
         });
         return (
           <ImageWithFallback
@@ -332,7 +333,11 @@ function GeneratedImage({
   onOpen: (file: { filePath: string; modifiedAt: number }) => void;
 }) {
   const filename = filenameFromFilePath(filePath);
-  const src = getAssetUrl({ assetBase: assetBaseUrl, filePath });
+  const src = getAssetUrl({
+    assetBase: assetBaseUrl,
+    filePath,
+    version: modifiedAt,
+  });
   const [undrawableSrc, setUndrawableSrc] = useState<null | string>(null);
 
   const image = (
@@ -493,7 +498,11 @@ function SourceThumbnail({
   onOpen: (file: { filePath: string; modifiedAt: number }) => void;
 }) {
   const filename = filenameFromFilePath(filePath);
-  const src = getAssetUrl({ assetBase: assetBaseUrl, filePath });
+  const src = getAssetUrl({
+    assetBase: assetBaseUrl,
+    filePath,
+    version: modifiedAt,
+  });
   const [undrawableSrc, setUndrawableSrc] = useState<null | string>(null);
 
   const image = (
@@ -550,6 +559,7 @@ function StreamingImagePreview({
           src={getAssetUrl({
             assetBase: assetBaseUrl,
             filePath: image.filePath,
+            version: image.modifiedAt,
           })}
         />
       ) : (

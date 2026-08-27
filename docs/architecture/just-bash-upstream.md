@@ -42,16 +42,20 @@ Ours, all against `vercel-labs/just-bash`. Volatile by nature; the point of list
 
 | PR | what | affects us |
 | --- | --- | --- |
-| #363 | `ls`: operands resolved literally rather than re-globbed, GNU operand grouping, `-t` implemented, type indicators only with `-F`, `-R` sections ordered by the sort key | Yes. A bracketed filename is reported as missing, `find -exec ls -l {} +` pipelines return blank lines, `ls -t` returns name order. |
-| #364 | `touch`: `-t` and `-r` honored instead of discarded, `-t` and `-d` read in `$TZ` rather than the host zone | Yes, wherever a timestamp is written and then compared. |
-| #318 | `interpreter`: interleave duplicated streams in write order | Yes, for output ordering under redirection. |
+| #365 | `file`: read gzip from the header instead of inflating it | Yes, and it is the only one that reaches the host. `file` on a gzip leaks an `AbortError` unhandled rejection into the embedding process after `exec()` has already resolved, so it lands in Electron's main process attributed to nothing and no `try`/`catch` around the call can see it. Reproduced on 3.4.1. |
+| #363 | `ls`: operands resolved literally rather than re-globbed, GNU operand grouping, `-t` implemented, type indicators only with `-F`, `-R` sections ordered by the sort key | Yes. `ls 'd/[bracket].txt'` exits 0 having listed `d/a.txt` and `d/b.txt` instead, and `ls -t` returns byte-identical output to plain `ls`. Both silent. |
+| #364 | `touch`: `-t` and `-r` honored instead of discarded, `-t` and `-d` read in `$TZ` rather than the host zone | Yes, wherever a timestamp is written and then compared. Both flags are accepted and discarded, so every file lands at the current time and the command exits 0. |
+| #391 | `ln`: report a refused symlink as a symlink failure rather than as a hard link on a directory | Message only. See the first bullet below. |
+| #318 | `interpreter`: interleave duplicated streams in write order | Yes, for output ordering under redirection. `{ echo one; echo two >&2; echo three; } 2>&1` prints `one three two`. |
 | #313 | `fs`: `allowNestedMounts` on `MountableFs` | Only if we adopt nested mounts. |
+
+None of these are patched locally. See [decisions/2026-08-27-no-local-just-bash-patches.md](../decisions/2026-08-27-no-local-just-bash-patches.md) for why, and for the trigger that would change it.
 
 ## Known gaps with no fix in flight
 
 Not workarounds, so they carry no removal trigger. They are here because each one is a way the sandbox can hand the agent a confident wrong answer, and knowing about them is cheaper than rediscovering them. Each was checked against 3.4.1 and against upstream `main`.
 
-- **`ln -s` does not work, and says the wrong thing about why.** `ln -s a.txt b.link` on an ordinary file exits 1 with `ln: 'a.txt': hard link not allowed for directory`. It is neither a hard link nor a directory, so an agent reading it reasonably concludes the target is at fault and tries something else. Symlink creation is off for the virtual filesystem (`allowSymlinks`), which is the real answer.
+- **`ln -s` does not work, and says the wrong thing about why.** `ln -s a.txt b.link` on an ordinary file exits 1 with `ln: 'a.txt': hard link not allowed for directory`. It is neither a hard link nor a directory, so an agent reading it reasonably concludes the target is at fault and tries something else. Symlink creation is off for the virtual filesystem (`allowSymlinks`), which is the real answer. The message half is #391 above; the refusal itself is deliberate and stays.
 - **Symlink support depends on who is asking.** The virtual filesystem refuses to create one, so `cp -R` of a `node_modules` tree fails with `EPERM: operation not permitted, symlink ...`. A real subprocess writes to the host directory directly and is not subject to that, so a Python script can create thousands of symlinks in the same folder where `cp -R` just failed. Nothing in the sandbox surfaces the difference.
 - **`find -type l` and `cp -L` do not exist.** `find`'s type is `"f" | "d"` upstream, and `cp` has no dereference flag. Together they make a symlinked tree awkward to inspect or flatten, which is how the `cp -R` failure above usually gets discovered.
 - **Pipelines are not streaming.** Each stage runs to completion and its whole stdout is buffered as a string, so `tar -cf - big | tar -xf -` trips `total output size exceeded` against `maxOutputSize` even though nothing was headed for the agent. The message names `executionLimits.maxOutputSize`, which reads as "your output is too large" rather than "an intermediate did not fit".

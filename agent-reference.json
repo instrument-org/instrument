@@ -11,6 +11,18 @@
       "ref": "v12.6.0",
       "description": "Lodash-style helpers this repo standardizes on; read src/ and its co-located tests, which the published dist/ omits. ref is pinned because radashi keeps package.json at 12.2.0 on every branch and tag and publishes from CI, so version matching always falls back to the default branch. Move version and ref together."
     },
+    "pnpm": {
+      "source": "npm:pnpm@11.10.0",
+      "ref": "v11.10.0",
+      "directory": "pnpm11/pnpm",
+      "description": "The package manager this repo runs on: workspaces, catalogs, patches. Monorepo, so directory points at the published CLI; ref is pinned because the root package.json lags the release tag."
+    },
+    "electron-builder": {
+      "source": "npm:electron-builder@26.15.7",
+      "ref": "electron-builder@26.15.7",
+      "directory": "packages/electron-builder",
+      "description": "How Studio is packaged and its updates published. Monorepo, so directory points at the package; the root manifest is private and carries no version."
+    },
     "just-bash": {
       "source": "github:vercel-labs/just-bash",
       "description": "Upstream of the workspace sandbox; read before steering the agent around sandbox behavior"

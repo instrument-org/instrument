@@ -1,6 +1,7 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useTaskPaneActions } from "@/client/hooks/use-task-pane";
 import {
   AGENT_FILES_LANGUAGE,
@@ -269,6 +270,13 @@ const TaskFileLink = ({
   const filename = filePath.split("/").at(-1) ?? filePath;
   const { openFiles } = useTaskPaneActions(taskId);
   const appendToPrompt = useSetAtom(appendToPromptAtom);
+  // Before the guard below, so the chip that turns out not to name a task file
+  // still asks in the same order every render.
+  const dragProps = useFileDrag(
+    taskId && isAddressableTaskFilePath(filePath)
+      ? { filePath, taskId }
+      : undefined,
+  );
 
   if (!isAddressableTaskFilePath(filePath)) {
     return <span className={className}>{children}</span>;
@@ -287,6 +295,7 @@ const TaskFileLink = ({
       onClick={openInPanel}
       title={filePath}
       type="button"
+      {...dragProps}
     >
       <FileIcon
         className="size-3.5 shrink-0 text-muted-foreground"
@@ -441,11 +450,19 @@ const ImagePlaceholder = ({ alt, src }: { alt?: string; src?: string }) => (
 const MarkdownImage = ({
   alt,
   className,
+  filePath,
   src,
   ...props
-}: React.ImgHTMLAttributes<HTMLImageElement>) => {
-  const { isStreaming } = useContext(MarkdownTaskContext);
+}: React.ImgHTMLAttributes<HTMLImageElement> & {
+  // The task-relative path behind `src`, when there is one. An embed can just
+  // as well point at a real URL, which names no file to hand anyone.
+  filePath?: string;
+}) => {
+  const { isStreaming, taskId } = useContext(MarkdownTaskContext);
   const [failedSrc, setFailedSrc] = useState<null | string>(null);
+  const dragProps = useFileDrag(
+    filePath && taskId ? { filePath, taskId } : undefined,
+  );
 
   if (src !== undefined && src === failedSrc) {
     // Half a URL fails the same way a missing file does, and until the text
@@ -462,9 +479,13 @@ const MarkdownImage = ({
         setFailedSrc(src ?? null);
       }}
       src={src}
+      {...dragProps}
     />
   );
 };
+
+const isAbsoluteImageSrc = (src: string) =>
+  /^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//");
 
 const resolveImageSrc = (
   src: string | undefined,
@@ -477,7 +498,7 @@ const resolveImageSrc = (
   // Leave real URLs (http/https/data/blob) and protocol-relative srcs for the
   // allow-list to judge; only resolve task-relative paths against the asset
   // origin. This covers bare `output/x.png` in addition to `./`/`../`.
-  if (/^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//")) {
+  if (isAbsoluteImageSrc(src)) {
     return src;
   }
   if (!assetBaseUrl) {
@@ -489,6 +510,19 @@ const resolveImageSrc = (
     version: assetVersion,
   });
 };
+
+/**
+ * The task file an `![](...)` embed points at, for the surfaces that act on the
+ * file rather than on the picture.
+ *
+ * Written against the source as authored rather than the resolved asset URL:
+ * the path is what the rest of the app names a file by, and reading it back out
+ * of a URL means re-deriving something we were handed.
+ */
+const taskFilePathFromImageSrc = (src: string | undefined) =>
+  src && !isAbsoluteImageSrc(src) && isAddressableTaskFilePath(src)
+    ? src
+    : undefined;
 
 export const Markdown = memo(
   ({
@@ -513,14 +547,17 @@ export const Markdown = memo(
     const needsMermaid = containsMermaidFence(markdown);
 
     const handleImageClick = useCallback(
-      (event: React.MouseEvent<HTMLImageElement>) => {
+      (event: React.MouseEvent<HTMLImageElement>, filePath?: string) => {
         const src = event.currentTarget.src;
         const alt = event.currentTarget.alt || "image";
         if (src) {
-          openFilePreview({ filename: alt, url: src });
+          // The path rides along so the expanded view can act on the file and
+          // not just draw it. Absent for an embed pointing at a real URL, where
+          // there is no file to act on.
+          openFilePreview({ filename: alt, filePath, taskId, url: src });
         }
       },
-      [openFilePreview],
+      [openFilePreview, taskId],
     );
 
     useEffect(() => {
@@ -616,12 +653,16 @@ export const Markdown = memo(
                   <ImagePlaceholder alt={alt} src={resolvedSrc} />
                 );
               }
+              const filePath = taskFilePathFromImageSrc(src);
               return (
                 <MarkdownImage
                   {...props}
                   alt={alt}
                   className={className}
-                  onClick={handleImageClick}
+                  filePath={filePath}
+                  onClick={(event) => {
+                    handleImageClick(event, filePath);
+                  }}
                   src={resolvedSrc}
                 />
               );

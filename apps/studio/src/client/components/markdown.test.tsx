@@ -1,7 +1,7 @@
 import { renderWithProviders } from "@/tests/render";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { Markdown } from "./markdown";
 
@@ -71,6 +71,23 @@ function renderMarkdown(markdown: string) {
   );
 }
 
+/**
+ * The preload bridge carrying the drag channel, which the shared stub leaves
+ * off because it is optional and absent outside Electron. Without it the hook
+ * correctly reports a surface as undraggable, which is what the sibling case
+ * below asserts.
+ */
+function withFileDragBridge() {
+  const api = window.api;
+  Object.defineProperty(window, "api", {
+    configurable: true,
+    value: { ...api, startFileDrag: vi.fn() },
+  });
+  onTestFinished(() => {
+    Object.defineProperty(window, "api", { configurable: true, value: api });
+  });
+}
+
 describe("Markdown links", () => {
   it("opens a file: link to a shared folder, which the task file index never holds", () => {
     renderMarkdown(
@@ -88,6 +105,29 @@ describe("Markdown links", () => {
     expect(screen.getByRole("button", { name: "notes.md" }).title).toBe(
       "output/notes.md",
     );
+  });
+
+  // The chip names a file on disk, so it is a handle for dragging that file out
+  // to the desktop, the same as the file grid's cards and the pane's header.
+  it("makes a chip for a task file draggable", () => {
+    withFileDragBridge();
+    renderMarkdown("Wrote [`notes.md`](output/notes.md).");
+
+    expect(
+      screen.getByRole("button", { name: "notes.md" }).getAttribute("draggable"),
+    ).toBe("true");
+  });
+
+  // Reasoning and a previewed markdown file render without the ambient task, so
+  // the same chip names a path belonging to nothing anyone could be handed.
+  it("leaves a chip drawn outside a task undraggable", () => {
+    renderWithProviders(
+      <Markdown markdown="Wrote [`notes.md`](output/notes.md)." />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "notes.md" }).getAttribute("draggable"),
+    ).toBe("false");
   });
 
   // Nothing checks whether the file is there, so this is a chip like any other

@@ -1438,6 +1438,13 @@ describe("llmRequestLogic", () => {
           },
         ]
       `);
+      // Stripped from the snapshot above, and the point of this assertion: a
+      // turn stopped part way through spent the time it spent, and reporting
+      // nothing for it reads as a turn that was instant.
+      const aborted = messages.at(-1);
+      expect(
+        aborted?.role === "assistant" ? aborted.metadata.msToFinish : undefined,
+      ).toMatchInlineSnapshot(`3000`);
     });
 
     it("should handle unknown errors", async () => {

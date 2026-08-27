@@ -31,11 +31,23 @@ Open it when it is written (`open <path>` on macOS). These exist to be looked at
 
 **Draw every frame at the size the thing really is.** A whole Studio window is 1280x800. A settings panel is whatever it actually measures, around 520 wide. Use the ordinary type scale inside it: `text-sm`, `text-xs`, real padding.
 
-The page then measures its own width, works out how many frames fit per row, and scales them with `transform` to match. Clicking one opens it as large as the viewport allows, which is why it also works inside a short Notion embed. Nothing renders above its true size.
+The page then measures its own width, works out how many frames fit per row, and scales them with `transform` to match. Tapping one opens it as large as the space around the caption allows, which is why it also works inside a short Notion embed and on a phone. Nothing renders above its true size in the grid.
 
 So: never shrink a drawing by hand, never set a scale, and never reach for `text-[9px]` to make something fit. A frame drawn small is small twice, once in the grid and again when it is enlarged.
 
 `zoom` looks like a shortcut here and is not: it re-runs layout at the smaller size, so text re-wraps and the miniature stops matching the thing it depicts. `transform` composites a box that was laid out once.
+
+## The enlarged view
+
+Tap or click a frame and it opens over the page. This is machinery, but it decides what a reader on a phone can actually get out of the file, so it is worth knowing what it does.
+
+**The caption is laid out first and the frame is fitted into what is left.** A long caption shrinks the drawing rather than sliding off the bottom of the screen, at any window height, including a landscape phone. Past 30vh the caption scrolls inside itself instead of eating the whole view. Nothing about this is a reason to write a long caption: the drawing pays for every line, and on a phone it pays quickly.
+
+**Everything is reachable by tap, not only by key.** A control row sits along the bottom edge, in thumb reach rather than in a corner: fit/actual size, previous, the frame number, next, close. A horizontal swipe across the frame moves between frames too. The arrow keys and Escape still work, so nothing is lost on a desktop.
+
+**Actual size is the second half of the fit rule.** A 1280px window fitted to a 375px phone is a picture of a layout, not a readable one, so the toggle pins the frame to true size and the view pans, landing in the middle of the drawing. It is the only way a wireframe drawn at true size is any use on a small screen, and it is the reason the true-size rule above does not need an exception for phones.
+
+Below two columns the grid drops to one and the grid/one-per-row toggle hides itself, since at that width the two modes draw the same thing.
 
 ## How it is styled
 

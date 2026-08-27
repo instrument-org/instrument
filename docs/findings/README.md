@@ -61,6 +61,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Quit teardown can livelock](quit-teardown-can-livelock-the-app.md) — and every guard on that path is blind to it | open |
 | [A quit confirmation outlives the window](quit-confirmation-outlives-the-window.md) — Windows/Linux ordering | resolved, guidance |
 | [An update check un-stages the macOS build](update-check-un-stages-the-macos-build.md) | resolved |
+| [A deb update can leave the package unconfigured](deb-update-left-the-package-unconfigured.md) | open, one occurrence |
 | [Main log retention and transport](main-log-retention-and-transport.md) | partly addressed |
 | [Windows long paths in the task directory](windows-long-paths.md) | open |
 | [A watchman probe froze boot on Windows](windows-watchman-probe-freezes-boot.md) | resolved |

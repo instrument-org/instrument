@@ -140,7 +140,7 @@ The cost is that the index holds copies. Rerun the command after changing any ar
 
 Prefer the file over a picture of it. In Notion, upload it with the `create-attachment` tool and place it with `<embed src="file-upload://...">`, which renders it inline in a sandboxed iframe. It stays legible at any zoom and revising it is a re-upload. Scripts run there, so the frames render and the enlarge-on-click works.
 
-Pass the file contents to `create-attachment` as `content`. The upload URL that `create-file-upload` hands back sits behind a bot filter that rejects both `curl` and `node`, so the two-step upload flow does not work from here.
+**Upload through `create-file-upload`, not by passing the file as `content`.** Two reasons, both learned the hard way. A self-contained page carrying `<script>` tags inside a JSON request body trips Cloudflare's rules in front of Notion, and what comes back is an HTML "you have been blocked" interstitial rather than an API error. And `content` makes the model the transport for bytes that must not change, where one dropped character renders a blank embed. So: `create-file-upload` for the URL, `curl -F 'file=@<path>'` to send the bytes straight off disk, then `create-attachment` with `source_file_id`. Nothing retypes the file. Verify with `download-attachment` and `cmp` when the set is large enough that a silent blank would go unnoticed.
 
 When something needs a raster image, screenshot the file with whatever headless browser the machine has. Four things to get right whichever tool that is:
 

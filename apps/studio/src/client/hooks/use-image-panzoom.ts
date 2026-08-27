@@ -52,6 +52,19 @@ export function useImagePanzoom({
     }
 
     const panzoom = Panzoom(content, {
+      // Panzoom cancels the pointerdown by default, which is also what stops
+      // the browser from starting a drag on the image under it. At the fit
+      // scale there is no pan to protect -- panOnlyWhenZoomed has already
+      // turned it off -- so the press is left alone, and the image can be
+      // dragged out to the desktop from exactly the state where dragging it
+      // means nothing else.
+      handleStartEvent: (event) => {
+        if ((panzoomRef.current?.getScale() ?? MIN_SCALE) <= MIN_SCALE) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+      },
       maxScale: INITIAL_MAX_SCALE,
       minScale: MIN_SCALE,
       // Dragging does nothing useful at the fit-to-container scale; only

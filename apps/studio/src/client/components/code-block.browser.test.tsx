@@ -79,11 +79,10 @@ describe("block toolbar", () => {
       const screen = await renderInBrowser(
         <div style={{ height: 300, width: 300 }}>
           <ImageViewer
-            filename="pixel.gif"
+            file={{ filename: "pixel.gif", url: PIXEL }}
             onError={() => {
               throw new Error("the pixel should load");
             }}
-            url={PIXEL}
           />
         </div>,
       );

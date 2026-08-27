@@ -1,4 +1,5 @@
 import { useImageArrival } from "@/client/hooks/use-image-arrival";
+import { getFaviconUrl } from "@/client/lib/favicon-url";
 import { cn } from "@/client/lib/utils";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -31,8 +32,4 @@ export function Favicon({
       <TooltipContent>{hostname}</TooltipContent>
     </Tooltip>
   );
-}
-
-function getFaviconUrl(url: string): string {
-  return `https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(url)}&size=64`;
 }

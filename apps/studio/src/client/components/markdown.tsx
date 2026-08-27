@@ -11,6 +11,7 @@ import {
 import { ImageIcon } from "@phosphor-icons/react/Image";
 import { useSetAtom } from "jotai";
 import {
+  isValidElement,
   memo,
   type ReactNode,
   useCallback,
@@ -44,9 +45,13 @@ import { isTaskFileHref, taskFilePathFromHref } from "../lib/task-file-href";
 import { cn } from "../lib/utils";
 import { AgentFilesBlock } from "./agent-files-block";
 import { MarkdownCodeBlock } from "./code-block";
-import { ExternalLink } from "./external-link";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileIcon } from "./file-icon";
+import {
+  INLINE_CHIP_CLASS_NAME,
+  INLINE_CHIP_ICON_CLASS_NAME,
+  InlineLink,
+} from "./inline-link";
 import { MarkdownTaskContext } from "./markdown-task-context";
 import { MermaidDiagram } from "./mermaid-diagram";
 import {
@@ -288,19 +293,13 @@ const TaskFileLink = ({
 
   const chip = (
     <button
-      className={cn(
-        "inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted/50 px-1.5 py-0.5 align-text-bottom text-sm font-medium text-foreground no-underline hover:bg-muted",
-        className,
-      )}
+      className={cn(INLINE_CHIP_CLASS_NAME, className)}
       onClick={openInPanel}
       title={filePath}
       type="button"
       {...dragProps}
     >
-      <FileIcon
-        className="size-3.5 shrink-0 text-muted-foreground"
-        filename={filename}
-      />
+      <FileIcon className={INLINE_CHIP_ICON_CLASS_NAME} filename={filename} />
       <span className="truncate">{children}</span>
     </button>
   );
@@ -336,6 +335,27 @@ const TaskFileLink = ({
       </ContextMenuContent>
     </ContextMenu>
   );
+};
+
+// The label as text, which is what the destination is compared against.
+//
+// Walked rather than read off the top, because the markup a label carries is
+// not the reader's problem: a model writing a host in backticks or bold has
+// still written the host, and comparing against an element instead would put a
+// redundant origin after every one of them. Anything with no text in it at all
+// comes back empty and is disclosed, which is the same answer a label that says
+// nothing gets.
+const plainText = (children: ReactNode): string => {
+  if (typeof children === "string") {
+    return children;
+  }
+  if (Array.isArray(children)) {
+    return children.map((child: ReactNode) => plainText(child)).join("");
+  }
+  if (isValidElement<{ children?: ReactNode }>(children)) {
+    return plainText(children.props.children);
+  }
+  return "";
 };
 
 const MarkdownLink: Components["a"] = ({
@@ -386,9 +406,14 @@ const MarkdownLink: Components["a"] = ({
   }
 
   return (
-    <ExternalLink {...props} className={className} href={href}>
+    <InlineLink
+      {...props}
+      className={className}
+      href={href}
+      label={plainText(children)}
+    >
       {children}
-    </ExternalLink>
+    </InlineLink>
   );
 };
 

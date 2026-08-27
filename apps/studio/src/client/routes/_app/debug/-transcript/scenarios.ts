@@ -176,6 +176,36 @@ export const summarize = async (source: string, destination: string) => {
 ].join("\n\n");
 
 /**
+ * Every kind of link a reply puts in front of a reader, in the shapes that
+ * decide how each is drawn.
+ *
+ * Three treatments answer for all of them, and the cases are here to check that
+ * each lands on the right links and no others, and that a shape reads the same
+ * whoever wrote it: the two bare URLs here are the pair the sent messages carry,
+ * one naming a site and one naming a page inside it. A page link carries the origin
+ * it leads to unless its own label already names that origin, which is what
+ * keeps the cue on the links that need it and off the ones that do not. An
+ * address and a task file are chips instead, because both already name their
+ * whole destination and what is worth saying about them is what clicking does.
+ *
+ * The line of three chips is the alignment case: a chip is centered on the text
+ * rather than sitting on its baseline, so a run of them has to read along the
+ * same middle as the words between them without making the line taller. The
+ * table row is the tightest line the app has, and a chip has to sit inside one
+ * without growing it.
+ */
+const LINKS = [
+  "## Where the rotation is documented",
+  "Rotation is written up on [the channels doc](https://channels.finalpoint.org), and the runbook it points at is [finalpoint.co/runbooks/rotation](https://finalpoint.co/runbooks/rotation). The status page is https://status.finalpoint.org and the one incident this month is https://status.finalpoint.org/incidents/4, which closed on the Tuesday.",
+  "The one I would not follow is on the vendor page: it offers [github.com](https://keys.finalpoint-cdn.example/gh) for the signing keys, which is not GitHub. The real one is [github.com](https://github.com).",
+  "### What I changed",
+  "Send [release-notes.md](output/release-notes.md) to [neil@finalpoint.co](mailto:neil@finalpoint.co) once [linear.app](https://linear.app) is updated, and copy jeremy@finalpoint.co on it.",
+  "- The changelog entry is in [output/CHANGELOG.md](output/CHANGELOG.md), alongside [the diff I generated](output/rotation.patch).\n- Upstream tracked it as [an issue with a title long enough that the label wraps across two lines before the origin arrives](https://github.com/instrument-org/instrument/issues/1)\n- The staging copy is [channels.finalpoint.org:8443](https://channels.finalpoint.org:8443), and the local one is http://localhost:5173/.",
+  "| Where | Link |\n| --- | --- |\n| Docs | [the channels doc](https://channels.finalpoint.org) |\n| Keys | [github.com](https://github.com) |\n| Owner | [neil@finalpoint.co](mailto:neil@finalpoint.co) |",
+  "Nothing above needs a decision from you today; [reply on the doc](https://channels.finalpoint.org/c/rotation) if the staging host should move first.",
+].join("\n\n");
+
+/**
  * Output whose lines run well past the column, which is the whole of what the
  * wrap toggle answers: wrapped it is a readable paragraph of nonsense, unwrapped
  * it is columns that line up. Neither is right for every log, which is why the
@@ -923,6 +953,21 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
     script: [
       user("Show me what you wrote, and the output it produced."),
       prose(CODE_BLOCKS, 90),
+    ],
+  },
+  {
+    about:
+      "Every kind of link either side of the conversation can carry, on one screen. Every link to a page takes one shape, whatever its label: the site's icon, the label, and the origin it leads to unless the label already says. Only an address and a task file are chips, since neither opens a page. The same reading runs over what the person typed, so a link they pasted reads the way the reply's links do. Replay it to judge which links earned a cue and which were left alone, and to check that no icon is left behind at the end of a line.",
+    id: "links",
+    name: "Links of every kind",
+    script: [
+      user(
+        "Following up on [the channels doc](https://channels.finalpoint.org): rotation is also mentioned at https://status.finalpoint.org/incidents/4, and neil@finalpoint.co owns it. Use /release when you write it up.",
+      ),
+      user(
+        "Oh, and https://linear.app is already updated. The tracking issue is https://github.com/instrument-org/instrument/issues/1.",
+      ),
+      prose(LINKS, 90),
     ],
   },
   {

@@ -165,10 +165,38 @@ describe("Markdown links", () => {
   it("still hands an http link to the browser", () => {
     renderMarkdown("See [the docs](https://example.com/a).");
 
-    expect(screen.getByRole("link", { name: "the docs" })).toHaveProperty(
-      "href",
-      "https://example.com/a",
+    // The origin is inside the anchor rather than beside it, so it is part of
+    // the link's name: a reader who cannot see the label is the one with the
+    // least other way to know where it goes.
+    expect(
+      screen.getByRole("link", { name: /the docs.*example\.com/ }),
+    ).toHaveProperty("href", "https://example.com/a");
+  });
+
+  it("says where a link goes when its label does not", () => {
+    const { container } = renderMarkdown(
+      "See [the docs](https://example.com/a).",
     );
+
+    expect(container.textContent).toBe("See the docs (example.com).");
+  });
+
+  it("leaves a link alone when its label already names the origin", () => {
+    const { container } = renderMarkdown(
+      "See [example.com](https://example.com/a).",
+    );
+
+    expect(container.textContent).toBe("See example.com.");
+  });
+
+  it("draws an address as a chip rather than an origin", () => {
+    renderMarkdown(
+      "Send it to [neil@finalpoint.co](mailto:neil@finalpoint.co).",
+    );
+
+    expect(
+      screen.getByRole("link", { name: "neil@finalpoint.co" }),
+    ).toHaveProperty("href", "mailto:neil@finalpoint.co");
   });
 });
 

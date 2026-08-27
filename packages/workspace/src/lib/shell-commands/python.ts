@@ -42,9 +42,9 @@ function createPythonCommandNamed(taskId: TaskId, name: string) {
     if (args[0] === "-m" && args[1] === "pip") {
       return {
         exitCode: 1,
-        stderr: "",
-        stdout:
+        stderr:
           "`python -m pip` is not available (pip is not seeded in the venv). Use the `pip` command instead, e.g. `pip install <package>`.\n",
+        stdout: "",
       };
     }
 
@@ -52,7 +52,7 @@ function createPythonCommandNamed(taskId: TaskId, name: string) {
 
     const venvError = await ensureTaskVenv({ ctx, taskId });
     if (venvError !== undefined) {
-      return { exitCode: 1, stderr: "", stdout: venvError };
+      return { exitCode: 1, stderr: venvError, stdout: "" };
     }
 
     // Inline program text (`-c` code, or a heredoc program when python reads

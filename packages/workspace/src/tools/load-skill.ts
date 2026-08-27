@@ -198,7 +198,7 @@ export const LoadSkill = setupTool({
 
     if (runtime.node) {
       if (provenance.installDependencies) {
-        const { combined, exitCode } = await runPnpmCommand({
+        const { exitCode, stderr, stdout } = await runPnpmCommand({
           args: ["install"],
           cwd: getTaskWorkDir(taskDir(taskId)),
           signal,
@@ -207,7 +207,12 @@ export const LoadSkill = setupTool({
         installResults.push(
           exitCode === 0
             ? { runtime: "node", state: "success" }
-            : { exitCode, output: combined, runtime: "node", state: "failure" },
+            : {
+                exitCode,
+                output: stdout + stderr,
+                runtime: "node",
+                state: "failure",
+              },
         );
       } else {
         installResults.push({ runtime: "node", state: "skipped" });

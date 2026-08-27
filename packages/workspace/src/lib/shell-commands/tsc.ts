@@ -26,8 +26,8 @@ export function createTscCommand(taskId: TaskId) {
 
     return {
       exitCode: result.exitCode,
-      stderr: "",
-      stdout: result.combined,
+      stderr: result.stderr,
+      stdout: result.stdout,
     };
   });
 }

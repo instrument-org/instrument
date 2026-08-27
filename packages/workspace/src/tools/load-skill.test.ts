@@ -888,9 +888,10 @@ describe("LoadSkill", () => {
     const { runPnpmCommand } = await import("../lib/run-pnpm");
     vi.mocked(installPythonSkill).mockResolvedValueOnce({ state: "success" });
     vi.mocked(runPnpmCommand).mockResolvedValueOnce({
-      combined: "",
       command: "pnpm install",
       exitCode: 0,
+      stderr: "",
+      stdout: "",
     });
     await createSkill({
       extraFiles: {

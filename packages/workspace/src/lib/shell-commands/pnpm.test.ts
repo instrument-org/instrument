@@ -99,8 +99,8 @@ describe("createPnpmCommand", () => {
 
     const { execaNodeForTask } = await import("../execa-node-for-task");
     vi.mocked(execaNodeForTask).mockResolvedValueOnce({
-      all: "0.28.1",
       exitCode: 0,
+      stdout: "0.28.1",
     });
 
     const result = await command.execute(["exec", "esbuild", "--version"], {
@@ -134,23 +134,24 @@ describe("createPnpmCommand", () => {
     );
   });
 
-  it("includes auto-install output in stdout when install fails", async () => {
+  it("reports a failed auto-install on stderr, apart from the command's output", async () => {
     const { execaNodeForTask } = await import("../execa-node-for-task");
     vi.mocked(execaNodeForTask)
       .mockResolvedValueOnce({
-        all: "ERR_PNPM_PEER_DEP_ISSUES",
         exitCode: 1,
+        stdout: "ERR_PNPM_PEER_DEP_ISSUES",
       })
-      .mockResolvedValueOnce({ all: "script output", exitCode: 0 });
+      .mockResolvedValueOnce({ exitCode: 0, stdout: "script output" });
 
     const result = await command.execute(["run", "build"], mockCtx);
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toMatchInlineSnapshot(`
+    expect(result.stdout).toBe("script output");
+    expect(result.stderr).toMatchInlineSnapshot(`
       "[auto-install failed]
       ERR_PNPM_PEER_DEP_ISSUES
 
-      script output"
+      "
     `);
   });
 
@@ -159,8 +160,8 @@ describe("createPnpmCommand", () => {
     const execaNodeForTaskMock = vi.mocked(execaNodeForTask);
     execaNodeForTaskMock.mockClear();
     execaNodeForTaskMock.mockResolvedValueOnce({
-      all: "11.10.0",
       exitCode: 0,
+      stdout: "11.10.0",
     });
 
     const result = await command.execute(["--version"], mockCtx);
@@ -173,8 +174,8 @@ describe("createPnpmCommand", () => {
   it("strips --global flag, runs command without it, and appends system note", async () => {
     const { execaNodeForTask } = await import("../execa-node-for-task");
     vi.mocked(execaNodeForTask).mockResolvedValueOnce({
-      all: "packages installed",
       exitCode: 0,
+      stdout: "packages installed",
     });
 
     const result = await command.execute(
@@ -183,8 +184,9 @@ describe("createPnpmCommand", () => {
     );
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toMatchInlineSnapshot(`
-      "packages installed
+    expect(result.stdout).toBe("packages installed");
+    expect(result.stderr).toMatchInlineSnapshot(`
+      "
       <instrument-system-note>
       The --global / -g flag was stripped. Global installs are not supported in this environment.
       Packages must be installed locally with \`pnpm add <package>\`.
@@ -196,15 +198,16 @@ describe("createPnpmCommand", () => {
   it("strips -g flag, runs command without it, and appends system note", async () => {
     const { execaNodeForTask } = await import("../execa-node-for-task");
     vi.mocked(execaNodeForTask).mockResolvedValueOnce({
-      all: "packages installed",
       exitCode: 0,
+      stdout: "packages installed",
     });
 
     const result = await command.execute(["add", "-g", "lodash"], mockCtx);
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toMatchInlineSnapshot(`
-      "packages installed
+    expect(result.stdout).toBe("packages installed");
+    expect(result.stderr).toMatchInlineSnapshot(`
+      "
       <instrument-system-note>
       The --global / -g flag was stripped. Global installs are not supported in this environment.
       Packages must be installed locally with \`pnpm add <package>\`.
@@ -222,8 +225,8 @@ describe("createPnpmCommand", () => {
   ])("forwards $form to the ts command", async ({ args }) => {
     const { execaNodeForTask } = await import("../execa-node-for-task");
     vi.mocked(execaNodeForTask).mockResolvedValueOnce({
-      all: "1",
       exitCode: 0,
+      stdout: "1",
     });
 
     const result = await command.execute(args, mockCtx);
@@ -298,8 +301,8 @@ describe("createPnpmCommand", () => {
     async ({ args, createCommand, expectedArgs }) => {
       const { execaNodeForTask } = await import("../execa-node-for-task");
       vi.mocked(execaNodeForTask).mockResolvedValueOnce({
-        all: "hello",
         exitCode: 0,
+        stdout: "hello",
       });
 
       const dlxCommand = createCommand(taskId);

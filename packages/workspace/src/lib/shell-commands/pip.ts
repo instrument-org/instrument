@@ -52,7 +52,7 @@ function createPipCommandNamed(taskId: TaskId, name: string) {
 
     const venvError = await ensureTaskVenv({ ctx, taskId });
     if (venvError !== undefined) {
-      return { exitCode: 1, stderr: "", stdout: venvError };
+      return { exitCode: 1, stderr: venvError, stdout: "" };
     }
 
     const result = await runUv({
@@ -62,6 +62,6 @@ function createPipCommandNamed(taskId: TaskId, name: string) {
       taskCwd,
       taskId,
     });
-    return { exitCode: result.exitCode, stderr: "", stdout: result.stdout };
+    return result;
   });
 }

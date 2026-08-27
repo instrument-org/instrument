@@ -34,7 +34,7 @@ export function createUvCommand(taskId: TaskId) {
     if (args[0] === "pip") {
       const venvError = await ensureTaskVenv({ ctx, taskId });
       if (venvError !== undefined) {
-        return { exitCode: 1, stderr: "", stdout: venvError };
+        return { exitCode: 1, stderr: venvError, stdout: "" };
       }
     }
 
@@ -45,7 +45,7 @@ export function createUvCommand(taskId: TaskId) {
       taskCwd,
       taskId,
     });
-    return { exitCode: result.exitCode, stderr: "", stdout: result.stdout };
+    return result;
   });
 }
 

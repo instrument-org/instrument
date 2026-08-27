@@ -32,7 +32,6 @@ export async function runPnpmCommand({
     getWorkspaceConfig().pnpmBinPath,
     args,
     {
-      all: true,
       cancelSignal: signal,
       env: {
         ...env,
@@ -55,10 +54,12 @@ export async function runPnpmCommand({
     },
     cwd,
   );
-  const combined = filterShellOutput(execResult.all, taskDir(taskId));
+  const clean = (text: unknown) =>
+    typeof text === "string" ? filterShellOutput(text, taskDir(taskId)) : "";
   return {
-    combined,
     command: `${PNPM_NAME} ${args.join(" ")}`,
     exitCode: execResult.exitCode ?? 1,
+    stderr: clean(execResult.stderr),
+    stdout: clean(execResult.stdout),
   };
 }

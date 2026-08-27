@@ -199,7 +199,8 @@ describe("executeToolCallMachine", () => {
             ],
             "durationMs": 0,
             "exitCode": 0,
-            "output": "mocked all",
+            "output": "mocked stdout
+        mocked stderr",
             "spillFilePath": undefined,
           },
           "preliminary": false,

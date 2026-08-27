@@ -151,13 +151,13 @@ async function installSkill({
   const result: SkillResult = { skill: skillName };
 
   if (runtime.node) {
-    const { combined, exitCode } = await runPnpmCommand({
+    const { exitCode, stderr, stdout } = await runPnpmCommand({
       args: ["install"],
       cwd: getTaskWorkDir(dir),
       signal,
       taskId,
     });
-    result.node = { exitCode, output: combined };
+    result.node = { exitCode, output: stdout + stderr };
   }
 
   if (runtime.python) {

@@ -3,26 +3,38 @@ import { type TaskId } from "@instrument-org/workspace/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
+/** One entry of what a task has running, as the list route reports it. */
+export interface RunningBackgroundProcess {
+  command: string;
+  id: string;
+  startedAt: Date;
+}
+
 /**
- * Whether the process a promoted `bash` call handed back is still running.
+ * The process a promoted `bash` call handed back, while it is still running.
  *
  * Read live rather than from the tool part, which was written the moment the
  * call yielded and says `processId` forever. A card built on that alone would
  * still be claiming a dev server was up the next morning, when the registry it
  * belonged to died with the app.
+ *
+ * The record rather than a boolean, because a card that knows a command is
+ * still going wants to say for how long, and `startedAt` is the registry's to
+ * report: the tool part records when the call returned, which is a few seconds
+ * after the command actually began.
  */
-export function useIsBackgroundProcessRunning({
+export function useRunningBackgroundProcess({
   processId,
   taskId,
 }: {
   processId: string | undefined;
   taskId: TaskId;
-}) {
+}): RunningBackgroundProcess | undefined {
   const processes = useTaskBackgroundProcesses(taskId);
-  return (
-    processId !== undefined &&
-    processes.some((process) => process.id === processId)
-  );
+  if (processId === undefined) {
+    return undefined;
+  }
+  return processes.find((process) => process.id === processId);
 }
 
 /**

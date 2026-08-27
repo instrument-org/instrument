@@ -1,14 +1,16 @@
+import { type RunningBackgroundProcess } from "@/client/hooks/use-task-background-processes";
 import { createContext, type ReactNode, useContext } from "react";
 
 interface ToolCallSessionValue {
   /**
-   * The command this call started outlived it and is still running.
+   * Set while the command this call started is still running, having outlived
+   * the call.
    *
    * Separate from `isRunning`, which is the agent being on this call: a
    * promoted command runs on after the turn that started it ended, so the two
    * are true at different times and for different reasons.
    */
-  isBackgroundRunning: boolean;
+  backgroundProcess: RunningBackgroundProcess | undefined;
   /** The runtime is executing this call now; see `isToolPartRunning`. */
   isRunning: boolean;
   isStreaming: boolean;
@@ -17,19 +19,19 @@ interface ToolCallSessionValue {
 const ToolCallSessionContext = createContext<null | ToolCallSessionValue>(null);
 
 export function ToolCallSessionProvider({
+  backgroundProcess,
   children,
-  isBackgroundRunning,
   isRunning,
   isStreaming,
 }: {
+  backgroundProcess: RunningBackgroundProcess | undefined;
   children: ReactNode;
-  isBackgroundRunning: boolean;
   isRunning: boolean;
   isStreaming: boolean;
 }) {
   return (
     <ToolCallSessionContext.Provider
-      value={{ isBackgroundRunning, isRunning, isStreaming }}
+      value={{ backgroundProcess, isRunning, isStreaming }}
     >
       {children}
     </ToolCallSessionContext.Provider>

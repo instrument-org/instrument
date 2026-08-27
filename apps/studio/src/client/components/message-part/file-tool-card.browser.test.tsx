@@ -36,7 +36,7 @@ const renderCard = (content: string) =>
   renderInBrowser(
     <div style={{ width: 480 }}>
       <ToolCallSessionProvider
-        isBackgroundRunning={false}
+        backgroundProcess={undefined}
         isRunning={false}
         isStreaming={false}
       >

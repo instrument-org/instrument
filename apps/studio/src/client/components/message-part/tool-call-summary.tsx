@@ -44,7 +44,7 @@ export function ToolCallSummary({
   part: SessionMessagePart.ToolPart;
 }) {
   const features = useAtomValue(featuresAtom);
-  const { isBackgroundRunning, isRunning, isStreaming } = useToolCallSession();
+  const { backgroundProcess, isRunning, isStreaming } = useToolCallSession();
   const group = useTranscriptGroup();
   const { isExpanded, setIsExpanded } = useRowExpansion(part.metadata.id);
 
@@ -73,7 +73,8 @@ export function ToolCallSummary({
   // the one-row rule, because several commands genuinely do run at once and the
   // turn that started them is over.
   const showsLiveIndicator =
-    (isRunning && (group === null || group.isHead)) || isBackgroundRunning;
+    (isRunning && (group === null || group.isHead)) ||
+    backgroundProcess !== undefined;
 
   const toolName = getToolNameByType(part.type);
   const browserInfo = getBrowserInfo(part);

@@ -1,5 +1,7 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
+import ms from "ms";
 
+import { useNow } from "../../hooks/use-now";
 import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
 import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
@@ -61,7 +63,8 @@ export function BrowserChip({ info }: { info: BrowserInfo }) {
 }
 
 export function ToolBash({ part }: { part: BashPart }) {
-  const { isBackgroundRunning, isStreaming } = useToolCallSession();
+  const { backgroundProcess, isStreaming } = useToolCallSession();
+  const now = useNow();
   const command = part.input?.command ?? "";
   const hasOutput = part.state === "output-available";
   const isError = part.state === "output-error";
@@ -95,7 +98,7 @@ export function ToolBash({ part }: { part: BashPart }) {
   // after a restart took the whole registry with it, and it has to stop
   // claiming then.
   const label =
-    isStreaming || isBackgroundRunning
+    isStreaming || backgroundProcess
       ? getToolStreamingLabel("bash")
       : getToolLabel("bash");
 
@@ -151,11 +154,33 @@ export function ToolBash({ part }: { part: BashPart }) {
                   reporting a result it has not reached: only real binaries
                   stream, and a watcher loop or a server that has not logged yet
                   yields nothing inside the window. */}
-              {isBackgroundRunning ? "No output yet" : "No output"}
+              {backgroundProcess ? "No output yet" : "No output"}
             </p>
           )}
         </ToolCardSection>
       )}
+
+      {backgroundProcess && (
+        // The one place with room to say the duration in words, and to point at
+        // the only control that can end it. The row's indicator says that it is
+        // still going; this says for how long, and what to do about it.
+        <div className="border-t border-border px-4 py-3">
+          <p className="text-xs text-muted-foreground">
+            Running for {formatRunningFor(backgroundProcess.startedAt, now)}.
+            Stop it from the task header.
+          </p>
+        </div>
+      )}
     </ToolCard>
   );
+}
+
+/**
+ * The same words `fg` reports to the agent, so the two surfaces describing one
+ * process agree. Floored at a second because `ms` renders anything shorter in
+ * milliseconds, which reads as a measurement rather than as how long something
+ * has been going.
+ */
+function formatRunningFor(startedAt: Date, now: number) {
+  return ms(Math.max(1000, now - startedAt.getTime()), { long: true });
 }

@@ -1,4 +1,4 @@
-import { useIsBackgroundProcessRunning } from "@/client/hooks/use-task-background-processes";
+import { useRunningBackgroundProcess } from "@/client/hooks/use-task-background-processes";
 import {
   type SessionMessagePart,
   type Task,
@@ -42,7 +42,7 @@ export function ToolCall({
   // Read for every call rather than only for bash, because a hook cannot sit
   // behind the visibility check below. One query key backs the whole transcript,
   // so the cost is a lookup per row and a single request per task.
-  const isBackgroundRunning = useIsBackgroundProcessRunning({
+  const backgroundProcess = useRunningBackgroundProcess({
     processId:
       part.type === "tool-bash" && part.state === "output-available"
         ? part.output.processId
@@ -65,7 +65,7 @@ export function ToolCall({
 
   return (
     <ToolCallSessionProvider
-      isBackgroundRunning={isBackgroundRunning}
+      backgroundProcess={backgroundProcess}
       isRunning={isRunning}
       isStreaming={isStreaming}
     >

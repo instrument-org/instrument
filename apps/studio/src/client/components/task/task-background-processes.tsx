@@ -3,17 +3,11 @@ import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { useNow } from "../../hooks/use-now";
 import { useTaskBackgroundProcesses } from "../../hooks/use-task-background-processes";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-
-/**
- * How often the elapsed times re-render. Minute-resolution, so a slower tick
- * would show a stale number and a faster one would re-render for nothing.
- */
-const ELAPSED_TICK_MS = 30_000;
 
 /**
  * What the agent started and left running in this task.
@@ -140,17 +134,4 @@ function formatElapsed(startedAt: Date, now: number): string {
   return minutes < 60
     ? `${minutes}m`
     : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-}
-
-function useNow() {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setNow(Date.now());
-    }, ELAPSED_TICK_MS);
-    return () => {
-      clearInterval(timer);
-    };
-  }, []);
-  return now;
 }

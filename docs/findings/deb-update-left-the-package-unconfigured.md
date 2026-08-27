@@ -1,6 +1,6 @@
 # A deb update can leave the package unpacked but not configured
 
-**Status:** open, no fix. One occurrence upgrading 1.6.1 to 1.6.2 on a Linux test host, 2026-08-26. A partial reproduction the next day established how the install behaves and why it leaves no trace, which narrows the unknown to what ended the app that day. Last updated 2026-08-27.
+**Status:** open, no fix, mechanism reproduced. One occurrence upgrading 1.6.1 to 1.6.2 on a Linux test host, 2026-08-26, reproduced end to end the next day by tearing down the app's cgroup mid-transaction. What performed that teardown during the original incident is the only part still unknown. Last updated 2026-08-27.
 
 ## Why an unconfigured package cannot start
 
@@ -49,11 +49,24 @@ Driving a real 1.6.3 to 1.6.4 update on the same host, through the same RPCs the
 
 Together those give a mechanism that fits every observation: the app freezes, something ends it while dpkg is partway through, dpkg dies inside the same cgroup with the package unpacked and the profile removed, and electron-updater's `apt-get install -f -y` fallback never runs because the process that would have caught the failure is gone.
 
+## Reproduced
+
+With someone at the desktop to answer the authentication prompt, an attended run of a real 1.6.3 to 1.6.4 update reproduced the incident exactly. A watcher tore down the app's cgroup 80 milliseconds after dpkg finished unpacking, killing all eight processes it held including the root dpkg.
+
+What that left:
+
+- `dpkg -s` reporting `install ok half-configured` rather than `installed`
+- `/etc/apparmor.d/instrument` gone, and no `instrument` profile loaded
+- launching the app failing with the same `setuid_sandbox_host.cc:166` FATAL, dumping core
+- a fresh crash report carrying `Signal: 5` / `SIGTRAP`, the same signature as the original
+
+The one difference from the incident is `half-configured` rather than `unpacked`, because the teardown landed a fraction of a second later, after dpkg had entered its configure step. The consequence is identical, and `sudo dpkg --configure instrument` recovered it in both cases.
+
+So killing the app mid-transaction is sufficient on its own. Nothing more exotic is needed to produce the incident state.
+
 ## What could not be determined
 
-What ended the app that day. Force-quitting a frozen window fits, and so does anything else that kills the process group, but nothing in the surviving logs names it.
-
-Completing the reproduction needs someone at the physical desktop to answer the authentication prompt, so it stopped there rather than bypassing polkit.
+What performed the teardown that day. Force-quitting a frozen window fits, and so does anything else that ends the process group, but nothing in the surviving logs names it. That is now the only open part of the chain.
 
 Two things are ruled out. Unmet dependencies: the two bare names in `Depends` that look missing on Ubuntu 24.04 (`libgtk-3-0`, `libatspi2.0-0`) resolve through the `t64` renames via `Provides`. And a clean dpkg failure: that path is covered by the fallback, which did not run.
 
@@ -71,9 +84,13 @@ The watcher waits on the previous process, which is not the same thing as waitin
 
 ## What might resolve it
 
-Run the privileged install detached from the app's lifetime, the way the Linux relaunch already is, and chain the fallback into the same shell so a partial transaction gets completed rather than abandoned. Detaching also lets the app stop blocking its main thread for the duration, which removes the frozen window that invites the kill in the first place, and gives the relaunch something to wait on other than the old process.
+Run the privileged install in its own cgroup rather than the app's, and chain the fallback into the same shell so a partial transaction gets completed rather than abandoned. That also lets the app stop blocking its main thread for the duration, which removes the frozen window that invites the kill, and gives the relaunch something to wait on other than the old process.
 
-That is a change to the most dangerous path in the product, and verifying it needs a real end-to-end update on a Linux host rather than a unit test. Note that such a test cannot run unattended: the authentication prompt needs a person at the desktop.
+The mechanism has to be a transient scope, not `detached`. Node's `detached: true` is `setsid`, which makes a new session and not a new cgroup, so systemd still takes the child down with the app. Both halves were measured on the host: a setsid child died with the app's scope, and a `systemd-run --user --scope` child survived it. Two preconditions were checked and hold inside such a scope: `NoNewPrivs` stays `0`, so pkexec still works, and the authentication prompt still reaches the desktop.
+
+This is the shape the other platforms already use. Squirrel.Mac installs from ShipIt, a separate helper that waits for the app to terminate; Linux is the outlier only because electron-updater installs inline on quit. Squirrel.Mac also carries the same relaunch race, guarded upstream in [electron#36130](https://github.com/electron/electron/pull/36130) by refusing to install while the app is running, which is the shape the guard here wants.
+
+It remains a change to the most dangerous path in the product, and verifying it needs a real end-to-end update rather than a unit test. Note that such a test cannot run unattended: the authentication prompt needs a person at the desktop.
 
 ## Recognizing it
 

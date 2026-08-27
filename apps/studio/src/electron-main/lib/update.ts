@@ -47,6 +47,7 @@ export function createStudioAppUpdater({
   scopedLogger.info(
     `Running ${app.getVersion()} on the ${getChannel() ?? "latest"} channel`,
   );
+  reportPreviousInstall();
 
   const port: UpdaterPort = {
     checkForUpdates: async ({ download }) => {
@@ -249,12 +250,22 @@ function startDetachedInstall(installerPath: string) {
   const install = `dpkg -i ${quoteForShell(installerPath)} || apt-get install -f -y`;
   const processName = path.basename(process.execPath);
 
+  const logPath = getInstallLogPath();
+
+  // Everything below runs after this process is gone, so this file is the only
+  // account of it there will ever be. Both the outer run and the scoped re-exec
+  // append, which is what makes the handoff itself visible.
   const script = `#!/bin/sh
+exec >>${quoteForShell(logPath)} 2>&1
+echo "=== $(date -Is) install starting, args: $*"
+
 if [ "$1" != "--scoped" ] && command -v systemd-run >/dev/null 2>&1; then
   systemd-run --user --scope --collect --quiet -- "$0" --scoped && exit 0
+  echo "systemd-run did not take, continuing in this process"
 fi
 
 # dpkg must not rewrite the installation underneath a running app.
+echo "waiting for pid ${process.pid} to exit"
 while kill -0 ${process.pid} 2>/dev/null; do sleep 0.1; done
 
 if command -v pkexec >/dev/null 2>&1; then
@@ -262,14 +273,26 @@ if command -v pkexec >/dev/null 2>&1; then
 else
   sudo -n sh -c ${quoteForShell(install)}
 fi
+status=$?
+echo "install exited $status"
 
 # Relaunch only if nothing came back on its own while the install ran. Starting a
 # second copy over a just-replaced installation is how the same handoff goes
 # wrong on macOS (electron/electron#36130).
-pgrep -x ${quoteForShell(processName)} >/dev/null 2>&1 || setsid ${relaunch} >/dev/null 2>&1 &
+if pgrep -x ${quoteForShell(processName)} >/dev/null 2>&1; then
+  echo "an instance is already running, not relaunching"
+else
+  echo "relaunching"
+  setsid ${relaunch} >/dev/null 2>&1 &
+fi
 
+echo "=== $(date -Is) finished"
 rm -f "$0"
 `;
+
+  // One install per file, so what the next start reads is this install rather
+  // than an older one it never got to report.
+  fs.rmSync(logPath, { force: true });
 
   const scriptPath = path.join(
     os.tmpdir(),
@@ -277,5 +300,41 @@ rm -f "$0"
   );
   fs.writeFileSync(scriptPath, script, { mode: 0o700 });
   spawn("sh", [scriptPath], { detached: true, stdio: "ignore" }).unref();
-  scopedLogger.info(`Handed the staged install to ${scriptPath}`);
+  scopedLogger.info(
+    `Handed the staged install to ${scriptPath}, logging to ${logPath}`,
+  );
+}
+
+function getInstallLogPath() {
+  return path.join(app.getPath("userData"), "last-update-install.log");
+}
+
+/**
+ * Log what the previous install did, if there was one.
+ *
+ * A Linux install finishes after the process that started it has exited, so
+ * nothing it does can reach the log of the session that asked for it. Reading
+ * the file on the next start is the only account of the outcome there is, and it
+ * is removed once read so a later boot does not report the same install twice.
+ */
+function reportPreviousInstall() {
+  if (os.platform() !== "linux" || !fs.existsSync(getInstallLogPath())) {
+    return;
+  }
+
+  try {
+    // Bounded because it carries dpkg's output, which has no size contract.
+    const contents = fs
+      .readFileSync(getInstallLogPath(), "utf8")
+      .trim()
+      .slice(-8000);
+    fs.rmSync(getInstallLogPath(), { force: true });
+    if (contents) {
+      scopedLogger.info(`Previous update install:\n${contents}`);
+    }
+  } catch (error) {
+    scopedLogger.warn(
+      new Error("Could not read the previous install log", { cause: error }),
+    );
+  }
 }

@@ -92,6 +92,34 @@ export function getBrowserState(
   });
 }
 
+/**
+ * Send a target to a page the user just asked for.
+ *
+ * Unconditional, which is the whole difference from {@link restoreLastPage}:
+ * that one is a courtesy paid to a blank tab, this one is an instruction, and
+ * refusing it because the guest already holds a page would answer a click with
+ * nothing.
+ */
+export function navigateTarget({
+  targetId,
+  url,
+}: {
+  targetId: BrowserTargetId;
+  url: string;
+}) {
+  return safeTry(async function* () {
+    // The browser calls throw rather than returning a Result, so the await is
+    // wrapped the same way restoreLastPage wraps its own.
+    try {
+      const { browser } = getWorkspaceConfig();
+      yield* ok(await browser.sendCommand(targetId, "Page.navigate", { url }));
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+    return ok(undefined);
+  });
+}
+
 /** Note that this session's browser was torn down, for the next turn to report. */
 export function recordBrowserClosed({
   sessionId,

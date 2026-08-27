@@ -38,7 +38,7 @@ Directory requests resolve to `index.html` ([`serve-static.ts`](../../packages/w
 
 Three builders, one shape, and they must agree:
 
-- **The renderer.** [`asset-base-url.ts`](../../apps/studio/src/client/lib/asset-base-url.ts) resolves the server origin once at boot so `getAssetBaseUrl(taskId)` is synchronous everywhere; [`get-asset-url.ts`](../../apps/studio/src/client/lib/get-asset-url.ts) joins a stored file path onto it and appends `?version=<mtimeMs>`. Consumers are the chat stream's file cards and image embeds, the file sidebar, and the file viewer.
+- **The renderer.** [`asset-base-url.ts`](../../apps/studio/src/client/lib/asset-base-url.ts) resolves the server origin once at boot so `getAssetBaseUrl(taskId)` is synchronous everywhere; [`get-asset-url.ts`](../../apps/studio/src/client/lib/get-asset-url.ts) joins a stored file path onto it and appends the caller's `?version=` (see Caching). Consumers are the chat stream's file cards and image embeds, the file sidebar, and the file viewer.
 - **The agent's browser.** [`agent-browser-asset-url.ts`](../../packages/workspace/src/lib/shell-commands/agent-browser-asset-url.ts) rewrites a navigation argument naming a sandbox path onto the same origin, so `agent-browser goto output/report.html` loads a real page rather than a `file://` path that does not exist on the host. Its `assetPathForVirtualPath` is the inverse of the route's root rewrite, and the pair has to stay in step.
 - **The artifact preview.** Renders `getAssetUrl`'s output in a `<webview>` guest, so an HTML artifact runs as a **real origin** with storage and cookies, scoped to a per-task partition directory. See [in-app-browser.md](in-app-browser.md).
 
@@ -46,12 +46,21 @@ The agent and the human therefore load the same URL for the same file, which is 
 
 ## Caching
 
-`?version=<mtimeMs>` is a cache-busting parameter the client appends to any path. The route decides policy:
+`?version=` is the client's claim about *which* bytes a reference is for. The route decides policy by whether it can check that claim:
 
 - Task files whose `version` matches the file's current mtime: `public, max-age=31536000, immutable`.
 - Everything else, including every `/mnt` file regardless of `version`: `no-store`.
 
 The split is "do we own the file." A file under a mount the user can edit outside the app has no reliable version to pin, so a mount version is inert by design.
+
+**`no-store` does not mean the next `<img>` fetches.** Blink keeps decoded resources in a per-document memory cache keyed by URL, and hands the same bytes to a second element naming the same URL without a network request at all — no revalidation, no conditional request, whatever the response said. Measured against this route's exact headers: a second `<img>` at an unversioned path never reached the server, while one carrying any distinct query string did.
+
+So the query string is the only thing separating two references to one path, which is why it is not optional for a surface that draws the same path twice:
+
+- A surface that watched or listed the file names its mtime, and is exact.
+- A **transcript** surface never learned an mtime and must not go and ask for one (see [file-references-without-a-watcher.md](../plans/completed/file-references-without-a-watcher.md)), so it names the id of the message part that made the reference. Stable while that reply is on screen, distinct from the next reply's, and unverifiable by the route, so it earns `no-store` rather than a year.
+
+Without that, an agent that rewrites a path and reports the change draws the file as it was before it — the later card serving the earlier card's picture.
 
 ## The governing invariant: the origin never exceeds the agent
 

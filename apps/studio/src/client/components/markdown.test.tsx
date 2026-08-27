@@ -552,3 +552,98 @@ describe("Markdown raw HTML", () => {
     expect(container.querySelectorAll("br")).toHaveLength(2);
   });
 });
+
+/**
+ * Which image sources reach the page.
+ *
+ * Markdown arrives from three places that are not the person reading it -- the
+ * agent, a `.md` file in the task folder, and a cell of a notebook someone else
+ * wrote -- and an `<img>` is fetched the moment it renders, with no click in
+ * between. So what the allow-list admits is a question about the network, not
+ * about layout, which is what makes it worth a test rather than an eye.
+ */
+function imageSources(markdown: string, allowRemoteImages = true): string[] {
+  const { container } = renderWithProviders(
+    <Markdown allowRemoteImages={allowRemoteImages} markdown={markdown} />,
+  );
+  return [...container.querySelectorAll("img")]
+    .map((image) => image.getAttribute("src"))
+    .filter((src) => src !== null);
+}
+
+describe("Markdown image sources", () => {
+  it("renders an embedded image", () => {
+    expect(imageSources("![a](data:image/png;base64,QUJD)")).toEqual([
+      "data:image/png;base64,QUJD",
+    ]);
+  });
+
+  // A bare `output/plot.png` is deliberately not here: without an
+  // `assetBaseUrl` there is nothing to resolve it against, so it stays a bare
+  // word and the allow-list rejects it. Only an explicit `./` or `/` reads as
+  // a path on sight.
+  it("renders a path relative to the task", () => {
+    expect(imageSources("![a](./output/plot.png)")).toEqual([
+      "./output/plot.png",
+    ]);
+  });
+
+  it("renders an image from an allowed host", () => {
+    expect(
+      imageSources("![a](https://raw.githubusercontent.com/o/r/main/p.png)"),
+    ).toEqual(["https://raw.githubusercontent.com/o/r/main/p.png"]);
+  });
+
+  it("drops an image from a host that is not on the list", () => {
+    expect(imageSources("![a](https://tracker.test/pixel.png)")).toEqual([]);
+  });
+
+  describe("without remote images", () => {
+    it("still renders an embedded one", () => {
+      expect(imageSources("![a](data:image/png;base64,QUJD)", false)).toEqual([
+        "data:image/png;base64,QUJD",
+      ]);
+    });
+
+    it("drops one from a host that would otherwise be allowed", () => {
+      expect(
+        imageSources(
+          "![a](https://raw.githubusercontent.com/o/r/main/p.png)",
+          false,
+        ),
+      ).toEqual([]);
+    });
+  });
+
+  // The allow-list names an image type rather than taking the `data:` scheme
+  // whole, so the widest thing markdown from anywhere can put in an `<img>` is
+  // bytes a decoder will either read as a picture or refuse.
+  it("drops an embedded uri that is not an image", () => {
+    expect(imageSources("![a](data:text/html;base64,PGI+aGk8L2I+)")).toEqual(
+      [],
+    );
+  });
+
+  // `data:` reaches an `<img>` only because `markdownUrlTransform` hands it
+  // back, and it hands it back for `<img>` alone. A link is the case that
+  // separates the two: clicking one passes the URI to the OS, so it stays on
+  // the floor where react-markdown's own filter left it.
+  it("does not let an embedded uri through as a link", () => {
+    const { container } = renderWithProviders(
+      <Markdown markdown="[a](data:text/html,<b>hi</b>)" />,
+    );
+    expect(container.querySelector('a[href^="data:"]')).toBeNull();
+  });
+
+  it.each([true, false])(
+    "drops a protocol-relative source with allowRemoteImages=%s",
+    (allowRemoteImages) => {
+      // The leading slash reads as a path on this machine, so without a check
+      // of its own `//host/pixel.png` walks past both allow-lists -- the one
+      // spelling of a src that can name any host at all.
+      expect(
+        imageSources("![a](//tracker.test/pixel.png)", allowRemoteImages),
+      ).toEqual([]);
+    },
+  );
+});

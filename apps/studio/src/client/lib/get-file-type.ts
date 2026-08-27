@@ -13,6 +13,7 @@ export type FileType =
   | "iwork"
   | "jsonl"
   | "markdown"
+  | "notebook"
   | "parquet"
   | "pdf"
   | "pptx"
@@ -53,6 +54,9 @@ function fileKindLabel(fileType: FileType): string {
     }
     case "markdown": {
       return "Markdown";
+    }
+    case "notebook": {
+      return "Jupyter notebook";
     }
     case "parquet": {
       return "Parquet data";
@@ -243,6 +247,7 @@ const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
   db: "sqlite",
   docm: "docx",
   docx: "docx",
+  ipynb: "notebook",
   jsonl: "jsonl",
   // The iWork formats are zip containers around Apple's own IWA payload, which
   // has no reader outside Apple's apps; what the viewer shows is the preview
@@ -352,6 +357,13 @@ export function getFileType({
 
     if (effectiveMimeType === "application/pdf") {
       return "pdf";
+    }
+
+    // A notebook saved without its extension still has to reach the viewer
+    // rather than the JSON highlighter, and `application/x-ipynb+json` is what
+    // the mime lookup answers for one.
+    if (effectiveMimeType === "application/x-ipynb+json") {
+      return "notebook";
     }
 
     if (effectiveMimeType === "text/html") {

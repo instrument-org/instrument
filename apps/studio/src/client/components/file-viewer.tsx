@@ -6,6 +6,7 @@ import {
   LazyDocxViewer,
   LazyIWorkViewer,
   LazyJsonlViewer,
+  LazyNotebookViewer,
   LazyParquetViewer,
   LazyPdfViewer,
   LazyPptxViewer,
@@ -395,6 +396,15 @@ const VIEWERS = {
         <MarkdownPreview url={context.file.url} />
       ),
     scrolls: "container",
+  },
+  notebook: {
+    hasToolbar: true,
+    render: ({ fallback, file }) => (
+      <ViewerSurface fallback={fallback} resetKey={file.url}>
+        <LazyNotebookViewer url={file.url} />
+      </ViewerSurface>
+    ),
+    scrolls: "self",
   },
   parquet: {
     hasToolbar: true,

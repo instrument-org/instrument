@@ -5,6 +5,7 @@ import { type Ref } from "react";
 import { Markdown } from "./markdown";
 
 export const SessionMarkdown = ({
+  allowRemoteImages,
   assetBaseUrl,
   assetVersion,
   className,
@@ -14,6 +15,7 @@ export const SessionMarkdown = ({
   ref,
   taskId,
 }: {
+  allowRemoteImages?: boolean;
   assetBaseUrl?: string;
   assetVersion?: string;
   className?: string;
@@ -32,6 +34,7 @@ export const SessionMarkdown = ({
       ref={ref}
     >
       <Markdown
+        allowRemoteImages={allowRemoteImages}
         assetBaseUrl={assetBaseUrl}
         assetVersion={assetVersion}
         hideImages={hideImages}

@@ -25,6 +25,7 @@ import ReactMarkdown, {
   defaultUrlTransform,
   type ExtraProps,
   type Options,
+  type UrlTransform,
 } from "react-markdown";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeSlug from "rehype-slug";
@@ -62,6 +63,17 @@ import {
 import { contextMenuComponents } from "./ui/menu-components";
 
 interface MarkdownProps {
+  /**
+   * Whether an image may be fetched from one of the allowed remote hosts.
+   *
+   * Defaults to true, which is right for markdown the agent wrote or the user
+   * did. Pass false for markdown that arrived inside a file someone else
+   * authored: loading a remote image is a request the moment the file is
+   * opened, with no click in between, which discloses an IP and confirms the
+   * file was read. The notebook viewer passes false for that reason, and loses
+   * nothing by it -- a notebook's own images are embedded.
+   */
+  allowRemoteImages?: boolean;
   assetBaseUrl?: string;
   // Which bytes this text's file references are about; see
   // `MarkdownTaskContext`.
@@ -417,13 +429,71 @@ const MarkdownLink: Components["a"] = ({
   );
 };
 
+// Embedded bytes and this machine's own asset server: reaching either sends
+// nothing anywhere, so they are allowed however little the markdown is trusted.
+// The `data:` entry names an image type rather than accepting the scheme whole,
+// which matches the notebook sanitizer and keeps the widest thing an untrusted
+// file can put in an `<img>` to bytes a decoder will either read as a picture
+// or refuse.
+const LOCAL_IMAGE_PATTERNS = [
+  /^data:image\//,
+  /^http:\/\/.*\.localhost(:\d+)?\//,
+];
+
+// Hosts an image may be fetched from over the network. Loading one is a request
+// that leaves this machine, which is why `allowRemoteImages` exists.
+const REMOTE_IMAGE_PATTERNS = [
+  /^https:\/\/images\.google\.com\//,
+  /^https:\/\/github\.com\//,
+  /^https:\/\/.*\.github\.com\//,
+  /^https:\/\/.*\.githubusercontent\.com\//,
+];
+
+const isImageAllowed = (
+  src: string | undefined,
+  allowRemoteImages: boolean,
+): boolean => {
+  if (!src) {
+    return false;
+  }
+  // Checked before the local-path test below, which would otherwise read the
+  // leading slash of `//host/pixel.png` as a path on this machine and let it
+  // past both allow-lists -- the one place a src could name any host at all.
+  if (src.startsWith("//")) {
+    return false;
+  }
+  if (src.startsWith("/") || src.startsWith("./") || src.startsWith("../")) {
+    return true;
+  }
+  if (LOCAL_IMAGE_PATTERNS.some((pattern) => pattern.test(src))) {
+    return true;
+  }
+  return (
+    allowRemoteImages &&
+    REMOTE_IMAGE_PATTERNS.some((pattern) => pattern.test(src))
+  );
+};
+
+// react-markdown's own URL filter drops every `data:` URI before a component
+// ever sees it, so an embedded image silently rendered as nothing -- which is
+// how a notebook's attachments arrive, and the only way they can arrive. This
+// hands them back for `<img>` alone and decides nothing else: what a `data:`
+// src may actually carry stays with `isImageAllowed` above, one place rather
+// than two. A `data:` *link* is still dropped, because clicking one hands the
+// URI to the OS via `shell.openExternal`, which an image never does, and so is
+// a `data:` src anywhere but an `<img>` -- `iframe`, `embed`, and `script`
+// carry one too, which is why the raw-HTML allow-list drops all three.
+//
 // `file:` is how a model spells a link to a file it just wrote, and the default
 // transform drops the href whole rather than pass a scheme it does not know.
 // Reduce such a URL to its path so it reaches `TaskFileLink` on the same terms
 // as any other file reference. Passing it through instead only ever reaches
 // `ExternalLink`, where the protocol allowlist refuses it: a blocked-link toast
 // and a captured exception, never an opened file.
-const markdownUrlTransform = (url: string): string => {
+const markdownUrlTransform: UrlTransform = (url, key, node) => {
+  if (key === "src" && node.tagName === "img" && url.startsWith("data:")) {
+    return url;
+  }
   if (!/^file:/i.test(url)) {
     return defaultUrlTransform(url);
   }
@@ -432,25 +502,6 @@ const markdownUrlTransform = (url: string): string => {
   } catch {
     return "";
   }
-};
-
-const ALLOWED_IMAGE_PATTERNS = [
-  /^data:/,
-  /^http:\/\/.*\.localhost(:\d+)?\//,
-  /^https:\/\/images\.google\.com\//,
-  /^https:\/\/github\.com\//,
-  /^https:\/\/.*\.github\.com\//,
-  /^https:\/\/.*\.githubusercontent\.com\//,
-];
-
-const isImageAllowed = (src: string | undefined): boolean => {
-  if (!src) {
-    return false;
-  }
-  if (src.startsWith("/") || src.startsWith("./") || src.startsWith("../")) {
-    return true;
-  }
-  return ALLOWED_IMAGE_PATTERNS.some((pattern) => pattern.test(src));
 };
 
 const ImagePlaceholder = ({ alt, src }: { alt?: string; src?: string }) => (
@@ -551,6 +602,7 @@ const taskFilePathFromImageSrc = (src: string | undefined) =>
 
 export const Markdown = memo(
   ({
+    allowRemoteImages = true,
     assetBaseUrl,
     assetVersion,
     hideImages,
@@ -673,7 +725,7 @@ export const Markdown = memo(
                 assetBaseUrl,
                 assetVersion,
               );
-              if (!isImageAllowed(resolvedSrc)) {
+              if (!isImageAllowed(resolvedSrc, allowRemoteImages)) {
                 return hideImages ? null : (
                   <ImagePlaceholder alt={alt} src={resolvedSrc} />
                 );

@@ -15,12 +15,12 @@ Name it `wireframes-<topic>.html`.
 
 `docs/plans/**/wireframes-*.html` is gitignored, so the file is a scratch artifact for the conversation that asked for one, not history. Do not link it from a plan: the link resolves on the machine that wrote it and nowhere else, and a doc that points at a file nobody else has is worse than one that does not mention it. Say what the wireframe shows in the plan's own prose, and share the file itself the way Sharing it describes. Ask before committing one, which is the exception rather than the finish line.
 
-**Copy the template, then edit only the `states` array and the constants above it.** Everything else in the file is machinery, and about two thirds of it is a theme block a script maintains. Writing one of these from scratch means retyping all of that for nothing.
+**Copy the template and work inside the `states` array, the constants above it, and whatever local helpers a flow needs.** The rest is machinery, and about two thirds of it is a theme block a script maintains. Writing one of these from scratch means retyping all of that for nothing.
 
 Four constants sit at the top of the script:
 
 - `VERSION` drives the tab title and a generated favicon badge. Bump it when you revise. Several of these are usually open at once and they are otherwise indistinguishable. The badge is a green square; visual explanations use a dark one, so the two kinds separate in a row of tabs.
-- `SUBTITLE` is a short topic label under the title. Two or three words, not a sentence.
+- `SUBTITLE` is a short topic label under the title, and doubles as the file's one-line description when a set is indexed. A phrase rather than a sentence.
 - `W` and `H` are the default frame size. Individual states can override with `w` and `h`.
 
 The tab title comes from the `h1`, so write a real one and leave the `<title>` placeholder alone.
@@ -91,7 +91,7 @@ Corollaries:
 
 - The caption under each frame says **what the frame proves**, not what it depicts. "Nothing is sent by hovering" beats "the thumbs buttons".
 - Every frame is numbered automatically, in the caption and again under the enlarged view. Those numbers are how someone refers to one in conversation, so order the `states` array the way you would talk through it.
-- Put the burden of proof in the middle frame. That is where the reader looks first.
+- Put the burden of proof early rather than last. Someone who stops halfway should already have seen the thing being argued.
 - Draw no chrome that is not in question. No sidebar, title bar, or tab strip unless the proposal is about them.
 
 ## Looking like this product

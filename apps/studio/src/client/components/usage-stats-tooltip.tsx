@@ -16,8 +16,9 @@ interface StatRow {
 }
 
 interface UsageStats extends SessionMessage.Usage {
+  activeDuration?: number;
+  generationDuration?: number;
   msToFirstChunk?: number;
-  totalDuration?: number;
 }
 
 export function UsageStatsTooltip({
@@ -60,10 +61,18 @@ export function UsageStatsTooltip({
       label: "Total tokens:",
       value: stats.totalTokens,
     },
+    // Two numbers rather than one "Duration", which read as wall clock and was
+    // not: a turn that spends its time in tool calls generates for a fraction
+    // of how long it ran.
     {
       formatter: formatDuration,
-      label: "Duration:",
-      value: stats.totalDuration,
+      label: "Generation time:",
+      value: stats.generationDuration,
+    },
+    {
+      formatter: formatDuration,
+      label: "Active time:",
+      value: stats.activeDuration,
     },
   ];
 

@@ -179,7 +179,9 @@ export function ToolCallSummary({
   return (
     <Collapsible onOpenChange={setIsExpanded} open={isExpanded}>
       <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
-      <CollapsibleContent animated>{children}</CollapsibleContent>
+      <CollapsibleContent animated className="pb-2">
+        {children}
+      </CollapsibleContent>
     </Collapsible>
   );
 }

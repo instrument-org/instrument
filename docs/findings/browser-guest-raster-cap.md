@@ -79,6 +79,6 @@ No product code was changed to measure this. Against a running Studio on each pl
 1. `workspace.browser.open` creates a target and the renderer pool mounts a guest. With no panel showing it, the guest sits in paint-host.
 2. Paint a marker page into the guest over its own CDP target: `position: fixed` squares in the four viewport corners on a flat background, so they follow every resize without repainting.
 3. For each size, set `width`/`height` on the paint-host container and the `<webview>` from the renderer, settle, then read `Page.getLayoutMetrics` and `innerWidth`/`innerHeight`, and capture.
-4. Compare returned image dimensions against the requested size times dpr, and sample the four corners. All four markers means the surface rasterized in full; the background colour where a marker should be means it was cropped there.
+4. Compare returned image dimensions against the requested size times dpr, and sample the four corners. All four markers means the surface rasterized in full; the background color where a marker should be means it was cropped there.
 
 Remote hosts were driven the same way over an SSH tunnel to their loopback CDP port, so images were decoded on the driving machine and no toolchain was needed on the host.

@@ -885,7 +885,7 @@ a.cursor-pointer {
 /* The composer answering a press that asked for the page it was already on; see
  * `nudgeOnReentry`, which mounts a ring on the box for one play of this.
  *
- * An outline that holds for a moment, with a brighter length of it travelling
+ * An outline that holds for a moment, with a brighter length of it traveling
  * the way the eye reads: the line alone is a border that blinked, and the glint
  * crossing it is what reads as an answer to something. Nothing moves and
  * nothing about the composer is repainted, so a draft mid-sentence is

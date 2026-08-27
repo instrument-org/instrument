@@ -50,9 +50,11 @@ const ASSET_BASE = "http://assets.a-task.localhost:1234";
 function renderBlock(
   content: string,
   {
+    assetVersion,
     inTask = true,
     isStreaming = false,
   }: {
+    assetVersion?: string;
     inTask?: boolean;
     isStreaming?: boolean;
   } = {},
@@ -61,7 +63,12 @@ function renderBlock(
     <MarkdownTaskContext
       value={
         inTask
-          ? { assetBaseUrl: ASSET_BASE, isStreaming, taskId: TASK_ID }
+          ? {
+              assetBaseUrl: ASSET_BASE,
+              assetVersion,
+              isStreaming,
+              taskId: TASK_ID,
+            }
           : { isStreaming }
       }
     >
@@ -81,6 +88,23 @@ describe("AgentFilesBlock", () => {
       [
         "output/notes.md @ http://assets.a-task.localhost:1234/output/notes.md",
         "output/chart.png @ http://assets.a-task.localhost:1234/output/chart.png",
+      ]
+    `);
+  });
+
+  // Two replies naming one path that was rewritten between them. Sharing a URL
+  // is what lets the renderer hand the second fence the picture it decoded for
+  // the first, so the reply reporting the change draws the file as it was
+  // before it. The ids differ, so the URLs have to.
+  it("asks for a different url than an earlier reply naming the same file", () => {
+    renderBlock("output/chart.png", { assetVersion: "prt_first" });
+    const first = shownFiles();
+    renderBlock("output/chart.png", { assetVersion: "prt_second" });
+    const both = shownFiles();
+
+    expect(both.filter((file) => !first.includes(file))).toMatchInlineSnapshot(`
+      [
+        "output/chart.png @ http://assets.a-task.localhost:1234/output/chart.png?version=prt_second",
       ]
     `);
   });

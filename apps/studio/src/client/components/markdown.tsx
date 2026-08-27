@@ -57,6 +57,9 @@ import { contextMenuComponents } from "./ui/menu-components";
 
 interface MarkdownProps {
   assetBaseUrl?: string;
+  // Which bytes this text's file references are about; see
+  // `MarkdownTaskContext`.
+  assetVersion?: string;
   // Drops the images the allow-list rejects instead of standing a placeholder
   // in for them. For markdown scraped from a page rather than authored for us:
   // the allow-list passes nothing such a page carries, so every placeholder is
@@ -466,6 +469,7 @@ const MarkdownImage = ({
 const resolveImageSrc = (
   src: string | undefined,
   assetBaseUrl: string | undefined,
+  assetVersion: string | undefined,
 ): string | undefined => {
   if (!src) {
     return src;
@@ -479,12 +483,17 @@ const resolveImageSrc = (
   if (!assetBaseUrl) {
     return src;
   }
-  return getAssetUrl({ assetBase: assetBaseUrl, filePath: src });
+  return getAssetUrl({
+    assetBase: assetBaseUrl,
+    filePath: src,
+    version: assetVersion,
+  });
 };
 
 export const Markdown = memo(
   ({
     assetBaseUrl,
+    assetVersion,
     hideImages,
     isStreaming,
     markdown,
@@ -583,7 +592,9 @@ export const Markdown = memo(
       : rehypePlugins;
 
     return (
-      <MarkdownTaskContext value={{ assetBaseUrl, isStreaming, taskId }}>
+      <MarkdownTaskContext
+        value={{ assetBaseUrl, assetVersion, isStreaming, taskId }}
+      >
         <ReactMarkdown
           components={{
             a: MarkdownLink,
@@ -595,7 +606,11 @@ export const Markdown = memo(
               src,
               ...props
             }) => {
-              const resolvedSrc = resolveImageSrc(src, assetBaseUrl);
+              const resolvedSrc = resolveImageSrc(
+                src,
+                assetBaseUrl,
+                assetVersion,
+              );
               if (!isImageAllowed(resolvedSrc)) {
                 return hideImages ? null : (
                   <ImagePlaceholder alt={alt} src={resolvedSrc} />

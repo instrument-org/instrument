@@ -6,6 +6,7 @@ import { Markdown } from "./markdown";
 
 export const SessionMarkdown = ({
   assetBaseUrl,
+  assetVersion,
   className,
   hideImages,
   isStreaming,
@@ -14,6 +15,7 @@ export const SessionMarkdown = ({
   taskId,
 }: {
   assetBaseUrl?: string;
+  assetVersion?: string;
   className?: string;
   hideImages?: boolean;
   isStreaming?: boolean;
@@ -31,6 +33,7 @@ export const SessionMarkdown = ({
     >
       <Markdown
         assetBaseUrl={assetBaseUrl}
+        assetVersion={assetVersion}
         hideImages={hideImages}
         isStreaming={isStreaming}
         markdown={markdown}

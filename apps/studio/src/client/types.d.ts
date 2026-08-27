@@ -15,6 +15,9 @@ declare global {
       homeDir: string;
       // Dev-only: forward a renderer log entry to the main-process dev log.
       rendererLog?: (entry: { args: unknown[]; level: string }) => void;
+      // Hand task files to the OS as a native drag. Absent outside Electron,
+      // which is what makes a surface stop offering the drag at all.
+      startFileDrag?: (files: { filePath: string; taskId: string }[]) => void;
       windowType?: "main" | "onboarding";
     };
     electron: ElectronAPI;

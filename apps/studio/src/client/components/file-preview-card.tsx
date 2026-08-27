@@ -2,6 +2,7 @@ import type { RefObject } from "react";
 
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
+import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useTaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getFileKindLabel, getFileType } from "@/client/lib/get-file-type";
@@ -138,6 +139,7 @@ function FileRowCard({
   onClick: () => void;
 }) {
   const { filename, filePath } = file;
+  const dragProps = useFileDrag(file);
   const fileActions = useFileActionVisibility(file);
   const hasFileActions =
     fileActions.showCopy ||
@@ -158,6 +160,7 @@ function FileRowCard({
       onMouseEnter={() => {
         prefetchOpenTarget(file);
       }}
+      {...dragProps}
     >
       {/* The row is what opens the file, and a row is not a control: without
           this it could be clicked and nothing else -- no tab stop, no name, no

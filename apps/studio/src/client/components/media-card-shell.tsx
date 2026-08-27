@@ -1,4 +1,5 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { cn } from "@/client/lib/utils";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { useRef, useState } from "react";
@@ -50,6 +51,7 @@ export function MediaCardShell({
   const [interactive, setInteractive] = useState(false);
   const hoverStartRef = useRef<null | number>(null);
   const timerRef = useRef<null | number>(null);
+  const dragProps = useFileDrag(file);
 
   const handleMouseEnter = () => {
     hoverStartRef.current = Date.now();
@@ -90,6 +92,7 @@ export function MediaCardShell({
           )}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
+          {...dragProps}
         >
           {children}
 

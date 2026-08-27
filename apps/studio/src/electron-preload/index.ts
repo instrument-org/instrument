@@ -1,4 +1,7 @@
-import { RESOLVE_THEME_CHANNEL } from "@/shared/constants";
+import {
+  RESOLVE_THEME_CHANNEL,
+  START_FILE_DRAG_CHANNEL,
+} from "@/shared/constants";
 import { electronAPI } from "@electron-toolkit/preload";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import os from "node:os";
@@ -56,6 +59,14 @@ const api: Window["api"] = {
   // The main side only listens in development, so this is a no-op in production.
   rendererLog: (entry) => {
     ipcRenderer.send("renderer-log", entry);
+  },
+  // Sent, not invoked: the main process has to hand the drag to the OS while
+  // the pointer is still down, and awaiting a reply here would put the round
+  // trip inside the gesture. Everything the drag needs was resolved ahead of
+  // it (see electron-main/lib/file-drag), so this carries only the reference
+  // the renderer already had.
+  startFileDrag: (files) => {
+    ipcRenderer.send(START_FILE_DRAG_CHANNEL, { files });
   },
 };
 

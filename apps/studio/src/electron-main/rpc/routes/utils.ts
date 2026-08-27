@@ -6,6 +6,7 @@ import type {
 
 import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
+import { prepareFileDrag } from "@/electron-main/lib/file-drag";
 import {
   getFileOpenCandidates,
   getFileOpenTarget,
@@ -730,6 +731,22 @@ const copyFileToClipboard = base
     }
   });
 
+// Warms what a native drag of this file will need. Separate from starting the
+// drag, which cannot wait on anything: see electron-main/lib/file-drag. Says
+// nothing about whether the file resolved, because there is nothing useful for
+// the caller to do about it -- a drag with nothing behind it simply does not
+// start.
+const prepareTaskFileDrag = base
+  .input(
+    z.object({
+      filePath: WorkspaceFilePathSchema,
+      id: TaskIdSchema,
+    }),
+  )
+  .handler(async ({ input }) => {
+    await prepareFileDrag({ filePath: input.filePath, taskId: input.id });
+  });
+
 const showFolderPicker = base
   .output(z.object({ path: z.string() }).nullable())
   .handler(async () => {
@@ -769,6 +786,7 @@ export const utils = {
   openTaskFile,
   openTaskFileWith,
   openTaskIn,
+  prepareTaskFileDrag,
   showFileInFolder,
   showFolderPicker,
   showProjectInFolder,

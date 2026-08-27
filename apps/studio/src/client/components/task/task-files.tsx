@@ -1,6 +1,7 @@
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { FolderAttachmentRow } from "@/client/components/folder-attachment-row";
+import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { getFileKindLabel } from "@/client/lib/get-file-type";
@@ -329,6 +330,7 @@ function FileRow({
   onClick: () => void;
 }) {
   const appendToPrompt = useSetAtom(appendToPromptAtom);
+  const dragProps = useFileDrag(file);
 
   const handleAddToChat = () => {
     appendToPrompt({
@@ -350,6 +352,7 @@ function FileRow({
             )}
             isActive={isActive}
             onClick={onClick}
+            {...dragProps}
           >
             <FileThumbnail file={file} isActive={isActive} />
             <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 text-left">

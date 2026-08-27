@@ -36,6 +36,7 @@ import { registerAppProtocol } from "./lib/app-protocol";
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
 import { timeBootStep } from "./lib/boot-timing";
 import { createWorkspaceActor } from "./lib/create-workspace-actor";
+import { registerFileDragHandler } from "./lib/file-drag";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
 import { registerTelemetry } from "./lib/register-telemetry";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
@@ -196,6 +197,8 @@ async function bootstrapPrimaryInstance() {
   if (process.env.DISABLE_AUTO_UPDATE_POLLING !== "true") {
     updater.pollForUpdates();
   }
+
+  registerFileDragHandler();
 
   await timeBootStep("initializeRPC", () => {
     initializeRPC({

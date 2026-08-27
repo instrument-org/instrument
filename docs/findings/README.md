@@ -42,6 +42,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Device/viewport emulation is not safe](in-app-browser-device-emulation.md) | superseded; the guest is resized instead |
 | [Full-page screenshots are not supported](in-app-browser-full-page-screenshots.md) | open, workaround in place |
 | [HTML artifacts: in-iframe navigation](html-artifact-iframe-navigation.md) | open, minimal reset shipped |
+| [WebMCP readiness](webmcp-agent-browser-readiness.md) — calling a third-party site's own tools; probed, blocked on Electron 44 | open, not implemented |
 
 ### Renderer and layout
 

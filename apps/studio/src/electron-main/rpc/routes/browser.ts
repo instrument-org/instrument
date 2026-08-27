@@ -1,5 +1,6 @@
 import {
   getDesiredGuestSurfaces,
+  recordEffectiveGuestSurface,
   setRasterBudget,
 } from "@/electron-main/browser-view/guest-surface";
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
@@ -78,6 +79,25 @@ const syncHostFocus = base.handler(() => {
   getBrowserViewManager()?.setHostFocus();
 });
 
+// The size the pool actually applied to a parked guest. Reported whenever it
+// changes, so main can answer a window-dimension probe with what the guest has
+// rather than what was last asked for -- the two diverge when the window shrinks
+// under a granted size and the pool clamps to what it can rasterize.
+const syncGuestSurface = base
+  .input(
+    z.object({
+      height: z.number(),
+      targetId: BrowserTargetIdSchema,
+      width: z.number(),
+    }),
+  )
+  .handler(({ input }) => {
+    recordEffectiveGuestSurface({
+      size: { height: input.height, width: input.width },
+      targetId: input.targetId,
+    });
+  });
+
 // How large a guest this window can rasterize in full, reported by the pool on
 // startup and on every window resize. Main has no way to measure it and needs it
 // to answer an agent asking for a viewport.
@@ -112,6 +132,7 @@ export const browser = {
   live,
   setEmulatedDevice,
   syncFocus,
+  syncGuestSurface,
   syncHostFocus,
   syncRasterBudget,
 };

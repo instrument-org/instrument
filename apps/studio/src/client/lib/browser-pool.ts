@@ -66,9 +66,13 @@ interface PooledWebview {
   // the same targetId bumps it, so reconcile knows to dispose this guest and
   // mount a fresh one rather than reusing an element bound to a dead entry.
   generation: number;
+  // Last size reported to main, so a park/show cycle that lands on the same
+  // number doesn't re-send it.
+  lastReportedSurface: null | { height: number; width: number };
   // Last size the guest was shown at, so paint-host keeps it that size while
   // hidden (avoids a jarring resize when re-shown).
   lastVisibleBounds: Bounds | null;
+  targetId: BrowserTargetId;
   webview: WebviewElement;
 }
 
@@ -359,6 +363,7 @@ export function showOverSlot(
   }
   paintOwners.set(targetId, owner);
   pooled.lastVisibleBounds = bounds;
+  reportEffectiveSurface(pooled, { height: bounds.height, width: bounds.width });
   const { container, webview } = pooled;
 
   Object.assign(container.style, {
@@ -446,6 +451,7 @@ function applyPaintHost(pooled: PooledWebview) {
   const requested = desiredSurface ?? lastVisibleBounds;
   const width = Math.min(requested?.width ?? VIEW_W, budget.width);
   const height = Math.min(requested?.height ?? VIEW_H, budget.height);
+  reportEffectiveSurface(pooled, { height, width });
 
   Object.assign(container.style, {
     borderRadius: "",
@@ -533,7 +539,9 @@ function ensureWebview(
     container,
     desiredSurface: desiredSurfaces.get(targetId) ?? null,
     generation,
+    lastReportedSurface: null,
     lastVisibleBounds: null,
+    targetId,
     webview,
   };
   pool.set(targetId, pooled);
@@ -589,6 +597,27 @@ function reconcile(targets: BrowserGuestTarget[]) {
   for (const listener of targetListeners) {
     listener();
   }
+}
+
+// Tell main what the guest is actually laid out at. `desiredSurfaces` in main
+// keeps what an agent asked for, so that a guest returns to it when the window
+// grows back; this is the other half, and what a window-dimension probe should
+// be answered with. Without it a granted size that the window later shrank under
+// would keep being reported as though it still held.
+function reportEffectiveSurface(
+  pooled: PooledWebview,
+  size: { height: number; width: number },
+) {
+  const last = pooled.lastReportedSurface;
+  if (last?.width === size.width && last.height === size.height) {
+    return;
+  }
+  pooled.lastReportedSurface = size;
+  void rpcClient.browser.syncGuestSurface.call({
+    height: size.height,
+    targetId: pooled.targetId,
+    width: size.width,
+  });
 }
 
 function reportRasterBudget() {

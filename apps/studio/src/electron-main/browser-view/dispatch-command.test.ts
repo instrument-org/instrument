@@ -16,6 +16,7 @@ import { type BrowserEntry, createEntry } from "./entry";
 import {
   clearGuestSurface,
   getDesiredGuestSurfaces,
+  recordEffectiveGuestSurface,
   setRasterBudget,
 } from "./guest-surface";
 
@@ -311,6 +312,47 @@ describe("sendCommand", () => {
       // Never emits a tiled/viewport image or touches the debugger for full page.
       expect(capturePage).not.toHaveBeenCalled();
       expect(wcSendCommand).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Browser.getWindowForTarget", () => {
+    afterEach(() => {
+      clearGuestSurface(TARGET_ID);
+    });
+
+    it("reports the size the guest is actually laid out at", async () => {
+      recordEffectiveGuestSurface({
+        size: { height: 910, width: 1300 },
+        targetId: TARGET_ID,
+      });
+      const entries = new Map([[TARGET_ID, makeEntry({})]]);
+
+      const result = (await sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries,
+        method: "Browser.getWindowForTarget",
+        params: {},
+        targetId: TARGET_ID,
+      })) as { bounds: { height: number; width: number } };
+
+      // A constant here goes stale the moment an agent asks for a viewport or
+      // the window shrinks under one, and this is the only channel that answers
+      // agent-browser's window probe.
+      expect(result.bounds).toMatchObject({ height: 910, width: 1300 });
+    });
+
+    it("falls back to the default before the renderer has reported", async () => {
+      const entries = new Map([[TARGET_ID, makeEntry({})]]);
+
+      const result = (await sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries,
+        method: "Browser.getWindowForTarget",
+        params: {},
+        targetId: TARGET_ID,
+      })) as { bounds: { height: number; width: number } };
+
+      expect(result.bounds).toMatchObject({ height: 800, width: 1280 });
     });
   });
 

@@ -33,10 +33,6 @@ export function getDesiredGuestSurfaces(): [
   return [...desiredSurfaces];
 }
 
-export function getRasterBudget(): GuestSurfaceSize | null {
-  return rasterBudget;
-}
-
 /**
  * Record the size a target's parked guest should lay out at, or reject the
  * request when this window cannot rasterize it.

@@ -27,7 +27,7 @@ The profile is removed when the old package is torn down and reloaded by the new
 
 ## What happened
 
-The updater ran its install, dpkg unpacked the new version, and the package was left in `unpacked` state with no `configure` ever attempted. The window stayed open for 17 minutes. Five launches in that window aborted with the message above, two of them raising the desktop crash reporter. It ended only because someone ran `sudo dpkg --configure instrument` by hand.
+The updater ran its install, dpkg unpacked the new version, and the package was left in `unpacked` state with no `configure` ever attempted. The window stayed open for 17 minutes. At least four launches in it aborted: the journal carries the message above for three, and the crash reporter captured a fourth started with different flags. It ended only because someone ran `sudo dpkg --configure instrument` by hand.
 
 ## Where the install runs from
 

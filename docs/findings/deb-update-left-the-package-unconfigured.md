@@ -86,6 +86,21 @@ Waiting on the previous process is not the same thing as waiting on the install.
 
 `installStagedUpdate` writes a shell script and starts it detached, then sets `autoInstallOnAppQuit` to false so electron-updater does not also run an install from its quit handler. The script re-runs itself under `systemd-run --user --scope`, waits for the app's process to exit, runs `dpkg -i <deb> || apt-get install -f -y` through `pkexec`, and relaunches only if no instance is already up. The staged path comes from the `update-downloaded` event rather than being rebuilt from the cache-directory name, which the running app and the build it is updating from do not always agree on.
 
+Because all of that happens after the process that asked for it has exited, none of it can reach that session's log, and a failed update would otherwise be silent. The script writes to `last-update-install.log` in the user data directory, and the next start logs it once and removes it. A completed run reads:
+
+```text
+=== 2026-08-27T16:34:54-05:00 install starting, args:
+=== 2026-08-27T16:34:55-05:00 install starting, args: --scoped
+waiting for pid 44214 to exit
+Unpacking instrument (1.6.4) over (1.6.4) ...
+Setting up instrument (1.6.4) ...
+install exited 0
+relaunching
+=== 2026-08-27T16:36:00-05:00 finished
+```
+
+The two `install starting` lines are the scope handoff, so the mechanism this finding is about is visible in the record rather than inferred from its absence.
+
 The mechanism has to be a transient scope, not `detached`. Node's `detached: true` is `setsid`, which makes a new session and not a new cgroup, so systemd still takes the child down with the app. Both halves were measured: a setsid child died with the app's scope, and a `systemd-run --user --scope` child survived it. Three preconditions were checked and hold inside such a scope: `NoNewPrivs` stays `0` so pkexec still works, the authentication prompt still reaches the desktop, and the caller's environment survives the re-exec, which is what the relaunch needs to find a display.
 
 This is the shape the other platforms already use. Squirrel.Mac installs from ShipIt, a separate helper that waits for the app to terminate; Linux was the outlier only because electron-updater installs inline on quit.

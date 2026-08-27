@@ -370,14 +370,21 @@ describe("sendCommand", () => {
     it("records a size within the budget without touching the debugger", async () => {
       setBudget();
       const wcSendCommand = vi.fn();
-      const entries = new Map([[TARGET_ID, makeEntry({ sendCommand: wcSendCommand })]]);
+      const entries = new Map([
+        [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+      ]);
 
       await expect(
         sendCommand({
           ensureDebuggerAttached: vi.fn(),
           entries,
           method: "Emulation.setDeviceMetricsOverride",
-          params: { deviceScaleFactor: 0, height: 1000, mobile: false, width: 1600 },
+          params: {
+            deviceScaleFactor: 0,
+            height: 1000,
+            mobile: false,
+            width: 1600,
+          },
           targetId: TARGET_ID,
         }),
       ).resolves.toEqual({});
@@ -392,14 +399,21 @@ describe("sendCommand", () => {
     it("refuses a size past the budget, naming the maximum, and records nothing", async () => {
       setBudget();
       const wcSendCommand = vi.fn();
-      const entries = new Map([[TARGET_ID, makeEntry({ sendCommand: wcSendCommand })]]);
+      const entries = new Map([
+        [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+      ]);
 
       await expect(
         sendCommand({
           ensureDebuggerAttached: vi.fn(),
           entries,
           method: "Emulation.setDeviceMetricsOverride",
-          params: { deviceScaleFactor: 0, height: 8000, mobile: false, width: 1920 },
+          params: {
+            deviceScaleFactor: 0,
+            height: 8000,
+            mobile: false,
+            width: 1920,
+          },
           targetId: TARGET_ID,
         }),
       ).rejects.toThrow(/1872x1644/);
@@ -413,7 +427,9 @@ describe("sendCommand", () => {
     it("clears the recorded size without touching the debugger", async () => {
       setBudget();
       const wcSendCommand = vi.fn();
-      const entries = new Map([[TARGET_ID, makeEntry({ sendCommand: wcSendCommand })]]);
+      const entries = new Map([
+        [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+      ]);
       const call = (
         method: Parameters<typeof sendCommand>[0]["method"],
         params?: unknown,
@@ -432,7 +448,9 @@ describe("sendCommand", () => {
         mobile: false,
         width: 1600,
       });
-      await expect(call("Emulation.clearDeviceMetricsOverride")).resolves.toEqual({});
+      await expect(
+        call("Emulation.clearDeviceMetricsOverride"),
+      ).resolves.toEqual({});
 
       expect(getDesiredGuestSurfaces()).toEqual([]);
       expect(wcSendCommand).not.toHaveBeenCalled();

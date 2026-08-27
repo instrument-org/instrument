@@ -114,7 +114,9 @@ describe("Markdown links", () => {
     renderMarkdown("Wrote [`notes.md`](output/notes.md).");
 
     expect(
-      screen.getByRole("button", { name: "notes.md" }).getAttribute("draggable"),
+      screen
+        .getByRole("button", { name: "notes.md" })
+        .getAttribute("draggable"),
     ).toBe("true");
   });
 
@@ -126,7 +128,9 @@ describe("Markdown links", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "notes.md" }).getAttribute("draggable"),
+      screen
+        .getByRole("button", { name: "notes.md" })
+        .getAttribute("draggable"),
     ).toBe("false");
   });
 

@@ -126,7 +126,7 @@ It writes `docs/plans/active/wireframes-index.html`, which the same gitignore ru
 
 Write `docs/plans/active/wireframes-index.txt` when the set wants curating. It is the order, and the only way to get headings or better descriptions:
 
-```
+```plaintext
 # Start here
 2026-08-27-the-claim.html | The claim | What the whole proposal rests on
 wireframes-onboarding.html | First run | Launch to a finished artifact without a keystroke

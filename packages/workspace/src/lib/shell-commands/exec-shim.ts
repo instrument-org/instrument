@@ -1,7 +1,10 @@
 import { execa, type Options } from "execa";
 
 /** A finished subprocess's two output streams, kept apart. */
-export interface ShimStreams { stderr: string; stdout: string }
+export interface ShimStreams {
+  stderr: string;
+  stdout: string;
+}
 
 /**
  * Options a shim may set. The output-shaping ones are fixed by `execShim`, so

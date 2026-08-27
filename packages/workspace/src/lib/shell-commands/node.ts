@@ -247,8 +247,9 @@ export function createNodeCommand(taskId: TaskId) {
       env,
       subprocessStdin(ctx.stdin),
     );
-    const streams = mapStreams(shimOutput(execResult, NODE_COMMAND.name), (text) =>
-      filterShellOutput(text, taskDir(taskId)),
+    const streams = mapStreams(
+      shimOutput(execResult, NODE_COMMAND.name),
+      (text) => filterShellOutput(text, taskDir(taskId)),
     );
 
     return {

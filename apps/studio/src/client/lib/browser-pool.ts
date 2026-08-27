@@ -363,7 +363,10 @@ export function showOverSlot(
   }
   paintOwners.set(targetId, owner);
   pooled.lastVisibleBounds = bounds;
-  reportEffectiveSurface(pooled, { height: bounds.height, width: bounds.width });
+  reportEffectiveSurface(pooled, {
+    height: bounds.height,
+    width: bounds.width,
+  });
   const { container, webview } = pooled;
 
   Object.assign(container.style, {

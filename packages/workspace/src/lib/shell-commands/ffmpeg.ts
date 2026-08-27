@@ -5,7 +5,7 @@ import { FFMPEG_PATH } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
-import { execShim, shimOutput } from "./exec-shim";
+import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
   resolveCommandContext,
   resolvePathArgs,
@@ -44,14 +44,13 @@ export function createFfmpegCommand(taskId: TaskId) {
       },
     );
 
-    const combined = filterShellOutput(
+    const streams = mapStreams(
       shimOutput(result, FFMPEG_COMMAND.name),
-      taskDir(taskId),
+      (text) => filterShellOutput(text, taskDir(taskId)),
     );
     return {
       exitCode: result.exitCode ?? 1,
-      stderr: "",
-      stdout: combined,
+      ...streams,
     };
   });
 }

@@ -1,5 +1,8 @@
 import { execa, type Options } from "execa";
 
+/** A finished subprocess's two output streams, kept apart. */
+export interface ShimStreams { stderr: string; stdout: string }
+
 /**
  * Options a shim may set. The output-shaping ones are fixed by `execShim`, so
  * they are excluded rather than merely overridden: leaving them settable would
@@ -15,10 +18,13 @@ type ShimOptions = Omit<
  * Run a real binary on behalf of a sandbox command, with the settings every
  * shim needs to behave like a shell command rather than a library call:
  *
- * - `all` merges stdout and stderr in the order the process wrote them. That
- *   ordering is only available here: the interpreter carries a single output
- *   buffer per command, so a shim handing back two separate streams would have
- *   to concatenate them and lose the interleaving.
+ * - stdout and stderr are kept apart, because that is what makes a redirection
+ *   mean what it says. Merging them costs the agent the interleaving of a
+ *   process that writes to both, but handing the merged text back as stdout
+ *   costs far more: `cmd > file` writes the diagnostics into the file and
+ *   leaves the agent an empty result to explain a non-zero exit, and
+ *   `2>/dev/null` silences nothing because nothing is on stderr to silence.
+ *   Real bash separates them under redirection too.
  * - `stripFinalNewline` is off. execa drops a subprocess's trailing newline by
  *   default; because the interpreter concatenates each command's output, losing
  *   it runs one command's last line into the next command's first.
@@ -32,16 +38,10 @@ export async function execShim(
 ) {
   const result = await execa(file, args, {
     ...options,
-    all: true,
     reject: false,
     stripFinalNewline: false,
   });
   return {
-    // execa types `all` as optional (only populated when asked for) and as
-    // possibly an array (when `lines` is on). It is always asked for here and
-    // `lines` is not settable, so the string branch is the only reachable one;
-    // narrowing rather than asserting keeps that guarantee checked.
-    all: typeof result.all === "string" ? result.all : "",
     exitCode: result.exitCode,
     // The binary that was launched, kept so a diagnostic can name the command
     // the way the agent spells it rather than by its path on this machine.
@@ -49,6 +49,23 @@ export async function execShim(
     // Set when the subprocess failed without producing output of its own, which
     // is the only diagnostic a shim can report in that case.
     shortMessage: result.shortMessage,
+    // execa types these as possibly an array (when `lines` is on) or a buffer
+    // (when `encoding` is set). Neither is settable here, so the string branch
+    // is the only reachable one; narrowing rather than asserting keeps that
+    // guarantee checked.
+    stderr: typeof result.stderr === "string" ? result.stderr : "",
+    stdout: typeof result.stdout === "string" ? result.stdout : "",
+  };
+}
+
+/** Apply a text transform to both streams of a finished shim. */
+export function mapStreams(
+  streams: ShimStreams,
+  transform: (text: string) => string,
+): ShimStreams {
+  return {
+    stderr: transform(streams.stderr),
+    stdout: transform(streams.stdout),
   };
 }
 
@@ -80,18 +97,20 @@ export async function execShim(
  */
 export function shimOutput(
   result: {
-    all: string;
     exitCode: number | undefined;
     file?: string;
     shortMessage?: string;
+    stderr: string;
+    stdout: string;
   },
   commandName: string,
-): string {
+): ShimStreams {
+  const streams = { stderr: result.stderr, stdout: result.stdout };
   if (result.exitCode !== undefined) {
-    return result.all;
+    return streams;
   }
-  if (result.all) {
-    return result.all;
+  if (result.stdout || result.stderr) {
+    return streams;
   }
 
   const detail = (result.shortMessage ?? "")
@@ -103,7 +122,11 @@ export function shimOutput(
     .join("\n")
     .trim();
 
-  return detail
-    ? `${commandName} could not start.\n${detail}\n`
-    : `${commandName} failed without diagnostic output.\n`;
+  // A spawn failure is a diagnostic, so it goes where diagnostics go.
+  return {
+    stderr: detail
+      ? `${commandName} could not start.\n${detail}\n`
+      : `${commandName} failed without diagnostic output.\n`,
+    stdout: "",
+  };
 }

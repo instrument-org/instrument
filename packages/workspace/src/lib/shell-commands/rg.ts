@@ -15,7 +15,7 @@ import {
   resolveReadOnlyHostPath,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
-import { execShim, shimOutput } from "./exec-shim";
+import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
   privateDirLiteralError,
   resolveCommandContext,
@@ -132,17 +132,19 @@ export function createRgCommand({
       },
     );
 
-    return {
-      exitCode: result.exitCode ?? 1,
-      stderr: "",
-      stdout: filterShellOutput(
-        virtualizeOutput(shimOutput(result, RG_COMMAND.name), layout),
+    const streams = mapStreams(shimOutput(result, RG_COMMAND.name), (text) =>
+      filterShellOutput(
+        virtualizeOutput(text, layout),
         taskDir(taskId),
         // `--path-separator=/` already makes ripgrep print POSIX paths, so the
         // separator rewrite has nothing to fix here and would only corrupt
         // backslashes inside matched lines and `--json` escapes.
         { rewriteSeparators: false },
       ),
+    );
+    return {
+      exitCode: result.exitCode ?? 1,
+      ...streams,
     };
   });
 }

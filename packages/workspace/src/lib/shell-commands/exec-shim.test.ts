@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { execShim, shimOutput } from "./exec-shim";
+import { execShim, mapStreams, shimOutput } from "./exec-shim";
 
 const runNode = (code: string) => execShim(process.execPath, ["-e", code], {});
 
@@ -10,20 +10,23 @@ describe("execShim", () => {
   // command's last line into the next command's first.
   it("keeps the trailing newline", async () => {
     const result = await runNode("console.log('a')");
-    expect(result.all).toBe("a\n");
+    expect(result.stdout).toBe("a\n");
   });
 
   it("keeps every trailing newline, not just the last", async () => {
     const result = await runNode("process.stdout.write('a\\n\\n\\n')");
-    expect(result.all).toBe("a\n\n\n");
+    expect(result.stdout).toBe("a\n\n\n");
   });
 
-  it("merges stderr into the returned output", async () => {
+  // The whole point of the split: a redirection can only mean what it says if
+  // the two streams arrive apart. Merged, `cmd > file` buries the diagnostic in
+  // the file and `2>/dev/null` has nothing to silence.
+  it("keeps stderr out of stdout", async () => {
     const result = await runNode(
       "process.stdout.write('out\\n'); process.stderr.write('err\\n')",
     );
-    expect(result.all).toContain("out");
-    expect(result.all).toContain("err");
+    expect(result.stdout).toBe("out\n");
+    expect(result.stderr).toBe("err\n");
   });
 
   it("reports a non-zero exit as a code rather than throwing", async () => {
@@ -38,12 +41,14 @@ describe("shimOutput", () => {
       cwd: "/no/such/directory",
     });
 
-    expect(result.all).toBe("");
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe("");
     expect(result.exitCode).toBeUndefined();
 
     const output = shimOutput(result, "node");
-    expect(output).toContain("node could not start.");
-    expect(output).toContain("/no/such/directory");
+    expect(output.stderr).toContain("node could not start.");
+    expect(output.stderr).toContain("/no/such/directory");
+    expect(output.stdout).toBe("");
   });
 
   // execa opens shortMessage with the resolved binary path, which for the
@@ -55,14 +60,14 @@ describe("shimOutput", () => {
     });
 
     const output = shimOutput(result, "node");
-    expect(output).not.toContain(process.execPath);
-    expect(output).not.toContain("Command failed with");
+    expect(output.stderr).not.toContain(process.execPath);
+    expect(output.stderr).not.toContain("Command failed with");
   });
 
   it("substitutes a diagnostic when the binary is missing", async () => {
     const result = await execShim("instrument-no-such-binary", [], {});
 
-    expect(shimOutput(result, "nope")).toContain("ENOENT");
+    expect(shimOutput(result, "nope").stderr).toContain("ENOENT");
   });
 
   // rg reports no matches this way, and git diff --quiet reports a difference
@@ -71,12 +76,31 @@ describe("shimOutput", () => {
     const result = await runNode("process.exit(1)");
 
     expect(result.exitCode).toBe(1);
-    expect(shimOutput(result, "rg")).toBe("");
+    expect(shimOutput(result, "rg")).toEqual({ stderr: "", stdout: "" });
   });
 
   it("passes successful output through unchanged", async () => {
     const result = await runNode("console.log('ok')");
 
-    expect(shimOutput(result, "node")).toBe("ok\n");
+    expect(shimOutput(result, "node")).toEqual({ stderr: "", stdout: "ok\n" });
+  });
+
+  // A process that wrote only to stderr and then failed to report an exit code
+  // still has something to say, so the diagnostic must not displace it.
+  it("keeps real stderr rather than substituting a diagnostic", () => {
+    const output = shimOutput(
+      { exitCode: undefined, stderr: "real trouble\n", stdout: "" },
+      "node",
+    );
+
+    expect(output.stderr).toBe("real trouble\n");
+  });
+});
+
+describe("mapStreams", () => {
+  it("applies the transform to both streams", () => {
+    expect(
+      mapStreams({ stderr: "b", stdout: "a" }, (text) => text.toUpperCase()),
+    ).toEqual({ stderr: "B", stdout: "A" });
   });
 });

@@ -4,7 +4,7 @@ import { type TaskId } from "../../schemas/task-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
 import { taskVenvPython } from "../uv";
-import { execShim, shimOutput } from "./exec-shim";
+import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
   bridgeInlineCodePaths,
   resolveCommandContext,
@@ -111,8 +111,9 @@ function createPythonCommandNamed(taskId: TaskId, name: string) {
 
     return {
       exitCode: result.exitCode ?? 1,
-      stderr: "",
-      stdout: filterShellOutput(shimOutput(result, name), taskDir(taskId)),
+      ...mapStreams(shimOutput(result, name), (text) =>
+        filterShellOutput(text, taskDir(taskId)),
+      ),
     };
   });
 }

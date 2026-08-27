@@ -18,13 +18,12 @@ export async function getIgnore(
 }
 
 /**
- * The root's .gitignore, or undefined where there is nothing to read.
+ * The root's .gitignore, or undefined where there is nothing this can read.
  *
  * Read rather than asked about: the trees this runs over are live, so a
  * .gitignore that exists when we look can be gone by the time we open it (a
  * checkout rewriting it under us), and the answer to both is the same one.
- * Anything else -- an unreadable file, an aborted read -- is a real failure and
- * still throws.
+ * An aborted read is a real failure and still throws.
  */
 async function readGitignore(
   gitignorePath: AbsolutePath,
@@ -36,8 +35,19 @@ async function readGitignore(
     const code =
       error instanceof Error && "code" in error ? error.code : undefined;
     // ENOENT: no such file. EISDIR/ENOTDIR: a directory by that name, or a
-    // parent that is not one -- neither is a gitignore file either.
-    if (code === "ENOENT" || code === "EISDIR" || code === "ENOTDIR") {
+    // parent that is not one -- neither is a gitignore file either. EACCES and
+    // EPERM: a mode the agent set on what it wrote, or one an archive restored
+    // with its permissions, which is the same door the walk over the tree steps
+    // around rather than stopping at. Every caller here would otherwise fail
+    // whole -- a file listing, a task copy, a skill install -- over a file whose
+    // only job is to make the result smaller.
+    if (
+      code === "ENOENT" ||
+      code === "EISDIR" ||
+      code === "ENOTDIR" ||
+      code === "EACCES" ||
+      code === "EPERM"
+    ) {
       return;
     }
     throw error;

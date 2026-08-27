@@ -168,7 +168,7 @@ export const ReasoningMessage = memo(function ReasoningMessage({
               }}
             >
               <SessionMarkdown
-                className={cn("italic opacity-50", isLoading && "opacity-100")}
+                className={cn("opacity-50", isLoading && "opacity-100")}
                 markdown={
                   isLoading
                     ? displayText

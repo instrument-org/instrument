@@ -5,6 +5,7 @@ import {
 import { logger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
+  APP_NAME_SLUG,
   APP_UPDATER_CACHE_DIR_NAME,
   RELEASES_BUCKET_URL,
 } from "@instrument-org/shared";
@@ -13,6 +14,7 @@ import pkg from "electron-updater";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
+import path from "node:path";
 
 import { getPreferencesStore, setLastUpdateCheck } from "../stores/preferences";
 
@@ -27,6 +29,10 @@ const scopedLogger = logger.scope("appUpdater");
 const IS_MACOS_INTEL = os.platform() === "darwin" && os.arch() === "x64";
 // macOS on Intel is the only custom channel, otherwise use the defaults.
 const MACOS_INTEL_CHANNEL = "latest-x64";
+
+// Where the artifact for the staged update landed, recorded when the download
+// finishes. Only the Linux install reads it, which drives dpkg itself.
+let stagedInstallerPath: string | undefined;
 
 export function createStudioAppUpdater({
   confirmQuit,
@@ -69,7 +75,14 @@ export function createStudioAppUpdater({
       autoUpdater.on("error", handlers.failed);
       autoUpdater.on("update-available", handlers.available);
       autoUpdater.on("update-cancelled", handlers.canceled);
-      autoUpdater.on("update-downloaded", handlers.downloaded);
+      autoUpdater.on("update-downloaded", (event) => {
+        // Where the artifact landed, which the Linux install below hands to a
+        // process of its own. Taken from the event rather than rebuilt from the
+        // cache-directory name, which the app and the build it is updating from
+        // do not always agree on.
+        stagedInstallerPath = event.downloadedFile;
+        handlers.downloaded(event);
+      });
       autoUpdater.on("update-not-available", handlers.notAvailable);
     },
   };
@@ -157,31 +170,45 @@ function getInstallNotice() {
 }
 
 function installStagedUpdate() {
-  if (os.platform() === "linux") {
-    // Linux avoids autoUpdater.quitAndInstall(), which hangs here, and cannot use
-    // app.relaunch(): that sets PR_SET_NO_NEW_PRIVS=1 on the child process,
-    // permanently stripping the pkexec/sudo privileges future updates need to
-    // authenticate. Spawn a detached process that waits for us to exit before
-    // launching, bypassing the zygote inheritance.
-    // See: https://github.com/electron/electron/issues/41463
-    const child = spawn(
-      "sh",
-      [
-        "-c",
-        `while kill -0 ${process.pid} 2>/dev/null; do sleep 0.1; done; ${process.execPath} ${process.argv
-          .slice(1)
-          .map((a) => JSON.stringify(a))
-          .join(" ")} & disown`,
-      ],
-      { detached: true, stdio: "ignore" },
-    );
-    child.unref();
-    // The staged build is applied by electron-updater's own quit handler.
-    app.quit();
+  if (os.platform() !== "linux") {
+    autoUpdater.quitAndInstall();
     return;
   }
 
-  autoUpdater.quitAndInstall();
+  // Linux drives its own install. Two constraints shape it.
+  //
+  // `app.relaunch()` is unusable: it sets PR_SET_NO_NEW_PRIVS=1 on the child,
+  // permanently stripping the pkexec privileges later updates authenticate with
+  // (https://github.com/electron/electron/issues/41463, closed as not planned).
+  //
+  // And electron-updater must not install from its own quit handler, which runs
+  // dpkg synchronously on this thread as a child of this process. That puts the
+  // transaction in the app's cgroup, so anything ending the app severs it with
+  // the package unpacked and its AppArmor profile removed, leaving an
+  // installation that will not start at all, and takes the `apt-get install -f`
+  // recovery down with the process that would have run it.
+  // See docs/findings/deb-update-left-the-package-unconfigured.md.
+  if (!stagedInstallerPath) {
+    scopedLogger.warn(
+      "No staged installer path recorded; leaving the install to electron-updater",
+    );
+    autoUpdater.quitAndInstall();
+    return;
+  }
+
+  try {
+    startDetachedInstall(stagedInstallerPath);
+  } catch (error) {
+    scopedLogger.error(
+      new Error("Could not hand off the Linux install", { cause: error }),
+    );
+    autoUpdater.quitAndInstall();
+    return;
+  }
+
+  // The handoff owns the install now, so the quit handler must not run a second.
+  autoUpdater.autoInstallOnAppQuit = false;
+  app.quit();
 }
 
 function isUbuntu(): boolean {
@@ -195,4 +222,60 @@ function isUbuntu(): boolean {
   } catch {
     return false;
   }
+}
+
+// Single-quote for /bin/sh, which has no escape inside single quotes: close the
+// quote, emit an escaped one, reopen.
+function quoteForShell(value: string) {
+  return `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
+/**
+ * Write and start the script that installs the staged package.
+ *
+ * It re-runs itself inside a transient systemd scope, which is what takes it out
+ * of this app's cgroup. `detached` alone is not enough: that is `setsid`, which
+ * makes a new session and not a new cgroup, and systemd tears a session down
+ * along with the cgroup holding it. A host without systemd falls through to a
+ * plain detached process, which still outlives an ordinary exit.
+ */
+function startDetachedInstall(installerPath: string) {
+  const relaunch = [process.execPath, ...process.argv.slice(1)]
+    .map(quoteForShell)
+    .join(" ");
+  // `dpkg -i` can stop short of configuring the package. Chaining the repair
+  // into the same shell is what lets a partial transaction finish, rather than
+  // depending on a catch in a process that may be gone by then.
+  const install = `dpkg -i ${quoteForShell(installerPath)} || apt-get install -f -y`;
+  const processName = path.basename(process.execPath);
+
+  const script = `#!/bin/sh
+if [ "$1" != "--scoped" ] && command -v systemd-run >/dev/null 2>&1; then
+  systemd-run --user --scope --collect --quiet -- "$0" --scoped && exit 0
+fi
+
+# dpkg must not rewrite the installation underneath a running app.
+while kill -0 ${process.pid} 2>/dev/null; do sleep 0.1; done
+
+if command -v pkexec >/dev/null 2>&1; then
+  pkexec --disable-internal-agent sh -c ${quoteForShell(install)}
+else
+  sudo -n sh -c ${quoteForShell(install)}
+fi
+
+# Relaunch only if nothing came back on its own while the install ran. Starting a
+# second copy over a just-replaced installation is how the same handoff goes
+# wrong on macOS (electron/electron#36130).
+pgrep -x ${quoteForShell(processName)} >/dev/null 2>&1 || setsid ${relaunch} >/dev/null 2>&1 &
+
+rm -f "$0"
+`;
+
+  const scriptPath = path.join(
+    os.tmpdir(),
+    `${APP_NAME_SLUG}-install-${process.pid}.sh`,
+  );
+  fs.writeFileSync(scriptPath, script, { mode: 0o700 });
+  spawn("sh", [scriptPath], { detached: true, stdio: "ignore" }).unref();
+  scopedLogger.info(`Handed the staged install to ${scriptPath}`);
 }

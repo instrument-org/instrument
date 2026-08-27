@@ -1,6 +1,6 @@
 # Background shell processes
 
-Status: **active.** The workspace half works end to end and is covered by tests, the agent is told what it left running, and a task's header shows the user. No subagent tool yet. What remains is in [What the user and the agent are told](#what-the-user-and-the-agent-are-told).
+Status: **active.** The workspace half works end to end and is covered by tests, the agent is told what it left running, and the user sees it in the task header and on the call that started it. No subagent tool yet. What remains is in [What the user and the agent are told](#what-the-user-and-the-agent-are-told), and [one integration](#integrating-with-mains-split-of-stdout-and-stderr) is owed to `main`.
 
 ## Problem
 
@@ -253,6 +253,32 @@ The mitigation with a real payoff is a pid file reaped at next boot, which is th
 same shape [agent-browser-orphaned-daemons.md](../../findings/agent-browser-orphaned-daemons.md)
 wants, and worth doing once for both rather than twice.
 
+## Integrating with main's split of stdout and stderr
+
+Landed on `main` while this was open, in `300b8ad60` and `15f7de5b6`: `execShim`
+now returns `stdout` and `stderr` apart, with a `ShimStreams` type and a
+`mapStreams` helper, and every shim has moved onto it. The reasoning is sound and
+is not this branch's to overturn -- keeping them apart is what makes `cmd > file`
+put diagnostics on the terminal instead of into the file, and what leaves
+`2>/dev/null` something to silence.
+
+It collides with this design head on. Streaming here is built on `all: true`, one
+merged stream read by `collectAndForward`, and the merged text *is* the command's
+result. `matchesStreamedOutput` and `appendFinalOutput` both compare the streamed
+copy against a single final output that no longer exists as a single thing.
+
+The reconciliation, when it is done, is probably that the two answer different
+questions rather than that one wins. `all` is an *additional* stream in execa, so
+a shim can populate it for the live view -- where interleaving is exactly what
+someone watching a process wants -- while returning the split streams as the
+authoritative result, where redirection has to mean what it says. What that costs
+is the comparison: the streamed copy would be compared against the two
+concatenated, which is close to but not the same as what the shell would have
+produced.
+
+Recorded because it is invisible until a merge conflicts, and because resolving
+it inside a conflict is how the reasoning above gets lost.
+
 ## What the user and the agent are told
 
 **The agent is told at the start of a turn**, by a `data-backgroundProcesses` part
@@ -270,12 +296,36 @@ session was last told is persisted under its own storage key, which is what make
 `ended` -- "the server you started is gone" -- sayable at all.
 
 **The user is told in the task header**, by a pill that is absent whenever nothing
-is running. Four placements were drawn before picking it
-([wireframes-background-processes.html](wireframes-background-processes.html)):
-above the prompt input, inline in the transcript, the header, and the sidebar.
-Inline lost on a point that is not about taste -- a transcript is a log and this
-is live state, so it is the one placement that cannot stay correct. The same
-reasoning keeps the data part developer-only in the chat stream.
+is running. Four placements were drawn before picking it: above the prompt input,
+inline in the transcript, the header, and the sidebar. What lost inline was the
+*list* of everything running, on a point that is not about taste -- a transcript
+is a log and a list of live state is the one thing a log cannot keep correct. The
+same reasoning keeps the data part developer-only in the chat stream.
+
+**And in the transcript, by the call that started it.** A promoted `bash` call is
+a different question from that list: not what is running in this task, but
+whether this one command is still going. Left alone the row read as a command
+that had finished and printed those lines, because a promoted call carries no
+exit code and the label was past tense.
+
+It now takes the same pulsing indicator and shiny label the agent's own working
+row takes, because to a reader it is the same promise -- something is happening,
+and this row is where. It is deliberately not held to the rule that only one row
+pulses: that rule exists so two things never look simultaneous, and once the turn
+is over several commands genuinely do run at once.
+
+Three things follow from reading the registry rather than the stored part, which
+says `processId` forever and would still be claiming a dev server was up the next
+morning. The indicator stops when the process does. The label returns to the past
+tense. And an empty card stops saying `No output`, which reports a result it has
+not reached: only real binaries stream, so a watcher loop or a server quiet in its
+first second yields nothing inside the window.
+
+The header pill's query moved to
+[`use-task-background-processes.ts`](../../../apps/studio/src/client/hooks/use-task-background-processes.ts)
+so both surfaces read one key -- a transcript full of promoted calls costs a
+single request, and each row is a lookup. The opened card carries the duration in
+words and points at the pill, which owns the only control that can stop one.
 
 **The two-hour cap says so.** It is the only one of the three ways a process ends
 that nobody performs, so it is the only one that can read as a bug. The agent is

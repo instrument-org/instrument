@@ -17,6 +17,14 @@ jobs:
       - uses: ./.github/actions/prepare
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+      # Reported, not enforced, and ahead of the gate so the annotation lands
+      # even when something below it fails. Every correction typos makes is one
+      # `pnpm fix:spelling` applies unattended, and nothing downstream of a
+      # misspelled comment breaks, so holding types, lint, build, and tests red
+      # behind one British spelling costs more than the word does.
+      - continue-on-error: true
+        name: Spelling
+        run: pnpm check:spelling
       - run: pnpm check-and-test:ci
 
   # Its own job so the Chromium download never sits in front of everything else,

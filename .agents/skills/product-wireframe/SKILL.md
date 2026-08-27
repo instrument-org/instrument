@@ -113,6 +113,29 @@ Two that are wrong on sight if you guess:
 - **The user bubble is a white-to-near-white gradient with a shadow, not a grey fill.** The small top-right corner against three large ones is the most recognizable detail in the transcript.
 - **Action buttons are small and quiet.** 14px icons at 4px padding, muted until hover. Drawn at 24px with borders, the frame reads as a different product.
 
+## Walking a set
+
+Several of these usually get made for one proposal, and a row of tabs is a bad way to walk someone through them or to record a video. One command builds a local page that plays the whole set: a rail of titles on the left, the selected artifact filling the rest, arrow keys or `j`/`k` between them, `f` to hide the rail so the artifact goes full bleed.
+
+```bash
+node .agents/skills/product-wireframe/scripts/build-index.ts                    # everything, in name order
+node .agents/skills/product-wireframe/scripts/build-index.ts a.html b.html      # exactly these, in this order
+```
+
+It writes `docs/plans/active/wireframes-index.html`, which the same gitignore rule covers. Titles come from each file's `h1`, the one-line description from its `SUBTITLE` (or, for an explanation, the first sentence of its opening paragraph), and the frame count from the states array, so an unattended run is already legible.
+
+Write `docs/plans/active/wireframes-index.txt` when the set wants curating. It is the order, and the only way to get headings or better descriptions:
+
+```
+# Start here
+2026-08-27-the-claim.html | The claim | What the whole proposal rests on
+wireframes-onboarding.html | First run | Launch to a finished artifact without a keystroke
+```
+
+**Every artifact is inlined into the output, which is not an optimization.** Chrome refuses to load a sibling `file://` document into an iframe, so `src="./wireframes-x.html"` renders blank with no error and it looks like the idea is unworkable. `srcdoc` involves no origin, so it always renders, and each artifact's own scripts run inside it: frames scale to the pane and enlarge-on-click works, bounded by the pane rather than the window. Each rail entry also links to the real file for when a frame needs to open at true size.
+
+The cost is that the index holds copies. Rerun the command after changing any artifact in the set, or it quietly shows the old one.
+
 ## Publishing
 
 Prefer the file over a picture of it. In Notion, upload it with the `create-attachment` tool and place it with `<embed src="file-upload://...">`, which renders it inline in a sandboxed iframe. It stays legible at any zoom and revising it is a re-upload. Scripts run there, so the frames render and the enlarge-on-click works.

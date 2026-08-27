@@ -32,6 +32,7 @@ A design conversation often wants several artifacts, one per round, each a new f
 - **Say plainly when you are reversing your own earlier recommendation, and on what new information.** A revision that quietly changes position makes the reader re-derive which version they are holding.
 - **Calibrate against a real reference implementation** when one exists, and verify rather than recall it. Comparing against how a known product actually behaves is usually more decisive than reasoning from first principles, and it can turn out to support the opposite conclusion.
 - **Keep the open questions last and shrinking.** Lead with the answer while the design is still moving; once it has converged, a short list of what is genuinely undecided is the most useful ending.
+- **Build one page that plays the series** once there are more than three, rather than handing over a row of tabs. `node .agents/skills/product-wireframe/scripts/build-index.ts` indexes explanations and wireframes together; see Walking a set in that skill.
 - **Add a section for what the reader said they might be forgetting**, when they say so. Adjacent consequences they have not asked about are often the highest-value part of a late round.
 
 ## Embedding a wireframe

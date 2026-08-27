@@ -64,3 +64,4 @@ agent-reference.local.json
 # is a link nobody else can follow. Ask for one to be committed if it should
 # outlive the conversation that produced it.
 /docs/plans/**/wireframes-*.html
+/docs/plans/**/wireframes-index.txt

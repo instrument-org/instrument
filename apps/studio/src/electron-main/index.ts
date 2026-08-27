@@ -38,6 +38,7 @@ import { timeBootStep } from "./lib/boot-timing";
 import { createWorkspaceActor } from "./lib/create-workspace-actor";
 import { registerFileDragHandler } from "./lib/file-drag";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
+import { registerCrashDiagnostics } from "./lib/register-crash-diagnostics";
 import { registerTelemetry } from "./lib/register-telemetry";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
 import {
@@ -72,6 +73,7 @@ if (gotTheLock) {
 
   app.setAsDefaultProtocolClient(APP_PROTOCOL);
 
+  registerCrashDiagnostics(app);
   registerTelemetry(app);
 
   app.on("second-instance", (_event, commandLine) => {

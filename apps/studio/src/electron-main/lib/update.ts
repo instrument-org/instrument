@@ -5,6 +5,7 @@ import {
 import { logger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
+  APP_NAME,
   APP_NAME_SLUG,
   APP_UPDATER_CACHE_DIR_NAME,
   RELEASES_BUCKET_URL,
@@ -160,14 +161,18 @@ function getChannel() {
   return channel;
 }
 
-// Only Linux takes long enough, and involves enough OS noise, to need narrating.
+function getInstallLogPath() {
+  return path.join(app.getPath("userData"), "last-update-install.log");
+}
+
+// Only Linux needs narrating: it is the one platform that closes the app, asks
+// the user for authentication, and comes back by itself. Declining that prompt
+// is the one way an update quietly does not happen, which is what this says.
 function getInstallNotice() {
   if (os.platform() !== "linux") {
     return;
   }
-  return isUbuntu()
-    ? 'Update is installing and may take a few minutes to complete. Please ignore any "Force quit" dialogs. The app will restart when complete.'
-    : "Update is installing. Please allow a few minutes for the update to complete. The app will restart when complete.";
+  return `${APP_NAME} will close and ask you to authenticate, then reopen once the update is installed.`;
 }
 
 function installStagedUpdate() {
@@ -212,23 +217,40 @@ function installStagedUpdate() {
   app.quit();
 }
 
-function isUbuntu(): boolean {
-  if (os.platform() !== "linux") {
-    return false;
-  }
-
-  try {
-    const osRelease = fs.readFileSync("/etc/os-release", "utf8");
-    return osRelease.includes("Ubuntu");
-  } catch {
-    return false;
-  }
-}
-
 // Single-quote for /bin/sh, which has no escape inside single quotes: close the
 // quote, emit an escaped one, reopen.
 function quoteForShell(value: string) {
   return `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
+/**
+ * Log what the previous install did, if there was one.
+ *
+ * A Linux install finishes after the process that started it has exited, so
+ * nothing it does can reach the log of the session that asked for it. Reading
+ * the file on the next start is the only account of the outcome there is, and it
+ * is removed once read so a later boot does not report the same install twice.
+ */
+function reportPreviousInstall() {
+  if (os.platform() !== "linux" || !fs.existsSync(getInstallLogPath())) {
+    return;
+  }
+
+  try {
+    // Bounded because it carries dpkg's output, which has no size contract.
+    const contents = fs
+      .readFileSync(getInstallLogPath(), "utf8")
+      .trim()
+      .slice(-8000);
+    fs.rmSync(getInstallLogPath(), { force: true });
+    if (contents) {
+      scopedLogger.info(`Previous update install:\n${contents}`);
+    }
+  } catch (error) {
+    scopedLogger.warn(
+      new Error("Could not read the previous install log", { cause: error }),
+    );
+  }
 }
 
 /**
@@ -303,38 +325,4 @@ rm -f "$0"
   scopedLogger.info(
     `Handed the staged install to ${scriptPath}, logging to ${logPath}`,
   );
-}
-
-function getInstallLogPath() {
-  return path.join(app.getPath("userData"), "last-update-install.log");
-}
-
-/**
- * Log what the previous install did, if there was one.
- *
- * A Linux install finishes after the process that started it has exited, so
- * nothing it does can reach the log of the session that asked for it. Reading
- * the file on the next start is the only account of the outcome there is, and it
- * is removed once read so a later boot does not report the same install twice.
- */
-function reportPreviousInstall() {
-  if (os.platform() !== "linux" || !fs.existsSync(getInstallLogPath())) {
-    return;
-  }
-
-  try {
-    // Bounded because it carries dpkg's output, which has no size contract.
-    const contents = fs
-      .readFileSync(getInstallLogPath(), "utf8")
-      .trim()
-      .slice(-8000);
-    fs.rmSync(getInstallLogPath(), { force: true });
-    if (contents) {
-      scopedLogger.info(`Previous update install:\n${contents}`);
-    }
-  } catch (error) {
-    scopedLogger.warn(
-      new Error("Could not read the previous install log", { cause: error }),
-    );
-  }
 }

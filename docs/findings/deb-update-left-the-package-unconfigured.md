@@ -1,6 +1,6 @@
 # A deb update can leave the package unpacked but not configured
 
-**Status:** open. One occurrence on a Linux test host, 2026-08-26, upgrading 1.6.1 to 1.6.2. The mechanism is traced as far as the surviving logs allow; the trigger is not reproduced and there is no fix. Last updated 2026-08-27.
+**Status:** open, no fix. One occurrence upgrading 1.6.1 to 1.6.2 on a Linux test host, 2026-08-26. A partial reproduction the next day established how the install behaves and why it leaves no trace, which narrows the unknown to what ended the app that day. Last updated 2026-08-27.
 
 ## Why an unconfigured package cannot start
 
@@ -35,9 +35,33 @@ electron-updater's `DebUpdater` runs `dpkg -i <deb>` through `pkexec`, and catch
 
 The install itself is driven from electron-updater's quit handler, inside the exiting app process. On Linux, `installStagedUpdate` in [`update.ts`](../../apps/studio/src/electron-main/lib/update.ts) deliberately avoids `quitAndInstall()` and calls `app.quit()`, letting that handler apply the staged build. The privileged `dpkg` is therefore a child of a process on its way out, inside the desktop's application scope. When that scope was released the transaction was still unconfigured, and the root `pkexec` session never logged a clean close.
 
+## What a reproduction showed
+
+Driving a real 1.6.3 to 1.6.4 update on the same host, through the same RPCs the update button calls, established four things without reaching the failure itself.
+
+**The install needs a human.** It runs `pkexec --disable-internal-agent /bin/bash -c 'dpkg -i <staged deb>'`, which raises an interactive authentication prompt on the desktop. Nothing proceeds until someone answers it.
+
+**The app is frozen for the whole install.** `spawnSync` blocks the main thread from the moment the install starts, including while the prompt waits. RPC and CDP both stop answering. This is the reason the product's Linux install notice tells the user to ignore any "Force quit" dialogs, and the reason a user watching a frozen window might reasonably kill it.
+
+**A blocked main thread writes no log.** The line logged immediately before the install, `Quitting to install the staged update`, never reached the log file, because the thread blocked before it flushed. That accounts for the original occurrence's silence, which had looked like evidence the install never started.
+
+**The privileged child lives in the app's cgroup.** Both the app and its `pkexec` descendant sat in the same `app-instrument-<pid>.scope`. Anything that tears that scope down takes a running dpkg transaction with it, mid-write.
+
+Together those give a mechanism that fits every observation: the app freezes, something ends it while dpkg is partway through, dpkg dies inside the same cgroup with the package unpacked and the profile removed, and electron-updater's `apt-get install -f -y` fallback never runs because the process that would have caught the failure is gone.
+
 ## What could not be determined
 
-Why dpkg stopped after unpacking. Its output went to the `pkexec`'d shell, a child of the app, so none of it reached the system journal or the app's own log, and the app's last log line is `Update downloaded`, written before the install began. dpkg's log records no `configure` attempt at all, which says configure was never started rather than started and failed. Unmet dependencies are ruled out: the two bare names in `Depends` that look missing on Ubuntu 24.04 (`libgtk-3-0`, `libatspi2.0-0`) resolve through the `t64` renames via `Provides`.
+What ended the app that day. Force-quitting a frozen window fits, and so does anything else that kills the process group, but nothing in the surviving logs names it.
+
+Completing the reproduction needs someone at the physical desktop to answer the authentication prompt, so it stopped there rather than bypassing polkit.
+
+Two things are ruled out. Unmet dependencies: the two bare names in `Depends` that look missing on Ubuntu 24.04 (`libgtk-3-0`, `libatspi2.0-0`) resolve through the `t64` renames via `Provides`. And a clean dpkg failure: that path is covered by the fallback, which did not run.
+
+## A second problem the reproduction exposed
+
+`installStagedUpdate` spawns a detached watcher that relaunches the app as soon as the old process exits. During the reproduction the old process was ended while the install was still waiting for authentication, and the watcher immediately started a fresh instance of the **old** version. Had the prompt then been answered, dpkg would have been rewriting the installation under a running app.
+
+The watcher waits on the previous process, which is not the same thing as waiting on the install.
 
 ## Why the obvious guards do not help
 
@@ -47,7 +71,9 @@ Why dpkg stopped after unpacking. Its output went to the `pkexec`'d shell, a chi
 
 ## What might resolve it
 
-Run the privileged install detached from the app's lifetime, the way the Linux relaunch already is, and chain the fallback into the same shell so a partial transaction gets completed rather than abandoned. That is a change to the most dangerous path in the product, and verifying it needs a real end-to-end update on a Linux host rather than a unit test. Weigh it against the fact that this has been seen once.
+Run the privileged install detached from the app's lifetime, the way the Linux relaunch already is, and chain the fallback into the same shell so a partial transaction gets completed rather than abandoned. Detaching also lets the app stop blocking its main thread for the duration, which removes the frozen window that invites the kill in the first place, and gives the relaunch something to wait on other than the old process.
+
+That is a change to the most dangerous path in the product, and verifying it needs a real end-to-end update on a Linux host rather than a unit test. Note that such a test cannot run unattended: the authentication prompt needs a person at the desktop.
 
 ## Recognizing it
 

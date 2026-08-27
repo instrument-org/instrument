@@ -122,7 +122,7 @@ export function InlineLink({
  * destination: there is nothing about it left to reveal, and the thing worth
  * saying is that clicking it opens a message rather than a page.
  */
-export function MailLink({
+function MailLink({
   address,
   children,
   className,
@@ -157,7 +157,7 @@ export function MailLink({
  * and the label is wrapped in `bdi` so a right-to-left one cannot reorder
  * itself around what sits beside it.
  */
-export function WebLink({
+function WebLink({
   children,
   className,
   href,

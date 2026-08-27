@@ -922,7 +922,7 @@ a.cursor-pointer {
   );
   --composer-nudge-glint: color-mix(
     in oklab,
-    var(--foreground) 42%,
+    var(--foreground) 28%,
     transparent
   );
 

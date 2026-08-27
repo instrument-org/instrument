@@ -23,6 +23,10 @@
       "directory": "packages/electron-builder",
       "description": "How Studio is packaged and its updates published. Monorepo, so directory points at the package; the root manifest is private and carries no version."
     },
+    "shadcn-react": {
+      "source": "github:mutewinter/ui",
+      "description": "The component library apps/studio installs as @shadcn/react, a fork of shadcn-ui/ui. packages/react/ holds the source and its co-located tests; the shadcn-react-dist branch carries the built package a git dependency resolves to."
+    },
     "just-bash": {
       "source": "github:vercel-labs/just-bash",
       "description": "Upstream of the workspace sandbox; read before steering the agent around sandbox behavior"
@@ -34,6 +38,23 @@
     "vscode": {
       "source": "github:microsoft/vscode",
       "description": "Microsoft's editor, and the largest Electron app whose source is readable. The reference for how a desktop app of this shape solves a platform problem: src/vs/platform for the service layer, src/vs/workbench/contrib for features, src/vs/base/browser/dnd.ts and the electron-main/electron-browser folders for native OS integration."
+    },
+    "document-viewers": {
+      "description": "The document viewers apps/studio embeds, one package per format. They publish under the @extend-ai npm scope from repositories in the extend-hq GitHub org, so neither name leads to the other.",
+      "references": {
+        "@extend-ai/react-xlsx": {
+          "source": "npm:@extend-ai/react-xlsx@0.15.0",
+          "description": "Spreadsheet viewer. src/types.ts carries the props, src/controller.tsx the hook driving them, and src/xlsx-worker.ts with src/wasm.ts the worker that parses a workbook."
+        },
+        "@extend-ai/react-docx": {
+          "source": "npm:@extend-ai/react-docx@0.8.1",
+          "description": "Word viewer and editor, the react-viewer package of a monorepo whose sibling packages hold the document model, the OOXML reader, and the layout engine. src/editor.tsx is the editing surface."
+        },
+        "@extend-ai/react-pptx": {
+          "source": "npm:@extend-ai/react-pptx@0.1.2",
+          "description": "Slide viewer. src/ReactPptxViewer.tsx is the component, src/types.ts its props, and src/parse.ts the deck reader behind them."
+        }
+      }
     },
     "harnesses": {
       "description": "Agent harness reference repos",

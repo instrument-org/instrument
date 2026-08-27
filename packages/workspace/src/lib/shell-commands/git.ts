@@ -5,7 +5,12 @@ import { type TaskId } from "../../schemas/task-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { gitBinaryPath } from "../git";
 import { taskDir } from "../task-dir-utils";
-import { execShim, mapStreams, shimOutput } from "./exec-shim";
+import {
+  collapseProgress,
+  execShim,
+  mapStreams,
+  shimOutput,
+} from "./exec-shim";
 import {
   attachedMountReference,
   bridgeFlagValuePath,
@@ -114,17 +119,6 @@ const PATH_VALUE_FLAGS = new Set([
  * report success while writing nowhere useful, or read a file we meant to hide.
  */
 const BLOCKED_CONFIG_SCOPES = new Set(["--global", "--system"]);
-
-/**
- * Keep only the last state of each carriage-return progress line, which is what
- * a terminal would have shown. `git clone` redraws counters this way, so a large
- * repository otherwise arrives as one ~20 KB line of "Updating files: 1%...2%"
- * that survives line-based truncation and buries the real output.
- */
-export function collapseProgress(output: string) {
-  // The lookahead spares \r\n, so Windows line endings are left intact.
-  return output.replaceAll(/[^\n]*\r(?!\n)/g, "");
-}
 
 export function createGitCommand(taskId: TaskId) {
   return defineCommand(GIT_COMMAND.name, async (args, ctx) => {

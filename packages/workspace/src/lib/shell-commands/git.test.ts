@@ -15,7 +15,8 @@ import {
   createMockTaskConfigForDir,
   MOCK_WORKSPACE_DIRS,
 } from "../../test/helpers/mock-task-config";
-import { collapseProgress, createGitCommand } from "./git";
+import { collapseProgress } from "./exec-shim";
+import { createGitCommand } from "./git";
 
 const mockCtx = createCommandContext({
   cwd: "/task",

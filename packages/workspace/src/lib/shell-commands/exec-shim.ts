@@ -15,6 +15,21 @@ type ShimOptions = Omit<
 >;
 
 /**
+ * Keep only the last state of each carriage-return progress line, which is what
+ * a terminal would have shown.
+ *
+ * A tool that redraws a counter in place writes one enormous line: `git clone`
+ * does it with "Updating files: 1%...2%", ffmpeg with a `frame=... speed=...`
+ * line per second. A long run arrives as tens of kilobytes on a single line, so
+ * line-based truncation cannot trim it and it buries whatever the command
+ * actually reported.
+ */
+export function collapseProgress(output: string) {
+  // The lookahead spares \r\n, so Windows line endings are left intact.
+  return output.replaceAll(/[^\n]*\r(?!\n)/g, "");
+}
+
+/**
  * Run a real binary on behalf of a sandbox command, with the settings every
  * shim needs to behave like a shell command rather than a library call:
  *

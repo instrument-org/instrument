@@ -24,7 +24,8 @@ export function createFfprobeCommand(taskId: TaskId) {
 
     const result = await execShim(
       FFPROBE_PATH,
-      resolvePathArgs(args, taskId, ctx),
+      // Same build-configuration block ffmpeg prints; `-version` still shows it.
+      ["-hide_banner", ...resolvePathArgs(args, taskId, ctx)],
       {
         cancelSignal: ctx.signal,
         cwd: taskCwd,

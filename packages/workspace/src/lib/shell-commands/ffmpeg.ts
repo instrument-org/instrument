@@ -5,7 +5,12 @@ import { FFMPEG_PATH } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
-import { execShim, mapStreams, shimOutput } from "./exec-shim";
+import {
+  collapseProgress,
+  execShim,
+  mapStreams,
+  shimOutput,
+} from "./exec-shim";
 import {
   resolveCommandContext,
   resolvePathArgs,
@@ -31,6 +36,10 @@ export function createFfmpegCommand(taskId: TaskId) {
         // This disables only that interaction; a `pipe:0`/`-` input still reads
         // the pipe.
         "-nostdin",
+        // Drops the version and ~1 KB build-configuration block ffmpeg prints
+        // before every run. An explicit `-version` still prints it, so the
+        // agent can still ask; it just no longer arrives with each encode.
+        "-hide_banner",
         ...resolvePathArgs(args, taskId, ctx),
       ],
       {
@@ -46,7 +55,10 @@ export function createFfmpegCommand(taskId: TaskId) {
 
     const streams = mapStreams(
       shimOutput(result, FFMPEG_COMMAND.name),
-      (text) => filterShellOutput(text, taskDir(taskId)),
+      // ffmpeg redraws one `frame=... speed=...` line per second with a
+      // carriage return, so a long encode is tens of kilobytes on a single
+      // line. Only its final state says anything.
+      (text) => filterShellOutput(collapseProgress(text), taskDir(taskId)),
     );
     return {
       exitCode: result.exitCode ?? 1,

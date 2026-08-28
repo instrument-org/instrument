@@ -48,7 +48,9 @@ export function useTranscriptActions({
       onSuccess: (result) => {
         // Ordinary duration, no close button: the save is already done and its
         // path is already on the clipboard, so there is nothing here to come
-        // back to and nothing lost by looking away.
+        // back to and nothing lost by looking away. The filename is left out
+        // for the same reason -- the button goes to the file and the clipboard
+        // holds its path, so it would only be a long string to wrap.
         toast.success("Transcript saved to Downloads", {
           action: {
             label: getRevealInFolderLabel(),
@@ -56,7 +58,7 @@ export function useTranscriptActions({
               showFileInFolder.mutate({ filepath: result.filepath });
             },
           },
-          description: `${result.filename} (path copied to clipboard)`,
+          description: "Path copied to clipboard",
         });
       },
     }),

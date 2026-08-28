@@ -1393,3 +1393,31 @@ a.cursor-pointer {
 .dark .toaster [data-sonner-toast][data-styled="true"] [data-button]:hover {
   background: var(--gray-700);
 }
+
+/* Sonner lays a toast out as one row -- icon, text, button -- and the text
+   column is the part that gives when the button takes its width. A toast
+   carrying a description then has roughly half the card to say it in, so a
+   filename or an error message breaks mid-word into a ragged stack beside a
+   button sitting in its own whitespace. Give those two rows: the text spans
+   the card, the button drops beneath it. Both children are placed in the
+   second column explicitly so the layout holds for a toast with no icon. */
+.toaster
+  [data-sonner-toast][data-styled="true"]:has([data-description]):has(
+    [data-button]
+  ) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  row-gap: 10px;
+
+  [data-icon] {
+    grid-column: 1;
+    /* Centered on the title's first line, not on the whole text block. */
+    margin-top: 2px;
+  }
+
+  [data-content],
+  [data-button] {
+    grid-column: 2;
+  }
+}

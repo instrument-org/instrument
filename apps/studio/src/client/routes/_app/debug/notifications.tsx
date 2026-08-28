@@ -1,4 +1,5 @@
 import { Button } from "@/client/components/ui/button";
+import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -78,6 +79,25 @@ function RouteComponent() {
                     // No-op: this debug toast only demos the button styling.
                   },
                 },
+              });
+            }}
+            size="sm"
+          >
+            Send test notification
+          </Button>
+        </ActionCard>
+
+        <ActionCard label="Toast with a description and a button">
+          <Button
+            onClick={() => {
+              toast.success("Transcript saved to Downloads", {
+                action: {
+                  label: getRevealInFolderLabel(),
+                  onClick: () => {
+                    // No-op: this debug toast only demos the two-row layout.
+                  },
+                },
+                description: "Path copied to clipboard",
               });
             }}
             size="sm"

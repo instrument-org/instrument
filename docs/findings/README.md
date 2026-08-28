@@ -37,6 +37,7 @@ Grouped by area; status is the short form of each file's own line.
 | [`download` never restores download behavior](agent-browser-download-behavior-not-reset.md) | open |
 | [Snapshot refs die on the idle timeout](agent-browser-ref-map-idle-ttl.md) | open |
 | [App reload destroys every task browser](app-reload-destroys-the-task-browser.md) | contained |
+| [`target=_blank` links are dead clicks](blank-target-links-are-dead-clicks.md) — the open is denied before a tab exists, so nothing happens and nothing says so | fixed, pending real tabs |
 | [CDP keyboard input follows window focus](cdp-keyboard-input-follows-window-focus.md) | mitigated by a focus gate |
 | [The guest's raster surface is capped at 1.3x the viewport](browser-guest-raster-cap.md) — Blink's compositing rect; past it captures crop invisibly | open, traced to source |
 | [Device/viewport emulation is not safe](in-app-browser-device-emulation.md) | superseded; the guest is resized instead |

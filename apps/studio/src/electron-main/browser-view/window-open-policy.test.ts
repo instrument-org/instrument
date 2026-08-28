@@ -1,7 +1,10 @@
 import { type HandlerDetails } from "electron";
 import { describe, expect, it } from "vitest";
 
-import { guestWindowOpenHandler } from "./window-open-policy";
+import {
+  guestWindowOpenHandler,
+  sameTabNavigationUrl,
+} from "./window-open-policy";
 
 function details(overrides: Partial<HandlerDetails>): HandlerDetails {
   return {
@@ -82,5 +85,54 @@ describe("guestWindowOpenHandler", () => {
       guestWindowOpenHandler(details({ url: "http://example.test/oauth" }))
         .action,
     ).toBe("allow");
+  });
+});
+
+describe("sameTabNavigationUrl", () => {
+  const navigateCases: {
+    disposition: HandlerDetails["disposition"];
+    name: string;
+  }[] = [
+    { disposition: "foreground-tab", name: "a target=_blank link" },
+    { disposition: "background-tab", name: "a cmd- or middle-click" },
+  ];
+
+  it.each(navigateCases)("navigates $name in place", ({ disposition }) => {
+    expect(
+      sameTabNavigationUrl(
+        details({
+          disposition,
+          url: "https://www.amazon.com/gp/product/B0B8F29SP8",
+        }),
+      ),
+    ).toBe("https://www.amazon.com/gp/product/B0B8F29SP8");
+  });
+
+  const ignoredCases: { name: string; overrides: Partial<HandlerDetails> }[] = [
+    {
+      name: "an allowed popup, which opens its own window",
+      overrides: { disposition: "new-window" },
+    },
+    { name: "the default disposition", overrides: { disposition: "default" } },
+    { name: "another disposition", overrides: { disposition: "other" } },
+    {
+      name: "a file URL",
+      overrides: { disposition: "foreground-tab", url: "file:///etc/passwd" },
+    },
+    {
+      name: "a javascript URL",
+      overrides: {
+        disposition: "foreground-tab",
+        url: "javascript:alert(1)",
+      },
+    },
+    {
+      name: "a malformed URL",
+      overrides: { disposition: "foreground-tab", url: "not a url" },
+    },
+  ];
+
+  it.each(ignoredCases)("leaves $name alone", ({ overrides }) => {
+    expect(sameTabNavigationUrl(details(overrides))).toBeNull();
   });
 });

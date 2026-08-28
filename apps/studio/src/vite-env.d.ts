@@ -59,6 +59,8 @@ declare namespace NodeJS {
       /** Dev only: why studio-drive launched this instance. */
       STUDIO_DRIVE_PURPOSE: string | undefined;
       TARGET_PLATFORM: string | undefined;
+      /** Set by a Wayland compositor. The signal Chromium reads for `auto`. */
+      WAYLAND_DISPLAY: string | undefined;
       WIN_CERT_PATH: string | undefined;
       WIN_GCP_KMS_KEY_VERSION: string | undefined;
       WIN_TIMESTAMP_URL: string | undefined;

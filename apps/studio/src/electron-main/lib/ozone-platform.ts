@@ -38,3 +38,25 @@ export function resolveOzonePlatform(
   const match = OZONE_PLATFORMS.find((value) => value === requested);
   return match ? { platform: match } : { ignored: requested, platform: "auto" };
 }
+
+export type DisplayProtocol = "wayland" | "x11";
+
+/**
+ * What the app ended up talking, which `auto` on its own does not answer: it
+ * asks Chromium to choose, and Chromium chooses Wayland when the session offers
+ * one. `WAYLAND_DISPLAY` is the same signal Chromium reads.
+ *
+ * Anything conditional on the protocol wants this rather than the request. A
+ * frameless window is decorated by the compositor under Wayland and by nothing
+ * at all under X11, so what the app must draw for itself differs, and so does
+ * the client-area geometry it gets.
+ */
+export function effectiveDisplayProtocol(
+  platform: OzonePlatform,
+  waylandDisplay: string | undefined = process.env.WAYLAND_DISPLAY,
+): DisplayProtocol {
+  if (platform === "auto") {
+    return waylandDisplay ? "wayland" : "x11";
+  }
+  return platform;
+}

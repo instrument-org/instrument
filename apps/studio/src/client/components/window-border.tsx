@@ -6,12 +6,14 @@ import { useAtomValue } from "jotai";
 import { useSyncExternalStore } from "react";
 
 /**
- * A hairline outline around the main window on Linux, where the window is
- * frameless and nothing else draws an edge for it: Electron paints a border and
- * shadow for a frameless window only under native Wayland, and Studio pins Ozone
- * to X11. Without this the light theme is hard to pick out from a light window
- * behind it. Windows gets its edge from DWM, and macOS keeps its native frame,
- * so neither needs one.
+ * A hairline outline around the main window on an X11 session, where the window
+ * is frameless and nothing else draws an edge for it. Without this the light
+ * theme is hard to pick out from a light window behind it. Windows gets its edge
+ * from DWM, and macOS keeps its native frame, so neither needs one.
+ *
+ * Wayland is the reason this is not simply "on Linux": a compositor decorates a
+ * frameless window itself, so the same hairline there is a second line drawn
+ * inside the first.
  *
  * Mounted outside {@link ZoomRoot} so it stays a single hairline at every UI
  * zoom. It separates the window from the desktop, which makes it a property of
@@ -24,7 +26,7 @@ export function WindowBorder() {
     return null;
   }
 
-  return <WindowBorderOutline />;
+  return <WindowBorderOutline forceShow={forceShow} />;
 }
 
 const readPixelRatio = () => window.devicePixelRatio;
@@ -53,9 +55,12 @@ function subscribeToPixelRatio(onChange: () => void) {
  * Split out so the window-state subscription only runs on the platform that
  * draws a border.
  */
-function WindowBorderOutline() {
+function WindowBorderOutline({ forceShow }: { forceShow: boolean }) {
   const { data } = useQuery(
     rpcClient.utils.live.windowState.experimental_liveOptions(),
+  );
+  const { data: protocol } = useQuery(
+    rpcClient.utils.displayProtocol.queryOptions(),
   );
   const pixelRatio = useSyncExternalStore(
     subscribeToPixelRatio,
@@ -66,6 +71,13 @@ function WindowBorderOutline() {
   // line there reads as an artifact. Chromium drops its own frame border in
   // these states for the same reason.
   if (!data || data.fullScreen || data.maximized) {
+    return null;
+  }
+
+  // Drawn only where nothing else draws one. Waiting for the answer rather than
+  // assuming it keeps a Wayland window from showing a second edge for as long
+  // as the query takes, which is the wrong way round to be wrong.
+  if (!forceShow && protocol !== "x11") {
     return null;
   }
 

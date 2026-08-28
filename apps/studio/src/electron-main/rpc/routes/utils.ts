@@ -13,6 +13,10 @@ import {
 } from "@/electron-main/lib/file-open-target";
 import { openExternal } from "@/electron-main/lib/open-external";
 import {
+  effectiveDisplayProtocol,
+  resolveOzonePlatform,
+} from "@/electron-main/lib/ozone-platform";
+import {
   clearServerExceptions,
   getServerExceptions,
 } from "@/electron-main/lib/server-exceptions";
@@ -542,6 +546,28 @@ const getSupportedEditors = base
     return await initializeSupportedEditorsCache();
   });
 
+/**
+ * Which display protocol the app is talking, or null where the question does
+ * not arise. Linux is the only platform whose window decoration depends on it:
+ * a frameless window is decorated by the compositor under Wayland and by
+ * nothing at all under X11.
+ *
+ * Constant for the life of the process, so it is a query rather than part of
+ * the window-state stream it is read alongside.
+ */
+const displayProtocol = base
+  .output(z.enum(["wayland", "x11"]).nullable())
+  .handler(() => {
+    if (process.platform !== "linux") {
+      return null;
+    }
+
+    const { platform } = resolveOzonePlatform(
+      process.env.INSTRUMENT_OZONE_PLATFORM,
+    );
+    return effectiveDisplayProtocol(platform);
+  });
+
 const clearExceptions = base.input(z.void()).handler(() => {
   clearServerExceptions();
 });
@@ -762,6 +788,7 @@ const showFolderPicker = base
 
 export const utils = {
   clearExceptions,
+  displayProtocol,
   closeWindow,
   copyFileToClipboard,
   copyProjectPathToClipboard,

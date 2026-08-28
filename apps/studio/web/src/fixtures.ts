@@ -229,6 +229,9 @@ export const FIXTURES: Record<string, unknown> = {
   "updates.live.status": { status: "idle" },
   "user.live.me": null,
   "user.live.subscriptionStatus": null,
+  // The web build stands in for a Linux X11 window, which is the case that
+  // draws a border at all.
+  "utils.displayProtocol": "x11",
   "utils.events.windowFocusChanged": undefined,
   "utils.live.serverExceptions": undefined,
   // A page is neither, so the custom controls show the maximize glyph and the

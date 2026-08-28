@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveOzonePlatform } from "./ozone-platform";
+import {
+  effectiveDisplayProtocol,
+  resolveOzonePlatform,
+} from "./ozone-platform";
 
 describe("resolveOzonePlatform", () => {
   // Electron's own default, and the reason the switch is removed rather than
@@ -28,4 +31,32 @@ describe("resolveOzonePlatform", () => {
       }
     },
   );
+});
+
+describe("effectiveDisplayProtocol", () => {
+  // The case the whole function exists for: `auto` is a request, and only the
+  // session says what it turned into.
+  it("reads the session when the platform is left to Electron", () => {
+    expect(effectiveDisplayProtocol("auto", "wayland-0")).toBe("wayland");
+    expect(effectiveDisplayProtocol("auto", undefined)).toBe("x11");
+    expect(effectiveDisplayProtocol("auto", "")).toBe("x11");
+  });
+
+  // A pin wins over the session, which is the point of pinning: a Wayland
+  // desktop running the app on x11 is exactly what INSTRUMENT_OZONE_PLATFORM
+  // is for, and it must not be reported as Wayland.
+  it.each([
+    { platform: "x11", waylandDisplay: "wayland-0" },
+    { platform: "x11", waylandDisplay: undefined },
+  ] as const)(
+    "reports $platform when it is pinned",
+    ({ platform, waylandDisplay }) => {
+      expect(effectiveDisplayProtocol(platform, waylandDisplay)).toBe(platform);
+    },
+  );
+
+  it("reports wayland when it is pinned, session or not", () => {
+    expect(effectiveDisplayProtocol("wayland", undefined)).toBe("wayland");
+    expect(effectiveDisplayProtocol("wayland", "wayland-0")).toBe("wayland");
+  });
 });

@@ -939,7 +939,9 @@ a.cursor-pointer {
  * values outrank a stylesheet's. The margin is the strip's `gap-1`, which a tab
  * at zero width is otherwise still holding open. */
 .pane-tab-arriving {
-  animation: pane-tab-in 150ms ease-out;
+  /* Set on the strip in `pane-tabs.tsx`, which is where the length of both of
+     these lives; see `TAB_MOTION_MS`. */
+  animation: pane-tab-in var(--tab-motion) ease-out;
 }
 
 @keyframes pane-tab-in {

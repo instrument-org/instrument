@@ -64,10 +64,19 @@ const COLLAPSED = {
 } satisfies React.CSSProperties;
 
 // How long a tab takes to leave the row or to arrive in it. Long enough to be
-// seen, short enough that a second one does not queue behind the first. Kept
-// with the `duration-150` below and the `pane-tab-in` keyframe in `globals.css`,
-// which are what actually run them.
+// seen, short enough that a second one does not queue behind the first.
+//
+// Two timers and two stylesheets need this number -- the collapse below, the
+// `pane-tab-in` keyframe in `globals.css`, and the timeouts that drop what each
+// of them is holding once it has finished running. So it is written once here
+// and handed to the CSS as `--tab-motion`, rather than three times and kept in
+// step by hand: a JS timer that is shorter than its animation cuts the
+// animation off, and one that is longer leaves the strip laid out around a tab
+// that has already gone.
 const TAB_MOTION_MS = 150;
+// Cast because a custom property is not a key `CSSProperties` knows, which is
+// the one thing this object is for.
+const TAB_MOTION = { "--tab-motion": `${TAB_MOTION_MS}ms` } as React.CSSProperties;
 
 // What a tab stands on while it is being carried, which is a question it does
 // not have to answer while it is sitting in the row.
@@ -81,7 +90,9 @@ const TAB_MOTION_MS = 150;
 //
 // In the light theme those same tokens are opaque and none of this shows, which
 // is why it looks like a dark-mode bug and is not one.
-const CARRIED = { backgroundColor: "var(--card)" } satisfies React.CSSProperties;
+const CARRIED = {
+  backgroundColor: "var(--card)",
+} satisfies React.CSSProperties;
 
 // The selected tint painted over that floor rather than in place of it, so a
 // tab that was the one being read still looks it while it is being moved. As a
@@ -237,7 +248,9 @@ export function PaneTabs({
   const collapsing = closing.filter(
     ({ tab }) => !fileKeys.includes(TaskPane.tabKey(tab)),
   );
-  const collapsingKeys = new Set(collapsing.map(({ tab }) => TaskPane.tabKey(tab)));
+  const collapsingKeys = new Set(
+    collapsing.map(({ tab }) => TaskPane.tabKey(tab)),
+  );
   const drawnCount = fileCount + collapsing.length;
 
   // Measured rather than asked of CSS. A container query could answer what one
@@ -361,7 +374,10 @@ export function PaneTabs({
     // stack under this one, so the three read as one band. No rule under it:
     // the row below draws its own, and two hairlines a row apart break the band
     // into pieces rather than separating anything.
-    <div className="flex h-10 shrink-0 items-center gap-1 px-2">
+    <div
+      className="flex h-10 shrink-0 items-center gap-1 px-2"
+      style={TAB_MOTION}
+    >
       {/* No horizontal scroll. Tabs share the row and compress as they fill it,
           the way the window's do; a strip that scrolls hides tabs behind an
           interaction nobody looks for in a space this small.
@@ -604,7 +620,8 @@ function PaneTab({
     // task is not. `transition-all` because what moves is one collapse rather
     // than a list of properties, and naming them here would only say `COLLAPSED`
     // a second time.
-    isClosing && "pointer-events-none transition-all duration-150 ease-out",
+    isClosing &&
+      "pointer-events-none transition-all duration-(--tab-motion) ease-out",
   );
 
   // Selecting on pointer-down rather than on click, and reading the middle

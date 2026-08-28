@@ -614,7 +614,9 @@ async function carriedSurface(selectedKey: string) {
         [
           style.backgroundColor,
           // The alpha is the whole of what was wrong.
-          /rgba|\/\s*0?\./.test(style.backgroundColor) ? "SEE-THROUGH" : "opaque",
+          /rgba|\/\s*0?\./.test(style.backgroundColor)
+            ? "SEE-THROUGH"
+            : "opaque",
           // And the selected tint has to survive being stood on the card.
           style.backgroundImage === "none" ? "no tint" : "tinted",
         ].join(", "),

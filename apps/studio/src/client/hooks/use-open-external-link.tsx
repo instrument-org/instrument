@@ -1,4 +1,3 @@
-import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { rpcClient } from "@/client/rpc/client";
 import { addRef } from "@instrument-org/shared";
 import { isDefinedError } from "@orpc/client";
@@ -51,9 +50,6 @@ export function useOpenExternalLink() {
     { addReferral = true }: { addReferral?: boolean } = {},
   ) => {
     const finalUrl = addReferral ? addRef(href) : href;
-    captureClientEvent("external_link.clicked", {
-      external_url: finalUrl,
-    });
     // Fire-and-forget: mutateAsync rejects on failure, and because this handler
     // is never awaited that rejection surfaces as an unhandled rejection
     // (captured by PostHog). mutate() routes failures through onError (toast +

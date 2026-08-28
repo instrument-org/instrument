@@ -158,15 +158,6 @@ export function ModelPicker({
   }, [groupedModels, searchQuery]);
 
   const closePopover = () => {
-    if (searchQuery) {
-      const hasFilteredResults = Object.values(filteredGroupedModels).some(
-        (g) => g.length > 0,
-      );
-      captureClientEvent("model_picker.searched", {
-        had_results: hasFilteredResults,
-        query: searchQuery,
-      });
-    }
     setOpen(false);
     setSearchQuery("");
     onClose?.();

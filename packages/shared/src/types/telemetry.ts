@@ -25,9 +25,6 @@ export interface AnalyticsEvents {
     eval_names: string[];
     model_ids: string[];
   };
-  "external_link.clicked": {
-    external_url: string;
-  };
   "framework.not_supported": {
     framework: string;
   };
@@ -70,10 +67,6 @@ export interface AnalyticsEvents {
   }>;
   "model_picker.model_selected": WithModelProperties;
   "model_picker.opened": never;
-  "model_picker.searched": {
-    had_results: boolean;
-    query: string;
-  };
   "pin.added": never;
   "pin.removed": never;
   "project.created": never;

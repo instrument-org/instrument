@@ -12,9 +12,26 @@
 //
 // Nothing here clears itself on a timer. It is cleared by the drop region as
 // part of the drag lifecycle it already tracks, and the age check below is the
-// backstop for a drag that never touches a region at all -- without it, one
-// stray drag would leave the app unable to accept a file until reload.
-const MAX_AGE_MS = 30_000;
+// backstop for a drag that never touches a region at all.
+//
+// That backstop is load-bearing rather than theoretical, and it is why the
+// window is short. Once the pointer leaves the window the app hears nothing
+// more about its own drag: `webContents.startDrag` hands the gesture to the OS,
+// and Electron surfaces no end for it -- on macOS `beginDraggingSessionWithItems`
+// returns at once and its dragging source implements no `endedAtPoint`, so
+// there is nothing to forward. A drag that goes straight out of the window
+// therefore produces no `dragleave` the region can match, and the flag is left
+// standing with no gesture behind it. Anything dropped in while it stands is
+// discarded, silently, as a drag this app was in the middle of making -- so the
+// window is the cost of being wrong, and it is spent on every file the user
+// drags in next.
+//
+// What it has to cover is one press: the travel from crossing the drag
+// threshold to letting go, all of it inside the window. That is a fraction of a
+// second, and two is already generous for it. Being wrong the other way is the
+// cheaper mistake anyway: a file attached to the composer is visible and can be
+// taken off again, where a file that never arrived looks like a broken app.
+const MAX_AGE_MS = 2000;
 
 let startedAt = 0;
 

@@ -115,6 +115,37 @@ describe("prepareModelMessages", () => {
     };
   }
 
+  /**
+   * An assistant turn reporting the input tokens the provider counted for it.
+   *
+   * `inputTokens` is the whole of what occupied the window, cache reads
+   * included, which is what the budget reads and why nothing here adds the
+   * cache fields on top of it.
+   */
+  function assistantMessageWithUsage(
+    text: string,
+    inputTokens: number,
+  ): SessionMessage.AssistantWithParts {
+    const message = assistantMessage(text);
+    return {
+      ...message,
+      metadata: {
+        ...message.metadata,
+        usage: {
+          inputTokenDetails: {
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            noCacheTokens: inputTokens,
+          },
+          inputTokens,
+          outputTokenDetails: { reasoningTokens: 0, textTokens: 0 },
+          outputTokens: 0,
+          totalTokens: inputTokens,
+        },
+      },
+    };
+  }
+
   /** An assistant turn whose tool call carries an id and output of our choosing. */
   function toolCallMessage(output: string): SessionMessage.AssistantWithParts {
     const id = StoreId.newMessageId();
@@ -481,6 +512,195 @@ describe("prepareModelMessages", () => {
       const stored = storedResult._unsafeUnwrap();
       expect(stored.map((message) => message.id)).not.toContain(stale.id);
       expect(stored).toHaveLength(1);
+    });
+  });
+
+  describe("context budget", () => {
+    // 1,000 tokens of window: the reserve caps at a fifth of it, leaving 800
+    // usable, so warn lands at 680 and exhausted at 800. Small enough that a
+    // three-message conversation reaches either.
+    const smallWindowModel = createMockAIGatewayModel({ contextLength: 1000 });
+
+    /** The boundary the session records, or undefined if it has never reset. */
+    async function storedBoundary() {
+      const result = await Store.getSession(sessionId, taskId);
+      return result._unsafeUnwrap().rolledOverAfterMessageId;
+    }
+
+    async function storedRolloverParts() {
+      const result = await Store.getMessagesWithParts({ sessionId, taskId });
+      return result
+        ._unsafeUnwrap()
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === "data-contextRollover");
+    }
+
+    /** The notice, if this request carries one. */
+    function noticeIn(messages: ModelMessage[]) {
+      return modelTexts(messages).find((text) =>
+        text.includes("<context-budget>"),
+      );
+    }
+
+    describe("a model whose window is unknown", () => {
+      it("produces no warning and no rollover, however full it is", async () => {
+        await save(userMessage("First question"));
+        for (const text of ["one", "two", "three", "four"]) {
+          await save(assistantMessageWithUsage(text, 10_000_000));
+        }
+
+        const messages = await prepare(anthropicModel);
+
+        expect(noticeIn(messages)).toBeUndefined();
+        expect(await storedBoundary()).toBeUndefined();
+      });
+
+      it("assembles the same request whether occupancy is huge or tiny", async () => {
+        await save(userMessage("First question"));
+        await save(assistantMessageWithUsage("tiny", 1));
+        const withTinyUsage = await prepare(anthropicModel);
+
+        // A second session identical but for the number the provider reported.
+        sessionId = StoreId.newSessionId();
+        await Store.saveSession(
+          { createdAt: new Date(), id: sessionId, title: "Test session" },
+          taskId,
+        );
+        await save(userMessage("First question"));
+        await save(assistantMessageWithUsage("tiny", 10_000_000));
+        const withHugeUsage = await prepare(anthropicModel);
+
+        expect(modelTexts(withHugeUsage)).toStrictEqual(
+          modelTexts(withTinyUsage),
+        );
+      });
+    });
+
+    describe("a model whose window is known", () => {
+      it("says nothing while there is room", async () => {
+        await save(userMessage("First question"));
+        await save(assistantMessageWithUsage("plenty of room", 100));
+
+        expect(noticeIn(await prepare(smallWindowModel))).toBeUndefined();
+      });
+
+      it("warns once past the threshold, without rewriting history", async () => {
+        await save(userMessage("First question"));
+        await save(assistantMessageWithUsage("getting full", 700));
+
+        const messages = await prepare(smallWindowModel);
+
+        expect(noticeIn(messages)).toContain("tokens of context remain");
+        expect(await storedBoundary()).toBeUndefined();
+      });
+
+      it("puts the notice last, behind every cache breakpoint", async () => {
+        await save(userMessage("First question"));
+        await save(assistantMessageWithUsage("getting full", 700));
+
+        const messages = await prepare(smallWindowModel);
+
+        const last = messages.at(-1);
+        expect(last?.role).toBe("user");
+        expect(JSON.stringify(last?.content)).toContain("<context-budget>");
+      });
+
+      it("never persists the notice", async () => {
+        await save(userMessage("First question"));
+        await save(assistantMessageWithUsage("getting full", 700));
+
+        await prepare(smallWindowModel);
+
+        const stored = await Store.getMessagesWithParts({ sessionId, taskId });
+        expect(JSON.stringify(stored._unsafeUnwrap())).not.toContain(
+          "<context-budget>",
+        );
+      });
+    });
+
+    describe("rollover", () => {
+      /** A conversation over the usable window, with `turns` model turns in it. */
+      async function fillPast(turns: number) {
+        await save(userMessage("First question"));
+        for (let index = 0; index < turns; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 900));
+        }
+      }
+
+      it("does not fire when there are too few model turns to reclaim", async () => {
+        await fillPast(3);
+
+        const messages = await prepare(smallWindowModel);
+
+        // Exhausted, so it still says so; it just has nothing to free.
+        expect(noticeIn(messages)).toContain("used all");
+        expect(await storedBoundary()).toBeUndefined();
+      });
+
+      it("records the boundary on the newest message once it can reclaim", async () => {
+        await fillPast(4);
+        const before = await Store.getMessagesWithParts({ sessionId, taskId });
+        const newestId = before._unsafeUnwrap().at(-1)?.id;
+
+        await prepare(smallWindowModel);
+
+        expect(await storedBoundary()).toBe(newestId);
+      });
+
+      it("stops sending the model's half and keeps the user's", async () => {
+        await fillPast(4);
+
+        const messages = await prepare(smallWindowModel);
+        const texts = modelTexts(messages);
+
+        expect(texts.some((text) => text.includes("First question"))).toBe(
+          true,
+        );
+        expect(texts.some((text) => text.includes("turn 0"))).toBe(false);
+      });
+
+      it("deletes nothing from disk", async () => {
+        await fillPast(4);
+
+        // Context messages are written by the first assembly, so what this
+        // compares is the conversation, which a rollover must leave alone.
+        async function conversationIds() {
+          const result = await Store.getMessagesWithParts({
+            sessionId,
+            taskId,
+          });
+          return result
+            ._unsafeUnwrap()
+            .filter((message) => message.role !== "session-context")
+            .map((message) => message.id);
+        }
+
+        const before = await conversationIds();
+
+        await prepare(smallWindowModel);
+
+        expect(await conversationIds()).toStrictEqual(before);
+      });
+
+      it("marks the transcript where the boundary landed", async () => {
+        await fillPast(4);
+
+        await prepare(smallWindowModel);
+
+        const rolloverParts = await storedRolloverParts();
+        const boundary = await storedBoundary();
+        expect(rolloverParts).toHaveLength(1);
+        expect(rolloverParts[0]?.metadata.messageId).toBe(boundary);
+      });
+
+      it("marks it once, not again on every later turn", async () => {
+        await fillPast(4);
+
+        await prepare(smallWindowModel);
+        await prepare(smallWindowModel);
+
+        expect(await storedRolloverParts()).toHaveLength(1);
+      });
     });
   });
 });

@@ -11,6 +11,8 @@ import {
 export function createMockAIGatewayModel(
   options: {
     author?: string;
+    /** Omitted by default, which is what a provider reporting no window gives. */
+    contextLength?: number;
     features?: AIGatewayModel.ModelFeatures[];
     provider?: AIProviderType;
     providerConfigId?: string;
@@ -18,6 +20,7 @@ export function createMockAIGatewayModel(
 ): AIGatewayModel.Type {
   const {
     author = "test",
+    contextLength,
     features = ["inputText", "outputText", "tools"],
     provider = OUR_PROVIDER_CONFIG.type,
   } = options;
@@ -30,6 +33,7 @@ export function createMockAIGatewayModel(
   return AIGatewayModel.Schema.parse({
     author,
     canonicalId,
+    contextLength,
     features,
     name: "Mock Model",
     params: {

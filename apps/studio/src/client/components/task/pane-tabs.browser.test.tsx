@@ -654,3 +654,100 @@ test("carries the tab being read without giving up that it is", async () => {
     ]
   `);
 });
+
+/** Which tabs the strip is pointing at, if any. */
+function arriving(list: HTMLElement) {
+  return [...list.querySelectorAll<HTMLElement>('[role="tab"]')]
+    .filter((tab) => tab.className.includes("pane-tab-arriving"))
+    .map((tab) => tab.title);
+}
+
+/** A strip whose tabs can be added to and whose task can be swapped. */
+function ArrivingStrip({
+  fileCount,
+  width,
+}: {
+  fileCount: number;
+  width: number;
+}) {
+  const [files, setFiles] = useState(FILES.slice(0, fileCount));
+  const [id, setId] = useState(taskId);
+
+  return (
+    <div style={{ width }}>
+      <button
+        onClick={() => {
+          setFiles((current) => [...current, FILES[current.length] ?? ""]);
+        }}
+        type="button"
+      >
+        open one
+      </button>
+      <button
+        onClick={() => {
+          setFiles(FILES.slice(0, fileCount).toReversed());
+          setId(TaskIdSchema.parse("pane-tabs-other"));
+        }}
+        type="button"
+      >
+        another task
+      </button>
+      <PaneTabs
+        fileTabs={files.map((filePath) => ({
+          filePath,
+          type: "file" as const,
+        }))}
+        onClose={vi.fn()}
+        onReorder={vi.fn()}
+        onSelect={vi.fn()}
+        selectedKey={`file:${FILES[0] ?? ""}`}
+        taskId={id}
+      />
+    </div>
+  );
+}
+
+test("points at a tab that was just opened, and at nothing else", async () => {
+  // A tab the strip has started drawing is not necessarily one that arrived:
+  // the run it has room for slides along, a collapsing tab hands its place to
+  // whatever was behind the end of it, and another task's row is new in its
+  // entirety. Pointing at any of those points at nothing.
+  const { container } = await renderInBrowser(
+    <ArrivingStrip fileCount={3} width={WIDE} />,
+  );
+  const list = container.querySelector<HTMLElement>('[role="tablist"]');
+  if (!list) {
+    throw new Error("the strip drew no tab list");
+  }
+  await settled(list);
+
+  const onFirstPaint = arriving(list);
+
+  await page.getByRole("button", { name: "open one" }).click();
+  const onOpen = arriving(list);
+
+  // Long enough for the growth to be over, so the class does not outlive it.
+  await new Promise((resolve) => {
+    setTimeout(resolve, 300);
+  });
+  const afterwards = arriving(list);
+
+  await page.getByRole("button", { name: "another task" }).click();
+  const onTaskSwitch = arriving(list);
+
+  expect({
+    afterwards,
+    onFirstPaint,
+    onOpen,
+    onTaskSwitch,
+  }).toMatchInlineSnapshot(`
+    {
+      "afterwards": [],
+      "onFirstPaint": [],
+      "onOpen": [
+        "summary.docx",
+      ],
+      "onTaskSwitch": [],
+    }
+  `);
+});

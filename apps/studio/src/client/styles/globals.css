@@ -917,6 +917,48 @@ a.cursor-pointer {
   }
 }
 
+/* A pane tab growing into the row it was just opened in; see `pane-tabs.tsx`,
+ * which puts the class there and only on a tab the task did not have a moment
+ * ago. Drawn for the first time is not the same as new.
+ *
+ * The collapse a closing tab runs, backwards, and an animation rather than the
+ * transition that one is for the single reason the two differ: an arriving tab
+ * is painted at its full width on the frame it mounts, so there is no earlier
+ * state for a transition to run from. A keyframe carries that state itself.
+ *
+ * The width is opened with `max-width` rather than by growing the tab's share
+ * of the row, which is what the collapse closes. A share is the wrong handle in
+ * this direction: while the row has slack -- tabs sitting at their cap with
+ * space to spare -- a share of it a fraction over zero is already more width
+ * than the cap allows, so the tab reaches full size in a frame or two and pops
+ * rather than grows. A cap opening from zero is the width itself, and it runs
+ * evenly whether the row has room to spare or none. `min-width` comes with it,
+ * so the per-density floor does not hold the tab open before the cap does.
+ *
+ * These beat the strip's own width classes for free, since an animation's
+ * values outrank a stylesheet's. The margin is the strip's `gap-1`, which a tab
+ * at zero width is otherwise still holding open. */
+.pane-tab-arriving {
+  animation: pane-tab-in 150ms ease-out;
+}
+
+@keyframes pane-tab-in {
+  from {
+    margin-right: -4px;
+    max-width: 0;
+    min-width: 0;
+    opacity: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pane-tab-arriving {
+    animation: none;
+  }
+}
+
 /* The composer answering a press that asked for the page it was already on; see
  * `nudgeOnReentry`, which mounts a ring on the box for one play of this.
  *

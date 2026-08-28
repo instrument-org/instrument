@@ -63,10 +63,11 @@ const COLLAPSED = {
   paddingRight: 0,
 } satisfies React.CSSProperties;
 
-// Long enough to be seen taking the space back, short enough that a second
-// close does not queue behind the first. Kept with `duration-150` below, which
-// is what actually runs it.
-const COLLAPSE_MS = 150;
+// How long a tab takes to leave the row or to arrive in it. Long enough to be
+// seen, short enough that a second one does not queue behind the first. Kept
+// with the `duration-150` below and the `pane-tab-in` keyframe in `globals.css`,
+// which are what actually run them.
+const TAB_MOTION_MS = 150;
 
 // What a tab stands on while it is being carried, which is a question it does
 // not have to answer while it is sitting in the row.
@@ -167,8 +168,48 @@ export function PaneTabs({
   const [closing, setClosing] = useState<
     { index: number; tab: TaskPane.Tab }[]
   >([]);
+  // The tabs that have just arrived, and are growing into the row.
+  //
+  // Drawn for the first time is not the same as new. The run the strip has room
+  // for slides along, a collapsing tab hands its place to one that was behind
+  // the end of it, and moving to another task swaps the row out entirely -- and
+  // a strip that pointed at any of those would be pointing at nothing. Only a
+  // key the task did not have a moment ago is a tab somebody just opened.
+  const [arriving, setArriving] = useState<string[]>([]);
+  const [seen, setSeen] = useState(() => ({ keys: fileKeys, taskId }));
   const [{ density, fixedIsNamed, selectedDensity, visibleCount }, setLayout] =
     useState(() => stripLayout(0, fileCount));
+
+  if (seen.taskId !== taskId) {
+    // Another task's tabs. All of them are new to the strip and none of them
+    // arrived, which is the difference this is here to keep.
+    setSeen({ keys: fileKeys, taskId });
+    if (arriving.length > 0) {
+      setArriving([]);
+    }
+  } else if (
+    fileKeys.length !== seen.keys.length ||
+    fileKeys.some((key, index) => key !== seen.keys[index])
+  ) {
+    const opened = fileKeys.filter((key) => !seen.keys.includes(key));
+    setSeen({ keys: fileKeys, taskId });
+    if (opened.length > 0) {
+      setArriving((current) => [...current, ...opened]);
+    }
+  }
+
+  // Nor is anything going to say when this one ended.
+  useEffect(() => {
+    if (arriving.length === 0) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      setArriving([]);
+    }, TAB_MOTION_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [arriving]);
 
   // Motion is not driving this one, so nothing is going to say when it ended.
   useEffect(() => {
@@ -177,7 +218,7 @@ export function PaneTabs({
     }
     const timer = setTimeout(() => {
       setClosing([]);
-    }, COLLAPSE_MS);
+    }, TAB_MOTION_MS);
     return () => {
       clearTimeout(timer);
     };
@@ -389,6 +430,7 @@ export function PaneTabs({
                 // given up on, so it still says which file the pane is showing
                 // and still carries the close for it.
                 density={key === selectedKey ? selectedDensity : density}
+                isArriving={arriving.includes(key)}
                 isClosing={isClosing}
                 isDragging={draggingKey === key}
                 isReordering={isReordering}
@@ -446,6 +488,7 @@ function focusSiblingTab(from: Element, direction: -1 | 1) {
 
 function PaneTab({
   density,
+  isArriving,
   isBusy,
   isClosing,
   isDragging,
@@ -462,6 +505,8 @@ function PaneTab({
   value,
 }: {
   density: TabDensity;
+  // The tab was just opened, and is growing into the row.
+  isArriving?: boolean;
   // The agent is working in the browser. Only the fixed tab is ever told this;
   // nothing drives a file tab from underneath the way the agent drives a page.
   isBusy?: boolean;
@@ -537,6 +582,10 @@ function PaneTab({
         ),
     // Off the row rather than in it, so what it crosses reads as underneath.
     isDragging && "z-10 shadow-xs-soft",
+    // Growing into the row, which says where in it to look. In `globals.css`,
+    // because a tab arrives already drawn and only a keyframe carries the state
+    // it should have arrived from.
+    isArriving && "pane-tab-arriving",
     // The fixed tab is held further off the task's own than they are off each
     // other, and the margin is what holds it: the rule below is drawn in that
     // space rather than taking any.

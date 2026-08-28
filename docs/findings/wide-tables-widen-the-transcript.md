@@ -1,6 +1,6 @@
 # Wide tables widen the transcript
 
-**Status:** Open, diagnosed and measured 2026-08-28; direction agreed the same day, nothing built. Not a one-line CSS patch — see the shape below.
+**Status:** Resolved 2026-08-28. Built as described below; see the three `studio:` commits for markdown tables. Kept because the measurements and the two CSS traps behind them are what any later change to this has to know.
 
 A Markdown table whose columns need more room than the message column has spills past it and pushes the transcript's own scroller wider, so the whole conversation gains a horizontal scrollbar. It is no longer able to disturb the prompt input, but the transcript still scrolls sideways and the table's rightmost columns are clipped at the pane edge with no way to reach them.
 
@@ -142,6 +142,16 @@ The seam is the entry point, not the renderer. `openFileViewerAtom` takes a `Tas
 
 - **Blob-backed CSV.** Serialize to CSV, hand over a blob URL with `filename: "table.csv"`, and `CsvViewer` fetches and parses it into the same grid with no new code. Cheap, but the viewer chrome then says `table.csv` and offers file actions (Save as, Reveal) for a file that does not exist.
 - **A virtual document in the viewer.** Let the viewer surface accept rows directly rather than a file. More work, correct chrome.
+
+## Two traps it walked into
+
+Both cost real time and neither is visible in the finished CSS.
+
+**Layer order beats specificity.** The block's rules cannot live in `@layer components`. Tailwind Typography generates `prose` into the **utilities** layer, which outranks anything in `components` however specific, so `.markdown-table-frame > table { width: max-content }` lost to `.prose :where(table) { width: 100% }` and the block silently stopped sizing itself — it looked exactly like the container query not resolving. The rules are unlayered, with a comment saying so.
+
+**A cyclic percentage silently drops a `max-width`.** The frame sits in a grid row, and with the default `auto` track that track is sized by its own item; the item's percentage `max-width` then depends on the track, Chromium calls it cyclic, and rather than erroring it treats the `max-width` as absent. The table grew straight past the pane. `grid-template-columns: minmax(0, 1fr)` makes the track definite and the cap applies. The table's own `min-width: 100%` is cyclic **on purpose** for the same reason — intrinsic sizing ignores it, so the frame is sized by the table, and the table then fills a frame the measure floor made wider.
+
+Also worth recording: `scroll-state(scrollable:)` container queries would have made the edge state pure CSS. `CSS.supports("container-type", "scroll-state")` returns true in Chromium 148, but no `scrollable:` query matches in any spelling — `inline-end`, `right`, `inline-start`, `left` — so that half is not shipped. The scroll-timeline route `scroll-fade-y` uses was wrong here for the reason its own comment gives: it holds its last value when a scroller stops being scrollable, which for a table is every time the browser pane closes. Hence a measured hook.
 
 ## Related
 

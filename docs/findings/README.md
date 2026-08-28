@@ -52,7 +52,7 @@ Grouped by area; status is the short form of each file's own line.
 | [CSS zoom: rect px vs layout px](css-zoom-rect-vs-layout-px.md) — the mismatch that breaks scroll and virtualization at zoom != 1 | guidance |
 | [Leaking z-index stacks](leaking-z-index-stacks.md) | resolved; rule stands |
 | [The transcript column jumps while a turn runs](transcript-column-jumps-while-a-turn-runs.md) | open, instrumented not diagnosed |
-| [Wide tables widen the transcript](wide-tables-widen-the-transcript.md) — a Markdown table with nowhere to scroll takes the conversation with it | open, diagnosed |
+| [Wide tables widen the transcript](wide-tables-widen-the-transcript.md) — a Markdown table with nowhere to scroll takes the conversation with it | resolved |
 | [What marks a renderer hidden](electron-page-visibility.md) — and what does not | resolved, guidance |
 | [Task file links resolve at render time](task-file-links-resolve-at-render-time.md) | resolved |
 | [Task attention state must be persisted](task-attention-state-persistence.md) — not derived from live status | open, design guidance |

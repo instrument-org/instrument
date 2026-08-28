@@ -4,12 +4,26 @@ import { alphabetical } from "radashi";
 
 import { type AnyAgent } from "../agents/types";
 import { SessionMessage } from "../schemas/session/message";
-import { type StoreId } from "../schemas/store-id";
+import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { addCacheControlToMessages } from "./add-cache-control";
+import {
+  applyContextRollover,
+  contextRolloverWouldReclaim,
+} from "./apply-context-rollover";
+import {
+  computeContextBudget,
+  contextOccupancyFromMessages,
+} from "./context-budget";
+import { contextBudgetNotice } from "./context-budget-notice";
 import { dropTrailingFailedMessages } from "./drop-trailing-failed-messages";
+import { effectiveContextLength } from "./effective-context-length";
 import { filterUnsupportedMedia } from "./filter-unsupported-media";
+import {
+  contextRolloverNotice,
+  readHandoffNotes,
+} from "./handoff-notes";
 import { normalizeModelImages } from "./normalize-model-images";
 import { normalizeToolCallIds } from "./normalize-tool-call-ids";
 import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning-details";
@@ -55,9 +69,88 @@ export async function prepareModelMessages({
     isSessionContextMessage,
   );
 
-  const nonContextMessages = messages.filter(
+  const allNonContextMessages = messages.filter(
     (message) => !isSessionContextMessage(message),
   );
+
+  // The window this task is actually running in. Read before anything is
+  // measured, because occupancy has to come from turns inside the current
+  // window: a reported count from before a reset describes a request that is no
+  // longer being sent, and taking it at face value would roll the session over
+  // again on every turn, eating another slice of history each time.
+  const sessionResult = await Store.getSession(sessionId, taskId, { signal });
+  const rolledOverAfterMessageId = sessionResult.isOk()
+    ? sessionResult.value.rolledOverAfterMessageId
+    : undefined;
+
+  let nonContextMessages = applyContextRollover({
+    messages: allNonContextMessages,
+    rolledOverAfterMessageId,
+  });
+
+  let budget = computeContextBudget({
+    contextLength: effectiveContextLength(model),
+    occupied: contextOccupancyFromMessages(nonContextMessages),
+  });
+
+  if (
+    budget.status === "exhausted" &&
+    contextRolloverWouldReclaim(nonContextMessages)
+  ) {
+    // Reset here rather than after assembling, so the request this call is
+    // building is the smaller one. The boundary is the newest message the task
+    // has: everything before it stops being sent, the user's own messages are
+    // carried across, and the task continues in the same session rather than
+    // failing the turn.
+    const newest = allNonContextMessages.at(-1);
+    const session = sessionResult.isOk() ? sessionResult.value : undefined;
+
+    if (newest && session) {
+      const saveResult = await Store.saveSession(
+        { ...session, rolledOverAfterMessageId: newest.id },
+        taskId,
+        { signal },
+      );
+
+      // A boundary we could not record is one that would not survive the next
+      // turn, so the session keeps the history it had. The request may well be
+      // refused for size, which is the behavior this feature is replacing
+      // rather than a regression it introduces.
+      if (saveResult.isOk()) {
+        nonContextMessages = applyContextRollover({
+          messages: allNonContextMessages,
+          rolledOverAfterMessageId: newest.id,
+        });
+        budget = computeContextBudget({
+          contextLength: effectiveContextLength(model),
+          occupied: contextOccupancyFromMessages(nonContextMessages),
+        });
+
+        // Written here, behind the same successful save, so the mark in the
+        // transcript and the boundary assembly reads are recorded together or
+        // not at all. A failed part leaves the rollover itself intact: the
+        // session is still correct, it is only undrawn.
+        await Store.savePart(
+          {
+            data: {
+              droppedMessages:
+                allNonContextMessages.length - nonContextMessages.length,
+              retainedUserMessages: nonContextMessages.length,
+            },
+            metadata: {
+              createdAt: new Date(),
+              id: StoreId.newPartId(),
+              messageId: newest.id,
+              sessionId,
+            },
+            type: "data-contextRollover",
+          },
+          taskId,
+          { signal },
+        );
+      }
+    }
+  }
 
   // The session's baseline: built once, when the session first needs model
   // input, and reused verbatim for the rest of the session. Rebuilding it later
@@ -149,10 +242,40 @@ export async function prepareModelMessages({
     model,
   });
 
-  return ok(
-    normalizeToolCallIds({
-      messages: cachedModelMessages,
-      model,
-    }),
-  );
+  const preparedMessages = normalizeToolCallIds({
+    messages: cachedModelMessages,
+    model,
+  });
+
+  // Appended last, after the cache breakpoints have been placed, so a notice
+  // whose numbers move every turn sits behind the cached prefix instead of
+  // rewriting it. Nothing here is saved: the notice is recomputed from the
+  // budget on each request, so it disappears on its own once there is room
+  // again and never accumulates in the transcript.
+  // Any history narrower than what the task holds is one a boundary was placed
+  // in, which is the same test whether the boundary was recorded a moment ago
+  // in this call or on an earlier turn. A boundary naming a message this
+  // session no longer has drops nothing, and correctly says nothing here.
+  //
+  // Said on every request from here on rather than once at the cut: what is
+  // missing stays missing, and the turn that needs to recover from it is rarely
+  // the first one after.
+  if (nonContextMessages.length < allNonContextMessages.length) {
+    preparedMessages.push({
+      content: contextRolloverNotice(await readHandoffNotes(taskId)),
+      role: "user",
+    });
+  }
+
+  // After the rollover notice: that one says what the window is missing and
+  // hands back the notes, and this one says how much room what remains has
+  // left. Read the other way around, the instruction to write notes arrives
+  // before the agent has been given the ones it already wrote.
+  const notice = contextBudgetNotice(budget);
+
+  if (notice !== undefined) {
+    preparedMessages.push({ content: notice, role: "user" });
+  }
+
+  return ok(preparedMessages);
 }

@@ -12,6 +12,7 @@ interface OpenRouterShapedModel {
     input_modalities: string[];
     output_modalities: string[];
   };
+  context_length?: null | number;
   created: number;
   id: string;
   instrument?: { restricted?: AIGatewayModel.Restriction };
@@ -55,6 +56,7 @@ export function mapOpenRouterShapedModel({
     {
       author,
       canonicalId,
+      contextLength: model.context_length ?? undefined,
       features,
       name: modelName,
       params,

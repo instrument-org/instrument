@@ -11,9 +11,9 @@ export namespace SessionMessageDataPart {
    * whether it needs to guard against repeating itself.
    *
    * - **Event**: something that happened on this turn -- `attachments`,
-   *   `intent`, `maxSteps`, `skillChanges`, `skillMentions`, and
-   *   `projectContext`, which is written once at creation. A repeat is
-   *   impossible by construction; nothing to guard.
+   *   `contextRollover`, `intent`, `maxSteps`, `skillChanges`,
+   *   `skillMentions`, and `projectContext`, which is written once at
+   *   creation. A repeat is impossible by construction; nothing to guard.
    * - **Diff**: what changed since last time -- `projectChanges`,
    *   `attachedFolderChanges`. Self-limiting: no change, no part.
    * - **State**: the whole current picture -- `browserStatus`, `paneTabs`.
@@ -32,6 +32,7 @@ export namespace SessionMessageDataPart {
     "attachedFolderChanges",
     "attachments",
     "browserStatus",
+    "contextRollover",
     "dateChange",
     "fileChanges",
     "intent",
@@ -176,6 +177,33 @@ export namespace SessionMessageDataPart {
 
   export type PaneTabsDataPart = z.output<typeof PaneTabsDataPartSchema>;
 
+  /**
+   * The point where assembly stopped sending the turns before it.
+   *
+   * Written on the message the boundary sits after, at the moment the boundary
+   * is recorded, so it marks the same message assembly cuts at. It is the only
+   * durable sign a rollover happened: the warning that precedes one is derived
+   * per request and never persisted, and the boundary itself is a single id on
+   * the session that nothing else records.
+   *
+   * `retainedUserMessages` is what carried across verbatim; `droppedMessages`
+   * is everything before the boundary that did not, all of which is still on
+   * disk. Both are counts of what the request carries, so they belong to
+   * developer mode and to a recorded session rather than to the transcript: a
+   * rollover is not a compaction, nothing is summarized, and there is no
+   * faithful way to describe it to a reader mid-task that is not a description
+   * of our request assembly. That treatment waits for the summarizing
+   * compaction it would actually be about.
+   */
+  const ContextRolloverDataPartSchema = z.object({
+    droppedMessages: z.number().int().nonnegative(),
+    retainedUserMessages: z.number().int().nonnegative(),
+  });
+
+  export type ContextRolloverDataPart = z.output<
+    typeof ContextRolloverDataPartSchema
+  >;
+
   // Attached to the synthetic assistant message written when a run stops after
   // reaching the max unattended step count. Hidden from the chat UI (the
   // "Resume the agent" alert is the visible affordance); surfaced to the model
@@ -313,6 +341,7 @@ export namespace SessionMessageDataPart {
       AttachedFolderChangesDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
+    [NameSchema.enum.contextRollover]: ContextRolloverDataPartSchema,
     [NameSchema.enum.dateChange]: DateChangeDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,

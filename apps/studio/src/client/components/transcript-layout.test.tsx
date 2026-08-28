@@ -34,6 +34,7 @@ type Spec = [
     | "prose"
     | "queued"
     | "read"
+    | "rollover"
     | "running"
     | "search"
     | "thinking"
@@ -156,6 +157,13 @@ function buildMessage(
           input: { filePath: label },
           output: { state: "does-not-exist" },
           type: "tool-read_file",
+        };
+      }
+      case "rollover": {
+        return {
+          data: { droppedMessages: 4, retainedUserMessages: 4 },
+          metadata,
+          type: "data-contextRollover",
         };
       }
       // Picked up off the queue: started, with nothing written back yet.
@@ -508,6 +516,54 @@ describe("groups the agent named", () => {
       "--- inferred settled "Read 2 files"
       ·   one
       ·   two"
+    `);
+  });
+});
+
+// Developer mode throughout: the part is classified "dev", so it is filtered
+// out of the layout entirely for everyone else.
+describe("the context rollover boundary", () => {
+  // Recorded against whatever message was newest when assembly ran, which
+  // mid-run is an assistant step with a phase already open around it. As an
+  // ordinary data note it folded into that phase and read as one more step the
+  // agent took, rather than as the place the request was cut.
+  it("ends the phase it lands in rather than joining it", () => {
+    const turns: Turns = [
+      { role: "user", specs: [["prose", "count to forty"]] },
+      { role: "assistant", specs: [["bash", "write the notes"]] },
+      { role: "assistant", specs: [["rollover", "boundary"]] },
+      { role: "assistant", specs: [["prose", "1. one"]] },
+    ];
+
+    expect(draw(turns, { isDeveloperMode: true })).toMatchInlineSnapshot(`
+      "  count to forty
+      --- inferred settled
+        write the notes
+        boundary
+        1. one"
+    `);
+  });
+
+  // The same shape with an ordinary note in the boundary's place, which is what
+  // the rollover was before it settled the phase: the note is swallowed by the
+  // group and folded out of sight, and the reply after it lands inside the run
+  // rather than after it.
+  it("is not what an ordinary note in that position does", () => {
+    const turns: Turns = [
+      { role: "user", specs: [["prose", "count to forty"]] },
+      { role: "assistant", specs: [["bash", "write the notes"]] },
+      { role: "assistant", specs: [["note", "boundary"]] },
+      { role: "assistant", specs: [["prose", "1. one"]] },
+    ];
+
+    expect(draw(turns, { isDeveloperMode: true })).toMatchInlineSnapshot(`
+      "  count to forty
+      --- inferred settled
+      > write the notes
+      ·   write the notes
+      ·   boundary
+      ~
+        1. one"
     `);
   });
 });

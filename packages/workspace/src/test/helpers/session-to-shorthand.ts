@@ -112,6 +112,11 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
           : "";
       return `<data-browserStatus status="${part.data.status}"${target}${previousUrl} />`;
     }
+    case "data-contextRollover": {
+      const retained = ` retainedUserMessages="${part.data.retainedUserMessages}"`;
+      const dropped = ` droppedMessages="${part.data.droppedMessages}"`;
+      return `<data-contextRollover${retained}${dropped} />`;
+    }
     case "data-dateChange": {
       return `<data-dateChange date="${part.data.date}" />`;
     }

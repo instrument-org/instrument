@@ -30,6 +30,14 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-attachedFolderChanges": "always",
   "data-attachments": "hidden",
   "data-browserStatus": "dev",
+  // Developer-mode only, deliberately. What happens here is a rollover, not a
+  // compaction: assembly stops sending the model's own earlier turns and
+  // carries the user's across verbatim, with nothing summarized. Any wording
+  // faithful to that is a wording about our request assembly, which is not a
+  // thing to hand a reader mid-task, and the familiar word for it promises a
+  // summary that does not exist. The user-facing treatment belongs with the
+  // summarizing compaction it would be describing.
+  "data-contextRollover": "dev",
   "data-dateChange": "dev",
   // Retired, and shown to everyone rather than to developers, which is the
   // opposite of where it ended up before it was deleted. It was demoted to
@@ -102,6 +110,15 @@ export function renderDataPart({
           className="mt-2"
           key={part.metadata.id}
           text={browserStatusModelNote(part.data)}
+        />
+      );
+    }
+    case "data-contextRollover": {
+      return (
+        <ModelContextDebugCard
+          className="mt-2"
+          key={part.metadata.id}
+          text={`Context rollover: dropped ${part.data.droppedMessages} messages, retained ${part.data.retainedUserMessages} user messages`}
         />
       );
     }

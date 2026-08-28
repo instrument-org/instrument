@@ -12,6 +12,7 @@ import { z } from "zod";
 
 import { closeAgentBrowserSessionsForSessions } from "../lib/agent-browser-cleanup";
 import { recordBrowserClosed } from "../lib/browser-state";
+import { TypedError } from "../lib/errors";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { type AbsolutePath } from "../schemas/paths";
 import { type StoreId } from "../schemas/store-id";
@@ -47,6 +48,7 @@ interface DestroyAndCloseInput {
   destroyedExternallyTargets: Set<BrowserTargetId>;
   knownTargets: Map<StoreId.Session, BrowserTargetId | undefined>;
   taskId: TaskId;
+  trashing: boolean;
 }
 
 interface TaskBrowserContext {
@@ -65,6 +67,9 @@ interface TaskBrowserContext {
   // One count per lease level, because a task page can be mounted more than
   // once (the same task in two tabs) and each mount holds its own.
   presence: Record<BrowserPresenceLevel, number>;
+  // Set when the reap was ordered by trashing rather than by a lease or a
+  // timeout, which is what tells the teardown its task is going away.
+  trashing: boolean;
   // Targets we've already spawned a destruction watcher for. Used to gate
   // duplicate spawns on subsequent updateCdpHeartbeats for the same target.
   watchedTargets: Set<BrowserTargetId>;
@@ -131,13 +136,26 @@ const destroyAndCloseLogic = fromPromise<undefined, DestroyAndCloseInput>(
 
     // Leave the fact behind for the next turn to tell the model about. A
     // failure here only costs that notice, never the teardown.
+    //
+    // A task on its way to the trash has no next turn to read it, and trashing
+    // waits on this teardown only up to a short cap before removing the folder,
+    // so by now there is usually nothing left to write to.
+    if (input.trashing) {
+      return;
+    }
+
     await Promise.all(
       sessionIds.map(async (sessionId) => {
         const recorded = await recordBrowserClosed({
           sessionId,
           taskId: input.taskId,
         });
-        if (recorded.isErr()) {
+        // A folder removed outside the app arrives as NotFound and means the
+        // same thing as the trash case: the notice has nowhere to land.
+        if (
+          recorded.isErr() &&
+          !(recorded.error instanceof TypedError.NotFound)
+        ) {
           getWorkspaceConfig().captureException(recorded.error);
         }
       }),
@@ -172,6 +190,8 @@ export const taskBrowserMachine = setup({
         { targetId }: { targetId: BrowserTargetId },
       ) => new Set(context.destroyedExternallyTargets).add(targetId),
     }),
+
+    markTrashing: assign({ trashing: true }),
 
     notifyParentStopped: sendParent(({ context }) => ({
       type: "taskBrowser.stopped" as const,
@@ -248,6 +268,7 @@ export const taskBrowserMachine = setup({
     knownTargets: new Map<StoreId.Session, BrowserTargetId | undefined>(),
     partitionDir: null,
     presence: { retained: 0, visible: 0 },
+    trashing: false,
     watchedTargets: new Set<BrowserTargetId>(),
   }),
   id: "taskBrowser",
@@ -268,7 +289,7 @@ export const taskBrowserMachine = setup({
         type: "addKnownSession",
       },
     },
-    forceReap: { target: ".Stopping" },
+    forceReap: { actions: "markTrashing", target: ".Stopping" },
     releasePresence: {
       actions: {
         params: ({ event }) => event.value,
@@ -385,6 +406,7 @@ export const taskBrowserMachine = setup({
           destroyedExternallyTargets: context.destroyedExternallyTargets,
           knownTargets: context.knownTargets,
           taskId: context.id,
+          trashing: context.trashing,
         }),
         onDone: { target: "Stopped" },
         onError: { target: "Stopped" },

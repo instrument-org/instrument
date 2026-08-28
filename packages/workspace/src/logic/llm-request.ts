@@ -587,7 +587,6 @@ export const llmRequestLogic = fromPromise<
             });
           }
           captureEvent("llm.error", {
-            error_message: errorText,
             error_type: "tool-error",
             modelId,
             providerId,

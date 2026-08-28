@@ -188,11 +188,6 @@ type LLMAnalyticsError =
       error_type: "streamed";
     }
   | {
-      error_message: string;
-      error_type: "tool-error";
-      tool_name: string;
-    }
-  | {
       error_type: "aborted";
     }
   | {
@@ -203,6 +198,16 @@ type LLMAnalyticsError =
     }
   | {
       error_type: "no-such-tool";
+      tool_name: string;
+    }
+  // No message. A tool's error text is whatever the tool wrote: an ENOENT
+  // naming the path it tried, a validation error quoting the value that failed,
+  // a command's stderr. `describe-error.ts` already states the rule for
+  // exception reports -- a failure is owed its shape, never its contents -- and
+  // this was the one place sending the contents. The tool name and the type say
+  // what a count of these is for.
+  | {
+      error_type: "tool-error";
       tool_name: string;
     };
 

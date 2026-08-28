@@ -1093,12 +1093,12 @@ done`,
   },
   {
     about:
-      "What the user sent along with their message. The first has enough files to make the grid collapse itself, across every folder it sorts by; the second is a pair of folders from the user's own disk, which stack above the files rather than in with them.",
+      "What the user sent along with their message. The first has every kind of file the grid draws, across every folder it sorts by; the second is a pair of folders from the user's own disk, which stack above the files rather than in with them.",
     id: "attachments",
     name: "Attachments",
     script: [
       user(
-        "Here is a full attachment grid: types, folders, and the expand control.",
+        "Here is a full attachment grid: every type it draws, and folders.",
         {
           data: {
             files: [
@@ -1131,14 +1131,14 @@ done`,
                 mimeType: "video/mp4",
                 size: 1_024_000,
               }),
-              // Root-level, so they only appear once the grid is expanded.
+              // Root-level.
               file({ filePath: "NOTES.txt" }),
               file({
                 filePath: "index.html",
                 mimeType: "text/html",
                 size: 2048,
               }),
-              // The supporting sections, collapsed until "Show more".
+              // The supporting sections.
               file({ filePath: `${TASK_FOLDER_NAMES.work}/deploy.sh` }),
               file({
                 filePath: `${TASK_FOLDER_NAMES.skills}/pdf/SKILL.md`,
@@ -1157,7 +1157,7 @@ done`,
         },
       ),
       prose(
-        "Six files show to begin with; the rest are behind the expand control, grouped by where they live.",
+        "Every file the user attached shows, in the order they attached them.",
       ),
       user("Folder rows sit above the compact file attachments.", {
         data: {

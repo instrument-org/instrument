@@ -23,8 +23,8 @@ import { MarkdownTaskContext } from "./markdown-task-context";
  * driving the app.
  */
 
-// Either side of the grid's two container breakpoints: @md at 28rem and @xl at
-// 36rem. The message column sits at the widest of the three.
+// Either side of the breakpoint the media rule turns on, @xl at 36rem. The
+// message column sits at the widest of the three.
 const NARROW = 380;
 const MEDIUM = 500;
 const WIDE = 640;
@@ -54,13 +54,17 @@ async function fenceHeight(content: string, isStreaming: boolean) {
   return Math.round(container.getBoundingClientRect().height);
 }
 
-// Every media tile in the grid, drawn or reserved, by the shape they share.
+// Every media tile in the grid, drawn or reserved, by the box the width rule
+// is written on -- not by the card inside it, whose own shape is one of the
+// things that rule decides.
 async function tileWidths(content: string, width: number) {
   const { container } = await drawFence(content, { width });
 
-  return [...container.querySelectorAll<HTMLElement>(".aspect-square")].map(
-    (tile) => Math.round(tile.getBoundingClientRect().width),
-  );
+  return [
+    ...container.querySelectorAll<HTMLElement>(
+      "[data-slot='files-grid-media']",
+    ),
+  ].map((tile) => Math.round(tile.getBoundingClientRect().width));
 }
 
 test("names every file it draws, in the tree and not just on screen", async () => {
@@ -69,12 +73,10 @@ test("names every file it draws, in the tree and not just on screen", async () =
   // A card whose name goes missing lays out exactly as it did before, so it is
   // a failure neither the heights above nor the widths below can see.
   //
-  // One line per file, plus the collapse's own button: a row of media fills the
-  // grid's collapsed height on its own, so the document under it is drawn and
-  // clipped. Clipped, and still named -- what the grid cuts stays in the tree,
-  // which is why the count on that button is a claim about layout and not about
-  // what was rendered. The icons are decorative and hidden as such, so what is
-  // left is exactly the set of things that can be addressed.
+  // One line per file and nothing else: every file a fence names is drawn, and
+  // the grid offers no control of its own. The icons are decorative and hidden
+  // as such, so what is left is exactly the set of things that can be
+  // addressed.
   const { locator } = await drawFence(
     "output/revenue.png\noutput/notes.md\noutput/clip.mp4",
   );
@@ -84,9 +86,26 @@ test("names every file it draws, in the tree and not just on screen", async () =
     - button "Open clip.mp4"
     - button "Open notes.md"
     - text: notes.md Markdown
-    - button "Actions for notes.md"
-    - button "Show 1 more""
+    - button "Actions for notes.md""
   `);
+});
+
+test("lands a lone tile's edge on the column its file cards are laid out on", async () => {
+  // The point of giving one tile all but the last column rather than a width of
+  // its own: the picture ends where a card below it ends, instead of at a
+  // measurement nothing else in the grid shares.
+  const { container } = await drawFence(
+    "output/chart.png\noutput/report.md\noutput/data.csv\noutput/notes.txt",
+    { width: WIDE },
+  );
+
+  const tile = container.querySelector("[data-slot='files-grid-media']");
+  const cards = container.querySelectorAll("[data-slot='files-grid-card']");
+
+  expect(cards).toHaveLength(3);
+  expect(Math.round(tile?.getBoundingClientRect().right ?? 0)).toBe(
+    Math.round(cards[1]?.getBoundingClientRect().right ?? 0),
+  );
 });
 
 test("keeps a row of media the same height as its last card lands", async () => {
@@ -130,7 +149,7 @@ test("gives one file the column and a set of them a grid", async () => {
     {
       "alone": {
         "medium": [
-          331,
+          500,
         ],
         "narrow": [
           380,

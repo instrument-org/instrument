@@ -6,10 +6,7 @@ import fixPath from "fix-path";
 import path from "node:path";
 
 import { initializeElectronLogging, logger } from "./lib/electron-logger";
-import {
-  OZONE_PLATFORMS,
-  resolveOzonePlatform,
-} from "./lib/ozone-platform";
+import { OZONE_PLATFORMS, resolveOzonePlatform } from "./lib/ozone-platform";
 import { setupDBusEnvironment } from "./lib/setup-dbus-env";
 
 /**
@@ -76,8 +73,8 @@ if (platform.isLinux) {
     );
   }
   if (ozone.platform === "auto") {
-    // Removed rather than set, and removed rather than left alone, because the
-    // packaged launcher passes `--ozone-platform=x11` on argv of its own.
+    // `auto` is the absence of the flag rather than a value Chromium accepts,
+    // so asking for it means taking away whatever argv carried.
     app.commandLine.removeSwitch("ozone-platform");
   } else {
     app.commandLine.appendSwitch("ozone-platform", ozone.platform);

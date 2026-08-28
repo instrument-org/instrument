@@ -174,3 +174,19 @@ test("takes the drop once that drag has been somewhere else", async () => {
     expect(onFilesDropped).toHaveBeenCalledTimes(1);
   });
 });
+
+test("keeps ignoring its own drag through a leave it never entered", async () => {
+  const { isRingUp, onFilesDropped, region } = await drawRegion();
+
+  // Handing the OS a drag can deliver a `dragleave` before any `dragenter`.
+  // Read as this drag ending, it would forget the drag was ours and take the
+  // drop that follows.
+  trackSelfFileDrag();
+  fire(region, "dragleave", fileDrag());
+
+  fire(region, "dragenter", fileDrag());
+  expect(isRingUp()).toBe(false);
+
+  fire(region, "drop", fileDrag());
+  expect(onFilesDropped).not.toHaveBeenCalled();
+});

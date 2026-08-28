@@ -125,13 +125,15 @@ export function FileDropRegion({
     const handleDragLeave = (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      // Clamped, because a drag already in flight when these listeners bind --
-      // the tab was switched away and back mid-drag -- delivers a `dragleave`
-      // whose `dragenter` went to nobody. Unclamped, the count passes zero on
-      // the way down and never returns to it, which is an overlay that stays up
-      // for the life of the region.
+      // A `dragleave` whose `dragenter` went to nobody is not this drag ending,
+      // and there are two ways to receive one: listeners that bound while a
+      // drag was already in flight, and the moment this app hands the OS a
+      // drag of its own. Both are read the same way -- the count is clamped
+      // rather than passing below zero, where it would never return and strand
+      // the overlay, and a leave that was never entered ends nothing.
+      const wasInside = dragDepthRef.current > 0;
       dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-      if (dragDepthRef.current === 0) {
+      if (wasInside && dragDepthRef.current === 0) {
         endDrag();
       }
     };

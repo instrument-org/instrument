@@ -20,6 +20,8 @@
  */
 export const OZONE_PLATFORMS = ["auto", "wayland", "x11"] as const;
 
+export type DisplayProtocol = "wayland" | "x11";
+
 export interface OzoneChoice {
   /** A requested value that is not a platform, kept so the caller can say so. */
   ignored?: string;
@@ -27,19 +29,6 @@ export interface OzoneChoice {
 }
 
 export type OzonePlatform = (typeof OZONE_PLATFORMS)[number];
-
-export function resolveOzonePlatform(
-  requested: string | undefined,
-): OzoneChoice {
-  if (!requested) {
-    return { platform: "auto" };
-  }
-
-  const match = OZONE_PLATFORMS.find((value) => value === requested);
-  return match ? { platform: match } : { ignored: requested, platform: "auto" };
-}
-
-export type DisplayProtocol = "wayland" | "x11";
 
 /**
  * What the app ended up talking, which `auto` on its own does not answer: it
@@ -59,4 +48,15 @@ export function effectiveDisplayProtocol(
     return waylandDisplay ? "wayland" : "x11";
   }
   return platform;
+}
+
+export function resolveOzonePlatform(
+  requested: string | undefined,
+): OzoneChoice {
+  if (!requested) {
+    return { platform: "auto" };
+  }
+
+  const match = OZONE_PLATFORMS.find((value) => value === requested);
+  return match ? { platform: match } : { ignored: requested, platform: "auto" };
 }

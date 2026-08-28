@@ -788,11 +788,11 @@ const showFolderPicker = base
 
 export const utils = {
   clearExceptions,
-  displayProtocol,
   closeWindow,
   copyFileToClipboard,
   copyProjectPathToClipboard,
   copyTaskPathToClipboard,
+  displayProtocol,
   events,
   exportZip,
   getSupportedEditors,

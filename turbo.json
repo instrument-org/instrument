@@ -35,6 +35,7 @@
         "VITE_DEBUG_TELEMETRY",
         "VITE_POSTHOG_API_HOST",
         "VITE_POSTHOG_API_KEY",
+        "WAYLAND_DISPLAY",
         "WIN_CERT_PATH",
         "WIN_GCP_KMS_KEY_VERSION",
         "WIN_TIMESTAMP_URL"

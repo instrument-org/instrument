@@ -4,7 +4,6 @@ import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { BlockToolbarButton, blockToolbarButtonClassName } from "./code-block";
-import { type CellValue, type GridColumn } from "./document-viewers/data-grid";
 import {
   tableClipboardItem,
   type TableCopyFormat,
@@ -12,7 +11,7 @@ import {
 import { TABLE_COPY_FORMATS } from "./document-viewers/table-copy-formats";
 import { TableCopyFormatLabel } from "./document-viewers/table-copy-menu";
 import { MarkdownTableModal } from "./markdown-table-modal";
-import { readTableContents, tableGrid, tableRows } from "./markdown-table-rows";
+import { readTableContents, tableRows } from "./markdown-table-rows";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,34 +38,41 @@ const copy = (rows: string[][], format?: TableCopyFormat) => {
  * thing rather than a run of prose: copy, copy one row, and open.
  *
  * The geometry is all in `markdown-table-row` / `markdown-table-frame`; what is
- * here is which edges still have table behind them, so the fade and the pinned
- * first column appear when they mean something. That has to be measured:
- * `scroll-state(scrollable:)` container queries would answer it in CSS alone,
- * but Chromium has not shipped that half of scroll-state yet, and the
- * scroll-timeline approach `scroll-fade-y` uses holds its last value when a
- * scroller stops being scrollable -- which here is every time the browser pane
- * closes.
+ * here is whether there is still table past the end, so the fade appears when
+ * it means something. That has to be measured: `scroll-state(scrollable:)`
+ * container queries would answer it in CSS alone, but Chromium has not shipped
+ * that half of scroll-state yet, and the scroll-timeline approach
+ * `scroll-fade-y` uses holds its last value when a scroller stops being
+ * scrollable -- which here is every time the browser pane closes.
+ *
+ * Nothing in the table is pinned while the rest of it scrolls. Holding the
+ * first column still reads well until the first column is wide, and then it is
+ * most of the width and there is nowhere left for the columns it was supposed
+ * to be identifying.
  */
-export const MarkdownTable = ({ children }: { children?: ReactNode }) => {
+export const MarkdownTable = ({
+  children,
+  expandable = true,
+}: {
+  children?: ReactNode;
+  /** False inside the expanded view, which is already this table with room. */
+  expandable?: boolean;
+}) => {
   const frameRef = useRef<HTMLDivElement>(null);
   const rowCopyRef = useRef<HTMLButtonElement>(null);
-  const [expanded, setExpanded] = useState<null | {
-    columns: GridColumn[];
-    rows: CellValue[][];
-  }>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const element = () => frameRef.current?.querySelector("table") ?? null;
 
-  // Attributes rather than state: a scroll handler that re-renders every table
-  // in the transcript is the one thing a transcript cannot afford, and nothing
-  // about these two edges is React's to know.
+  // An attribute rather than state: a scroll handler that re-renders every
+  // table in the transcript is the one thing a transcript cannot afford, and
+  // nothing about this edge is React's to know.
   const sync = () => {
     const frame = frameRef.current;
     if (!frame) {
       return;
     }
     const behind = frame.scrollWidth - frame.clientWidth - frame.scrollLeft;
-    frame.toggleAttribute("data-scroll-start", frame.scrollLeft > 1);
     frame.toggleAttribute("data-scroll-end", behind > 1);
   };
 
@@ -102,23 +108,35 @@ export const MarkdownTable = ({ children }: { children?: ReactNode }) => {
     }
   };
 
-  // The row control is moved and revealed by hand for the same reason the
-  // edges are: hovering a row would otherwise re-render the whole table, and
-  // during a stream that is every row of every table on screen.
-  const trackRow = (event: React.PointerEvent<HTMLDivElement>) => {
+  /**
+   * Moves the row control to whichever row the pointer is over.
+   *
+   * By hand for the same reason the scroll edge is: hovering a row would
+   * otherwise re-render the whole table, and during a stream that is every row
+   * of every table on screen.
+   *
+   * The control sits over the row's leading cell rather than beside it, and a
+   * pointer already on it is left alone. Both matter: anywhere else, reaching
+   * for the control leaves the row that put it there, which takes it away
+   * again before the click lands.
+   */
+  const trackRow = (event: React.MouseEvent<HTMLDivElement>) => {
     const chip = rowCopyRef.current;
     const frame = frameRef.current;
-    if (!chip || !frame) {
+    if (!chip || !frame || !(event.target instanceof Element)) {
       return;
     }
-    const row = (event.target as HTMLElement).closest("tbody tr");
+    if (chip.contains(event.target)) {
+      return;
+    }
+    const row = event.target.closest("tbody tr");
     if (!(row instanceof HTMLTableRowElement)) {
       delete chip.dataset.visible;
       return;
     }
     chip.dataset.row = String(row.rowIndex);
     chip.style.top = `${row.offsetTop + (row.offsetHeight - chip.offsetHeight) / 2}px`;
-    chip.style.left = `${frame.offsetLeft}px`;
+    chip.style.left = `${frame.offsetLeft + 4}px`;
     chip.dataset.visible = "";
   };
 
@@ -132,8 +150,8 @@ export const MarkdownTable = ({ children }: { children?: ReactNode }) => {
   return (
     <div
       className="markdown-table-row"
-      onPointerLeave={hideRowControl}
-      onPointerMove={trackRow}
+      onMouseLeave={hideRowControl}
+      onMouseMove={trackRow}
     >
       <div
         className="markdown-table-frame scrollbar-thin scrollbar-color"
@@ -170,16 +188,15 @@ export const MarkdownTable = ({ children }: { children?: ReactNode }) => {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <BlockToolbarButton
-            icon={ArrowsOutSimpleIcon}
-            label="Open table"
-            onClick={() => {
-              const table = element();
-              if (table) {
-                setExpanded(tableGrid(table));
-              }
-            }}
-          />
+          {expandable && (
+            <BlockToolbarButton
+              icon={ArrowsOutSimpleIcon}
+              label="Open table"
+              onClick={() => {
+                setExpanded(true);
+              }}
+            />
+          )}
         </div>
       </div>
 
@@ -187,9 +204,8 @@ export const MarkdownTable = ({ children }: { children?: ReactNode }) => {
         aria-label="Copy row"
         className="markdown-table-row-copy"
         onClick={(event) => {
-          const table = element();
-          const index = Number(event.currentTarget.dataset.row ?? "-1");
-          const row = table?.rows[index];
+          const row =
+            element()?.rows[Number(event.currentTarget.dataset.row ?? "-1")];
           if (row) {
             copy([
               [...row.cells].map((cell) => cell.textContent?.trim() ?? ""),
@@ -202,17 +218,10 @@ export const MarkdownTable = ({ children }: { children?: ReactNode }) => {
         <CopyIcon size={12} />
       </button>
 
-      {expanded && (
-        <MarkdownTableModal
-          columns={expanded.columns}
-          onOpenChange={(open) => {
-            if (!open) {
-              setExpanded(null);
-            }
-          }}
-          open
-          rows={expanded.rows}
-        />
+      {expandable && expanded && (
+        <MarkdownTableModal onOpenChange={setExpanded} open>
+          {children}
+        </MarkdownTableModal>
       )}
     </div>
   );

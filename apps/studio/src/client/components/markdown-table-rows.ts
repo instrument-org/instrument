@@ -1,6 +1,3 @@
-import { type CellValue, type GridColumn } from "./document-viewers/data-grid";
-import { inferAlignment } from "./document-viewers/grid-columns";
-
 interface TableContents {
   body: string[][];
   head: string[];
@@ -24,29 +21,6 @@ export function readTableContents(table: HTMLTableElement): TableContents {
     .map((row) => [...row.cells].map((cell) => cellText(cell)));
 
   return { body, head };
-}
-
-/**
- * The same table as something `DataGrid` can draw.
- *
- * Alignment comes from the table's own cells where GFM set one, since a `---:`
- * in the source is the author saying which way the column reads, and is
- * inferred from the values only where they did not say.
- */
-export function tableGrid(table: HTMLTableElement) {
-  const { body, head } = readTableContents(table);
-  const rows: CellValue[][] = body;
-  const headerCells = [...(table.tHead?.rows[0]?.cells ?? [])];
-
-  const columns: GridColumn[] = head.map((name, index) => ({
-    align:
-      headerCells[index]?.style.textAlign === "right"
-        ? "right"
-        : inferAlignment({ index, rows }),
-    name,
-  }));
-
-  return { columns, rows };
 }
 
 /** Header first, which is the shape every clipboard payload wants. */

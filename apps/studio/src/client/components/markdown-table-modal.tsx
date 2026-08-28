@@ -1,30 +1,29 @@
-import {
-  type CellValue,
-  DataGrid,
-  type GridColumn,
-} from "./document-viewers/data-grid";
+import { type ReactNode } from "react";
+
+import { MarkdownTable } from "./markdown-table";
 import { Dialog, DialogContent, DialogTitle } from "./ui/dialog";
 
 /**
- * A table from a message, in the grid the task pane already shows a `.csv` in.
+ * A table from a message, with room to be read whole.
  *
- * The rows are the document here, not a file: there is nothing on disk to save,
- * reveal, or step to the next of, so this is its own surface rather than a
- * `TaskFileViewerFile` with three fields that would have to lie. What it does
- * reuse is the part worth reusing -- sorting, filtering, hideable and resizable
- * columns, and cell-selection copy through the same clipboard payloads the
- * table's own copy menu writes.
+ * Deliberately the same table: the same Markdown, the same styles, the same
+ * copy controls, only wider. A grid with sortable headers and cell selection
+ * was tried here and is the wrong answer -- opening something and having it
+ * come back as a different kind of object, whose copy works differently, costs
+ * more than the sorting is worth.
+ *
+ * The widening the block already does is what gives it the room. Naming a
+ * `transcript` container here points that machinery at the dialog instead of
+ * the chat column, so nothing about the table has to know where it is.
  */
 export function MarkdownTableModal({
-  columns,
+  children,
   onOpenChange,
   open,
-  rows,
 }: {
-  columns: GridColumn[];
+  children?: ReactNode;
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  rows: CellValue[][];
 }) {
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -33,13 +32,16 @@ export function MarkdownTableModal({
         maxHeight="52rem"
         maxWidth="80rem"
       >
-        {/* A header row rather than a bare grid: the dialog's close control is
-            pinned to its top corner, and without one it lands on top of the
-            grid's own toolbar. */}
+        {/* A header row rather than a bare table: the dialog's close control is
+            pinned to its top corner, and without one it lands on the table. */}
         <div className="flex h-10 shrink-0 items-center px-4">
           <DialogTitle className="text-sm font-medium">Table</DialogTitle>
         </div>
-        <DataGrid columns={columns} rows={rows} />
+        <div className="@container/transcript min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+          <div className="markdown-table-expanded prose prose-custom text-sm/relaxed dark:prose-invert prose-table:text-sm [--transcript-room:100cqi]">
+            <MarkdownTable expandable={false}>{children}</MarkdownTable>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

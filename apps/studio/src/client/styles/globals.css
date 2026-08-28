@@ -1069,24 +1069,6 @@ a.cursor-pointer {
   opacity: 1;
 }
 
-/* The first column says what the row is about, so it stays while the rest of
-   the row scrolls. Only on a table that overflows: an opaque cell over a
-   surface that is not the page background would otherwise draw a stripe down
-   every table that never scrolls at all. */
-.markdown-table-frame:is([data-scroll-start], [data-scroll-end])
-  :is(th, td):first-child {
-  position: sticky;
-  inset-inline-start: 0;
-  background: var(--background);
-}
-
-/* Only once there is something behind it. */
-.markdown-table-frame[data-scroll-start] :is(th, td):first-child {
-  box-shadow:
-    1px 0 0 0 var(--border),
-    8px 0 8px -8px rgb(0 0 0 / 0.25);
-}
-
 /* Copy and expand, in the same vocabulary a diagram's controls use. Inside the
    frame rather than over it, so they stay at the visible edge of a table that
    is scrolled rather than at the edge of one that is not; zero-width so being
@@ -1115,9 +1097,21 @@ a.cursor-pointer {
   opacity: 1;
 }
 
-/* One row's own copy, in the gutter the widening opened. Placed by hand from
-   the hovered row, since a table mid-stream would otherwise re-render every
-   row of itself to answer a pointer move. */
+/* The prose wrapper the expanded table sits in. `max-w-none` cannot do this:
+   Typography's own `max-width: 65ch` is emitted after the core utilities in the
+   same layer, so it wins on source order and the expanded table would be laid
+   out against a measure narrower than the dialog holding it -- then centered,
+   and clipped by the dialog's own edge. Unlayered for the same reason the
+   table's rules are. */
+.markdown-table-expanded {
+  width: 100%;
+  max-width: none;
+}
+
+/* One row's own copy. Placed by hand from the hovered row, since a table
+   mid-stream would otherwise re-render every row of itself to answer a pointer
+   move -- and placed *over* the row's leading cell rather than beside it, so
+   that reaching for it never leaves the row that would take it away again. */
 .markdown-table-row-copy {
   position: absolute;
   z-index: 2;
@@ -1130,7 +1124,6 @@ a.cursor-pointer {
   background: var(--background);
   color: var(--muted-foreground);
   opacity: 0;
-  transform: translateX(-50%);
   pointer-events: none;
 }
 

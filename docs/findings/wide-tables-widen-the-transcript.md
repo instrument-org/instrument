@@ -85,7 +85,7 @@ The rest, in the order they matter:
 | Piece | What it is |
 | --- | --- |
 | Fade and its own scrollbar | The cue that a table continues, on the block rather than the transcript. Only when there is still overflow after widening. |
-| Pinned first column | While scrolled, the first column stays under a hairline. Without it a scrolled row is five values belonging to nothing. |
+| ~~Pinned first column~~ | Built and removed. It reads well until the first column is wide, and then it is most of the width with nowhere left for the columns it was supposed to identify. The whole table scrolls. |
 | Block toolbar | Copy and expand, in the `group/block-toolbar` vocabulary [`mermaid-diagram.tsx`](../../apps/studio/src/client/components/mermaid-diagram.tsx) already uses: 12 px icons, revealed on hover and on `focus-within`. |
 | Copy menu | Three destinations, not three file formats. See below. |
 | Copy one row | One click on a row's own control, no menu. The ask behind most table copying is one line, not the comparison. |
@@ -134,14 +134,27 @@ One generalization is needed to serve all of them: `tableClipboardItem` has to a
 
 The one place the surfaces differ is headers. A Markdown table always carries its header row, so the chat menu has nothing to ask. A partial grid selection may or may not want one, which is what today's Copy / Copy with headers pair is for; that becomes a persisted "Include headers" row at the foot of the menu rather than a doubling of the format list.
 
-### Expand is the grid we already have
+### Expand is the same table, with room
 
-[`data-grid.tsx`](../../apps/studio/src/client/components/document-viewers/data-grid.tsx) is what the task pane shows for a `.csv` or an `.xlsx`: 28 px rows, sortable headers, resizable and hideable columns, a filter, virtualization, and cell-selection copy through the same `tableClipboardItem`. It takes `columns` and `rows` directly, so a Markdown table is already the shape it wants.
+Opening a table shows the same Markdown table, the same styles, the same copy
+control -- only wider, laid out against the dialog instead of the chat column.
+The block's own widening does that, so nothing about the table has to know
+where it is: the dialog names a `transcript` container and the machinery points
+at it.
 
-The seam is the entry point, not the renderer. `openFileViewerAtom` takes a `TaskFileViewerFile` — `filename`, `filePath`, `taskId`, `url` — and a table in a message is none of those. Two ways through:
+[`data-grid.tsx`](../../apps/studio/src/client/components/document-viewers/data-grid.tsx)
+was tried here first and is the wrong answer, which is worth recording because
+it looks like the right one. It is the grid the task pane shows a `.csv` in --
+sortable headers, hideable columns, cell-selection copy -- and it takes
+`columns` and `rows` directly, so a Markdown table is already the shape it
+wants. What it costs is that opening something turns it into a different kind
+of object: a different layout, different affordances, and a copy that works by
+selecting cells rather than by the menu that was on the table a moment ago.
+That surprise is worth more than the sorting.
 
-- **Blob-backed CSV.** Serialize to CSV, hand over a blob URL with `filename: "table.csv"`, and `CsvViewer` fetches and parses it into the same grid with no new code. Cheap, but the viewer chrome then says `table.csv` and offers file actions (Save as, Reveal) for a file that does not exist.
-- **A virtual document in the viewer.** Let the viewer surface accept rows directly rather than a file. More work, correct chrome.
+The virtual-document entry point that would have been needed for the artifact
+pane is moot for the same reason: there is no document, only the table that is
+already on screen.
 
 ## Two traps it walked into
 

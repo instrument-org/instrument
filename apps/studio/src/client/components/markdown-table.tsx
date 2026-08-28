@@ -3,7 +3,6 @@ import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import { BlockToolbarButton, blockToolbarButtonClassName } from "./code-block";
 import { CopyButton } from "./copy-button";
 import {
   tableClipboardItem,
@@ -121,10 +120,10 @@ export const MarkdownTable = ({
    * otherwise re-render the whole table, and during a stream that is every row
    * of every table on screen.
    *
-   * The control sits over the row's leading cell rather than beside it, and a
-   * pointer already on it is left alone. Both matter: anywhere else, reaching
-   * for the control leaves the row that put it there, which takes it away
-   * again before the click lands.
+   * A pointer already on the control is left alone, which together with it
+   * riding the row's own edge is what makes it reachable: anywhere else,
+   * reaching for it leaves the row that put it there, and the row takes it
+   * away again before the click lands.
    */
   const trackRow = (event: React.MouseEvent<HTMLDivElement>) => {
     const chip = rowCopyRef.current;
@@ -141,8 +140,13 @@ export const MarkdownTable = ({
       return;
     }
     chip.dataset.row = String(row.rowIndex);
-    chip.style.top = `${row.offsetTop + (row.offsetHeight - chip.offsetHeight) / 2}px`;
-    chip.style.left = `${frame.offsetLeft + 4}px`;
+    // Centered on the row's closing edge, at the trailing end of what is
+    // visible. The closing edge rather than the opening one because the block's
+    // own controls sit in the top corner: on the first row the two would land
+    // on each other. `clientWidth` rather than the frame's box, so a scrollbar
+    // does not push it under one.
+    chip.style.top = `${row.offsetTop + row.offsetHeight - chip.offsetHeight / 2}px`;
+    chip.style.left = `${frame.offsetLeft + frame.clientWidth - chip.offsetWidth - 4}px`;
     chip.dataset.visible = "";
   };
 
@@ -173,7 +177,7 @@ export const MarkdownTable = ({
               <TooltipTrigger asChild>
                 <DropdownMenuTrigger
                   aria-label="Copy table"
-                  className={blockToolbarButtonClassName}
+                  className="markdown-table-control"
                 >
                   <CopyIcon size={12} />
                 </DropdownMenuTrigger>
@@ -202,13 +206,21 @@ export const MarkdownTable = ({
           </DropdownMenu>
 
           {expandable && (
-            <BlockToolbarButton
-              icon={ArrowsOutSimpleIcon}
-              label="Open table"
-              onClick={() => {
-                setExpanded(true);
-              }}
-            />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  aria-label="Open table"
+                  className="markdown-table-control"
+                  onClick={() => {
+                    setExpanded(true);
+                  }}
+                  type="button"
+                >
+                  <ArrowsOutSimpleIcon size={12} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Open table</TooltipContent>
+            </Tooltip>
           )}
         </div>
       </div>
@@ -218,7 +230,7 @@ export const MarkdownTable = ({
           which is what the tracking moves. */}
       <span className="markdown-table-row-copy" ref={rowCopyRef}>
         <CopyButton
-          className={blockToolbarButtonClassName}
+          className="markdown-table-control"
           iconSize={12}
           label="Copy row"
           onCopy={() => {

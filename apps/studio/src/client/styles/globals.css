@@ -1153,13 +1153,31 @@ a.cursor-pointer {
   z-index: 2;
   display: flex;
   flex: 0 0 auto;
-  gap: 0.25rem;
+  gap: 0.125rem;
   align-self: flex-start;
   justify-content: flex-end;
   width: 0;
   margin-block: 0.25rem;
   opacity: 0;
   transition: opacity 100ms;
+}
+
+/* The table's own controls. A bare icon rather than the bordered button a code
+   block and a diagram use: those sit over a filled surface that a control has
+   to lift off, and these sit in the thin band of cell padding between two rows,
+   where a border is the only thing that would read as clutter. */
+.markdown-table-control {
+  display: grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: var(--radius-sm);
+  color: var(--muted-foreground);
+}
+
+.markdown-table-control:hover {
+  background: var(--muted);
+  color: var(--foreground);
 }
 
 /* Focus as well as hover, so tabbing through never lands on an invisible
@@ -1172,12 +1190,15 @@ a.cursor-pointer {
 
 /* One row's own copy. Placed by hand from the hovered row, since a table
    mid-stream would otherwise re-render every row of itself to answer a pointer
-   move -- and placed *over* the row's leading cell rather than beside it, so
-   that reaching for it never leaves the row that would take it away again. */
+   move.
+ 
+   It rides the row's closing edge at the trailing end, which puts it in the
+   cell padding either side of that edge rather than over any of the row's text
+   -- the one place in a table that is reliably empty at every width. Reaching
+   for it still never leaves the row, because the row is what it is sitting on. */
 .markdown-table-row-copy {
   position: absolute;
   z-index: 2;
-  display: grid;
   opacity: 0;
   pointer-events: none;
 }

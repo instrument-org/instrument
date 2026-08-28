@@ -1,5 +1,5 @@
-import { MOUNT } from "../mount-points";
 import { type ContextBudget } from "./context-budget";
+import { HANDOFF_NOTES_PATH } from "./handoff-notes";
 
 /**
  * What the agent is told when its context window is running out.
@@ -20,7 +20,7 @@ export function contextBudgetNotice(budget: ContextBudget): string | undefined {
     return undefined;
   }
 
-  const preserve = `Your working directory (${MOUNT.task}) is a real folder that outlives this conversation. Files you write there survive; the conversation itself does not.`;
+  const preserve = `Write them to ${HANDOFF_NOTES_PATH}, which is a real file that outlives this conversation. That exact path is where they will be read back from, so notes anywhere else are notes nobody finds.`;
   const record =
     "Say what a future reader needs in order to pick this up cold: the goal in the user's own terms, the decisions taken and why, what is finished, what is left, and the paths that matter.";
 

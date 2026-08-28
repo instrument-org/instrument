@@ -20,6 +20,10 @@ import { contextBudgetNotice } from "./context-budget-notice";
 import { dropTrailingFailedMessages } from "./drop-trailing-failed-messages";
 import { effectiveContextLength } from "./effective-context-length";
 import { filterUnsupportedMedia } from "./filter-unsupported-media";
+import {
+  contextRolloverNotice,
+  readHandoffNotes,
+} from "./handoff-notes";
 import { normalizeModelImages } from "./normalize-model-images";
 import { normalizeToolCallIds } from "./normalize-tool-call-ids";
 import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning-details";
@@ -248,6 +252,25 @@ export async function prepareModelMessages({
   // rewriting it. Nothing here is saved: the notice is recomputed from the
   // budget on each request, so it disappears on its own once there is room
   // again and never accumulates in the transcript.
+  // Any history narrower than what the task holds is one a boundary was placed
+  // in, which is the same test whether the boundary was recorded a moment ago
+  // in this call or on an earlier turn. A boundary naming a message this
+  // session no longer has drops nothing, and correctly says nothing here.
+  //
+  // Said on every request from here on rather than once at the cut: what is
+  // missing stays missing, and the turn that needs to recover from it is rarely
+  // the first one after.
+  if (nonContextMessages.length < allNonContextMessages.length) {
+    preparedMessages.push({
+      content: contextRolloverNotice(await readHandoffNotes(taskId)),
+      role: "user",
+    });
+  }
+
+  // After the rollover notice: that one says what the window is missing and
+  // hands back the notes, and this one says how much room what remains has
+  // left. Read the other way around, the instruction to write notes arrives
+  // before the agent has been given the ones it already wrote.
   const notice = contextBudgetNotice(budget);
 
   if (notice !== undefined) {

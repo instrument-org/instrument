@@ -1,11 +1,14 @@
 import type { ModelMessage } from "ai";
 
 import { subMinutes } from "date-fns";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 import type { SessionMessage } from "../schemas/session/message";
 
 import { type AnyAgent } from "../agents/types";
+import { TASK_FOLDER_NAMES } from "../constants";
 import { RelativePathSchema } from "../schemas/paths";
 import { SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
@@ -14,6 +17,7 @@ import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model"
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
 import { prepareModelMessages } from "./prepare-model-messages";
 import { Store } from "./store";
+import { taskDir } from "./task-dir-utils";
 
 vi.mock(import("./session-store-storage"));
 
@@ -497,7 +501,9 @@ describe("prepareModelMessages", () => {
         "The standing instructions.",
       );
       await save(stored);
-      contextMessages = [contextMessage(new Date(), "The rebuilt instructions.")];
+      contextMessages = [
+        contextMessage(new Date(), "The rebuilt instructions."),
+      ];
 
       const messages = await prepare();
 
@@ -513,16 +519,19 @@ describe("prepareModelMessages", () => {
         sessionId,
         taskId,
       });
-      expect(
-        storedResult._unsafeUnwrap().map((message) => message.id),
-      ).toEqual([stored.id]);
+      expect(storedResult._unsafeUnwrap().map((message) => message.id)).toEqual(
+        [stored.id],
+      );
     });
 
     it("builds the baseline once and never rewrites it as history grows", async () => {
       let build = 0;
       getMessages.mockImplementation(() =>
         Promise.resolve([
-          contextMessage(new Date(), `The standing instructions, build ${++build}.`),
+          contextMessage(
+            new Date(),
+            `The standing instructions, build ${++build}.`,
+          ),
         ]),
       );
 
@@ -553,6 +562,13 @@ describe("prepareModelMessages", () => {
     const smallWindowModel = createMockAIGatewayModel({ contextLength: 1000 });
 
     /** The boundary the session records, or undefined if it has never reset. */
+    beforeEach(async () => {
+      await fs.rm(path.join(taskDir(taskId), TASK_FOLDER_NAMES.work), {
+        force: true,
+        recursive: true,
+      });
+    });
+
     async function storedBoundary() {
       const result = await Store.getSession(sessionId, taskId);
       return result._unsafeUnwrap().rolledOverAfterMessageId;
@@ -722,6 +738,65 @@ describe("prepareModelMessages", () => {
         const boundary = await storedBoundary();
         expect(rolloverParts).toHaveLength(1);
         expect(rolloverParts[0]?.metadata.messageId).toBe(boundary);
+      });
+
+      it("hands back the notes the agent left, in the request itself", async () => {
+        await fs.mkdir(path.join(taskDir(taskId), TASK_FOLDER_NAMES.work), {
+          recursive: true,
+        });
+        await fs.writeFile(
+          path.join(taskDir(taskId), "work", "handoff-notes.md"),
+          "Format: the number, then the English word.",
+          "utf8",
+        );
+        await fillPast(4);
+
+        const messages = await prepare(smallWindowModel);
+        const notice = modelTexts(messages).find((text) =>
+          text.includes("<context-rollover>"),
+        );
+
+        // Inlined, not pointed at. An agent told where its notes were did not
+        // spend the tool call to go and get them.
+        expect(notice).toContain("Format: the number, then the English word.");
+      });
+
+      it("says so plainly when the agent left none", async () => {
+        await fillPast(4);
+
+        const messages = await prepare(smallWindowModel);
+        const notice = modelTexts(messages).find((text) =>
+          text.includes("<context-rollover>"),
+        );
+
+        expect(notice).toContain("No handoff notes were found");
+        expect(notice).toContain("/task/work/handoff-notes.md");
+      });
+
+      // The failure this exists for was not the turn after the cut. An agent
+      // told once, on the turn it rolled over, answered three further turns in
+      // a format it had lost with its own history.
+      it("keeps saying so on later turns, not only the one that rolled over", async () => {
+        await fillPast(4);
+        await prepare(smallWindowModel);
+
+        await save(userMessage("and again"));
+        const later = await prepare(smallWindowModel);
+
+        expect(
+          modelTexts(later).some((text) => text.includes("<context-rollover>")),
+        ).toBe(true);
+      });
+
+      it("says nothing about a rollover in a session that never had one", async () => {
+        await save(userMessage("First question"));
+        await save(assistantMessageWithUsage("plenty of room", 100));
+
+        expect(
+          modelTexts(await prepare(smallWindowModel)).some((text) =>
+            text.includes("<context-rollover>"),
+          ),
+        ).toBe(false);
       });
 
       it("marks it once, not again on every later turn", async () => {

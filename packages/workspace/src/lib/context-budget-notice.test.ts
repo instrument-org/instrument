@@ -22,7 +22,7 @@ describe("contextBudgetNotice", () => {
       "<context-budget>
       About 18,000 of 168,000 tokens of context remain for this task.
 
-      There is still room to work, so finish what you are in the middle of rather than stopping to write notes. Your working directory (/task) is a real folder that outlives this conversation. Files you write there survive; the conversation itself does not.
+      There is still room to work, so finish what you are in the middle of rather than stopping to write notes. Write them to /task/work/handoff-notes.md, which is a real file that outlives this conversation. That exact path is where they will be read back from, so notes anywhere else are notes nobody finds.
 
       Write your handoff notes before the room runs out. Say what a future reader needs in order to pick this up cold: the goal in the user's own terms, the decisions taken and why, what is finished, what is left, and the paths that matter.
       </context-budget>"
@@ -34,7 +34,7 @@ describe("contextBudgetNotice", () => {
       "<context-budget>
       This task has used all 168,000 tokens of context available to it.
 
-      Write your handoff notes now, before doing anything else. Your working directory (/task) is a real folder that outlives this conversation. Files you write there survive; the conversation itself does not.
+      Write your handoff notes now, before doing anything else. Write them to /task/work/handoff-notes.md, which is a real file that outlives this conversation. That exact path is where they will be read back from, so notes anywhere else are notes nobody finds.
 
       Say what a future reader needs in order to pick this up cold: the goal in the user's own terms, the decisions taken and why, what is finished, what is left, and the paths that matter.
       </context-budget>"

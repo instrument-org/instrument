@@ -1068,24 +1068,35 @@ a.cursor-pointer {
   margin: 0;
 }
 
-/* Where the table continues past the frame. A sticky flex item rather than
-   an overlay: the frame is the scroll container, so anything drawn inside it
-   scrolls away with the table, and anything outside it cannot know how wide
-   the frame ended up. The negative start margin keeps it out of the frame's
-   own max-content width, so its presence never widens the block. */
+/* Where the table continues past the frame, on whichever side it does. Sticky
+   flex items rather than overlays: the frame is the scroll container, so
+   anything drawn inside it scrolls away with the table, and anything outside it
+   cannot know how wide the frame ended up. Each one's negative margin on its
+   far side keeps it out of the frame's own max-content width, so their presence
+   never widens the block. */
 .markdown-table-fade {
   position: sticky;
-  inset-inline-end: 0;
   flex: 0 0 auto;
   align-self: stretch;
   width: var(--table-fade);
-  margin-inline-start: calc(-1 * var(--table-fade));
-  background: linear-gradient(to right, transparent, var(--background));
   opacity: 0;
   pointer-events: none;
 }
 
-.markdown-table-frame[data-scroll-end] .markdown-table-fade {
+.markdown-table-fade[data-edge="start"] {
+  inset-inline-start: 0;
+  margin-inline-end: calc(-1 * var(--table-fade));
+  background: linear-gradient(to right, var(--background), transparent);
+}
+
+.markdown-table-fade[data-edge="end"] {
+  inset-inline-end: 0;
+  margin-inline-start: calc(-1 * var(--table-fade));
+  background: linear-gradient(to right, transparent, var(--background));
+}
+
+.markdown-table-frame[data-scroll-start] .markdown-table-fade[data-edge="start"],
+.markdown-table-frame[data-scroll-end] .markdown-table-fade[data-edge="end"] {
   opacity: 1;
 }
 

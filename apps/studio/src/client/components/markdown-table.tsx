@@ -37,8 +37,8 @@ const copy = (rows: string[][], format?: TableCopyFormat) => {
  * thing rather than a run of prose: copy, copy one row, and open.
  *
  * The geometry is all in `markdown-table-row` / `markdown-table-frame`; what is
- * here is whether there is still table past the end, so the fade appears when
- * it means something. That has to be measured: `scroll-state(scrollable:)`
+ * here is whether there is still table past either end, so a fade appears on
+ * the side there is more on. That has to be measured: `scroll-state(scrollable:)`
  * container queries would answer it in CSS alone, but Chromium has not shipped
  * that half of scroll-state yet, and the scroll-timeline approach
  * `scroll-fade-y` uses holds its last value when a scroller stops being
@@ -78,6 +78,7 @@ export const MarkdownTable = ({
       return;
     }
     const behind = frame.scrollWidth - frame.clientWidth - frame.scrollLeft;
+    frame.toggleAttribute("data-scroll-start", frame.scrollLeft > 1);
     frame.toggleAttribute("data-scroll-end", behind > 1);
   };
 
@@ -162,8 +163,9 @@ export const MarkdownTable = ({
         className="markdown-table-frame scrollbar-thin scrollbar-color"
         ref={frameRef}
       >
+        <span aria-hidden className="markdown-table-fade" data-edge="start" />
         <table>{children}</table>
-        <span aria-hidden className="markdown-table-fade" />
+        <span aria-hidden className="markdown-table-fade" data-edge="end" />
 
         <div className="markdown-table-toolbar" data-menu-open={menuOpen}>
           <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>

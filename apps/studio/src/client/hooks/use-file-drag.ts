@@ -2,7 +2,7 @@ import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { trackSelfFileDrag } from "@/client/lib/self-file-drag";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
-import { type DragEvent } from "react";
+import { type DragEvent, type MouseEvent, useRef } from "react";
 
 export type FileDragProps = ReturnType<typeof useFileDrag>;
 
@@ -27,9 +27,25 @@ const preparing = new Map<string, Promise<unknown>>();
  */
 export function useFileDrag(file: FileRef | undefined) {
   const canDrag = Boolean(file && window.api.startFileDrag);
+  // Cancelling the dragstart keeps Blink out of a drag state, so it never
+  // applies its own rule that a drag suppresses the click after it. A press and
+  // release on one element is a click by every measure Blink has left, which
+  // made dropping a file back onto the card it came from open that card.
+  const draggedRef = useRef(false);
 
   return {
     draggable: canDrag,
+    onClickCapture: (event: MouseEvent) => {
+      if (!draggedRef.current) {
+        return;
+      }
+      // Capture, so this runs before whatever the surface does on click, and
+      // cleared here rather than on a timer: the click is the end of the
+      // gesture that set it.
+      draggedRef.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+    },
     onDragStart: (event: DragEvent) => {
       if (!file) {
         return;
@@ -42,6 +58,7 @@ export function useFileDrag(file: FileRef | undefined) {
       // Marked before the drag exists rather than after, so a release quick
       // enough to beat the OS still finds the flag set.
       trackSelfFileDrag();
+      draggedRef.current = true;
       window.api.startFileDrag?.([
         { filePath: file.filePath, taskId: file.taskId },
       ]);
@@ -50,6 +67,8 @@ export function useFileDrag(file: FileRef | undefined) {
     // by the OS, which is far slower than the few pixels of movement between
     // pressing and dragging.
     onPointerDown: () => {
+      // A fresh press is a fresh gesture, whatever the last one turned into.
+      draggedRef.current = false;
       void prepare(file);
     },
     onPointerEnter: () => {

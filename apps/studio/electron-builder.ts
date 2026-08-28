@@ -163,7 +163,6 @@ const config: Configuration = {
   linux: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
     category: "Utility",
-    executableArgs: ["--ozone-platform=x11"],
     executableName: APP_EXECUTABLE,
     icon: "build/icons",
     maintainer: APP_DOMAIN,

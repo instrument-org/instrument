@@ -3,6 +3,7 @@ import type { ActorRef, AnyMachineSnapshot } from "xstate";
 
 import {
   type AIGatewayModel,
+  CLIENT_SESSION_ID_HEADER,
   fetchAISDKModel,
   providerOptionsForModel,
 } from "@instrument-org/ai-gateway";
@@ -222,6 +223,9 @@ export const llmRequestLogic = fromPromise<
     requestStartedAtMs = getCurrentDate().getTime();
     const result = streamText({
       abortSignal: signal,
+      // Groups this session's generations into one trace in the analytics our
+      // gateway reports.
+      headers: { [CLIENT_SESSION_ID_HEADER]: input.sessionId },
       maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
       maxRetries: 0, // Handled outside this function
       messages: messagesResult.value,

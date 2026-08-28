@@ -1,5 +1,6 @@
 export type { AIGatewayApp } from "./app";
 export { aiGatewayApp } from "./app";
+export { CLIENT_SESSION_ID_HEADER } from "./constants";
 export { providerOptionsForModel } from "./lib/ai-sdk-provider-options";
 export {
   envForProviderConfig,

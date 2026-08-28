@@ -11,9 +11,11 @@ import { useSyncExternalStore } from "react";
  * theme is hard to pick out from a light window behind it. Windows gets its edge
  * from DWM, and macOS keeps its native frame, so neither needs one.
  *
- * Wayland is the reason this is not simply "on Linux": a compositor decorates a
- * frameless window itself, so the same hairline there is a second line drawn
- * inside the first.
+ * Wayland is the reason this is not simply "on Linux". Electron chooses the
+ * frame layout for a frameless window on whether it is running X11 before
+ * anything else, and only the X11 one draws no shadow and no border: elsewhere
+ * the window gets client-side decorations with both, and the same hairline is a
+ * second line inside the first.
  *
  * Mounted outside {@link ZoomRoot} so it stays a single hairline at every UI
  * zoom. It separates the window from the desktop, which makes it a property of

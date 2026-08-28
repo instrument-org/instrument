@@ -1,6 +1,6 @@
 # Bash sandbox: the mount layout and the native-binary boundary
 
-**Status:** current as of the attached-folder mounts work (PR #37; the connectors branch adds a writable `/connectors` mount under the same rules) plus the inline-code path bridge and byte-clean subprocess stdin. Last updated 2026-07-16.
+**Status:** current as of the attached-folder mounts work (PR #37; the connectors branch adds a writable `/connectors` mount under the same rules), the inline-code path bridge, byte-clean subprocess stdin, and the device-path exception to the argv bridge. Last updated 2026-08-28.
 
 ## The layout
 
@@ -20,10 +20,14 @@ Everything that runs **in our own Node process** sees virtual paths, because we 
 
 The exception is `rg`, which resolves mounts through `resolveReadOnlyHostPath` so a search can reach attached folders. It earns that by refusing every flag that lets ripgrep run another program (`--pre`, `--pre-glob`, `--hostname-bin`, `-z`), re-checking symlink containment, and mapping host roots back to mount points in its output.
 
+**Device paths cross the bridge unchanged** (`resolveHostDevicePath`): `/dev/null`, `/dev/zero`, `/dev/random`, `/dev/urandom`, and the three standard streams, by exact name so `/dev/disk0` and `/dev/fd/<n>` stay quarantined. These are host character devices rather than virtual paths, and quarantining them protected nothing — they hold no user data, name no part of the machine's layout, and inline code and script files, neither of which is rewritten, already reach them. What it cost was the standard idiom: `ffmpeg -pass 1 -f mp4 /dev/null` failed with a not-found error naming `./dev/null`, a relative path the agent never wrote, because `redactTaskDir` strips the task-dir prefix off the quarantined path on the way back. On Windows only `/dev/null` maps, to `\\.\NUL`.
+
+**A quarantined path is explained rather than left to the binary** (`unreachablePathArgError`, used by `ffmpeg`, `ffprobe`, `python`, `pip`, `uv`; `git` carries its own longer message). The shim answers before spawning, naming the mount or path the agent actually asked for. Without it the agent reads the binary's not-found error for the quarantined path, which reads like a relative-path mistake it made rather than the boundary it is.
+
 Consequences to remember:
 
 - **Inline code is bridged; script files are not.** Quoted `/task/...` string literals in inline program text (`node -e`, `tsx -e`, `python -c`, and heredoc programs piped to python) are rewritten to cwd-relative paths by `bridgeInlineCodePaths` (`shell-commands/utils.ts`) — relative, not absolute, so the host dir never appears in the code and Windows backslashes never corrupt string escapes; the quote prefix keeps JS regex literals like `split(/task/)` untouched. Quoted `/mnt/...` literals fail fast with copy-first guidance. Paths inside script FILES on disk are never translated: `python work/script.py` works because the script path is argv, but `open("/task/work/x")` inside that file resolves against the real root and fails. The subprocess cwd is the real task dir, so task-relative paths in script code always work. The bash tool description teaches this.
-- **Processing an attached file requires copying it into the task first.** `ffprobe /mnt/Photos/clip.mov` fails with not-found (quarantined); the agent prompt teaches `cp '/mnt/<folder>/file' attachments/` first.
+- **Processing an attached file requires copying it into the task first.** `ffprobe /mnt/Photos/clip.mov` is refused with copy-first guidance naming the mount; the agent prompt teaches `cp '/mnt/<folder>/file' attachments/` first.
 - **Stdin crosses as bytes, not a string.** just-bash packs stream data one byte per char (latin1); `subprocessStdin` converts that to a `Buffer` before it reaches `execa`, whose string `input` would UTF-8 re-encode it and mojibake every non-ASCII byte of a heredoc or piped binary.
 
 ## Why we didn't unify the two worlds

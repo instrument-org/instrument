@@ -36,7 +36,7 @@ Reach for it when the library is unfamiliar, when its API has moved recently, or
 
 ## Run `agent-reference guide` before writing anything
 
-This file is copied into a project once and never updated, so it holds only what stays true across versions. `agent-reference guide` prints the rest from the installed CLI, which means those instructions always match the version on this machine: reading a project's declarations, choosing between `node_modules` and a checkout, the exact shape of every config entry, and setting a project up.
+This file is copied into a project once, and nothing updates it, so it holds only what stays true across versions. When the copy does fall behind the installed CLI, `agent-reference status` says so and names the file to replace it with; that file is the user's, so tell them what you changed rather than rewriting it quietly. `agent-reference guide` prints the rest from the installed CLI, which means those instructions always match the version on this machine: reading a project's declarations, choosing between `node_modules` and a checkout, the exact shape of every config entry, and setting a project up.
 
 Run it before adding a reference, before editing `agent-reference.json` or `agent-reference.local.json`, and before setting a project up. Guessing config syntax from memory is how a config gets written that this version refuses.
 

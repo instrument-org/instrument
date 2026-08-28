@@ -1,6 +1,6 @@
 {
   "name": "@instrument-org/studio",
-  "version": "1.6.5-beta.1",
+  "version": "1.6.5",
   "description": "Private AI workspace on your computer",
   "repository": {
     "type": "git",

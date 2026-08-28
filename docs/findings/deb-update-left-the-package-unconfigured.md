@@ -41,7 +41,7 @@ Driving a real 1.6.3 to 1.6.4 update on the same host, through the same RPCs the
 
 **The install needs a human.** It runs `pkexec --disable-internal-agent /bin/bash -c 'dpkg -i <staged deb>'`, which raises an interactive authentication prompt on the desktop. Nothing proceeds until someone answers it.
 
-**The app is frozen for the whole install.** `spawnSync` blocks the main thread from the moment the install starts, including while the prompt waits. RPC and CDP both stop answering. This is the reason the product's Linux install notice tells the user to ignore any "Force quit" dialogs, and the reason a user watching a frozen window might reasonably kill it.
+**The app is frozen for the whole install.** `spawnSync` blocks the main thread from the moment the install starts, including while the prompt waits. RPC and CDP both stop answering. That freeze is why the Linux install notice used to tell users to ignore any "Force quit" dialogs, and why a user watching a frozen window might reasonably kill it. The dialog was seen directly on 2026-08-28, during an update performed by a build predating the fix.
 
 **A blocked main thread writes no log.** The line logged immediately before the install, `Quitting to install the staged update`, never reached the log file, because the thread blocked before it flushed. That accounts for the original occurrence's silence, which had looked like evidence the install never started.
 

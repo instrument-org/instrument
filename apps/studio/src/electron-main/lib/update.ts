@@ -41,6 +41,11 @@ export function createStudioAppUpdater({
   autoUpdater.logger = createAutoUpdaterLogger();
   autoUpdater.autoDownload = true;
   autoUpdater.disableWebInstaller = true;
+  // Linux installs through startDetachedInstall and nowhere else. Left at its
+  // default, electron-updater also installs from its own quit handler, which
+  // runs dpkg inline in the exiting process: an ordinary quit with an update
+  // already staged would take the very path the handoff exists to avoid.
+  autoUpdater.autoInstallOnAppQuit = os.platform() !== "linux";
   autoUpdater.forceDevUpdateConfig =
     process.env.FORCE_DEV_AUTO_UPDATE === "true";
 
@@ -212,8 +217,6 @@ function installStagedUpdate() {
     return;
   }
 
-  // The handoff owns the install now, so the quit handler must not run a second.
-  autoUpdater.autoInstallOnAppQuit = false;
   app.quit();
 }
 

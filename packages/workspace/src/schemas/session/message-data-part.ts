@@ -11,9 +11,9 @@ export namespace SessionMessageDataPart {
    * whether it needs to guard against repeating itself.
    *
    * - **Event**: something that happened on this turn -- `attachments`,
-   *   `intent`, `maxSteps`, `skillChanges`, `skillMentions`, and
-   *   `projectContext`, which is written once at creation. A repeat is
-   *   impossible by construction; nothing to guard.
+   *   `contextRollover`, `intent`, `maxSteps`, `skillChanges`,
+   *   `skillMentions`, and `projectContext`, which is written once at
+   *   creation. A repeat is impossible by construction; nothing to guard.
    * - **Diff**: what changed since last time -- `projectChanges`,
    *   `attachedFolderChanges`. Self-limiting: no change, no part.
    * - **State**: the whole current picture -- `browserStatus`, `paneTabs`.
@@ -32,6 +32,7 @@ export namespace SessionMessageDataPart {
     "attachedFolderChanges",
     "attachments",
     "browserStatus",
+    "contextRollover",
     "fileChanges",
     "intent",
     "skillChanges",
@@ -175,6 +176,29 @@ export namespace SessionMessageDataPart {
 
   export type PaneTabsDataPart = z.output<typeof PaneTabsDataPartSchema>;
 
+  /**
+   * The point where the conversation continued in a fresh context window.
+   *
+   * Written on the message the boundary sits after, at the moment the boundary
+   * is recorded, so the transcript marks the same message assembly stops
+   * sending the model's half of. It is the only sign a rollover happened: the
+   * warning that precedes one is derived per request and never persisted, and
+   * the boundary itself is a single id on the session that nothing else draws.
+   *
+   * The counts describe what the reader can no longer assume the agent is
+   * looking at. `retainedUserMessages` is what carried across verbatim;
+   * `droppedMessages` is everything before the boundary that did not, which is
+   * on disk and still in this transcript.
+   */
+  const ContextRolloverDataPartSchema = z.object({
+    droppedMessages: z.number().int().nonnegative(),
+    retainedUserMessages: z.number().int().nonnegative(),
+  });
+
+  export type ContextRolloverDataPart = z.output<
+    typeof ContextRolloverDataPartSchema
+  >;
+
   // Attached to the synthetic assistant message written when a run stops after
   // reaching the max unattended step count. Hidden from the chat UI (the
   // "Resume the agent" alert is the visible affordance); surfaced to the model
@@ -298,6 +322,7 @@ export namespace SessionMessageDataPart {
       AttachedFolderChangesDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
+    [NameSchema.enum.contextRollover]: ContextRolloverDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,

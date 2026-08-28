@@ -11,6 +11,7 @@ import { type ReactNode } from "react";
 import { FilePathsGrid } from "./agent-files-block";
 import { AttachedFolderChangesNote } from "./attached-folder-changes-note";
 import { type RenderPartContext } from "./chat-stream-render-part";
+import { ContextRolloverNote } from "./context-rollover-note";
 import { ModelContextDebugCard } from "./model-context-debug-card";
 import { ProjectChangesNote } from "./project-changes-note";
 import { SkillChangesCard } from "./skill-changes-card";
@@ -29,6 +30,10 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-attachedFolderChanges": "always",
   "data-attachments": "hidden",
   "data-browserStatus": "dev",
+  // Shown to everyone, not just developers. A rollover changes what the agent
+  // is working from, so a user who cannot see it is left to explain the
+  // resulting amnesia some other way.
+  "data-contextRollover": "always",
   // Retired, and shown to everyone rather than to developers, which is the
   // opposite of where it ended up before it was deleted. It was demoted to
   // "dev" because it was a live change card nobody wanted; what it is now is
@@ -102,6 +107,9 @@ export function renderDataPart({
           text={browserStatusModelNote(part.data)}
         />
       );
+    }
+    case "data-contextRollover": {
+      return <ContextRolloverNote data={part.data} key={part.metadata.id} />;
     }
     case "data-fileChanges": {
       // Only `output/`. The watcher behind this part reported everything a turn

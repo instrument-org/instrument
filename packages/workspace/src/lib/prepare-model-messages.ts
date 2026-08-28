@@ -5,7 +5,7 @@ import { alphabetical } from "radashi";
 
 import { type AnyAgent } from "../agents/types";
 import { SessionMessage } from "../schemas/session/message";
-import { type StoreId } from "../schemas/store-id";
+import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { addCacheControlToMessages } from "./add-cache-control";
@@ -124,6 +124,29 @@ export async function prepareModelMessages({
           contextLength: effectiveContextLength(model),
           occupied: contextOccupancyFromMessages(nonContextMessages),
         });
+
+        // Written here, behind the same successful save, so the mark in the
+        // transcript and the boundary assembly reads are recorded together or
+        // not at all. A failed part leaves the rollover itself intact: the
+        // session is still correct, it is only undrawn.
+        await Store.savePart(
+          {
+            data: {
+              droppedMessages:
+                allNonContextMessages.length - nonContextMessages.length,
+              retainedUserMessages: nonContextMessages.length,
+            },
+            metadata: {
+              createdAt: new Date(),
+              id: StoreId.newPartId(),
+              messageId: newest.id,
+              sessionId,
+            },
+            type: "data-contextRollover",
+          },
+          taskId,
+          { signal },
+        );
       }
     }
   }

@@ -83,7 +83,7 @@ function ContextMenuItem({
   return (
     <ContextMenuPrimitive.Item
       className={cn(
-        "relative flex cursor-default items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-foreground/60 outline-hidden select-none focus:bg-accent focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-foreground/60 data-[variant=destructive]:*:[svg]:!text-destructive",
+        "relative flex cursor-default items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-foreground outline-hidden select-none focus:bg-accent data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-foreground/60 data-[variant=destructive]:*:[svg]:!text-destructive",
         className,
       )}
       data-inset={inset}
@@ -235,7 +235,7 @@ function ContextMenuSubTrigger({
   return (
     <ContextMenuPrimitive.SubTrigger
       className={cn(
-        "flex cursor-default items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-foreground/60 outline-hidden select-none focus:bg-accent focus:text-foreground data-[inset]:pl-8 data-[state=open]:bg-accent data-[state=open]:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-foreground/60",
+        "flex cursor-default items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-foreground outline-hidden select-none focus:bg-accent data-[inset]:pl-8 data-[state=open]:bg-accent [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-foreground/60",
         className,
       )}
       data-inset={inset}

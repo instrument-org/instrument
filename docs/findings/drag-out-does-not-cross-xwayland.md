@@ -60,13 +60,15 @@ None of them ships native file drag-out at all. So there is no prior art to copy
 
 Running as a native Wayland app in a Wayland session is the only remaining candidate, and it is unverified twice over: Electron's Wayland drag source is a different code path from the Aura and X11 one, so it may not support file drags at all, and the window-control costs above have not been measured against what the app actually needs.
 
-`INSTRUMENT_OZONE_PLATFORM` exists to answer the first half. It takes `x11`, `wayland`, or `auto`, defaults to `x11`, and ignores anything else with a warning. `auto` is Electron's own default since 38 and means native Wayland in a Wayland session, so that is the value the test wants:
+`INSTRUMENT_OZONE_PLATFORM` exists to answer the first half. It takes `x11`, `wayland`, or `auto`, defaults to `x11`, and ignores anything else with a warning:
 
 ```bash
-INSTRUMENT_OZONE_PLATFORM=auto <installed binary>
+INSTRUMENT_OZONE_PLATFORM=wayland <installed binary>
 ```
 
-Passing `--ozone-platform` on the command line instead does not work, and fails in a way that looks like a Wayland bug rather than a conflict: the switch set in `setup-environment.ts` is applied after the process command line is parsed and overwrites it, leaving the app erroring out of an X11 presenter while asked for Wayland, with no window.
+`auto` is worth understanding before using it. It is Electron's own default since 38 and means native Wayland in a Wayland session, but it is **not a platform Chromium accepts**: passing it to `--ozone-platform` is fatal at startup with `Invalid ozone platform: auto`, and the app dies before any window exists. It is the name of what Chromium does when the flag is absent, so asking for it means removing the switch rather than setting it -- including the `--ozone-platform=x11` the packaged launcher puts on argv, which is why the app does not simply respect an unset variable. `wayland` names a real platform and is the more direct thing to test with.
+
+Passing `--ozone-platform` on the command line instead does not work either, and fails in a way that looks like a Wayland bug rather than a conflict: the switch set in `setup-environment.ts` is applied after the process command line is parsed and overwrites it, leaving the app erroring out of an X11 presenter while asked for Wayland, with no window.
 
 Confirm which protocol actually took before trusting a result. A native Wayland app has no X11 window, so it will not appear in `_NET_CLIENT_LIST`; under XWayland it will.
 

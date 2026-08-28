@@ -6,6 +6,10 @@ import fixPath from "fix-path";
 import path from "node:path";
 
 import { initializeElectronLogging, logger } from "./lib/electron-logger";
+import {
+  OZONE_PLATFORMS,
+  resolveOzonePlatform,
+} from "./lib/ozone-platform";
 import { setupDBusEnvironment } from "./lib/setup-dbus-env";
 
 /**
@@ -62,46 +66,23 @@ initializeElectronLogging();
   globalThis as unknown as Record<string, boolean>
 ).__unstorage_db0_experimental_warning__ = true;
 
-const OZONE_PLATFORMS = ["auto", "wayland", "x11"] as const;
-
-/**
- * Which display protocol Electron talks on Linux.
- *
- * `x11` by default, so a Wayland desktop runs the app through XWayland. That is
- * a workaround for Wayland problems Electron has not finished with, and it has
- * its own price: a drag out of the app never reaches a native Wayland client,
- * because Chromium's browser-process-initiated drag does not cross the bridge a
- * GTK app's does (see docs/findings/drag-out-does-not-cross-xwayland.md).
- *
- * `auto` is Electron's own default since 38, and means native Wayland in a
- * Wayland session. Answering whether it fixes the drag, and what it costs in
- * window positioning and programmatic focus, needs a build that can be asked
- * for it -- which is what this variable is for. Passing `--ozone-platform` on
- * the command line does not work, because the switch set here is applied after
- * the process command line is parsed and overwrites it.
- */
-function resolveOzonePlatform() {
-  const requested = process.env.INSTRUMENT_OZONE_PLATFORM;
-  if (!requested) {
-    return "x11";
-  }
-
-  const match = OZONE_PLATFORMS.find((value) => value === requested);
-  if (!match) {
-    logger.warn(
-      `Ignoring INSTRUMENT_OZONE_PLATFORM=${requested}; expected one of ${OZONE_PLATFORMS.join(", ")}`,
-    );
-    return "x11";
-  }
-
-  logger.info(`Using ozone platform: ${match}`);
-  return match;
-}
-
 const passwordStore = setupDBusEnvironment();
 
 if (platform.isLinux) {
-  app.commandLine.appendSwitch("ozone-platform", resolveOzonePlatform());
+  const ozone = resolveOzonePlatform(process.env.INSTRUMENT_OZONE_PLATFORM);
+  if (ozone.ignored) {
+    logger.warn(
+      `Ignoring INSTRUMENT_OZONE_PLATFORM=${ozone.ignored}; expected one of ${OZONE_PLATFORMS.join(", ")}`,
+    );
+  }
+  if (ozone.platform === "auto") {
+    // Removed rather than set, and removed rather than left alone, because the
+    // packaged launcher passes `--ozone-platform=x11` on argv of its own.
+    app.commandLine.removeSwitch("ozone-platform");
+  } else {
+    app.commandLine.appendSwitch("ozone-platform", ozone.platform);
+  }
+  logger.info(`Using ozone platform: ${ozone.platform}`);
 
   // Allow CDP Input.dispatchMouseEvent on occluded web contents (e.g.
   // agent-browser webview guests parked offscreen in the paint host).

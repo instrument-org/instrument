@@ -21,7 +21,6 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import { setMainWindowZoom } from "@/electron-main/stores/window-state";
 import {
   closeMainWindow,
-  getMainWindowContentSize,
   isMainWindowFullScreen,
   isMainWindowMaximized,
   minimizeMainWindow,
@@ -612,18 +611,14 @@ const live = {
       }
     }),
   // What the renderer needs to draw window chrome for itself: the custom controls
-  // pick the maximize/restore glyph, and the Linux window border sizes itself to
-  // the content area and hides when an edge sits against the screen. Re-yields on
-  // OS-driven transitions too (snap, double-click, Win+Up) and on resize.
+  // pick the maximize/restore glyph, and the Linux window border hides when an
+  // edge sits against the screen. Re-yields on OS-driven transitions too (snap,
+  // double-click, Win+Up) and after a resize, which is when a move between
+  // displays can have changed the scale the border insets itself for.
   windowState: base
     .output(
       eventIterator(
-        z.object({
-          contentHeight: z.number(),
-          contentWidth: z.number(),
-          fullScreen: z.boolean(),
-          maximized: z.boolean(),
-        }),
+        z.object({ fullScreen: z.boolean(), maximized: z.boolean() }),
       ),
     )
     .handler(async function* ({ signal }) {
@@ -638,10 +633,7 @@ const live = {
 };
 
 function readMainWindowState() {
-  const { height, width } = getMainWindowContentSize();
   return {
-    contentHeight: height,
-    contentWidth: width,
     fullScreen: isMainWindowFullScreen(),
     maximized: isMainWindowMaximized(),
   };

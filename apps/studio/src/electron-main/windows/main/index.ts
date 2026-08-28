@@ -264,9 +264,9 @@ function setupWindowEventListeners({
   mainWindow: BrowserWindow;
   onResize: () => void;
 }) {
-  // The Linux window border sizes itself to the content area, so it has to be
-  // told when that changes. Debounced because this fires continuously through a
-  // drag, and the border only has to be right once the drag settles.
+  // A move between displays can change the scale factor the Linux window border
+  // insets itself for, and that shows up here. Debounced because this fires
+  // continuously through a drag, and nothing downstream needs it mid-drag.
   const publishResizedState = debounce({ delay: 100 }, () => {
     publisher.publish("window.state-changed", null);
   });

@@ -119,6 +119,7 @@ import {
 } from "./studio-app.mjs";
 
 const COMMANDS = new Set([
+  "bash",
   "boot",
   "click",
   "eval",
@@ -715,6 +716,9 @@ async function runAgainstInstance() {
 
 async function dispatch(app) {
   switch (command) {
+    case "bash": {
+      return cmdBash(app, positional.join(" "));
+    }
     case "click": {
       return app.click(
         flag(argv, "--selector")
@@ -789,6 +793,43 @@ async function cmdModal(app, name) {
     );
   }
   return app.openModal(name);
+}
+
+/**
+ * One command in a task's real sandbox, with stdout and stderr kept apart.
+ * `run-bash` in a checkout answers a different question: it builds its own
+ * sandbox from that checkout's dependencies, so it cannot see what a packaged
+ * build bundles. Reach for this whenever the question is about the app that is
+ * running rather than about the shell in the abstract.
+ *
+ * The session is the task's most recent unless named, because `session.list`
+ * already returns them newest first and a verification check does not care
+ * which one it lands in.
+ */
+async function cmdBash(app, commandText) {
+  if (!commandText) {
+    fail(
+      `Usage: bash <command> [--task <id>] [--session <id>]\n` +
+        `  bash 'ffprobe /nope.mp4 2>/dev/null; echo exit=$?' --task <task-id>\n` +
+        `Needs Developer Mode on, and a build carrying workspace.debug.runBash.`,
+    );
+  }
+  const taskId = await resolveTaskId(app, flag(argv, "--task"));
+  let sessionId = flag(argv, "--session");
+  if (!sessionId) {
+    const sessions = await app.rpc("workspace.session.list", { id: taskId });
+    if (!sessions?.length) {
+      fail(
+        `Task ${taskId} has no sessions to run in. Open it once, or pass --session.`,
+      );
+    }
+    sessionId = sessions[0].id;
+  }
+  return app.rpc("workspace.debug.runBash", {
+    command: commandText,
+    sessionId,
+    taskId,
+  });
 }
 
 async function cmdRpc(app, route, rawInput) {

@@ -1,6 +1,13 @@
 # Context compaction
 
-Status: **proposed**. Owner: TBD. Nothing exists yet; this is a from-scratch feature. Tracked as FP-222. This is the canonical plan for the feature; the earlier "intelligent context compression" framing, which proposed per-payload compressors for tool output, is a different and separable problem, covered by [tool result context budgets](../completed/tool-result-context-budgets.md).
+Status: **phases 0 through 2 built**; phases 3 through 5 proposed. Tracked as FP-222. This is the canonical plan for the feature; the earlier "intelligent context compression" framing, which proposed per-payload compressors for tool output, is a different and separable problem, covered by [tool result context budgets](../completed/tool-result-context-budgets.md).
+
+A task now measures its own occupancy against the model's window, warns the agent while it can still act, and continues in a fresh window instead of failing the turn. No summarization request, no history rewritten on disk, and a model whose window the provider never reported is left exactly as it was. Two deviations from what is written below, both deliberate:
+
+- **Occupancy is the newest assistant turn's `inputTokens` alone**, where phase 1 says to add the cache-read and cache-write components on top. Those components are already inside `inputTokens` for both feeds that report a window, so adding them counts the same tokens twice and roughly doubles the reported occupancy. Verified against recorded sessions, where `cacheReadTokens + noCacheTokens` equals `inputTokens` on every turn.
+- **Rollover carries session context and the retained user messages, with no mechanically assembled state block.** The block phase 2 describes, in grok-build's `reminder.rs` shape, is not built; what carries the task across a boundary today is the agent's own notes, written in response to the warning.
+
+Phase 5's transcript treatment is partly here: a boundary draws a rule in the transcript naming what carried across. The honest multi-compaction warning, the telemetry, and the setting to disable the automatic path are not.
 
 ## Problem
 

@@ -598,6 +598,28 @@ describe("Markdown image sources", () => {
     expect(imageSources("![a](https://tracker.test/pixel.png)")).toEqual([]);
   });
 
+  // An allowed host is a host, not a string that appears somewhere in the URL.
+  // Every case here names `githubusercontent.com` or `.localhost` somewhere a
+  // reader's eye skips -- a path segment, a query, a fragment -- and each one
+  // is a request to a host of the author's choosing.
+  it.each([
+    ["a path segment", "https://evil.test/x.githubusercontent.com/p.png"],
+    ["a deeper path segment", "https://evil.test/a/b.github.com/p.png"],
+    ["a query", "https://evil.test?a=.githubusercontent.com/p.png"],
+    ["a fragment", "https://evil.test#.githubusercontent.com/p.png"],
+    ["an http path segment", "http://evil.test/x.localhost/p.png"],
+  ])("drops an allowed host named only in %s", (_case, src) => {
+    expect(imageSources(`![a](${src})`)).toEqual([]);
+  });
+
+  // The suffix match is against the host's own end, so a domain that merely
+  // opens with an allowed one is a different host and stays off.
+  it("drops a host that only starts with an allowed one", () => {
+    expect(
+      imageSources("![a](https://x.githubusercontent.com.evil.test/p.png)"),
+    ).toEqual([]);
+  });
+
   describe("without remote images", () => {
     it("still renders an embedded one", () => {
       expect(imageSources("![a](data:image/png;base64,QUJD)", false)).toEqual([

@@ -5,6 +5,7 @@ import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { useRef, useState } from "react";
 
 import { FileActionsMenuItems } from "./file-actions-menu";
+import { MEDIA_CARD_ASPECT, type MediaCardShape } from "./media-card-shape";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -35,6 +36,7 @@ export function MediaCardShell({
   onMouseLeave,
   overlayActions,
   scrim,
+  shape = "square",
 }: {
   bottomBar?: React.ReactNode;
   canCopy?: boolean;
@@ -47,6 +49,7 @@ export function MediaCardShell({
   onMouseLeave?: () => void;
   overlayActions?: React.ReactNode;
   scrim?: React.ReactNode;
+  shape?: MediaCardShape;
 }) {
   const [interactive, setInteractive] = useState(false);
   const hoverStartRef = useRef<null | number>(null);
@@ -81,12 +84,13 @@ export function MediaCardShell({
             // join whatever stacking context the page happens to give them and
             // outrank chrome that is nowhere near this card.
             //
-            // Square whatever the media inside it is. The grid lays these out
-            // several to a row, so a card that took its own shape would set the
-            // row's height by whichever of them happened to be tallest -- and
-            // that height would then change as the rest of the row arrived.
-            // A video letterboxes into the square instead.
-            "group/media relative isolate aspect-square w-full overflow-hidden rounded-2xl bg-card shadow-sm dark:bg-muted",
+            // One of two fixed shapes, never the media's own. The grid lays
+            // these out several to a row, so a card that took its own shape
+            // would set the row's height by whichever of them happened to be
+            // tallest -- and that height would then change as the rest of the
+            // row arrived. The media letterboxes into the box instead.
+            "group/media relative isolate w-full overflow-hidden rounded-2xl bg-card shadow-sm dark:bg-muted",
+            MEDIA_CARD_ASPECT[shape],
             isSelected &&
               "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
           )}

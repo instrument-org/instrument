@@ -40,7 +40,10 @@ export function MarkdownTableModal({
         <div className="flex h-10 shrink-0 items-center px-4">
           <DialogTitle className="text-sm font-medium">Table</DialogTitle>
         </div>
-        <div className="@container/transcript min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+        <div
+          className="@container/transcript min-h-0 flex-1 overflow-y-auto px-4 pb-4"
+          data-transcript
+        >
           <div className="prose prose-custom text-sm/relaxed [--transcript-room:100cqi] dark:prose-invert prose-table:text-sm">
             {children}
           </div>

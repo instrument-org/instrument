@@ -1166,6 +1166,14 @@ a.cursor-pointer {
   opacity: 1;
 }
 
+/* Placed from the table's trailing edge, and translated back over it unless
+   the transcript had room to stand them beside it instead. Which of the two is
+   measured, since it depends on how much of the pane the table took. */
+.markdown-table-toolbar[data-outside],
+.markdown-table-row-copy[data-outside] {
+  transform: translate(0, -50%);
+}
+
 /* The table's own controls. A bare icon rather than the bordered button a code
    block and a diagram use: those sit on a filled surface a control has to lift
    off, and these sit in the thin band of cell padding between two rows, where a

@@ -28,6 +28,30 @@ const bandCenter = (row: Element | null) =>
 // How long the row control reports a copy for.
 const COPIED_MS = 2000;
 
+// Between a control and the table's edge, whichever side of it the control is.
+const CONTROL_GAP = 8;
+
+/** The transcript the block sits in, where one named itself. */
+const transcriptOf = (frame: HTMLElement) => frame.closest("[data-transcript]");
+
+/**
+ * How much transcript there is beside the block, on one side.
+ *
+ * The block is centered on the text measure and the measure is centered in the
+ * transcript, so the two cancel and this is only ever half of what the block
+ * has not taken. Zero without a transcript to measure, which leaves every
+ * control on top of the table, as they were.
+ *
+ * Measured off the element rather than read from `--transcript-room`: that
+ * value reaches this through a container query, and a resize can arrive here
+ * before the query has been recomputed -- which reads as no room at all, and
+ * sends every control back on top of the table for the rest of the session.
+ */
+const roomBesideBlock = (frame: HTMLElement) => {
+  const room = transcriptOf(frame)?.clientWidth ?? 0;
+  return room > 0 ? (room - frame.offsetWidth) / 2 : 0;
+};
+
 const copy = (rows: string[][], format?: TableCopyFormat) => {
   if (rows.length === 0) {
     return;
@@ -51,6 +75,9 @@ const copy = (rows: string[][], format?: TableCopyFormat) => {
  * that half of scroll-state yet, and the scroll-timeline approach
  * `scroll-fade-y` uses holds its last value when a scroller stops being
  * scrollable -- which here is every time the browser pane closes.
+ *
+ * The controls stand beside the table wherever the transcript is wide enough
+ * to hold them there, and fall back onto its trailing edge where it is not.
  *
  * Nothing in the table is pinned while the rest of it scrolls. Holding the
  * first column still reads well until the first column is wide, and then it is
@@ -86,6 +113,22 @@ export const MarkdownTable = ({
 
   const element = () => frameRef.current?.querySelector("table") ?? null;
 
+  /**
+   * Puts a control beside the table where the transcript has room for it, and
+   * back on top of it where it does not.
+   *
+   * Both controls answer to the toolbar's width rather than their own, so a
+   * pane wide enough for one and not the other never splits them across the
+   * table's edge.
+   */
+  const placeControl = (control: HTMLElement, frame: HTMLElement) => {
+    const width = toolbarRef.current?.offsetWidth ?? 0;
+    const outside = width > 0 && roomBesideBlock(frame) >= width + CONTROL_GAP;
+    const edge = frame.offsetLeft + frame.clientWidth;
+    control.toggleAttribute("data-outside", outside);
+    control.style.left = `${outside ? edge + CONTROL_GAP : edge - 4}px`;
+  };
+
   // An attribute rather than state: a scroll handler that re-renders every
   // table in the transcript is the one thing a transcript cannot afford, and
   // nothing about this edge is React's to know.
@@ -108,14 +151,22 @@ export const MarkdownTable = ({
     const header = frame.querySelector("thead tr");
     if (toolbar) {
       toolbar.style.top = `${bandCenter(header) ?? frame.offsetTop + 12}px`;
-      toolbar.style.left = `${frame.offsetLeft + frame.clientWidth - 4}px`;
+      placeControl(toolbar, frame);
     }
   };
+
+  // `sync` measures, so it is a different function every render. The listeners
+  // are given a ref to whichever is current rather than the one that existed
+  // when they were attached, which is what lets them be attached once.
+  const syncRef = useRef(sync);
 
   // After every render, which is what catches the table growing a column at a
   // time while it streams: the frame is already at its cap by then, so its own
   // size never changes and no observer fires.
-  useEffect(sync);
+  useEffect(() => {
+    syncRef.current = sync;
+    sync();
+  });
 
   useEffect(() => {
     const frame = frameRef.current;
@@ -123,19 +174,26 @@ export const MarkdownTable = ({
       return;
     }
 
-    frame.addEventListener("scroll", sync, { passive: true });
-    // The frame's width moves when the pane does, which raises no scroll event
-    // and no render.
-    const observer = new ResizeObserver(sync);
+    const run = () => {
+      syncRef.current();
+    };
+
+    frame.addEventListener("scroll", run, { passive: true });
+
+    // Neither the frame's width nor the transcript's raises a scroll event or a
+    // render, and the controls are placed from both.
+    const observer = new ResizeObserver(run);
     observer.observe(frame);
+    const transcript = transcriptOf(frame);
+    if (transcript) {
+      observer.observe(transcript);
+    }
 
     return () => {
-      frame.removeEventListener("scroll", sync);
+      frame.removeEventListener("scroll", run);
       observer.disconnect();
       window.clearTimeout(copiedTimer.current);
     };
-    // `sync` reads the ref and closes over nothing, so the empty deps are what
-    // keep the listener from being torn down and re-added every chunk.
   }, []);
 
   const copyTable = (format: TableCopyFormat) => {
@@ -180,7 +238,7 @@ export const MarkdownTable = ({
     }
     chip.dataset.row = String(row.rowIndex);
     chip.style.top = `${bandCenter(row) ?? 0}px`;
-    chip.style.left = `${frame.offsetLeft + frame.clientWidth - 4}px`;
+    placeControl(chip, frame);
     chip.dataset.visible = "";
   };
 
@@ -328,7 +386,10 @@ export const MarkdownTable = ({
 
       {expandable && expanded && (
         <MarkdownTableModal onOpenChange={setExpanded} open>
-          {children}
+          {/* The same block again, only wider, and without an expand of its
+              own. Built here rather than inside the modal, which would close a
+              cycle between the two files. */}
+          <MarkdownTable expandable={false}>{children}</MarkdownTable>
         </MarkdownTableModal>
       )}
     </div>

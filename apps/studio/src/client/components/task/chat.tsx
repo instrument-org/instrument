@@ -403,7 +403,10 @@ export function TaskChat({
               than the column it sits in, and `--transcript-room` declared one
               level in, where `100cqi` resolves against that container. A wide
               Markdown table is the only reader today. */}
-          <MessageScrollerViewport className="@container/transcript">
+          <MessageScrollerViewport
+            className="@container/transcript"
+            data-transcript
+          >
             <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]">
               {selectedSessionId ? (
                 isLoadingMessages ? (

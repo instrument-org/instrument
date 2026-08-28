@@ -319,11 +319,23 @@ rm -f "$0"
   // than an older one it never got to report.
   fs.rmSync(logPath, { force: true });
 
+  // Beside the log rather than in the temp directory. What this file holds is
+  // the command line `pkexec` will run as root, and the user is at that moment
+  // expecting an authentication prompt from an update, so whoever can write the
+  // file chooses what they authenticate. A shared `/tmp` and a name with one
+  // guessable variable in it is enough for another local account to get there
+  // first -- `writeFileSync` opens without `O_EXCL` and follows a symlink, and
+  // its `mode` only applies to a file it creates. `userData` is inside the
+  // user's own home and no other account can create anything in it.
   const scriptPath = path.join(
-    os.tmpdir(),
+    app.getPath("userData"),
     `${APP_NAME_SLUG}-install-${process.pid}.sh`,
   );
-  fs.writeFileSync(scriptPath, script, { mode: 0o700 });
+  // Exclusive, so a leftover from a previous run with this pid is replaced
+  // deliberately above rather than written through, and the private mode lands
+  // on a file this call is known to have created.
+  fs.rmSync(scriptPath, { force: true });
+  fs.writeFileSync(scriptPath, script, { flag: "wx", mode: 0o700 });
   spawn("sh", [scriptPath], { detached: true, stdio: "ignore" }).unref();
   scopedLogger.info(
     `Handed the staged install to ${scriptPath}, logging to ${logPath}`,

@@ -177,18 +177,22 @@ export namespace SessionMessageDataPart {
   export type PaneTabsDataPart = z.output<typeof PaneTabsDataPartSchema>;
 
   /**
-   * The point where the conversation continued in a fresh context window.
+   * The point where assembly stopped sending the turns before it.
    *
    * Written on the message the boundary sits after, at the moment the boundary
-   * is recorded, so the transcript marks the same message assembly stops
-   * sending the model's half of. It is the only sign a rollover happened: the
-   * warning that precedes one is derived per request and never persisted, and
-   * the boundary itself is a single id on the session that nothing else draws.
+   * is recorded, so it marks the same message assembly cuts at. It is the only
+   * durable sign a rollover happened: the warning that precedes one is derived
+   * per request and never persisted, and the boundary itself is a single id on
+   * the session that nothing else records.
    *
-   * The counts describe what the reader can no longer assume the agent is
-   * looking at. `retainedUserMessages` is what carried across verbatim;
-   * `droppedMessages` is everything before the boundary that did not, which is
-   * on disk and still in this transcript.
+   * `retainedUserMessages` is what carried across verbatim; `droppedMessages`
+   * is everything before the boundary that did not, all of which is still on
+   * disk. Both are counts of what the request carries, so they belong to
+   * developer mode and to a recorded session rather than to the transcript: a
+   * rollover is not a compaction, nothing is summarized, and there is no
+   * faithful way to describe it to a reader mid-task that is not a description
+   * of our request assembly. That treatment waits for the summarizing
+   * compaction it would actually be about.
    */
   const ContextRolloverDataPartSchema = z.object({
     droppedMessages: z.number().int().nonnegative(),

@@ -11,7 +11,6 @@ import { type ReactNode } from "react";
 import { FilePathsGrid } from "./agent-files-block";
 import { AttachedFolderChangesNote } from "./attached-folder-changes-note";
 import { type RenderPartContext } from "./chat-stream-render-part";
-import { ContextRolloverNote } from "./context-rollover-note";
 import { ModelContextDebugCard } from "./model-context-debug-card";
 import { ProjectChangesNote } from "./project-changes-note";
 import { SkillChangesCard } from "./skill-changes-card";
@@ -30,10 +29,14 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-attachedFolderChanges": "always",
   "data-attachments": "hidden",
   "data-browserStatus": "dev",
-  // Shown to everyone, not just developers. A rollover changes what the agent
-  // is working from, so a user who cannot see it is left to explain the
-  // resulting amnesia some other way.
-  "data-contextRollover": "always",
+  // Developer-mode only, deliberately. What happens here is a rollover, not a
+  // compaction: assembly stops sending the model's own earlier turns and
+  // carries the user's across verbatim, with nothing summarized. Any wording
+  // faithful to that is a wording about our request assembly, which is not a
+  // thing to hand a reader mid-task, and the familiar word for it promises a
+  // summary that does not exist. The user-facing treatment belongs with the
+  // summarizing compaction it would be describing.
+  "data-contextRollover": "dev",
   // Retired, and shown to everyone rather than to developers, which is the
   // opposite of where it ended up before it was deleted. It was demoted to
   // "dev" because it was a live change card nobody wanted; what it is now is
@@ -109,7 +112,13 @@ export function renderDataPart({
       );
     }
     case "data-contextRollover": {
-      return <ContextRolloverNote data={part.data} key={part.metadata.id} />;
+      return (
+        <ModelContextDebugCard
+          className="mt-2"
+          key={part.metadata.id}
+          text={`Context rollover: dropped ${part.data.droppedMessages} messages, retained ${part.data.retainedUserMessages} user messages`}
+        />
+      );
     }
     case "data-fileChanges": {
       // Only `output/`. The watcher behind this part reported everything a turn

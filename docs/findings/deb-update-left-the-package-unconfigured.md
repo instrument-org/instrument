@@ -1,6 +1,6 @@
 # A deb update can leave the package unpacked but not configured
 
-**Status:** fix landed, not yet shipped in a build. One occurrence upgrading 1.6.1 to 1.6.2 on a Linux test host, 2026-08-26, reproduced end to end the next day and then fixed by moving the install into a transient systemd scope. What performed the teardown during the original incident is still unknown and no longer load-bearing. Last updated 2026-08-27.
+**Status:** fixed and verified in a shipped build. One occurrence upgrading 1.6.1 to 1.6.2 on a Linux test host, 2026-08-26, reproduced end to end the next day, fixed by moving the install into a transient systemd scope, and confirmed across two betas on 2026-08-28. What performed the teardown during the original incident was never established and is no longer load-bearing. Last updated 2026-08-28.
 
 ## Why an unconfigured package cannot start
 
@@ -105,11 +105,21 @@ The mechanism has to be a transient scope, not `detached`. Node's `detached: tru
 
 This is the shape the other platforms already use. Squirrel.Mac installs from ShipIt, a separate helper that waits for the app to terminate; Linux was the outlier only because electron-updater installs inline on quit.
 
-## What the fix was tested against, and what it was not
+## What the fix was tested against
 
-The generated script was run on a host against the real staged package, with the app's cgroup torn down mid-flight. It survived in its own scope, carried the transaction through to `status installed`, restored the AppArmor profile, and relaunched the app. Under the previous shape that same teardown left the installation unstartable.
+Before it shipped, the generated script was run on a host against the real staged package with the app's cgroup torn down mid-flight. It survived in its own scope, carried the transaction through to `status installed`, restored the AppArmor profile, and relaunched the app. Under the previous shape that same teardown left the installation unstartable.
 
-Not covered: the TypeScript around it has never run in a packaged build, because a Linux arm64 deb cannot be produced from a macOS checkout. Type checking, the existing updater tests, shell syntax, and quoting through both levels all pass, but the first real exercise of the wiring will be the first update that ships with it. The relaunch's environment handling is unchanged from the previous implementation, which shipped and worked.
+Then the real thing, on 2026-08-28, over two betas. The first update was performed by a build predating the fix and froze the window, raising Ubuntu's "not responding" dialog: the behavior being removed, observed directly rather than inferred. The second was performed by the new code and did not.
+
+Measured across the second install:
+
+- the app **exited about a second** after the install was requested, rather than staying alive and unresponsive
+- the installer re-execed into its own `run-*.scope`, out of the app's cgroup
+- the app stayed closed for 24 minutes while the authentication prompt went unanswered, and nothing broke
+- dpkg reached `status installed`, the AppArmor profile stayed, no crash report was written
+- the relaunch came back on its own, read the install log, wrote it to the app log, and removed it
+
+That last point matters beyond this finding: the outcome of a Linux update is now visible in an ordinary log, which is what makes the next failure diagnosable from a user's log rather than from a reconstruction.
 
 ## Recognizing it
 

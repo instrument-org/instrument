@@ -1,6 +1,6 @@
 # Dragging a file out does not cross from XWayland to Wayland
 
-**Status:** open, diagnosed, not fixed. Reproduced by hand on Ubuntu 24.04.4 with GNOME Shell 46 in a Wayland session, against a shipped beta, 2026-08-28. The cause is the `--ozone-platform=x11` pin, not our drag code, and the fix has a cost that has not been measured. Last updated 2026-08-28.
+**Status:** open, with the fix identified and half verified. Reproduced by hand on Ubuntu 24.04.4 with GNOME Shell 46 in a Wayland session, against a shipped beta, 2026-08-28. The cause is the `--ozone-platform=x11` pin, not our drag code. Running the same build as a native Wayland app makes the drag work, confirmed by hand the same day; what has not been measured is what that costs in window control, so the default is unchanged and a normal launch is still affected. Last updated 2026-08-28.
 
 ## The symptom
 
@@ -58,7 +58,9 @@ None of them ships native file drag-out at all. So there is no prior art to copy
 
 ## What would resolve it
 
-Running as a native Wayland app in a Wayland session is the only remaining candidate, and it is unverified twice over: Electron's Wayland drag source is a different code path from the Aura and X11 one, so it may not support file drags at all, and the window-control costs above have not been measured against what the app actually needs.
+Running as a native Wayland app in a Wayland session fixes the drag. Verified by hand on 2026-08-28 against the same installed build: launched with `INSTRUMENT_OZONE_PLATFORM=wayland`, a file dragged from the app landed on the GNOME desktop. The protocol was confirmed rather than assumed -- `_NET_CLIENT_LIST` was empty, so the app held no X11 window, and the main log recorded `Using ozone platform: wayland`.
+
+So Electron's Wayland drag source does support file drags, which was the open question. What remains unmeasured is the other half: what native Wayland costs in window position restore and programmatic focus, against what the app actually needs.
 
 `INSTRUMENT_OZONE_PLATFORM` exists to answer the first half. It takes `x11`, `wayland`, or `auto`, defaults to `x11`, and ignores anything else with a warning:
 

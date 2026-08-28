@@ -60,6 +60,14 @@ None of them ships native file drag-out at all. So there is no prior art to copy
 
 Running as a native Wayland app in a Wayland session is the only remaining candidate, and it is unverified twice over: Electron's Wayland drag source is a different code path from the Aura and X11 one, so it may not support file drags at all, and the window-control costs above have not been measured against what the app actually needs.
 
-Testing it requires a build. Passing `--ozone-platform=wayland` on the command line of a shipped build does not work: it reaches the process but conflicts with the in-code pin, and the app fails to open a window, erroring out of an X11 presenter while asked for Wayland. The pin has to be removable at runtime, or removed, before the question can be answered.
+`INSTRUMENT_OZONE_PLATFORM` exists to answer the first half. It takes `x11`, `wayland`, or `auto`, defaults to `x11`, and ignores anything else with a warning. `auto` is Electron's own default since 38 and means native Wayland in a Wayland session, so that is the value the test wants:
 
-Until then, dragging a file out works on macOS, on Windows, and in a Linux X11 session, and does nothing in a Linux Wayland session, which is the default on current Ubuntu.
+```bash
+INSTRUMENT_OZONE_PLATFORM=auto <installed binary>
+```
+
+Passing `--ozone-platform` on the command line instead does not work, and fails in a way that looks like a Wayland bug rather than a conflict: the switch set in `setup-environment.ts` is applied after the process command line is parsed and overwrites it, leaving the app erroring out of an X11 presenter while asked for Wayland, with no window.
+
+Confirm which protocol actually took before trusting a result. A native Wayland app has no X11 window, so it will not appear in `_NET_CLIENT_LIST`; under XWayland it will.
+
+Until that test is run, dragging a file out works on macOS, on Windows, and in a Linux X11 session, and does nothing in a Linux Wayland session, which is the default on current Ubuntu.

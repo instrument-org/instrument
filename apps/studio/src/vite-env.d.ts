@@ -43,6 +43,12 @@ declare namespace NodeJS {
       FORCE_DEV_AUTO_UPDATE: string | undefined;
       GDK_BACKEND: string | undefined;
       HOME: string | undefined; // Only used in workspace
+      /**
+       * Linux only: which display protocol Electron talks. `x11`, `wayland`, or
+       * `auto`; anything else is ignored. See
+       * docs/findings/drag-out-does-not-cross-xwayland.md.
+       */
+      INSTRUMENT_OZONE_PLATFORM: string | undefined;
       NODE_ENV: string | undefined;
       PATH: string | undefined;
       /** Dev only: the port electron-vite gives the Electron child for CDP. */

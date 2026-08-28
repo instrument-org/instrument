@@ -11,6 +11,7 @@ import {
   resolveCommandContext,
   resolvePathArgs,
   subprocessStdin,
+  unreachablePathArgError,
 } from "./utils";
 
 export const UV_COMMAND = {
@@ -24,6 +25,11 @@ export function createUvCommand(taskId: TaskId) {
     const blocked = blockedSelfUpdate(args);
     if (blocked) {
       return blocked;
+    }
+
+    const unreachable = unreachablePathArgError(UV_COMMAND.name, args, ctx.cwd);
+    if (unreachable !== undefined) {
+      return { exitCode: 1, stderr: unreachable, stdout: "" };
     }
 
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);

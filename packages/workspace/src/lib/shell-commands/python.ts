@@ -10,6 +10,7 @@ import {
   resolveCommandContext,
   resolvePathArgs,
   scanScriptFileForVirtualPaths,
+  unreachablePathArgError,
 } from "./utils";
 import { ensureTaskVenv } from "./uv";
 
@@ -46,6 +47,11 @@ function createPythonCommandNamed(taskId: TaskId, name: string) {
           "`python -m pip` is not available (pip is not seeded in the venv). Use the `pip` command instead, e.g. `pip install <package>`.\n",
         stdout: "",
       };
+    }
+
+    const unreachable = unreachablePathArgError(name, args, ctx.cwd);
+    if (unreachable !== undefined) {
+      return { exitCode: 1, stderr: unreachable, stdout: "" };
     }
 
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);

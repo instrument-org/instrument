@@ -144,9 +144,9 @@ describe("NotebookViewer", () => {
     const sources = [...container.querySelectorAll("img")].map((image) =>
       image.getAttribute("src"),
     );
-    expect(sources.some((src) => src?.startsWith("data:image/png;base64,"))).toBe(
-      true,
-    );
+    expect(
+      sources.some((src) => src?.startsWith("data:image/png;base64,")),
+    ).toBe(true);
   });
 
   it("serves an svg bundle to an img rather than inlining it", async () => {

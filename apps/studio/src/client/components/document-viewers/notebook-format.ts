@@ -580,7 +580,6 @@ function isImageMimeType(key: string): boolean {
   return true;
 }
 
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !isArray(value);
 }
@@ -662,7 +661,9 @@ function normalizeError(output: Record<string, unknown>): NotebookErrorOutput {
   const evalue = typeof output.evalue === "string" ? output.evalue : "";
 
   const frames = isArray(output.traceback)
-    ? output.traceback.filter((frame): frame is string => typeof frame === "string")
+    ? output.traceback.filter(
+        (frame): frame is string => typeof frame === "string",
+      )
     : [];
 
   // Every frame is styled with ANSI escapes, and a frame can itself span

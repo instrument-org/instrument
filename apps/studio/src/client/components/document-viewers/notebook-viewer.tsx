@@ -162,7 +162,9 @@ function NotebookCellView({
       <div className="flex gap-2">
         <CellGutter
           label={
-            cell.executionCount === null ? "In [ ]:" : `In [${cell.executionCount}]:`
+            cell.executionCount === null
+              ? "In [ ]:"
+              : `In [${cell.executionCount}]:`
           }
         />
         <NotebookCode code={cell.source} language={language} />
@@ -280,7 +282,11 @@ function NotebookOutputView({ output }: { output: NotebookOutput }) {
     }
     case "image": {
       return (
-        <img alt={output.alt} className="max-w-full rounded-md" src={output.src} />
+        <img
+          alt={output.alt}
+          className="max-w-full rounded-md"
+          src={output.src}
+        />
       );
     }
     case "json": {

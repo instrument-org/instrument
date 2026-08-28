@@ -31,12 +31,9 @@ describe("getFileType", () => {
   it.each([
     ["analysis", "application/x-ipynb+json"],
     ["analysis.ipynb", "application/json"],
-  ] as const)(
-    "routes %s (%s) to the notebook viewer",
-    (filename, mimeType) => {
-      expect(getFileType({ filename, mimeType })).toBe("notebook");
-    },
-  );
+  ] as const)("routes %s (%s) to the notebook viewer", (filename, mimeType) => {
+    expect(getFileType({ filename, mimeType })).toBe("notebook");
+  });
 
   it("routes delimited files to the grid rather than the text highlighter", () => {
     // text/csv satisfies isTextMimeType, so without the extension check first

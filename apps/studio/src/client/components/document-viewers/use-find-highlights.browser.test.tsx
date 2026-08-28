@@ -141,9 +141,7 @@ describe("useFindHighlights", () => {
     // Two names per instance -- the matches and the active one -- and no name
     // shared between them, which is what keeps one viewer's matches off the
     // other's page.
-    await expect
-      .poll(() => new Set(CSS.highlights.keys()).size)
-      .toBe(4);
+    await expect.poll(() => new Set(CSS.highlights.keys()).size).toBe(4);
   });
 
   it("walks matches and wraps at the end", async () => {

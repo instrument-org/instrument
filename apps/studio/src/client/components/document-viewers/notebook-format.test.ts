@@ -83,7 +83,8 @@ describe("parseNotebook", () => {
   it("reads the language from the notebook metadata", () => {
     expect(parseNotebook(notebook([])).language).toBe("python");
     expect(
-      parseNotebook(notebook([], { language_info: { name: "julia" } })).language,
+      parseNotebook(notebook([], { language_info: { name: "julia" } }))
+        .language,
     ).toBe("julia");
     expect(
       parseNotebook(notebook([], { kernelspec: { language: "r" } })).language,
@@ -96,7 +97,8 @@ describe("parseNotebook", () => {
         {
           attachments: { "shot 1.png": { "image/png": "QUJD" } },
           cell_type: "markdown",
-          source: "![a](attachment:shot%201.png) and ![b](attachment:shot 1.png)",
+          source:
+            "![a](attachment:shot%201.png) and ![b](attachment:shot 1.png)",
         },
       ]),
     );
@@ -133,7 +135,8 @@ describe("parseNotebook", () => {
             "a.png.bak.png": { "image/png": "WFla" },
           },
           cell_type: "markdown",
-          source: "![short](attachment:a.png) ![long](attachment:a.png.bak.png)",
+          source:
+            "![short](attachment:a.png) ![long](attachment:a.png.bak.png)",
         },
       ]),
     );
@@ -330,7 +333,11 @@ describe("notebook outputs", () => {
         },
       ]),
     ).toEqual([
-      { json: '{\n  "a": [\n    1,\n    2\n  ]\n}', prompt: null, type: "json" },
+      {
+        json: '{\n  "a": [\n    1,\n    2\n  ]\n}',
+        prompt: null,
+        type: "json",
+      },
     ]);
   });
 

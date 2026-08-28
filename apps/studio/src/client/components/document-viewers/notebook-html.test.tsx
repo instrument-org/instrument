@@ -58,7 +58,9 @@ describe("NotebookHtml", () => {
 
   describe("images", () => {
     it("keeps a data URI, which is how notebook images arrive", () => {
-      const container = sanitize('<img alt="plot" src="data:image/png;base64,QUJD">');
+      const container = sanitize(
+        '<img alt="plot" src="data:image/png;base64,QUJD">',
+      );
 
       expect(container.querySelector("img")?.getAttribute("src")).toBe(
         "data:image/png;base64,QUJD",
@@ -66,7 +68,10 @@ describe("NotebookHtml", () => {
     });
 
     it.each([
-      ["a remote host, which would phone home on open", "https://tracker.test/p.png"],
+      [
+        "a remote host, which would phone home on open",
+        "https://tracker.test/p.png",
+      ],
       ["plain http", "http://tracker.test/p.png"],
       ["a javascript URL", "javascript:alert(1)"],
       ["a non-image data URI", "data:text/html,<script>alert(1)</script>"],
@@ -104,7 +109,9 @@ describe("NotebookHtml", () => {
     });
 
     it("ignores a span that is not a positive number", () => {
-      const container = sanitize('<table><tr><td colspan="nonsense">x</td></tr></table>');
+      const container = sanitize(
+        '<table><tr><td colspan="nonsense">x</td></tr></table>',
+      );
 
       expect(container.querySelector("td")?.getAttribute("colspan")).toBeNull();
     });

@@ -2,7 +2,13 @@ import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { trackSelfFileDrag } from "@/client/lib/self-file-drag";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
-import { type DragEvent, type MouseEvent, useRef } from "react";
+import {
+  type DragEvent,
+  type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  useEffect,
+  useRef,
+} from "react";
 
 export type FileDragProps = ReturnType<typeof useFileDrag>;
 
@@ -13,6 +19,22 @@ type FileRef = Pick<TaskFileViewerFile, "filePath" | "taskId">;
 // electron-main/lib/file-drag). Deduped only while a request is open, not by
 // result: the point of asking again on press is that the answer is current.
 const preparing = new Map<string, Promise<unknown>>();
+
+// How far the pointer travels before a press is read as a drag. Blink's own
+// threshold is a few pixels, which is well inside the drift of an ordinary
+// click: at that distance clicking a file card put a drag icon on the cursor
+// and swallowed the click that would have opened it. A press only becomes a
+// drag once it has gone somewhere a click does not go.
+const DRAG_THRESHOLD_PX = 20;
+
+interface Gesture {
+  // Whether Blink agreed this press is a drag. It decides that at its own
+  // threshold, well before ours, and the gesture waits for both.
+  armed: boolean;
+  originX: number;
+  originY: number;
+  teardown: () => void;
+}
 
 /**
  * Props that make an element a handle for dragging a task file out to the
@@ -32,6 +54,30 @@ export function useFileDrag(file: FileRef | undefined) {
   // release on one element is a click by every measure Blink has left, which
   // made dropping a file back onto the card it came from open that card.
   const draggedRef = useRef(false);
+  const gestureRef = useRef<Gesture | null>(null);
+
+  const endGesture = () => {
+    gestureRef.current?.teardown();
+    gestureRef.current = null;
+  };
+
+  // A press that is still open when the surface goes away would otherwise leave
+  // its listeners on the window.
+  useEffect(() => endGesture, []);
+
+  const beginDrag = () => {
+    if (!file) {
+      return;
+    }
+    endGesture();
+    // Both set before the drag exists rather than after, so a release quick
+    // enough to beat the OS still finds them.
+    trackSelfFileDrag();
+    draggedRef.current = true;
+    window.api.startFileDrag?.([
+      { filePath: file.filePath, taskId: file.taskId },
+    ]);
+  };
 
   return {
     draggable: canDrag,
@@ -47,29 +93,60 @@ export function useFileDrag(file: FileRef | undefined) {
       event.stopPropagation();
     },
     onDragStart: (event: DragEvent) => {
-      if (!file) {
-        return;
-      }
-      // Left alone, the browser drags its own idea of the element: a thumbnail's
-      // image URL, or nothing at all. Neither means anything to another app, so
-      // this cancels it and the main process starts a real file drag in its
-      // place.
+      // Cancelled either way: left alone Blink drags its own idea of the
+      // element, a thumbnail's image URL or nothing at all, and neither means
+      // anything to another app. What it does not do any more is start the real
+      // drag, which waits for the pointer to travel far enough to mean it.
       event.preventDefault();
-      // Marked before the drag exists rather than after, so a release quick
-      // enough to beat the OS still finds the flag set.
-      trackSelfFileDrag();
-      draggedRef.current = true;
-      window.api.startFileDrag?.([
-        { filePath: file.filePath, taskId: file.taskId },
-      ]);
+      const gesture = gestureRef.current;
+      if (gesture) {
+        gesture.armed = true;
+      }
     },
-    // Hover is what makes the first drag work: the icon behind it is rendered
-    // by the OS, which is far slower than the few pixels of movement between
-    // pressing and dragging.
-    onPointerDown: () => {
+    onPointerDown: (event: ReactPointerEvent) => {
       // A fresh press is a fresh gesture, whatever the last one turned into.
       draggedRef.current = false;
+      endGesture();
+      // Hover is what makes the first drag work: the icon behind it is rendered
+      // by the OS, which is far slower than the few pixels of movement between
+      // pressing and dragging.
       void prepare(file);
+
+      if (!canDrag) {
+        return;
+      }
+
+      const handleEnd = () => {
+        endGesture();
+      };
+
+      const handleMove = (moveEvent: PointerEvent) => {
+        const gesture = gestureRef.current;
+        if (!gesture?.armed) {
+          return;
+        }
+        const dx = moveEvent.clientX - gesture.originX;
+        const dy = moveEvent.clientY - gesture.originY;
+        if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) {
+          return;
+        }
+        beginDrag();
+      };
+
+      gestureRef.current = {
+        armed: false,
+        originX: event.clientX,
+        originY: event.clientY,
+        teardown: () => {
+          window.removeEventListener("pointercancel", handleEnd);
+          window.removeEventListener("pointermove", handleMove);
+          window.removeEventListener("pointerup", handleEnd);
+        },
+      };
+
+      window.addEventListener("pointercancel", handleEnd);
+      window.addEventListener("pointermove", handleMove);
+      window.addEventListener("pointerup", handleEnd);
     },
     onPointerEnter: () => {
       void prepare(file);

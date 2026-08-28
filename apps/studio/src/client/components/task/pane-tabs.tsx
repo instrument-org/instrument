@@ -4,7 +4,7 @@ import { cn } from "@/client/lib/utils";
 import { TaskPane } from "@instrument-org/workspace/client";
 import { GlobeSimpleIcon } from "@phosphor-icons/react/GlobeSimple";
 import { XIcon } from "@phosphor-icons/react/X";
-import { Reorder } from "motion/react";
+import { Reorder, useReducedMotion } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { PaneToggle } from "./pane-toggle";
@@ -31,6 +31,42 @@ const FIXED_MARGIN = 12;
 // registers each tab's box with the group, so a tab that is not projecting is a
 // tab the drag cannot reorder around. Only the animation over it is turned off.
 const LAND_IN_PLACE = { layout: { duration: 0 } };
+
+// A closing tab gives its share of the row up rather than being taken out of
+// the row. Every tab here is an even share of one width, so the tabs beside it
+// widen as it narrows, through real flex layout and frame by frame -- which is
+// also the only way to resize a tab without scaling the icon inside it.
+//
+// Pulling it out of flow instead would hand the survivors their full width in a
+// single frame and leave the projection sliding boxes that are already the
+// wrong size for where they are drawn, out past the end of a strip that clips.
+//
+// A transition rather than an exit animation, because the widths here are a
+// class per density and an exit animation does not leave them alone: naming a
+// property there makes Motion own it, and it owns it by reading whatever the
+// tab happened to measure when it mounted and writing that back inline. A tab
+// that then compressed would be held at the width it was born at.
+//
+// Inline for the same reason from the other side: these have to beat the
+// density classes, and which of two utilities wins is a question about the
+// order of a stylesheet rather than the order of a `cn` call.
+//
+// `minWidth` because the floor under each share outranks a width; the negative
+// margin is the `gap-1` a tab at zero width is still holding open, so the row
+// does not jump when it finally goes.
+const COLLAPSED = {
+  flexGrow: 0,
+  marginRight: -GAP,
+  minWidth: 0,
+  opacity: 0,
+  paddingLeft: 0,
+  paddingRight: 0,
+} satisfies React.CSSProperties;
+
+// Long enough to be seen taking the space back, short enough that a second
+// close does not queue behind the first. Kept with `duration-150` below, which
+// is what actually runs it.
+const COLLAPSE_MS = 150;
 
 interface StripLayout {
   /** What a tab that is not the one being read can draw. */
@@ -79,6 +115,7 @@ export function PaneTabs({
   const fileCount = fileTabs.length;
 
   const isBrowserBusy = useBrowserAgentActivity(taskId);
+  const prefersReducedMotion = useReducedMotion();
 
   const stripRef = useRef<HTMLDivElement>(null);
   const tabAreaRef = useRef<HTMLDivElement>(null);
@@ -96,8 +133,49 @@ export function PaneTabs({
   // mid-drag on purpose, so nothing about the tab going away brings the flag
   // down with it, and left up it animates every later width change again.
   const [draggingKey, setDraggingKey] = useState<string>();
+  // The tabs that are collapsing, and where in the run each one was. They are
+  // gone from the task's list the moment the close is asked for, but they are
+  // still drawn and still taking room, and the strip has to lay out around what
+  // is drawn: re-divided for the smaller count while one of them is still
+  // there, the row is briefly fuller than it was -- names coming back, another
+  // tab appearing -- against a strip that clips rather than scrolls.
+  //
+  // Their place in the run is kept with them. A tab that jumped to the end of
+  // the row to leave it would be worse than one that never moved.
+  const [closing, setClosing] = useState<
+    { index: number; tab: TaskPane.Tab }[]
+  >([]);
   const [{ density, fixedIsNamed, selectedDensity, visibleCount }, setLayout] =
     useState(() => stripLayout(0, fileCount));
+
+  // Motion is not driving this one, so nothing is going to say when it ended.
+  useEffect(() => {
+    if (closing.length === 0) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      setClosing([]);
+    }, COLLAPSE_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [closing]);
+
+  // Which of them are actually collapsing, which is not the same question as
+  // which were closed. The task's tabs arrive through a query, and the write
+  // that drops one reaches this component a render after the click does -- so
+  // on that first render the tab is closed and still in the list, and drawing a
+  // second copy of it would be drawing it twice. It stays whole for that
+  // render, and starts collapsing on the one where it has actually gone.
+  //
+  // A tab reopened while it was on its way out reads the same way and is the
+  // same answer: it is in the list, so it is not collapsing. The timer below
+  // clears it either way.
+  const collapsing = closing.filter(
+    ({ tab }) => !fileKeys.includes(TaskPane.tabKey(tab)),
+  );
+  const collapsingKeys = new Set(collapsing.map(({ tab }) => TaskPane.tabKey(tab)));
+  const drawnCount = fileCount + collapsing.length;
 
   // Measured rather than asked of CSS. A container query could answer what one
   // tab has room to draw, now that a tab is a share of the row rather than its
@@ -122,8 +200,8 @@ export function PaneTabs({
     // Measured off the area instead, it would be a name deciding whether there
     // was room for a name, and the answer would flip on every pass.
     const apply = () => {
-      const row = stripLayout(strip.clientWidth - FIXED_MARGIN, fileCount + 1);
-      const files = stripLayout(area.clientWidth, fileCount);
+      const row = stripLayout(strip.clientWidth - FIXED_MARGIN, drawnCount + 1);
+      const files = stripLayout(area.clientWidth, drawnCount);
       const next = { ...files, fixedIsNamed: row.density === "full" };
       setLayout((current) =>
         current.density === next.density &&
@@ -142,18 +220,35 @@ export function PaneTabs({
     return () => {
       observer.disconnect();
     };
-  }, [fileCount]);
+  }, [drawnCount]);
 
   // The run of tabs there is room for. It stays at the front of the strip until
   // the selection is past the end of it: whatever the pane is showing has to be
   // on the strip, and a file opened past the end arrives selected.
+  //
+  // Less the tabs that are collapsing, which are drawn on top of this run and
+  // counted in the room it was laid out from. A tab hidden behind the end of a
+  // full strip comes into it when the one leaving has finished leaving, rather
+  // than arriving beside it at full width in a row with no space for both.
   const selectedIndex = fileKeys.indexOf(selectedKey ?? "");
+  const liveCount = Math.max(0, visibleCount - collapsing.length);
   const start = Math.max(
     0,
-    Math.min(selectedIndex - visibleCount + 1, fileCount - visibleCount),
+    Math.min(selectedIndex - liveCount + 1, fileCount - liveCount),
   );
-  const visibleTabs = fileTabs.slice(start, start + visibleCount);
-  const visibleKeys = fileKeys.slice(start, start + visibleCount);
+  const visibleTabs = fileTabs.slice(start, start + liveCount);
+  const visibleKeys = fileKeys.slice(start, start + liveCount);
+
+  // What the strip actually draws: the run above with the tabs that are
+  // collapsing put back where they were.
+  const drawnTabs = visibleTabs.map((tab) => ({ isClosing: false, tab }));
+  for (const { index, tab } of collapsing) {
+    drawnTabs.splice(Math.min(index, drawnTabs.length), 0, {
+      isClosing: true,
+      tab,
+    });
+  }
+  const drawnKeys = drawnTabs.map(({ tab }) => TaskPane.tabKey(tab));
 
   // A tab the strip is no longer drawing is not a tab being dragged, whatever
   // its own callback got to say.
@@ -171,7 +266,9 @@ export function PaneTabs({
     if (!strip?.contains(document.activeElement)) {
       return;
     }
-    const selected = strip.querySelector('[role="tab"][aria-selected="true"]');
+    const selected = strip.querySelector(
+      '[role="tab"][aria-selected="true"]:not([aria-hidden])',
+    );
     if (
       selected instanceof HTMLElement &&
       selected !== document.activeElement
@@ -234,7 +331,10 @@ export function PaneTabs({
           onSelectRelative={(direction) => {
             selectRelative("browser", direction);
           }}
-          showSeparator={fileCount > 0}
+          // Against what is drawn, not what is left. The rule and the margin
+          // holding it belong to a row that still has a tab in it, and the last
+          // one is still there until it has finished collapsing.
+          showSeparator={drawnCount > 0}
           tab={{ type: "browser" }}
         />
 
@@ -246,18 +346,20 @@ export function PaneTabs({
           className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
           onReorder={(keys: string[]) => {
             // The drag only ever sees the run that is drawn, so the tabs either
-            // side of it keep their places around the new order.
+            // side of it keep their places around the new order. A tab that is
+            // on its way out is drawn but not the task's any more, so it goes
+            // no further than the group that had to be told about it.
             onReorder([
               ...fileKeys.slice(0, start),
-              ...keys,
-              ...fileKeys.slice(start + visibleCount),
+              ...keys.filter((key) => !collapsingKeys.has(key)),
+              ...fileKeys.slice(start + liveCount),
             ]);
           }}
           ref={tabAreaRef}
           role="none"
-          values={visibleKeys}
+          values={drawnKeys}
         >
-          {visibleTabs.map((tab, index) => {
+          {drawnTabs.map(({ isClosing, tab }, index) => {
             const key = TaskPane.tabKey(tab);
             return (
               <PaneTab
@@ -265,11 +367,15 @@ export function PaneTabs({
                 // given up on, so it still says which file the pane is showing
                 // and still carries the close for it.
                 density={key === selectedKey ? selectedDensity : density}
+                isClosing={isClosing}
                 isDragging={isDragging}
                 isSelected={key === selectedKey}
                 key={key}
-                nextIsSelected={visibleKeys[index + 1] === selectedKey}
+                nextIsSelected={drawnKeys[index + 1] === selectedKey}
                 onClose={() => {
+                  if (!prefersReducedMotion) {
+                    setClosing((current) => [...current, { index, tab }]);
+                  }
                   onClose(key);
                 }}
                 onDragEnd={() => {
@@ -284,7 +390,7 @@ export function PaneTabs({
                 onSelectRelative={(direction) => {
                   selectRelative(key, direction);
                 }}
-                showSeparator={index < visibleTabs.length - 1}
+                showSeparator={index < drawnTabs.length - 1}
                 tab={tab}
                 value={key}
               />
@@ -304,7 +410,7 @@ function focusSiblingTab(from: Element, direction: -1 | 1) {
   if (!strip) {
     return;
   }
-  const tabs = [...strip.querySelectorAll('[role="tab"]')];
+  const tabs = [...strip.querySelectorAll('[role="tab"]:not([aria-hidden])')];
   const index = tabs.indexOf(from);
   if (index === -1) {
     return;
@@ -318,6 +424,7 @@ function focusSiblingTab(from: Element, direction: -1 | 1) {
 function PaneTab({
   density,
   isBusy,
+  isClosing,
   isDragging,
   isSelected,
   nextIsSelected,
@@ -334,6 +441,9 @@ function PaneTab({
   // The agent is working in the browser. Only the fixed tab is ever told this;
   // nothing drives a file tab from underneath the way the agent drives a page.
   isBusy?: boolean;
+  // The tab has been closed and is collapsing out of the row. It is drawn from
+  // the strip's own copy of it, so nothing outside still has it.
+  isClosing?: boolean;
   // Whether a tab on the strip is being dragged, which is the one time a tab
   // moving to a new place is worth watching.
   isDragging?: boolean;
@@ -407,6 +517,11 @@ function PaneTab({
         "after:pointer-events-none after:absolute after:top-1/4 after:h-1/2 after:w-px after:bg-border after:content-[''] hover:after:hidden",
         isFixed ? "after:-right-2" : "after:-right-0.5",
       ),
+    // On its way out, and out of reach on the way: the row is drawing it, the
+    // task is not. `transition-all` because what moves is one collapse rather
+    // than a list of properties, and naming them here would only say `COLLAPSED`
+    // a second time.
+    isClosing && "pointer-events-none transition-all duration-150 ease-out",
   );
 
   // Selecting on pointer-down rather than on click, and reading the middle
@@ -500,6 +615,10 @@ function PaneTab({
   );
 
   const handlers = {
+    // Out of the tree on the way out. What is collapsing is the row's picture
+    // of a tab that has already gone, and there is nothing there to read, move
+    // to, or land on.
+    "aria-hidden": isClosing || undefined,
     "aria-selected": isSelected,
     className,
     // What this tab ended up with room for, which is not always what the tab
@@ -526,9 +645,11 @@ function PaneTab({
     },
     onPointerDown,
     role: "tab",
+    style: isClosing ? COLLAPSED : undefined,
     // Roving: the strip is one stop in the page's tab order, and arrows move
     // within it. Otherwise every open file is another press of Tab to get past.
-    tabIndex: isSelected ? 0 : -1,
+    // A tab that has been closed is not a stop at all, whatever it was.
+    tabIndex: isClosing || !isSelected ? -1 : 0,
     // What the tab is called, for the widths where it cannot say so itself.
     title: filename,
   };
@@ -546,6 +667,11 @@ function PaneTab({
     // somewhere and the ones it displaces have to be seen giving way. Every
     // other move the strip makes is an arrival at a state -- selecting a tab,
     // switching tasks, dragging the pane wider -- and those land in place.
+    //
+    // Closing is on the drag's side of that, and is animated -- see `COLLAPSED`.
+    // It is not animated from here, though: what moves is the tab's own width
+    // rather than a box being carried to a new place, so the projection has
+    // nothing to say about it and is left alone.
     <Reorder.Item
       {...handlers}
       as="div"

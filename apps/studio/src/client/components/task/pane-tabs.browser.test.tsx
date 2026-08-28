@@ -1,5 +1,6 @@
 import { renderInBrowser } from "@/tests/render-browser";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
+import { useState } from "react";
 import { expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -356,5 +357,215 @@ test("still reorders on a drag, with the animation over it turned off", async ()
         "file:output/notes.md",
       ],
     ]
+  `);
+});
+
+/**
+ * A strip that closes a tab, so the row is laid out for what is left of it.
+ *
+ * The component takes the tabs it draws from its props, and the collapse is a
+ * share of the row being given back, so nothing about it shows against a list
+ * that never shrinks.
+ */
+function ClosingStrip({
+  fileCount,
+  width,
+}: {
+  fileCount: number;
+  width: number;
+}) {
+  const [files, setFiles] = useState(FILES.slice(0, fileCount));
+
+  return (
+    <div style={{ width }}>
+      <PaneTabs
+        fileTabs={files.map((filePath) => ({
+          filePath,
+          type: "file" as const,
+        }))}
+        onClose={(key) => {
+          // A render later, which is what the app does. The tabs come from a
+          // query, and the write that drops one notifies its subscribers on
+          // its own schedule -- so the close lands in one commit and the
+          // shorter list in the next, and for that render the strip is holding
+          // a tab it has been told to close and still has.
+          queueMicrotask(() => {
+            setFiles((current) =>
+              current.filter((filePath) => `file:${filePath}` !== key),
+            );
+          });
+        }}
+        onReorder={vi.fn()}
+        onSelect={vi.fn()}
+        // Held on a tab that is not the one being closed, so the widths read
+        // afterwards are the collapse rather than a selection moving.
+        selectedKey={`file:${FILES[2] ?? ""}`}
+        taskId={taskId}
+      />
+    </div>
+  );
+}
+
+async function closingStrip(fileCount: number, width: number) {
+  const { container } = await renderInBrowser(
+    <ClosingStrip fileCount={fileCount} width={width} />,
+  );
+  const list = container.querySelector<HTMLElement>('[role="tablist"]');
+  if (!list) {
+    throw new Error("the strip drew no tab list");
+  }
+  await settled(list);
+  return list;
+}
+
+/** Close a tab the way the middle button does, at any width. */
+function middleClick(list: HTMLElement, filename: string) {
+  const tab = list.querySelector(`[role="tab"][title="${filename}"]`);
+  if (!tab) {
+    throw new Error(`the strip drew no tab for ${filename}`);
+  }
+  tab.dispatchEvent(
+    new PointerEvent("pointerdown", { bubbles: true, button: 1 }),
+  );
+}
+
+/** What each tab the strip drew came out at, frame by frame. */
+async function sample(list: HTMLElement, frames: number) {
+  const taken: Record<string, number>[] = [];
+  for (let frame = 0; frame < frames; frame++) {
+    await new Promise((resolve) => {
+      requestAnimationFrame(resolve);
+    });
+    taken.push(
+      Object.fromEntries(
+        [...list.querySelectorAll<HTMLElement>('[role="tab"]')].map((tab) => [
+          tab.title,
+          tab.offsetWidth,
+        ]),
+      ),
+    );
+  }
+  return taken;
+}
+
+test("holds a closing tab in the row, collapsed, and then drops it", async () => {
+  // The collapse itself is a CSS transition, which this project cuts to zero
+  // (see `setup-browser.ts`), so what is read here is the mechanism under it
+  // rather than the frames over it: the tab is still in the row and still in
+  // its place, it is carrying the widths that hand its share back, it answers
+  // to nothing while it does, and it goes when the collapse is over.
+  const list = await closingStrip(3, WIDE);
+  const closed = "quarterly-report-2026.pdf";
+
+  middleClick(list, closed);
+  await new Promise((resolve) => {
+    requestAnimationFrame(resolve);
+  });
+
+  const collapsing = list.querySelector<HTMLElement>(
+    `[role="tab"][title="${closed}"]`,
+  );
+  if (!collapsing) {
+    throw new Error("the strip dropped the tab instead of collapsing it");
+  }
+  const collapsed = getComputedStyle(collapsing);
+
+  expect({
+    // Nobody's tab any more: not read, not reachable, not a stop.
+    detached: {
+      ariaHidden: collapsing.getAttribute("aria-hidden"),
+      pointerEvents: collapsed.pointerEvents,
+      tabIndex: collapsing.tabIndex,
+    },
+    // Off the share it was taking, off the floor under it, and off the gap it
+    // would otherwise still be holding open.
+    giving: {
+      flexGrow: collapsed.flexGrow,
+      marginRight: collapsed.marginRight,
+      minWidth: collapsed.minWidth,
+      opacity: collapsed.opacity,
+    },
+    // Which the row has taken: three even tabs are two.
+    widths: [...list.querySelectorAll<HTMLElement>('[role="tab"]')].map(
+      (tab) => `${tab.title}:${tab.offsetWidth}`,
+    ),
+  }).toMatchInlineSnapshot(`
+    {
+      "detached": {
+        "ariaHidden": "true",
+        "pointerEvents": "none",
+        "tabIndex": -1,
+      },
+      "giving": {
+        "flexGrow": "0",
+        "marginRight": "-4px",
+        "minWidth": "0px",
+        "opacity": "0",
+      },
+      "widths": [
+        "Browser:86",
+        "quarterly-report-2026.pdf:0",
+        "chart.png:171",
+        "notes.md:171",
+      ],
+    }
+  `);
+
+  await new Promise((resolve) => {
+    setTimeout(resolve, 300);
+  });
+  expect(list.querySelector(`[role="tab"][title="${closed}"]`)).toBeNull();
+});
+
+test("keeps a closing tab where it was rather than at the end of the row", async () => {
+  // It is gone from the task's list, so the strip is drawing it from its own
+  // copy -- and a copy appended to what is left is a tab that jumps to the end
+  // of the row on its way out.
+  const list = await closingStrip(3, WIDE);
+
+  middleClick(list, "chart.png");
+  const [frame] = await sample(list, 1);
+
+  expect(Object.keys(frame ?? {})).toMatchInlineSnapshot(`
+    [
+      "Browser",
+      "quarterly-report-2026.pdf",
+      "chart.png",
+      "notes.md",
+    ]
+  `);
+});
+
+test("does not draw a hidden tab into a row a closing tab is still in", async () => {
+  // Closing a tab off a full strip makes room for the tab behind the end of it.
+  // The room is not there yet: the tab being closed is still collapsing through
+  // it. Drawn now, the strip is briefly fuller than it was laid out for and
+  // clips the difference, so the run stays where it is until the collapse ends.
+  const list = await closingStrip(8, NARROW);
+  const before = list.querySelectorAll('[role="tab"]').length;
+
+  middleClick(list, "quarterly-report-2026.pdf");
+  const frames = await sample(list, 30);
+
+  expect({
+    // Never more tabs than the strip was laid out for.
+    overFull: frames
+      .map((frame) => Object.keys(frame).length)
+      .filter((drawn) => drawn > before),
+    // And the one that was behind the end is drawn once the room is real.
+    settled: Object.keys(frames.at(-1) ?? {}),
+  }).toMatchInlineSnapshot(`
+    {
+      "overFull": [],
+      "settled": [
+        "Browser",
+        "chart.png",
+        "notes.md",
+        "summary.docx",
+        "data.csv",
+        "screenshot-of-the-thing.png",
+        "one-more.txt",
+      ],
+    }
   `);
 });

@@ -31,6 +31,31 @@ const COPIED_MS = 2000;
 // Between a control and the table's edge, whichever side of it the control is.
 const CONTROL_GAP = 8;
 
+/**
+ * Writes that skip a value already in place.
+ *
+ * `sync` reads the layout and then writes to it, and runs once per table for
+ * every measurement that arrives. Left ungated, each write dirties the layout
+ * the next table's read has to rebuild, so a transcript holding several tables
+ * pays a full recalculation each rather than one between them all. Reading back
+ * an inline style or an attribute costs nothing, since neither is layout.
+ */
+const setStyle = (
+  element: HTMLElement,
+  property: "left" | "top",
+  value: string,
+) => {
+  if (element.style[property] !== value) {
+    element.style[property] = value;
+  }
+};
+
+const setFlag = (element: HTMLElement, name: string, on: boolean) => {
+  if (element.hasAttribute(name) !== on) {
+    element.toggleAttribute(name, on);
+  }
+};
+
 /** The transcript the block sits in, where one named itself. */
 const transcriptOf = (frame: HTMLElement) => frame.closest("[data-transcript]");
 
@@ -125,8 +150,8 @@ export const MarkdownTable = ({
     const width = toolbarRef.current?.offsetWidth ?? 0;
     const outside = width > 0 && roomBesideBlock(frame) >= width + CONTROL_GAP;
     const edge = frame.offsetLeft + frame.clientWidth;
-    control.toggleAttribute("data-outside", outside);
-    control.style.left = `${outside ? edge + CONTROL_GAP : edge - 4}px`;
+    setFlag(control, "data-outside", outside);
+    setStyle(control, "left", `${outside ? edge + CONTROL_GAP : edge - 4}px`);
   };
 
   // An attribute rather than state: a scroll handler that re-renders every
@@ -138,8 +163,8 @@ export const MarkdownTable = ({
       return;
     }
     const behind = frame.scrollWidth - frame.clientWidth - frame.scrollLeft;
-    frame.toggleAttribute("data-scroll-start", frame.scrollLeft > 1);
-    frame.toggleAttribute("data-scroll-end", behind > 1);
+    setFlag(frame, "data-scroll-start", frame.scrollLeft > 1);
+    setFlag(frame, "data-scroll-end", behind > 1);
 
     // Centered in the header's own band, at the trailing end of what is
     // visible: a control between two rows would sit on the rule that divides
@@ -150,7 +175,11 @@ export const MarkdownTable = ({
     const toolbar = toolbarRef.current;
     const header = frame.querySelector("thead tr");
     if (toolbar) {
-      toolbar.style.top = `${bandCenter(header) ?? frame.offsetTop + 12}px`;
+      setStyle(
+        toolbar,
+        "top",
+        `${bandCenter(header) ?? frame.offsetTop + 12}px`,
+      );
       placeControl(toolbar, frame);
     }
   };
@@ -162,7 +191,14 @@ export const MarkdownTable = ({
 
   // After every render, which is what catches the table growing a column at a
   // time while it streams: the frame is already at its cap by then, so its own
-  // size never changes and no observer fires.
+  // size never changes.
+  //
+  // The observers below watch the table too and would in principle cover this,
+  // but they cannot be the only thing that does. A `ResizeObserver` that never
+  // delivers leaves every control unplaced rather than merely stale, and there
+  // are environments where it does not deliver -- so the measurement stays on
+  // the render path, and the cost of it being there is paid down by writing
+  // only what moved. See `setStyle`.
   useEffect(() => {
     syncRef.current = sync;
     sync();
@@ -180,10 +216,17 @@ export const MarkdownTable = ({
 
     frame.addEventListener("scroll", run, { passive: true });
 
-    // Neither the frame's width nor the transcript's raises a scroll event or a
-    // render, and the controls are placed from both.
+    // Everything the controls are placed from, watched rather than measured on
+    // the render path: the frame and the transcript for the room either side,
+    // and the table itself, whose size is what moves while it streams a column
+    // at a time -- by which point the frame is at its cap and stops changing at
+    // all. The observer's first delivery is what places them to begin with.
     const observer = new ResizeObserver(run);
     observer.observe(frame);
+    const table = frame.querySelector("table");
+    if (table) {
+      observer.observe(table);
+    }
     const transcript = transcriptOf(frame);
     if (transcript) {
       observer.observe(transcript);
@@ -237,7 +280,7 @@ export const MarkdownTable = ({
       clearCopied(chip);
     }
     chip.dataset.row = String(row.rowIndex);
-    chip.style.top = `${bandCenter(row) ?? 0}px`;
+    setStyle(chip, "top", `${bandCenter(row) ?? 0}px`);
     placeControl(chip, frame);
     chip.dataset.visible = "";
   };

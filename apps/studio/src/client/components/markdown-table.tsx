@@ -4,19 +4,18 @@ import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { BlockToolbarButton, blockToolbarButtonClassName } from "./code-block";
+import { CopyButton } from "./copy-button";
 import {
   tableClipboardItem,
   type TableCopyFormat,
 } from "./document-viewers/table-clipboard";
-import { TABLE_COPY_FORMATS } from "./document-viewers/table-copy-formats";
-import { TableCopyFormatLabel } from "./document-viewers/table-copy-menu";
+import { TABLE_COPY_ALTERNATES } from "./document-viewers/table-copy-formats";
 import { MarkdownTableModal } from "./markdown-table-modal";
 import { readTableContents, tableRows } from "./markdown-table-rows";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -59,8 +58,14 @@ export const MarkdownTable = ({
   expandable?: boolean;
 }) => {
   const frameRef = useRef<HTMLDivElement>(null);
-  const rowCopyRef = useRef<HTMLButtonElement>(null);
+  const rowCopyRef = useRef<HTMLSpanElement>(null);
   const [expanded, setExpanded] = useState(false);
+  // The toolbar has to stay up while the menu it opened is, and neither hover
+  // nor `:focus-within` still holds: the pointer is over portalled content and
+  // so is the focus. The trigger's own `data-state` cannot answer it either --
+  // it is wrapped in a tooltip, and the two primitives write that attribute to
+  // the same element, so the tooltip's "closed" is what lands.
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const element = () => frameRef.current?.querySelector("table") ?? null;
 
@@ -160,8 +165,8 @@ export const MarkdownTable = ({
         <table>{children}</table>
         <span aria-hidden className="markdown-table-fade" />
 
-        <div className="markdown-table-toolbar">
-          <DropdownMenu>
+        <div className="markdown-table-toolbar" data-menu-open={menuOpen}>
+          <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <DropdownMenuTrigger
@@ -173,16 +178,22 @@ export const MarkdownTable = ({
               </TooltipTrigger>
               <TooltipContent>Copy table</TooltipContent>
             </Tooltip>
-            <DropdownMenuContent align="end" className="max-w-72">
-              <DropdownMenuLabel>Copy table</DropdownMenuLabel>
-              {TABLE_COPY_FORMATS.map(({ format, hint, label }) => (
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onSelect={() => {
+                  copyTable("table");
+                }}
+              >
+                Copy table
+              </DropdownMenuItem>
+              {TABLE_COPY_ALTERNATES.map(({ format, label }) => (
                 <DropdownMenuItem
                   key={format}
                   onSelect={() => {
                     copyTable(format);
                   }}
                 >
-                  <TableCopyFormatLabel hint={hint} label={label} />
+                  {label}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -200,23 +211,26 @@ export const MarkdownTable = ({
         </div>
       </div>
 
-      <button
-        aria-label="Copy row"
-        className="markdown-table-row-copy"
-        onClick={(event) => {
-          const row =
-            element()?.rows[Number(event.currentTarget.dataset.row ?? "-1")];
-          if (row) {
-            copy([
-              [...row.cells].map((cell) => cell.textContent?.trim() ?? ""),
-            ]);
-          }
-        }}
-        ref={rowCopyRef}
-        type="button"
-      >
-        <CopyIcon size={12} />
-      </button>
+      {/* The shared control, so a row's copy reports itself with the same
+          check every other copy in the app does. Positioned through the span,
+          which is what the tracking moves. */}
+      <span className="markdown-table-row-copy" ref={rowCopyRef}>
+        <CopyButton
+          className={blockToolbarButtonClassName}
+          iconSize={12}
+          label="Copy row"
+          onCopy={() => {
+            const index = Number(rowCopyRef.current?.dataset.row ?? "-1");
+            const row = element()?.rows[index];
+            if (row) {
+              copy([
+                [...row.cells].map((cell) => cell.textContent?.trim() ?? ""),
+              ]);
+            }
+          }}
+          tooltip="Copy row"
+        />
+      </span>
 
       {expandable && expanded && (
         <MarkdownTableModal onOpenChange={setExpanded} open>

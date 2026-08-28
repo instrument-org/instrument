@@ -5,29 +5,12 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { toolbarClassName } from "../ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { type TableCopyFormat } from "./table-clipboard";
-import { TABLE_COPY_FORMATS } from "./table-copy-formats";
-
-/** One menu item's two lines, so a context menu and a dropdown read alike. */
-export function TableCopyFormatLabel({
-  hint,
-  label,
-}: {
-  hint: string;
-  label: string;
-}) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span>{label}</span>
-      <span className="text-xs text-muted-foreground">{hint}</span>
-    </div>
-  );
-}
+import { TABLE_COPY_ALTERNATES } from "./table-copy-formats";
 
 /**
  * The copy control a viewer toolbar carries. Its scope is the whole table, so
@@ -58,16 +41,22 @@ export function TableCopyMenu({
         </TooltipTrigger>
         <TooltipContent>Copy table</TooltipContent>
       </Tooltip>
-      <DropdownMenuContent align="end" className="max-w-72">
-        <DropdownMenuLabel>Copy table</DropdownMenuLabel>
-        {TABLE_COPY_FORMATS.map(({ format, hint, label }) => (
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          onSelect={() => {
+            onCopy("table");
+          }}
+        >
+          Copy table
+        </DropdownMenuItem>
+        {TABLE_COPY_ALTERNATES.map(({ format, label }) => (
           <DropdownMenuItem
             key={format}
             onSelect={() => {
               onCopy(format);
             }}
           >
-            <TableCopyFormatLabel hint={hint} label={label} />
+            {label}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

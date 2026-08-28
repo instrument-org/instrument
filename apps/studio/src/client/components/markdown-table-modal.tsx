@@ -38,7 +38,7 @@ export function MarkdownTableModal({
           <DialogTitle className="text-sm font-medium">Table</DialogTitle>
         </div>
         <div className="@container/transcript min-h-0 flex-1 overflow-y-auto px-4 pb-4">
-          <div className="markdown-table-expanded prose prose-custom text-sm/relaxed dark:prose-invert prose-table:text-sm [--transcript-room:100cqi]">
+          <div className="prose prose-custom text-sm/relaxed [--transcript-room:100cqi] dark:prose-invert prose-table:text-sm">
             <MarkdownTable expandable={false}>{children}</MarkdownTable>
           </div>
         </div>

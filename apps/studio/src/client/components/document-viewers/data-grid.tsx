@@ -23,7 +23,6 @@ import {
   ContextMenuCheckboxItem,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuLabel,
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "../ui/context-menu";
@@ -40,8 +39,8 @@ import {
   tableClipboardItem,
   type TableCopyFormat,
 } from "./table-clipboard";
-import { TABLE_COPY_FORMATS } from "./table-copy-formats";
-import { TableCopyFormatLabel, TableCopyMenu } from "./table-copy-menu";
+import { TABLE_COPY_ALTERNATES } from "./table-copy-formats";
+import { TableCopyMenu } from "./table-copy-menu";
 import { useCopyShortcut } from "./use-copy-shortcut";
 import { ViewerToolbar, ViewerToolbarSpacer } from "./viewer-toolbar";
 
@@ -496,9 +495,16 @@ export function DataGrid({
               </div>
             </div>
           </ContextMenuTrigger>
-          <ContextMenuContent className="max-w-72">
-            <ContextMenuLabel>Copy selection</ContextMenuLabel>
-            {TABLE_COPY_FORMATS.map(({ format, hint, label }) => (
+          <ContextMenuContent>
+            <ContextMenuItem
+              disabled={!selectedRange}
+              onSelect={() => {
+                copyBlock(readSelection(copyHeaders));
+              }}
+            >
+              Copy selection
+            </ContextMenuItem>
+            {TABLE_COPY_ALTERNATES.map(({ format, label }) => (
               <ContextMenuItem
                 disabled={!selectedRange}
                 key={format}
@@ -506,7 +512,7 @@ export function DataGrid({
                   copyBlock(readSelection(copyHeaders), format);
                 }}
               >
-                <TableCopyFormatLabel hint={hint} label={label} />
+                {label}
               </ContextMenuItem>
             ))}
             <ContextMenuCheckboxItem

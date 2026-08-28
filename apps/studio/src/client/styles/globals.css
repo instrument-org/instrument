@@ -1113,7 +1113,7 @@ a.cursor-pointer {
    control, and while a menu it opened is still up. */
 .markdown-table-row:hover .markdown-table-toolbar,
 .markdown-table-toolbar:focus-within,
-.markdown-table-toolbar:has([data-state="open"]) {
+.markdown-table-toolbar[data-menu-open="true"] {
   opacity: 1;
 }
 
@@ -1125,13 +1125,6 @@ a.cursor-pointer {
   position: absolute;
   z-index: 2;
   display: grid;
-  place-items: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--background);
-  color: var(--muted-foreground);
   opacity: 0;
   pointer-events: none;
 }
@@ -1141,9 +1134,7 @@ a.cursor-pointer {
   pointer-events: auto;
 }
 
-.markdown-table-row-copy:hover {
-  color: var(--foreground);
-}
+
 
 @media (prefers-reduced-motion: reduce) {
   .markdown-table-toolbar {

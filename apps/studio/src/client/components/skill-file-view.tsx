@@ -84,7 +84,7 @@ export function SkillFileView({
             </pre>
           ) : null}
         </div>
-        <div className="prose prose-custom max-w-none px-4 py-4 text-sm/relaxed wrap-break-word dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm">
+        <div className="prose prose-custom px-4 py-4 text-sm/relaxed wrap-break-word dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm">
           <Markdown markdown={split?.body ?? data.content} />
         </div>
       </div>

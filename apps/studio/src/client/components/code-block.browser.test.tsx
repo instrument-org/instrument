@@ -140,7 +140,7 @@ describe("block toolbar scope", () => {
 // wrapper is measured here rather than read off a class list.
 describe("code block spacing in prose", () => {
   const PROSE_CLASS =
-    "prose prose-custom max-w-none text-sm/relaxed dark:prose-invert prose-pre:text-sm";
+    "prose prose-custom text-sm/relaxed dark:prose-invert prose-pre:text-sm";
 
   const codeBlocksIn = (root: Element) => {
     const blocks = [...root.querySelectorAll("pre")];
@@ -268,7 +268,7 @@ describe("code block spacing in prose", () => {
 
 describe("markdown code block", () => {
   const PROSE_CLASS =
-    "prose prose-custom max-w-none text-sm/relaxed dark:prose-invert prose-pre:text-sm";
+    "prose prose-custom text-sm/relaxed dark:prose-invert prose-pre:text-sm";
 
   const LONG_LINE = `const message = "${"long ".repeat(60)}";`;
 

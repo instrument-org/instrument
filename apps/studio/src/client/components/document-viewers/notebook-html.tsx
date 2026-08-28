@@ -61,7 +61,7 @@ export function NotebookHtml({ html }: { html: string }) {
 
   return (
     <div className="max-w-full overflow-x-auto">
-      <div className="prose prose-custom max-w-none text-sm/relaxed wrap-break-word dark:prose-invert prose-table:text-sm">
+      <div className="prose prose-custom text-sm/relaxed wrap-break-word dark:prose-invert prose-table:text-sm">
         {toReactChildren(parsed.body, 0)}
       </div>
     </div>

@@ -10,7 +10,7 @@ import { UserMessage } from "./user-message";
 // the height of its line and a link drawn as plain text both pass there.
 
 const PROSE =
-  "prose prose-custom max-w-none font-sans text-sm/relaxed dark:prose-invert";
+  "prose prose-custom font-sans text-sm/relaxed dark:prose-invert";
 
 async function renderMessage(text: string) {
   await renderInBrowser(

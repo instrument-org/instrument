@@ -116,15 +116,25 @@ function containsMathSyntax(markdown: string) {
  * download or a folder the user shared -- so the allow-list is what makes
  * parsing it at all safe.
  *
- * One departure from the default: `file:` is how a model spells a link to a
+ * Two departures from the default. `file:` is how a model spells a link to a
  * file it just wrote, which `markdownUrlTransform` reduces to a path and
  * `TaskFileLink` then judges against the task and its mounts.
+ *
+ * And `data:` on a `src`, without which an embedded image is dropped by the
+ * pass rather than by any policy: the default admits `http` and `https` there
+ * and nothing else, and this pass runs over the whole document rather than only
+ * the markup it re-parsed. So a notebook cell holding both a `<br>` and one of
+ * its own attachments lost the attachment, which is the case attachments exist
+ * for. What a `data:` src may actually carry is still `isImageAllowed`'s
+ * question, one place rather than two, and the tag names above are what keep
+ * this reaching an `<img>` rather than an `iframe`, an `embed`, or a `script`.
  */
 const sanitizeSchema = {
   ...defaultSchema,
   protocols: {
     ...defaultSchema.protocols,
     href: [...(defaultSchema.protocols?.href ?? []), "file"],
+    src: [...(defaultSchema.protocols?.src ?? []), "data"],
   },
 };
 

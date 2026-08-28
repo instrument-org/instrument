@@ -537,6 +537,34 @@ describe("Markdown raw HTML", () => {
     expect(container.querySelectorAll("br")).toHaveLength(1);
   });
 
+  // The sanitize pass runs over the whole document rather than only the markup
+  // it re-parsed, so a document that holds any HTML at all is one where the
+  // pass decides what an ordinary `![](...)` may point at. A notebook markdown
+  // cell is both at once: its attachments arrive as `data:` URIs, and a `<br>`
+  // or a `<div align>` beside them is the ordinary way such a cell is written.
+  it("keeps an embedded image in a document that also holds HTML", async () => {
+    const container = await renderDrawn(
+      "<details><summary>More</summary></details>\n\n![a](data:image/png;base64,QUJD)",
+    );
+
+    expect(
+      [...container.querySelectorAll("img")].map((image) =>
+        image.getAttribute("src"),
+      ),
+    ).toEqual(["data:image/png;base64,QUJD"]);
+  });
+
+  // The widened `src` reaches an image and stops there. Every element that
+  // could execute what a `data:` URI carries is dropped whole by the tag
+  // allow-list, so the two answers cannot drift apart.
+  it("drops an embedded source on anything that is not an image", async () => {
+    const container = await renderDrawn(
+      '<p>Text.</p><iframe src="data:text/html,<b>hi</b>"></iframe>',
+    );
+
+    expect(container.querySelector("iframe")).toBeNull();
+  });
+
   // A blank line is the one thing a doubled break is good for, so a document
   // that opens one on purpose keeps it.
   it("keeps a blank line written as two breaks", async () => {

@@ -109,9 +109,9 @@ function RouteComponent() {
               { files, folders, modelURI, projectId, prompt },
               {
                 onError: (error) => {
-                  toast.error(
-                    `There was an error starting your task: ${error.message}`,
-                  );
+                  toast.error("Failed to start task", {
+                    description: error.message,
+                  });
                 },
                 onSuccess: ({ id, sessionId }) => {
                   // Before navigating, not after: the ref is gone once this

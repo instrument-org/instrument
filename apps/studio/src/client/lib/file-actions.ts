@@ -54,7 +54,7 @@ export async function downloadFile(file: TaskFileViewerFile) {
         : "An unknown error occurred while saving the file";
     toast.error("Failed to save file", {
       closeButton: true,
-      description: `${errorMessage}\n\nFile: ${file.filePath}`,
+      description: errorMessage,
       duration: 10_000,
     });
     throw error;

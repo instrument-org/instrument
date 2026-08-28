@@ -275,9 +275,9 @@ function RouteComponent() {
               { files, folders, modelURI, projectId: id, prompt },
               {
                 onError: (error) => {
-                  toast.error(
-                    `There was an error starting your task: ${error.message}`,
-                  );
+                  toast.error("Failed to start task", {
+                    description: error.message,
+                  });
                 },
                 onSuccess: ({ id: taskId, sessionId }) => {
                   promptInputRef.current?.clear();

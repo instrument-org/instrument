@@ -144,8 +144,9 @@ export function SkillModal() {
                   onError: (error) => {
                     toast.error(
                       isEdit
-                        ? `There was an error starting skill editing: ${error.message}`
-                        : `There was an error starting skill creation: ${error.message}`,
+                        ? "Failed to start skill editing"
+                        : "Failed to start skill creation",
+                      { description: error.message },
                     );
                   },
                   onSuccess: ({ id, sessionId }) => {

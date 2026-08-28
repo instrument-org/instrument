@@ -1000,6 +1000,7 @@ a.cursor-pointer {
    did.
  */
 .markdown-table-row {
+  position: relative;
   display: grid;
   /* A definite track. An `auto` one is sized by its own item, which makes
      that item's percentage width cyclic; Chromium then drops the frame's
@@ -1084,6 +1085,68 @@ a.cursor-pointer {
   box-shadow:
     1px 0 0 0 var(--border),
     8px 0 8px -8px rgb(0 0 0 / 0.25);
+}
+
+/* Copy and expand, in the same vocabulary a diagram's controls use. Inside the
+   frame rather than over it, so they stay at the visible edge of a table that
+   is scrolled rather than at the edge of one that is not; zero-width so being
+   there never widens the block, which is what the negative free space in a
+   `flex-end` row buys. */
+.markdown-table-toolbar {
+  position: sticky;
+  inset-inline-end: 0;
+  z-index: 2;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.25rem;
+  align-self: flex-start;
+  justify-content: flex-end;
+  width: 0;
+  margin-block: 0.25rem;
+  opacity: 0;
+  transition: opacity 100ms;
+}
+
+/* Focus as well as hover, so tabbing through never lands on an invisible
+   control, and while a menu it opened is still up. */
+.markdown-table-row:hover .markdown-table-toolbar,
+.markdown-table-toolbar:focus-within,
+.markdown-table-toolbar:has([data-state="open"]) {
+  opacity: 1;
+}
+
+/* One row's own copy, in the gutter the widening opened. Placed by hand from
+   the hovered row, since a table mid-stream would otherwise re-render every
+   row of itself to answer a pointer move. */
+.markdown-table-row-copy {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  color: var(--muted-foreground);
+  opacity: 0;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.markdown-table-row-copy[data-visible] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.markdown-table-row-copy:hover {
+  color: var(--foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markdown-table-toolbar {
+    transition: none;
+  }
 }
 
 @layer components {

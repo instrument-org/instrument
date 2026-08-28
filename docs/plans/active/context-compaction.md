@@ -7,7 +7,9 @@ A task now measures its own occupancy against the model's window, warns the agen
 - **Occupancy is the newest assistant turn's `inputTokens` alone**, where phase 1 says to add the cache-read and cache-write components on top. Those components are already inside `inputTokens` for both feeds that report a window, so adding them counts the same tokens twice and roughly doubles the reported occupancy. Verified against recorded sessions, where `cacheReadTokens + noCacheTokens` equals `inputTokens` on every turn.
 - **Rollover carries session context and the retained user messages, with no mechanically assembled state block.** The block phase 2 describes, in grok-build's `reminder.rs` shape, is not built; what carries the task across a boundary today is the agent's own notes, written in response to the warning.
 
-Phase 5's transcript treatment is partly here: a boundary draws a rule in the transcript naming what carried across. The honest multi-compaction warning, the telemetry, and the setting to disable the automatic path are not.
+Phase 5 is not started, and the success criterion above about compaction being visible in the transcript is deliberately not met yet. A boundary records a `contextRollover` part, which developer mode draws where the cut landed and a recorded session carries, but nothing is shown to the reader of a task.
+
+That was tried and withdrawn rather than skipped, and the reason is worth keeping. A rollover is not a compaction: nothing is summarized, the agent's own turns simply stop being sent, and the user's carry across verbatim. Wording faithful to that describes our request assembly, which is not something to hand a reader mid-task; wording that reaches for the familiar word promises a summary that does not exist; and a divider across the transcript implies the reader has lost something at the exact moment they have not. The user-facing treatment belongs with phase 3, where there is a compaction to describe and the familiar word is the true one.
 
 ## Problem
 

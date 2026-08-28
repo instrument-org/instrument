@@ -88,6 +88,30 @@ describe("resolvePathArgs native-binary bridge", () => {
       ]);
     },
   );
+
+  // Windows has no /dev, and NUL is the only one of the seven with an
+  // equivalent, spelled through the device namespace so it stays absolute.
+  // ffmpeg on Windows accepts that spelling; it rejects `/dev/null` outright,
+  // which is what the mapping exists to prevent.
+  it("maps the sink to the platform's spelling", () => {
+    const [resolved] = resolvePathArgs(["/dev/null"], taskId, {
+      cwd: "/task",
+      fs,
+    });
+    expect(resolved).toBe(
+      process.platform === "win32" ? String.raw`\\.\NUL` : "/dev/null",
+    );
+  });
+
+  it("quarantines the devices Windows cannot spell", () => {
+    const [resolved] = resolvePathArgs(["/dev/zero"], taskId, {
+      cwd: "/task",
+      fs,
+    });
+    expect(resolved).toBe(
+      process.platform === "win32" ? `${dir}/dev/zero` : "/dev/zero",
+    );
+  });
 });
 
 describe("unreachablePathArgError", () => {

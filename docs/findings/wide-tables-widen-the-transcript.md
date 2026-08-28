@@ -100,10 +100,39 @@ So TSV is not a menu item — it is the invisible fallback inside the first one.
 | Label | What it says under it |
 | --- | --- |
 | Table | Pastes as a real table into Numbers, Notion, or a doc |
-| Markdown | The pipe table the model wrote, for an editor |
+| Markdown | A pipe table, for an editor or a README |
 | CSV | Comma-separated text, for a spreadsheet or a script |
 
-Markdown is the only one needing its own payload, and it is worth having: it round-trips exactly what the model wrote. Codex reached the same conclusion from the other end — its single "Copy table" writes the table's original Markdown source as `text/plain` with HTML alongside.
+The hints name destinations rather than formats, and are worded to hold on any surface that shows a table, not just the chat.
+
+Markdown is the only one needing its own payload, and it is worth having. For a table in a message it should be the original Markdown source rather than a re-serialization of the DOM, so it round-trips exactly what the model wrote; Codex reached the same conclusion from the other end, writing the source as `text/plain` with HTML alongside.
+
+### One copy menu, three surfaces
+
+The menu is not only for a Markdown table. The document viewers have the same job and are further behind on it, so the component should be shared from the start rather than retrofitted.
+
+What exists today:
+
+| Piece | Where | State |
+| --- | --- | --- |
+| `toHtmlTable` / `toTabSeparated` | `table-clipboard.ts` | Shared, correct. Keep. |
+| `tableClipboardItem(rows)` | `table-clipboard.ts` | Sync only, so `data-grid` uses it and `xlsx-viewer` cannot. |
+| `useCopyShortcut` | `use-copy-shortcut.ts` | Shared by the grid, the spreadsheet, and the PDF viewer. |
+| Context menu: Copy, Copy with headers | `data-grid.tsx` only | Both disabled without a selection. |
+| Copy affordance in `xlsx-viewer` | — | Cmd+C only. No menu, no button, undiscoverable. |
+| A copy control on `ViewerToolbar` | — | Does not exist for any format. |
+
+Three gaps fall out, and one menu closes all of them.
+
+**There is no way to copy a whole table.** The grid's Copy items are disabled until a range is dragged, and there is no select-all: `moveSelection` handles arrows, Home, and End, and nothing binds Cmd+A. So copying a CSV out of the viewer means dragging a selection across a virtualized grid, which for a real file is not a gesture anyone completes. A scope line on the menu — "Copy selection" with one, "Copy table" without — makes whole-table copy the default rather than an impossibility.
+
+**There is no format choice anywhere.** Every path writes HTML plus tab-separated. Markdown and CSV are new payloads, and both belong in the viewer as much as in the chat.
+
+**`xlsx-viewer` has no menu at all.** Giving `ViewerToolbar` a copy control puts the same menu on every format the grid backs — `.csv`, `.jsonl`, `.parquet`, `.sqlite` — plus the spreadsheet.
+
+One generalization is needed to serve all of them: `tableClipboardItem` has to accept `string[][] | Promise<string[][]>`. `xlsx-viewer` builds its own `ClipboardItem` today for a good reason, not out of duplication — its cells live in the parse worker, so the blobs must be promises handed to a `ClipboardItem` constructed synchronously inside the gesture. A sync array wraps in `Promise.resolve` and both callers collapse onto one builder.
+
+The one place the surfaces differ is headers. A Markdown table always carries its header row, so the chat menu has nothing to ask. A partial grid selection may or may not want one, which is what today's Copy / Copy with headers pair is for; that becomes a persisted "Include headers" row at the foot of the menu rather than a doubling of the format list.
 
 ### Expand is the grid we already have
 

@@ -1,6 +1,10 @@
 // cspell:ignore dataframe
 import { createElement, Fragment, type ReactNode } from "react";
 
+import {
+  isImageSourceAllowed,
+  UNTRUSTED_FILE_IMAGE_KINDS,
+} from "../../lib/image-policy";
 import { ExternalLink } from "../external-link";
 
 /**
@@ -48,13 +52,9 @@ import { ExternalLink } from "../external-link";
  *   need a second allow-list. Vector output reaches the viewer through the
  *   `image/svg+xml` bundle instead, where it is served to an `<img>` and cannot
  *   run anything.
- * - Remote image sources. An `<img src="https://…/pixel.png?id=…">` needs no
- *   script to phone home: opening the file is the request, which discloses an
- *   IP and confirms the read, and inside a desktop app it can also probe hosts
- *   only this machine can reach. The renderer's `img-src` already blocks most
- *   of the web, but it permits a few content hosts that anyone can upload to,
- *   which is enough for a tracking pixel. Notebook images arrive base64-encoded
- *   in the mime bundle, so `data:` costs the common case nothing.
+ * - Every image source but embedded bytes, which is `UNTRUSTED_FILE_IMAGE_KINDS`
+ *   in `lib/image-policy` -- the same module the markdown renderer asks, so the
+ *   two cannot drift apart. The reasoning for the narrow answer is there.
  */
 export function NotebookHtml({ html }: { html: string }) {
   const parsed = new DOMParser().parseFromString(html, "text/html");
@@ -140,8 +140,6 @@ const DROPPED_TAGS = new Set([
   "video",
 ]);
 
-const IMAGE_SCHEMES = ["data:image/"];
-
 // A link is only followed when someone clicks it, and it opens in the real
 // browser rather than here, so remote schemes stay allowed for anchors even
 // though they are not for images.
@@ -208,7 +206,10 @@ function toReact(node: Node, key: number, depth: number): ReactNode {
   }
 
   if (tag === "img") {
-    const src = readUrl(node.getAttribute("src"), IMAGE_SCHEMES);
+    const attribute = node.getAttribute("src")?.trim();
+    const src = isImageSourceAllowed(attribute, UNTRUSTED_FILE_IMAGE_KINDS)
+      ? attribute
+      : undefined;
     return src === undefined ? null : (
       <img
         alt={node.getAttribute("alt") ?? ""}

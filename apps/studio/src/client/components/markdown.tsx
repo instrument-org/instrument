@@ -36,6 +36,11 @@ import remend from "remend";
 import { useHashLinkScroll } from "../hooks/use-hash-link-scroll";
 import { getAssetUrl } from "../lib/get-asset-url";
 import {
+  isImageSourceAllowed,
+  MARKDOWN_IMAGE_KINDS,
+  MARKDOWN_IMAGE_KINDS_WITH_REMOTE,
+} from "../lib/image-policy";
+import {
   containsMermaidFence,
   isMermaidLanguage,
   prefetchMermaid,
@@ -440,80 +445,14 @@ const MarkdownLink: Components["a"] = ({
   );
 };
 
-// Embedded bytes: reaching these sends nothing anywhere, so they are allowed
-// however little the markdown is trusted. The prefix names an image type rather
-// than accepting the `data:` scheme whole, which matches the notebook sanitizer
-// and keeps the widest thing an untrusted file can put in an `<img>` to bytes a
-// decoder will either read as a picture or refuse.
-const LOCAL_IMAGE_DATA_PREFIX = "data:image/";
-
-// This machine's own asset server, which is per-task and local and so the one
-// host an image may be fetched from without TLS. A port is not part of
-// `hostname`, which is why none is named here.
-const LOCAL_IMAGE_HOST_SUFFIX = ".localhost";
-
-// Hosts an image may be fetched from over the network. Loading one is a request
-// that leaves this machine, which is why `allowRemoteImages` exists.
-const REMOTE_IMAGE_HOSTS = new Set(["github.com", "images.google.com"]);
-
-// Subdomains, held apart from the exact hosts above because an image comes from
-// `raw.githubusercontent.com` and never from the bare domain.
-const REMOTE_IMAGE_HOST_SUFFIXES = [".github.com", ".githubusercontent.com"];
-
-/**
- * The URL an absolute `src` spells, or nothing when it spells none.
- *
- * Which host a source names is read from a parsed `hostname` rather than tested
- * against the source string, because a pattern matching the whole URL cannot
- * tell a host from a path: `https://evil.test/x.githubusercontent.com/p.png`
- * reads as the host it names instead of the path it is. Confining such a
- * pattern to the authority is not enough on its own either, since a query or a
- * fragment opens before the first slash does, and
- * `https://evil.test?a=.githubusercontent.com/p.png` walks past that too.
- * `hostname` is the one spelling of a host with nothing else in it to confuse.
- */
-const imageUrl = (src: string): undefined | URL => {
-  try {
-    return new URL(src);
-  } catch {
-    return undefined;
-  }
-};
-
-const isLocalImageHost = (url: URL): boolean =>
-  url.protocol === "http:" && url.hostname.endsWith(LOCAL_IMAGE_HOST_SUFFIX);
-
-const isRemoteImageHost = (url: URL): boolean =>
-  url.protocol === "https:" &&
-  (REMOTE_IMAGE_HOSTS.has(url.hostname) ||
-    REMOTE_IMAGE_HOST_SUFFIXES.some((suffix) => url.hostname.endsWith(suffix)));
-
 const isImageAllowed = (
   src: string | undefined,
   allowRemoteImages: boolean,
-): boolean => {
-  if (!src) {
-    return false;
-  }
-  // Checked before the local-path test below, which would otherwise read the
-  // leading slash of `//host/pixel.png` as a path on this machine and let it
-  // past both allow-lists -- the one place a src could name any host at all.
-  if (src.startsWith("//")) {
-    return false;
-  }
-  if (src.startsWith("/") || src.startsWith("./") || src.startsWith("../")) {
-    return true;
-  }
-  if (src.startsWith(LOCAL_IMAGE_DATA_PREFIX)) {
-    return true;
-  }
-
-  const url = imageUrl(src);
-  if (!url) {
-    return false;
-  }
-  return isLocalImageHost(url) || (allowRemoteImages && isRemoteImageHost(url));
-};
+): boolean =>
+  isImageSourceAllowed(
+    src,
+    allowRemoteImages ? MARKDOWN_IMAGE_KINDS_WITH_REMOTE : MARKDOWN_IMAGE_KINDS,
+  );
 
 // react-markdown's own URL filter drops every `data:` URI before a component
 // ever sees it, so an embedded image silently rendered as nothing -- which is

@@ -271,9 +271,9 @@ describe("session diagnostics", () => {
   it("summarizes persisted session metadata for front matter", () => {
     expect(buildSessionFrontMatter(session)).toMatchInlineSnapshot(`
       {
+        "activeDurationMs": 2000,
         "aiGenerationDurationMs": 2000,
         "assistantMessageCount": 1,
-        "elapsedDurationMs": 4000,
         "messageCount": 4,
         "modelsUsed": [
           {

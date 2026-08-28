@@ -22,6 +22,7 @@
         "FORCE_DEV_AUTO_UPDATE",
         "GLOBAL_AGENT_HTTP_PROXY",
         "HOME",
+        "INSTRUMENT_OZONE_PLATFORM",
         "NODE_ENV",
         "PATH",
         "REMOTE_DEBUGGING_PORT",

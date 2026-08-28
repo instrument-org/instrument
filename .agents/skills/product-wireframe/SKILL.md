@@ -13,14 +13,14 @@ cp .agents/skills/product-wireframe/template.html docs/plans/active/wireframes-<
 
 Name it `wireframes-<topic>.html`.
 
-`docs/plans/**/wireframes-*.html` is gitignored, so the file is a scratch artifact for the conversation that asked for one, not history. Do not link it from a plan: the link resolves on the machine that wrote it and nowhere else, and a doc that points at a file nobody else has is worse than one that does not mention it. Say what the wireframe shows in the plan's own prose, and share the file itself the way Publishing describes. Ask before committing one, which is the exception rather than the finish line.
+`docs/plans/**/wireframes-*.html` is gitignored, so the file is a scratch artifact for the conversation that asked for one, not history. Do not link it from a plan: the link resolves on the machine that wrote it and nowhere else, and a doc that points at a file nobody else has is worse than one that does not mention it. Say what the wireframe shows in the plan's own prose, and share the file itself the way Sharing it describes. Ask before committing one, which is the exception rather than the finish line.
 
-**Copy the template, then edit only the `states` array and the constants above it.** Everything else in the file is machinery, and about two thirds of it is a theme block a script maintains. Writing one of these from scratch means retyping all of that for nothing.
+**Copy the template and work inside the `states` array, the constants above it, and whatever local helpers a flow needs.** The rest is machinery, and about two thirds of it is a theme block a script maintains. Writing one of these from scratch means retyping all of that for nothing.
 
 Four constants sit at the top of the script:
 
 - `VERSION` drives the tab title and a generated favicon badge. Bump it when you revise. Several of these are usually open at once and they are otherwise indistinguishable. The badge is a green square; visual explanations use a dark one, so the two kinds separate in a row of tabs.
-- `SUBTITLE` is a short topic label under the title. Two or three words, not a sentence.
+- `SUBTITLE` is a short topic label under the title, and doubles as the file's one-line description when a set is indexed. A phrase rather than a sentence.
 - `W` and `H` are the default frame size. Individual states can override with `w` and `h`.
 
 The tab title comes from the `h1`, so write a real one and leave the `<title>` placeholder alone.
@@ -31,7 +31,7 @@ Open it when it is written (`open <path>` on macOS). These exist to be looked at
 
 **Draw every frame at the size the thing really is.** A whole Studio window is 1280x800. A settings panel is whatever it actually measures, around 520 wide. Use the ordinary type scale inside it: `text-sm`, `text-xs`, real padding.
 
-The page then measures its own width, works out how many frames fit per row, and scales them with `transform` to match. Tapping one opens it as large as the space around the caption allows, which is why it also works inside a short Notion embed and on a phone. Nothing renders above its true size in the grid.
+The page then measures its own width, works out how many frames fit per row, and scales them with `transform` to match. Tapping one opens it as large as the space around the caption allows, which is why it survives being embedded somewhere short, or read on a phone. Nothing renders above its true size in the grid.
 
 So: never shrink a drawing by hand, never set a scale, and never reach for `text-[9px]` to make something fit. A frame drawn small is small twice, once in the grid and again when it is enlarged.
 
@@ -70,7 +70,7 @@ Two rules for using them:
 
 Use `surface` and a smaller `w`/`h` when a frame is one piece of UI rather than a window. One file can mix both.
 
-This is the same shape as the `wireframe` skill we ship to users, with one difference: that one points at a Tailwind bundle served from the task, which only resolves inside that task. These have to render from a plain file and from a Notion HTML embed, so they load the CDN instead.
+This is the same shape as the `wireframe` skill we ship to users, with one difference: that one points at a Tailwind bundle served from the task, which only resolves inside that task. These have to render from a plain file and from a sandboxed iframe with no build step, so they load the CDN instead.
 
 The tokens are copied into each file, so a script keeps the copy honest:
 
@@ -91,7 +91,7 @@ Corollaries:
 
 - The caption under each frame says **what the frame proves**, not what it depicts. "Nothing is sent by hovering" beats "the thumbs buttons".
 - Every frame is numbered automatically, in the caption and again under the enlarged view. Those numbers are how someone refers to one in conversation, so order the `states` array the way you would talk through it.
-- Put the burden of proof in the middle frame. That is where the reader looks first.
+- Put the burden of proof early rather than last. Someone who stops halfway should already have seen the thing being argued.
 - Draw no chrome that is not in question. No sidebar, title bar, or tab strip unless the proposal is about them.
 
 ## Looking like this product
@@ -126,7 +126,7 @@ It writes `docs/plans/active/wireframes-index.html`, which the same gitignore ru
 
 Write `docs/plans/active/wireframes-index.txt` when the set wants curating. It is the order, and the only way to get headings or better descriptions:
 
-```
+```plaintext
 # Start here
 2026-08-27-the-claim.html | The claim | What the whole proposal rests on
 wireframes-onboarding.html | First run | Launch to a finished artifact without a keystroke
@@ -136,13 +136,13 @@ wireframes-onboarding.html | First run | Launch to a finished artifact without a
 
 The cost is that the index holds copies. Rerun the command after changing any artifact in the set, or it quietly shows the old one.
 
-## Publishing
+## Sharing it
 
-Prefer the file over a picture of it. In Notion, upload it with the `create-attachment` tool and place it with `<embed src="file-upload://...">`, which renders it inline in a sandboxed iframe. It stays legible at any zoom and revising it is a re-upload. Scripts run there, so the frames render and the enlarge-on-click works.
+Most of these never leave the machine that drew them. Someone opens the file, or the index, and that is the whole story.
 
-**Upload through `create-file-upload`, not by passing the file as `content`.** Two reasons, both learned the hard way. A self-contained page carrying `<script>` tags inside a JSON request body trips Cloudflare's rules in front of Notion, and what comes back is an HTML "you have been blocked" interstitial rather than an API error. And `content` makes the model the transport for bytes that must not change, where one dropped character renders a blank embed. So: `create-file-upload` for the URL, `curl -F 'file=@<path>'` to send the bytes straight off disk, then `create-attachment` with `source_file_id`. Nothing retypes the file. Verify with `download-attachment` and `cmp` when the set is large enough that a silent blank would go unnoticed.
+When one does have to travel, send the file rather than a picture of it. It stays legible at any zoom, revising it means re-sending one file, and anywhere scripts are allowed to run the frames render and the enlarged view still works.
 
-When something needs a raster image, screenshot the file with whatever headless browser the machine has. Four things to get right whichever tool that is:
+A raster image is the fallback, for somewhere that will not take HTML. Screenshot the file with whatever headless browser is around, and get four things right whichever tool that is:
 
 - Give the page time to compile. Tailwind builds at runtime here, so a screenshot taken on the load event can catch the page unstyled.
 - Render at 2x device scale, or the text is mushy everywhere it gets embedded.
@@ -150,3 +150,9 @@ When something needs a raster image, screenshot the file with whatever headless 
 - **Read the image back and look at it.** Clipped captions and ragged frame heights are invisible in the HTML and obvious in the picture.
 
 Write images to a scratch directory, not the repo, unless asked to commit one.
+
+### Notion
+
+One destination among others, and the one carrying a gotcha worth writing down. Upload with `create-attachment` and place what it returns with `<embed src="file-upload://...">`, which renders the page inline in a sandboxed iframe.
+
+Send the bytes through `create-file-upload` rather than passing the file as `content`. A self-contained page carrying `<script>` tags inside a JSON body trips Cloudflare's rules in front of Notion and comes back as a block page rather than an API error, and `content` also makes the model the transport for bytes where one dropped character renders a blank embed. So: `create-file-upload` for the URL, `curl -F 'file=@<path>'` to send it straight off disk, then `create-attachment` with `source_file_id`.

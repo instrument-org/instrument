@@ -20,6 +20,7 @@ import { type KeyboardEvent, useEffect, useMemo, useState } from "react";
 import { Button } from "../ui/button";
 import {
   ContextMenu,
+  ContextMenuCheckboxItem,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
@@ -34,7 +35,9 @@ import {
 import { Input } from "../ui/input";
 import { toolbarClassName } from "../ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
-import { tableClipboardItem } from "./table-clipboard";
+import { tableClipboardItem, type TableCopyFormat } from "./table-clipboard";
+import { TABLE_COPY_ALTERNATES } from "./table-copy-formats";
+import { TableCopyMenu } from "./table-copy-menu";
 import { useCopyShortcut } from "./use-copy-shortcut";
 import { ViewerToolbar, ViewerToolbarSpacer } from "./viewer-toolbar";
 
@@ -106,6 +109,11 @@ export function DataGrid({
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
+  // Whether a copy of part of the grid carries the column names. On for the
+  // formats that are unreadable without them, and a setting rather than a
+  // second row of menu items, which is what the pair of Copy entries this
+  // replaced had become.
+  const [copyHeaders, setCopyHeaders] = useState(true);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>({});
   const [selection, setSelection] = useState<null | {
@@ -243,13 +251,23 @@ export function DataGrid({
     return block;
   };
 
+  // Everything the reader can currently see, headers first: the sort and the
+  // filter they set up are part of what they are copying, and a hidden column
+  // is one they have said they do not want.
+  const readTable = () => [
+    visibleColumns.map((column) => columns[Number(column.id)]?.name ?? ""),
+    ...visibleRows.map((record) =>
+      visibleColumns.map((column) => String(record.getValue(column.id) ?? "")),
+    ),
+  ];
+
   // The grid is a stack of divs rather than a real table, and text selection is
   // off across it, so the browser has no selection of its own to copy and its
   // menu would offer nothing. Both the shortcut and the menu below are what
   // make a selection reachable at all.
   useCopyShortcut({
     container: grid,
-    onCopy: () => copyBlock(readSelection(false)),
+    onCopy: () => copyBlock(readSelection(copyHeaders)),
   });
 
   const extendTo = (position: CellPosition, extend: boolean) => {
@@ -358,6 +376,11 @@ export function DataGrid({
           }}
           placeholder="Filter rows"
           value={globalFilter}
+        />
+        <TableCopyMenu
+          onCopy={(format) => {
+            copyBlock(readTable(), format);
+          }}
         />
         <ColumnMenu columns={columns} table={table} />
       </ViewerToolbar>
@@ -473,19 +496,33 @@ export function DataGrid({
             <ContextMenuItem
               disabled={!selectedRange}
               onSelect={() => {
-                copyBlock(readSelection(false));
+                copyBlock(readSelection(copyHeaders));
               }}
             >
-              Copy
+              Copy selection
             </ContextMenuItem>
-            <ContextMenuItem
-              disabled={!selectedRange}
-              onSelect={() => {
-                copyBlock(readSelection(true));
+            {TABLE_COPY_ALTERNATES.map(({ format, label }) => (
+              <ContextMenuItem
+                disabled={!selectedRange}
+                key={format}
+                onSelect={() => {
+                  copyBlock(readSelection(copyHeaders), format);
+                }}
+              >
+                {label}
+              </ContextMenuItem>
+            ))}
+            <ContextMenuCheckboxItem
+              checked={copyHeaders}
+              onSelect={(event) => {
+                // Kept open: this is a setting for the item the reader is
+                // about to pick, not an action of its own.
+                event.preventDefault();
+                setCopyHeaders(!copyHeaders);
               }}
             >
-              Copy with headers
-            </ContextMenuItem>
+              Include headers
+            </ContextMenuCheckboxItem>
             <ContextMenuSeparator />
             <ContextMenuItem
               onSelect={() => {
@@ -652,12 +689,12 @@ function containsText(
  * to write. The caller uses that answer to decide whether it has handled the
  * keystroke or should let the browser have it.
  */
-function copyBlock(block: null | string[][]) {
+function copyBlock(block: null | string[][], format?: TableCopyFormat) {
   if (!block || block.length === 0) {
     return false;
   }
   navigator.clipboard
-    .write([tableClipboardItem(block)])
+    .write([tableClipboardItem(block, format)])
     .catch((error: unknown) => {
       logger.error("Copying the selection failed", error);
     });

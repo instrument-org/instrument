@@ -37,11 +37,13 @@ Grouped by area; status is the short form of each file's own line.
 | [`download` never restores download behavior](agent-browser-download-behavior-not-reset.md) | open |
 | [Snapshot refs die on the idle timeout](agent-browser-ref-map-idle-ttl.md) | open |
 | [App reload destroys every task browser](app-reload-destroys-the-task-browser.md) | contained |
+| [`target=_blank` links are dead clicks](blank-target-links-are-dead-clicks.md) — the open is denied before a tab exists, so nothing happens and nothing says so | fixed, pending real tabs |
 | [CDP keyboard input follows window focus](cdp-keyboard-input-follows-window-focus.md) | mitigated by a focus gate |
 | [The guest's raster surface is capped at 1.3x the viewport](browser-guest-raster-cap.md) — Blink's compositing rect; past it captures crop invisibly | open, traced to source |
 | [Device/viewport emulation is not safe](in-app-browser-device-emulation.md) | superseded; the guest is resized instead |
 | [Full-page screenshots are not supported](in-app-browser-full-page-screenshots.md) | open, workaround in place |
 | [HTML artifacts: in-iframe navigation](html-artifact-iframe-navigation.md) | open, minimal reset shipped |
+| [WebMCP readiness](webmcp-agent-browser-readiness.md) — calling a third-party site's own tools; probed, blocked on Electron 44 | open, not implemented |
 
 ### Renderer and layout
 
@@ -50,6 +52,7 @@ Grouped by area; status is the short form of each file's own line.
 | [CSS zoom: rect px vs layout px](css-zoom-rect-vs-layout-px.md) — the mismatch that breaks scroll and virtualization at zoom != 1 | guidance |
 | [Leaking z-index stacks](leaking-z-index-stacks.md) | resolved; rule stands |
 | [The transcript column jumps while a turn runs](transcript-column-jumps-while-a-turn-runs.md) | open, instrumented not diagnosed |
+| [Wide tables widen the transcript](wide-tables-widen-the-transcript.md) — a Markdown table with nowhere to scroll takes the conversation with it | resolved |
 | [What marks a renderer hidden](electron-page-visibility.md) — and what does not | resolved, guidance |
 | [Task file links resolve at render time](task-file-links-resolve-at-render-time.md) | resolved |
 | [Task attention state must be persisted](task-attention-state-persistence.md) — not derived from live status | open, design guidance |
@@ -61,7 +64,8 @@ Grouped by area; status is the short form of each file's own line.
 | [Quit teardown can livelock](quit-teardown-can-livelock-the-app.md) — and every guard on that path is blind to it | open |
 | [A quit confirmation outlives the window](quit-confirmation-outlives-the-window.md) — Windows/Linux ordering | resolved, guidance |
 | [An update check un-stages the macOS build](update-check-un-stages-the-macos-build.md) | resolved |
-| [A deb update can leave the package unconfigured](deb-update-left-the-package-unconfigured.md) | open, one occurrence |
+| [A deb update can leave the package unconfigured](deb-update-left-the-package-unconfigured.md) | fixed, verified |
+| [Dragging a file out does not cross from XWayland to Wayland](drag-out-does-not-cross-xwayland.md) — the ozone pin, and what it costs to drop | open, diagnosed |
 | [Main log retention and transport](main-log-retention-and-transport.md) | partly addressed |
 | [Windows long paths in the task directory](windows-long-paths.md) | open |
 | [A watchman probe froze boot on Windows](windows-watchman-probe-freezes-boot.md) | resolved |

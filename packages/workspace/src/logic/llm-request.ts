@@ -87,6 +87,17 @@ export const llmRequestLogic = fromPromise<
     role: "assistant",
   };
 
+  // Stamped when the request goes out, so a turn that ends by abort or error
+  // can still report the time it spent generating. Absent until then: a turn
+  // stopped before its request left spent none.
+  let requestStartedAtMs: number | undefined;
+
+  function msSinceRequestStart() {
+    return requestStartedAtMs === undefined
+      ? undefined
+      : getCurrentDate().getTime() - requestStartedAtMs;
+  }
+
   function saveAbortMessage() {
     assistantMessage.metadata.error = {
       kind: "aborted",
@@ -94,6 +105,7 @@ export const llmRequestLogic = fromPromise<
     };
     assistantMessage.metadata.finishedAt = getCurrentDate();
     assistantMessage.metadata.finishReason = "aborted";
+    assistantMessage.metadata.msToFinish ??= msSinceRequestStart();
     void scopedStore.saveMessage(assistantMessage);
   }
 
@@ -207,7 +219,7 @@ export const llmRequestLogic = fromPromise<
 
     const aiSDKModel = aiSDKModelResult.value;
 
-    const startTimestampMs = getCurrentDate().getTime();
+    requestStartedAtMs = getCurrentDate().getTime();
     const result = streamText({
       abortSignal: signal,
       maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
@@ -244,9 +256,9 @@ export const llmRequestLogic = fromPromise<
           throw part.error;
         }
         case "finish": {
-          msToFinish = getCurrentDate().getTime() - startTimestampMs;
+          msToFinish = msSinceRequestStart();
           const completionTokensPerSecond =
-            part.totalUsage.outputTokens && msToFinish > 0
+            part.totalUsage.outputTokens && msToFinish
               ? (part.totalUsage.outputTokens / msToFinish) * 1000
               : undefined;
           assistantMessage.metadata.usage = part.totalUsage;
@@ -264,7 +276,7 @@ export const llmRequestLogic = fromPromise<
             finish_reason: part.finishReason,
             input_tokens: part.totalUsage.inputTokens ?? 0,
             modelId,
-            ms_to_finish: msToFinish,
+            ms_to_finish: msToFinish ?? 0,
             ms_to_first_chunk: msToFirstChunk ?? 0,
             output_tokens: part.totalUsage.outputTokens ?? 0,
             providerId,
@@ -402,7 +414,7 @@ export const llmRequestLogic = fromPromise<
 
         case "start-step": {
           // We only run one step, so this is covered by "start"
-          msToFirstChunk ??= getCurrentDate().getTime() - startTimestampMs;
+          msToFirstChunk ??= msSinceRequestStart();
           break;
         }
         case "text-delta": {
@@ -785,6 +797,7 @@ export const llmRequestLogic = fromPromise<
     }
 
     assistantMessage.metadata.finishedAt = getCurrentDate();
+    assistantMessage.metadata.msToFinish ??= msSinceRequestStart();
     await scopedStore.saveMessage(assistantMessage);
   }
 

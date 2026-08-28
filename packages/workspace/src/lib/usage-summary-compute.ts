@@ -9,6 +9,7 @@ import { isToolPart } from "./is-tool-part";
 // already holds (see usage-summary.ts for the DB-loading variant).
 
 export const UsageSummarySchema = z.object({
+  activeMs: z.number(),
   inputTokenDetails: z.object({
     cacheReadTokens: z.number(),
     cacheWriteTokens: z.number(),
@@ -62,6 +63,7 @@ const ToolPartTimingSchema = z
 
 export function emptyUsageSummary(): UsageSummary {
   return {
+    activeMs: 0,
     inputTokenDetails: {
       cacheReadTokens: 0,
       cacheWriteTokens: 0,
@@ -107,6 +109,7 @@ export function getUsageSummaryFromMessages(
   );
 
   return {
+    activeMs: getActiveMs(assistantMessages),
     inputTokenDetails: {
       cacheReadTokens: sum(assistantMessages, (m) =>
         finite(m.metadata.usage?.inputTokenDetails.cacheReadTokens),
@@ -145,6 +148,58 @@ export function getUsageSummaryFromMessages(
   };
 }
 
+// A tool call ends after the request that asked for it, and a part written by a
+// build whose schema differed can carry anything where a date belongs, so a
+// span reaches the furthest real date rather than trusting one field to be the
+// last word.
+function extendedTo(end: number, date: unknown) {
+  return date instanceof Date && date.getTime() > end ? date.getTime() : end;
+}
+
 function finite(value: number | undefined): number {
   return value !== undefined && Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * Wall-clock time the task spent working, as against `msToFinish`, which counts
+ * only what the models spent streaming. A step's span runs from the request to
+ * the last thing it finished, so the tool calls it made are inside it.
+ *
+ * Spans are merged rather than added, which is what makes this readable at the
+ * task level: a subagent session runs alongside the turn that started it and
+ * would otherwise be counted twice, and the hours a task sits between prompts
+ * belong to no span and are counted not at all.
+ */
+function getActiveMs(assistantMessages: SessionMessage.AssistantWithParts[]) {
+  const spans: { end: number; start: number }[] = [];
+
+  for (const message of assistantMessages) {
+    const start = message.metadata.createdAt.getTime();
+    let end = extendedTo(start, message.metadata.endedAt);
+    end = extendedTo(end, message.metadata.finishedAt);
+    for (const part of message.parts) {
+      end = extendedTo(end, part.metadata.endedAt);
+    }
+
+    if (end > start) {
+      spans.push({ end, start });
+    }
+  }
+
+  spans.sort((a, b) => a.start - b.start);
+
+  let total = 0;
+  let open: undefined | { end: number; start: number };
+  for (const span of spans) {
+    if (open && span.start <= open.end) {
+      open.end = Math.max(open.end, span.end);
+      continue;
+    }
+    if (open) {
+      total += open.end - open.start;
+    }
+    open = { ...span };
+  }
+
+  return open ? total + (open.end - open.start) : total;
 }

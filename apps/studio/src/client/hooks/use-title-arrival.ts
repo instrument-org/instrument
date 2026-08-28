@@ -46,17 +46,26 @@ export function markTitleRenamedByUser(id: TaskId, title: string): void {
  * element draws is not arriving, which is what keeps a virtualized row
  * scrolling back into view, or a task page reopened in another tab, from
  * replaying a name that settled long ago.
+ *
+ * Nor by a change of task. One element outlives the task it was drawn for --
+ * the header stays mounted across a task switch, and a list row can be handed
+ * a different task -- and the name that lands in it then has been that task's
+ * all along, however new it is to the element showing it.
  */
 export function useTitleArrival(
   id: TaskId,
   title: string,
 ): { className: string | undefined; onAnimationEnd: () => void } {
-  const [renderedTitle, setRenderedTitle] = useState(title);
+  const [rendered, setRendered] = useState({ id, title });
   const [arrivingTitle, setArrivingTitle] = useState<null | string>(null);
 
-  if (renderedTitle !== title) {
-    setRenderedTitle(title);
-    setArrivingTitle(titlesRenamedByUser.get(id) === title ? null : title);
+  if (rendered.id !== id || rendered.title !== title) {
+    setRendered({ id, title });
+    setArrivingTitle(
+      rendered.id !== id || titlesRenamedByUser.get(id) === title
+        ? null
+        : title,
+    );
   }
 
   return {

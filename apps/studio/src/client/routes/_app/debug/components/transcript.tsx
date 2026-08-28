@@ -405,8 +405,8 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
           defaultScrollPosition="end"
         >
           <MessageScroller className="min-h-0 flex-1">
-            <MessageScrollerViewport>
-              <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8">
+            <MessageScrollerViewport className="@container/transcript">
+              <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]">
                 <Profiler
                   id="transcript"
                   onRender={(_id, _phase, actualDuration) => {

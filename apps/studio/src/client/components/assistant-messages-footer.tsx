@@ -291,11 +291,12 @@ export function AssistantMessagesFooter({
             <UsageStatsTooltip
               messageCount={usageSummary.messageCount}
               stats={{
+                activeDuration: usageSummary.activeMs,
+                generationDuration: usageSummary.msToFinish,
                 inputTokenDetails: usageSummary.inputTokenDetails,
                 inputTokens: usageSummary.inputTokens,
                 outputTokenDetails: usageSummary.outputTokenDetails,
                 outputTokens: usageSummary.outputTokens,
-                totalDuration: usageSummary.msToFinish,
                 totalTokens: usageSummary.totalTokens,
               }}
             >

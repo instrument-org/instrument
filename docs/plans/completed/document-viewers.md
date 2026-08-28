@@ -1,8 +1,8 @@
 # Document viewers
 
-Status: **completed**. The five document formats landed via PR #87; the data and container formats, the shared grid, and the range-read archive path via PR #88 (`9659bc76e`). Kept for the engine, format and dependency rationale below, none of which the code states. The follow-ons it names are still open: thumbnails split out into [document-thumbnails.md](../active/document-thumbnails.md), and a custom SQL box, CSV export of a selection, multi-column sort and `.eml` were all deliberately left undone.
+Status: **completed**. The five document formats landed via PR #87; the data and container formats, the shared grid, and the range-read archive path via PR #88 (`9659bc76e`); the notebook viewer via PR #92. Kept for the engine, format and dependency rationale below, none of which the code states. The follow-ons it names are still open: thumbnails split out into [document-thumbnails.md](../active/document-thumbnails.md), and a custom SQL box, CSV export of a selection, multi-column sort and `.eml` were all deliberately left undone.
 
-Give the artifact panel real viewers for the document formats people open in a task — PDF, DOCX, PPTX, XLSX, CSV — replacing the `<iframe>` PDF preview and the "preview unavailable" card. Read-only, no editing.
+Give the artifact panel real viewers for the document formats people open in a task — PDF, DOCX, PPTX, XLSX, CSV, and Jupyter notebooks — replacing the `<iframe>` PDF preview and the "preview unavailable" card. Read-only, no editing.
 
 The `<iframe>` does render PDFs; the problem is that it is an opaque cross-origin frame, so Studio has no control over zoom, page navigation, thumbnails, theme, or find, and cannot integrate any of it with the app's own chrome.
 
@@ -83,7 +83,7 @@ Converting everything to PDF with a bundled headless office suite and shipping o
 
 ## Scope
 
-Five read-only viewers, each with page/slide navigation and zoom, text selection and copy, find-in-document, and a page thumbnail rail where the format has pages.
+Six read-only viewers. All of them have text selection and copy; the paged formats add page or slide navigation and a thumbnail rail, zoom is for the formats whose content does not reflow (CSV and notebooks have none — they are DOM text the window's own zoom already scales), and find is per format as the table records. The table below covers the five that came first; notebooks are their own section beneath it, since almost none of its rows say anything about them.
 
 | | PDF | DOCX | PPTX | XLSX | CSV/TSV |
 | --- | --- | --- | --- | --- | --- |
@@ -115,6 +115,31 @@ The recompute is coalesced to one per frame and applied only when the level move
 PPTX fit needs the level computed here rather than `controller.setFitMode`. `zoom` is a controlled prop on `ReactPptxViewer`, so whatever the library resolves for a fit mode is overwritten on the next render by our number; the fit has to be our number. The slide's natural width comes from the deck's own `size.widthEmu`, EMUs being OOXML's unit, over 9525 per pixel.
 
 CSV/TSV gets a viewer we own outright, on `@tanstack/react-virtual` — already a Studio dependency — plus `papaparse` for RFC 4180 parsing, which is the only new dependency in this row. Routing CSV through the XLSX stack is not available: that worker only accepts zipped workbook bytes via `Workbook.fromBytes`.
+
+### Notebooks
+
+`.ipynb` is the one format in this set with no engine at all, because a notebook is JSON and Studio already owns every renderer it needs: markdown cells go through the transcript's own `SessionMarkdown`, code cells through the same `useSyntaxHighlighting` Shiki hook `CodeBlock` uses, and the chrome is the shared `ViewerToolbar` and `ViewerSurface`. The npm notebook renderers are all JupyterLab-derived — a rendermime registry, a widget manager, and a kernel connection, for a static view that wants none of them.
+
+What that leaves is four files rather than a viewer over a library: the parsing in `notebook-format.ts`, the cell and output rendering in `notebook-viewer.tsx`, the HTML sanitizer in `notebook-html.tsx`, and find in `use-find-highlights.ts`. Each of the four sections below belongs to one of them.
+
+Read-only and static: no kernel, no execution, no editing, and no widget rendering. A widget output degrades to the `text/plain` fallback notebooks carry for exactly that case.
+
+Four things about the format are worth stating once, because each one is invisible until it is wrong:
+
+- **`source` and `text` are a string or an array of lines.** Both spellings appear in files from the same tool, so nothing may read either as a string.
+- **nbformat 3 is supported, not half-supported.** Its `worksheets`, `input`, `prompt_number`, `pyout`/`pyerr`, flat mime keys, and `heading` cells are all normalized into the nbformat 4 shape at the edge, so nothing downstream carries a second code path. Anything older fails cleanly to the fallback card.
+- **Tracebacks are ANSI.** They are parsed into styled segments rather than stripped, which keeps the color that makes a traceback readable, and consumes the cursor-movement sequences a progress bar leaves behind rather than printing them. Stream chunks are merged and carriage returns collapsed for the same reason: a `tqdm` bar is stored as every frame it ever drew.
+- **Mime precedence is not JupyterLab's.** Images rank above `text/html` here, the reverse of JupyterLab, because JupyterLab can run the scripts an HTML bundle carries and we cannot.
+
+That last point is the one real trade. `text/html` is how a pandas DataFrame and an interactive plot both arrive, so dropping it would lose the most useful output in most notebooks — but it is arbitrary markup from an untrusted file. It is parsed inert with `DOMParser`, walked against an allow-list, and rebuilt as React elements; `class` and `style` are dropped along with `<script>`, `<style>`, and inline `<svg>`, because this app is styled by Tailwind class names and markup that can name them is markup that can paint itself over the app.
+
+The sandboxed iframe the HTML file type uses was the alternative, and it does not work here: a frame loaded from `data:`, `blob:`, or `srcdoc` inherits the embedder's CSP, so the renderer's `script-src` blocks its inline scripts exactly as it blocks ours. It would buy no script execution while costing find, theme, and any way to measure its own height. So a script-driven figure degrades — to its `image/png` bundle where the library emitted one, and to `text/plain` where it did not.
+
+Find is the viewer's own, over the CSS Custom Highlight API. A notebook's text is spread across rendered markdown, Shiki output, and sanitized HTML, none of which we can wrap a `<mark>` inside without rebuilding those renderers; highlights paint over live `Range`s instead. The ranges are built from the concatenated text of every text node, because syntax highlighting puts each token in its own element and a per-node search would fail on any query longer than one token. Registry names are per instance, since the artifact panel and the expand modal can each hold a viewer on the same file. What is searched is what is painted — text in a `display: none` subtree is skipped, so the readout never counts past the highlights on screen — and since the execution-count gutter is shown by a container query, the ranges are rebuilt on a width change as well as on a mutation. A container query flipping changes no DOM, so nothing else would notice.
+
+Markdown cells go through the shared `Markdown` component with `allowRemoteImages={false}`, which is new: a notebook is a file someone else wrote, and an `<img>` on a remote host is a request the moment the file is opened, with no click in front of it. A notebook loses nothing by it, because its own pictures are embedded — either as an output bundle or as a cell attachment inlined into the source as a `data:` URI. Getting that second path to actually reach the page took a `urlTransform` on `ReactMarkdown`: its default one drops every `data:` URI before a component sees it, so attachments rendered as nothing. The transform hands them back for `<img>` alone and leaves the app's own image allow-list as the single thing deciding — a `data:` *link* still goes on the floor, since clicking one passes the URI to the OS, and so does a `data:` src on anything but an `<img>`. That allow-list now names an image type (`data:image/`) rather than accepting the scheme whole, matching the notebook sanitizer: since every consumer of the shared renderer gains embedded images at once, the widest thing any of them can put on the page should be bytes a decoder will either read as a picture or refuse.
+
+Like CSV, the notebook viewer has no zoom control: it is plain DOM text that the window's own zoom already scales.
 
 ### Explicitly out
 
@@ -187,12 +212,16 @@ Groups within the toolbar are spaced apart rather than ruled apart. The zoom ste
 apps/studio/src/client/components/document-viewers/
   csv-viewer.tsx
   docx-viewer.tsx
+  notebook-viewer.tsx
   pdf-viewer.tsx
   pptx-viewer.tsx
   xlsx-viewer.tsx
+  notebook-format.ts      .ipynb parsing and normalization, pure
+  notebook-html.tsx       allow-listed HTML output, rebuilt as React elements
   viewer-toolbar.tsx      shared toolbar controls
   viewer-surface.tsx      error/suspense boundary + thumbnail rail frame
   use-copy-shortcut.ts    Cmd/Ctrl+C for engine-held selections
+  use-find-highlights.ts  find over rendered DOM, for the notebook viewer
   use-fit-width.ts        fit-to-container zoom, shared by DOCX and PPTX
 apps/studio/src/client/lib/
   document-viewers.ts     wasm sources + lazy handles
@@ -354,6 +383,7 @@ Per `.agents/skills/validate-changes/SKILL.md`, none of this is observable from 
 - A large file per format (a 500-page PDF, a workbook with many sheets) for the virtualization and memory paths.
 - A DOCX whose sections change page size, portrait to landscape. `revealPage` estimates a distant jump from `layout.pageHeightPx`, which describes the first section alone, so a mixed-size document accumulates error with every page crossed. The correction after the jump only waits for the target to mount at that offset; it does not re-aim, so an estimate that lands outside the target's virtualized window gives up on the wrong page. Fixing it means re-estimating from the nearest mounted page until it converges, which wants such a document in hand to test against.
 - A malformed file per format, to confirm the `CatchBoundary` degrades to the fallback card rather than taking down the panel.
+- For notebooks specifically, real files rather than generated ones: one with matplotlib plots, one with a pandas DataFrame, one with a traceback, one with a `tqdm` progress bar, and one saved as nbformat 3. The parsing is covered by `notebook-format.test.ts`; what a running app adds is whether the sanitized HTML output reads correctly in both themes, whether find reaches text inside rendered markdown and Shiki output, and whether the gutter collapses rather than crowds when the panel is narrow.
 - For PDF specifically, a corpus of awkward real-world documents rather than only generated ones: a scan, a filled government form, a CJK document, something from an old generator. Robust compatibility with whatever a user brings is why pdfium was chosen, so it is the thing to actually check, and the thing that would reopen the engine decision if it went badly.
 - iWork files across the three apps and several versions. The preview member is whatever the authoring app last wrote, so the cases worth finding are a document saved by a version old enough to write none, one saved on iOS rather than macOS, and a password-protected document, whose preview may be encrypted along with the payload.
 - An archive with thousands of members, one with paths deep enough to truncate in the listing, and one written on Windows, whose separators and filename encoding differ from the macOS-written archives to hand.

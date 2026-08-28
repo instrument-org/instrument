@@ -21,8 +21,18 @@ describe("getFileType", () => {
     ["data.csv", "csv"],
     ["data.tsv", "csv"],
     ["scan.pdf", "pdf"],
+    ["analysis.ipynb", "notebook"],
   ] as const)("maps %s to %s", (filename, expected) => {
     expect(getFileType({ filename })).toBe(expected);
+  });
+
+  // A notebook is JSON, so without the mime route it would land in the syntax
+  // highlighter as soon as the extension were missing or unusual.
+  it.each([
+    ["analysis", "application/x-ipynb+json"],
+    ["analysis.ipynb", "application/json"],
+  ] as const)("routes %s (%s) to the notebook viewer", (filename, mimeType) => {
+    expect(getFileType({ filename, mimeType })).toBe("notebook");
   });
 
   it("routes delimited files to the grid rather than the text highlighter", () => {
@@ -125,6 +135,7 @@ describe("types a viewer exists for", () => {
     ["model.xlsx", "xlsx"],
     ["data.csv", "csv"],
     ["scan.pdf", "pdf"],
+    ["analysis.ipynb", "notebook"],
     ["archive.zip", "archive"],
     ["notes.db", "sqlite"],
     ["notes.sqlite", "sqlite"],

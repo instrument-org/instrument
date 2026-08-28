@@ -1,6 +1,6 @@
 # A deb update can leave the package unpacked but not configured
 
-**Status:** open, no fix. One occurrence upgrading 1.6.1 to 1.6.2 on a Linux test host, 2026-08-26. A partial reproduction the next day established how the install behaves and why it leaves no trace, which narrows the unknown to what ended the app that day. Last updated 2026-08-27.
+**Status:** fixed and verified in a shipped build. One occurrence upgrading 1.6.1 to 1.6.2 on a Linux test host, 2026-08-26, reproduced end to end the next day, fixed by moving the install into a transient systemd scope, and confirmed across two betas on 2026-08-28. What performed the teardown during the original incident was never established and is no longer load-bearing. Last updated 2026-08-28.
 
 ## Why an unconfigured package cannot start
 
@@ -33,7 +33,7 @@ The updater ran its install, dpkg unpacked the new version, and the package was 
 
 electron-updater's `DebUpdater` runs `dpkg -i <deb>` through `pkexec`, and catches a failure by running `apt-get install -f -y`. That catch is real: `spawnSyncLog` throws when the command exits non-zero, so a clean dpkg failure is covered. It did not run here, so dpkg did not report failure to the updater.
 
-The install itself is driven from electron-updater's quit handler, inside the exiting app process. On Linux, `installStagedUpdate` in [`update.ts`](../../apps/studio/src/electron-main/lib/update.ts) deliberately avoids `quitAndInstall()` and calls `app.quit()`, letting that handler apply the staged build. The privileged `dpkg` is therefore a child of a process on its way out, inside the desktop's application scope. When that scope was released the transaction was still unconfigured, and the root `pkexec` session never logged a clean close.
+At the time, the install was driven from electron-updater's quit handler, inside the exiting app process: `installStagedUpdate` in [`update.ts`](../../apps/studio/src/electron-main/lib/update.ts) avoided `quitAndInstall()` and called `app.quit()`, letting that handler apply the staged build. The privileged `dpkg` was therefore a child of a process on its way out, inside the desktop's application scope. When that scope was released the transaction was still unconfigured, and the root `pkexec` session never logged a clean close.
 
 ## What a reproduction showed
 
@@ -41,7 +41,7 @@ Driving a real 1.6.3 to 1.6.4 update on the same host, through the same RPCs the
 
 **The install needs a human.** It runs `pkexec --disable-internal-agent /bin/bash -c 'dpkg -i <staged deb>'`, which raises an interactive authentication prompt on the desktop. Nothing proceeds until someone answers it.
 
-**The app is frozen for the whole install.** `spawnSync` blocks the main thread from the moment the install starts, including while the prompt waits. RPC and CDP both stop answering. This is the reason the product's Linux install notice tells the user to ignore any "Force quit" dialogs, and the reason a user watching a frozen window might reasonably kill it.
+**The app is frozen for the whole install.** `spawnSync` blocks the main thread from the moment the install starts, including while the prompt waits. RPC and CDP both stop answering. That freeze is why the Linux install notice used to tell users to ignore any "Force quit" dialogs, and why a user watching a frozen window might reasonably kill it. The dialog was seen directly on 2026-08-28, during an update performed by a build predating the fix.
 
 **A blocked main thread writes no log.** The line logged immediately before the install, `Quitting to install the staged update`, never reached the log file, because the thread blocked before it flushed. That accounts for the original occurrence's silence, which had looked like evidence the install never started.
 
@@ -49,19 +49,32 @@ Driving a real 1.6.3 to 1.6.4 update on the same host, through the same RPCs the
 
 Together those give a mechanism that fits every observation: the app freezes, something ends it while dpkg is partway through, dpkg dies inside the same cgroup with the package unpacked and the profile removed, and electron-updater's `apt-get install -f -y` fallback never runs because the process that would have caught the failure is gone.
 
+## Reproduced
+
+With someone at the desktop to answer the authentication prompt, an attended run of a real 1.6.3 to 1.6.4 update reproduced the incident exactly. A watcher tore down the app's cgroup 80 milliseconds after dpkg finished unpacking, killing all eight processes it held including the root dpkg.
+
+What that left:
+
+- `dpkg -s` reporting `install ok half-configured` rather than `installed`
+- `/etc/apparmor.d/instrument` gone, and no `instrument` profile loaded
+- launching the app failing with the same `setuid_sandbox_host.cc:166` FATAL, dumping core
+- a fresh crash report carrying `Signal: 5` / `SIGTRAP`, the same signature as the original
+
+The one difference from the incident is `half-configured` rather than `unpacked`, because the teardown landed a fraction of a second later, after dpkg had entered its configure step. The consequence is identical, and `sudo dpkg --configure instrument` recovered it in both cases.
+
+So killing the app mid-transaction is sufficient on its own. Nothing more exotic is needed to produce the incident state.
+
 ## What could not be determined
 
-What ended the app that day. Force-quitting a frozen window fits, and so does anything else that kills the process group, but nothing in the surviving logs names it.
-
-Completing the reproduction needs someone at the physical desktop to answer the authentication prompt, so it stopped there rather than bypassing polkit.
+What performed the teardown that day. Force-quitting a frozen window fits, and so does anything else that ends the process group, but nothing in the surviving logs names it. That is now the only open part of the chain.
 
 Two things are ruled out. Unmet dependencies: the two bare names in `Depends` that look missing on Ubuntu 24.04 (`libgtk-3-0`, `libatspi2.0-0`) resolve through the `t64` renames via `Provides`. And a clean dpkg failure: that path is covered by the fallback, which did not run.
 
 ## A second problem the reproduction exposed
 
-`installStagedUpdate` spawns a detached watcher that relaunches the app as soon as the old process exits. During the reproduction the old process was ended while the install was still waiting for authentication, and the watcher immediately started a fresh instance of the **old** version. Had the prompt then been answered, dpkg would have been rewriting the installation under a running app.
+The detached watcher relaunched the app as soon as the old process exited. During the reproduction the old process was ended while the install was still waiting for authentication, and the watcher immediately started a fresh instance of the **old** version. Had the prompt then been answered, dpkg would have been rewriting the installation under a running app.
 
-The watcher waits on the previous process, which is not the same thing as waiting on the install.
+Waiting on the previous process is not the same thing as waiting on the install. Squirrel.Mac carries the same race, guarded upstream in [electron#36130](https://github.com/electron/electron/pull/36130) by refusing to install while the app is running. The fix below relaunches only after the install returns, and only when no instance is already up.
 
 ## Why the obvious guards do not help
 
@@ -69,11 +82,44 @@ The watcher waits on the previous process, which is not the same thing as waitin
 - Switching to `apt-get install ./file.deb` changes the command but not its lifetime.
 - Recovering at the next startup is impossible, because the broken state is exactly the state in which the app cannot start.
 
-## What might resolve it
+## The fix
 
-Run the privileged install detached from the app's lifetime, the way the Linux relaunch already is, and chain the fallback into the same shell so a partial transaction gets completed rather than abandoned. Detaching also lets the app stop blocking its main thread for the duration, which removes the frozen window that invites the kill in the first place, and gives the relaunch something to wait on other than the old process.
+`installStagedUpdate` writes a shell script and starts it detached, then sets `autoInstallOnAppQuit` to false so electron-updater does not also run an install from its quit handler. The script re-runs itself under `systemd-run --user --scope`, waits for the app's process to exit, runs `dpkg -i <deb> || apt-get install -f -y` through `pkexec`, and relaunches only if no instance is already up. The staged path comes from the `update-downloaded` event rather than being rebuilt from the cache-directory name, which the running app and the build it is updating from do not always agree on.
 
-That is a change to the most dangerous path in the product, and verifying it needs a real end-to-end update on a Linux host rather than a unit test. Note that such a test cannot run unattended: the authentication prompt needs a person at the desktop.
+Because all of that happens after the process that asked for it has exited, none of it can reach that session's log, and a failed update would otherwise be silent. The script writes to `last-update-install.log` in the user data directory, and the next start logs it once and removes it. A completed run reads:
+
+```text
+=== 2026-08-27T16:34:54-05:00 install starting, args:
+=== 2026-08-27T16:34:55-05:00 install starting, args: --scoped
+waiting for pid 44214 to exit
+Unpacking instrument (1.6.4) over (1.6.4) ...
+Setting up instrument (1.6.4) ...
+install exited 0
+relaunching
+=== 2026-08-27T16:36:00-05:00 finished
+```
+
+The two `install starting` lines are the scope handoff, so the mechanism this finding is about is visible in the record rather than inferred from its absence.
+
+The mechanism has to be a transient scope, not `detached`. Node's `detached: true` is `setsid`, which makes a new session and not a new cgroup, so systemd still takes the child down with the app. Both halves were measured: a setsid child died with the app's scope, and a `systemd-run --user --scope` child survived it. Three preconditions were checked and hold inside such a scope: `NoNewPrivs` stays `0` so pkexec still works, the authentication prompt still reaches the desktop, and the caller's environment survives the re-exec, which is what the relaunch needs to find a display.
+
+This is the shape the other platforms already use. Squirrel.Mac installs from ShipIt, a separate helper that waits for the app to terminate; Linux was the outlier only because electron-updater installs inline on quit.
+
+## What the fix was tested against
+
+Before it shipped, the generated script was run on a host against the real staged package with the app's cgroup torn down mid-flight. It survived in its own scope, carried the transaction through to `status installed`, restored the AppArmor profile, and relaunched the app. Under the previous shape that same teardown left the installation unstartable.
+
+Then the real thing, on 2026-08-28, over two betas. The first update was performed by a build predating the fix and froze the window, raising Ubuntu's "not responding" dialog: the behavior being removed, observed directly rather than inferred. The second was performed by the new code and did not.
+
+Measured across the second install:
+
+- the app **exited about a second** after the install was requested, rather than staying alive and unresponsive
+- the installer re-execed into its own `run-*.scope`, out of the app's cgroup
+- the app stayed closed for 24 minutes while the authentication prompt went unanswered, and nothing broke
+- dpkg reached `status installed`, the AppArmor profile stayed, no crash report was written
+- the relaunch came back on its own, read the install log, wrote it to the app log, and removed it
+
+That last point matters beyond this finding: the outcome of a Linux update is now visible in an ordinary log, which is what makes the next failure diagnosable from a user's log rather than from a reconstruction.
 
 ## Recognizing it
 

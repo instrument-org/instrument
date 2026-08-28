@@ -1,5 +1,6 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
+import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 import { useState } from "react";
@@ -29,6 +30,7 @@ export function FilePreviewListItem({
   const fileType = getFileType(file);
   const { url } = file;
   const [imageLoadError, setImageLoadError] = useState(false);
+  const dragProps = useFileDrag(file);
   const fileActions = useFileActionVisibility(file);
   const hasFileActions =
     fileActions.showCopy || fileActions.showDownload || fileActions.showReveal;
@@ -54,6 +56,7 @@ export function FilePreviewListItem({
             )}
             onClick={onClick}
             type="button"
+            {...dragProps}
           >
             <ImageWithFallback
               alt={filename}
@@ -78,6 +81,7 @@ export function FilePreviewListItem({
       </Tooltip>
     ) : (
       <PreviewListItem
+        dragProps={dragProps}
         icon={
           <FileIcon
             className="size-5 shrink-0 text-muted-foreground"

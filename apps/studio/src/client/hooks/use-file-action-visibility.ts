@@ -20,6 +20,9 @@ const IS_TEXT_LIKE: Record<FileType, boolean> = {
   iwork: false,
   jsonl: true,
   markdown: true,
+  // A notebook is JSON on disk, so its bytes paste as text the same way an
+  // HTML file's source does.
+  notebook: true,
   parquet: false,
   pdf: false,
   pptx: false,

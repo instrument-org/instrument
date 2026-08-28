@@ -57,6 +57,14 @@ export interface AnalyticsEvents {
     success: boolean;
     tool_name: string;
   }>;
+  // Numbers and structure only: how much a tool's own ceiling removed from what
+  // the model was shown, never any of the removed content. What it is for is
+  // deciding whether that ceiling is set anywhere near the right place.
+  "llm.tool_result_clipped": WithModelProperties<{
+    original_characters: number;
+    retained_characters: number;
+    tool_name: string;
+  }>;
   "message.created": WithModelProperties<{
     files_count: number;
   }>;

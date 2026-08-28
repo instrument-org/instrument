@@ -1,6 +1,7 @@
+import { InlineLink } from "@/client/components/inline-link";
 import { SkillMention } from "@/client/components/skill-mention";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
-import { splitSkillText } from "@/client/lib/skill-text";
+import { splitMessageText } from "@/client/lib/skill-text";
 import { rpcClient } from "@/client/rpc/client";
 import { skillMentionLabel } from "@instrument-org/shared/skill-mention";
 import { useQuery } from "@tanstack/react-query";
@@ -20,10 +21,13 @@ import { Fragment } from "react";
  * is only a guess until then.
  */
 export function SkillMentionText({ text }: { text: string }) {
-  const lines = text.split("\n").map((line) => splitSkillText(line));
+  const lines = text.split("\n").map((line) => splitMessageText(line));
   // The list is only wanted to resolve and describe the tokens, so leave it
-  // unfetched for the many messages that reference no skill at all.
-  const hasReferences = lines.flat().some((segment) => segment.type !== "text");
+  // unfetched for the many messages that reference no skill at all. A link is
+  // not one: it is drawn from itself and asks the workspace nothing.
+  const hasReferences = lines
+    .flat()
+    .some((segment) => segment.type === "skill" || segment.type === "slash");
   const { data: skills = [], isSuccess } = useQuery(
     rpcClient.workspace.skill.list.queryOptions({
       enabled: hasReferences,
@@ -43,6 +47,15 @@ export function SkillMentionText({ text }: { text: string }) {
       {segments.map((segment, segmentIndex) => {
         if (segment.type === "text") {
           return <Fragment key={segmentIndex}>{segment.text}</Fragment>;
+        }
+        if (segment.type === "link") {
+          return (
+            <InlineLink
+              href={segment.href}
+              key={segmentIndex}
+              label={segment.label}
+            />
+          );
         }
         const summary = byName.get(segment.name);
         // A bare word is only a skill reference if a skill answers to it as a

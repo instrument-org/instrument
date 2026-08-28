@@ -12,7 +12,7 @@ import { createContext, useContext } from "react";
  * scroller is already out of follow when the rows it opens are measured.
  *
  * A context rather than a prop because the controls are spread through the
- * transcript -- a tool call's own row, a grid's "show more", a message's
+ * transcript -- a tool call's own row, a long message's fold, a message's
  * sources -- and only the surface that draws the transcript inside a scroller
  * knows there is one. Outside a scroller (a previewed conversation, a nested
  * tool-agent stream) there is nothing to release, which is the default.

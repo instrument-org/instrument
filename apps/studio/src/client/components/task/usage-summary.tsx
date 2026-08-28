@@ -24,11 +24,12 @@ export function TaskUsageSummary({
         <UsageStatsTooltip
           messageCount={data.messageCount}
           stats={{
+            activeDuration: data.activeMs,
+            generationDuration: data.msToFinish,
             inputTokenDetails: data.inputTokenDetails,
             inputTokens: data.inputTokens,
             outputTokenDetails: data.outputTokenDetails,
             outputTokens: data.outputTokens,
-            totalDuration: data.msToFinish,
             totalTokens: data.totalTokens,
           }}
         >

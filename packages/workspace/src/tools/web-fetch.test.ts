@@ -86,7 +86,7 @@ describe("WebFetch model output", () => {
     expect(otherCall).not.toBe(first);
   });
 
-  it("points truncated output at its spill file", () => {
+  it("points truncated output at its spill file and at a bigger prefix", () => {
     const value = render({
       spillFilePath: "work/.tool-output/part.txt",
       text: "first ten",
@@ -95,6 +95,48 @@ describe("WebFetch model output", () => {
 
     expect(value).toContain("cut off after 9 characters");
     expect(value).toContain("work/.tool-output/part.txt");
+    expect(value).toContain("maxCharacters can be raised to 50000");
+  });
+
+  it("does not offer a bigger prefix to a fetch already at the maximum", () => {
+    const value = render({
+      spillFilePath: "work/.tool-output/part.txt",
+      text: "m".repeat(50_000),
+      truncated: true,
+    });
+
+    expect(value).toContain("work/.tool-output/part.txt");
+    expect(value).not.toContain("can be raised");
+  });
+
+  it("returns the first 20,000 characters when no size was asked for", async () => {
+    const page = "p".repeat(60_000);
+    mockFs({ [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} } });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () => new Response(page, { headers: { "Content-Type": "text/plain" } }),
+      ),
+    );
+
+    const result = await runTool(WebFetch, {
+      agentName: "main",
+      input: { url: "https://93.184.216.34/article" },
+      model,
+      partId: StoreId.newPartId(),
+      signal: AbortSignal.timeout(10_000),
+      spawnAgent: vi.fn(),
+      taskId,
+      taskState: {},
+    });
+
+    const output = result._unsafeUnwrap();
+    if (output.state !== "success") {
+      throw new Error("Expected a successful fetch");
+    }
+    expect(output.text).toHaveLength(20_000);
+    expect(output.truncated).toBe(true);
+    expect(output.spillFilePath).toBeDefined();
   });
 
   it("saves the full fetched page in a self-contained boundary", async () => {

@@ -122,12 +122,11 @@ export function FilePreviewModal() {
                      mean. Keyed by url so each file opens back at fit scale
                      rather than inheriting the last one's zoom. */
                   <ImageViewer
-                    filename={file.filename}
+                    file={file}
                     key={file.url}
                     onError={() => {
                       setFailedUrl(file.url);
                     }}
-                    url={file.url}
                   />
                 ) : isImage ? (
                   <FilePreviewFallback

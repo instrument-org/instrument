@@ -10,6 +10,7 @@ import {
   resolveCommandContext,
   resolvePathArgs,
   subprocessStdin,
+  unreachablePathArgError,
 } from "./utils";
 
 export const FFPROBE_COMMAND = {
@@ -19,6 +20,15 @@ export const FFPROBE_COMMAND = {
 
 export function createFfprobeCommand(taskId: TaskId) {
   return defineCommand(FFPROBE_COMMAND.name, async (args, ctx) => {
+    const unreachable = unreachablePathArgError(
+      FFPROBE_COMMAND.name,
+      args,
+      ctx.cwd,
+    );
+    if (unreachable !== undefined) {
+      return { exitCode: 1, stderr: unreachable, stdout: "" };
+    }
+
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
     const stdin = subprocessStdin(ctx.stdin);
 

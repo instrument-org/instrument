@@ -299,6 +299,46 @@ describe("getTaskFileIndex", () => {
     `);
   });
 
+  // The same closed door the walk steps around, on the one file read before it.
+  // A .gitignore only makes the answer smaller, so refusing to read it is a
+  // reason to list more, never a reason to list nothing.
+  it("keeps listing when the .gitignore is one it may not read", async () => {
+    // chmod is the real-world cause, but the process may be running as a user
+    // it cannot stop, so state the refusal directly.
+    const gitignorePath = path.join(taskDirPath, ".gitignore");
+    const realReadFile = fs.readFile;
+    vi.spyOn(fs, "readFile").mockImplementation(
+      (...args: Parameters<typeof realReadFile>) => {
+        if (args[0] === gitignorePath) {
+          return Promise.reject(
+            Object.assign(
+              new Error(`EACCES: permission denied, open '${gitignorePath}'`),
+              { code: "EACCES" },
+            ),
+          );
+        }
+        return realReadFile(...args);
+      },
+    );
+
+    const result = await getTaskFileIndex(dir);
+    vi.restoreAllMocks();
+
+    expect(result.isOk()).toBe(true);
+    if (result.isErr()) {
+      return;
+    }
+
+    expect([...result.value.keys()]).toMatchInlineSnapshot(`
+      [
+        ".gitignore",
+        "ignored.txt",
+        "notes.md",
+        "output/chart.png",
+      ]
+    `);
+  });
+
   // The panel polls while it is open, so a task trashed under it asks once more
   // for files that are gone. That is the task being over, not a failure worth
   // reporting.

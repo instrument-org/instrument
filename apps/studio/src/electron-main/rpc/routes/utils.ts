@@ -6,6 +6,7 @@ import type {
 
 import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
+import { prepareFileDrag } from "@/electron-main/lib/file-drag";
 import {
   getFileOpenCandidates,
   getFileOpenTarget,
@@ -20,7 +21,6 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import { setMainWindowZoom } from "@/electron-main/stores/window-state";
 import {
   closeMainWindow,
-  getMainWindowContentSize,
   isMainWindowFullScreen,
   isMainWindowMaximized,
   minimizeMainWindow,
@@ -611,18 +611,14 @@ const live = {
       }
     }),
   // What the renderer needs to draw window chrome for itself: the custom controls
-  // pick the maximize/restore glyph, and the Linux window border sizes itself to
-  // the content area and hides when an edge sits against the screen. Re-yields on
-  // OS-driven transitions too (snap, double-click, Win+Up) and on resize.
+  // pick the maximize/restore glyph, and the Linux window border hides when an
+  // edge sits against the screen. Re-yields on OS-driven transitions too (snap,
+  // double-click, Win+Up) and after a resize, which is when a move between
+  // displays can have changed the scale the border insets itself for.
   windowState: base
     .output(
       eventIterator(
-        z.object({
-          contentHeight: z.number(),
-          contentWidth: z.number(),
-          fullScreen: z.boolean(),
-          maximized: z.boolean(),
-        }),
+        z.object({ fullScreen: z.boolean(), maximized: z.boolean() }),
       ),
     )
     .handler(async function* ({ signal }) {
@@ -637,10 +633,7 @@ const live = {
 };
 
 function readMainWindowState() {
-  const { height, width } = getMainWindowContentSize();
   return {
-    contentHeight: height,
-    contentWidth: width,
     fullScreen: isMainWindowFullScreen(),
     maximized: isMainWindowMaximized(),
   };
@@ -730,6 +723,22 @@ const copyFileToClipboard = base
     }
   });
 
+// Warms what a native drag of this file will need. Separate from starting the
+// drag, which cannot wait on anything: see electron-main/lib/file-drag. Says
+// nothing about whether the file resolved, because there is nothing useful for
+// the caller to do about it -- a drag with nothing behind it simply does not
+// start.
+const prepareTaskFileDrag = base
+  .input(
+    z.object({
+      filePath: WorkspaceFilePathSchema,
+      id: TaskIdSchema,
+    }),
+  )
+  .handler(async ({ input }) => {
+    await prepareFileDrag({ filePath: input.filePath, taskId: input.id });
+  });
+
 const showFolderPicker = base
   .output(z.object({ path: z.string() }).nullable())
   .handler(async () => {
@@ -769,6 +778,7 @@ export const utils = {
   openTaskFile,
   openTaskFileWith,
   openTaskIn,
+  prepareTaskFileDrag,
   showFileInFolder,
   showFolderPicker,
   showProjectInFolder,

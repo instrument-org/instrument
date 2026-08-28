@@ -1,11 +1,14 @@
-import { captureClientEvent } from "@/client/lib/capture-client-event";
+import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
+import { useTaskSession } from "@/client/hooks/use-task-session";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
-import { addRef } from "@instrument-org/shared";
-import { isDefinedError } from "@orpc/client";
-import { useMutation } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { toast } from "sonner";
+
+import { TaskExternalLink } from "./task-external-link";
+
+// Only a web page has two places it could go. `mailto:` and every other scheme
+// the OS resolves to an app has exactly one, and offering the task's browser
+// for those would be offering to open a page that does not exist.
+const isWebPage = (href: string) => /^https?:\/\//i.test(href);
 
 export function ExternalLink(
   props: React.ComponentProps<"a"> & {
@@ -14,55 +17,37 @@ export function ExternalLink(
 ) {
   const { addReferral = true, className, href, onClick, ...rest } = props;
 
-  const openExternalLinkMutation = useMutation(
-    rpcClient.utils.openExternalLink.mutationOptions({
-      onError: async (error, variables) => {
-        const errorMessage = isDefinedError(error)
-          ? error.message
-          : "An unknown error occurred";
-
-        try {
-          await navigator.clipboard.writeText(variables.url);
-          toast.error("Unable to open link in your browser", {
-            description: (
-              <div className="w-full space-y-1">
-                <div className="text-sm">Link copied to clipboard.</div>
-                <code className="block w-full overflow-x-auto rounded-sm bg-muted px-1 py-0.5 text-xs">
-                  {variables.url}
-                </code>
-                <div className="text-xs text-muted-foreground">
-                  Error: {errorMessage}
-                </div>
-              </div>
-            ),
-          });
-        } catch {
-          toast.error("Unable to open link in your browser", {
-            description: errorMessage,
-          });
-        }
-      },
-    }),
-  );
+  const { sessionId, taskId } = useTaskSession();
+  const openExternalLink = useOpenExternalLink();
 
   const handleClick = useCallback(
     (event: React.MouseEvent<HTMLAnchorElement>) => {
       event.preventDefault();
       if (href) {
-        const finalUrl = addReferral ? addRef(href) : href;
-        captureClientEvent("external_link.clicked", {
-          external_url: finalUrl,
-        });
-        // Fire-and-forget: mutateAsync rejects on failure, and because this
-        // handler is never awaited that rejection surfaces as an unhandled
-        // rejection (captured by PostHog). mutate() routes failures through
-        // onError (toast + clipboard copy) without leaking.
-        openExternalLinkMutation.mutate({ url: finalUrl });
+        openExternalLink(href, { addReferral });
       }
       onClick?.(event);
     },
-    [addReferral, onClick, openExternalLinkMutation, href],
+    [addReferral, onClick, openExternalLink, href],
   );
+
+  // Inside a task a web page has two places it can go, and which one is wanted
+  // follows from what the reader is doing at that moment rather than from a
+  // setting picked once, so the click asks. Everywhere else in the app -- and
+  // for anything that is not a web page -- there is only the one answer.
+  if (href && taskId && sessionId && isWebPage(href)) {
+    return (
+      <TaskExternalLink
+        {...rest}
+        addReferral={addReferral}
+        className={className}
+        href={href}
+        onClick={onClick}
+        sessionId={sessionId}
+        taskId={taskId}
+      />
+    );
+  }
 
   return (
     // eslint-disable-next-line no-restricted-syntax

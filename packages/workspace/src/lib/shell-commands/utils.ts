@@ -9,11 +9,13 @@ import { MOUNT } from "../../mount-points";
 import { type TaskId } from "../../schemas/task-id";
 import { gitSubprocessEnv } from "../git";
 import { normalizePath } from "../normalize-path";
+import { relativeWithin } from "../path-containment";
 import { getTaskTmpDir, taskDir } from "../task-dir-utils";
 import { uvSubprocessEnv } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   privateMountPoint,
+  resolveHostDevicePath,
   resolveNativeHostPath,
 } from "../workspace-fs-layout";
 
@@ -258,6 +260,9 @@ export function resolveCommandContext(
  * Resolves any argument that looks like a virtual absolute path (starts with `/`)
  * into a real filesystem path under dir. Non-path arguments are returned as-is.
  * This prevents sandbox-virtual absolute paths from leaking to the host system.
+ *
+ * The device paths are the one exception, and pass through to the host
+ * unchanged; see {@link resolveHostDevicePath} for why they are safe.
  */
 export function resolvePathArgs(
   args: string[],
@@ -272,7 +277,10 @@ export function resolvePathArgs(
       return arg;
     }
     const virtualPath = ctx.fs.resolvePath(ctx.cwd, arg);
-    return resolveNativeHostPath(taskDir(taskId), virtualPath);
+    return (
+      resolveHostDevicePath(virtualPath) ??
+      resolveNativeHostPath(taskDir(taskId), virtualPath)
+    );
   });
 }
 
@@ -348,6 +356,52 @@ export function subprocessStdin(stdin: ByteString): Buffer | undefined {
   return packed ? Buffer.from(packed, "latin1") : undefined;
 }
 
+/**
+ * Explain the first argument naming a virtual path a real subprocess cannot
+ * reach, or undefined when every path argument is reachable.
+ *
+ * `resolvePathArgs` quarantines such a path to a non-existent location inside
+ * the task, which is the containment working as designed. What the agent then
+ * reads is the binary's own not-found error, naming the quarantined path rather
+ * than the one it wrote -- so the failure looks like a relative-path mistake it
+ * made, and the sandbox boundary that actually caused it is invisible. Shims
+ * answer with this first instead of spawning.
+ */
+export function unreachablePathArgError(
+  commandName: string,
+  args: string[],
+  virtualCwd: string,
+): string | undefined {
+  const mount = attachedMountReference(args, virtualCwd);
+  if (mount !== undefined) {
+    return (
+      `${commandName}: ${mount} is inside an attached folder, which ` +
+      `${commandName} cannot read. Attached-folder mounts are visible to the ` +
+      `sandbox shell and file tools only, never to a real subprocess. Copy the ` +
+      `file into the task first (cp '${mount}' attachments/) and run ` +
+      `${commandName} on the copy.\n`
+    );
+  }
+
+  const outside = args
+    .map((arg) => normalizePath(arg.slice(arg.indexOf("=") + 1)))
+    .find(
+      (value) =>
+        value.startsWith("/") &&
+        relativeWithin(MOUNT.task, value) === null &&
+        resolveHostDevicePath(value) === undefined,
+    );
+  if (outside === undefined) {
+    return undefined;
+  }
+  return (
+    `${commandName}: ${outside} is outside the task, and ${MOUNT.task} is the ` +
+    `only mount a real subprocess can resolve. Use a task-relative path ` +
+    `(work/scratch.txt, output/report.pdf); scratch files belong under work/, ` +
+    `which is where mktemp puts them.\n`
+  );
+}
+
 function isOptionToken(token: { kind: string }): token is {
   kind: "option";
   name: string;
@@ -392,7 +446,8 @@ function quotedMountPattern(mountPoint: string): RegExp {
 
 /**
  * Resolve a virtual path to a real path, then relativize from taskCwd so the
- * host dir is never exposed to the subprocess.
+ * host dir is never exposed to the subprocess. A device path is already a host
+ * path and holds no layout to hide, so it is returned as it is written.
  */
 function virtualToRealRelative(
   virtualPath: string,
@@ -401,9 +456,11 @@ function virtualToRealRelative(
   resolvePath: (p: string) => string,
 ): string {
   const normalizedVirtualPath = normalizePath(virtualPath);
-  const realAbs = resolveNativeHostPath(
-    taskDir(taskId),
-    resolvePath(normalizedVirtualPath),
-  );
+  const resolved = resolvePath(normalizedVirtualPath);
+  const device = resolveHostDevicePath(resolved);
+  if (device !== undefined) {
+    return device;
+  }
+  const realAbs = resolveNativeHostPath(taskDir(taskId), resolved);
   return path.relative(taskCwd, realAbs);
 }

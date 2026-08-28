@@ -19,8 +19,17 @@ let rasterBudget: GuestSurfaceSize | null = null;
 // the model is still reasoning about; the pool re-reads it on subscribe.
 const desiredSurfaces = new Map<BrowserTargetId, GuestSurfaceSize>();
 
-/** Forget a target's requested surface, e.g. when its guest is destroyed. */
+// The size each guest is actually laid out at, as the renderer last applied it.
+// It tracks the requested size until the window shrinks under it, at which point
+// the pool clamps the guest to what this window can rasterize and reports the
+// smaller number here. Keeping both is deliberate: the request survives so the
+// guest returns to it when the window grows back, while this is what the guest
+// can currently be asked about.
+const effectiveSurfaces = new Map<BrowserTargetId, GuestSurfaceSize>();
+
+/** Forget a target's surfaces, e.g. when its guest is destroyed. */
 export function clearGuestSurface(targetId: BrowserTargetId) {
+  effectiveSurfaces.delete(targetId);
   if (desiredSurfaces.delete(targetId)) {
     publisher.publish("browser.set-guest-surface", { size: null, targetId });
   }
@@ -31,6 +40,44 @@ export function getDesiredGuestSurfaces(): [
   GuestSurfaceSize,
 ][] {
   return [...desiredSurfaces];
+}
+
+/**
+ * What the target's guest is laid out at right now, or null before the renderer
+ * has reported. Answers the window-dimension probe agent-browser makes, which
+ * would otherwise report a fixed default and be wrong the moment either an agent
+ * or a window resize moved the guest off it.
+ */
+export function getEffectiveGuestSurface(
+  targetId: BrowserTargetId,
+): GuestSurfaceSize | null {
+  return effectiveSurfaces.get(targetId) ?? null;
+}
+
+/** Renderer-reported: the size the pool actually applied to a parked guest. */
+export function recordEffectiveGuestSurface({
+  size,
+  targetId,
+}: {
+  size: GuestSurfaceSize;
+  targetId: BrowserTargetId;
+}) {
+  const previous = effectiveSurfaces.get(targetId);
+  effectiveSurfaces.set(targetId, size);
+
+  const requested = desiredSurfaces.get(targetId);
+  const clamped =
+    requested != null &&
+    (size.width < requested.width || size.height < requested.height);
+  const changed =
+    previous === undefined ||
+    previous.width !== size.width ||
+    previous.height !== size.height;
+  if (clamped && changed) {
+    log.info(
+      `guest surface clamped targetId=${targetId} requested=${requested.width}x${requested.height} effective=${size.width}x${size.height}`,
+    );
+  }
 }
 
 /**

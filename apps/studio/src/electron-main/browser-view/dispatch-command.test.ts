@@ -16,6 +16,7 @@ import { type BrowserEntry, createEntry } from "./entry";
 import {
   clearGuestSurface,
   getDesiredGuestSurfaces,
+  recordEffectiveGuestSurface,
   setRasterBudget,
 } from "./guest-surface";
 
@@ -314,6 +315,47 @@ describe("sendCommand", () => {
     });
   });
 
+  describe("Browser.getWindowForTarget", () => {
+    afterEach(() => {
+      clearGuestSurface(TARGET_ID);
+    });
+
+    it("reports the size the guest is actually laid out at", async () => {
+      recordEffectiveGuestSurface({
+        size: { height: 910, width: 1300 },
+        targetId: TARGET_ID,
+      });
+      const entries = new Map([[TARGET_ID, makeEntry({})]]);
+
+      const result = (await sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries,
+        method: "Browser.getWindowForTarget",
+        params: {},
+        targetId: TARGET_ID,
+      })) as { bounds: { height: number; width: number } };
+
+      // A constant here goes stale the moment an agent asks for a viewport or
+      // the window shrinks under one, and this is the only channel that answers
+      // agent-browser's window probe.
+      expect(result.bounds).toMatchObject({ height: 910, width: 1300 });
+    });
+
+    it("falls back to the default before the renderer has reported", async () => {
+      const entries = new Map([[TARGET_ID, makeEntry({})]]);
+
+      const result = (await sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries,
+        method: "Browser.getWindowForTarget",
+        params: {},
+        targetId: TARGET_ID,
+      })) as { bounds: { height: number; width: number } };
+
+      expect(result.bounds).toMatchObject({ height: 800, width: 1280 });
+    });
+  });
+
   describe("Emulation.setDeviceMetricsOverride", () => {
     // The renderer owns the budget and reports it; a unit test has to stand in
     // for that. 1440x1265 is a window whose budget is 1872x1644.
@@ -328,14 +370,21 @@ describe("sendCommand", () => {
     it("records a size within the budget without touching the debugger", async () => {
       setBudget();
       const wcSendCommand = vi.fn();
-      const entries = new Map([[TARGET_ID, makeEntry({ sendCommand: wcSendCommand })]]);
+      const entries = new Map([
+        [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+      ]);
 
       await expect(
         sendCommand({
           ensureDebuggerAttached: vi.fn(),
           entries,
           method: "Emulation.setDeviceMetricsOverride",
-          params: { deviceScaleFactor: 0, height: 1000, mobile: false, width: 1600 },
+          params: {
+            deviceScaleFactor: 0,
+            height: 1000,
+            mobile: false,
+            width: 1600,
+          },
           targetId: TARGET_ID,
         }),
       ).resolves.toEqual({});
@@ -350,14 +399,21 @@ describe("sendCommand", () => {
     it("refuses a size past the budget, naming the maximum, and records nothing", async () => {
       setBudget();
       const wcSendCommand = vi.fn();
-      const entries = new Map([[TARGET_ID, makeEntry({ sendCommand: wcSendCommand })]]);
+      const entries = new Map([
+        [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+      ]);
 
       await expect(
         sendCommand({
           ensureDebuggerAttached: vi.fn(),
           entries,
           method: "Emulation.setDeviceMetricsOverride",
-          params: { deviceScaleFactor: 0, height: 8000, mobile: false, width: 1920 },
+          params: {
+            deviceScaleFactor: 0,
+            height: 8000,
+            mobile: false,
+            width: 1920,
+          },
           targetId: TARGET_ID,
         }),
       ).rejects.toThrow(/1872x1644/);
@@ -371,7 +427,9 @@ describe("sendCommand", () => {
     it("clears the recorded size without touching the debugger", async () => {
       setBudget();
       const wcSendCommand = vi.fn();
-      const entries = new Map([[TARGET_ID, makeEntry({ sendCommand: wcSendCommand })]]);
+      const entries = new Map([
+        [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+      ]);
       const call = (
         method: Parameters<typeof sendCommand>[0]["method"],
         params?: unknown,
@@ -390,7 +448,9 @@ describe("sendCommand", () => {
         mobile: false,
         width: 1600,
       });
-      await expect(call("Emulation.clearDeviceMetricsOverride")).resolves.toEqual({});
+      await expect(
+        call("Emulation.clearDeviceMetricsOverride"),
+      ).resolves.toEqual({});
 
       expect(getDesiredGuestSurfaces()).toEqual([]);
       expect(wcSendCommand).not.toHaveBeenCalled();

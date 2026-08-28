@@ -2,7 +2,7 @@ import { eventIterator } from "@orpc/server";
 import invariant from "tiny-invariant";
 import { z } from "zod";
 
-import { restoreLastPage } from "../../lib/browser-state";
+import { navigateTarget, restoreLastPage } from "../../lib/browser-state";
 import { getBrowserSessionDir } from "../../lib/task-dir-utils";
 import { BrowserPresenceLevelSchema } from "../../machines/task-browser";
 import { StoreId } from "../../schemas/store-id";
@@ -19,16 +19,28 @@ const PresenceSchema = z.object({ active: z.literal(true) });
 // reuse the same guest (page, cookies, debugger). We register the target with the
 // taskBrowser lifecycle machine so a user-only browser (no agent CDP traffic) is
 // still tracked and reaped rather than leaking until app quit.
+//
+// `url` is what a caller opening the browser *at* something passes, and it is
+// navigated here rather than by the caller because the guest does not exist yet
+// when the click happens. Handing it over means the one place that already
+// waits for the attach is the one place that navigates, so a caller never has
+// to poll the renderer's pool for a `<webview>` that is still being built.
 const open = base
   .errors({
     BROWSER_OPEN_FAILED: {
       message: "Failed to open the browser",
     },
   })
-  .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
+  .input(
+    z.object({
+      id: TaskIdSchema,
+      sessionId: StoreId.SessionSchema,
+      url: z.string().min(1).optional(),
+    }),
+  )
   .output(z.object({ targetId: BrowserTargetIdSchema }))
   .handler(async ({ context, errors, input }) => {
-    const { id, sessionId } = input;
+    const { id, sessionId, url } = input;
     const partitionDir = getBrowserSessionDir();
 
     const target = await context.workspaceConfig.browser
@@ -46,14 +58,19 @@ const open = base
       value: { id, partitionDir, sessionId, targetId: target.targetId },
     });
 
-    const restored = await restoreLastPage({
-      sessionId,
-      targetId: target.targetId,
-      taskId: id,
-    });
-    if (restored.isErr()) {
+    // An explicit page replaces the restore rather than racing it: both would
+    // navigate the same guest, and the one the user just clicked is the one
+    // they meant.
+    const navigated = url
+      ? await navigateTarget({ targetId: target.targetId, url })
+      : await restoreLastPage({
+          sessionId,
+          targetId: target.targetId,
+          taskId: id,
+        });
+    if (navigated.isErr()) {
       // The tab is open, which is what was asked for; it just came up blank.
-      context.workspaceConfig.captureException(restored.error);
+      context.workspaceConfig.captureException(navigated.error);
     }
 
     return { targetId: target.targetId };

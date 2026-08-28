@@ -11,22 +11,12 @@ import {
 } from "@/client/lib/task-file-visibility";
 import { cn } from "@/client/lib/utils";
 import { TASK_FOLDER_NAMES, TaskPane } from "@instrument-org/workspace/client";
-import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
-import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
 import { useParams } from "@tanstack/react-router";
 import { fork } from "radashi";
-import { useLayoutEffect, useRef, useState } from "react";
 
 import { FilePreviewCard } from "./file-preview-card";
 import { FilePreviewListItem } from "./file-preview-list-item";
-import {
-  COLLAPSED_MAX_HEIGHT_PX,
-  collapseFor,
-  FADE_HEIGHT_PX,
-  FILE_ITEM_SELECTOR,
-  offsetTopWithin,
-} from "./files-grid-collapse";
-import { useReleaseAutoScroll } from "./transcript-scroll-context";
+import { MEDIA_CARD_ASPECT } from "./media-card-shape";
 import { Skeleton } from "./ui/skeleton";
 
 interface FilesGridProps {
@@ -43,12 +33,9 @@ interface FilesGridProps {
    * because a fence's last line is withheld until the message stops streaming,
    * and that is the same frame the session goes idle in.
    *
-   * Only media reserves a tile. A media tile's height is its width, so the box
-   * is exact; a list row's is its contents, and a box guessed at is a smaller
-   * version of the jump it was drawn to avoid.
-   *
-   * It is a box and not a file, so the collapse below leaves it out of its
-   * count: a tile the clamp cuts is nothing anyone can be offered to see.
+   * Only media reserves a tile. A media tile's height follows from its width,
+   * so the box is exact; a list row's is its contents, and a box guessed at is
+   * a smaller version of the jump it was drawn to avoid.
    */
   pendingFilePath?: string;
   // Takes the list as given instead of bucketing it by task folder. For a set
@@ -76,31 +63,10 @@ export function FilesGrid({
   })?.id;
   const pane = useTaskPane(taskId);
   const { openFiles } = useTaskPaneActions(taskId);
-  const releaseAutoScroll = useReleaseAutoScroll();
 
   const handleFileClick = (file: TaskFileViewerFile) => {
     openFiles([file.filePath]);
   };
-
-  const [isExpanded, setIsExpanded] = useState(false);
-  // Undefined once the grid is measured and found to fit: the clamp is applied
-  // from the first paint, and taken off again rather than left to cut a grid
-  // that has nothing to hide.
-  //
-  // A ref, and written straight to the node, because the height this resolves
-  // to is what everything above the grid measures the transcript by. Routed
-  // through state it would be a re-render, and React holds that until every
-  // layout effect in the commit has run -- so an ancestor's effect, which runs
-  // after this one, reads the clamped height and acts on a transcript hundreds
-  // of pixels shorter than the one about to be painted. The scroller did
-  // exactly that, and opened tasks part-way up.
-  const collapsedHeightRef = useRef<number | undefined>(
-    COLLAPSED_MAX_HEIGHT_PX,
-  );
-  const [hiddenFileCount, setHiddenFileCount] = useState(0);
-  const [isClipped, setIsClipped] = useState(false);
-  const gridRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
 
   const mainFiles = preserveOrder
     ? files
@@ -123,96 +89,30 @@ export function FilesGrid({
 
   const mediaTileCount = mediaFiles.length + (hasPendingMediaTile ? 1 : 0);
   const isSingleMediaFile = mediaTileCount === 1;
-  const itemCount = mediaFiles.length + rowCardFiles.length + otherFiles.length;
 
-  // A layout effect: the clamp is applied on the first paint, and the fade and
-  // the button that say so are measured before it. A frame of hard-cut grid is
-  // the one thing this collapse exists to avoid.
+  // How wide one tile is, as a share of the row.
   //
-  // Re-run on the count as well as watching the box, because a file can arrive
-  // without moving anything: one more chip on a row with room for it leaves
-  // every box exactly where it was, and if that row is the cut one there is now
-  // one more file behind the fade.
-  useLayoutEffect(() => {
-    const grid = gridRef.current;
-    const content = contentRef.current;
-    if (!grid || !content) {
-      return;
-    }
-
-    // The clamp, as the node's own style. Written here rather than rendered so
-    // the height is settled for whatever measures the grid next; see
-    // `collapsedHeightRef`. Expanding is a render like any other, so this runs
-    // for it too, which is what `isExpanded` is in the deps for.
-    const applyClamp = () => {
-      const height = collapsedHeightRef.current;
-      grid.style.maxHeight =
-        isExpanded || height === undefined ? "" : `${height}px`;
-    };
-
-    // Where each file lands, at the size it lands, in the units the clamp is
-    // written in. Clipping does not move anything, so this reads the same
-    // collapsed or expanded, and the count survives the expand it triggers.
-    //
-    // The fade and the button are still state: they draw, they do not size the
-    // grid, and a paint is the right place for them.
-    const measure = () => {
-      const collapse = collapseFor(
-        [...grid.querySelectorAll<HTMLElement>(FILE_ITEM_SELECTOR)].map(
-          (item) => {
-            const top = offsetTopWithin(item, grid);
-            return {
-              bottom: top + item.offsetHeight,
-              isPending: item.dataset.pending !== undefined,
-              top,
-            };
-          },
-        ),
-      );
-
-      collapsedHeightRef.current = collapse.height;
-      applyClamp();
-      setHiddenFileCount(collapse.hiddenFiles);
-      setIsClipped(collapse.clipped);
-    };
-
-    // Clamped before it is measured, so a grid that overruns is never painted
-    // hard-cut at its full height on the way to being cut properly.
-    applyClamp();
-    measure();
-
-    // Width decides how the sections wrap, and it moves under a splitter drag
-    // and an app-zoom change alike -- neither of which is a render here. Height
-    // is watched for the case the deps below cannot see: the same files at a
-    // different size. Coalesced to one recompute per frame, since a drag
-    // delivers several records in the same one.
-    let frame = 0;
-    const observer = new ResizeObserver(() => {
-      frame ||= requestAnimationFrame(() => {
-        frame = 0;
-        measure();
-      });
-    });
-    observer.observe(content);
-    return () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-    };
-  }, [itemCount, hasPendingMediaTile, isExpanded]);
-
-  const hasMoreFiles = hiddenFileCount > 0;
-  const isCollapsed = isClipped && !isExpanded;
-
-  // How wide one tile is, as a share of the row. One on its own is the reply's
-  // subject and takes the column; a set of them is a grid, two across and three
-  // once the column is wide enough to read them at. Both are container queries:
-  // the same grid is drawn in a message column, a pane, and a card.
+  // Every section below is laid out on the same columns -- two of them, three
+  // once the column is wide enough to read a row card at -- so that the edges
+  // line up down the whole grid. A tile in a set takes one column; one on its
+  // own is the reply's subject and takes all but the last, which is what gives
+  // it an edge to line up on rather than a width of its own.
+  //
+  // Container queries, not viewport ones: the same grid is drawn in a message
+  // column, a pane, and a card.
   const mediaTileWidth = cn(
     "shrink-0 grow-0",
     isSingleMediaFile
-      ? "w-full @md:w-[calc((100%/3*2)-(0.5rem/3))]"
+      ? "w-full @xl:w-[calc((100%/3*2)-(0.5rem/3))]"
       : "w-[calc((100%/2)-(0.5rem/2))] @xl:w-[calc((100%/3)-(0.5rem*2/3))]",
   );
+
+  // And what shape it takes at that width. A tile in a set is square, so that
+  // the row's height is settled before the slowest card in it arrives; a lone
+  // tile has no row to agree with, and at this width a square one is a deep
+  // band of empty card above and below a landscape picture. It takes the shape
+  // the files an agent hands over are usually in instead.
+  const mediaTileShape = isSingleMediaFile ? "wide" : "square";
 
   const gridSections = (
     <>
@@ -224,7 +124,7 @@ export function FilesGrid({
             {mediaFiles.map((file) => (
               <div
                 className={mediaTileWidth}
-                data-slot="files-grid-item"
+                data-slot="files-grid-media"
                 key={file.filePath}
               >
                 <FilePreviewCard
@@ -233,17 +133,22 @@ export function FilesGrid({
                   onClick={() => {
                     handleFileClick(file);
                   }}
+                  shape={mediaTileShape}
                 />
               </div>
             ))}
             {hasPendingMediaTile && (
               <div
                 className={mediaTileWidth}
-                data-pending
-                data-slot="files-grid-item"
+                data-slot="files-grid-media"
                 key="pending"
               >
-                <Skeleton className="aspect-square w-full rounded-2xl" />
+                <Skeleton
+                  className={cn(
+                    "w-full rounded-2xl",
+                    MEDIA_CARD_ASPECT[mediaTileShape],
+                  )}
+                />
               </div>
             )}
           </div>
@@ -254,12 +159,15 @@ export function FilesGrid({
         <div className="@container">
           <div
             className={cn(
-              "grid grid-cols-1 gap-2 @sm:grid-cols-2",
+              // The same columns the media tiles above take, so a lone tile's
+              // edge lands on one of these. Three only once there is room for
+              // a filename beside a thumbnail in a third of the column.
+              "grid grid-cols-1 gap-2 @sm:grid-cols-2 @xl:grid-cols-3",
               alignEnd && "justify-items-end",
             )}
           >
             {rowCardFiles.map((file) => (
-              <div data-slot="files-grid-item" key={file.filePath}>
+              <div data-slot="files-grid-card" key={file.filePath}>
                 <FilePreviewCard
                   file={file}
                   isSelected={isPaneFileSelected(file, pane)}
@@ -281,11 +189,7 @@ export function FilesGrid({
           )}
         >
           {otherFiles.map((file) => (
-            <div
-              className="h-12 max-w-48 min-w-0"
-              data-slot="files-grid-item"
-              key={file.filePath}
-            >
+            <div className="h-12 max-w-48 min-w-0" key={file.filePath}>
               <FilePreviewListItem
                 file={file}
                 isSelected={isPaneFileSelected(file, pane)}
@@ -306,82 +210,11 @@ export function FilesGrid({
     return null;
   }
 
-  return (
-    <div className="flex flex-col gap-2">
-      {/* Every file is drawn and the clamp cuts what does not fit, rather than
-          the render stopping at a count: what a row holds is settled by the
-          container, so the cut can only be made once the layout is.
-
-          `overflow-clip` rather than `hidden`, which is a scroll container to
-          everything but the user: focus landing on a cut card would scroll it
-          into view inside the box, sliding the grid up under a mask that stays
-          where it is. Nothing scrolls here, and `onFocus` opens the grid
-          instead.
-
-          `p-2`/`-m-2` gives card shadows and focus rings room inside the clip
-          and the mask -- both cut to the border box -- without moving where the
-          cards sit. `relative` is what the measurement reads its offsets
-          against. The mask is spelled out here rather than taken from
-          `scroll-fade-y`, which is driven by a scroll timeline this static
-          collapse doesn't have. */}
-      <div
-        className="relative -m-2 overflow-clip p-2"
-        onFocus={(event) => {
-          const grid = gridRef.current;
-          const item = event.target.closest<HTMLElement>(FILE_ITEM_SELECTOR);
-          const collapsedHeight = collapsedHeightRef.current;
-          if (
-            isCollapsed &&
-            grid &&
-            item &&
-            collapsedHeight !== undefined &&
-            offsetTopWithin(item, grid) + item.offsetHeight > collapsedHeight
-          ) {
-            releaseAutoScroll();
-            setIsExpanded(true);
-          }
-        }}
-        ref={gridRef}
-        // No `maxHeight` here: the layout effect owns it, so that the height is
-        // settled before anything above the grid measures it. Rendering it too
-        // would put React and the effect in a fight over the same property.
-        style={{
-          maskImage: isCollapsed
-            ? `linear-gradient(to bottom, black calc(100% - ${FADE_HEIGHT_PX}px), transparent)`
-            : undefined,
-        }}
-      >
-        {/* What the measurement watches. The clamped box above it is pinned to
-            a height while collapsed, so a card that grows under the clamp is a
-            change a `ResizeObserver` on it cannot see; this one is free to be
-            as tall as its contents. */}
-        <div className="flex flex-col gap-2" ref={contentRef}>
-          {gridSections}
-        </div>
-      </div>
-
-      {hasMoreFiles && (
-        <button
-          className={cn(
-            "flex h-7 w-full items-center justify-center gap-1 rounded-lg text-xs text-muted-foreground",
-            "hover:bg-muted hover:text-foreground",
-          )}
-          onClick={() => {
-            releaseAutoScroll();
-            setIsExpanded((expanded) => !expanded);
-          }}
-          type="button"
-        >
-          {isExpanded ? "Show less" : `Show ${hiddenFileCount} more`}
-          {isExpanded ? (
-            <CaretUpIcon className="size-3.5" />
-          ) : (
-            <CaretDownIcon className="size-3.5" />
-          )}
-        </button>
-      )}
-    </div>
-  );
+  // Every file a reply named is drawn. What the agent chose to hand over is
+  // the reply, so there is nothing here worth putting behind a control: a set
+  // long enough to be in the way is a set the reader still has to be able to
+  // see the end of.
+  return <div className="flex flex-col gap-2">{gridSections}</div>;
 }
 
 // Groups a turn's changed files into the folders that reach the user, richest
@@ -443,6 +276,7 @@ const ROW_CARD_PREVIEW: Record<FileType, boolean> = {
   iwork: true,
   jsonl: true,
   markdown: true,
+  notebook: true,
   parquet: true,
   pdf: true,
   pptx: true,

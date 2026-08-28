@@ -1,6 +1,7 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useTaskPaneActions } from "@/client/hooks/use-task-pane";
 import {
   AGENT_FILES_LANGUAGE,
@@ -10,6 +11,7 @@ import {
 import { ImageIcon } from "@phosphor-icons/react/Image";
 import { useSetAtom } from "jotai";
 import {
+  isValidElement,
   memo,
   type ReactNode,
   useCallback,
@@ -23,6 +25,7 @@ import ReactMarkdown, {
   defaultUrlTransform,
   type ExtraProps,
   type Options,
+  type UrlTransform,
 } from "react-markdown";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeSlug from "rehype-slug";
@@ -43,9 +46,14 @@ import { isTaskFileHref, taskFilePathFromHref } from "../lib/task-file-href";
 import { cn } from "../lib/utils";
 import { AgentFilesBlock } from "./agent-files-block";
 import { MarkdownCodeBlock } from "./code-block";
-import { ExternalLink } from "./external-link";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileIcon } from "./file-icon";
+import {
+  INLINE_CHIP_CLASS_NAME,
+  INLINE_CHIP_ICON_CLASS_NAME,
+  InlineLink,
+} from "./inline-link";
+import { MarkdownTable } from "./markdown-table";
 import { MarkdownTaskContext } from "./markdown-task-context";
 import { MermaidDiagram } from "./mermaid-diagram";
 import {
@@ -56,6 +64,17 @@ import {
 import { contextMenuComponents } from "./ui/menu-components";
 
 interface MarkdownProps {
+  /**
+   * Whether an image may be fetched from one of the allowed remote hosts.
+   *
+   * Defaults to true, which is right for markdown the agent wrote or the user
+   * did. Pass false for markdown that arrived inside a file someone else
+   * authored: loading a remote image is a request the moment the file is
+   * opened, with no click in between, which discloses an IP and confirms the
+   * file was read. The notebook viewer passes false for that reason, and loses
+   * nothing by it -- a notebook's own images are embedded.
+   */
+  allowRemoteImages?: boolean;
   assetBaseUrl?: string;
   // Which bytes this text's file references are about; see
   // `MarkdownTaskContext`.
@@ -269,6 +288,13 @@ const TaskFileLink = ({
   const filename = filePath.split("/").at(-1) ?? filePath;
   const { openFiles } = useTaskPaneActions(taskId);
   const appendToPrompt = useSetAtom(appendToPromptAtom);
+  // Before the guard below, so the chip that turns out not to name a task file
+  // still asks in the same order every render.
+  const dragProps = useFileDrag(
+    taskId && isAddressableTaskFilePath(filePath)
+      ? { filePath, taskId }
+      : undefined,
+  );
 
   if (!isAddressableTaskFilePath(filePath)) {
     return <span className={className}>{children}</span>;
@@ -280,18 +306,13 @@ const TaskFileLink = ({
 
   const chip = (
     <button
-      className={cn(
-        "inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted/50 px-1.5 py-0.5 align-text-bottom text-sm font-medium text-foreground no-underline hover:bg-muted",
-        className,
-      )}
+      className={cn(INLINE_CHIP_CLASS_NAME, className)}
       onClick={openInPanel}
       title={filePath}
       type="button"
+      {...dragProps}
     >
-      <FileIcon
-        className="size-3.5 shrink-0 text-muted-foreground"
-        filename={filename}
-      />
+      <FileIcon className={INLINE_CHIP_ICON_CLASS_NAME} filename={filename} />
       <span className="truncate">{children}</span>
     </button>
   );
@@ -327,6 +348,27 @@ const TaskFileLink = ({
       </ContextMenuContent>
     </ContextMenu>
   );
+};
+
+// The label as text, which is what the destination is compared against.
+//
+// Walked rather than read off the top, because the markup a label carries is
+// not the reader's problem: a model writing a host in backticks or bold has
+// still written the host, and comparing against an element instead would put a
+// redundant origin after every one of them. Anything with no text in it at all
+// comes back empty and is disclosed, which is the same answer a label that says
+// nothing gets.
+const plainText = (children: ReactNode): string => {
+  if (typeof children === "string") {
+    return children;
+  }
+  if (Array.isArray(children)) {
+    return children.map((child: ReactNode) => plainText(child)).join("");
+  }
+  if (isValidElement<{ children?: ReactNode }>(children)) {
+    return plainText(children.props.children);
+  }
+  return "";
 };
 
 const MarkdownLink: Components["a"] = ({
@@ -377,19 +419,112 @@ const MarkdownLink: Components["a"] = ({
   }
 
   return (
-    <ExternalLink {...props} className={className} href={href}>
+    <InlineLink
+      {...props}
+      className={className}
+      href={href}
+      label={plainText(children)}
+    >
       {children}
-    </ExternalLink>
+    </InlineLink>
   );
 };
 
+// Embedded bytes: reaching these sends nothing anywhere, so they are allowed
+// however little the markdown is trusted. The prefix names an image type rather
+// than accepting the `data:` scheme whole, which matches the notebook sanitizer
+// and keeps the widest thing an untrusted file can put in an `<img>` to bytes a
+// decoder will either read as a picture or refuse.
+const LOCAL_IMAGE_DATA_PREFIX = "data:image/";
+
+// This machine's own asset server, which is per-task and local and so the one
+// host an image may be fetched from without TLS. A port is not part of
+// `hostname`, which is why none is named here.
+const LOCAL_IMAGE_HOST_SUFFIX = ".localhost";
+
+// Hosts an image may be fetched from over the network. Loading one is a request
+// that leaves this machine, which is why `allowRemoteImages` exists.
+const REMOTE_IMAGE_HOSTS = new Set(["github.com", "images.google.com"]);
+
+// Subdomains, held apart from the exact hosts above because an image comes from
+// `raw.githubusercontent.com` and never from the bare domain.
+const REMOTE_IMAGE_HOST_SUFFIXES = [".github.com", ".githubusercontent.com"];
+
+/**
+ * The URL an absolute `src` spells, or nothing when it spells none.
+ *
+ * Which host a source names is read from a parsed `hostname` rather than tested
+ * against the source string, because a pattern matching the whole URL cannot
+ * tell a host from a path: `https://evil.test/x.githubusercontent.com/p.png`
+ * reads as the host it names instead of the path it is. Confining such a
+ * pattern to the authority is not enough on its own either, since a query or a
+ * fragment opens before the first slash does, and
+ * `https://evil.test?a=.githubusercontent.com/p.png` walks past that too.
+ * `hostname` is the one spelling of a host with nothing else in it to confuse.
+ */
+const imageUrl = (src: string): undefined | URL => {
+  try {
+    return new URL(src);
+  } catch {
+    return undefined;
+  }
+};
+
+const isLocalImageHost = (url: URL): boolean =>
+  url.protocol === "http:" && url.hostname.endsWith(LOCAL_IMAGE_HOST_SUFFIX);
+
+const isRemoteImageHost = (url: URL): boolean =>
+  url.protocol === "https:" &&
+  (REMOTE_IMAGE_HOSTS.has(url.hostname) ||
+    REMOTE_IMAGE_HOST_SUFFIXES.some((suffix) => url.hostname.endsWith(suffix)));
+
+const isImageAllowed = (
+  src: string | undefined,
+  allowRemoteImages: boolean,
+): boolean => {
+  if (!src) {
+    return false;
+  }
+  // Checked before the local-path test below, which would otherwise read the
+  // leading slash of `//host/pixel.png` as a path on this machine and let it
+  // past both allow-lists -- the one place a src could name any host at all.
+  if (src.startsWith("//")) {
+    return false;
+  }
+  if (src.startsWith("/") || src.startsWith("./") || src.startsWith("../")) {
+    return true;
+  }
+  if (src.startsWith(LOCAL_IMAGE_DATA_PREFIX)) {
+    return true;
+  }
+
+  const url = imageUrl(src);
+  if (!url) {
+    return false;
+  }
+  return isLocalImageHost(url) || (allowRemoteImages && isRemoteImageHost(url));
+};
+
+// react-markdown's own URL filter drops every `data:` URI before a component
+// ever sees it, so an embedded image silently rendered as nothing -- which is
+// how a notebook's attachments arrive, and the only way they can arrive. This
+// hands them back for `<img>` alone and decides nothing else: what a `data:`
+// src may actually carry stays with `isImageAllowed` above, one place rather
+// than two. A `data:` *link* is still dropped, because clicking one hands the
+// URI to the OS via `shell.openExternal`, which an image never does, and so is
+// a `data:` src anywhere but an `<img>` -- `iframe`, `embed`, and `script`
+// carry one too, which is why the raw-HTML allow-list drops all three.
+//
 // `file:` is how a model spells a link to a file it just wrote, and the default
 // transform drops the href whole rather than pass a scheme it does not know.
 // Reduce such a URL to its path so it reaches `TaskFileLink` on the same terms
 // as any other file reference. Passing it through instead only ever reaches
 // `ExternalLink`, where the protocol allowlist refuses it: a blocked-link toast
 // and a captured exception, never an opened file.
-const markdownUrlTransform = (url: string): string => {
+const markdownUrlTransform: UrlTransform = (url, key, node) => {
+  if (key === "src" && node.tagName === "img" && url.startsWith("data:")) {
+    return url;
+  }
   if (!/^file:/i.test(url)) {
     return defaultUrlTransform(url);
   }
@@ -398,25 +533,6 @@ const markdownUrlTransform = (url: string): string => {
   } catch {
     return "";
   }
-};
-
-const ALLOWED_IMAGE_PATTERNS = [
-  /^data:/,
-  /^http:\/\/.*\.localhost(:\d+)?\//,
-  /^https:\/\/images\.google\.com\//,
-  /^https:\/\/github\.com\//,
-  /^https:\/\/.*\.github\.com\//,
-  /^https:\/\/.*\.githubusercontent\.com\//,
-];
-
-const isImageAllowed = (src: string | undefined): boolean => {
-  if (!src) {
-    return false;
-  }
-  if (src.startsWith("/") || src.startsWith("./") || src.startsWith("../")) {
-    return true;
-  }
-  return ALLOWED_IMAGE_PATTERNS.some((pattern) => pattern.test(src));
 };
 
 const ImagePlaceholder = ({ alt, src }: { alt?: string; src?: string }) => (
@@ -441,11 +557,19 @@ const ImagePlaceholder = ({ alt, src }: { alt?: string; src?: string }) => (
 const MarkdownImage = ({
   alt,
   className,
+  filePath,
   src,
   ...props
-}: React.ImgHTMLAttributes<HTMLImageElement>) => {
-  const { isStreaming } = useContext(MarkdownTaskContext);
+}: React.ImgHTMLAttributes<HTMLImageElement> & {
+  // The task-relative path behind `src`, when there is one. An embed can just
+  // as well point at a real URL, which names no file to hand anyone.
+  filePath?: string;
+}) => {
+  const { isStreaming, taskId } = useContext(MarkdownTaskContext);
   const [failedSrc, setFailedSrc] = useState<null | string>(null);
+  const dragProps = useFileDrag(
+    filePath && taskId ? { filePath, taskId } : undefined,
+  );
 
   if (src !== undefined && src === failedSrc) {
     // Half a URL fails the same way a missing file does, and until the text
@@ -462,9 +586,13 @@ const MarkdownImage = ({
         setFailedSrc(src ?? null);
       }}
       src={src}
+      {...dragProps}
     />
   );
 };
+
+const isAbsoluteImageSrc = (src: string) =>
+  /^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//");
 
 const resolveImageSrc = (
   src: string | undefined,
@@ -477,7 +605,7 @@ const resolveImageSrc = (
   // Leave real URLs (http/https/data/blob) and protocol-relative srcs for the
   // allow-list to judge; only resolve task-relative paths against the asset
   // origin. This covers bare `output/x.png` in addition to `./`/`../`.
-  if (/^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//")) {
+  if (isAbsoluteImageSrc(src)) {
     return src;
   }
   if (!assetBaseUrl) {
@@ -490,8 +618,22 @@ const resolveImageSrc = (
   });
 };
 
+/**
+ * The task file an `![](...)` embed points at, for the surfaces that act on the
+ * file rather than on the picture.
+ *
+ * Written against the source as authored rather than the resolved asset URL:
+ * the path is what the rest of the app names a file by, and reading it back out
+ * of a URL means re-deriving something we were handed.
+ */
+const taskFilePathFromImageSrc = (src: string | undefined) =>
+  src && !isAbsoluteImageSrc(src) && isAddressableTaskFilePath(src)
+    ? src
+    : undefined;
+
 export const Markdown = memo(
   ({
+    allowRemoteImages = true,
     assetBaseUrl,
     assetVersion,
     hideImages,
@@ -513,14 +655,17 @@ export const Markdown = memo(
     const needsMermaid = containsMermaidFence(markdown);
 
     const handleImageClick = useCallback(
-      (event: React.MouseEvent<HTMLImageElement>) => {
+      (event: React.MouseEvent<HTMLImageElement>, filePath?: string) => {
         const src = event.currentTarget.src;
         const alt = event.currentTarget.alt || "image";
         if (src) {
-          openFilePreview({ filename: alt, url: src });
+          // The path rides along so the expanded view can act on the file and
+          // not just draw it. Absent for an embed pointing at a real URL, where
+          // there is no file to act on.
+          openFilePreview({ filename: alt, filePath, taskId, url: src });
         }
       },
-      [openFilePreview],
+      [openFilePreview, taskId],
     );
 
     useEffect(() => {
@@ -611,23 +756,28 @@ export const Markdown = memo(
                 assetBaseUrl,
                 assetVersion,
               );
-              if (!isImageAllowed(resolvedSrc)) {
+              if (!isImageAllowed(resolvedSrc, allowRemoteImages)) {
                 return hideImages ? null : (
                   <ImagePlaceholder alt={alt} src={resolvedSrc} />
                 );
               }
+              const filePath = taskFilePathFromImageSrc(src);
               return (
                 <MarkdownImage
                   {...props}
                   alt={alt}
                   className={className}
-                  onClick={handleImageClick}
+                  filePath={filePath}
+                  onClick={(event) => {
+                    handleImageClick(event, filePath);
+                  }}
                   src={resolvedSrc}
                 />
               );
             },
             ol: markdownOrderedList,
             pre: markdownPre,
+            table: MarkdownTable,
           }}
           rehypePlugins={streamingRehypePlugins}
           remarkPlugins={[

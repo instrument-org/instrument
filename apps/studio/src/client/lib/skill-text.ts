@@ -3,6 +3,13 @@ import {
   splitSkillMention,
 } from "@instrument-org/shared/skill-mention";
 
+import { type LinkTextSegment, splitLinks } from "./link-text";
+
+/** A sent message's segments: the skill references, plus the links. */
+export type MessageTextSegment =
+  | Exclude<LinkTextSegment, { type: "text" }>
+  | SkillTextSegment;
+
 export type SkillTextSegment =
   | SkillMentionSegment
   | { name: string; type: "slash" };
@@ -15,6 +22,23 @@ export type SkillTextSegment =
 const SLASH_COMMAND_PATTERN = /(^|\s)\/([\w:-]+)/g;
 
 /**
+ * The same split, plus the links the line carries.
+ *
+ * Apart from `splitSkillText` because that one also builds the composer's
+ * tokens, and a URL turning into a chip under the caret while it is still being
+ * typed is not something anyone asked for. A sent message is read rather than
+ * edited, so it is the only one that gets links.
+ *
+ * Links are taken before slash commands, so a destination is never re-split by
+ * a pass that has no idea it is inside one.
+ */
+export function splitMessageText(line: string): MessageTextSegment[] {
+  return splitSkillMention(line).flatMap((segment) =>
+    segment.type === "text" ? splitLinksAndCommands(segment.text) : [segment],
+  );
+}
+
+/**
  * Split one line into the skill references it carries and the text around them.
  *
  * A `skill` segment is the composer's own token, so it already names a skill the
@@ -24,6 +48,12 @@ const SLASH_COMMAND_PATTERN = /(^|\s)\/([\w:-]+)/g;
  */
 export function splitSkillText(line: string): SkillTextSegment[] {
   return splitSkillMention(line).flatMap((segment) =>
+    segment.type === "text" ? splitSlashCommands(segment.text) : [segment],
+  );
+}
+
+function splitLinksAndCommands(text: string): MessageTextSegment[] {
+  return splitLinks(text).flatMap((segment): MessageTextSegment[] =>
     segment.type === "text" ? splitSlashCommands(segment.text) : [segment],
   );
 }

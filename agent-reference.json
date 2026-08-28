@@ -27,6 +27,11 @@
       "source": "github:mutewinter/ui",
       "description": "The component library apps/studio installs as @shadcn/react, a fork of shadcn-ui/ui. packages/react/ holds the source and its co-located tests; the shadcn-react-dist branch carries the built package a git dependency resolves to."
     },
+    "@tanstack/react-router": {
+      "source": "npm:@tanstack/react-router@1.170.16",
+      "directory": ".",
+      "description": "The router apps/studio navigates with. Monorepo, and directory is \".\" rather than the package, because the half that answers most questions is packages/router-core, published on its own version line: buildLocation, navigate, and the search-middleware chain are all there, while packages/react-router holds the hooks, Link, and Transitioner. The tag carries the router-core this repo installs. Reports unverified for the same reason electron does, the root manifest carrying no version of its own."
+    },
     "just-bash": {
       "source": "github:vercel-labs/just-bash",
       "description": "Upstream of the workspace sandbox; read before steering the agent around sandbox behavior"

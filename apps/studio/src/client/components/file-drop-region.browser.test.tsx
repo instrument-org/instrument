@@ -1,8 +1,16 @@
 import { FileDropRegion } from "@/client/components/file-drop-region";
+import {
+  releaseSelfFileDrag,
+  trackSelfFileDrag,
+} from "@/client/lib/self-file-drag";
 import { renderInBrowser } from "@/tests/render-browser";
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 
 const NOTE = "Drop to attach to your message";
+
+// Module state, so a test that marks a drag would otherwise hand it to the
+// next one.
+beforeEach(releaseSelfFileDrag);
 
 async function drawRegion(onFilesDropped = vi.fn()) {
   const screen = await renderInBrowser(
@@ -131,4 +139,54 @@ test("hands a dropped file over and takes the ring down", async () => {
   expect(files).toHaveLength(1);
   expect(files[0]?.name).toBe("kitten.jpg");
   expect(isRingUp()).toBe(false);
+});
+
+test("ignores a drop from a drag this app started", async () => {
+  const { isRingUp, onFilesDropped, region } = await drawRegion();
+
+  // What a quick click on a file card produces: the drag threshold is crossed,
+  // the OS takes the file, and the button comes up again before the pointer has
+  // gone anywhere.
+  trackSelfFileDrag();
+  fire(region, "dragenter", fileDrag());
+  expect(isRingUp()).toBe(false);
+
+  fire(region, "drop", fileDrag());
+  expect(onFilesDropped).not.toHaveBeenCalled();
+});
+
+test("takes the drop once that drag has been somewhere else", async () => {
+  const { isRingUp, onFilesDropped, region } = await drawRegion();
+
+  trackSelfFileDrag();
+  fire(region, "dragenter", fileDrag());
+  // Leaving the window is what tells the two apart, and it runs through the
+  // same `dragleave` bookkeeping any drag does.
+  fire(region, "dragleave", fileDrag());
+
+  fire(region, "dragenter", fileDrag());
+  await vi.waitFor(() => {
+    expect(isRingUp()).toBe(true);
+  });
+
+  fire(region, "drop", fileDrag());
+  await vi.waitFor(() => {
+    expect(onFilesDropped).toHaveBeenCalledTimes(1);
+  });
+});
+
+test("keeps ignoring its own drag through a leave it never entered", async () => {
+  const { isRingUp, onFilesDropped, region } = await drawRegion();
+
+  // Handing the OS a drag can deliver a `dragleave` before any `dragenter`.
+  // Read as this drag ending, it would forget the drag was ours and take the
+  // drop that follows.
+  trackSelfFileDrag();
+  fire(region, "dragleave", fileDrag());
+
+  fire(region, "dragenter", fileDrag());
+  expect(isRingUp()).toBe(false);
+
+  fire(region, "drop", fileDrag());
+  expect(onFilesDropped).not.toHaveBeenCalled();
 });

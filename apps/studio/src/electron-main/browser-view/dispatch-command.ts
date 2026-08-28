@@ -11,7 +11,11 @@ import {
   DEFAULT_VIEWPORT_WIDTH,
 } from "./device-metrics";
 import { applyDownloadBehavior } from "./downloads";
-import { clearGuestSurface, requestGuestSurface } from "./guest-surface";
+import {
+  clearGuestSurface,
+  getEffectiveGuestSurface,
+  requestGuestSurface,
+} from "./guest-surface";
 import { log } from "./log";
 import { withMacEditingCommands } from "./mac-editing-commands";
 import { handlePrintToPDF } from "./print-to-pdf";
@@ -121,7 +125,7 @@ export async function sendCommand({
   }
 
   if (method === "Browser.getWindowForTarget") {
-    return getWindowForTargetStub();
+    return getWindowForTargetStub(targetId);
   }
 
   // Browser.setContentsSize is an experimental CDP command that resizes the
@@ -295,13 +299,22 @@ async function captureViewportScreenshot(
 // probes Browser.getWindowForTarget to discover window dimensions; return
 // a fixed stub matching our DEFAULT_VIEWPORT so callers can size relative
 // to the agent's logical viewport without hitting an error log per session.
-function getWindowForTargetStub(): Protocol.Browser.GetWindowForTargetResponse {
+// agent-browser probes this to discover its window's dimensions, and Electron's
+// debugger has no Browser domain to answer it. Report what the guest is laid out
+// at rather than a constant: it moves whenever an agent asks for a viewport, and
+// again if the window shrinks under one and the pool clamps to what it can
+// rasterize, so a fixed answer goes stale the first time either happens. Falls
+// back to the default only before the renderer has reported a size.
+function getWindowForTargetStub(
+  targetId: BrowserTargetId,
+): Protocol.Browser.GetWindowForTargetResponse {
+  const surface = getEffectiveGuestSurface(targetId);
   return {
     bounds: {
-      height: DEFAULT_VIEWPORT_HEIGHT,
+      height: surface?.height ?? DEFAULT_VIEWPORT_HEIGHT,
       left: 0,
       top: 0,
-      width: DEFAULT_VIEWPORT_WIDTH,
+      width: surface?.width ?? DEFAULT_VIEWPORT_WIDTH,
       windowState: "normal",
     },
     windowId: 1,

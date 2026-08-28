@@ -15,7 +15,12 @@ import {
   type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/electron";
-import { BrowserWindow, session, type WebContents } from "electron";
+import {
+  BrowserWindow,
+  session,
+  type WebContents,
+  type WindowOpenHandlerResponse,
+} from "electron";
 import fs from "node:fs";
 import { noop } from "radashi";
 
@@ -42,7 +47,10 @@ import {
 import { attachGuestInteractions } from "./guest-interactions";
 import { log } from "./log";
 import { stopScreencast } from "./screencast";
-import { guestWindowOpenHandler } from "./window-open-policy";
+import {
+  guestWindowOpenHandler,
+  sameTabNavigationUrl,
+} from "./window-open-policy";
 
 // How long createTarget waits for the renderer to mount the guest `<webview>`
 // and Electron to fire `did-attach-webview`. The main-window renderer is alive
@@ -170,11 +178,30 @@ export function createBrowserViewManager(): BrowserViewManager {
     // guest's locked-down, same-partition session (see guestWindowOpenHandler),
     // so the opener/postMessage channel that "Continue with Google" and similar
     // flows complete through stays intact instead of hanging.
-    guest.setWindowOpenHandler((details) =>
-      focusGuard.isGuarded(targetId)
+    guest.setWindowOpenHandler((details) => {
+      const response: WindowOpenHandlerResponse = focusGuard.isGuarded(targetId)
         ? { action: "deny" }
-        : guestWindowOpenHandler(details),
-    );
+        : guestWindowOpenHandler(details);
+      if (response.action === "deny") {
+        // A denied open leaves the click with nowhere to go, so send the ones
+        // that mean "show me this page" to the page it came from. This runs
+        // even while the guest is agent-guarded, where it is the only way a
+        // `target=_blank` link is reachable at all: the guard withholds a
+        // window, not a navigation, and the agent's CDP connection is pinned to
+        // this one page. Deferred because the handler runs inside Chromium's
+        // decision for this navigation, and starting another from underneath it
+        // is not something Electron promises to survive.
+        const url = sameTabNavigationUrl(details);
+        if (url != null) {
+          setImmediate(() => {
+            if (!guest.isDestroyed()) {
+              void guest.loadURL(url).catch(noop);
+            }
+          });
+        }
+      }
+      return response;
+    });
     // A sign-in popup may open a further popup (multi-step / account-chooser
     // flows); keep the shape policy on the child so those don't hang either.
     guest.on("did-create-window", (child) => {

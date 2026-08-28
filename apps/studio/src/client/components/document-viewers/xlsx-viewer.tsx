@@ -10,7 +10,8 @@ import { list } from "radashi";
 import { useState } from "react";
 
 import { FileLoading } from "../file-loading";
-import { toHtmlTable, toTabSeparated } from "./table-clipboard";
+import { tableClipboardItem, type TableCopyFormat } from "./table-clipboard";
+import { TableCopyMenu } from "./table-copy-menu";
 import { useCopyShortcut } from "./use-copy-shortcut";
 import {
   ViewerToolbar,
@@ -64,35 +65,27 @@ export function XlsxViewer({
   // the first place: the cells live in the parse worker, so the main thread has
   // no worksheet to read, which is also why the library's `copy` handler bails.
   // Cell values come from the worker instead, through `getCellSnapshotAsync`.
+  // The rows are read asynchronously and the clipboard entry is handed the
+  // promise rather than awaited, which is what keeps the write attached to the
+  // gesture that asked for it.
+  const copyRange = (
+    range: null | ReturnType<typeof selectedRange>,
+    format?: TableCopyFormat,
+  ) => {
+    if (!range) {
+      return false;
+    }
+    navigator.clipboard
+      .write([tableClipboardItem(readRange({ controller, range }), format)])
+      .catch((error: unknown) => {
+        logger.error("Copying the spreadsheet failed", error);
+      });
+    return true;
+  };
+
   useCopyShortcut({
     container: grid,
-    onCopy: () => {
-      const range = selectedRange(controller);
-      if (!range) {
-        return false;
-      }
-      // The rows are read asynchronously and the clipboard entry is handed the
-      // promise rather than awaited, which is what keeps the write attached to
-      // the keystroke that asked for it.
-      const rows = readRange({ controller, range });
-      navigator.clipboard
-        .write([
-          new ClipboardItem({
-            "text/html": rows.then(
-              (values) =>
-                new Blob([toHtmlTable(values)], { type: "text/html" }),
-            ),
-            "text/plain": rows.then(
-              (values) =>
-                new Blob([toTabSeparated(values)], { type: "text/plain" }),
-            ),
-          }),
-        ])
-        .catch((error: unknown) => {
-          logger.error("Copying the spreadsheet selection failed", error);
-        });
-      return true;
-    },
+    onCopy: () => copyRange(selectedRange(controller)),
   });
 
   // Thrown rather than rendered so it reaches the surface's `CatchBoundary`.
@@ -119,6 +112,11 @@ export function XlsxViewer({
           zoom={controller.zoomScale / 100}
         />
         <ViewerToolbarSpacer />
+        <TableCopyMenu
+          onCopy={(format) => {
+            copyRange(usedRange(controller), format);
+          }}
+        />
       </ViewerToolbar>
 
       <div className="relative min-h-0 flex-1" ref={setGrid}>
@@ -188,15 +186,6 @@ async function readRange({
   );
 }
 
-/**
- * The block a copy should take: the dragged selection, or the single clicked
- * cell, which is the far more common case and the one the controller records
- * as `activeCell` alone.
- *
- * Corners are ordered, since dragging up or left leaves the range inverted, and
- * clamped to the sheet's used extent so selecting whole columns copies the data
- * rather than a million blank rows.
- */
 function selectedRange(controller: XlsxViewerController) {
   const range = controller.selection ?? {
     end: controller.activeCell,
@@ -220,4 +209,31 @@ function selectedRange(controller: XlsxViewerController) {
     return null;
   }
   return { firstCol, firstRow, lastCol, lastRow };
+}
+
+/**
+ * The block a copy should take: the dragged selection, or the single clicked
+ * cell, which is the far more common case and the one the controller records
+ * as `activeCell` alone.
+ *
+ * Corners are ordered, since dragging up or left leaves the range inverted, and
+ * clamped to the sheet's used extent so selecting whole columns copies the data
+ * rather than a million blank rows.
+ */
+/**
+ * Everything the active sheet actually holds, for a copy that was not asked to
+ * respect a selection. The same clamp as `selectedRange`: a sheet's grid is a
+ * million rows and its data is not.
+ */
+function usedRange(controller: XlsxViewerController) {
+  const sheet = controller.activeSheet;
+  if (!sheet || sheet.maxUsedRow < 0 || sheet.maxUsedCol < 0) {
+    return null;
+  }
+  return {
+    firstCol: 0,
+    firstRow: 0,
+    lastCol: sheet.maxUsedCol,
+    lastRow: sheet.maxUsedRow,
+  };
 }

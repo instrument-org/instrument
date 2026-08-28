@@ -4,6 +4,7 @@ import {
   taskFileViewerAtom,
 } from "@/client/atoms/task-file-viewer";
 import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
+import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
@@ -112,17 +113,24 @@ export function TaskFileViewerModal() {
   }
 
   return (
-    <DialogPrimitive.Root
-      onOpenChange={(open) => {
-        if (!open) {
-          collapseViewer();
-        }
-      }}
-      open={state.isModalOpen}
+    // Mounted at the app chrome rather than under the task, so the pair the
+    // rest of the task page reads off its own provider has to be restored here
+    // from what opened the viewer.
+    <TaskSessionProvider
+      sessionId={state.sessionId}
+      taskId={currentFile.taskId}
     >
-      <DialogPrimitive.Portal>
-        <DialogOverlay className="bg-black/90" />
-        {/*
+      <DialogPrimitive.Root
+        onOpenChange={(open) => {
+          if (!open) {
+            collapseViewer();
+          }
+        }}
+        open={state.isModalOpen}
+      >
+        <DialogPrimitive.Portal>
+          <DialogOverlay className="bg-black/90" />
+          {/*
           `inset-0` is zero on all four sides, and zero is zero at any scale
           factor, so the self-applied zoom leaves this box covering exactly the
           real viewport while its contents scale with the rest of the app.
@@ -138,76 +146,77 @@ export function TaskFileViewerModal() {
           same zoom factor the app root does, so `TOOLBAR_HEIGHT` here scales to
           exactly the toolbar's on-screen height at every level.
         */}
-        <DialogPrimitive.Content
-          className="fixed inset-0 z-50 flex items-center justify-center data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0"
-          onClick={(event) => {
-            // Only the gutter itself, never a click that bubbled out of the
-            // viewer.
-            if (event.target === event.currentTarget) {
-              collapseViewer();
-            }
-          }}
-          style={zoomStyle}
-        >
-          <DialogPrimitive.Title className="sr-only">
-            {currentFile.filename}
-          </DialogPrimitive.Title>
-          <DialogPrimitive.Description className="sr-only">
-            File viewer
-          </DialogPrimitive.Description>
-          <div className="relative flex size-full flex-col">
-            <div className="relative flex min-h-0 flex-1">
-              {hasMultipleFiles && (
-                <>
-                  <Button
-                    aria-label="Previous file"
-                    className="absolute top-1/2 left-3 z-10 -translate-y-1/2"
-                    onClick={goToPrevious}
-                    size="icon"
-                    variant="ghost-overlay"
-                  >
-                    <CaretLeftIcon className="size-6" />
-                  </Button>
-                  <Button
-                    aria-label="Next file"
-                    className="absolute top-1/2 right-3 z-10 -translate-y-1/2"
-                    onClick={goToNext}
-                    size="icon"
-                    variant="ghost-overlay"
-                  >
-                    <CaretRightIcon className="size-6" />
-                  </Button>
-                </>
-              )}
-              <div className="flex min-h-0 flex-1" key={currentFile.url}>
-                <FileViewer file={currentFile} onClose={collapseViewer} />
-              </div>
-            </div>
-
-            {hasMultipleFiles && (
-              <div className="dark flex shrink-0 justify-center px-4 pb-4 text-foreground">
-                <div className="flex gap-x-2 overflow-x-auto px-1 py-2">
-                  {state.files.map((file, index) => (
-                    <div
-                      className="max-w-48 shrink-0"
-                      id={`thumbnail-${index}`}
-                      key={index}
+          <DialogPrimitive.Content
+            className="fixed inset-0 z-50 flex items-center justify-center data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0"
+            onClick={(event) => {
+              // Only the gutter itself, never a click that bubbled out of the
+              // viewer.
+              if (event.target === event.currentTarget) {
+                collapseViewer();
+              }
+            }}
+            style={zoomStyle}
+          >
+            <DialogPrimitive.Title className="sr-only">
+              {currentFile.filename}
+            </DialogPrimitive.Title>
+            <DialogPrimitive.Description className="sr-only">
+              File viewer
+            </DialogPrimitive.Description>
+            <div className="relative flex size-full flex-col">
+              <div className="relative flex min-h-0 flex-1">
+                {hasMultipleFiles && (
+                  <>
+                    <Button
+                      aria-label="Previous file"
+                      className="absolute top-1/2 left-3 z-10 -translate-y-1/2"
+                      onClick={goToPrevious}
+                      size="icon"
+                      variant="ghost-overlay"
                     >
-                      <FilePreviewListItem
-                        file={file}
-                        isSelected={index === state.currentIndex}
-                        onClick={() => {
-                          setCurrentIndex(index);
-                        }}
-                      />
-                    </div>
-                  ))}
+                      <CaretLeftIcon className="size-6" />
+                    </Button>
+                    <Button
+                      aria-label="Next file"
+                      className="absolute top-1/2 right-3 z-10 -translate-y-1/2"
+                      onClick={goToNext}
+                      size="icon"
+                      variant="ghost-overlay"
+                    >
+                      <CaretRightIcon className="size-6" />
+                    </Button>
+                  </>
+                )}
+                <div className="flex min-h-0 flex-1" key={currentFile.url}>
+                  <FileViewer file={currentFile} onClose={collapseViewer} />
                 </div>
               </div>
-            )}
-          </div>
-        </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+
+              {hasMultipleFiles && (
+                <div className="dark flex shrink-0 justify-center px-4 pb-4 text-foreground">
+                  <div className="flex gap-x-2 overflow-x-auto px-1 py-2">
+                    {state.files.map((file, index) => (
+                      <div
+                        className="max-w-48 shrink-0"
+                        id={`thumbnail-${index}`}
+                        key={index}
+                      >
+                        <FilePreviewListItem
+                          file={file}
+                          isSelected={index === state.currentIndex}
+                          onClick={() => {
+                            setCurrentIndex(index);
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
+    </TaskSessionProvider>
   );
 }

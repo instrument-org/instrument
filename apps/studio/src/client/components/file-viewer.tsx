@@ -6,6 +6,7 @@ import {
   LazyDocxViewer,
   LazyIWorkViewer,
   LazyJsonlViewer,
+  LazyNotebookViewer,
   LazyParquetViewer,
   LazyPdfViewer,
   LazyPptxViewer,
@@ -17,6 +18,7 @@ import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language
 import { type FileType, getFileType } from "@/client/lib/get-file-type";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { type TaskId } from "@instrument-org/workspace/client";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
@@ -34,6 +36,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useFileActionVisibility } from "../hooks/use-file-action-visibility";
+import { useFileDrag } from "../hooks/use-file-drag";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
 import { useTaskFileOpenControl } from "../hooks/use-task-file-open-control";
 import { useTimedFlag } from "../hooks/use-timed-flag";
@@ -351,10 +354,9 @@ const VIEWERS = {
         <ContextMenu>
           <ContextMenuTrigger className="size-full">
             <ImageViewer
-              filename={file.filename}
+              file={file}
               key={file.filePath}
               onError={onImageError}
-              url={file.url}
             />
           </ContextMenuTrigger>
           <ContextMenuContent>
@@ -394,6 +396,15 @@ const VIEWERS = {
         <MarkdownPreview url={context.file.url} />
       ),
     scrolls: "container",
+  },
+  notebook: {
+    hasToolbar: true,
+    render: ({ fallback, file }) => (
+      <ViewerSurface fallback={fallback} resetKey={file.url}>
+        <LazyNotebookViewer url={file.url} />
+      </ViewerSurface>
+    ),
+    scrolls: "self",
   },
   parquet: {
     hasToolbar: true,
@@ -780,6 +791,7 @@ export function FileViewer({
         filePath={filePath}
         mimeType={mimeType}
         onClose={onClose}
+        taskId={taskId}
       />
 
       {mediaLoadError ? (
@@ -826,6 +838,7 @@ export function FileViewerHeader({
   filePath,
   mimeType,
   onClose,
+  taskId,
 }: {
   actions?: ReactNode;
   filename: string;
@@ -834,7 +847,16 @@ export function FileViewerHeader({
   // Absent in the pane, where the tab strip owns closing. Present in the
   // expanded modal, whose close is a collapse back to the pane.
   onClose?: () => void;
+  // Absent while the panel is still resolving what it is about to show, where
+  // there is no file to hand anyone yet.
+  taskId?: TaskId;
 }) {
+  // The filename, not the viewer below it, is what drags the file out. Every
+  // viewer's surface already answers to a gesture -- an image pans, a PDF and a
+  // table select, an HTML preview is a sandboxed iframe whose events never
+  // reach us -- and the one row that is chrome in all of them is this one.
+  const dragProps = useFileDrag(taskId ? { filePath, taskId } : undefined);
+
   return (
     // `h-10 px-2` matches `ViewerToolbar`, which some viewers render right
     // below this, so the two rows read as one band.
@@ -851,7 +873,13 @@ export function FileViewerHeader({
       <div className="flex min-w-0 flex-1 pl-1.5">
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="min-w-0 truncate text-xs font-medium">
+            <span
+              className={cn(
+                "min-w-0 truncate text-xs font-medium",
+                dragProps.draggable && "cursor-grab active:cursor-grabbing",
+              )}
+              {...dragProps}
+            >
               {filename}
             </span>
           </TooltipTrigger>

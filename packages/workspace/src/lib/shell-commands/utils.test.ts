@@ -11,6 +11,7 @@ import {
   parseScriptRunnerArgs,
   resolvePathArgs,
   scriptFileVirtualPathError,
+  unreachablePathArgError,
 } from "./utils";
 
 const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
@@ -60,6 +61,92 @@ describe("resolvePathArgs native-binary bridge", () => {
     // binary fails not-found instead of reading task.db/state.json/settings.
     expect(resolved).toEqual([`${dir}/task/.instrument/state.json`]);
     expect(resolved[0]).not.toBe(`${dir}/.instrument/state.json`);
+  });
+
+  // The devices carry no user data and name no part of the host layout, and a
+  // subprocess can already open them from inline code, which is never
+  // rewritten. Quarantining them only broke the standard idioms.
+  it.each([
+    "/dev/null",
+    "/dev/zero",
+    "/dev/random",
+    "/dev/urandom",
+    "/dev/stdin",
+    "/dev/stdout",
+    "/dev/stderr",
+  ])("passes %s through to the host unchanged", (device) => {
+    expect(resolvePathArgs([device], taskId, { cwd: "/task", fs })).toEqual([
+      device,
+    ]);
+  });
+
+  it.each(["/dev/disk0", "/dev/rdisk0", "/dev/fd/63", "/dev/nullify"])(
+    "still quarantines %s, which the allowlist does not name",
+    (device) => {
+      expect(resolvePathArgs([device], taskId, { cwd: "/task", fs })).toEqual([
+        `${dir}${device}`,
+      ]);
+    },
+  );
+
+  // Windows has no /dev, and NUL is the only one of the seven with an
+  // equivalent, spelled through the device namespace so it stays absolute.
+  // ffmpeg on Windows accepts that spelling; it rejects `/dev/null` outright,
+  // which is what the mapping exists to prevent.
+  it("maps the sink to the platform's spelling", () => {
+    const [resolved] = resolvePathArgs(["/dev/null"], taskId, {
+      cwd: "/task",
+      fs,
+    });
+    expect(resolved).toBe(
+      process.platform === "win32" ? String.raw`\\.\NUL` : "/dev/null",
+    );
+  });
+
+  it("quarantines the devices Windows cannot spell", () => {
+    const [resolved] = resolvePathArgs(["/dev/zero"], taskId, {
+      cwd: "/task",
+      fs,
+    });
+    expect(resolved).toBe(
+      process.platform === "win32" ? `${dir}/dev/zero` : "/dev/zero",
+    );
+  });
+});
+
+describe("unreachablePathArgError", () => {
+  it("names the attached folder the agent asked for, not the quarantined path", () => {
+    expect(
+      unreachablePathArgError("ffprobe", ["/mnt/Photos/clip.mov"], "/task"),
+    ).toContain("/mnt/Photos/clip.mov is inside an attached folder");
+  });
+
+  it("points a path outside every mount at the task, and at mktemp", () => {
+    const error = unreachablePathArgError("python", ["/tmp/s.py"], "/task");
+    expect(error).toContain("/tmp/s.py is outside the task");
+    expect(error).toContain("mktemp");
+  });
+
+  it("reads the value out of an inline --flag=<path>", () => {
+    expect(
+      unreachablePathArgError("uv", ["--index=/etc/pip.conf"], "/task"),
+    ).toContain("/etc/pip.conf is outside the task");
+  });
+
+  it("passes a device path, which the bridge now resolves", () => {
+    expect(
+      unreachablePathArgError("ffmpeg", ["-f", "mp4", "/dev/null"], "/task"),
+    ).toBeUndefined();
+  });
+
+  it("passes task paths and non-path arguments", () => {
+    expect(
+      unreachablePathArgError(
+        "ffmpeg",
+        ["-i", "work/in.mov", "-b:v", "1750k", "/task/output/out.mp4"],
+        "/task",
+      ),
+    ).toBeUndefined();
   });
 });
 

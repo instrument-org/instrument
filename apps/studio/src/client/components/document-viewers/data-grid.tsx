@@ -35,10 +35,7 @@ import {
 import { Input } from "../ui/input";
 import { toolbarClassName } from "../ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
-import {
-  tableClipboardItem,
-  type TableCopyFormat,
-} from "./table-clipboard";
+import { tableClipboardItem, type TableCopyFormat } from "./table-clipboard";
 import { TABLE_COPY_ALTERNATES } from "./table-copy-formats";
 import { TableCopyMenu } from "./table-copy-menu";
 import { useCopyShortcut } from "./use-copy-shortcut";

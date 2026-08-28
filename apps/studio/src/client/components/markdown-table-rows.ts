@@ -29,5 +29,5 @@ export function tableRows({ body, head }: TableContents) {
 }
 
 function cellText(cell: HTMLTableCellElement) {
-  return cell.textContent?.trim() ?? "";
+  return cell.textContent.trim();
 }

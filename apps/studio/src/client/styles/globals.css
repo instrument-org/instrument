@@ -1211,6 +1211,19 @@ a.cursor-pointer {
   pointer-events: none;
 }
 
+/* Reporting a copy without a render: both icons are drawn and one is picked.
+   The control is a single element moved between rows, so the state is cleared
+   the moment it lands on a different one -- a check carried over from the row
+   above would report a copy that never happened. */
+.markdown-table-copied,
+.markdown-table-row-copy[data-copied] .markdown-table-idle {
+  display: none;
+}
+
+.markdown-table-row-copy[data-copied] .markdown-table-copied {
+  display: block;
+}
+
 .markdown-table-row-copy[data-visible] {
   opacity: 1;
   pointer-events: auto;

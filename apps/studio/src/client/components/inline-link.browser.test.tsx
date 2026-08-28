@@ -9,8 +9,7 @@ import { UserMessage } from "./user-message";
 // the one thing jsdom cannot answer: it applies no CSS, so a chip that doubles
 // the height of its line and a link drawn as plain text both pass there.
 
-const PROSE =
-  "prose prose-custom font-sans text-sm/relaxed dark:prose-invert";
+const PROSE = "prose prose-custom font-sans text-sm/relaxed dark:prose-invert";
 
 async function renderMessage(text: string) {
   await renderInBrowser(

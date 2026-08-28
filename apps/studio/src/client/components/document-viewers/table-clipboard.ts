@@ -5,6 +5,12 @@
  */
 export type TableCopyFormat = "csv" | "markdown" | "table";
 
+const PLAIN_TEXT: Record<TableCopyFormat, (rows: string[][]) => string> = {
+  csv: toCsv,
+  markdown: toMarkdownTable,
+  table: toTabSeparated,
+};
+
 /**
  * Clipboard payloads for a table or a selection out of one, shared by every
  * surface that can put cells on the clipboard.
@@ -44,16 +50,6 @@ export function toCsv(rows: string[][]) {
   return rows.map((row) => row.map(escapeCsvCell).join(",")).join("\n");
 }
 
-export function toHtmlTable(rows: string[][]) {
-  const cells = rows
-    .map(
-      (row) =>
-        `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`,
-    )
-    .join("");
-  return `<table>${cells}</table>`;
-}
-
 /**
  * A pipe table, padded out to the header's width so a ragged row still parses.
  * The first row is the header: a Markdown table has no way to say it has none.
@@ -72,22 +68,6 @@ export function toMarkdownTable(rows: string[][]) {
     ...body.map((row) => line(row)),
   ].join("\n");
 }
-
-export function toTabSeparated(rows: string[][]) {
-  // Tabs and newlines inside a cell would forge a column or row boundary in a
-  // format that has no way to quote them, so they become spaces.
-  return rows
-    .map((row) =>
-      row.map((cell) => cell.replaceAll(/[\t\n\r]/g, " ")).join("\t"),
-    )
-    .join("\n");
-}
-
-const PLAIN_TEXT: Record<TableCopyFormat, (rows: string[][]) => string> = {
-  csv: toCsv,
-  markdown: toMarkdownTable,
-  table: toTabSeparated,
-};
 
 // CSV quotes rather than escapes, and a quote inside a quoted field doubles.
 function escapeCsvCell(value: string) {
@@ -108,4 +88,24 @@ function escapeMarkdownCell(value: string) {
     .replaceAll("\\", "\\\\")
     .replaceAll("|", "\\|")
     .replaceAll(/[\n\r]/g, " ");
+}
+
+function toHtmlTable(rows: string[][]) {
+  const cells = rows
+    .map(
+      (row) =>
+        `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`,
+    )
+    .join("");
+  return `<table>${cells}</table>`;
+}
+
+function toTabSeparated(rows: string[][]) {
+  // Tabs and newlines inside a cell would forge a column or row boundary in a
+  // format that has no way to quote them, so they become spaces.
+  return rows
+    .map((row) =>
+      row.map((cell) => cell.replaceAll(/[\t\n\r]/g, " ")).join("\t"),
+    )
+    .join("\n");
 }

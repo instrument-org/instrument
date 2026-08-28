@@ -1,6 +1,5 @@
 import { type ReactNode } from "react";
 
-import { MarkdownTable } from "./markdown-table";
 import { Dialog, DialogContent, DialogTitle } from "./ui/dialog";
 
 /**
@@ -15,6 +14,10 @@ import { Dialog, DialogContent, DialogTitle } from "./ui/dialog";
  * The widening the block already does is what gives it the room. Naming a
  * `transcript` container here points that machinery at the dialog instead of
  * the chat column, so nothing about the table has to know where it is.
+ *
+ * The table itself is handed in rather than built here: this is the shell, and
+ * a shell that reached for `MarkdownTable` would close a cycle between the two
+ * files for no gain.
  */
 export function MarkdownTableModal({
   children,
@@ -39,7 +42,7 @@ export function MarkdownTableModal({
         </div>
         <div className="@container/transcript min-h-0 flex-1 overflow-y-auto px-4 pb-4">
           <div className="prose prose-custom text-sm/relaxed [--transcript-room:100cqi] dark:prose-invert prose-table:text-sm">
-            <MarkdownTable expandable={false}>{children}</MarkdownTable>
+            {children}
           </div>
         </div>
       </DialogContent>

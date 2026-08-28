@@ -1,9 +1,9 @@
 import { logger } from "@/client/lib/logger";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
+import { CheckIcon } from "@phosphor-icons/react/Check";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import { CopyButton } from "./copy-button";
 import {
   tableClipboardItem,
   type TableCopyFormat,
@@ -18,6 +18,15 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+
+/** The middle of a row, which is the furthest a control gets from both rules. */
+const bandCenter = (row: Element | null) =>
+  row instanceof HTMLTableRowElement
+    ? row.offsetTop + row.offsetHeight / 2
+    : undefined;
+
+// How long the row control reports a copy for.
+const COPIED_MS = 2000;
 
 const copy = (rows: string[][], format?: TableCopyFormat) => {
   if (rows.length === 0) {
@@ -59,6 +68,14 @@ export const MarkdownTable = ({
   const frameRef = useRef<HTMLDivElement>(null);
   const rowCopyRef = useRef<HTMLSpanElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
+  // The row control is one element moved between rows, so its "copied" state
+  // has to be cleared when it lands on a different one -- a check left over
+  // from the row above reads as a copy that never happened.
+  const copiedTimer = useRef<number>(undefined);
+  // Frozen while its menu is open, or the pointer moving to that menu would
+  // take the control out from under it. Controlled rather than left to Radix,
+  // which is also what lets the freeze read it.
+  const [rowMenuOpen, setRowMenuOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   // The toolbar has to stay up while the menu it opened is, and neither hover
   // nor `:focus-within` still holds: the pointer is over portalled content and
@@ -81,13 +98,16 @@ export const MarkdownTable = ({
     frame.toggleAttribute("data-scroll-start", frame.scrollLeft > 1);
     frame.toggleAttribute("data-scroll-end", behind > 1);
 
-    // The toolbar rides the table's own top edge, at the trailing end of what
-    // is visible. `clientWidth` rather than the frame's box, so a scrollbar
-    // does not push it under one; both controls are translated back by their
-    // own size, so neither has to be measured.
+    // Centered in the header's own band, at the trailing end of what is
+    // visible: a control between two rows would sit on the rule that divides
+    // them, and centering is what puts the most air between it and both.
+    // `clientWidth` rather than the frame's box, so a scrollbar does not push
+    // it under one; the controls are translated back by their own size, so
+    // neither has to be measured.
     const toolbar = toolbarRef.current;
+    const header = frame.querySelector("thead tr");
     if (toolbar) {
-      toolbar.style.top = `${frame.offsetTop}px`;
+      toolbar.style.top = `${bandCenter(header) ?? frame.offsetTop + 12}px`;
       toolbar.style.left = `${frame.offsetLeft + frame.clientWidth - 4}px`;
     }
   };
@@ -112,6 +132,7 @@ export const MarkdownTable = ({
     return () => {
       frame.removeEventListener("scroll", sync);
       observer.disconnect();
+      window.clearTimeout(copiedTimer.current);
     };
     // `sync` reads the ref and closes over nothing, so the empty deps are what
     // keep the listener from being torn down and re-added every chunk.
@@ -124,6 +145,10 @@ export const MarkdownTable = ({
     }
   };
 
+  const clearCopied = (chip: HTMLElement) => {
+    window.clearTimeout(copiedTimer.current);
+    delete chip.dataset.copied;
+  };
   /**
    * Moves the row control to whichever row the pointer is over.
    *
@@ -142,7 +167,7 @@ export const MarkdownTable = ({
     if (!chip || !frame || !(event.target instanceof Element)) {
       return;
     }
-    if (chip.contains(event.target)) {
+    if (rowMenuOpen || chip.contains(event.target)) {
       return;
     }
     const row = event.target.closest("tbody tr");
@@ -150,17 +175,44 @@ export const MarkdownTable = ({
       delete chip.dataset.visible;
       return;
     }
+    if (chip.dataset.row !== String(row.rowIndex)) {
+      clearCopied(chip);
+    }
     chip.dataset.row = String(row.rowIndex);
-    chip.style.top = `${row.offsetTop}px`;
+    chip.style.top = `${bandCenter(row) ?? 0}px`;
     chip.style.left = `${frame.offsetLeft + frame.clientWidth - 4}px`;
     chip.dataset.visible = "";
   };
 
   const hideRowControl = () => {
     const chip = rowCopyRef.current;
-    if (chip) {
+    if (chip && !rowMenuOpen) {
       delete chip.dataset.visible;
     }
+  };
+
+  const copyRow = (format: TableCopyFormat) => {
+    const chip = rowCopyRef.current;
+    const table = element();
+    const row = table?.rows[Number(chip?.dataset.row ?? "-1")];
+    if (!chip || !table || !row) {
+      return;
+    }
+    const values = [...row.cells].map((cell) => cell.textContent.trim());
+    // Markdown and CSV both carry their column names as part of the format --
+    // a pipe table without a header row is not a table at all, and would come
+    // out with this row's values standing in as the headings. A plain copy is
+    // the row itself, since it is going next to rows that already have them.
+    const { head } = readTableContents(table);
+    copy(
+      format === "table" || head.length === 0 ? [values] : [head, values],
+      format,
+    );
+    clearCopied(chip);
+    chip.dataset.copied = "";
+    copiedTimer.current = window.setTimeout(() => {
+      delete chip.dataset.copied;
+    }, COPIED_MS);
   };
 
   return (
@@ -235,25 +287,43 @@ export const MarkdownTable = ({
         )}
       </div>
 
-      {/* The shared control, so a row's copy reports itself with the same
-          check every other copy in the app does. Positioned through the span,
-          which is what the tracking moves. */}
+      {/* The same three formats the whole table offers, since a row is worth
+          taking away in the same shapes. Both icons are drawn and CSS picks
+          one, so reporting a copy costs no render. */}
       <span className="markdown-table-row-copy" ref={rowCopyRef}>
-        <CopyButton
-          className="markdown-table-control"
-          iconSize={12}
-          label="Copy row"
-          onCopy={() => {
-            const index = Number(rowCopyRef.current?.dataset.row ?? "-1");
-            const row = element()?.rows[index];
-            if (row) {
-              copy([
-                [...row.cells].map((cell) => cell.textContent?.trim() ?? ""),
-              ]);
-            }
-          }}
-          tooltip="Copy row"
-        />
+        <DropdownMenu onOpenChange={setRowMenuOpen} open={rowMenuOpen}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger
+                aria-label="Copy row"
+                className="markdown-table-control"
+              >
+                <CopyIcon className="markdown-table-idle" size={12} />
+                <CheckIcon className="markdown-table-copied" size={12} />
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent>Copy row</TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onSelect={() => {
+                copyRow("table");
+              }}
+            >
+              Copy row
+            </DropdownMenuItem>
+            {TABLE_COPY_ALTERNATES.map(({ format, label }) => (
+              <DropdownMenuItem
+                key={format}
+                onSelect={() => {
+                  copyRow(format);
+                }}
+              >
+                {label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </span>
 
       {expandable && expanded && (

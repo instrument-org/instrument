@@ -10,10 +10,7 @@ import { list } from "radashi";
 import { useState } from "react";
 
 import { FileLoading } from "../file-loading";
-import {
-  tableClipboardItem,
-  type TableCopyFormat,
-} from "./table-clipboard";
+import { tableClipboardItem, type TableCopyFormat } from "./table-clipboard";
 import { TableCopyMenu } from "./table-copy-menu";
 import { useCopyShortcut } from "./use-copy-shortcut";
 import {

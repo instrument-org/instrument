@@ -76,7 +76,9 @@ const COLLAPSED = {
 const TAB_MOTION_MS = 150;
 // Cast because a custom property is not a key `CSSProperties` knows, which is
 // the one thing this object is for.
-const TAB_MOTION = { "--tab-motion": `${TAB_MOTION_MS}ms` } as React.CSSProperties;
+const TAB_MOTION = {
+  "--tab-motion": `${TAB_MOTION_MS}ms`,
+} as React.CSSProperties;
 
 // What a tab stands on while it is being carried, which is a question it does
 // not have to answer while it is sitting in the row.

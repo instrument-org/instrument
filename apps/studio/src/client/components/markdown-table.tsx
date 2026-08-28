@@ -58,6 +58,7 @@ export const MarkdownTable = ({
 }) => {
   const frameRef = useRef<HTMLDivElement>(null);
   const rowCopyRef = useRef<HTMLSpanElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
   // The toolbar has to stay up while the menu it opened is, and neither hover
   // nor `:focus-within` still holds: the pointer is over portalled content and
@@ -79,6 +80,16 @@ export const MarkdownTable = ({
     const behind = frame.scrollWidth - frame.clientWidth - frame.scrollLeft;
     frame.toggleAttribute("data-scroll-start", frame.scrollLeft > 1);
     frame.toggleAttribute("data-scroll-end", behind > 1);
+
+    // The toolbar rides the table's own top edge, at the trailing end of what
+    // is visible. `clientWidth` rather than the frame's box, so a scrollbar
+    // does not push it under one; both controls are translated back by their
+    // own size, so neither has to be measured.
+    const toolbar = toolbarRef.current;
+    if (toolbar) {
+      toolbar.style.top = `${frame.offsetTop}px`;
+      toolbar.style.left = `${frame.offsetLeft + frame.clientWidth - 4}px`;
+    }
   };
 
   // After every render, which is what catches the table growing a column at a
@@ -140,13 +151,8 @@ export const MarkdownTable = ({
       return;
     }
     chip.dataset.row = String(row.rowIndex);
-    // Centered on the row's closing edge, at the trailing end of what is
-    // visible. The closing edge rather than the opening one because the block's
-    // own controls sit in the top corner: on the first row the two would land
-    // on each other. `clientWidth` rather than the frame's box, so a scrollbar
-    // does not push it under one.
-    chip.style.top = `${row.offsetTop + row.offsetHeight - chip.offsetHeight / 2}px`;
-    chip.style.left = `${frame.offsetLeft + frame.clientWidth - chip.offsetWidth - 4}px`;
+    chip.style.top = `${row.offsetTop}px`;
+    chip.style.left = `${frame.offsetLeft + frame.clientWidth - 4}px`;
     chip.dataset.visible = "";
   };
 
@@ -170,59 +176,63 @@ export const MarkdownTable = ({
         <span aria-hidden className="markdown-table-fade" data-edge="start" />
         <table>{children}</table>
         <span aria-hidden className="markdown-table-fade" data-edge="end" />
+      </div>
 
-        <div className="markdown-table-toolbar" data-menu-open={menuOpen}>
-          <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger
-                  aria-label="Copy table"
-                  className="markdown-table-control"
-                >
-                  <CopyIcon size={12} />
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>Copy table</TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent align="end">
+      <div
+        className="markdown-table-toolbar"
+        data-menu-open={menuOpen}
+        ref={toolbarRef}
+      >
+        <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger
+                aria-label="Copy table"
+                className="markdown-table-control"
+              >
+                <CopyIcon size={12} />
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent>Copy table</TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onSelect={() => {
+                copyTable("table");
+              }}
+            >
+              Copy table
+            </DropdownMenuItem>
+            {TABLE_COPY_ALTERNATES.map(({ format, label }) => (
               <DropdownMenuItem
+                key={format}
                 onSelect={() => {
-                  copyTable("table");
+                  copyTable(format);
                 }}
               >
-                Copy table
+                {label}
               </DropdownMenuItem>
-              {TABLE_COPY_ALTERNATES.map(({ format, label }) => (
-                <DropdownMenuItem
-                  key={format}
-                  onSelect={() => {
-                    copyTable(format);
-                  }}
-                >
-                  {label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
-          {expandable && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  aria-label="Open table"
-                  className="markdown-table-control"
-                  onClick={() => {
-                    setExpanded(true);
-                  }}
-                  type="button"
-                >
-                  <ArrowsOutSimpleIcon size={12} />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Open table</TooltipContent>
-            </Tooltip>
-          )}
-        </div>
+        {expandable && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                aria-label="Expand table"
+                className="markdown-table-control"
+                onClick={() => {
+                  setExpanded(true);
+                }}
+                type="button"
+              >
+                <ArrowsOutSimpleIcon size={12} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Expand table</TooltipContent>
+          </Tooltip>
+        )}
       </div>
 
       {/* The shared control, so a row's copy reports itself with the same

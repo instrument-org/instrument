@@ -10,7 +10,7 @@ async function makeBash() {
   const fs = new InMemoryFs();
   await fs.mkdir(MOUNT.task, { recursive: true });
   return new Bash({
-    commands: ["cat", "echo", "ls"],
+    commands: ["cat", "echo", "ls", "stat"],
     customCommands: [createMktempCommand()],
     cwd: MOUNT.task,
     fs,
@@ -87,11 +87,22 @@ describe("mktemp", () => {
     expect(result.stderr).toContain("too few X's");
   });
 
-  it("stays silent about a bad template under -q", async () => {
+  // GNU's -q covers creation failure only, so a malformed template still
+  // reports. Checked against coreutils 9.2.
+  it("still reports a bad template under -q", async () => {
     const bash = await makeBash();
     const result = await bash.exec("mktemp -q bad.XX");
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toBe("");
+    expect(result.stderr).toContain("too few X's");
+  });
+
+  it.each([
+    ["mktemp", "600"],
+    ["mktemp -d", "700"],
+  ])("creates what `%s` returns with mode %s", async (command, mode) => {
+    const bash = await makeBash();
+    const result = await bash.exec(`p=$(${command}); stat -c '%a' "$p"`);
+    expect(result.stdout.trim()).toBe(mode);
   });
 
   it("reports an unknown option", async () => {

@@ -1,4 +1,4 @@
-import { defineCommand } from "just-bash";
+import { defineCommand, type IFileSystem } from "just-bash";
 import { randomBytes } from "node:crypto";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
@@ -44,9 +44,15 @@ interface MktempArgs {
  * is the one place the sandbox refuses. Making the standard spelling work is
  * cheaper than teaching every prompt around it.
  *
- * Creates the file (or directory) before printing it, as the real command does:
- * the guarantee is that the name exists and is yours, not merely that it was
- * unused a moment ago. `-u` opts out and is documented as unsafe upstream too.
+ * Creates the entry before printing it, as the real command does, with the
+ * private modes the real one guarantees. `-u` opts out and is documented as
+ * unsafe upstream too.
+ *
+ * A directory is created exclusively, because `mkdir` without `recursive`
+ * refuses a path that exists. A file is not: `writeFile` has no exclusive mode
+ * and truncates, so the check and the write are separate steps and the mode
+ * lands after creation. Nothing in `IFileSystem` closes that today; the names
+ * are unguessable so the window cannot be aimed at.
  */
 export function createMktempCommand() {
   return defineCommand(MKTEMP_COMMAND.name, async (args, ctx) => {
@@ -63,49 +69,68 @@ export function createMktempCommand() {
     const virtualPath = ctx.fs.resolvePath(ctx.cwd, template);
     const parent = virtualPath.slice(0, virtualPath.lastIndexOf("/")) || "/";
     const name = virtualPath.slice(virtualPath.lastIndexOf("/") + 1);
+    // A malformed template is a usage error rather than a creation failure, so
+    // `-q` does not silence it, matching GNU.
     if (!TRAILING_X.test(name)) {
       return {
         exitCode: 1,
-        stderr: quiet
-          ? ""
-          : `${MKTEMP_COMMAND.name}: too few X's in template '${template}'\n`,
+        stderr: `${MKTEMP_COMMAND.name}: too few X's in template '${template}'\n`,
         stdout: "",
       };
     }
 
-    try {
-      // The default location is created on demand; a caller-supplied template
-      // pointing somewhere absent is an error, the same as upstream.
-      if (parent === TMP_DIR) {
-        await ctx.fs.mkdir(parent, { recursive: true });
-      }
-      for (let attempt = 0; attempt < 32; attempt++) {
-        const candidate = `${parent}/${name.replace(TRAILING_X, (run) => randomSuffix(run.length))}`;
-        if (await ctx.fs.exists(candidate)) {
-          continue;
-        }
-        if (!dryRun) {
-          await (directory
-            ? ctx.fs.mkdir(candidate, { recursive: false })
-            : ctx.fs.writeFile(candidate, ""));
-        }
+    // The default location is created on demand; a caller-supplied template
+    // pointing somewhere absent is left to fail on its own.
+    if (parent === TMP_DIR) {
+      await ctx.fs.mkdir(parent, { recursive: true });
+    }
+
+    let lastError = "";
+    for (let attempt = 0; attempt < 32; attempt++) {
+      const candidate = `${parent}/${name.replace(TRAILING_X, (run) => randomSuffix(run.length))}`;
+      if (dryRun) {
         return { exitCode: 0, stderr: "", stdout: `${candidate}\n` };
       }
-      return {
-        exitCode: 1,
-        stderr: quiet
-          ? ""
-          : `${MKTEMP_COMMAND.name}: failed to find an unused name for '${template}'\n`,
-        stdout: "",
-      };
-    } catch (error) {
-      return {
-        exitCode: 1,
-        stderr: quiet ? "" : `${MKTEMP_COMMAND.name}: ${String(error)}\n`,
-        stdout: "",
-      };
+      try {
+        await createEntry(ctx.fs, candidate, directory);
+      } catch (error) {
+        // A collision is the expected failure and the loop handles it; any
+        // other error repeats, so it falls out and is reported once.
+        lastError = String(error);
+        continue;
+      }
+      return { exitCode: 0, stderr: "", stdout: `${candidate}\n` };
     }
+
+    return {
+      exitCode: 1,
+      stderr: quiet
+        ? ""
+        : `${MKTEMP_COMMAND.name}: failed to create ${directory ? "directory" : "file"} via template '${template}': ${lastError}\n`,
+      stdout: "",
+    };
   });
+}
+
+/** The private modes mktemp guarantees for what it hands back. */
+const FILE_MODE = 0o600;
+const DIR_MODE = 0o700;
+
+async function createEntry(
+  fs: IFileSystem,
+  path: string,
+  directory: boolean,
+): Promise<void> {
+  if (directory) {
+    await fs.mkdir(path, { recursive: false });
+    await fs.chmod(path, DIR_MODE);
+    return;
+  }
+  if (await fs.exists(path)) {
+    throw new Error("file exists");
+  }
+  await fs.writeFile(path, "");
+  await fs.chmod(path, FILE_MODE);
 }
 
 /**

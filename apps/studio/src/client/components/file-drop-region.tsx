@@ -4,6 +4,10 @@ import {
   DropRegisterContext,
   type DropRegistration,
 } from "@/client/hooks/use-file-drop-region";
+import {
+  isSelfFileDrag,
+  releaseSelfFileDrag,
+} from "@/client/lib/self-file-drag";
 import { captureException } from "@/client/lib/telemetry";
 import { cn } from "@/client/lib/utils";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
@@ -89,6 +93,9 @@ export function FileDropRegion({
       staleTimer = undefined;
       dragDepthRef.current = 0;
       setIsDragging(false);
+      // Every way a drag ends passes through here, including leaving the
+      // window, which is what makes coming back afterwards count as deliberate.
+      releaseSelfFileDrag();
     };
 
     // `dragover` keeps firing while a drag is over the element, on a timer of
@@ -106,7 +113,10 @@ export function FileDropRegion({
       e.preventDefault();
       e.stopPropagation();
       dragDepthRef.current++;
-      if (e.dataTransfer?.types.includes("Files")) {
+      // Counted but not drawn: the depth has to stay balanced against the
+      // leave that follows, while a ring would be offering to take a file this
+      // app is in the middle of handing out.
+      if (e.dataTransfer?.types.includes("Files") && !isSelfFileDrag()) {
         setIsDragging(true);
         keepAlive();
       }
@@ -135,9 +145,14 @@ export function FileDropRegion({
     const handleDrop = (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      // Read before `endDrag`, which is what clears it.
+      const isOwnDrag = isSelfFileDrag();
       endDrag();
 
-      if (!e.dataTransfer) {
+      // A file this app put in the air, let go again without ever leaving the
+      // window. Attaching a task's own file to that same task is not what
+      // anyone was reaching for; a click that moved far enough to drag is.
+      if (isOwnDrag || !e.dataTransfer) {
         return;
       }
 

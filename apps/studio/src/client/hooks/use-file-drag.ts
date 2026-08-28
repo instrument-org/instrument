@@ -1,4 +1,5 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { trackSelfFileDrag } from "@/client/lib/self-file-drag";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
 import { type DragEvent } from "react";
@@ -38,6 +39,9 @@ export function useFileDrag(file: FileRef | undefined) {
       // this cancels it and the main process starts a real file drag in its
       // place.
       event.preventDefault();
+      // Marked before the drag exists rather than after, so a release quick
+      // enough to beat the OS still finds the flag set.
+      trackSelfFileDrag();
       window.api.startFileDrag?.([
         { filePath: file.filePath, taskId: file.taskId },
       ]);

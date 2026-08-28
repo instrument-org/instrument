@@ -68,6 +68,28 @@ const COLLAPSED = {
 // is what actually runs it.
 const COLLAPSE_MS = 150;
 
+// What a tab stands on while it is being carried, which is a question it does
+// not have to answer while it is sitting in the row.
+//
+// Every surface here but the card's is a translucent overlay -- `--accent` is
+// 5% white in the dark theme, `--muted` 8% -- so they read as a tab only
+// because of what is behind them, which is the row. Lift one out of the row and
+// what is behind it is the tabs it is crossing, and their names come through
+// its own. The card is the row's own surface and the one opaque thing here to
+// stand a tab on.
+//
+// In the light theme those same tokens are opaque and none of this shows, which
+// is why it looks like a dark-mode bug and is not one.
+const CARRIED = { backgroundColor: "var(--card)" } satisfies React.CSSProperties;
+
+// The selected tint painted over that floor rather than in place of it, so a
+// tab that was the one being read still looks it while it is being moved. As a
+// background image because the floor is already using the background color.
+const CARRIED_SELECTED = {
+  ...CARRIED,
+  backgroundImage: "linear-gradient(var(--accent), var(--accent))",
+} satisfies React.CSSProperties;
+
 interface StripLayout {
   /** What a tab that is not the one being read can draw. */
   density: TabDensity;
@@ -255,7 +277,7 @@ export function PaneTabs({
   if (draggingKey !== undefined && !visibleKeys.includes(draggingKey)) {
     setDraggingKey(undefined);
   }
-  const isDragging = draggingKey !== undefined;
+  const isReordering = draggingKey !== undefined;
 
   // Focus follows the selection while the strip holds it. The arrow keys move
   // both themselves, but a selection that lands past the run above moves the
@@ -368,7 +390,8 @@ export function PaneTabs({
                 // and still carries the close for it.
                 density={key === selectedKey ? selectedDensity : density}
                 isClosing={isClosing}
-                isDragging={isDragging}
+                isDragging={draggingKey === key}
+                isReordering={isReordering}
                 isSelected={key === selectedKey}
                 key={key}
                 nextIsSelected={drawnKeys[index + 1] === selectedKey}
@@ -426,6 +449,7 @@ function PaneTab({
   isBusy,
   isClosing,
   isDragging,
+  isReordering,
   isSelected,
   nextIsSelected,
   onClose,
@@ -444,9 +468,12 @@ function PaneTab({
   // The tab has been closed and is collapsing out of the row. It is drawn from
   // the strip's own copy of it, so nothing outside still has it.
   isClosing?: boolean;
-  // Whether a tab on the strip is being dragged, which is the one time a tab
-  // moving to a new place is worth watching.
+  // This tab is the one being carried.
   isDragging?: boolean;
+  // Some tab on the strip is being carried, which is the one time a tab moving
+  // to a new place is worth watching -- including for the tabs giving way to
+  // it, which is why this is not the same question as the one above.
+  isReordering?: boolean;
   isSelected: boolean;
   nextIsSelected: boolean;
   onClose?: () => void;
@@ -502,7 +529,14 @@ function PaneTab({
     sizing,
     isSelected
       ? "bg-accent text-accent-foreground"
-      : "text-muted-foreground hover:bg-accent/50",
+      : cn(
+          "text-muted-foreground",
+          // Not while it is being carried, where the pointer holding it would
+          // otherwise be drawing a hover over `CARRIED`.
+          !isDragging && "hover:bg-accent/50",
+        ),
+    // Off the row rather than in it, so what it crosses reads as underneath.
+    isDragging && "z-10 shadow-xs-soft",
     // The fixed tab is held further off the task's own than they are off each
     // other, and the margin is what holds it: the rule below is drawn in that
     // space rather than taking any.
@@ -614,6 +648,14 @@ function PaneTab({
     </>
   );
 
+  // Standing on the row, being carried over it, or leaving it.
+  let surface: React.CSSProperties | undefined;
+  if (isClosing) {
+    surface = COLLAPSED;
+  } else if (isDragging) {
+    surface = isSelected ? CARRIED_SELECTED : CARRIED;
+  }
+
   const handlers = {
     // Out of the tree on the way out. What is collapsing is the row's picture
     // of a tab that has already gone, and there is nothing there to read, move
@@ -645,7 +687,7 @@ function PaneTab({
     },
     onPointerDown,
     role: "tab",
-    style: isClosing ? COLLAPSED : undefined,
+    style: surface,
     // Roving: the strip is one stop in the page's tab order, and arrows move
     // within it. Otherwise every open file is another press of Tab to get past.
     // A tab that has been closed is not a stop at all, whatever it was.
@@ -678,7 +720,7 @@ function PaneTab({
       layout="position"
       onDragEnd={onDragEnd}
       onDragStart={onDragStart}
-      transition={isDragging ? undefined : LAND_IN_PLACE}
+      transition={isReordering ? undefined : LAND_IN_PLACE}
       value={value}
     >
       {contents}

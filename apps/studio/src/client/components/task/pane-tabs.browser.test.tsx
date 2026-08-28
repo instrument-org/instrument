@@ -569,3 +569,88 @@ test("does not draw a hidden tab into a row a closing tab is still in", async ()
     }
   `);
 });
+
+/**
+ * Drag the first file tab across the third, recording what the tab being
+ * carried was standing on while it moved. Read as it happens, since the drag is
+ * over by the time `dragAndDrop` returns.
+ *
+ * In the dark theme, which is the only one where this can be got wrong: the
+ * tints a tab can carry are opaque tokens in the light theme and white at 5-8%
+ * in the dark one, so a reading taken in the default theme would agree with
+ * anything.
+ */
+async function carriedSurface(selectedKey: string) {
+  document.documentElement.classList.add("dark");
+  const { container } = await renderInBrowser(
+    <div style={{ width: WIDE }}>
+      <PaneTabs
+        fileTabs={FILES.slice(0, 3).map((filePath) => ({
+          filePath,
+          type: "file" as const,
+        }))}
+        onClose={vi.fn()}
+        onReorder={vi.fn()}
+        onSelect={vi.fn()}
+        selectedKey={selectedKey}
+        taskId={taskId}
+      />
+    </div>,
+  );
+  const list = container.querySelector<HTMLElement>('[role="tablist"]');
+  if (!list) {
+    throw new Error("the strip drew no tab list");
+  }
+  await settled(list);
+
+  const seen = new Set<string>();
+  const observer = new MutationObserver(() => {
+    for (const tab of list.querySelectorAll<HTMLElement>('[role="tab"]')) {
+      if (!tab.className.includes("shadow-xs-soft")) {
+        continue;
+      }
+      const style = getComputedStyle(tab);
+      seen.add(
+        [
+          style.backgroundColor,
+          // The alpha is the whole of what was wrong.
+          /rgba|\/\s*0?\./.test(style.backgroundColor) ? "SEE-THROUGH" : "opaque",
+          // And the selected tint has to survive being stood on the card.
+          style.backgroundImage === "none" ? "no tint" : "tinted",
+        ].join(", "),
+      );
+    }
+  });
+  observer.observe(list, { attributes: true, subtree: true });
+
+  await userEvent.dragAndDrop(
+    page.getByTitle("quarterly-report-2026.pdf"),
+    page.getByTitle("notes.md"),
+  );
+  observer.disconnect();
+  document.documentElement.classList.remove("dark");
+  return [...seen];
+}
+
+test("carries a background tab on a surface of its own", async () => {
+  // A tab draws nothing of its own until it is hovered, and the hover is a
+  // translucent overlay that reads as a tab only because of the row behind it.
+  // Lifted out of the row and carried across its neighbors, what is behind it
+  // is their names.
+  expect(await carriedSurface("browser")).toMatchInlineSnapshot(`
+    [
+      "rgb(41, 37, 36), opaque, no tint",
+    ]
+  `);
+});
+
+test("carries the tab being read without giving up that it is", async () => {
+  // The selected background is the same kind of overlay, so the tab being read
+  // has the same hole in it -- and covering that hole must not cost the tint
+  // that says which tab the pane is showing.
+  expect(await carriedSurface(`file:${FILES[0] ?? ""}`)).toMatchInlineSnapshot(`
+    [
+      "rgb(41, 37, 36), opaque, tinted",
+    ]
+  `);
+});

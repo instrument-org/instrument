@@ -443,6 +443,7 @@ const ROW_CARD_PREVIEW: Record<FileType, boolean> = {
   iwork: true,
   jsonl: true,
   markdown: true,
+  notebook: true,
   parquet: true,
   pdf: true,
   pptx: true,

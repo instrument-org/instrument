@@ -72,6 +72,16 @@ export const LazyCsvViewer = lazy(async () => {
   return { default: module.CsvViewer };
 });
 
+// A notebook is JSON and its renderers are ones Studio already ships, so there
+// is no engine and no wasm source to configure. It stays lazy for the same
+// reason the others do: nothing loaded during renderer startup should pull a
+// viewer's chunk in with it.
+export const LazyNotebookViewer = lazy(async () => {
+  const module =
+    await import("@/client/components/document-viewers/notebook-viewer");
+  return { default: module.NotebookViewer };
+});
+
 // Neither of these needs wasm: hyparquet is plain JavaScript and JSONL is
 // `JSON.parse` per line. They stay lazy so the reader and the grid load only
 // when one is opened.

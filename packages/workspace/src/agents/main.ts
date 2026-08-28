@@ -8,6 +8,7 @@ import {
   TOOL_EXPLANATION_PARAM_NAME,
 } from "../constants";
 import { assignAttachedMounts } from "../lib/attached-folder-mounts";
+import { buildAvailableSkillsContext } from "../lib/available-skills-context";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import {
   buildProjectContextText,
@@ -55,9 +56,9 @@ interface MountedFolderAttachment {
 /**
  * How to choose between browsers, for the builds that have a choice.
  *
- * This text is written into the session context, which is rebuilt on a timer
- * rather than per turn, so it can outlive a change to the feature flag by up to
- * an hour. That rules out stating here which browsers exist: the flag can be
+ * This text is written into the session context, which is built once and never
+ * rewritten, so it outlives a change to the feature flag for the rest of the
+ * session. That rules out stating here which browsers exist: the flag can be
  * turned on mid-session, and a stale "there is no other browser" would stop the
  * model from trying something the build now allows, with no failed command to
  * correct it. Availability is claimed only where it is recomputed every request
@@ -340,6 +341,7 @@ export const mainAgent = setupAgent({
           intro:
             "The user has attached these folders to this task, mounted for direct access:",
         }),
+        await buildAvailableSkillsContext(),
         taskLayout,
       ],
     });

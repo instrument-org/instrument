@@ -117,6 +117,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
       const dropped = ` droppedMessages="${part.data.droppedMessages}"`;
       return `<data-contextRollover${retained}${dropped} />`;
     }
+    case "data-dateChange": {
+      return `<data-dateChange date="${part.data.date}" />`;
+    }
     case "data-fileChanges": {
       const files = part.data.files
         .map((file) => `${file.filePath} (${file.status})`)

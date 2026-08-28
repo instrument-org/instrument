@@ -1,5 +1,6 @@
 import {
   browserStatusModelNote,
+  dateChangeModelNote,
   isAddressableTaskFilePath,
   maxStepsModelNote,
   paneTabsModelNote,
@@ -37,6 +38,7 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // summary that does not exist. The user-facing treatment belongs with the
   // summarizing compaction it would be describing.
   "data-contextRollover": "dev",
+  "data-dateChange": "dev",
   // Retired, and shown to everyone rather than to developers, which is the
   // opposite of where it ended up before it was deleted. It was demoted to
   // "dev" because it was a live change card nobody wanted; what it is now is
@@ -117,6 +119,15 @@ export function renderDataPart({
           className="mt-2"
           key={part.metadata.id}
           text={`Context rollover: dropped ${part.data.droppedMessages} messages, retained ${part.data.retainedUserMessages} user messages`}
+        />
+      );
+    }
+    case "data-dateChange": {
+      return (
+        <ModelContextDebugCard
+          className="mt-2"
+          key={part.metadata.id}
+          text={dateChangeModelNote(part.data)}
         />
       );
     }

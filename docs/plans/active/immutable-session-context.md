@@ -1,6 +1,6 @@
 # Immutable session context and append-only corrections
 
-Status: Proposed, not started.
+Status: Phases 1 through 4 implemented. Phase 5 is not: a request is covered for reconstruction determinism over its messages, but nothing asserts byte stability across the serialized tool definitions. Compaction behavior and skill removals remain open, as does the decision below about where a mid-session model switch leaves a baseline that is never rewritten.
 
 ## Problem
 

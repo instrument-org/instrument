@@ -21,11 +21,13 @@ import { attachedFolderChangesModelNote } from "../../lib/attached-folder-change
 import { attachedFolderMountPoint } from "../../lib/attached-folder-mounts";
 import { browserStatusModelNote } from "../../lib/browser-status-model-text";
 import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text";
+import { dateChangeModelNote } from "../../lib/date-change-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
 import { paneTabsModelNote } from "../../lib/pane-tabs-model-text";
 import { projectChangesModelNote } from "../../lib/project-changes-model-text";
+import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
 import { TOOL_NAMES } from "../../tools/name";
 import { StoreId } from "../store-id";
 import { SessionMessagePart } from "./message-part";
@@ -240,6 +242,15 @@ export namespace SessionMessage {
     // halted, but the note belongs on the user turn that resumes it (injection
     // only runs for user messages). Carry it forward to the next user message.
     let pendingMaxStepsNote: string | undefined;
+    // Skills the agent wrote are recorded the same way, on the assistant
+    // message of the turn that wrote them. Several turns can run before the
+    // user speaks again, so these accumulate rather than replace: each skill is
+    // announced once, and none is lost to a later turn that changed a different
+    // one.
+    const pendingSkillChanges = {
+      created: new Set<string>(),
+      updated: new Set<string>(),
+    };
 
     const uiMessages: UIMessage[] = messages.map((message) => {
       const maxStepsPart = message.parts.find(
@@ -250,6 +261,22 @@ export namespace SessionMessage {
       );
       if (maxStepsPart) {
         pendingMaxStepsNote = maxStepsModelNote(maxStepsPart.data);
+      }
+
+      const skillChangesPart = message.parts.find(
+        (
+          part,
+        ): part is SessionMessagePart.DataPart & {
+          type: "data-skillChanges";
+        } => part.type === "data-skillChanges",
+      );
+      if (skillChangesPart) {
+        for (const name of skillChangesPart.data.created) {
+          pendingSkillChanges.created.add(name);
+        }
+        for (const name of skillChangesPart.data.updated) {
+          pendingSkillChanges.updated.add(name);
+        }
       }
 
       const filteredParts = message.parts
@@ -320,6 +347,20 @@ export namespace SessionMessage {
 
             injectedParts.push({ text: folderAttachmentText, type: "text" });
           }
+        }
+
+        const dateChangePart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-dateChange";
+          } => part.type === "data-dateChange",
+        );
+        if (dateChangePart) {
+          injectedParts.push({
+            text: dateChangeModelNote(dateChangePart.data),
+            type: "text",
+          });
         }
 
         const browserStatusPart = message.parts.find(
@@ -411,6 +452,16 @@ export namespace SessionMessage {
         if (pendingMaxStepsNote) {
           injectedParts.push({ text: pendingMaxStepsNote, type: "text" });
           pendingMaxStepsNote = undefined;
+        }
+
+        const skillChangesNote = skillChangesModelNote({
+          created: [...pendingSkillChanges.created],
+          updated: [...pendingSkillChanges.updated],
+        });
+        if (skillChangesNote) {
+          injectedParts.push({ text: skillChangesNote, type: "text" });
+          pendingSkillChanges.created.clear();
+          pendingSkillChanges.updated.clear();
         }
 
         // When the harness appends synthetic context (uploaded files, attached

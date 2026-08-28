@@ -1,5 +1,4 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
-import { differenceInMinutes } from "date-fns";
 import { err, ok, Result } from "neverthrow";
 import { alphabetical } from "radashi";
 
@@ -28,8 +27,6 @@ import { sanitizeModelText } from "./sanitize-model-text";
 import { splitMultipartToolResults } from "./split-multipart-tool-results";
 import { Store } from "./store";
 import { getWorkspaceConfig } from "./workspace-config";
-
-const STALE_MESSAGE_THRESHOLD_MINUTES = 60;
 
 export async function prepareModelMessages({
   agent,
@@ -151,9 +148,15 @@ export async function prepareModelMessages({
     }
   }
 
-  let contextMessages: SessionMessage.ContextWithParts[];
+  // The session's baseline: built once, when the session first needs model
+  // input, and reused verbatim for the rest of the session. Rebuilding it later
+  // would rewrite the front of every subsequent request -- the bytes a provider
+  // cache is keyed on -- to restate facts that mostly did not change. Values
+  // that do change reach the model as append-only corrections on the user turn
+  // where they were detected instead (see `SessionMessage.toModelMessages`).
+  let contextMessages = existingSessionContextMessages;
 
-  async function createAndSaveContextMessages() {
+  if (contextMessages.length === 0) {
     const newContextMessages = await agent.getMessages({
       sessionId,
       taskId,
@@ -170,45 +173,7 @@ export async function prepareModelMessages({
       return err(combinedResult.error);
     }
 
-    return ok(newContextMessages);
-  }
-
-  if (existingSessionContextMessages.length > 0) {
-    const now = new Date();
-    const hasStaleMessage = existingSessionContextMessages.some(
-      (message) =>
-        differenceInMinutes(now, message.metadata.createdAt) >
-        STALE_MESSAGE_THRESHOLD_MINUTES,
-    );
-
-    if (hasStaleMessage) {
-      for (const existingMessage of existingSessionContextMessages) {
-        const removeResult = await Store.removeMessage(
-          existingMessage.id,
-          existingMessage.metadata.sessionId,
-          taskId,
-          { signal },
-        );
-
-        if (removeResult.isErr()) {
-          return err(removeResult.error);
-        }
-      }
-
-      const createResult = await createAndSaveContextMessages();
-      if (createResult.isErr()) {
-        return err(createResult.error);
-      }
-      contextMessages = createResult.value;
-    } else {
-      contextMessages = existingSessionContextMessages;
-    }
-  } else {
-    const createResult = await createAndSaveContextMessages();
-    if (createResult.isErr()) {
-      return err(createResult.error);
-    }
-    contextMessages = createResult.value;
+    contextMessages = newContextMessages;
   }
 
   const orderedMessages = dropTrailingFailedMessages([

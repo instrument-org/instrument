@@ -761,4 +761,185 @@ describe("SessionMessage.toModelMessages", () => {
       }
     `);
   });
+
+  it("injects a date correction on the user turn that recorded it", async () => {
+    const { messageId, messageMetadata, partMetadata } = baseMetadata();
+
+    const messages: SessionMessage.WithParts[] = [
+      {
+        id: messageId,
+        metadata: messageMetadata,
+        parts: [
+          {
+            metadata: partMetadata,
+            state: "done",
+            text: "Where were we?",
+            type: "text",
+          },
+          {
+            data: { date: "2024-01-02" },
+            metadata: { ...partMetadata, id: StoreId.newPartId() },
+            type: "data-dateChange",
+          },
+        ],
+        role: "user",
+      },
+    ];
+
+    const result = await SessionMessage.toModelMessages(
+      messages,
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    expect(result).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [
+            {
+              "text": "<user_message>",
+              "type": "text",
+            },
+            {
+              "text": "Where were we?",
+              "type": "text",
+            },
+            {
+              "text": "</user_message>",
+              "type": "text",
+            },
+            {
+              "text": "
+      <instrument-system-note>
+      Today is now Tuesday, January 2, 2024. This supersedes the current date in the system information above; that date is when this session began.
+      </instrument-system-note>",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+      ]
+    `);
+  });
+
+  // Skills the agent wrote are recorded on the assistant message of the turn
+  // that wrote them, and reach the model on the next user turn: several turns
+  // can run before the user speaks again, so every change is carried and each
+  // is announced once.
+  it("carries accumulated skill changes onto the next user turn only", async () => {
+    const { sessionId } = baseMetadata();
+
+    function messageOf(
+      role: "assistant" | "user",
+      part: (metadata: {
+        createdAt: Date;
+        id: StoreId.Part;
+        messageId: StoreId.Message;
+        sessionId: StoreId.Session;
+      }) => SessionMessage.WithParts["parts"][number],
+    ): SessionMessage.WithParts {
+      const id = StoreId.newMessageId();
+      const metadata = {
+        createdAt: mockDate,
+        id: StoreId.newPartId(),
+        messageId: id,
+        sessionId,
+      };
+      return role === "assistant"
+        ? {
+            id,
+            metadata: {
+              aiGatewayModel: undefined,
+              createdAt: mockDate,
+              finishReason: "stop",
+              modelId: "gpt-4o",
+              providerId: "openai",
+              sessionId,
+            },
+            parts: [part(metadata)],
+            role: "assistant",
+          }
+        : {
+            id,
+            metadata: { createdAt: mockDate, sessionId },
+            parts: [part(metadata)],
+            role: "user",
+          };
+    }
+
+    const messages: SessionMessage.WithParts[] = [
+      messageOf("assistant", (metadata) => ({
+        data: { created: ["pdf-report"], updated: [] },
+        metadata,
+        type: "data-skillChanges",
+      })),
+      messageOf("assistant", (metadata) => ({
+        data: { created: ["pdf-report"], updated: ["chart-builder"] },
+        metadata,
+        type: "data-skillChanges",
+      })),
+      messageOf("user", (metadata) => ({
+        metadata,
+        state: "done",
+        text: "Now run it.",
+        type: "text",
+      })),
+      messageOf("user", (metadata) => ({
+        metadata,
+        state: "done",
+        text: "And again.",
+        type: "text",
+      })),
+    ];
+
+    const result = await SessionMessage.toModelMessages(
+      messages,
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    expect(result).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [],
+          "role": "assistant",
+        },
+        {
+          "content": [],
+          "role": "assistant",
+        },
+        {
+          "content": [
+            {
+              "text": "<user_message>",
+              "type": "text",
+            },
+            {
+              "text": "Now run it.",
+              "type": "text",
+            },
+            {
+              "text": "</user_message>",
+              "type": "text",
+            },
+            {
+              "text": "
+      <instrument-system-note>
+      You added the skill "pdf-report" to the workspace skills folder, so it is not in the skill catalog above. You changed the skill "chart-builder" in the workspace skills folder, so any catalog entry above describes an older version. \`load_skill\` accepts these names; load one to work from its current instructions rather than from what you remember writing.
+      </instrument-system-note>",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+        {
+          "content": [
+            {
+              "text": "And again.",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+      ]
+    `);
+  });
 });

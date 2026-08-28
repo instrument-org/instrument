@@ -2227,7 +2227,10 @@ describe("llmRequestLogic", () => {
       `);
     });
 
-    it("replaces stale agent messages", async () => {
+    // The session context is the session's immutable baseline: however long ago
+    // it was written, it is reused byte for byte rather than rebuilt, so the
+    // prefix every later request shares with the cached one does not move.
+    it("reuses session context of any age", async () => {
       await setupPromptMessagesTest();
       const testMachine = await createTestMachine({
         chunks: [
@@ -2239,7 +2242,7 @@ describe("llmRequestLogic", () => {
 
       const staleDate = new Date("2013-08-31T10:00:00.000Z");
       const staleMessageId = StoreId.newMessageId();
-      const oldText = "You are an old assistant that should be replaced.";
+      const oldText = "You are an assistant from two hours ago.";
 
       await Store.saveMessageWithParts(
         {
@@ -2268,34 +2271,19 @@ describe("llmRequestLogic", () => {
       );
 
       const { messages } = await runTestMachine(testMachine);
+      const contextMessages = messages.filter(
+        (message) => message.role === "session-context",
+      );
       expect(
-        JSON.stringify(messages),
-        "Old message should be replaced",
-      ).not.toContain(oldText);
+        contextMessages.map((message) => message.id),
+        "The stored context message should be the only one, with its id intact",
+      ).toEqual([staleMessageId]);
+      expect(
+        JSON.stringify(contextMessages),
+        "The stored context text should reach the model unchanged",
+      ).toContain(oldText);
       expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
         [
-          {
-            "id": "msg_00000000018888888888888889",
-            "metadata": {
-              "agentName": "main",
-              "createdAt": 2013-08-31T12:00:00.000Z,
-              "realRole": "assistant",
-              "sessionId": "ses_00000000018888888888888888",
-            },
-            "parts": [
-              {
-                "metadata": {
-                  "createdAt": 2013-08-31T12:00:00.000Z,
-                  "id": "prt_0000000001888888888888888A",
-                  "messageId": "msg_00000000018888888888888889",
-                  "sessionId": "ses_00000000018888888888888888",
-                },
-                "text": "You are a helpful assistant.",
-                "type": "text",
-              },
-            ],
-            "role": "session-context",
-          },
           {
             "id": "msg_0000000001888888888888888B",
             "metadata": {
@@ -2342,6 +2330,28 @@ describe("llmRequestLogic", () => {
             },
             "parts": [],
             "role": "assistant",
+          },
+          {
+            "id": "msg_00000000ZV8888888888888889",
+            "metadata": {
+              "agentName": "main",
+              "createdAt": 2013-08-31T10:00:00.000Z,
+              "realRole": "system",
+              "sessionId": "ses_00000000018888888888888888",
+            },
+            "parts": [
+              {
+                "metadata": {
+                  "createdAt": 2013-08-31T10:00:00.000Z,
+                  "id": "prt_00000000ZV888888888888888A",
+                  "messageId": "msg_00000000ZV8888888888888889",
+                  "sessionId": "ses_00000000018888888888888888",
+                },
+                "text": "You are an assistant from two hours ago.",
+                "type": "text",
+              },
+            ],
+            "role": "session-context",
           },
           {
             "id": "msg_00000000ZV888888888888888B",

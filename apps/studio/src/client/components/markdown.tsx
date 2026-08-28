@@ -53,6 +53,7 @@ import {
   INLINE_CHIP_ICON_CLASS_NAME,
   InlineLink,
 } from "./inline-link";
+import { MarkdownTable } from "./markdown-table";
 import { MarkdownTaskContext } from "./markdown-task-context";
 import { MermaidDiagram } from "./mermaid-diagram";
 import {
@@ -776,6 +777,7 @@ export const Markdown = memo(
             },
             ol: markdownOrderedList,
             pre: markdownPre,
+            table: MarkdownTable,
           }}
           rehypePlugins={streamingRehypePlugins}
           remarkPlugins={[

@@ -522,6 +522,21 @@ body {
   }
 }
 
+/* The inline size the transcript has, as a length, so a block inside a message
+   can size itself against the pane instead of against the column it sits in.
+   Registered rather than left a bare custom property: a registered `<length>`
+   resolves `100cqi` where it is declared and inherits the px it computed to,
+   while an unregistered one would carry the token down and re-resolve it
+   against whatever container each reader happened to sit in.
+
+   It is 0 wherever nothing declares it, which is what leaves a Markdown table
+   in a file viewer or a tool result an ordinary scroller at its own width. */
+@property --transcript-room {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
 /* Scroll-driven edge fade for a vertical scroll area. The mask's top/bottom
    stops are registered as animatable lengths and driven by the element's own
    scroll timeline, so the top fade appears only once scrolled down and the
@@ -971,6 +986,106 @@ a.cursor-pointer {
 /* Semantic component classes. Defined in @layer components so the
  * better-tailwindcss/no-unknown-classes ESLint rule recognizes them
  * automatically via detectComponentClasses — no manual ignore entries needed. */
+/* Unlayered on purpose. Tailwind Typography generates `prose` into the
+   utilities layer, which outranks anything in `components` whatever its
+   specificity, so a table rule that lives there loses `width` to
+   `.prose :where(table)` and the block silently stops sizing itself. */
+/* A Markdown table is the one block in a message that cannot be made
+   narrower without being made unreadable: squeezed into the text measure, a
+   six-column comparison gives each column about seventy pixels and stacks
+   every value, which reads worse than not showing it. So it is let out of
+   the measure and into whatever the transcript has left either side of it,
+   and only what still does not fit after that scrolls -- inside the block,
+   rather than under the whole conversation, which is what a bare `<table>`
+   did.
+ */
+.markdown-table-row {
+  display: grid;
+  /* A definite track. An `auto` one is sized by its own item, which makes
+     that item's percentage width cyclic; Chromium then drops the frame's
+     `max-width` entirely and the table grows straight past the pane. */
+  grid-template-columns: minmax(0, 1fr);
+  /* Centers the frame on the measure even when it is wider than the track,
+     which block-level auto margins do not do. */
+  justify-items: center;
+  /* The rhythm the table's own margins carried before they moved onto the
+     frame, where they would have been inside the scroll area. */
+  margin-block: 2em;
+}
+
+.markdown-table-frame {
+  --table-edge: 1rem;
+  --table-fade: 1.5rem;
+  /* Half the slack between the text measure and the transcript, so the block
+     stays centered on the column it grew out of, and 0 with no transcript to
+     measure -- which leaves the frame exactly the measure. */
+  --table-bleed: max(
+    0px,
+    calc((var(--transcript-room) - 2 * var(--table-edge) - 100%) / 2)
+  );
+
+  display: flex;
+  /* Its natural width, floored at the measure so a two-column table still
+     fills the column the way it always has, and capped at the pane. */
+  width: max-content;
+  min-width: 100%;
+  max-width: calc(100% + 2 * var(--table-bleed));
+  overflow-x: auto;
+  /* `auto` on one axis makes the other a scroll container too, which a
+     table's own block margins would then find something to scroll. */
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+}
+
+.markdown-table-frame > table {
+  flex: 0 0 auto;
+  width: max-content;
+  /* Cyclic against a `max-content` parent, which is what makes it work:
+     intrinsic sizing ignores it, so the frame is sized by the table, and the
+     table then fills a frame the measure floor made wider. */
+  min-width: 100%;
+  margin: 0;
+}
+
+/* Where the table continues past the frame. A sticky flex item rather than
+   an overlay: the frame is the scroll container, so anything drawn inside it
+   scrolls away with the table, and anything outside it cannot know how wide
+   the frame ended up. The negative start margin keeps it out of the frame's
+   own max-content width, so its presence never widens the block. */
+.markdown-table-fade {
+  position: sticky;
+  inset-inline-end: 0;
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: var(--table-fade);
+  margin-inline-start: calc(-1 * var(--table-fade));
+  background: linear-gradient(to right, transparent, var(--background));
+  opacity: 0;
+  pointer-events: none;
+}
+
+.markdown-table-frame[data-scroll-end] .markdown-table-fade {
+  opacity: 1;
+}
+
+/* The first column says what the row is about, so it stays while the rest of
+   the row scrolls. Only on a table that overflows: an opaque cell over a
+   surface that is not the page background would otherwise draw a stripe down
+   every table that never scrolls at all. */
+.markdown-table-frame:is([data-scroll-start], [data-scroll-end])
+  :is(th, td):first-child {
+  position: sticky;
+  inset-inline-start: 0;
+  background: var(--background);
+}
+
+/* Only once there is something behind it. */
+.markdown-table-frame[data-scroll-start] :is(th, td):first-child {
+  box-shadow:
+    1px 0 0 0 var(--border),
+    8px 0 8px -8px rgb(0 0 0 / 0.25);
+}
+
 @layer components {
   /* Keyed off the theme class rather than the OS preference: the theme is a
    * setting, and `system` resolves to the same class, so the media query read

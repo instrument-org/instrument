@@ -83,6 +83,8 @@ const AWKWARD_SHAPES = [
   "## The shapes that move while they arrive",
   "A table is the worst of them, because the column widths are computed from content that has not all landed yet:",
   "| Region | Change | Driver |\n| --- | --- | --- |\n| North | +11% | Volume, not price |\n| South | 0% | Flat for four quarters |\n| East | -6% | One account churned |\n| West | +2% | Too small to read |",
+  "A wide one cannot be made to fit a column that prose is comfortable in, so it takes whatever room the transcript has either side of the measure and scrolls for the rest:",
+  "| Product | Pack price | Approx. per can | Caffeine | Calories and sugar | Takeaway |\n| --- | ---: | ---: | ---: | --- | --- |\n| Sparkling Ice +Caffeine Variety Pack | $15.11 / 12 | $1.26 | 70 mg | ~5 calories, zero sugar | Best value |\n| PHOCUS Caffeinated Sparkling Water | $25.99 / 12 | $2.17 | 75 mg | Zero calories, zero sugar | Closest nutritional alternative |\n| JUNO Energy Sparkling Drink | $32.99 / 12 | $2.75 | 125 mg | Sugar-free | More caffeine, substantially pricier |\n| ARDOR Energy Sparkling Water | $35.99 / 12 | $3.00 | 100 mg | Zero calories, zero sugar | More than double the per-can price |",
   "An ordered list is the other one. The gutter is sized to the widest marker it will have to draw, so the tenth item moves every item above it:",
   "1. Pull the account-level export.\n2. Split North by cohort.\n3. Check the renewal dates against the contract table.\n4. Re-run the chart script.\n5. Reissue the three decks drawn from January data.\n6. Confirm the currency formatter is out of the render path.\n7. Diff the corrected charts against the originals.\n8. Ask whether the reissue needs a note attached.\n9. File the attribution question.\n10. Close the loop on the February churn.",
   "Code never fades, by design: `pnpm test run` sits at full strength in the middle of a sentence that is still arriving.",
@@ -930,7 +932,7 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
   },
   {
     about:
-      "Tables, ordered lists, code, quotes, links and text with no spaces in it, all arriving a few words at a time. The companion to the long answer: that one is for whether ordinary prose reads well, this one is for the constructs that move, restructure or refuse to animate while they arrive.",
+      "Tables, ordered lists, code, quotes, links and text with no spaces in it, all arriving a few words at a time. The companion to the long answer: that one is for whether ordinary prose reads well, this one is for the constructs that move, restructure or refuse to animate while they arrive. The second table is the one that cannot fit: watch it take the room either side of the measure, and scroll inside itself rather than under the whole transcript.",
     id: "awkward-shapes",
     name: "Shapes that arrive badly",
     script: [

@@ -15,9 +15,9 @@ When a plan moves, fix the links pointing at it. Sibling links inside one direct
 
 | Plan | Status |
 | --- | --- |
-| [Context compaction](active/context-compaction.md) — let a task outlive the model's context window | proposed |
+| [Context compaction](active/context-compaction.md) — let a task outlive the model's context window | phases 0-2 built |
 | [Repeat search results](active/repeat-search-results.md) — stop paying for the same excerpt twice | proposed |
-| [Immutable session context](active/immutable-session-context.md) — append-only corrections, for cache reuse | proposed |
+| [Immutable session context](active/immutable-session-context.md) — append-only corrections, for cache reuse | phases 1-4 landed |
 | [Session recovery from unsendable content](active/session-recovery-from-unsendable-content.md) | in progress |
 
 ### The transcript and the composer
@@ -31,13 +31,13 @@ When a plan moves, fix the links pointing at it. Sibling links inside one direct
 | [Incremental live transcript updates](active/incremental-live-transcript-updates.md) | proposed |
 | [Full-height transcript scrollbar](active/full-height-transcript-scrollbar.md) | proposed |
 | [Edit a user message in place](active/edit-user-message-in-place.md) — rewind and rerun | proposed |
-| [Semantic prompt composer](active/semantic-prompt-composer.md) | deferred |
+| [Semantic prompt composer](active/semantic-prompt-composer.md) | landed for skills, rest deferred |
 
 ### Files, folders, and storage
 
 | Plan | Status |
 | --- | --- |
-| [User-chosen working folder](active/user-chosen-working-folder.md) — folders decoupled from tasks, writable in place | proposal |
+| [User-chosen working folder](active/user-chosen-working-folder.md) — folders decoupled from tasks, writable in place | partly landed |
 | [Conversation storage](active/conversation-storage.md) — conversation data the agent can read across | proposal |
 | [Agent-requested folder access](active/agent-requested-folder-access.md) | proposal |
 | [Temporary tasks](active/temporary-tasks.md) | designed |

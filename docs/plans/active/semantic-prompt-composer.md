@@ -1,6 +1,6 @@
 # Plan: semantic prompt composer
 
-Status: deferred, not started. Revisit when user-created skills or another first-class reference type makes semantic authoring more valuable than the current textarea.
+Status: landed for skills, deferred for the rest. The composer is ProseMirror (`prompt-editor.tsx`): skill references are inline chips while editing, render as the same token in the sent message (`SkillMentionText`), and serialize to plain text on submit; attachment chips stayed outside the document as planned. Not built: chips for file, folder, and task references. Revisit when another first-class reference type needs one.
 
 ---
 

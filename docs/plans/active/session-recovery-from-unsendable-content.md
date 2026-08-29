@@ -1,6 +1,6 @@
 # Recovering a session whose history the provider will not accept
 
-Status: **in progress**. Owner: TBD. Prevention and classification have landed (phases 1 and 4, see "What already exists"). Recovery has not: phases 2 and 3 wait on [context compaction](context-compaction.md), for the reasons in "Relationship to context compaction".
+Status: **in progress**. Owner: TBD. Prevention and classification have landed (phases 1 and 4, see "What already exists"). Recovery has not, but phases 2 and 3 are unblocked: "Relationship to context compaction" ends with the two plans proceeding independently.
 
 ## Problem
 

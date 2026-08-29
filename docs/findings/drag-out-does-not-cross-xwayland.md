@@ -1,6 +1,6 @@
 # Dragging a file out does not cross from XWayland to Wayland
 
-**Status:** fixed. Reproduced by hand on Ubuntu 24.04.4 with GNOME Shell 46 in a Wayland session, against a shipped beta, 2026-08-28. The cause was the `--ozone-platform=x11` pin, not our drag code. The pin came off in 1.6.6, but its replacement asked Chromium to choose by leaving the switch off, which selects X11 rather than reading the session: 1.6.6 and 1.6.7 therefore ran on XWayland while logging otherwise, and the drag stayed broken for everyone who did not set the override by hand. The app now resolves the platform from `WAYLAND_DISPLAY` and always names it. `INSTRUMENT_OZONE_PLATFORM=x11` is the way back. The costs that decision accepts are recorded under [What the default now costs](#what-the-default-now-costs). Last updated 2026-08-29.
+**Status:** fixed. Reproduced by hand on Ubuntu 24.04.4 with GNOME Shell 46 in a Wayland session, against a shipped beta, 2026-08-28. The cause was the `--ozone-platform=x11` pin, not our drag code. The pin came off in 1.6.6, but its replacement asked Chromium to choose by leaving the switch off, which selects X11 rather than reading the session: 1.6.6 and 1.6.7 therefore ran on XWayland while logging otherwise, and the drag stayed broken for everyone who did not set the override by hand. The app now resolves the platform from `WAYLAND_DISPLAY` and always names it, verified on a packaged build launching with no override and dragging a file to the desktop. `INSTRUMENT_OZONE_PLATFORM=x11` is the way back. The costs that decision accepts are recorded under [What the default now costs](#what-the-default-now-costs). Last updated 2026-08-29.
 
 ## The symptom
 
@@ -94,10 +94,14 @@ On a host whose XWayland presenter is broken, that same line is the entire failu
 
 ## What the default now costs
 
-The two losses Electron documents were traced against this app's code rather than left as a general warning. Both are real and neither is mitigated.
+Four costs were predicted. Measured against a packaged build on GNOME 46 / Ubuntu 24.04 Wayland, one is real.
 
-**Window position restore.** `apps/studio/src/electron-main/windows/main/index.ts` spreads the saved bounds straight into the `BrowserWindow` constructor, and that object carries x/y. Wayland ignores them, and `getBounds()` returns `{ x: 0, y: 0, ... }` there, so what is saved is wrong as well as unusable. Creation-time size still applies, so the window returns the right shape in the wrong place.
+**Window position restore does not survive.** `apps/studio/src/electron-main/windows/main/index.ts` spreads the saved bounds straight into the `BrowserWindow` constructor, and that object carries x/y. Wayland ignores them: saved `{ x: 300, y: 220, width: 980, height: 640 }` came back as `{ x: 16, y: 10, width: 980, height: 640 }` across a quit and relaunch. Size restores exactly; the position is the compositor's to choose, and what the app saves for it is now dead data.
 
-**Programmatic focus.** The `second-instance` handler calls `restore()` then `focus()`, and the main window helper repeats restore/show/focus. These become no-ops without user input, so a deep link or a second launch does nothing visible rather than raising the window.
+**Programmatic focus works.** Electron forwards the compositor's xdg-activation token between instances by itself: the second instance injects it into its command line around `NotifyOtherProcessOrCreate`, and the first extracts it and sets it globally before the `second-instance` event fires. Both are armed by `app.requestSingleInstanceLock()`. Activating an already-running app from the desktop raises its window, and the app reports itself focused.
 
-Two further consequences were predicted and are worth separating from the above. Client-side decorations change the client-area geometry the custom title bar and window controls are positioned against; that is unmeasured in a running Wayland window. And the Linux window hairline had to become conditional on the session rather than the platform, because a frameless window is decorated by the compositor under Wayland and by nothing at all under X11 -- see `apps/studio/src/client/components/window-border.tsx`.
+Testing that claim needs a launch the compositor issued a token for, which in practice means the desktop's own launcher. A second instance started from an SSH shell carries no token, so the focus request has no authority no matter what the app does, and a test built that way reports a failure belonging to the test.
+
+**Client-side decorations cost nothing.** `getBounds()` and `getContentBounds()` are pixel-identical on a Wayland window, so the custom title bar, the window controls and the agent-browser paint host are positioned against the geometry they always saw.
+
+**The window hairline is the compositor's.** A frameless window is decorated by the compositor under Wayland and by nothing at all under X11, so the CSS border is conditional on the session -- see `apps/studio/src/client/components/window-border.tsx`. The fractional-scale clipping that border suffered under XWayland cannot arise on Wayland, because there is no hairline of ours there to clip.

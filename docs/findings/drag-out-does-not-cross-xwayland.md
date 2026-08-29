@@ -1,6 +1,6 @@
 # Dragging a file out does not cross from XWayland to Wayland
 
-**Status:** open, with the fix identified and half verified. Reproduced by hand on Ubuntu 24.04.4 with GNOME Shell 46 in a Wayland session, against a shipped beta, 2026-08-28. The cause is the `--ozone-platform=x11` pin, not our drag code. Running the same build as a native Wayland app makes the drag work, confirmed by hand the same day; what has not been measured is what that costs in window control, so the default is unchanged and a normal launch is still affected. Last updated 2026-08-28.
+**Status:** fixed, shipped in 1.6.6. Reproduced by hand on Ubuntu 24.04.4 with GNOME Shell 46 in a Wayland session, against a shipped beta, 2026-08-28. The cause was the `--ozone-platform=x11` pin, not our drag code. The default is now `auto`, which is Electron's own since 38: native Wayland in a Wayland session, X11 in an X11 one. `INSTRUMENT_OZONE_PLATFORM=x11` is the way back. The costs that decision accepts are recorded under [What the default now costs](#what-the-default-now-costs). Last updated 2026-08-29.
 
 ## The symptom
 
@@ -10,7 +10,7 @@ macOS and Windows are unaffected.
 
 ## What the drop target's display protocol decides
 
-The app pins `--ozone-platform=x11` in `apps/studio/src/electron-main/setup-environment.ts`, so on a Wayland desktop it is an XWayland client while the file manager, the shell, and the desktop icons are native Wayland clients. Every drag out therefore has to cross that boundary.
+The app pinned `--ozone-platform=x11` in `apps/studio/src/electron-main/setup-environment.ts` until 1.6.6, so on a Wayland desktop it was an XWayland client while the file manager, the shell, and the desktop icons are native Wayland clients. Every drag out therefore had to cross that boundary.
 
 Five combinations, all tested by hand:
 
@@ -40,11 +40,11 @@ Setting `text/uri-list` to a `file://` URI on the `dragstart` dataTransfer, and 
 
 That is a sensible restriction — a renderer should not be able to hand a local file reference to another application — and it means there is no renderer-side escape hatch for a local file on any platform.
 
-## The pin is the cause, and it is load-bearing
+## The pin was the cause, and dropping it was not free
 
-Electron 38 changed its default to running as a native Wayland app in a Wayland session. The pin opts back out of that.
+Electron 38 changed its default to running as a native Wayland app in a Wayland session. The pin opted back out of that.
 
-Electron's own `BrowserWindow` documentation gives the reason anyone forces XWayland: on Wayland it is generally not possible to programmatically resize a window after creation, or to position, move, focus, or blur windows without user input. The app restores window bounds at launch and focuses windows programmatically, so removing the pin is not free.
+Electron's own `BrowserWindow` documentation gives the reason anyone forces XWayland: on Wayland it is generally not possible to programmatically resize a window after creation, or to position, move, focus, or blur windows without user input. The app restores window bounds at launch and focuses windows programmatically, so the pin was carrying real weight.
 
 Two things about the cost are worth separating. Creation-time window *size* is chosen by the client and survives; window *position* does not. Programmatic focus is the other real loss, which affects deep links and second-instance activation.
 
@@ -56,22 +56,34 @@ None of them pins an ozone platform. The ones on a post-38 Electron therefore ru
 
 None of them ships native file drag-out at all. So there is no prior art to copy for the drag itself, and no evidence that anyone else has hit this particular boundary. The survey supports the platform choice, not the feature.
 
-## What would resolve it
+## What resolved it
 
 Running as a native Wayland app in a Wayland session fixes the drag. Verified by hand on 2026-08-28 against the same installed build: launched with `INSTRUMENT_OZONE_PLATFORM=wayland`, a file dragged from the app landed on the GNOME desktop. The protocol was confirmed rather than assumed -- `_NET_CLIENT_LIST` was empty, so the app held no X11 window, and the main log recorded `Using ozone platform: wayland`.
 
-So Electron's Wayland drag source does support file drags, which was the open question. What remains unmeasured is the other half: what native Wayland costs in window position restore and programmatic focus, against what the app actually needs.
+So Electron's Wayland drag source does support file drags, which was the open question.
 
-`INSTRUMENT_OZONE_PLATFORM` exists to answer the first half. It takes `x11`, `wayland`, or `auto`, defaults to `x11`, and ignores anything else with a warning:
+`INSTRUMENT_OZONE_PLATFORM` is what answered it, and it remains the override. It takes `x11`, `wayland`, or `auto`, defaults to `auto`, and ignores anything else with a warning:
 
 ```bash
 INSTRUMENT_OZONE_PLATFORM=wayland <installed binary>
 ```
 
-`auto` is worth understanding before using it. It is Electron's own default since 38 and means native Wayland in a Wayland session, but it is **not a platform Chromium accepts**: passing it to `--ozone-platform` is fatal at startup with `Invalid ozone platform: auto`, and the app dies before any window exists. It is the name of what Chromium does when the flag is absent, so asking for it means removing the switch rather than setting it -- including the `--ozone-platform=x11` the packaged launcher puts on argv, which is why the app does not simply respect an unset variable. `wayland` names a real platform and is the more direct thing to test with.
+`auto` is worth understanding before using it. It is Electron's own default since 38 and means native Wayland in a Wayland session, but it is **not a platform Chromium accepts**: passing it to `--ozone-platform` is fatal at startup with `Invalid ozone platform: auto`, and the app dies before any window exists. It is the name of what Chromium does when the flag is absent, so asking for it means removing the switch rather than setting it. `wayland` names a real platform and is the more direct thing to test with.
+
+One trap in that removal: `app.commandLine.removeSwitch` does not reliably undo an `--ozone-platform` the process was started with. A packaged 1.6.6 launched with `--ozone-platform=x11` on argv resolves to `auto`, logs `auto`, and still runs as an X11 client. The launcher no longer passes that flag, so an ordinary launch is unaffected, but anything that does put it on argv -- a custom launcher, a script, a stale desktop entry -- is silently on X11. Read the protocol rather than the request.
 
 Passing `--ozone-platform` on the command line instead does not work either, and fails in a way that looks like a Wayland bug rather than a conflict: the switch set in `setup-environment.ts` is applied after the process command line is parsed and overwrites it, leaving the app erroring out of an X11 presenter while asked for Wayland, with no window.
 
 Confirm which protocol actually took before trusting a result. A native Wayland app has no X11 window, so it will not appear in `_NET_CLIENT_LIST`; under XWayland it will.
 
-Until that test is run, dragging a file out works on macOS, on Windows, and in a Linux X11 session, and does nothing in a Linux Wayland session, which is the default on current Ubuntu.
+Dragging a file out now works on macOS, on Windows, and in a Linux Wayland session. It still does nothing when the app is on XWayland, which since 1.6.6 means only a deliberate `INSTRUMENT_OZONE_PLATFORM=x11`.
+
+## What the default now costs
+
+The two losses Electron documents were traced against this app's code rather than left as a general warning. Both are real and neither is mitigated.
+
+**Window position restore.** `apps/studio/src/electron-main/windows/main/index.ts` spreads the saved bounds straight into the `BrowserWindow` constructor, and that object carries x/y. Wayland ignores them, and `getBounds()` returns `{ x: 0, y: 0, ... }` there, so what is saved is wrong as well as unusable. Creation-time size still applies, so the window returns the right shape in the wrong place.
+
+**Programmatic focus.** The `second-instance` handler calls `restore()` then `focus()`, and the main window helper repeats restore/show/focus. These become no-ops without user input, so a deep link or a second launch does nothing visible rather than raising the window.
+
+Two further consequences were predicted and are worth separating from the above. Client-side decorations change the client-area geometry the custom title bar and window controls are positioned against; that is unmeasured in a running Wayland window. And the Linux window hairline had to become conditional on the session rather than the platform, because a frameless window is decorated by the compositor under Wayland and by nothing at all under X11 -- see `apps/studio/src/client/components/window-border.tsx`.

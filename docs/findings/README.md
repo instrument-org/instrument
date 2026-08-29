@@ -65,7 +65,7 @@ Grouped by area; status is the short form of each file's own line.
 | [A quit confirmation outlives the window](quit-confirmation-outlives-the-window.md) — Windows/Linux ordering | resolved, guidance |
 | [An update check un-stages the macOS build](update-check-un-stages-the-macos-build.md) | resolved |
 | [A deb update can leave the package unconfigured](deb-update-left-the-package-unconfigured.md) | fixed, verified |
-| [Dragging a file out does not cross from XWayland to Wayland](drag-out-does-not-cross-xwayland.md) — the ozone pin, and what it costs to drop | open, diagnosed |
+| [Dragging a file out does not cross from XWayland to Wayland](drag-out-does-not-cross-xwayland.md) — the ozone pin, and what it cost to drop | fixed, shipped |
 | [Main log retention and transport](main-log-retention-and-transport.md) | partly addressed |
 | [Windows long paths in the task directory](windows-long-paths.md) | open |
 | [A watchman probe froze boot on Windows](windows-watchman-probe-freezes-boot.md) | resolved |

@@ -12,7 +12,6 @@ const autoUpdater = vi.hoisted(() => ({
   // assigned it rather than finding the value it started from.
   autoInstallOnAppQuit: undefined as boolean | undefined,
   checkForUpdates: vi.fn(),
-  disableDifferentialDownload: undefined as boolean | undefined,
   disableWebInstaller: false,
   downloadUpdate: vi.fn(),
   forceDevUpdateConfig: false,
@@ -56,7 +55,6 @@ afterAll(() => {
 
 beforeEach(() => {
   autoUpdater.autoInstallOnAppQuit = undefined;
-  autoUpdater.disableDifferentialDownload = undefined;
   vi.spyOn(os, "platform").mockReturnValue("linux");
 });
 
@@ -118,26 +116,6 @@ describe("createStudioAppUpdater", () => {
       // other package needs the quit handler, which is the one thing that runs
       // its installer.
       expect(autoUpdater.autoInstallOnAppQuit).toBe(expected);
-    },
-  );
-
-  it.each([
-    { disabled: true, platform: "win32" },
-    { disabled: false, platform: "darwin" },
-    { disabled: false, platform: "linux" },
-  ] as { disabled: boolean; platform: NodeJS.Platform }[])(
-    "asks for a differential download on $platform: $disabled is disabled",
-    ({ disabled, platform }) => {
-      vi.spyOn(os, "platform").mockReturnValue(platform);
-      packagedAs(undefined);
-
-      createStudioAppUpdater();
-
-      // NsisUpdater rebuilds the installer from a cached `installer.exe` that
-      // nothing writes, so on Windows the partial download is always thrown
-      // away and a full one follows. macOS reuses the previous zip and its
-      // differential download does complete.
-      expect(autoUpdater.disableDifferentialDownload).toBe(disabled);
     },
   );
 });

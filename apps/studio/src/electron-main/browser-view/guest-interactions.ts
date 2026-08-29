@@ -29,9 +29,17 @@ const MOUSE_NAV_SCRIPT = `(() => {
 /** Wire user input the agent-browser guest needs to be usable directly: mouse
  * thumb-button navigation and a right-click context menu. */
 export function attachGuestInteractions(guest: WebContents) {
-  guest.on("did-finish-load", () => {
+  // `dom-ready` rather than `did-finish-load`, because the guard the script
+  // sets lives on the document and a navigation replaces it: waiting for the
+  // last subresource leaves a loaded, clickable page with no thumb-button
+  // handler on it for as long as the images take. Both fire, and the guard
+  // makes the second injection a no-op, so keeping the later one costs nothing
+  // and covers a document that reached load without a dom-ready.
+  const injectMouseNav = () => {
     void guest.executeJavaScript(MOUSE_NAV_SCRIPT).catch(noop);
-  });
+  };
+  guest.on("dom-ready", injectMouseNav);
+  guest.on("did-finish-load", injectMouseNav);
 
   guest.on("context-menu", (_event, params) => {
     Menu.buildFromTemplate(contextMenuTemplate(guest, params)).popup();

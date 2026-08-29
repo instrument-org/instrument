@@ -1,5 +1,9 @@
 {
   "$schema": "./node_modules/turbo/schema.json",
+  "cacheMaxAge": "7d",
+  "cacheMaxSize": "20gb",
+  "concurrency": "4",
+  "globalPassThroughEnv": ["GOMAXPROCS", "VITEST_MAX_WORKERS"],
   "ui": "stream",
   "tasks": {
     "build": {

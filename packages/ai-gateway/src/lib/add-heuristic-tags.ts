@@ -5,29 +5,46 @@ import { type AIGatewayModel } from "../schemas/model";
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 
 const MODEL_TAGS: Record<string, AIGatewayModel.ModelTag[]> = {
-  "claude-sonnet-4.6": ["default"],
-  "devstral-2512": ["coding", "recommended"],
-  "gemini-2.5-pro": ["coding"],
+  "claude-sonnet-5": ["default"],
   "grok-build-0.1": ["coding", "recommended"],
-  "qwen3-coder": ["coding", "recommended"],
-  "qwen3-coder-next": ["coding", "recommended"],
-  "qwen3-coder-plus": ["coding", "recommended"],
-  "qwen3-max": ["coding"],
-  "qwen-3-coder-480b": ["coding", "recommended"],
 };
 
 // Models that we normally wouldn't set as default, but we for the author
 const DEFAULT_MODELS_BY_CONFIG_TYPE: Partial<
   Record<AIGatewayProviderConfig.Type["type"], string[]>
 > = {
-  anthropic: ["claude-sonnet-4.6"],
-  cerebras: ["glm-4.7", "gpt-oss-120b"],
-  google: ["gemini-3.5-flash"],
+  anthropic: ["claude-sonnet-5"],
+  cerebras: ["gpt-oss-120b"],
+  google: ["gemini-3.7-flash"],
   groq: ["gpt-oss-120b"],
-  openai: ["gpt-5.4"],
-  "x-ai": ["grok-4.3"],
-  "z-ai": ["glm-5"],
+  openai: ["gpt-5.6-terra"],
+  "x-ai": ["grok-4.6"],
+  "z-ai": ["glm-5.3"],
 };
+
+/**
+ * Suffixes that name a modality this app cannot drive a coding turn with, even
+ * when the model behind them answers tool calls. Matched anywhere in the id so
+ * that both a family suffix (`gemini-3-pro-image`) and an infix
+ * (`gemini-3.1-flash-live-preview`) are caught.
+ */
+const NON_CODING_MODALITY =
+  /-(?:audio|image|imagine|live|transcribe|tts|video|vision|voice)(?:[-.]|$)/;
+
+/**
+ * A tier served at a premium for throughput rather than for capability: the
+ * same weights as the sibling it is named after, at two to three times the
+ * price. Listing one beside its base model offers a worse deal as an equal.
+ */
+const PRIORITY_TIER = /-fast$/;
+
+/**
+ * `pro` directly after the version is a separate, far pricier model (GPT-5.5
+ * Pro asks $30/$180 against GPT-5.5's $5/$30). `pro` after a tier name is a
+ * reasoning mode on the same model at the same price, so it earns whatever its
+ * base earns.
+ */
+const EXPENSIVE_PRO_TIER = /^gpt-\d+(?:\.\d+)?-pro/;
 
 export function addHeuristicTags(
   model: AIGatewayModel.Type,
@@ -45,6 +62,10 @@ export function addHeuristicTags(
 
   if (canonicalId.startsWith("o-") && config.type === "openai") {
     tags.push("legacy");
+  }
+
+  if (PRIORITY_TIER.test(canonicalId)) {
+    tags = tags.filter((tag) => tag !== "recommended" && tag !== "default");
   }
 
   if (
@@ -75,62 +96,72 @@ export function addHeuristicTags(
 function getDynamicTags(
   canonicalId: AIGatewayModel.CanonicalId,
 ): AIGatewayModel.ModelTag[] {
-  // GPT-5+ models: all get coding + recommended, except nano variants
-  if (matchesVersionFloor(canonicalId, "gpt-", 5)) {
-    if (canonicalId.includes("nano")) {
-      return ["coding"];
-    }
-
-    // Pro models are not recommended due to high cost
-    if (canonicalId.includes("pro")) {
-      return ["coding"];
-    }
-    return ["coding", "recommended"];
+  if (NON_CODING_MODALITY.test(canonicalId)) {
+    return [];
   }
 
+  if (canonicalId.startsWith("gpt-")) {
+    if (EXPENSIVE_PRO_TIER.test(canonicalId) || canonicalId.includes("nano")) {
+      return ["coding"];
+    }
+
+    if (matchesVersionFloor(canonicalId, "gpt-", 5.5)) {
+      return ["coding", "recommended"];
+    }
+    return matchesVersionFloor(canonicalId, "gpt-", 5) ? ["coding"] : [];
+  }
+
+  // Anthropic's lineup is Fable 5, Opus 5, Sonnet 5, and Haiku 4.5; every other
+  // Claude is one Anthropic itself files under legacy.
   if (
     canonicalId.startsWith("claude-sonnet-") ||
     canonicalId.startsWith("claude-haiku-") ||
-    canonicalId.startsWith("claude-opus-")
+    canonicalId.startsWith("claude-opus-") ||
+    canonicalId.startsWith("claude-fable-")
   ) {
     if (
-      matchesVersionFloor(canonicalId, "claude-sonnet-", 4.6) ||
+      matchesVersionFloor(canonicalId, "claude-sonnet-", 5) ||
       matchesVersionFloor(canonicalId, "claude-haiku-", 4.5) ||
-      matchesVersionFloor(canonicalId, "claude-opus-", 4.7)
+      matchesVersionFloor(canonicalId, "claude-opus-", 5) ||
+      matchesVersionFloor(canonicalId, "claude-fable-", 5)
     ) {
       return ["coding", "recommended"];
     }
     return ["coding"];
   }
 
-  // Gemini 3+ models: pro variants get coding + recommended, others get recommended only
+  // Gemini's Pro line stops at 3.1 while Flash has run on to 3.7, so the floor
+  // has to sit below the newest release or the only Pro on offer drops out.
+  if (matchesVersionFloor(canonicalId, "gemini-", 3.1)) {
+    return ["coding", "recommended"];
+  }
   if (matchesVersionFloor(canonicalId, "gemini-", 3)) {
-    if (canonicalId.includes("-image")) {
-      return [];
-    }
+    return ["coding"];
+  }
+
+  if (matchesVersionFloor(canonicalId, "grok-", 4.5)) {
     return ["coding", "recommended"];
   }
 
-  // Grok 4+ models get coding + recommended
-  if (
-    matchesVersionFloor(canonicalId, "grok-", 4) ||
-    canonicalId.startsWith("grok-code-fast-")
-  ) {
+  if (matchesVersionFloor(canonicalId, "glm-", 5.2)) {
     return ["coding", "recommended"];
   }
 
-  // GLM-5+ models get coding + recommended
-  if (matchesVersionFloor(canonicalId, "glm-", 5)) {
+  if (matchesVersionFloor(canonicalId, "kimi-k", 2.6)) {
     return ["coding", "recommended"];
   }
 
-  // Kimi models
-  if (matchesVersionFloor(canonicalId, "kimi-k", 2.5)) {
+  if (matchesVersionFloor(canonicalId, "minimax-m", 3)) {
     return ["coding", "recommended"];
   }
 
-  // Minimax models
-  if (matchesVersionFloor(canonicalId, "minimax-m", 2.7)) {
+  // Qwen folded its coder line into the numbered releases, so the floor reads
+  // the release rather than a `-coder` suffix that no longer ships.
+  if (matchesVersionFloor(canonicalId, "qwen", 3.7)) {
+    return ["coding", "recommended"];
+  }
+
+  if (matchesVersionFloor(canonicalId, "deepseek-v", 4)) {
     return ["coding", "recommended"];
   }
 
@@ -138,38 +169,41 @@ function getDynamicTags(
 }
 
 function isLegacy(canonicalId: AIGatewayModel.CanonicalId): boolean {
-  if (
-    canonicalId.startsWith("claude-sonnet-4") ||
-    canonicalId.startsWith("claude-haiku-4") ||
-    canonicalId.startsWith("claude-opus-4")
-  ) {
-    const versionMatch = /^claude-(?:sonnet|haiku|opus)-(\d+(?:\.\d+)?)/.exec(
-      canonicalId,
-    );
-    if (versionMatch?.[1]) {
-      const version = Number.parseFloat(versionMatch[1]);
-      if (version < 4.5) {
-        return true;
-      }
-    }
-  }
-
   if (canonicalId.startsWith("claude-3")) {
     return true;
   }
 
-  if (canonicalId.startsWith("gemini-2.5")) {
+  if (
+    canonicalId.startsWith("claude-sonnet-4") ||
+    canonicalId.startsWith("claude-opus-4")
+  ) {
     return true;
   }
 
   if (
-    canonicalId.startsWith("gpt-5-") ||
-    canonicalId === "gpt-5" ||
-    canonicalId.startsWith("gpt-5.1")
+    canonicalId.startsWith("claude-haiku-") &&
+    !matchesVersionFloor(canonicalId, "claude-haiku-", 4.5)
   ) {
-    if (canonicalId.includes("-max") || canonicalId.includes("5.1-codex")) {
-      return false;
-    }
+    return true;
+  }
+
+  if (
+    /^gemini-\d/.test(canonicalId) &&
+    !matchesVersionFloor(canonicalId, "gemini-", 3)
+  ) {
+    return true;
+  }
+
+  if (/^gpt-[34]/.test(canonicalId)) {
+    return true;
+  }
+
+  // GPT-5.4 unified the Codex and GPT lines, which retired everything below it
+  // including the separate `-codex` builds.
+  if (
+    matchesVersionFloor(canonicalId, "gpt-", 5) &&
+    !matchesVersionFloor(canonicalId, "gpt-", 5.4)
+  ) {
     return true;
   }
 
@@ -189,6 +223,12 @@ function matchesVersionFloor(
   const versionMatch = /^(\d+(?:\.\d+)?)/.exec(versionPart);
 
   if (!versionMatch?.[1]) {
+    return false;
+  }
+
+  // A letter straight after the digits belongs to the name, not the version:
+  // `glm-5v-turbo` is a vision model, not GLM 5.
+  if (/^[a-z]/i.test(versionPart.slice(versionMatch[1].length))) {
     return false;
   }
 

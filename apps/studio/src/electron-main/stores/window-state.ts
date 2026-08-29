@@ -26,6 +26,14 @@ const DEFAULT_HEIGHT = 900;
 // window slightly over an edge and still expect that position to be restored.
 const MIN_VISIBLE_PX = 100;
 
+// GNOME maximizes any window that maps at more than this share of the work
+// area, by area (mutter's auto-maximize, on by default). A saved size just over
+// the line therefore comes back maximized on every launch, and unmaximizing
+// does not escape it: mutter's own unmaximize shrink keeps the window's aspect
+// ratio, which lands back over the line whenever the window is proportionally
+// taller than the work area. Restore just under it instead.
+const MAX_UNMAXIMIZED_WORK_AREA_FRACTION = 0.8;
+
 const store = new Store<StoredWindowState>({
   name: "window-state",
 });
@@ -58,7 +66,7 @@ export function getWindowState() {
     isMaximized: stored.isMaximized ?? defaults.isMaximized,
   };
 
-  return ensureWindowVisible(merged);
+  return keepBelowAutoMaximize(ensureWindowVisible(merged));
 }
 
 export function isWindowBoundsVisible(bounds: WindowBounds) {
@@ -128,4 +136,30 @@ function isWindowWithinBounds(
     ) - Math.max(windowBounds.y, displayBounds.y);
 
   return overlapX >= MIN_VISIBLE_PX && overlapY >= MIN_VISIBLE_PX;
+}
+
+function keepBelowAutoMaximize(state: WindowState) {
+  if (process.platform !== "linux") {
+    return state;
+  }
+
+  const { workArea } = screen.getDisplayMatching(state.bounds);
+  const limit =
+    workArea.width * workArea.height * MAX_UNMAXIMIZED_WORK_AREA_FRACTION;
+  const area = state.bounds.width * state.bounds.height;
+  if (area <= limit) {
+    return state;
+  }
+
+  // Scaling both sides by the square root of the shortfall keeps the shape the
+  // user left, and flooring keeps the result under the limit rather than on it.
+  const scale = Math.sqrt(limit / area);
+  return {
+    ...state,
+    bounds: {
+      ...state.bounds,
+      height: Math.floor(state.bounds.height * scale),
+      width: Math.floor(state.bounds.width * scale),
+    },
+  };
 }

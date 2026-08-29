@@ -6,18 +6,18 @@ Copy example files to local env files before running Studio or workspace logic. 
 
 Copy from `apps/studio/.env.local.example`. Loaded by electron-vite for the main and renderer processes.
 
-| Variable                          | Required | Description                                                                                                                                             |
-| --------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MAIN_VITE_APP_API_BASE_URL`      | yes      | Base URL for the Instrument platform API (accounts, billing, gateway). Local dev: `http://localhost:49100` with the `internal` API repo running.        |
-| `MAIN_VITE_GOOGLE_CLIENT_ID`      | no       | Google OAuth client ID for sign-in. `.env.development` ships the shared dev value; sign-in fails without one.                                           |
-| `MAIN_VITE_GOOGLE_CLIENT_SECRET`  | no       | Google OAuth client secret for sign-in; sourced like the client ID.                                                                                     |
-| `MAIN_VITE_APP_REGISTRY_DIR_PATH` | no       | Path to the skills registry. `.env.development` points it at a sibling skills checkout; unset, the app falls back to the repo submodule at `registry/`. |
-| `MAIN_VITE_USE_BUILT_SHIM_CLIENT` | no       | `true` serves `packages/shim-client/dist` instead of the shim dev server.                                                                               |
-| `VITE_DEBUG_TELEMETRY`            | no       | When `true`, enables extra telemetry logging. Default `false`.                                                                                          |
-| `VITE_POSTHOG_API_HOST`           | no       | PostHog ingest host when telemetry is configured.                                                                                                       |
-| `VITE_POSTHOG_API_KEY`            | no       | PostHog project API key when telemetry is configured.                                                                                                   |
+| Variable                          | Required | Description                                                                                                                                                                         |
+| --------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MAIN_VITE_APP_API_BASE_URL`      | yes      | Base URL for the Instrument platform API (accounts, billing, gateway). Local dev: `http://localhost:49100` with the `internal` API repo running.                                    |
+| `MAIN_VITE_GOOGLE_CLIENT_ID`      | no       | Google OAuth client ID for sign-in. Not validated as required, but sign-in fails without one; the committed example leaves it empty, so the value arrives through a local env file. |
+| `MAIN_VITE_GOOGLE_CLIENT_SECRET`  | no       | Google OAuth client secret for sign-in; sourced like the client ID.                                                                                                                 |
+| `MAIN_VITE_APP_REGISTRY_DIR_PATH` | no       | Override path to the skills registry. Unset, the app falls back to the repo submodule at `registry/`.                                                                               |
+| `MAIN_VITE_USE_BUILT_SHIM_CLIENT` | no       | `true` serves `packages/shim-client/dist` instead of the shim dev server.                                                                                                           |
+| `VITE_DEBUG_TELEMETRY`            | no       | When `true`, enables extra telemetry logging. Default `false`.                                                                                                                      |
+| `VITE_POSTHOG_API_HOST`           | no       | PostHog ingest host when telemetry is configured.                                                                                                                                   |
+| `VITE_POSTHOG_API_KEY`            | no       | PostHog project API key when telemetry is configured.                                                                                                                               |
 
-`apps/studio/.env.development` ships committed defaults, including the shared dev Google OAuth client; `.env.local` overrides them and holds anything that must stay out of the repo.
+`apps/studio/.env.development` is gitignored and machine-local, but electron-vite loads it in dev when present, so values there (OAuth credentials, a registry override) act as defaults underneath `.env.local`. Nothing in the repo ships it: a fresh clone has only what setup copies from `.env.local.example`.
 
 Linked worktrees copy local env files and normalize relative registry overrides to absolute paths based on the source env file.
 

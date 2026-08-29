@@ -32,7 +32,7 @@ const IS_MACOS_INTEL = os.platform() === "darwin" && os.arch() === "x64";
 const MACOS_INTEL_CHANNEL = "latest-x64";
 
 // Where the artifact for the staged update landed, recorded when the download
-// finishes. Only the Linux install reads it, which drives dpkg itself.
+// finishes. Only the Debian install reads it, which drives dpkg itself.
 let stagedInstallerPath: string | undefined;
 
 export function createStudioAppUpdater({
@@ -41,11 +41,13 @@ export function createStudioAppUpdater({
   autoUpdater.logger = createAutoUpdaterLogger();
   autoUpdater.autoDownload = true;
   autoUpdater.disableWebInstaller = true;
-  // Linux installs through startDetachedInstall and nowhere else. Left at its
-  // default, electron-updater also installs from its own quit handler, which
-  // runs dpkg inline in the exiting process: an ordinary quit with an update
-  // already staged would take the very path the handoff exists to avoid.
-  autoUpdater.autoInstallOnAppQuit = os.platform() !== "linux";
+  // The Debian package installs through startDetachedInstall and nowhere else.
+  // Left at its default, electron-updater also installs from its own quit
+  // handler, which runs dpkg inline in the exiting process: an ordinary quit
+  // with an update already staged would take the very path the handoff exists
+  // to avoid. Every other package keeps the default, so quitting hands the
+  // staged artifact to the installer electron-updater has for that format.
+  autoUpdater.autoInstallOnAppQuit = !installedFromDeb();
   autoUpdater.forceDevUpdateConfig =
     process.env.FORCE_DEV_AUTO_UPDATE === "true";
 
@@ -113,6 +115,26 @@ export function createStudioAppUpdater({
   return updater;
 }
 
+/**
+ * Whether a build is the Debian package, from the marker electron-builder left
+ * in its resources directory.
+ *
+ * That file holds `deb`, `rpm` or `pacman`, and an AppImage build has none at
+ * all. electron-updater reads the same marker to choose between its DebUpdater,
+ * RpmUpdater, PacmanUpdater and AppImageUpdater, so deciding from it keeps the
+ * dpkg handoff and the installer that runs when the handoff is declined in
+ * agreement about which package is being replaced.
+ */
+export function isDebInstall({
+  packageType,
+  platform,
+}: {
+  packageType: string | undefined;
+  platform: NodeJS.Platform;
+}) {
+  return platform === "linux" && packageType?.trim() === "deb";
+}
+
 // The debug lines worth keeping: the proxy-server lifecycle and, on macOS, the
 // event that says Squirrel finished staging the build. Matched by subject rather
 // than exact text so a reworded upstream message still lands.
@@ -170,23 +192,31 @@ function getInstallLogPath() {
   return path.join(app.getPath("userData"), "last-update-install.log");
 }
 
-// Only Linux needs narrating: it is the one platform that closes the app, asks
-// the user for authentication, and comes back by itself. Declining that prompt
-// is the one way an update quietly does not happen, which is what this says.
+// Only the Debian install needs narrating: it is the one that closes the app,
+// asks the user for authentication, and comes back by itself. Declining that
+// prompt is the one way an update quietly does not happen, which is what this
+// says.
 function getInstallNotice() {
-  if (os.platform() !== "linux") {
+  if (!installedFromDeb()) {
     return;
   }
   return `${APP_NAME} will close and ask you to authenticate, then reopen once the update is installed.`;
 }
 
+function installedFromDeb() {
+  return isDebInstall({
+    packageType: readPackageType(),
+    platform: os.platform(),
+  });
+}
+
 function installStagedUpdate() {
-  if (os.platform() !== "linux") {
+  if (!installedFromDeb()) {
     autoUpdater.quitAndInstall();
     return;
   }
 
-  // Linux drives its own install. Two constraints shape it.
+  // The Debian package drives its own install. Two constraints shape it.
   //
   // `app.relaunch()` is unusable: it sets PR_SET_NO_NEW_PRIVS=1 on the child,
   // permanently stripping the pkexec privileges later updates authenticate with
@@ -224,6 +254,19 @@ function installStagedUpdate() {
 // quote, emit an escaped one, reopen.
 function quoteForShell(value: string) {
   return `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
+// Missing on any build electron-builder wrote no marker for, and unreadable
+// outside a packaged app, both of which answer the question the same way.
+function readPackageType() {
+  try {
+    return fs.readFileSync(
+      path.join(process.resourcesPath, "package-type"),
+      "utf8",
+    );
+  } catch {
+    return;
+  }
 }
 
 /**

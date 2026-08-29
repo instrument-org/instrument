@@ -47,6 +47,7 @@ When a plan moves, fix the links pointing at it. Sibling links inside one direct
 
 | Plan | Status |
 | --- | --- |
+| [One browser abstraction, many tabs](active/one-browser-many-tabs.md), the product-level frame over the two plans below | proposal |
 | [External browsers behind a flag](active/external-browser-behind-a-flag.md) — built; the checklist for turning it on | landed, flag off |
 | [Lazy browser targets, and multiple tabs](active/lazy-browser-targets-and-multiple-tabs.md) | proposal |
 | [Browser popups as agent-drivable tabs](active/browser-popups-as-agent-drivable-tabs.md) | proposal |

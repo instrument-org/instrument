@@ -719,7 +719,14 @@ export async function connect({ allowReload = false, port, workspace } = {}) {
               fail(
                 `Timed out after ${timeout}ms waiting for: ${
                   typeof condition === "string" ? condition : "condition"
-                }`,
+                }\n` +
+                  // The predicate people write here first is a turn finishing,
+                  // spelled as words appearing or disappearing in the page. It
+                  // times out on a turn that finished, because a finished turn
+                  // does not have to leave the text the predicate reads: the
+                  // whole wait is then spent, and what it reports is that the
+                  // app never got there.
+                  `If you were waiting for an agent turn to finish, ask the status route rather than the DOM: \`wait --idle\` (app.waitForIdle).`,
               );
             }
             await sleep(WAIT_POLL_MS);

@@ -13,33 +13,54 @@ const DEFAULT_CONTEXT_WINDOW = 200_000;
 const MODEL_CONTEXT_WINDOW_PREFIXES: [string, number][] = [
   // Inception
   ["mercury", 128_000],
-  // Anthropic — haiku/sonnet <4 and opus <4.6 are 200k; sonnet 4+ and opus 4.6+ are 1M
+  // Anthropic — haiku and sonnet <4 are 200k; sonnet 4+, opus 4.6+, and fable are 1M
   ["claude-haiku", 200_000],
   ["claude-sonnet-4", 1_000_000],
+  ["claude-sonnet-5", 1_000_000],
   ["claude-sonnet", 200_000],
   ["claude-opus-4.6", 1_000_000],
   ["claude-opus-4.7", 1_000_000],
+  ["claude-opus-4.8", 1_000_000],
+  ["claude-opus-5", 1_000_000],
   ["claude-opus", 200_000],
-  // OpenAI GPT-5.x — chat/nano variants are 128k; others are 400k
+  ["claude-fable", 1_000_000],
+  // OpenAI — chat/nano variants are 128k; GPT-5 through 5.3 are 400k, 5.4+ are 1.05M
   ["gpt-5", 400_000],
+  ["gpt-5.4", 1_050_000],
+  ["gpt-5.5", 1_050_000],
+  ["gpt-5.6", 1_050_000],
   // Google — gemini 2.5+ and 3+ are all 1M
   ["gemini-2.5", 1_000_000],
   ["gemini-3", 1_000_000],
+  // xAI — 4.3 and the 4.20 line are wide; 4.5+ traded width for speed
   ["grok-4.3", 1_000_000],
+  ["grok-4.20", 2_000_000],
+  ["grok-4.5", 500_000],
+  ["grok-4.6", 500_000],
+  ["grok-build", 256_000],
   // Moonshot / Kimi
-  ["kimi-k2", 131_000],
-  // Qwen — coder-plus is 128k; coder base is 262k
+  ["kimi-k2", 262_000],
+  ["kimi-k3", 1_048_576],
+  // Qwen — the numbered releases from 3.7 on are 1M; the older coder line is 262k
   ["qwen3-coder-plus", 128_000],
   ["qwen3-coder", 262_000],
   ["qwen3-max", 256_000],
   ["qwen-3-coder", 262_000],
+  ["qwen3.7", 1_000_000],
+  ["qwen3.8", 1_000_000],
   // Mistral
-  ["devstral", 131_000],
+  ["devstral", 262_144],
   // MiniMax
   ["minimax-m1", 1_000_000],
   ["minimax-m2", 196_000],
+  ["minimax-m3", 1_048_576],
   // ZhipuAI / GLM (4.5–4.7 range ~128–202k; use 200k as reasonable default)
   ["glm-4", 200_000],
+  ["glm-5", 204_800],
+  ["glm-5.2", 1_048_576],
+  ["glm-5.3", 1_310_720],
+  // DeepSeek
+  ["deepseek-v4", 1_048_576],
 ];
 
 function getContextWindowForModel(canonicalId: string): number {

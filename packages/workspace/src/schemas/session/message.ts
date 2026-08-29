@@ -106,6 +106,15 @@ export namespace SessionMessage {
   });
   const ContextMetadataSchema = BaseMetadataSchema.extend({
     agentName: z.custom<AgentName>(),
+    /**
+     * Which shape of the session baseline this message holds
+     * (`SESSION_CONTEXT_VERSION`), so a release that puts something new in the
+     * baseline reaches sessions that already have one stored.
+     *
+     * Absent on a message written before the marker existed, which reads as
+     * older than any shape a build names and so is rebuilt once.
+     */
+    contextVersion: z.number().optional(),
     realRole: z.enum(["system", "user", "assistant"]),
   });
   const SystemMetadataSchema = BaseMetadataSchema;

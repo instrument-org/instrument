@@ -13,7 +13,7 @@ Grouped by area; status is the short form of each file's own line.
 | Finding | Status |
 | --- | --- |
 | [Agent prompt surface](agent-prompt-surface-review.md) — what we measured across the system prompt and tool descriptions | open items |
-| [Agent tool surface](agent-tool-surface-review.md) — gaps against three reference harnesses | open items |
+| [Agent tool surface](agent-tool-surface-review.md) — gaps against three reference harnesses | partly overtaken |
 | [Tool errors that invite repair loops](tool-errors-that-invite-repair-loops.md) — an error message is an instruction, and models follow it | guidance |
 | [Splitting media out of tool results](multipart-tool-results-and-the-split.md) — why the rewrite exists, what it costs, how a provider gets cleared | partly retired |
 | [Browsing never opens the pane](browsing-never-opens-the-pane.md) — the page the user asked to see stayed invisible | resolved |
@@ -35,7 +35,7 @@ Grouped by area; status is the short form of each file's own line.
 | --- | --- |
 | [Orphaned agent-browser daemons](agent-browser-orphaned-daemons.md) — fingerprint mismatch plus an upstream shutdown deadlock | partly fixed |
 | [`download` never restores download behavior](agent-browser-download-behavior-not-reset.md) | open |
-| [Snapshot refs die on the idle timeout](agent-browser-ref-map-idle-ttl.md) | open |
+| [Snapshot refs die on the idle timeout](agent-browser-ref-map-idle-ttl.md) | fixed |
 | [App reload destroys every task browser](app-reload-destroys-the-task-browser.md) | contained |
 | [`target=_blank` links are dead clicks](blank-target-links-are-dead-clicks.md) — the open is denied before a tab exists, so nothing happens and nothing says so | fixed, pending real tabs |
 | [CDP keyboard input follows window focus](cdp-keyboard-input-follows-window-focus.md) | mitigated by a focus gate |
@@ -61,13 +61,13 @@ Grouped by area; status is the short form of each file's own line.
 
 | Finding | Status |
 | --- | --- |
-| [Quit teardown can livelock](quit-teardown-can-livelock-the-app.md) — and every guard on that path is blind to it | open |
+| [Quit teardown can livelock](quit-teardown-can-livelock-the-app.md) — and every guard on that path is blind to it | guards landed, cause unknown |
 | [A quit confirmation outlives the window](quit-confirmation-outlives-the-window.md) — Windows/Linux ordering | resolved, guidance |
 | [An update check un-stages the macOS build](update-check-un-stages-the-macos-build.md) | resolved |
 | [A deb update can leave the package unconfigured](deb-update-left-the-package-unconfigured.md) | fixed, verified |
 | [Dragging a file out does not cross from XWayland to Wayland](drag-out-does-not-cross-xwayland.md) — the ozone pin, why dropping it did not take, and what it cost | fixed |
 | [Main log retention and transport](main-log-retention-and-transport.md) | partly addressed |
-| [Windows long paths in the task directory](windows-long-paths.md) | open |
+| [Windows long paths in the task directory](windows-long-paths.md) | partly fixed |
 | [A watchman probe froze boot on Windows](windows-watchman-probe-freezes-boot.md) | resolved |
 | [Preview.app declares no text types](preview-app-declares-no-text-types.md) | closed, working as designed |
 | [The file-open cache is sized for a vanished cost](file-open-cache-is-sized-for-a-vanished-cost.md) | open, deliberate |
@@ -89,5 +89,5 @@ Grouped by area; status is the short form of each file's own line.
 | [Test suites re-evaluate module graphs](test-suite-module-evaluation-cost.md) — where the time actually goes | all four fixes landed |
 | [TypeScript 7 (tsgo) dual package](typescript-7-native-preview-dual-package.md) | open, waiting on upstream |
 | [Why the spell checker is `typos`](spelling-check-cost-versus-signal.md) — and not cspell | resolved |
-| [A dev rebuild wipes the live main bundle](dev-rebuild-wipes-live-main-bundle.md) | open |
+| [A dev rebuild wipes the live main bundle](dev-rebuild-wipes-live-main-bundle.md) | fixed |
 | [Driving Studio over CDP: what makes it flaky](driving-studio-for-ui-capture.md) | partly addressed |

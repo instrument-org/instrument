@@ -692,6 +692,19 @@ async function reportReload(app) {
       `studio-drive: ${count} hot update${count === 1 ? "" : "s"} landed since ` +
         "the last command. Component state under them was rebuilt.",
     );
+    // An update proves the checkout changed. On a frozen instance only the
+    // renderer half of that change is running, and the other half fails as a
+    // fix that did not work rather than as code that never loaded: a component
+    // edit appears immediately, an edit beside it under `electron-main` or in a
+    // package does not, and nothing about the app says which it just showed
+    // you.
+    if (!session.hot) {
+      console.error(
+        "studio-drive: this instance froze main and preload at boot, so only " +
+          "changes under src/client are live in it. Anything else you have " +
+          "edited since it started needs `stop` and `boot` again to load.",
+      );
+    }
   }
 
   writeSession(WORKSPACE, { ...session, load });

@@ -924,6 +924,14 @@ describe("prepareModelMessages", () => {
     });
 
     describe("a model switch", () => {
+      // Roomy enough that the small model's whole usable window is noise in it,
+      // so what these tests turn on is which window is being read rather than
+      // where a threshold happens to fall.
+      const roomyModel = createMockAIGatewayModel({
+        canonicalId: "roomy-model-id",
+        contextLength: 100_000,
+      });
+
       /** The same turn, as the model that ran before the switch reported it. */
       function fromAnotherModel(
         message: SessionMessage.AssistantWithParts,
@@ -984,6 +992,47 @@ describe("prepareModelMessages", () => {
         expect(await storedBoundary()).toBeDefined();
       });
 
+      it("stops narrowing the history once a model has room for all of it", async () => {
+        await save(userMessage("First question"));
+        for (let index = 0; index < 4; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 900));
+        }
+        await prepare(smallWindowModel);
+        expect(
+          modelTexts(await prepare(smallWindowModel)).some((text) =>
+            text.includes("turn 0"),
+          ),
+        ).toBe(false);
+
+        const messages = await prepare(roomyModel);
+
+        expect(modelTexts(messages).some((text) => text.includes("turn 0"))).toBe(
+          true,
+        );
+        expect(
+          modelTexts(messages).some((text) =>
+            text.includes("<context-rollover>"),
+          ),
+        ).toBe(false);
+      });
+
+      it("leaves the boundary on disk, so returning to the small window restores it", async () => {
+        await save(userMessage("First question"));
+        for (let index = 0; index < 4; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 900));
+        }
+        await prepare(smallWindowModel);
+        const boundary = await storedBoundary();
+
+        await prepare(roomyModel);
+
+        expect(await storedBoundary()).toBe(boundary);
+        expect(
+          modelTexts(await prepare(smallWindowModel)).some((text) =>
+            text.includes("turn 0"),
+          ),
+        ).toBe(false);
+      });
     });
 
     describe("a request the provider refused for size", () => {

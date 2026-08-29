@@ -10,11 +10,13 @@ import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { addCacheControlToMessages } from "./add-cache-control";
 import {
   applyContextRollover,
+  contextRolloverBoundaryInForce,
   contextRolloverWouldReclaim,
 } from "./apply-context-rollover";
 import {
   computeContextBudget,
   contextOccupancyFromMessages,
+  usableContextTokens,
 } from "./context-budget";
 import { contextBudgetNotice } from "./context-budget-notice";
 import { contextOverflowNeedsRollover } from "./context-overflow";
@@ -91,7 +93,16 @@ export async function prepareModelMessages({
   const session = sessionResult.isOk() ? sessionResult.value : undefined;
 
   const contextLength = effectiveContextLength(model);
-  const rolledOverAfterMessageId = session?.rolledOverAfterMessageId;
+  const usable = usableContextTokens(contextLength);
+
+  // Asked on every request rather than read straight off the session, so a
+  // boundary drawn when a smaller model ran out stops narrowing the history
+  // once a model with room for it is the one being asked.
+  const rolledOverAfterMessageId = contextRolloverBoundaryInForce({
+    rolledOverAfterMessageId: session?.rolledOverAfterMessageId,
+    rolledOverUnderUsableTokens: session?.rolledOverUnderUsableTokens,
+    usable,
+  });
 
   let nonContextMessages = applyContextRollover({
     messages: allNonContextMessages,
@@ -160,6 +171,7 @@ export async function prepareModelMessages({
         {
           ...session,
           rolledOverAfterMessageId: newest.id,
+          rolledOverUnderUsableTokens: usable,
         },
         taskId,
         { signal },

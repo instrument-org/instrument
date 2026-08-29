@@ -8,8 +8,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 const DEFAULT_CONTEXT_WINDOW = 200_000;
 
-// Context windows (in tokens) keyed by canonicalId prefix, matched longest-first.
-// Models with no matching prefix fall back to DEFAULT_CONTEXT_WINDOW.
+// Fallback context windows (in tokens) keyed by canonicalId prefix, matched
+// longest-first, for the providers that never report one. Only OpenRouter-shaped
+// responses (which covers our own gateway) and Google carry a length, so a
+// direct Anthropic, OpenAI, or OpenAI-compatible key lands here. Gemini is
+// absent on purpose: Google always answers with `inputTokenLimit`, so an entry
+// for it could only ever go stale unread.
 const MODEL_CONTEXT_WINDOW_PREFIXES: [string, number][] = [
   // Inception
   ["mercury", 128_000],
@@ -29,9 +33,6 @@ const MODEL_CONTEXT_WINDOW_PREFIXES: [string, number][] = [
   ["gpt-5.4", 1_050_000],
   ["gpt-5.5", 1_050_000],
   ["gpt-5.6", 1_050_000],
-  // Google — gemini 2.5+ and 3+ are all 1M
-  ["gemini-2.5", 1_000_000],
-  ["gemini-3", 1_000_000],
   // xAI — 4.3 and the 4.20 line are wide; 4.5+ traded width for speed
   ["grok-4.3", 1_000_000],
   ["grok-4.20", 2_000_000],
@@ -59,15 +60,22 @@ const MODEL_CONTEXT_WINDOW_PREFIXES: [string, number][] = [
   ["glm-5", 204_800],
   ["glm-5.2", 1_048_576],
   ["glm-5.3", 1_310_720],
-  // DeepSeek
-  ["deepseek-v4", 1_048_576],
 ];
 
-function getContextWindowForModel(canonicalId: string): number {
+// The provider's own answer wherever there is one, so that a model released
+// after this build still reads its real window. The table below only stands in
+// where the provider stayed silent.
+function getContextWindowForModel(model: AIGatewayModel.Type): number {
+  if (model.contextLength !== undefined) {
+    return model.contextLength;
+  }
+
   const sorted = [...MODEL_CONTEXT_WINDOW_PREFIXES].sort(
     ([a], [b]) => b.length - a.length,
   );
-  const match = sorted.find(([prefix]) => canonicalId.startsWith(prefix));
+  const match = sorted.find(([prefix]) =>
+    model.canonicalId.startsWith(prefix),
+  );
   return match?.[1] ?? DEFAULT_CONTEXT_WINDOW;
 }
 
@@ -98,7 +106,7 @@ export function SessionContextRing({
   const tokens = data?.inputTokens ?? 0;
 
   const contextWindow = model
-    ? getContextWindowForModel(model.canonicalId)
+    ? getContextWindowForModel(model)
     : DEFAULT_CONTEXT_WINDOW;
 
   if (tokens === 0) {

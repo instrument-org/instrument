@@ -72,7 +72,6 @@ overrides:
   jiti: 2.7.0
 
 patchedDependencies:
-  '@extend-ai/react-docx@0.8.1': c4a48a1b9d61f2defb9a6fef0f1aeb9fa8361d94d71b3313937ad883ea2e3eee
   '@parcel/watcher@2.6.0': 70710158e60b08547967e90663191ecfdf5f5e02082b07253a8bdff11303ce2b
   app-builder-lib@26.15.7: c30615a9a3396ac72fd40f8b21782e0824090bd8d35989d568731abb8ffb95f4
   conf@14.0.0: 56254a98f20461a96d6b30db95d31a459ca15443a73844e166da79dcb6392d02
@@ -309,8 +308,8 @@ importers:
         specifier: ^2.14.4
         version: 2.14.4(6d4db412585bf79c6d4b04d5ea612631)
       '@extend-ai/react-docx':
-        specifier: 0.8.1
-        version: 0.8.1(patch_hash=c4a48a1b9d61f2defb9a6fef0f1aeb9fa8361d94d71b3313937ad883ea2e3eee)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+        specifier: 0.8.4
+        version: 0.8.4(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       '@extend-ai/react-pptx':
         specifier: 0.1.2
         version: 0.1.2(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
@@ -2135,8 +2134,8 @@ packages:
       '@noble/hashes':
         optional: true
 
-  '@extend-ai/react-docx@0.8.1':
-    resolution: {integrity: sha512-pvFsbb7vkCeBMEd8D1oKDEv8G9DUoe9hkCHOQu3OkGw1idx1mMqF0PDyA8rOmc0E0RrYT7FfF7iRbOe3djSjDw==}
+  '@extend-ai/react-docx@0.8.4':
+    resolution: {integrity: sha512-FheeFE4J54Z2r0C05QMCQYJr1C14QBnDw0hwytN5Cqq4HtWcsMQBgEDaHphLI+kwSg3dCrDeTWz/uwGKPNOIGg==}
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
@@ -11492,7 +11491,7 @@ snapshots:
     optionalDependencies:
       '@noble/hashes': 2.2.0
 
-  '@extend-ai/react-docx@0.8.1(patch_hash=c4a48a1b9d61f2defb9a6fef0f1aeb9fa8361d94d71b3313937ad883ea2e3eee)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)':
+  '@extend-ai/react-docx@0.8.4(react-dom@19.2.1(react@19.2.1))(react@19.2.1)':
     dependencies:
       '@chenglou/pretext': 0.0.8
       '@tanstack/react-virtual': 3.13.18(react-dom@19.2.1(react@19.2.1))(react@19.2.1)

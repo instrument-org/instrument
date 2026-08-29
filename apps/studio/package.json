@@ -109,7 +109,7 @@
     "@embedpdf/plugin-tiling": "^2.14.4",
     "@embedpdf/plugin-viewport": "^2.14.4",
     "@embedpdf/plugin-zoom": "^2.14.4",
-    "@extend-ai/react-docx": "0.8.1",
+    "@extend-ai/react-docx": "0.8.4",
     "@extend-ai/react-pptx": "0.1.2",
     "@extend-ai/react-xlsx": "0.15.0",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",

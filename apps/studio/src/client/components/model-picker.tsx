@@ -515,7 +515,6 @@ function ModelGroups({
     return flat;
   }, [groupedModels]);
 
-  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rows.length,
     estimateSize: (i) => (rows[i]?.type === "header" ? 28 : 56),

@@ -210,7 +210,6 @@ function TranscriptBody({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [filter, setFilter] = useState("");
 
-  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: lines.length,
     estimateSize: () => LINE_HEIGHT,

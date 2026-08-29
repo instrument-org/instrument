@@ -61,7 +61,6 @@ export function TasksDataTable({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
-  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable<Task>({
     columns,
     data,

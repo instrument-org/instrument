@@ -59,7 +59,6 @@ export function ArchiveViewer({ url }: { url: string }) {
   // rather than scanning the match list per row per frame.
   const matchRows = useMemo(() => new Set(matches), [matches]);
 
-  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: shown.length,
     estimateSize: () => ROW_HEIGHT,

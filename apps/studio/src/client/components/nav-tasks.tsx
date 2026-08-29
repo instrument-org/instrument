@@ -136,7 +136,6 @@ function TasksList({
     };
   }, [zoom]);
 
-  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: tasks.length,
     estimateSize: () => TASK_ROW_HEIGHT,

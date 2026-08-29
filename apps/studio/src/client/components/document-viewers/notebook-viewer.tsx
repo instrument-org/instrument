@@ -1,3 +1,4 @@
+import { UNTRUSTED_FILE_IMAGE_KINDS } from "@/client/lib/image-policy";
 import { cn } from "@/client/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -141,12 +142,19 @@ function NotebookCellView({
   language: string;
 }) {
   if (cell.type === "markdown") {
-    // No remote images, for the same reason the HTML output sanitizer allows
-    // none: a notebook is a file someone else wrote, and an `<img>` pointing
-    // at a host is a request the moment it is opened -- no click, no consent,
-    // an IP disclosed and the read confirmed. A notebook's own images are
-    // embedded as attachments, so this costs the ordinary case nothing.
-    return <SessionMarkdown allowRemoteImages={false} markdown={cell.source} />;
+    // Embedded bytes and nothing else, the answer the HTML output sanitizer
+    // gives the same file: a notebook is a file someone else wrote, and an
+    // `<img>` pointing at a host is a request the moment it is opened -- no
+    // click, no consent, an IP disclosed and the read confirmed, and over a
+    // loopback host whatever else is listening on this machine reached. A
+    // notebook's own images are embedded as attachments, so this costs the
+    // ordinary case nothing.
+    return (
+      <SessionMarkdown
+        imageKinds={UNTRUSTED_FILE_IMAGE_KINDS}
+        markdown={cell.source}
+      />
+    );
   }
 
   if (cell.type === "raw") {

@@ -36,9 +36,9 @@ import remend from "remend";
 import { useHashLinkScroll } from "../hooks/use-hash-link-scroll";
 import { getAssetUrl } from "../lib/get-asset-url";
 import {
+  type ImageSourceKind,
   isImageSourceAllowed,
   MARKDOWN_IMAGE_KINDS,
-  MARKDOWN_IMAGE_KINDS_WITH_REMOTE,
 } from "../lib/image-policy";
 import {
   containsMermaidFence,
@@ -69,17 +69,6 @@ import {
 import { contextMenuComponents } from "./ui/menu-components";
 
 interface MarkdownProps {
-  /**
-   * Whether an image may be fetched from one of the allowed remote hosts.
-   *
-   * Defaults to true, which is right for markdown the agent wrote or the user
-   * did. Pass false for markdown that arrived inside a file someone else
-   * authored: loading a remote image is a request the moment the file is
-   * opened, with no click in between, which discloses an IP and confirms the
-   * file was read. The notebook viewer passes false for that reason, and loses
-   * nothing by it -- a notebook's own images are embedded.
-   */
-  allowRemoteImages?: boolean;
   assetBaseUrl?: string;
   // Which bytes this text's file references are about; see
   // `MarkdownTaskContext`.
@@ -90,6 +79,20 @@ interface MarkdownProps {
   // permanent, and being block-level each one interrupts the prose it sits in
   // to name a picture the reader will never see.
   hideImages?: boolean;
+  /**
+   * Where an image in this markdown may point; see `lib/image-policy`.
+   *
+   * Defaults to everything markdown the agent wrote or the user did may reach,
+   * remote hosts and the task's own asset origin included. Markdown that
+   * arrived inside a file someone else authored passes
+   * `UNTRUSTED_FILE_IMAGE_KINDS` instead: an image is fetched the moment the
+   * file is opened, with no click in between, which discloses an IP, confirms
+   * the file was read, and over the asset origin's loopback host reaches
+   * whatever else is listening on this machine. The notebook viewer passes it
+   * for that reason, and loses nothing by it -- a notebook's own images are
+   * embedded.
+   */
+  imageKinds?: readonly ImageSourceKind[];
   // Fades each word in as it arrives, and is passed through to the constructs
   // that resolve their own contents; see `MarkdownTaskContext`.
   isStreaming?: boolean;
@@ -121,18 +124,25 @@ function containsMathSyntax(markdown: string) {
  * download or a folder the user shared -- so the allow-list is what makes
  * parsing it at all safe.
  *
- * Two departures from the default. `file:` is how a model spells a link to a
+ * Three departures from the default. `file:` is how a model spells a link to a
  * file it just wrote, which `markdownUrlTransform` reduces to a path and
  * `TaskFileLink` then judges against the task and its mounts.
  *
- * And `data:` on a `src`, without which an embedded image is dropped by the
+ * Then `data:` on a `src`, without which an embedded image is dropped by the
  * pass rather than by any policy: the default admits `http` and `https` there
  * and nothing else, and this pass runs over the whole document rather than only
  * the markup it re-parsed. So a notebook cell holding both a `<br>` and one of
  * its own attachments lost the attachment, which is the case attachments exist
- * for. What a `data:` src may actually carry is still `isImageAllowed`'s
- * question, one place rather than two, and the tag names above are what keep
+ * for. What a `data:` src may actually carry is still the image policy's
+ * question, one place rather than two, and the tag names below are what keep
  * this reaching an `<img>` rather than an `iframe`, an `embed`, or a `script`.
+ *
+ * And `picture` and `source` come off that tag list, leaving the `<img>` as the
+ * only shape a picture takes here. A `<source srcset>` is fetched exactly as an
+ * `<img src>` is, but it is not a `src` and so is a request no image policy
+ * reads -- and `srcSet` carries no protocol list either, so the default admits
+ * any host on it. Dropping the two elements keeps whatever `<img>` a `<picture>`
+ * wrapped, which is the source that gets judged and drawn.
  */
 const sanitizeSchema = {
   ...defaultSchema,
@@ -141,6 +151,9 @@ const sanitizeSchema = {
     href: [...(defaultSchema.protocols?.href ?? []), "file"],
     src: [...(defaultSchema.protocols?.src ?? []), "data"],
   },
+  tagNames: (defaultSchema.tagNames ?? []).filter(
+    (tagName) => tagName !== "picture" && tagName !== "source",
+  ),
 };
 
 // Only a document carrying HTML this renderer would actually draw is worth
@@ -149,7 +162,7 @@ const sanitizeSchema = {
 // itself: turning the parser on for it would cost the word, since an unknown
 // tag is unwrapped rather than shown.
 const rawHtmlPattern = new RegExp(
-  `<!--|</?(?:${(defaultSchema.tagNames ?? []).join("|")})(?=[\\s/>])`,
+  `<!--|</?(?:${sanitizeSchema.tagNames.join("|")})(?=[\\s/>])`,
   "i",
 );
 
@@ -445,15 +458,6 @@ const MarkdownLink: Components["a"] = ({
   );
 };
 
-const isImageAllowed = (
-  src: string | undefined,
-  allowRemoteImages: boolean,
-): boolean =>
-  isImageSourceAllowed(
-    src,
-    allowRemoteImages ? MARKDOWN_IMAGE_KINDS_WITH_REMOTE : MARKDOWN_IMAGE_KINDS,
-  );
-
 // react-markdown's own URL filter drops every `data:` URI before a component
 // ever sees it, so an embedded image silently rendered as nothing -- which is
 // how a notebook's attachments arrive, and the only way they can arrive. This
@@ -582,10 +586,10 @@ const taskFilePathFromImageSrc = (src: string | undefined) =>
 
 export const Markdown = memo(
   ({
-    allowRemoteImages = true,
     assetBaseUrl,
     assetVersion,
     hideImages,
+    imageKinds = MARKDOWN_IMAGE_KINDS,
     isStreaming,
     markdown,
     taskId,
@@ -705,7 +709,7 @@ export const Markdown = memo(
                 assetBaseUrl,
                 assetVersion,
               );
-              if (!isImageAllowed(resolvedSrc, allowRemoteImages)) {
+              if (!isImageSourceAllowed(resolvedSrc, imageKinds)) {
                 return hideImages ? null : (
                   <ImagePlaceholder alt={alt} src={resolvedSrc} />
                 );

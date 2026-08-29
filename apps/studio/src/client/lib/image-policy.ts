@@ -113,22 +113,19 @@ export function isImageSourceAllowed(
 /**
  * Markdown the agent wrote, or the user did.
  *
- * A remote image is a request the moment it renders, with no click in between,
- * so it is the one kind a caller has to ask for.
+ * Every kind, because such a document is written for this reader: a host it
+ * names is one the allow-list already knows, and the asset origin it addresses
+ * holds the files of the task the markdown belongs to.
  */
 export const MARKDOWN_IMAGE_KINDS = [
   "embedded",
+  "remote",
   "task-asset",
   "task-relative",
 ] as const satisfies readonly ImageSourceKind[];
 
-export const MARKDOWN_IMAGE_KINDS_WITH_REMOTE = [
-  ...MARKDOWN_IMAGE_KINDS,
-  "remote",
-] as const satisfies readonly ImageSourceKind[];
-
 /**
- * Output printed by a file someone else wrote.
+ * What a file someone else wrote carries, whether as output or as prose.
  *
  * Embedded bytes and nothing else. A remote `<img src>` needs no script to
  * phone home -- opening the file is the request, which discloses an IP and

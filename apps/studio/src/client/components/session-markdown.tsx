@@ -1,3 +1,4 @@
+import { type ImageSourceKind } from "@/client/lib/image-policy";
 import { cn } from "@/client/lib/utils";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { type Ref } from "react";
@@ -5,21 +6,21 @@ import { type Ref } from "react";
 import { Markdown } from "./markdown";
 
 export const SessionMarkdown = ({
-  allowRemoteImages,
   assetBaseUrl,
   assetVersion,
   className,
   hideImages,
+  imageKinds,
   isStreaming,
   markdown,
   ref,
   taskId,
 }: {
-  allowRemoteImages?: boolean;
   assetBaseUrl?: string;
   assetVersion?: string;
   className?: string;
   hideImages?: boolean;
+  imageKinds?: readonly ImageSourceKind[];
   isStreaming?: boolean;
   markdown: string;
   ref?: Ref<HTMLDivElement>;
@@ -34,10 +35,10 @@ export const SessionMarkdown = ({
       ref={ref}
     >
       <Markdown
-        allowRemoteImages={allowRemoteImages}
         assetBaseUrl={assetBaseUrl}
         assetVersion={assetVersion}
         hideImages={hideImages}
+        imageKinds={imageKinds}
         isStreaming={isStreaming}
         markdown={markdown}
         taskId={taskId}

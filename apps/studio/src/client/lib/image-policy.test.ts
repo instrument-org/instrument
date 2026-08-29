@@ -4,7 +4,6 @@ import {
   classifyImageSource,
   isImageSourceAllowed,
   MARKDOWN_IMAGE_KINDS,
-  MARKDOWN_IMAGE_KINDS_WITH_REMOTE,
   UNTRUSTED_FILE_IMAGE_KINDS,
 } from "./image-policy";
 
@@ -51,14 +50,17 @@ describe("classifyImageSource", () => {
 });
 
 describe("isImageSourceAllowed", () => {
-  // The difference the flag makes, and the only one.
-  it("takes a remote host only where the surface asked for it", () => {
-    const src = "https://raw.githubusercontent.com/o/r/main/p.png";
-
-    expect(isImageSourceAllowed(src, MARKDOWN_IMAGE_KINDS_WITH_REMOTE)).toBe(
-      true,
-    );
-    expect(isImageSourceAllowed(src, MARKDOWN_IMAGE_KINDS)).toBe(false);
+  // Markdown written for this reader points wherever the classifier knows a
+  // source to be, since every kind it names is one such a document may mean.
+  it("gives markdown every kind it can read", () => {
+    for (const src of [
+      "data:image/png;base64,QUJD",
+      "./output/plot.png",
+      "http://assets.task-1.localhost:4321/p.png",
+      "https://raw.githubusercontent.com/o/r/main/p.png",
+    ]) {
+      expect(isImageSourceAllowed(src, MARKDOWN_IMAGE_KINDS)).toBe(true);
+    }
   });
 
   // A notebook is a file someone else wrote. Its own pictures are embedded, so

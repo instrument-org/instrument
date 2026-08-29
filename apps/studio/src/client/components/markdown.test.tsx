@@ -1,3 +1,8 @@
+import {
+  type ImageSourceKind,
+  MARKDOWN_IMAGE_KINDS,
+  UNTRUSTED_FILE_IMAGE_KINDS,
+} from "@/client/lib/image-policy";
 import { renderWithProviders } from "@/tests/render";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
@@ -554,6 +559,25 @@ describe("Markdown raw HTML", () => {
     ).toEqual(["data:image/png;base64,QUJD"]);
   });
 
+  // A `<picture>` names an image a second way, and its `<source srcset>` is
+  // fetched exactly as an `<img src>` is while being no `src` at all: the image
+  // policy is asked about the `src` of an `<img>` and never sees it. So the tag
+  // allow-list is where the second way closes, leaving the `<img>` that the
+  // `<picture>` wrapped as the source that gets judged.
+  it("drops a responsive source beside an image", async () => {
+    const container = await renderDrawn(
+      '<picture><source srcset="https://tracker.test/beacon.png"><img src="data:image/png;base64,QUJD"></picture>',
+    );
+
+    expect(container.querySelector("source")).toBeNull();
+    expect(container.querySelector("[srcset]")).toBeNull();
+    expect(
+      [...container.querySelectorAll("img")].map((image) =>
+        image.getAttribute("src"),
+      ),
+    ).toEqual(["data:image/png;base64,QUJD"]);
+  });
+
   // The widened `src` reaches an image and stops there. Every element that
   // could execute what a `data:` URI carries is dropped whole by the tag
   // allow-list, so the two answers cannot drift apart.
@@ -590,9 +614,12 @@ describe("Markdown raw HTML", () => {
  * between. So what the allow-list admits is a question about the network, not
  * about layout, which is what makes it worth a test rather than an eye.
  */
-function imageSources(markdown: string, allowRemoteImages = true): string[] {
+function imageSources(
+  markdown: string,
+  imageKinds: readonly ImageSourceKind[] = MARKDOWN_IMAGE_KINDS,
+): string[] {
   const { container } = renderWithProviders(
-    <Markdown allowRemoteImages={allowRemoteImages} markdown={markdown} />,
+    <Markdown imageKinds={imageKinds} markdown={markdown} />,
   );
   return [...container.querySelectorAll("img")]
     .map((image) => image.getAttribute("src"))
@@ -648,20 +675,34 @@ describe("Markdown image sources", () => {
     ).toEqual([]);
   });
 
-  describe("without remote images", () => {
+  // A notebook markdown cell is the case: a file someone else wrote, whose own
+  // pictures arrive as attachments and so as bytes. Anything else there names
+  // something to fetch, and opening the file is the fetch.
+  describe("in a file someone else wrote", () => {
     it("still renders an embedded one", () => {
-      expect(imageSources("![a](data:image/png;base64,QUJD)", false)).toEqual([
-        "data:image/png;base64,QUJD",
-      ]);
-    });
-
-    it("drops one from a host that would otherwise be allowed", () => {
       expect(
         imageSources(
-          "![a](https://raw.githubusercontent.com/o/r/main/p.png)",
-          false,
+          "![a](data:image/png;base64,QUJD)",
+          UNTRUSTED_FILE_IMAGE_KINDS,
         ),
-      ).toEqual([]);
+      ).toEqual(["data:image/png;base64,QUJD"]);
+    });
+
+    it.each([
+      [
+        "a host the agent would be trusted with",
+        "https://github.com/o/r/p.png",
+      ],
+      // Plain http on a `.localhost` host is the task asset origin, which is
+      // every port on this machine as far as the host tells. A file that
+      // belongs to no task has nothing to address there, so what such a source
+      // reaches is whatever else is listening.
+      ["a loopback service", "http://x.localhost:11434/api/pull?name=evil"],
+      ["a path inside a task", "./output/plot.png"],
+    ])("drops %s", (_case, src) => {
+      expect(imageSources(`![a](${src})`, UNTRUSTED_FILE_IMAGE_KINDS)).toEqual(
+        [],
+      );
     });
   });
 
@@ -685,15 +726,15 @@ describe("Markdown image sources", () => {
     expect(container.querySelector('a[href^="data:"]')).toBeNull();
   });
 
-  it.each([true, false])(
-    "drops a protocol-relative source with allowRemoteImages=%s",
-    (allowRemoteImages) => {
-      // The leading slash reads as a path on this machine, so without a check
-      // of its own `//host/pixel.png` walks past both allow-lists -- the one
-      // spelling of a src that can name any host at all.
-      expect(
-        imageSources("![a](//tracker.test/pixel.png)", allowRemoteImages),
-      ).toEqual([]);
-    },
-  );
+  it.each([
+    ["markdown written for this reader", MARKDOWN_IMAGE_KINDS],
+    ["a file someone else wrote", UNTRUSTED_FILE_IMAGE_KINDS],
+  ])("drops a protocol-relative source in %s", (_case, imageKinds) => {
+    // The leading slash reads as a path on this machine, so without a check of
+    // its own `//host/pixel.png` walks past every kind -- the one spelling of a
+    // src that can name any host at all.
+    expect(imageSources("![a](//tracker.test/pixel.png)", imageKinds)).toEqual(
+      [],
+    );
+  });
 });

@@ -66,6 +66,7 @@ When a plan moves, fix the links pointing at it. Sibling links inside one direct
 | --- | --- |
 | [oxlint / oxfmt migration](active/oxlint-oxfmt-migration.md) | one step left |
 | [Dependency upgrade sweep](active/dependency-upgrade-sweep.md) — what upstream has already fixed for us | first pass landed |
+| [Dependency work behind the PR queue](active/dependency-work-behind-the-pr-queue.md) — what waits for a quiet branch | proposed |
 | [Seeded test workspaces](active/seeded-test-workspaces.md) | CI step remaining |
 | [Seeded workspaces on Windows](active/seeded-workspaces-on-windows.md) | helper landed, host not enrolled |
 | [Driving Studio in batches](active/driving-studio-in-batches.md) | session runner landed |

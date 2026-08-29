@@ -64,19 +64,23 @@ const MODEL_CONTEXT_WINDOW_PREFIXES: [string, number][] = [
 
 // The provider's own answer wherever there is one, so that a model released
 // after this build still reads its real window. The table below only stands in
-// where the provider stayed silent.
-function getContextWindowForModel(model: AIGatewayModel.Type): number {
-  if (model.contextLength !== undefined) {
-    return model.contextLength;
+// where the provider stayed silent, and `estimated` is how the tooltip says so
+// rather than presenting a guess as the model's stated limit.
+function getContextWindowForModel(model?: AIGatewayModel.Type): {
+  estimated: boolean;
+  tokens: number;
+} {
+  if (model?.contextLength !== undefined) {
+    return { estimated: false, tokens: model.contextLength };
   }
 
   const sorted = [...MODEL_CONTEXT_WINDOW_PREFIXES].sort(
     ([a], [b]) => b.length - a.length,
   );
-  const match = sorted.find(([prefix]) =>
-    model.canonicalId.startsWith(prefix),
-  );
-  return match?.[1] ?? DEFAULT_CONTEXT_WINDOW;
+  const match = model
+    ? sorted.find(([prefix]) => model.canonicalId.startsWith(prefix))
+    : undefined;
+  return { estimated: true, tokens: match?.[1] ?? DEFAULT_CONTEXT_WINDOW };
 }
 
 // Models tend to underperform past ~200k tokens of context, so we cap the ring
@@ -105,9 +109,7 @@ export function SessionContextRing({
 
   const tokens = data?.inputTokens ?? 0;
 
-  const contextWindow = model
-    ? getContextWindowForModel(model)
-    : DEFAULT_CONTEXT_WINDOW;
+  const { estimated, tokens: contextWindow } = getContextWindowForModel(model);
 
   if (tokens === 0) {
     return null;
@@ -176,6 +178,12 @@ export function SessionContextRing({
             <div className="flex items-baseline justify-between gap-6">
               <span className="opacity-80">Usage:</span>
               <span className="font-medium tabular-nums">{percentUsed}%</span>
+            </div>
+          )}
+          {estimated && (
+            <div className="max-w-52 opacity-60">
+              This provider does not report a window size, so this is an
+              estimate.
             </div>
           )}
         </div>

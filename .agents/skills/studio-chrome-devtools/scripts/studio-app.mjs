@@ -397,6 +397,18 @@ const RECT_FOR = (kind, needle) => `(() => {
   };
 })()`;
 
+/**
+ * What the element receiving keys currently holds, so `type` can report what
+ * landed instead of what it was asked to send. A composer that transforms,
+ * swallows, or duplicates its input is exactly the failure a character count
+ * cannot show, and it is silent until something much later reads the text.
+ */
+const FOCUSED_TEXT = `(() => {
+  const el = document.activeElement;
+  if (!el || el === document.body) return null;
+  return "value" in el ? el.value : el.innerText;
+})()`;
+
 const KEYS = {
   ArrowDown: { code: "ArrowDown", key: "ArrowDown", keyCode: 40 },
   ArrowLeft: { code: "ArrowLeft", key: "ArrowLeft", keyCode: 37 },
@@ -667,7 +679,16 @@ export async function connect({ allowReload = false, port, workspace } = {}) {
           await pressKey(cdp, character);
         }
         await settle();
-        return { length: text.length };
+        const landed = await evaluate(cdp, FOCUSED_TEXT);
+        if (landed !== null && landed.includes(text)) {
+          return { length: text.length };
+        }
+        // The focused element disagrees with what was sent. Say so here: a
+        // length echoing the request reads as confirmation that it arrived.
+        return {
+          landed: landed === null ? "(nothing was focused)" : preview(landed),
+          length: text.length,
+        };
       }),
 
     /**
@@ -780,15 +801,14 @@ function keyDescriptor(combination) {
 
 async function pressKey(cdp, combination) {
   const descriptor = keyDescriptor(combination);
-  // `rawKeyDown` is the form for a key that inserts nothing; sending `keyDown`
-  // for one makes Chromium wait for a `char` that never comes.
+  // A `keyDown` carrying `text` is the entire insertion: Blink derives the
+  // keypress from that text itself, so a `char` sent after one types the
+  // character a second time. `rawKeyDown` is the form for a key that inserts
+  // nothing, and is what suppresses that derived keypress.
   await cdp.send("Input.dispatchKeyEvent", {
     type: descriptor.text ? "keyDown" : "rawKeyDown",
     ...descriptor,
   });
-  if (descriptor.text) {
-    await cdp.send("Input.dispatchKeyEvent", { type: "char", ...descriptor });
-  }
   await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", ...descriptor });
 }
 

@@ -96,29 +96,50 @@ function assistantTexts(sessions: { messages: unknown[] }[]): string[] {
 }
 
 /**
- * The failure this exists for: the first answer's own vocabulary is gone from
- * the last one. In the recorded case the agent spelled each number in English,
- * then after a rollover emitted the numbering with the words missing entirely.
+ * The failure this exists for: the answer the agent settled on is gone from the
+ * last one. In the recorded case it spelled each number in English, then after
+ * a rollover emitted the numbering with the words missing entirely.
+ *
+ * Compares the lines that carry the count rather than everything the model
+ * wrote. A first answer often explains the format it just chose, and a later
+ * one has no reason to repeat that sentence, so scoring whole answers marks a
+ * perfectly preserved format as lost -- measured, one model kept
+ * `1. One / 2. Two / 3. Three` exactly and scored 21% on its prose alone.
+ * Short lines are the answer; long ones are talk about it.
  */
+const MAX_ANSWER_LINE_LENGTH = 40;
+
+function answerLines(text: string): string[] {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(
+      (line) =>
+        line.length > 0 &&
+        line.length <= MAX_ANSWER_LINE_LENGTH &&
+        contentWords(line).size > 0,
+    );
+}
+
 const keepsItsFormat: Assertion = {
   check: ({ sessions }) => {
     const texts = assistantTexts(sessions);
     const first = texts[0] ?? "";
     const last = lastAssistantText(sessions);
-    const wanted = contentWords(first);
+    const wanted = answerLines(first);
 
-    if (wanted.size === 0) {
+    if (wanted.length === 0) {
       return {
-        evidence: `Inconclusive: the first answer contributed no words of its own to carry. First answer: ${JSON.stringify(first)}`,
+        evidence: `Inconclusive: the first answer had no short line carrying anything of the agent's own. First answer: ${JSON.stringify(first)}`,
         passed: false,
         text: "Kept the format it chose before the rollover",
       };
     }
 
-    const present = [...wanted].filter((word) => last.toLowerCase().includes(word));
-    const ratio = present.length / wanted.size;
+    const kept = wanted.filter((line) => last.includes(line));
+    const ratio = kept.length / wanted.length;
     return {
-      evidence: `${present.length}/${wanted.size} of the first answer's words survive in the last (${Math.round(ratio * 100)}%).\nFirst: ${JSON.stringify(first)}\nLast: ${JSON.stringify(last)}`,
+      evidence: `${kept.length}/${wanted.length} of the first answer's lines appear verbatim in the last (${Math.round(ratio * 100)}%).\nFirst: ${JSON.stringify(first)}\nLast: ${JSON.stringify(last)}`,
       passed: ratio >= 0.7,
       text: "Kept the format it chose before the rollover",
     };

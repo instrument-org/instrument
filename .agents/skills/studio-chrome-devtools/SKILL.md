@@ -11,8 +11,10 @@ How to drive and inspect the Studio Electron app.
 
 ## Driving: `studio-drive.mjs`
 
+Resolve the path from the repo root rather than writing it relative, so a later `cd` into a package does not turn every command in the run into `MODULE_NOT_FOUND`:
+
 ```bash
-DRIVE=.agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs
+DRIVE=$(git rev-parse --show-toplevel)/.agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs
 
 node $DRIVE boot --purpose "skills dialog"           # your own instance
 node $DRIVE goto /release-notes

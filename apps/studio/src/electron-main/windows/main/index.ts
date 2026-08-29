@@ -130,8 +130,9 @@ async function createMainWindowInstance() {
   // webContents so the main process can grab guest WebContents (for CDP) as
   // the renderer pool mounts them.
   getBrowserViewManager()?.bindHost(mainWindow.webContents);
-  // Keep the last normal, visible bounds so maximize/fullscreen/minimize and
-  // bogus cross-display move events don't overwrite the restorable position.
+  // The size and position to come back to, which is the window's own only
+  // while it is normal: maximize, fullscreen, minimize and bogus cross-display
+  // move events all report bounds that would be useless to restore.
   let lastVisibleBounds: WindowBounds = mainWindow.getBounds();
 
   const saveState = () => {
@@ -149,12 +150,16 @@ async function createMainWindowInstance() {
         rememberWorkAreaFromMaximized(bounds);
       }
 
+      // Sampled once the window has settled rather than from each resize event
+      // it passes through: a maximize animates, and the frames along the way
+      // are reported as ordinary resizes of a normal window, so reading them
+      // records a nearly-maximized size as the one to come back to.
+      if (isWindowNormal(mainWindow) && isWindowBoundsVisible(bounds)) {
+        lastVisibleBounds = bounds;
+      }
+
       setWindowState({
-        bounds: shrinkBelowAutoMaximize(
-          isWindowNormal(mainWindow) && isWindowBoundsVisible(bounds)
-            ? bounds
-            : lastVisibleBounds,
-        ),
+        bounds: shrinkBelowAutoMaximize(lastVisibleBounds),
         isMaximized,
       });
     } catch {
@@ -240,12 +245,10 @@ async function createMainWindowInstance() {
   setupWindowEventListeners({
     mainWindow,
     onResize: () => {
-      const bounds = mainWindow.getBounds();
-      const isNormal = isWindowNormal(mainWindow);
-
-      if (isNormal && isWindowBoundsVisible(bounds)) {
-        lastVisibleBounds = bounds;
-      } else if (isNormal) {
+      if (
+        isWindowNormal(mainWindow) &&
+        !isWindowBoundsVisible(mainWindow.getBounds())
+      ) {
         // Mission Control can briefly report an invalid post-drop position.
         mainWindow.setBounds(lastVisibleBounds);
         return;

@@ -24,8 +24,8 @@ const message = (
 const ids = (messages: readonly SessionMessage.WithParts[]) =>
   messages.map((entry) => entry.id);
 
-const textOf = (message: SessionMessage.WithParts | undefined) =>
-  (message?.parts ?? [])
+const textOf = (entry: SessionMessage.WithParts | undefined) =>
+  (entry?.parts ?? [])
     .map((part) => (part.type === "text" ? part.text : ""))
     .join("");
 

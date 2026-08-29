@@ -33,6 +33,8 @@ describe("contextRolloverNotice", () => {
   // The write instruction and the read both derive from this, so a path that
   // drifted would break the handoff silently rather than loudly.
   it("names a path under the task mount", () => {
-    expect(HANDOFF_NOTES_PATH).toMatchInlineSnapshot(`"/task/work/handoff-notes.md"`);
+    expect(HANDOFF_NOTES_PATH).toMatchInlineSnapshot(
+      `"/task/work/handoff-notes.md"`,
+    );
   });
 });

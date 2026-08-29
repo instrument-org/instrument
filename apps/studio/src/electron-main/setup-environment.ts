@@ -79,7 +79,14 @@ if (platform.isLinux) {
   } else {
     app.commandLine.appendSwitch("ozone-platform", ozone.platform);
   }
-  logger.info(`Using ozone platform: ${ozone.platform}`);
+  // The switch after the fact, not the request, because the two can disagree:
+  // a `--ozone-platform` already on argv is not always removable from here, and
+  // an app logging `auto` while talking X11 is a run nobody can diagnose.
+  const appliedOzoneSwitch =
+    app.commandLine.getSwitchValue("ozone-platform") || "none";
+  logger.info(
+    `Using ozone platform: ${ozone.platform} (switch: ${appliedOzoneSwitch})`,
+  );
 
   // Allow CDP Input.dispatchMouseEvent on occluded web contents (e.g.
   // agent-browser webview guests parked offscreen in the paint host).

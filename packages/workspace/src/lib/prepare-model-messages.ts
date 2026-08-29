@@ -198,12 +198,12 @@ export async function prepareModelMessages({
       }
     }
 
-    const newContextMessages = (
-      await agent.getMessages({
-        sessionId,
-        taskId,
-      })
-    ).map((message) => ({
+    const builtContextMessages = await agent.getMessages({
+      sessionId,
+      taskId,
+    });
+
+    const newContextMessages = builtContextMessages.map((message) => ({
       ...message,
       metadata: {
         ...message.metadata,

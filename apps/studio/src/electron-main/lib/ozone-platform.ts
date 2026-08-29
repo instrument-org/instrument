@@ -43,7 +43,15 @@ export type OzonePlatform = (typeof OZONE_PLATFORMS)[number];
 export function effectiveDisplayProtocol(
   platform: OzonePlatform,
   waylandDisplay: string | undefined = process.env.WAYLAND_DISPLAY,
+  appliedSwitch?: string,
 ): DisplayProtocol {
+  // A switch that survived outranks everything else, because it is not a guess:
+  // `removeSwitch` does not always undo a `--ozone-platform` the process was
+  // started with, and a run that asked for `auto` and still carries `x11` is
+  // talking X11 whatever `WAYLAND_DISPLAY` says.
+  if (appliedSwitch === "wayland" || appliedSwitch === "x11") {
+    return appliedSwitch;
+  }
   if (platform === "auto") {
     return waylandDisplay ? "wayland" : "x11";
   }

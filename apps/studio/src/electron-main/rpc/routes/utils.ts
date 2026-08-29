@@ -565,7 +565,11 @@ const displayProtocol = base
     const { platform } = resolveOzonePlatform(
       process.env.INSTRUMENT_OZONE_PLATFORM,
     );
-    return effectiveDisplayProtocol(platform);
+    return effectiveDisplayProtocol(
+      platform,
+      process.env.WAYLAND_DISPLAY,
+      app.commandLine.getSwitchValue("ozone-platform"),
+    );
   });
 
 const clearExceptions = base.input(z.void()).handler(() => {

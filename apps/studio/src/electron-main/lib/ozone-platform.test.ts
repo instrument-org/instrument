@@ -55,6 +55,25 @@ describe("effectiveDisplayProtocol", () => {
     },
   );
 
+  // A packaged 1.6.6 launched with --ozone-platform=x11 resolved to `auto`,
+  // logged `auto`, and ran as an X11 client: removeSwitch did not undo the
+  // argv flag. Trusting WAYLAND_DISPLAY there hid the window border on a
+  // window Electron had drawn no edge for.
+  it("lets a switch that survived outrank the session", () => {
+    expect(effectiveDisplayProtocol("auto", "wayland-0", "x11")).toBe("x11");
+    expect(effectiveDisplayProtocol("auto", undefined, "wayland")).toBe(
+      "wayland",
+    );
+  });
+
+  it("ignores a switch value that is not a protocol", () => {
+    expect(effectiveDisplayProtocol("auto", "wayland-0", "")).toBe("wayland");
+    expect(effectiveDisplayProtocol("auto", "wayland-0", "auto")).toBe(
+      "wayland",
+    );
+    expect(effectiveDisplayProtocol("auto", undefined, "nonsense")).toBe("x11");
+  });
+
   it("reports wayland when it is pinned, session or not", () => {
     expect(effectiveDisplayProtocol("wayland", undefined)).toBe("wayland");
     expect(effectiveDisplayProtocol("wayland", "wayland-0")).toBe("wayland");

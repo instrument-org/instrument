@@ -10,7 +10,7 @@ Before the README setup flow (`pnpm install`, `./scripts/setup.sh`, `pnpm run de
 ## Repository
 
 - Clone with submodules (`registry/` skills): `git clone --recurse-submodules …` or `git submodule update --init` after clone.
-- `./scripts/setup.sh` calls `scripts/sync.sh`, which requires the **`main`** branch and network for `git pull`. On a feature branch, copy `apps/studio/.env.local` from `.env.local.example` and run `pnpm install` instead.
+- `./scripts/setup.sh` calls `scripts/sync.sh`, which requires the **`main`** branch and network for `git pull`. On a feature branch, copy `apps/studio/.env.local` from `.env.local.example`, run `pnpm install`, and run `git submodule update --init --recursive` yourself — that step normally happens inside `sync.sh`, so skipping it leaves `registry/` empty and skills missing.
 
 ## Running Studio
 

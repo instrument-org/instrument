@@ -6,7 +6,11 @@ import fixPath from "fix-path";
 import path from "node:path";
 
 import { initializeElectronLogging, logger } from "./lib/electron-logger";
-import { OZONE_PLATFORMS, resolveOzonePlatform } from "./lib/ozone-platform";
+import {
+  OZONE_PLATFORMS,
+  ozonePlatformSwitch,
+  resolveOzonePlatform,
+} from "./lib/ozone-platform";
 import { setupDBusEnvironment } from "./lib/setup-dbus-env";
 
 /**
@@ -72,13 +76,10 @@ if (platform.isLinux) {
       `Ignoring INSTRUMENT_OZONE_PLATFORM=${ozone.ignored}; expected one of ${OZONE_PLATFORMS.join(", ")}`,
     );
   }
-  if (ozone.platform === "auto") {
-    // `auto` is the absence of the flag rather than a value Chromium accepts,
-    // so asking for it means taking away whatever argv carried.
-    app.commandLine.removeSwitch("ozone-platform");
-  } else {
-    app.commandLine.appendSwitch("ozone-platform", ozone.platform);
-  }
+  app.commandLine.appendSwitch(
+    "ozone-platform",
+    ozonePlatformSwitch(ozone.platform),
+  );
   // The switch after the fact, not the request, because the two can disagree:
   // a `--ozone-platform` already on argv is not always removable from here, and
   // an app logging `auto` while talking X11 is a run nobody can diagnose.

@@ -2,13 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   effectiveDisplayProtocol,
+  OZONE_PLATFORMS,
+  ozonePlatformSwitch,
   resolveOzonePlatform,
 } from "./ozone-platform";
 
 describe("resolveOzonePlatform", () => {
-  // Electron's own default, and the reason the switch is removed rather than
-  // set: a Wayland session gets native Wayland, an X11 session gets X11.
-  it("leaves the platform to Electron when nothing asks otherwise", () => {
+  // `auto` is a request to read the session, resolved before the switch is set
+  // rather than handed to Chromium, which rejects it.
+  it("asks for the session's own platform when nothing says otherwise", () => {
     expect(resolveOzonePlatform(undefined)).toEqual({ platform: "auto" });
     expect(resolveOzonePlatform("")).toEqual({ platform: "auto" });
   });
@@ -31,6 +33,34 @@ describe("resolveOzonePlatform", () => {
       }
     },
   );
+});
+
+describe("ozonePlatformSwitch", () => {
+  // The bug this function exists for. Leaving `--ozone-platform` off does not
+  // ask Chromium to read the session; it selects Chromium's compiled-in
+  // default, which is X11. A Wayland desktop then ran the app through
+  // XWayland while the log claimed otherwise, and on a host whose XWayland
+  // presenter is broken the window never appeared at all.
+  it("names a real platform for the session when the request is auto", () => {
+    expect(ozonePlatformSwitch("auto", "wayland-0")).toBe("wayland");
+    expect(ozonePlatformSwitch("auto", undefined)).toBe("x11");
+    expect(ozonePlatformSwitch("auto", "")).toBe("x11");
+  });
+
+  it("never yields a value Chromium would reject", () => {
+    for (const platform of OZONE_PLATFORMS) {
+      for (const display of ["wayland-0", undefined]) {
+        expect(["wayland", "x11"]).toContain(
+          ozonePlatformSwitch(platform, display),
+        );
+      }
+    }
+  });
+
+  it("passes a pinned platform through, session or not", () => {
+    expect(ozonePlatformSwitch("x11", "wayland-0")).toBe("x11");
+    expect(ozonePlatformSwitch("wayland", undefined)).toBe("wayland");
+  });
 });
 
 describe("effectiveDisplayProtocol", () => {

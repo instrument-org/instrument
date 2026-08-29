@@ -38,9 +38,9 @@ Each alternative for giving real subprocesses the virtual view was rejected:
 - **Symlink farm** (`taskDir/mnt/<name>` → real folder): symlinks don't carry read-only permissions, so any native binary could write through one into the user's real folder. Breaks the core invariant.
 - **Copy-on-read materialization**: magic, surprising, and unbounded for large media. The explicit copy-first rule is predictable and already taught.
 
-## just-bash quirks (fork fix candidates)
+## just-bash quirks we compensate for downstream
 
-just-bash is consumed from the `mutewinter/just-bash` fork as a built-`dist` git tarball, so changes mean editing the fork, rebuilding, and bumping the pinned SHA. Known quirks we currently compensate for downstream:
+just-bash is the published npm package (`just-bash@^3.4.1` in `packages/workspace/package.json`), consumed unmodified: no local patches, no fork build. Fixing a quirk here means landing it upstream and waiting for a release, which is why each one below is absorbed downstream instead. See [just-bash-upstream.md](just-bash-upstream.md) for what we consume and what is open upstream, and [the decision to carry no local patches](../decisions/2026-08-27-no-local-just-bash-patches.md) for why patching the published bundle is not the answer. Known quirks:
 
 - A **redirect into a read-only mount throws** (`echo x > /mnt/<read-only folder>/...`) instead of producing stderr + exit code. `tools/bash.ts` and `scripts/run-bash.ts` convert the thrown error into a normal failed-command result.
 - **`mv` out of a read-only mount half-completes**: cross-mount `mv` is copy-then-rm, the copy lands in the task, the `rm` fails with EROFS, an error is reported, and the source is preserved. Benign direction, confusing error.

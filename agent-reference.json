@@ -79,6 +79,10 @@
         "grok-build": {
           "source": "github:xai-org/grok-build",
           "description": "Grok Build (`grok`): xAI's terminal coding agent, a full-screen Rust TUI."
+        },
+        "deepseek-harness": {
+          "source": "github:deepseek-ai/deepseek-harness",
+          "description": "DeepSeek's agent harness, built so that every capability is a plugin. Its .agents/notes/implemented/architecture/ folder carries dated design notes, each with the decision, the alternatives rejected, and why."
         }
       }
     }

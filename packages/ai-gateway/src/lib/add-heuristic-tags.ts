@@ -32,19 +32,14 @@ const NON_CODING_MODALITY =
   /-(?:audio|image|imagine|live|transcribe|tts|video|vision|voice)(?:[-.]|$)/;
 
 /**
- * A tier served at a premium for throughput rather than for capability: the
- * same weights as the sibling it is named after, at two to three times the
- * price. Listing one beside its base model offers a worse deal as an equal.
+ * OpenAI's Pro tiers, whether a separate model (GPT-5.5 Pro asks $30/$180
+ * against GPT-5.5's $5/$30) or a reasoning mode on top of one. Nobody reads a
+ * price list before picking from a list headed "Recommended", and the depth
+ * Pro buys is worth less here than it is on a one-shot question, so Pro stays
+ * pickable without ever being put forward. `-pro(-|$)` so that `-preview` is
+ * left alone.
  */
-const PRIORITY_TIER = /-fast$/;
-
-/**
- * `pro` directly after the version is a separate, far pricier model (GPT-5.5
- * Pro asks $30/$180 against GPT-5.5's $5/$30). `pro` after a tier name is a
- * reasoning mode on the same model at the same price, so it earns whatever its
- * base earns.
- */
-const EXPENSIVE_PRO_TIER = /^gpt-\d+(?:\.\d+)?-pro/;
+const OPENAI_PRO_TIER = /-pro(?:-|$)/;
 
 export function addHeuristicTags(
   model: AIGatewayModel.Type,
@@ -64,7 +59,10 @@ export function addHeuristicTags(
     tags.push("legacy");
   }
 
-  if (PRIORITY_TIER.test(canonicalId)) {
+  // A priority tier is the same weights as the sibling it is named after, at
+  // two to three times the price. Listing one beside its base model offers a
+  // worse deal as an equal.
+  if (canonicalId.endsWith("-fast")) {
     tags = tags.filter((tag) => tag !== "recommended" && tag !== "default");
   }
 
@@ -101,7 +99,7 @@ function getDynamicTags(
   }
 
   if (canonicalId.startsWith("gpt-")) {
-    if (EXPENSIVE_PRO_TIER.test(canonicalId) || canonicalId.includes("nano")) {
+    if (OPENAI_PRO_TIER.test(canonicalId) || canonicalId.includes("nano")) {
       return ["coding"];
     }
 

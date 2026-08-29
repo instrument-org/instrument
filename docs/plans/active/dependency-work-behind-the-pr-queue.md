@@ -1,6 +1,6 @@
 # Dependency work behind the PR queue
 
-Status: proposed, nothing started. Every item here was deliberately held back from the 2026-08-29 sweep because it rewrites files that open pull requests are also touching, or because it is a decision rather than a bump. The trigger for all of them is the same: the open PR queue drains. Verified against the npm registry and upstream sources on 2026-08-29; re-check version claims before acting, because they go stale in days.
+Status: proposed, nothing started. Every item here was deliberately held back from the 2026-08-29 sweep because it rewrites files that open pull requests are also touching, or because it is a decision rather than a bump. Most are gated on the open PR queue draining; Electron has a specific gate, [#102](https://github.com/instrument-org/instrument/pull/102), recorded below. Verified against the npm registry and upstream sources on 2026-08-29; re-check version claims before acting, because they go stale in days.
 
 This is the companion to [dependency-upgrade-sweep.md](dependency-upgrade-sweep.md), which ranks the whole tree. That plan answers "what does upstream already fix for us". This one answers "what did we choose not to do while the branch was busy, and what has to be true before we do".
 
@@ -9,7 +9,7 @@ This is the companion to [dependency-upgrade-sweep.md](dependency-upgrade-sweep.
 Three of the items below rewrite shared UI wrappers, the Node pin, or the lockfile. Each is individually cheap and collectively unmergeable alongside in-flight work:
 
 - Radix touches 45 wrappers under `components/ui/`, which large UI branches touch by definition.
-- The Electron pin moves files in this repo and in the `registry` submodule together, so any branch carrying a submodule pointer conflicts.
+- The Electron pin moves files in this repo and in the `registry` submodule together, and the pointer it needs is itself gated on #102.
 - The `overrides` work rewrites lockfile regions that every dependency-touching branch also rewrites.
 
 Doing them on a quiet branch is the difference between a mechanical diff and a week of conflict resolution.
@@ -37,11 +37,20 @@ Half of the blocker recorded in the sweep has genuinely dissolved, and half has 
 
 **What dissolved.** The sweep found that every 42.x line bundled a different Node, so there was no bump that left the pin alone. That is no longer true. 42.9.3, 42.10.1, 43.4.1 and 44.0.0 all bundle Node 24.18.1. The pin moves once, from 24.15.0, and lands wherever we choose to stop. The major stays 24, so the `@types/node` catalog entry that `check:electron-node-version` also validates does not move at all.
 
-**What did not.** `check:electron-node-version` reads `.node-version`, `.tool-versions` and `engines.node` from the repo root, from Studio's manifest, and from `registry/`. `registry` is a submodule of the skills repo. Moving its three files means committing in skills, pushing, and advancing the submodule pointer here. The pointer currently sits 14 commits behind skills `main`, so advancing it does not just carry a Node pin: it adopts every registry change in between, which is a product decision about what skills ship, not a dependency bump.
+**What did not.** `check:electron-node-version` reads `.node-version`, `.tool-versions` and `engines.node` from the repo root, from Studio's manifest, and from `registry/`. `registry` is a submodule of the skills repo. Moving its three files means committing in skills, pushing, and advancing the submodule pointer here. The pointer sits 14 commits behind skills `main`, so advancing it does not just carry a Node pin: it adopts every registry change in between.
 
-Sequence, once the queue is clear:
+**The registry pointer is gated on [#102](https://github.com/instrument-org/instrument/pull/102)**, `spike/node-runtime-skill-mounts`. The oldest commit in that range, skills `c705e08`, rewrites every `SKILL.md` to invoke its scripts with `node` instead of `tsx`, which only works once the app side of #102 ships. Because it is the oldest, there is no pointer between here and skills `main` that takes the Node pin without also taking it.
 
-1. Decide what the `registry` pointer should be, on its own terms. This is the actual gate.
+That leaves two shapes, and the cheap one is not the obvious one:
+
+- **Wait for #102.** Advance the pointer to skills `main` once it lands, and do the Electron pin in the same pass. Nothing else in the range is blocked.
+- **Fork the registry.** Branch off the current pointer with the Node pin alone, push, and point the submodule at that. It works, and it buys Electron a few weeks earlier at the cost of a divergent registry branch that gets thrown away the moment #102 lands.
+
+Take the first unless Electron becomes urgent. The pin is three lines; a divergent registry history is not worth them.
+
+Sequence, once #102 has landed:
+
+1. Advance the `registry` pointer to skills `main`, on its own terms and in its own commit.
 2. In skills: `.node-version`, `.tool-versions`, `package.json` `engines.node` and `devEngines.runtime.version` to 24.18.1. Commit, push.
 3. In instrument: the same three, plus `apps/studio/package.json` `engines.node`, plus the electron devDependency, plus the submodule pointer.
 4. Run `check:electron-node-version`, which shells out to the real binary, so it is the authority rather than any table.
@@ -118,9 +127,17 @@ The remaining four patches and where they actually stand, checked 2026-08-29 aga
 
 | Patch | Upstream state | Removal trigger |
 | --- | --- | --- |
-| `sonner@2.0.7` | No fix, and no issue or PR on the subject upstream. 2.0.8 contains no `currentCSSZoom` anywhere. | A release carrying the fix, if we file it. Otherwise rebase on every bump. |
-| `app-builder-lib@26.15.7` | **Fixed upstream.** PR [#10101](https://github.com/electron-userland/electron-builder/pull/10101) merged to `master` on 2026-08-27, closing [#10066](https://github.com/electron-userland/electron-builder/issues/10066). Functionally identical to ours. | A release containing `7abb30e393`. Not on `release/v26`, which is the line we consume, so this needs either a v26 backport or the move to v27. |
+| `sonner@2.0.7` | No fix as of 2.0.8, which contains no `currentCSSZoom` anywhere. Ours is filed as [#785](https://github.com/emilkowalski/sonner/pull/785). | A release carrying #785. Otherwise rebase on every bump. |
+| `app-builder-lib@26.15.7` | **Fixed upstream.** PR [#10101](https://github.com/electron-userland/electron-builder/pull/10101) merged to `master` on 2026-08-27, closing [#10066](https://github.com/electron-userland/electron-builder/issues/10066). Functionally identical to ours. | A release containing `7abb30e393`. See below; no published version has one yet. |
 | `conf@14.0.0` | No fix. conf 15.1.0 still declares the loose `set` overload at line 28 of its `.d.ts`. | None pending. Re-create on any `electron-store` bump; the patch reads as a reformat and its one substantive line is easy to lose. |
 | `@parcel/watcher@2.6.0` | Not a bug fix. Deletes `binding.gyp` to skip the electron rebuild. | Never; permanent by design. |
+
+### How the app-builder-lib patch actually retires
+
+We never name `app-builder-lib`. It arrives under `electron-builder`, `dmg-builder` and `electron-builder-squirrel-windows`, all released in lockstep at the same version, so the only lever is the `electron-builder` devDependency in Studio. The patch is keyed to the exact version, which is why a bump re-keys or retires it rather than silently dropping it.
+
+Moving to v27 is the path, but not yet: `27.0.0-alpha.7` was published 2026-08-17, ten days before the fix merged, so no published v27 carries it either. What retires the patch is the first v27 cut from `master` after 2026-08-27, or a cherry-pick onto `release/v26`, which is still actively released from.
+
+Note that v27 is not only a version number here. It fails fast on Windows ia32 and Linux armv7l against Electron 44+, which is the same constraint that makes Electron 43 the last line supporting those builds. Pair the two decisions rather than taking them separately.
 
 Worth doing regardless of the queue: give the document viewers the same register `just-bash` has, or fold them into one page covering every patch. The cost of not having one is now measured.

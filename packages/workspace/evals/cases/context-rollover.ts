@@ -27,18 +27,6 @@ import { type Assertion, defineEval } from "../harness";
 const FOLLOW_UP_COUNT = 6;
 
 /**
- * What the agent chose, rather than what either side would emit anyway. Digits
- * and separators are excluded because they survive the failure: the recorded
- * degradation kept `1. 2. 3.` and lost everything the agent had added to it, so
- * a signature built from digits would call that a pass.
- */
-function contentWords(text: string): Set<string> {
-  const tokens =
-    text.toLowerCase().match(/[^\s\d.,;:|()[\]{}<>\-–—_*#`"'\/\\]+/gu) ?? [];
-  return new Set(tokens.filter((token) => !STOP_WORDS.has(token)));
-}
-
-/**
  * Words either side contributes regardless, including the prompt's own, so that
  * echoing the question back cannot look like keeping a format.
  */
@@ -68,10 +56,6 @@ const STOP_WORDS = new Set([
   "your",
 ]);
 
-function lastAssistantText(sessions: { messages: unknown[] }[]): string {
-  return assistantTexts(sessions).at(-1) ?? "";
-}
-
 function assistantTexts(sessions: { messages: unknown[] }[]): string[] {
   const texts: string[] = [];
   for (const session of sessions) {
@@ -93,6 +77,22 @@ function assistantTexts(sessions: { messages: unknown[] }[]): string[] {
     }
   }
   return texts;
+}
+
+/**
+ * What the agent chose, rather than what either side would emit anyway. Digits
+ * and separators are excluded because they survive the failure: the recorded
+ * degradation kept `1. 2. 3.` and lost everything the agent had added to it, so
+ * a signature built from digits would call that a pass.
+ */
+function contentWords(text: string): Set<string> {
+  const tokens =
+    text.toLowerCase().match(/[^\s\d.,;:|()[\]{}<>\-–—_*#`"'/\\]+/gu) ?? [];
+  return new Set(tokens.filter((token) => !STOP_WORDS.has(token)));
+}
+
+function lastAssistantText(sessions: { messages: unknown[] }[]): string {
+  return assistantTexts(sessions).at(-1) ?? "";
 }
 
 /**

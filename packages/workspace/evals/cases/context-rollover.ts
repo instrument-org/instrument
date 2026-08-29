@@ -34,7 +34,7 @@ const FOLLOW_UP_COUNT = 6;
  */
 function contentWords(text: string): Set<string> {
   const tokens =
-    text.toLowerCase().match(/[^\s\d.,;:|()[\]{}<>\-–—_*#`"'\/\\]+/gu) ?? [];
+    text.toLowerCase().match(/[^\s\d.,;:|()[\]{}<>\-–—_*#`"'/\\]+/gu) ?? [];
   return new Set(tokens.filter((token) => !STOP_WORDS.has(token)));
 }
 
@@ -68,10 +68,6 @@ const STOP_WORDS = new Set([
   "your",
 ]);
 
-function lastAssistantText(sessions: { messages: unknown[] }[]): string {
-  return assistantTexts(sessions).at(-1) ?? "";
-}
-
 function assistantTexts(sessions: { messages: unknown[] }[]): string[] {
   const texts: string[] = [];
   for (const session of sessions) {
@@ -93,6 +89,10 @@ function assistantTexts(sessions: { messages: unknown[] }[]): string[] {
     }
   }
   return texts;
+}
+
+function lastAssistantText(sessions: { messages: unknown[] }[]): string {
+  return assistantTexts(sessions).at(-1) ?? "";
 }
 
 /**
@@ -121,6 +121,34 @@ function answerLines(text: string): string[] {
     );
 }
 
+/**
+ * The form two answers are compared in, so a format that survived is not
+ * reported as lost over characters no reader can see.
+ *
+ * Every run of whitespace becomes one plain space. A model that separated its
+ * numbers with U+202F on the first turn and U+0020 on the last wrote the same
+ * answer both times, and measured, one did exactly that and scored zero.
+ * JavaScript's `\s` already covers the no-break and narrow no-break spaces, so
+ * this needs no list of its own to maintain.
+ */
+function comparable(text: string): string {
+  return text.replaceAll(/\s+/gu, " ").trim();
+}
+
+/**
+ * A line as it is looked for in a later answer, with trailing punctuation gone.
+ *
+ * A first answer often ends its count with a full stop and a later one does
+ * not, which says nothing about whether the format held: measured, a model kept
+ * `I, II, III` across two rollovers and failed on the period. Only the end is
+ * stripped, because punctuation inside the line is part of the format the agent
+ * chose, and `1. 2. 3.` differs from `1 2 3` in exactly the way this is
+ * supposed to notice.
+ */
+function comparableLine(line: string): string {
+  return comparable(line).replace(/[.,;:!?]+$/u, "");
+}
+
 const keepsItsFormat: Assertion = {
   check: ({ sessions }) => {
     const texts = assistantTexts(sessions);
@@ -136,10 +164,13 @@ const keepsItsFormat: Assertion = {
       };
     }
 
-    const kept = wanted.filter((line) => last.includes(line));
+    const comparableLast = comparable(last);
+    const kept = wanted.filter((line) =>
+      comparableLast.includes(comparableLine(line)),
+    );
     const ratio = kept.length / wanted.length;
     return {
-      evidence: `${kept.length}/${wanted.length} of the first answer's lines appear verbatim in the last (${Math.round(ratio * 100)}%).\nFirst: ${JSON.stringify(first)}\nLast: ${JSON.stringify(last)}`,
+      evidence: `${kept.length}/${wanted.length} of the first answer's lines appear in the last, ignoring whitespace and trailing punctuation (${Math.round(ratio * 100)}%).\nFirst: ${JSON.stringify(first)}\nLast: ${JSON.stringify(last)}`,
       passed: ratio >= 0.7,
       text: "Kept the format it chose before the rollover",
     };

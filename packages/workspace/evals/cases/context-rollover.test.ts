@@ -57,6 +57,30 @@ describe("context rollover: kept the format it chose", () => {
     expect((await check(withTalk, CHOSEN))?.passed).toBe(true);
   });
 
+  // Measured on gpt-oss-120b, which held its format across two rollovers and
+  // scored zero: the separator was a narrow no-break space on the first turn
+  // and an ordinary one on the last. The two answers are identical on screen.
+  it("passes when only the kind of whitespace changed", async () => {
+    const narrow = "\u2460\u202F\u2461\u202F\u2462";
+    const ordinary = "\u2460 \u2461 \u2462";
+    const result = await check(narrow, ordinary);
+    expect(result?.passed).toBe(true);
+  });
+
+  // Measured on deepseek-v4-flash, which kept `I, II, III` across two rollovers
+  // and failed on the full stop it had used the first time.
+  it("passes when the answer lost only its trailing punctuation", async () => {
+    const result = await check("I, II, III.", "I, II, III");
+    expect(result?.passed).toBe(true);
+  });
+
+  // The stripping is deliberately one-ended: punctuation inside the line is
+  // part of the format, and losing it is the degradation this exists to catch.
+  it("still fails when punctuation inside the answer goes", async () => {
+    const result = await check(CHOSEN, "1 One\n2 Two\n3 Three");
+    expect(result?.passed).toBe(false);
+  });
+
   it("reports inconclusive rather than passing on an answer with nothing to carry", async () => {
     const result = await check("1, 2, 3", "1, 2, 3");
     expect(result?.passed).toBe(false);

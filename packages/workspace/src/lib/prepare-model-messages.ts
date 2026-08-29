@@ -20,10 +20,7 @@ import { contextBudgetNotice } from "./context-budget-notice";
 import { dropTrailingFailedMessages } from "./drop-trailing-failed-messages";
 import { effectiveContextLength } from "./effective-context-length";
 import { filterUnsupportedMedia } from "./filter-unsupported-media";
-import {
-  contextRolloverNotice,
-  readHandoffNotes,
-} from "./handoff-notes";
+import { contextRolloverNotice, readHandoffNotes } from "./handoff-notes";
 import { normalizeModelImages } from "./normalize-model-images";
 import { normalizeToolCallIds } from "./normalize-tool-call-ids";
 import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning-details";
@@ -31,6 +28,17 @@ import { sanitizeModelText } from "./sanitize-model-text";
 import { splitMultipartToolResults } from "./split-multipart-tool-results";
 import { Store } from "./store";
 import { getWorkspaceConfig } from "./workspace-config";
+
+/**
+ * The shape of the session baseline this build writes.
+ *
+ * Bump it whenever `agent.getMessages` starts producing something a session
+ * that already has a baseline stored would otherwise never see. Without a bump
+ * such a session keeps the baseline it was opened with for the rest of its
+ * life, and the capability the release added is simply missing from every task
+ * that predates it.
+ */
+export const SESSION_CONTEXT_VERSION = 1;
 
 export async function prepareModelMessages({
   agent,
@@ -158,13 +166,50 @@ export async function prepareModelMessages({
   // cache is keyed on -- to restate facts that mostly did not change. Values
   // that do change reach the model as append-only corrections on the user turn
   // where they were detected instead (see `SessionMessage.toModelMessages`).
+  //
+  // The one thing that does rewrite it is a build whose baseline holds
+  // something the stored one cannot: the marker each message carries says which
+  // shape it was written under, and a baseline older than this build's is
+  // replaced on the first turn after the upgrade and then reused like any
+  // other. So the prefix moves once per shape change, and never on a clock. A
+  // marker from ahead of this build is left alone, since an older release
+  // running against a newer baseline has nothing better to put there.
   let contextMessages = existingSessionContextMessages;
 
-  if (contextMessages.length === 0) {
-    const newContextMessages = await agent.getMessages({
+  const hasOutdatedBaseline = contextMessages.some(
+    (message) =>
+      (message.metadata.contextVersion ?? 0) < SESSION_CONTEXT_VERSION,
+  );
+
+  if (contextMessages.length === 0 || hasOutdatedBaseline) {
+    // Replaced rather than added to: two baselines in the store are two
+    // baselines in every later request, and the superseded one would keep being
+    // sent for the rest of the session.
+    for (const message of contextMessages) {
+      const removeResult = await Store.removeMessage(
+        message.id,
+        message.metadata.sessionId,
+        taskId,
+        { signal },
+      );
+
+      if (removeResult.isErr()) {
+        return err(removeResult.error);
+      }
+    }
+
+    const builtContextMessages = await agent.getMessages({
       sessionId,
       taskId,
     });
+
+    const newContextMessages = builtContextMessages.map((message) => ({
+      ...message,
+      metadata: {
+        ...message.metadata,
+        contextVersion: SESSION_CONTEXT_VERSION,
+      },
+    }));
 
     const saveResults = await Promise.all(
       newContextMessages.map((message) =>

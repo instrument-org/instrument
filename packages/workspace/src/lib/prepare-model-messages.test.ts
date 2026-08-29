@@ -15,7 +15,10 @@ import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
-import { prepareModelMessages } from "./prepare-model-messages";
+import {
+  prepareModelMessages,
+  SESSION_CONTEXT_VERSION,
+} from "./prepare-model-messages";
 import { Store } from "./store";
 import { taskDir } from "./task-dir-utils";
 
@@ -73,6 +76,7 @@ describe("prepareModelMessages", () => {
       id,
       metadata: {
         agentName: "main",
+        contextVersion: SESSION_CONTEXT_VERSION,
         createdAt,
         realRole,
         sessionId,
@@ -552,6 +556,97 @@ describe("prepareModelMessages", () => {
       // Nothing in the assembly reads a clock or rescans the machine, so a
       // request rebuilt from the same stored session is the same bytes.
       expect(await prepare()).toEqual(await prepare());
+    });
+
+    it("rebuilds a baseline written before the marker existed, once", async () => {
+      // What a release that predates the marker left behind. Nothing in it says
+      // which shape it holds, so the only safe reading is that it predates
+      // whatever this build puts in a baseline.
+      const stored = contextMessage(
+        new Date(),
+        "The instructions the old release wrote.",
+      );
+      const { contextVersion: _contextVersion, ...metadata } = stored.metadata;
+      await save({ ...stored, metadata });
+      contextMessages = [
+        contextMessage(new Date(), "The instructions this release writes."),
+      ];
+
+      const first = await prepare();
+
+      expect(getMessages).toHaveBeenCalledOnce();
+      expect(JSON.stringify(first)).toContain(
+        "The instructions this release writes.",
+      );
+      expect(JSON.stringify(first)).not.toContain(
+        "The instructions the old release wrote.",
+      );
+      // Replaced, not added to: the superseded baseline left in the store would
+      // be sent alongside the new one for the rest of the session.
+      const storedResult = await Store.getMessagesWithParts({
+        sessionId,
+        taskId,
+      });
+      expect(storedResult._unsafeUnwrap().map((message) => message.id)).toEqual(
+        contextMessages.map((message) => message.id),
+      );
+
+      const second = await prepare();
+
+      // Marked on the way in, so the next turn reuses it like any other and the
+      // request prefix moves once rather than on every turn from here on.
+      expect(getMessages).toHaveBeenCalledOnce();
+      expect(second).toEqual(first);
+    });
+
+    it("rebuilds a baseline marked with a shape older than this build's", async () => {
+      const stored = contextMessage(
+        new Date(),
+        "The instructions the old release wrote.",
+      );
+      await save({
+        ...stored,
+        metadata: {
+          ...stored.metadata,
+          contextVersion: SESSION_CONTEXT_VERSION - 1,
+        },
+      });
+      contextMessages = [
+        contextMessage(new Date(), "The instructions this release writes."),
+      ];
+
+      const messages = await prepare();
+
+      expect(getMessages).toHaveBeenCalledOnce();
+      expect(JSON.stringify(messages)).toContain(
+        "The instructions this release writes.",
+      );
+      expect(JSON.stringify(messages)).not.toContain(
+        "The instructions the old release wrote.",
+      );
+    });
+
+    it("keeps a baseline marked with a shape newer than this build's", async () => {
+      const stored = contextMessage(
+        new Date(),
+        "The instructions a later release wrote.",
+      );
+      await save({
+        ...stored,
+        metadata: {
+          ...stored.metadata,
+          contextVersion: SESSION_CONTEXT_VERSION + 1,
+        },
+      });
+
+      const messages = await prepare();
+
+      // An older build running against a newer baseline has nothing better to
+      // put there, and rewriting it would undo the upgrade on every downgrade.
+      expect(getMessages).not.toHaveBeenCalled();
+      expect(JSON.stringify(messages)).toContain(
+        "The instructions a later release wrote.",
+      );
     });
   });
 

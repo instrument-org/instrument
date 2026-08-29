@@ -5,12 +5,14 @@
 // project, so the click that picks one is a real press and release over a row
 // that is really under the pointer.
 import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
+import { createStore } from "jotai";
 import { describe, expect, it, vi } from "vitest";
 
 // Relative, not `@/tests/render-browser`: oxlint's type-aware pass does not
 // resolve the alias to this module and every access downstream then reads as an
 // error type.
 import { renderInBrowser } from "../../tests/render-browser";
+import { zoomAtom } from "../atoms/zoom";
 import { TaskExternalLink } from "./task-external-link";
 
 const openInTaskBrowser = vi.fn();
@@ -75,15 +77,18 @@ function pressAt(link: HTMLElement) {
   return point;
 }
 
-async function renderLink() {
+async function renderLink({ zoom = 1 }: { zoom?: number } = {}) {
+  const store = createStore();
+  store.set(zoomAtom, zoom);
   const result = await renderInBrowser(
     // Pushed off the window's edges so the menu has room on every side and
     // floating-ui's collision handling never becomes the thing under test.
-    <div style={{ padding: 200 }}>
+    <div style={{ padding: 200, zoom }}>
       <TaskExternalLink href={HREF} sessionId={SESSION_ID} taskId={TASK_ID}>
         Page domain reference
       </TaskExternalLink>
     </div>,
+    { store },
   );
 
   const link = document.querySelector<HTMLElement>(`a[href="${HREF}"]`);
@@ -110,6 +115,27 @@ describe("TaskExternalLink in a browser", () => {
       expect(offBy(point.x - menu.left, ICON_COLUMN_WIDTH)).toBeLessThanOrEqual(
         ROUNDING,
       );
+    });
+  });
+
+  // The straddle is measured across two spaces at once: the press point and the
+  // link's rect are on-screen px, while the row and the icon column are the
+  // layout px the menu re-applies zoom to. Mixing them still looks right at the
+  // 1x default, so only a zoomed case says whether the conversion is there. At
+  // 1.5x an unconverted row leaves the pointer half a row below where the menu
+  // was aimed.
+  it.each([1.5, 0.75])("straddles the press at %sx zoom", async (zoom) => {
+    const { link } = await renderLink({ zoom });
+    const point = pressAt(link);
+
+    await vi.waitFor(() => {
+      const menu = menuBox();
+      expect(
+        offBy(point.y - menu.top, FIRST_ROW_HEIGHT * zoom),
+      ).toBeLessThanOrEqual(ROUNDING);
+      expect(
+        offBy(point.x - menu.left, ICON_COLUMN_WIDTH * zoom),
+      ).toBeLessThanOrEqual(ROUNDING);
     });
   });
 

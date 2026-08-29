@@ -3,8 +3,20 @@ import { describe, expect, it } from "vitest";
 import { computeContextBudget } from "./context-budget";
 import { contextBudgetNotice } from "./context-budget-notice";
 
-const notice = (contextLength: number | undefined, occupied: number) =>
-  contextBudgetNotice(computeContextBudget({ contextLength, occupied }));
+const MODEL = "model-being-asked";
+
+const notice = (
+  contextLength: number | undefined,
+  occupied: number,
+  reportedBy: string = MODEL,
+) =>
+  contextBudgetNotice(
+    computeContextBudget({
+      contextLength,
+      modelId: MODEL,
+      occupancy: { modelId: reportedBy, tokens: occupied },
+    }),
+  );
 
 describe("contextBudgetNotice", () => {
   it("says nothing for a model whose window we do not know", () => {
@@ -39,5 +51,14 @@ describe("contextBudgetNotice", () => {
       Say what a future reader needs in order to pick this up cold: the goal in the user's own terms, the decisions taken and why, what is finished, what is left, and the paths that matter.
       </context-budget>"
     `);
+  });
+
+  it("still speaks up on a count the model before the switch reported", () => {
+    // The count is not this model's and so cannot be reset on, but the notice
+    // is the only part of this feature that has to arrive before a reset does.
+    // Withholding it here is what leaves an agent with no notes to hand on.
+    expect(notice(200_000, 175_000, "model-that-answered-earlier")).toContain(
+      "used all",
+    );
   });
 });

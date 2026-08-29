@@ -34,6 +34,8 @@ const WARN_AT_FRACTION = 0.85;
 const MAX_RESERVE_FRACTION = 0.2;
 
 export interface ContextBudget {
+  /** Where `occupied` came from, and so how far it may be acted on. */
+  occupancySource: ContextOccupancySource;
   /** Tokens the most recent request occupied. */
   occupied: number;
   /** Tokens still available before the reserve is spent. */
@@ -41,6 +43,25 @@ export interface ContextBudget {
   status: ContextBudgetStatus;
   /** Window minus the reserve: what the transcript may actually use. */
   usable: number;
+}
+
+/**
+ * Tokens a session has spent, and the model that counted them.
+ *
+ * The model travels with the number because the number means nothing without
+ * it. Windows differ between models and tokenizers differ between families, so
+ * a count lifted from one turn and held against another model's window is
+ * wrong twice over, and wrong by an amount nothing here can measure.
+ *
+ * The id recorded is the model that was asked for rather than the one the
+ * provider served, because the window it is compared against is the asked-for
+ * model's. A routing alias names itself on both sides of that comparison, so it
+ * matches itself and keeps budgeting rather than switching it off every time
+ * routing lands somewhere new.
+ */
+export interface ContextOccupancy {
+  modelId: string;
+  tokens: number;
 }
 
 type ContextBudgetStatus =
@@ -58,7 +79,20 @@ type ContextBudgetStatus =
   /** Close enough to the limit that the agent should be told while it can act. */
   | "warn";
 
+type ContextOccupancySource =
+  /**
+   * Reported by a different model than the one this budget is about, which is
+   * what the first turn after a model switch has to work from. Enough to tell
+   * the agent its room is running out; not enough to spend its history on.
+   */
+  | "carried-over"
+  /** Reported by the model this budget is about. */
+  | "measured"
+  /** Nothing reported yet, so nothing has been spent. */
+  | "none";
+
 const UNKNOWN: ContextBudget = {
+  occupancySource: "none",
   occupied: 0,
   remaining: 0,
   status: "unknown",
@@ -67,32 +101,37 @@ const UNKNOWN: ContextBudget = {
 
 export function computeContextBudget({
   contextLength,
-  occupied,
+  modelId,
+  occupancy,
   reserveTokens = DEFAULT_CONTEXT_RESERVE_TOKENS,
 }: {
   contextLength: number | undefined;
-  occupied: number | undefined;
+  /** The model this budget is about, which is the one about to be asked. */
+  modelId: string;
+  occupancy: ContextOccupancy | undefined;
   reserveTokens?: number;
 }): ContextBudget {
-  if (contextLength === undefined || !Number.isFinite(contextLength)) {
+  const usable = usableContextTokens(contextLength, reserveTokens);
+  if (usable === undefined) {
     return UNKNOWN;
   }
 
-  const reserve = Math.min(
-    reserveTokens,
-    Math.floor(contextLength * MAX_RESERVE_FRACTION),
-  );
-  const usable = Math.max(0, Math.floor(contextLength - reserve));
-  if (usable === 0) {
-    // Only reachable for a window of zero or less, which is not a window.
-    return UNKNOWN;
-  }
+  const reported =
+    occupancy !== undefined && Number.isFinite(occupancy.tokens)
+      ? occupancy
+      : undefined;
 
   // A session that has not had a reply yet has spent nothing, which is a real
   // answer rather than a missing one.
-  const spent = Number.isFinite(occupied) ? Math.max(0, occupied ?? 0) : 0;
+  const spent = reported === undefined ? 0 : Math.max(0, reported.tokens);
 
   return {
+    occupancySource:
+      reported === undefined
+        ? "none"
+        : reported.modelId === modelId
+          ? "measured"
+          : "carried-over",
     occupied: spent,
     remaining: Math.max(0, usable - spent),
     status:
@@ -123,10 +162,16 @@ export function computeContextBudget({
  * one the provider actually counted. That number is a turn stale, and stale
  * low, which is the safe direction: it can delay a warning by a turn but
  * cannot invent one.
+ *
+ * The newest count wins even when an older one came from the model now being
+ * asked. The older number was measured before everything since it was added, so
+ * preferring it would answer a question about the window with a description of
+ * a smaller one. The newest count is at least about the history that exists;
+ * `computeContextBudget` decides what may be done with it.
  */
 export function contextOccupancyFromMessages(
   messages: readonly SessionMessage.WithParts[],
-): number | undefined {
+): ContextOccupancy | undefined {
   for (let index = messages.length - 1; index >= 0; index--) {
     const message = messages[index];
     if (message?.role !== "assistant") {
@@ -135,9 +180,35 @@ export function contextOccupancyFromMessages(
 
     const inputTokens = message.metadata.usage?.inputTokens;
     if (inputTokens !== undefined && Number.isFinite(inputTokens)) {
-      return inputTokens;
+      return { modelId: message.metadata.modelId, tokens: inputTokens };
     }
   }
 
   return undefined;
+}
+
+/**
+ * What the transcript may actually use of a model's window, or nothing at all
+ * when there is no window to divide up.
+ *
+ * Separated from the budget because two decisions need it before there is a
+ * budget to read it off: whether a rollover boundary drawn under an earlier
+ * window still binds, and what window to record against a new one.
+ */
+export function usableContextTokens(
+  contextLength: number | undefined,
+  reserveTokens: number = DEFAULT_CONTEXT_RESERVE_TOKENS,
+): number | undefined {
+  if (contextLength === undefined || !Number.isFinite(contextLength)) {
+    return undefined;
+  }
+
+  const reserve = Math.min(
+    reserveTokens,
+    Math.floor(contextLength * MAX_RESERVE_FRACTION),
+  );
+  const usable = Math.max(0, Math.floor(contextLength - reserve));
+
+  // Zero is only reachable for a window of zero or less, which is not a window.
+  return usable === 0 ? undefined : usable;
 }

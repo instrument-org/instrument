@@ -684,6 +684,25 @@ describe("prepareModelMessages", () => {
       );
     }
 
+    /** A turn the provider refused for size, which reports no usage at all. */
+    function refusedForSize(): SessionMessage.AssistantWithParts {
+      const message = assistantMessage("");
+      return {
+        ...message,
+        metadata: {
+          ...message.metadata,
+          error: {
+            classification: "context-overflow",
+            kind: "api-call",
+            message: "prompt is too long",
+            name: "AI_APICallError",
+            url: "https://example.test/v1/messages",
+          },
+          finishReason: "error",
+        },
+      };
+    }
+
     describe("a model whose window is unknown", () => {
       it("produces no warning and no rollover, however full it is", async () => {
         await save(userMessage("First question"));
@@ -901,6 +920,110 @@ describe("prepareModelMessages", () => {
         await prepare(smallWindowModel);
 
         expect(await storedRolloverParts()).toHaveLength(1);
+      });
+    });
+
+    describe("a model switch", () => {
+      /** The same turn, as the model that ran before the switch reported it. */
+      function fromAnotherModel(
+        message: SessionMessage.AssistantWithParts,
+      ): SessionMessage.AssistantWithParts {
+        return {
+          ...message,
+          metadata: { ...message.metadata, modelId: "roomy-model-id" },
+        };
+      }
+
+      /** A conversation the previous model filled, before the switch. */
+      async function fillPastOnAnotherModel(turns: number) {
+        await save(userMessage("First question"));
+        for (let index = 0; index < turns; index++) {
+          await save(
+            fromAnotherModel(assistantMessageWithUsage(`turn ${index}`, 900)),
+          );
+        }
+      }
+
+      it("warns on a count carried over from the model that ran before", async () => {
+        await fillPastOnAnotherModel(4);
+
+        const messages = await prepare(smallWindowModel);
+
+        // The warning is the whole mechanism for carrying a task across a
+        // reset, so it is the one thing a carried-over count must still buy.
+        expect(noticeIn(messages)).toContain("used all");
+      });
+
+      it("does not reset on it, however far past the window it reads", async () => {
+        await fillPastOnAnotherModel(4);
+
+        await prepare(smallWindowModel);
+
+        expect(await storedBoundary()).toBeUndefined();
+      });
+
+      it("resets once the model being asked has reported a count of its own", async () => {
+        await fillPastOnAnotherModel(4);
+        await prepare(smallWindowModel);
+        await save(assistantMessageWithUsage("first turn here", 900));
+
+        await prepare(smallWindowModel);
+
+        expect(await storedBoundary()).toBeDefined();
+      });
+
+      it("resets on a refused request without waiting for that count", async () => {
+        // Otherwise nothing ends this: a refused turn reports no usage, so the
+        // next turn reads the same carried-over count, defers again, and sends
+        // the same oversized request forever.
+        await fillPastOnAnotherModel(4);
+        await save(refusedForSize());
+
+        await prepare(smallWindowModel);
+
+        expect(await storedBoundary()).toBeDefined();
+      });
+
+    });
+
+    describe("a request the provider refused for size", () => {
+      it("resets a session whose window the provider never reported", async () => {
+        // Budgeting is off for this model and cannot be turned on, so the
+        // refusal is the only evidence of a ceiling the session will ever get.
+        await save(userMessage("First question"));
+        for (let index = 0; index < 4; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 900));
+        }
+        await save(refusedForSize());
+
+        await prepare(anthropicModel);
+
+        expect(await storedBoundary()).toBeDefined();
+      });
+
+      it("resets a session the arithmetic reads as having room to spare", async () => {
+        // The advertised window was wrong, or something outside the transcript
+        // took the room. Either way the provider outranks the arithmetic.
+        await save(userMessage("First question"));
+        for (let index = 0; index < 4; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 10));
+        }
+        await save(refusedForSize());
+
+        await prepare(smallWindowModel);
+
+        expect(await storedBoundary()).toBeDefined();
+      });
+
+      it("leaves a session alone when the turn before it succeeded", async () => {
+        await save(userMessage("First question"));
+        for (let index = 0; index < 4; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 10));
+        }
+
+        await prepare(smallWindowModel);
+
+        expect(await storedBoundary()).toBeUndefined();
       });
     });
   });

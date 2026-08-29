@@ -1,5 +1,10 @@
 import { type SessionMessage } from "../schemas/session/message";
+import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
+import {
+  sanitizeSurrogates,
+  truncateWithoutSplitting,
+} from "./sanitize-model-text";
 
 /**
  * The history a task continues from after its context window was reset.
@@ -107,6 +112,13 @@ export function contextRolloverWouldReclaim(
  * Walking backward means the budget is spent on what the user said most
  * recently, and an old message dropped for room is dropped whole rather than
  * cut in half.
+ *
+ * The newest one is retained whatever its size, because it is the turn the
+ * model is being asked to answer. Dropping it produces a request in which the
+ * user said nothing, which the model answers out of the older context instead:
+ * it responds to the previous ask rather than the one just made, and nothing in
+ * the transcript says why. A cut copy of the request beats no request at all,
+ * so an oversized newest message is trimmed to the budget rather than left out.
  */
 function retainNewestUserMessages(
   messages: readonly SessionMessage.WithParts[],
@@ -122,7 +134,15 @@ function retainNewestUserMessages(
 
     const size = userTextLength(message);
     if (size > budget) {
-      break;
+      // Nothing retained yet means this is the newest, which is kept whole or
+      // cut but never dropped. An older one that no longer fits ends the walk.
+      if (retained.length > 0) {
+        break;
+      }
+
+      retained.unshift({ ...message, parts: cutTextToBudget(message, budget) });
+      budget = 0;
+      continue;
     }
 
     budget -= size;
@@ -130,6 +150,69 @@ function retainNewestUserMessages(
   }
 
   return retained;
+}
+
+/**
+ * A message's parts with its text cut down to a character budget.
+ *
+ * Both ends of the text survive and the middle goes. Which end of a long user
+ * turn carries the ask is not knowable here: "here is the log, find the error"
+ * and "find the error in the log below" put it at opposite ends of the same
+ * message. Keeping one end would decide that for the user and lose the
+ * instruction outright half the time, while the payload those instructions
+ * wrap around is the part that is bulky and the part the model can ask about.
+ *
+ * The budget spans the message rather than each part, so text parts before the
+ * cut survive whole, text parts after it survive whole, and only the ones the
+ * omission runs through are rewritten. Parts that hold no text are untouched.
+ */
+function cutTextToBudget(
+  message: SessionMessage.WithParts,
+  budget: number,
+): SessionMessagePart.Type[] {
+  const total = userTextLength(message);
+  const headBudget = Math.ceil(budget / 2);
+  const tailStart = total - (budget - headBudget);
+
+  let consumed = 0;
+
+  return message.parts.map((part) => {
+    if (part.type !== "text") {
+      return part;
+    }
+
+    const start = consumed;
+    consumed += part.text.length;
+
+    const head = truncateWithoutSplitting(
+      part.text,
+      Math.max(0, headBudget - start),
+    );
+    // A tail can open on the low half of a character whose high half was cut
+    // away, which is the same broken encoding a naive head cut makes and which
+    // providers reject. Dropping halves is what the sanitizer is for.
+    const tail = sanitizeSurrogates(
+      part.text.slice(part.text.length - Math.max(0, consumed - tailStart)),
+    );
+    const omitted = part.text.length - head.length - tail.length;
+
+    return omitted <= 0
+      ? part
+      : { ...part, text: `${head}${omissionMarker(omitted)}${tail}` };
+  });
+}
+
+/**
+ * The line standing where a cut user message's middle used to be.
+ *
+ * It disclaims itself, because both directions of confusion cost something. A
+ * note read as the user speaking becomes an instruction the model follows, and
+ * the user's own words read as a note become something it may ignore. Saying
+ * whose text this is not settles both, and the count tells the model how much
+ * of the message it is answering without.
+ */
+function omissionMarker(characters: number): string {
+  return `\n\n[context rollover omitted ${characters} characters here; this bracketed line is not the user's text]\n\n`;
 }
 
 function userTextLength(message: SessionMessage.WithParts): number {

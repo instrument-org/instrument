@@ -1,3 +1,4 @@
+import { zoomAtom } from "@/client/atoms/zoom";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,20 +12,24 @@ import { APP_NAME } from "@instrument-org/shared";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
+import { useAtomValue } from "jotai";
 import { useState } from "react";
 
 // The menu straddles the click rather than hanging below the link, so both
 // destinations are a short move from where the pointer already is. Radix
 // positions against the trigger's box, so the offsets below are the click's
-// position within the link -- never a viewport coordinate, which would have to
-// be corrected for the app's CSS zoom to mean anything.
+// position within the link rather than a viewport coordinate. Rects and
+// pointer coordinates are on-screen px, the space Radix applies its offsets
+// in, while the two constants are the menu's own layout px, which the content
+// re-applies the app's CSS zoom to -- so they are scaled by that zoom on the
+// way into the offsets.
 
-/** `p-1` on the content plus one `py-1.5 text-sm` row, which is what has to sit
- *  above the pointer for the second row to sit below it. */
+/** Layout px. `p-1` on the content plus one `py-1.5 text-sm` row, which is what
+ *  has to sit above the pointer for the second row to sit below it. */
 const FIRST_ROW_HEIGHT = 36;
 
-/** `px-3` plus a `size-4` icon: far enough in that the pointer lands on the
- *  row's icon rather than outside its rounded left edge. */
+/** Layout px. `px-3` plus a `size-4` icon: far enough in that the pointer lands
+ *  on the row's icon rather than outside its rounded left edge. */
 const ICON_COLUMN_WIDTH = 28;
 
 /**
@@ -53,6 +58,7 @@ export function TaskExternalLink({
 }) {
   const [open, setOpen] = useState(false);
   const [offset, setOffset] = useState({ align: 0, side: 0 });
+  const zoom = useAtomValue(zoomAtom);
 
   const openInTaskBrowser = useOpenInTaskBrowser({ sessionId, taskId });
   const openExternalLink = useOpenExternalLink();
@@ -77,8 +83,8 @@ export function TaskExternalLink({
             // place for the menu's first render rather than a frame after it.
             const rect = event.currentTarget.getBoundingClientRect();
             setOffset({
-              align: event.clientX - rect.left - ICON_COLUMN_WIDTH,
-              side: event.clientY - rect.bottom - FIRST_ROW_HEIGHT,
+              align: event.clientX - rect.left - ICON_COLUMN_WIDTH * zoom,
+              side: event.clientY - rect.bottom - FIRST_ROW_HEIGHT * zoom,
             });
 
             // Refusing the press is what stops the release that follows from

@@ -48,6 +48,15 @@ export function createStudioAppUpdater({
   // to avoid. Every other package keeps the default, so quitting hands the
   // staged artifact to the installer electron-updater has for that format.
   autoUpdater.autoInstallOnAppQuit = !installedFromDeb();
+  // Windows asks for a differential download it cannot finish. NsisUpdater
+  // rebuilds the new installer from `<updater cache>/installer.exe`, and
+  // nothing writes that file: electron-updater only ever reads it, and
+  // electron-builder's NSIS templates never put one there. So it is absent,
+  // and the attempt ends in ENOENT, or it is a fossil from some older install,
+  // and the blocks reused from it rebuild a file whose sha512 does not match.
+  // Either way a full download follows, after the partial one has been fetched
+  // and thrown away. Asking for it only costs those bytes.
+  autoUpdater.disableDifferentialDownload = os.platform() === "win32";
   autoUpdater.forceDevUpdateConfig =
     process.env.FORCE_DEV_AUTO_UPDATE === "true";
 

@@ -1,6 +1,6 @@
 # Dragging a file out does not cross from XWayland to Wayland
 
-**Status:** fixed, shipped in 1.6.6. Reproduced by hand on Ubuntu 24.04.4 with GNOME Shell 46 in a Wayland session, against a shipped beta, 2026-08-28. The cause was the `--ozone-platform=x11` pin, not our drag code. The default is now `auto`, which is Electron's own since 38: native Wayland in a Wayland session, X11 in an X11 one. `INSTRUMENT_OZONE_PLATFORM=x11` is the way back. The costs that decision accepts are recorded under [What the default now costs](#what-the-default-now-costs). Last updated 2026-08-29.
+**Status:** fixed. Reproduced by hand on Ubuntu 24.04.4 with GNOME Shell 46 in a Wayland session, against a shipped beta, 2026-08-28. The cause was the `--ozone-platform=x11` pin, not our drag code. The pin came off in 1.6.6, but its replacement asked Chromium to choose by leaving the switch off, which selects X11 rather than reading the session: 1.6.6 and 1.6.7 therefore ran on XWayland while logging otherwise, and the drag stayed broken for everyone who did not set the override by hand. The app now resolves the platform from `WAYLAND_DISPLAY` and always names it. `INSTRUMENT_OZONE_PLATFORM=x11` is the way back. The costs that decision accepts are recorded under [What the default now costs](#what-the-default-now-costs). Last updated 2026-08-29.
 
 ## The symptom
 
@@ -42,7 +42,7 @@ That is a sensible restriction — a renderer should not be able to hand a local
 
 ## The pin was the cause, and dropping it was not free
 
-Electron 38 changed its default to running as a native Wayland app in a Wayland session. The pin opted back out of that.
+The pin made the app an XWayland client on a Wayland desktop. Removing it is necessary and not sufficient: an absent `--ozone-platform` selects Chromium's compiled-in default, which is X11, and `--ozone-platform-hint=auto` does not select one from the session either. The platform has to be named.
 
 Electron's own `BrowserWindow` documentation gives the reason anyone forces XWayland: on Wayland it is generally not possible to programmatically resize a window after creation, or to position, move, focus, or blur windows without user input. The app restores window bounds at launch and focuses windows programmatically, so the pin was carrying real weight.
 
@@ -68,15 +68,29 @@ So Electron's Wayland drag source does support file drags, which was the open qu
 INSTRUMENT_OZONE_PLATFORM=wayland <installed binary>
 ```
 
-`auto` is worth understanding before using it. It is Electron's own default since 38 and means native Wayland in a Wayland session, but it is **not a platform Chromium accepts**: passing it to `--ozone-platform` is fatal at startup with `Invalid ozone platform: auto`, and the app dies before any window exists. It is the name of what Chromium does when the flag is absent, so asking for it means removing the switch rather than setting it. `wayland` names a real platform and is the more direct thing to test with.
+`auto` means read the session, and the app resolves it before Chromium sees it. It is **not a platform Chromium accepts**: passing it to `--ozone-platform` is fatal at startup with `Invalid ozone platform: auto`, and the app dies before any window exists. Leaving the switch off is not the same request either, which is the trap 1.6.6 fell into. An absent `--ozone-platform` selects Chromium's compiled-in default, which is X11, and `--ozone-platform-hint=auto` does not read the session either; both were tested against an installed build on a Wayland session. So `auto` is resolved from `WAYLAND_DISPLAY` and a real platform name is always passed.
 
-One trap in that removal: `app.commandLine.removeSwitch` does not reliably undo an `--ozone-platform` the process was started with. A packaged 1.6.6 launched with `--ozone-platform=x11` on argv resolves to `auto`, logs `auto`, and still runs as an X11 client. The launcher no longer passes that flag, so an ordinary launch is unaffected, but anything that does put it on argv -- a custom launcher, a script, a stale desktop entry -- is silently on X11. Read the protocol rather than the request.
+That is also why the switch is set rather than removed. Removal fails twice over: it lands on X11 by default, and `app.commandLine.removeSwitch` does not reliably undo an `--ozone-platform` the process was started with. Read the protocol rather than the request.
 
 Passing `--ozone-platform` on the command line instead does not work either, and fails in a way that looks like a Wayland bug rather than a conflict: the switch set in `setup-environment.ts` is applied after the process command line is parsed and overwrites it, leaving the app erroring out of an X11 presenter while asked for Wayland, with no window.
 
-Confirm which protocol actually took before trusting a result. A native Wayland app has no X11 window, so it will not appear in `_NET_CLIENT_LIST`; under XWayland it will.
+Confirm which protocol actually took before trusting a result, by either signal under [Telling which protocol took](#telling-which-protocol-took).
 
-Dragging a file out now works on macOS, on Windows, and in a Linux Wayland session. It still does nothing when the app is on XWayland, which since 1.6.6 means only a deliberate `INSTRUMENT_OZONE_PLATFORM=x11`.
+Dragging a file out works on macOS, on Windows, and in a Linux Wayland session. It still does nothing when the app is on XWayland, which now means only a deliberate `INSTRUMENT_OZONE_PLATFORM=x11`.
+
+## Telling which protocol took
+
+A native Wayland app has no X11 window, so it will not appear in `_NET_CLIENT_LIST`; under XWayland it will. That needs a working X connection to ask from.
+
+The cheaper signal is in the app's own output. On XWayland a child process logs this on every launch:
+
+```
+ERROR:ui/base/x/x11_software_bitmap_presenter.cc:147] XGetWindowAttributes failed for window 1
+```
+
+None of those means the run is on Wayland, one or more means X11. It is a reliable A/B over a headless connection with nothing else installed, and it is what caught the 1.6.6 default.
+
+On a host whose XWayland presenter is broken, that same line is the entire failure rather than a diagnostic. The window is created, Electron reports it visible, Chromium reports `visibilityState: "visible"` and paints a complete frame to a CDP screenshot, the shell counts the window in its dock, and no frame is ever presented to the compositor. The app runs with no window and nothing in the log a user would recognize as an error. This was seen on a QEMU/virtio guest; where XWayland presents normally the same misconfiguration shows up only as the drag failing.
 
 ## What the default now costs
 

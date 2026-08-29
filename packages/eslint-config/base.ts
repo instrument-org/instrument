@@ -158,6 +158,8 @@ export default tseslint.config(
       "unicorn/no-array-callback-reference": "off",
       "unicorn/no-nested-ternary": "off",
       "unicorn/no-null": "off",
+      // Re-reads browserslist and package.json per file for ~1.8s a run.
+      "unicorn/no-unnecessary-polyfills": "off",
       "unicorn/no-useless-undefined": ["error", { checkArguments: false }],
       "unicorn/prefer-global-this": "off",
       "unicorn/prefer-string-raw": "off",

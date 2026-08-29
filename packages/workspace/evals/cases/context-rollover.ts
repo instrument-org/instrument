@@ -26,25 +26,44 @@ import { type Assertion, defineEval } from "../harness";
  */
 const FOLLOW_UP_COUNT = 6;
 
-/** Words the agent contributed, rather than scaffolding either side would emit. */
+/**
+ * What the agent chose, rather than what either side would emit anyway. Digits
+ * and separators are excluded because they survive the failure: the recorded
+ * degradation kept `1. 2. 3.` and lost everything the agent had added to it, so
+ * a signature built from digits would call that a pass.
+ */
 function contentWords(text: string): Set<string> {
-  return new Set(
-    (text.toLowerCase().match(/[a-z]{3,}/g) ?? []).filter(
-      (word) => !STOP_WORDS.has(word),
-    ),
-  );
+  const tokens =
+    text.toLowerCase().match(/[^\s\d.,;:|()[\]{}<>\-–—_*#`"'\/\\]+/gu) ?? [];
+  return new Set(tokens.filter((token) => !STOP_WORDS.has(token)));
 }
 
+/**
+ * Words either side contributes regardless, including the prompt's own, so that
+ * echoing the question back cannot look like keeping a format.
+ */
 const STOP_WORDS = new Set([
+  "again",
   "and",
   "are",
+  "choose",
   "count",
   "counting",
+  "distinctive",
+  "every",
+  "exactly",
   "for",
   "from",
   "here",
-  "again",
+  "numbers",
+  "same",
+  "say",
+  "that",
   "the",
+  "time",
+  "use",
+  "way",
+  "writing",
   "you",
   "your",
 ]);
@@ -134,6 +153,7 @@ export const CONTEXT_ROLLOVER_EVALS = [
     assertions: [keepsItsFormat, wroteNotesToTheNamedPath],
     followUps: Array.from({ length: FOLLOW_UP_COUNT }, () => "again"),
     name: "context-rollover-keeps-its-format",
-    prompt: "Count from 1 to 3.",
+    prompt:
+      "Count from 1 to 3. Choose a distinctive way of writing the numbers, and use exactly that same way every time I say again.",
   }),
 ];

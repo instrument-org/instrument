@@ -12,10 +12,14 @@ const { fetchAndParseAnthropicModels } = vi.hoisted(() => ({
 
 vi.mock("./fetch-models/anthropic", () => ({ fetchAndParseAnthropicModels }));
 
-// The fetcher is mocked, so the model shape is irrelevant to the caching logic
-// under test.
-const MODELS = [{ name: "claude" }] as unknown as AIGatewayModel.Type[];
-const CACHED = [{ name: "claude-cached" }] as unknown as AIGatewayModel.Type[];
+// The fetcher is mocked, so only `canonicalId` matters, and only because the
+// variant rule reads it on the way through to the cache.
+const MODELS = [
+  { canonicalId: "claude", name: "claude" },
+] as unknown as AIGatewayModel.Type[];
+const CACHED = [
+  { canonicalId: "claude-cached", name: "claude-cached" },
+] as unknown as AIGatewayModel.Type[];
 
 const config: AIGatewayProviderConfig.Type = {
   apiKey: "test-key",

@@ -5,6 +5,7 @@ import {
 import { Result } from "typescript-result";
 
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
+import { demoteVariantsOfListedModels } from "./demote-variants-of-listed-models";
 import { TypedError } from "./errors";
 import { fetchAndParseAnthropicModels } from "./fetch-models/anthropic";
 import { fetchAndParseGoogleModels } from "./fetch-models/google";
@@ -63,7 +64,12 @@ export function fetchModelsForProvider(
       });
     },
   )
-    .map((models) => {
+    .map((rawModels) => {
+      // The one place that holds a provider's whole list, which is what the
+      // variant rule needs to see, and it runs before the cache write so a
+      // cached read carries the same tags a fresh fetch would.
+      const models = demoteVariantsOfListedModels(rawModels);
+
       // Don't cache an empty list: a transient empty (or filtered-to-nothing)
       // response would otherwise clobber the last-known-good models and defeat
       // the fallback below.

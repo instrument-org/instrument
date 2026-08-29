@@ -6,6 +6,7 @@ import {
   applyContextRollover,
   contextRolloverWouldReclaim,
 } from "./apply-context-rollover";
+import { sanitizeSurrogates } from "./sanitize-model-text";
 
 const id = (value: string) => value as StoreId.Message;
 
@@ -22,6 +23,11 @@ const message = (
 
 const ids = (messages: readonly SessionMessage.WithParts[]) =>
   messages.map((entry) => entry.id);
+
+const textOf = (entry: SessionMessage.WithParts | undefined) =>
+  (entry?.parts ?? [])
+    .map((part) => (part.type === "text" ? part.text : ""))
+    .join("");
 
 const conversation = [
   message("u1", "user", "the constraint that still binds"),
@@ -119,15 +125,63 @@ describe("applyContextRollover", () => {
     ).toBe(true);
   });
 
-  it("never splits a retained user message", () => {
+  it("cuts the newest user message down rather than dropping it", () => {
+    // The turn the model is being asked to answer. Dropped, the request reads
+    // as though the user said nothing and gets answered out of older context.
     const rolled = applyContextRollover({
       messages: [
-        message("u1", "user", "y".repeat(50_000)),
+        message("u1", "user", `THE ASK${"y".repeat(50_000)}AND THE FOLLOW-UP`),
         message("a1", "assistant"),
       ],
       rolledOverAfterMessageId: id("a1"),
     });
 
-    expect(rolled).toEqual([]);
+    expect(ids(rolled)).toEqual(["u1"]);
+
+    const text = textOf(rolled[0]);
+    expect(text.startsWith("THE ASK")).toBe(true);
+    expect(text.endsWith("AND THE FOLLOW-UP")).toBe(true);
+    expect(/\[context rollover[^\]]*\]/.exec(text)?.[0]).toMatchInlineSnapshot(
+      `"[context rollover omitted 10024 characters here; this bracketed line is not the user's text]"`,
+    );
+  });
+
+  it("leaves a user message that fits the budget exactly as it was", () => {
+    const original = message("u1", "user", "z".repeat(39_000));
+    const rolled = applyContextRollover({
+      messages: [original, message("a1", "assistant")],
+      rolledOverAfterMessageId: id("a1"),
+    });
+
+    expect(ids(rolled)).toEqual(["u1"]);
+    expect(rolled[0]).toBe(original);
+  });
+
+  it("spends the budget on the newest message before any older one", () => {
+    const rolled = applyContextRollover({
+      messages: [
+        message("u1", "user", "the constraint that still binds"),
+        message("u2", "user", "y".repeat(50_000)),
+        message("a1", "assistant"),
+      ],
+      rolledOverAfterMessageId: id("a1"),
+    });
+
+    expect(ids(rolled)).toEqual(["u2"]);
+  });
+
+  it("leaves no half characters at the edges of the cut", () => {
+    // The eleven trailing plain characters shift the tail's cut onto the low
+    // half of an emoji, which is the half a plain slice would keep.
+    const rolled = applyContextRollover({
+      messages: [
+        message("u1", "user", "🙈".repeat(20_000) + "x".repeat(11)),
+        message("a1", "assistant"),
+      ],
+      rolledOverAfterMessageId: id("a1"),
+    });
+
+    const text = textOf(rolled[0]);
+    expect(sanitizeSurrogates(text)).toBe(text);
   });
 });

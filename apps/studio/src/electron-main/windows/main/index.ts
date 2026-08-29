@@ -38,6 +38,11 @@ import path from "node:path";
 import { debounce } from "radashi";
 
 let wasWindowBlurred = false;
+// Whether the session being restored left the window maximized, held until the
+// window is first put on screen. Applying it at creation would defeat a window
+// created to stay hidden: on Windows and Linux, maximizing a window that has
+// not been shown is what shows it.
+let hasMaximizedRestoreToApply = false;
 
 export async function createMainWindow({
   reveal = true,
@@ -46,6 +51,10 @@ export async function createMainWindow({
 } = {}) {
   const mainWindow = await getOrCreateMainWindow(createMainWindowInstance);
   if (reveal) {
+    if (hasMaximizedRestoreToApply) {
+      hasMaximizedRestoreToApply = false;
+      mainWindow.maximize();
+    }
     showWindow(mainWindow);
   }
   return mainWindow;
@@ -238,9 +247,7 @@ async function createMainWindowInstance() {
   // URL, and the root path distinguishes it from the onboarding window.
   void mainWindow.loadURL(studioURL("/"));
 
-  if (getWindowState().isMaximized) {
-    mainWindow.maximize();
-  }
+  hasMaximizedRestoreToApply = getWindowState().isMaximized;
 
   setupWindowEventListeners({
     mainWindow,

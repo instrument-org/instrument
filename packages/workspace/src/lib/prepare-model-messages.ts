@@ -24,6 +24,7 @@ import { dropTrailingFailedMessages } from "./drop-trailing-failed-messages";
 import { effectiveContextLength } from "./effective-context-length";
 import { filterUnsupportedMedia } from "./filter-unsupported-media";
 import { contextRolloverNotice, readHandoffNotes } from "./handoff-notes";
+import { modelChangeSincePreviousTurn } from "./model-change";
 import { normalizeModelImages } from "./normalize-model-images";
 import { normalizeToolCallIds } from "./normalize-tool-call-ids";
 import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning-details";
@@ -94,6 +95,36 @@ export async function prepareModelMessages({
 
   const contextLength = effectiveContextLength(model);
   const usable = usableContextTokens(contextLength);
+
+  // Recorded before anything is measured or reset, so the transcript says the
+  // model moved even on a turn that then fails. Attached to the newest message
+  // the task has, which is the turn the new model is about to answer.
+  const modelChange = modelChangeSincePreviousTurn({
+    messages: allNonContextMessages,
+    model,
+  });
+  const newestMessage = allNonContextMessages.at(-1);
+
+  if (
+    modelChange &&
+    newestMessage &&
+    !newestMessage.parts.some((part) => part.type === "data-modelChange")
+  ) {
+    await Store.savePart(
+      {
+        data: modelChange,
+        metadata: {
+          createdAt: new Date(),
+          id: StoreId.newPartId(),
+          messageId: newestMessage.id,
+          sessionId,
+        },
+        type: "data-modelChange",
+      },
+      taskId,
+      { signal },
+    );
+  }
 
   // Asked on every request rather than read straight off the session, so a
   // boundary drawn when a smaller model ran out stops narrowing the history

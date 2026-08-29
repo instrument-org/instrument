@@ -952,6 +952,56 @@ describe("prepareModelMessages", () => {
         }
       }
 
+      async function storedModelChangeParts() {
+        const result = await Store.getMessagesWithParts({ sessionId, taskId });
+        return result
+          ._unsafeUnwrap()
+          .flatMap((message) => message.parts)
+          .filter((part) => part.type === "data-modelChange");
+      }
+
+      it("records the move, with the window either side of it", async () => {
+        await fillPastOnAnotherModel(4);
+
+        await prepare(smallWindowModel);
+
+        const parts = await storedModelChangeParts();
+
+        expect(parts).toHaveLength(1);
+        expect(parts[0]?.data).toEqual({
+          from: {
+            contextLength: undefined,
+            modelId: "roomy-model-id",
+            name: undefined,
+          },
+          to: {
+            contextLength: 1000,
+            modelId: "mock-model-id",
+            name: "Mock Model",
+          },
+        });
+      });
+
+      it("records it once, not again on every later turn", async () => {
+        await fillPastOnAnotherModel(4);
+        await prepare(smallWindowModel);
+
+        await save(assistantMessageWithUsage("answered here", 100));
+        await save(userMessage("and again"));
+        await prepare(smallWindowModel);
+
+        expect(await storedModelChangeParts()).toHaveLength(1);
+      });
+
+      it("records nothing for a session that never switched", async () => {
+        await save(userMessage("First question"));
+        await save(assistantMessageWithUsage("plenty of room", 100));
+
+        await prepare(smallWindowModel);
+
+        expect(await storedModelChangeParts()).toHaveLength(0);
+      });
+
       it("warns on a count carried over from the model that ran before", async () => {
         await fillPastOnAnotherModel(4);
 

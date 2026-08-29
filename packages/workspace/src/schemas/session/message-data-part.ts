@@ -15,7 +15,8 @@ export namespace SessionMessageDataPart {
    *   `skillMentions`, and `projectContext`, which is written once at
    *   creation. A repeat is impossible by construction; nothing to guard.
    * - **Diff**: what changed since last time -- `projectChanges`,
-   *   `attachedFolderChanges`. Self-limiting: no change, no part.
+   *   `attachedFolderChanges`, `modelChange`. Self-limiting: no change, no
+   *   part.
    * - **State**: the whole current picture -- `browserStatus`, `paneTabs`.
    *   These are the ones that will restate an unchanged fact on every single
    *   turn unless their producer compares against what this session was last
@@ -39,6 +40,7 @@ export namespace SessionMessageDataPart {
     "skillChanges",
     "skillMentions",
     "maxSteps",
+    "modelChange",
     "paneTabs",
     "projectChanges",
     "projectContext",
@@ -204,6 +206,49 @@ export namespace SessionMessageDataPart {
     typeof ContextRolloverDataPartSchema
   >;
 
+  /**
+   * The turn where this session started asking a different model, and the two
+   * windows either side of the change.
+   *
+   * A session's model is a per-request choice, so nothing in the transcript
+   * otherwise says when it moved. Every consequence of a move is then a fact
+   * with no visible cause: an answer in a different register, a different
+   * refusal, and a context budget measured against a window that changed under
+   * it. Recording the move is what makes those legible, and it is the one piece
+   * of context-window behavior that can be described to a reader without
+   * reaching for a word we have not earned -- the model changed, and here is
+   * what it changed from.
+   *
+   * The windows travel with it because they are what the change actually
+   * costs. They are also the fact a later trigger needs: a move to a smaller
+   * window is the case worth acting on, and it cannot be recognized from the
+   * ids alone. Absent where the provider never reported one.
+   *
+   * The display name travels with it for the same reason the window does: it is
+   * known now and only now. Resolving an id to a name at read time would show
+   * whatever currently answers to that id, or nothing once a provider is
+   * disconnected, which is exactly when a reader most wants to know what
+   * answered. Optional, because a message recorded before this existed has no
+   * name to recover; the id is the fallback and is always present.
+   *
+   * Diff cadence, so a session that never switches carries none of these, and a
+   * session that switches once carries one rather than one per later turn.
+   */
+  const ModelChangeDataPartSchema = z.object({
+    from: z.object({
+      contextLength: z.number().int().positive().optional(),
+      modelId: z.string(),
+      name: z.string().optional(),
+    }),
+    to: z.object({
+      contextLength: z.number().int().positive().optional(),
+      modelId: z.string(),
+      name: z.string().optional(),
+    }),
+  });
+
+  export type ModelChangeDataPart = z.output<typeof ModelChangeDataPartSchema>;
+
   // Attached to the synthetic assistant message written when a run stops after
   // reaching the max unattended step count. Hidden from the chat UI (the
   // "Resume the agent" alert is the visible affordance); surfaced to the model
@@ -346,6 +391,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
+    [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
     [NameSchema.enum.paneTabs]: PaneTabsDataPartSchema,
     [NameSchema.enum.projectChanges]: ProjectChangesDataPartSchema,
     [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,

@@ -9,6 +9,8 @@ Every plan starts with a `Status:` line directly under the title, saying where t
 
 When a plan moves, fix the links pointing at it. Sibling links inside one directory become `../active/…` or `../completed/…` across the boundary.
 
+`wireframes-*.html` files beside the plans are gitignored working artifacts, like `docs/visual-explanations/`: generated locally for a plan's design exploration, deliberately untracked, and absent in a fresh clone.
+
 ## Active
 
 ### Agent context and the model

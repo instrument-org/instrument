@@ -38,9 +38,13 @@ let isWritingCrashRecord = false;
  * promote it to an uncaught exception and take the window down with whatever
  * was in it. That one is worth catching rather than dying of.
  *
- * Each record is deliberately content-free -- a process type, a reason, an exit
- * code -- so it can be read, exported, or attached to a report the user chooses
- * to send with nothing to redact first.
+ * The two process-gone records are content-free -- a process type, a name, a
+ * reason, an exit code -- so either can be read, exported, or attached to a
+ * report the user chooses to send with nothing to redact first. The
+ * uncaught-exception and unhandled-rejection records are not: they carry the
+ * throw's message and stack, and a message is whatever the throw put in it. A
+ * rejected task-file read names a host path and a task directory whose name
+ * came from the user's own prompt.
  */
 export function registerCrashDiagnostics(app: Electron.App) {
   reportPreviousCrash(app);

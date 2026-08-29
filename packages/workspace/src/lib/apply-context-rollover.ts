@@ -107,52 +107,6 @@ export function contextRolloverWouldReclaim(
 }
 
 /**
- * User messages from the reset portion, oldest first, newest kept first.
- *
- * Walking backward means the budget is spent on what the user said most
- * recently, and an old message dropped for room is dropped whole rather than
- * cut in half.
- *
- * The newest one is retained whatever its size, because it is the turn the
- * model is being asked to answer. Dropping it produces a request in which the
- * user said nothing, which the model answers out of the older context instead:
- * it responds to the previous ask rather than the one just made, and nothing in
- * the transcript says why. A cut copy of the request beats no request at all,
- * so an oversized newest message is trimmed to the budget rather than left out.
- */
-function retainNewestUserMessages(
-  messages: readonly SessionMessage.WithParts[],
-): SessionMessage.WithParts[] {
-  const retained: SessionMessage.WithParts[] = [];
-  let budget = RETAINED_USER_TEXT_CHARACTERS;
-
-  for (let index = messages.length - 1; index >= 0; index--) {
-    const message = messages[index];
-    if (message?.role !== "user") {
-      continue;
-    }
-
-    const size = userTextLength(message);
-    if (size > budget) {
-      // Nothing retained yet means this is the newest, which is kept whole or
-      // cut but never dropped. An older one that no longer fits ends the walk.
-      if (retained.length > 0) {
-        break;
-      }
-
-      retained.unshift({ ...message, parts: cutTextToBudget(message, budget) });
-      budget = 0;
-      continue;
-    }
-
-    budget -= size;
-    retained.unshift(message);
-  }
-
-  return retained;
-}
-
-/**
  * A message's parts with its text cut down to a character budget.
  *
  * Both ends of the text survive and the middle goes. Which end of a long user
@@ -213,6 +167,52 @@ function cutTextToBudget(
  */
 function omissionMarker(characters: number): string {
   return `\n\n[context rollover omitted ${characters} characters here; this bracketed line is not the user's text]\n\n`;
+}
+
+/**
+ * User messages from the reset portion, oldest first, newest kept first.
+ *
+ * Walking backward means the budget is spent on what the user said most
+ * recently, and an old message dropped for room is dropped whole rather than
+ * cut in half.
+ *
+ * The newest one is retained whatever its size, because it is the turn the
+ * model is being asked to answer. Dropping it produces a request in which the
+ * user said nothing, which the model answers out of the older context instead:
+ * it responds to the previous ask rather than the one just made, and nothing in
+ * the transcript says why. A cut copy of the request beats no request at all,
+ * so an oversized newest message is trimmed to the budget rather than left out.
+ */
+function retainNewestUserMessages(
+  messages: readonly SessionMessage.WithParts[],
+): SessionMessage.WithParts[] {
+  const retained: SessionMessage.WithParts[] = [];
+  let budget = RETAINED_USER_TEXT_CHARACTERS;
+
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index];
+    if (message?.role !== "user") {
+      continue;
+    }
+
+    const size = userTextLength(message);
+    if (size > budget) {
+      // Nothing retained yet means this is the newest, which is kept whole or
+      // cut but never dropped. An older one that no longer fits ends the walk.
+      if (retained.length > 0) {
+        break;
+      }
+
+      retained.unshift({ ...message, parts: cutTextToBudget(message, budget) });
+      budget = 0;
+      continue;
+    }
+
+    budget -= size;
+    retained.unshift(message);
+  }
+
+  return retained;
 }
 
 function userTextLength(message: SessionMessage.WithParts): number {

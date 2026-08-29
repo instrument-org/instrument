@@ -141,7 +141,7 @@ describe("applyContextRollover", () => {
     const text = textOf(rolled[0]);
     expect(text.startsWith("THE ASK")).toBe(true);
     expect(text.endsWith("AND THE FOLLOW-UP")).toBe(true);
-    expect(/\[context rollover[^\]]*]/.exec(text)?.[0]).toMatchInlineSnapshot(
+    expect(/\[context rollover[^\]]*\]/.exec(text)?.[0]).toMatchInlineSnapshot(
       `"[context rollover omitted 10024 characters here; this bracketed line is not the user's text]"`,
     );
   });

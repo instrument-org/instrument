@@ -38,6 +38,9 @@ const store = new Store<StoredWindowState>({
   name: "window-state",
 });
 
+/** Work areas measured from a maximized window, by display id. */
+const learnedWorkAreas = new Map<number, { height: number; width: number }>();
+
 /**
  * The main-window UI zoom the renderer last reported. The renderer owns the
  * value (`zoomAtom`); the main process keeps a copy so a window can place its
@@ -75,12 +78,55 @@ export function isWindowBoundsVisible(bounds: WindowBounds) {
   });
 }
 
+/**
+ * Record what a maximized window measured as the work area of the display it
+ * filled, which is the only way to learn it under Wayland: a Wayland client is
+ * never told about panels or docks, so the display reports the whole output and
+ * GNOME's line lands about 10% higher than where the compositor draws it.
+ *
+ * Kept per display, because a work area learned on a laptop screen would shrink
+ * a window the user sized on an external one.
+ */
+export function rememberWorkAreaFromMaximized(bounds: WindowBounds) {
+  learnedWorkAreas.set(screen.getDisplayMatching(bounds).id, {
+    height: bounds.height,
+    width: bounds.width,
+  });
+}
+
 export function setMainWindowZoom(zoom: number) {
   store.set("zoom", zoom);
 }
 
 export function setWindowState(value: WindowState) {
   store.set(value);
+}
+
+/**
+ * A size GNOME will not maximize on sight, keeping the shape the user left.
+ */
+export function shrinkBelowAutoMaximize(bounds: WindowBounds) {
+  if (process.platform !== "linux") {
+    return bounds;
+  }
+
+  const display = screen.getDisplayMatching(bounds);
+  const workArea = learnedWorkAreas.get(display.id) ?? display.workArea;
+  const limit =
+    workArea.width * workArea.height * MAX_UNMAXIMIZED_WORK_AREA_FRACTION;
+  const area = bounds.width * bounds.height;
+  if (area <= limit) {
+    return bounds;
+  }
+
+  // Scaling both sides by the square root of the shortfall keeps the shape the
+  // user left, and flooring keeps the result under the limit rather than on it.
+  const scale = Math.sqrt(limit / area);
+  return {
+    ...bounds,
+    height: Math.floor(bounds.height * scale),
+    width: Math.floor(bounds.width * scale),
+  };
 }
 
 function ensureWindowVisible(state: WindowState) {
@@ -139,27 +185,5 @@ function isWindowWithinBounds(
 }
 
 function keepBelowAutoMaximize(state: WindowState) {
-  if (process.platform !== "linux") {
-    return state;
-  }
-
-  const { workArea } = screen.getDisplayMatching(state.bounds);
-  const limit =
-    workArea.width * workArea.height * MAX_UNMAXIMIZED_WORK_AREA_FRACTION;
-  const area = state.bounds.width * state.bounds.height;
-  if (area <= limit) {
-    return state;
-  }
-
-  // Scaling both sides by the square root of the shortfall keeps the shape the
-  // user left, and flooring keeps the result under the limit rather than on it.
-  const scale = Math.sqrt(limit / area);
-  return {
-    ...state,
-    bounds: {
-      ...state.bounds,
-      height: Math.floor(state.bounds.height * scale),
-      width: Math.floor(state.bounds.width * scale),
-    },
-  };
+  return { ...state, bounds: shrinkBelowAutoMaximize(state.bounds) };
 }

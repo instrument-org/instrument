@@ -15,7 +15,9 @@ import {
   getMainWindowZoom,
   getWindowState,
   isWindowBoundsVisible,
+  rememberWorkAreaFromMaximized,
   setWindowState,
+  shrinkBelowAutoMaximize,
   type WindowBounds,
 } from "@/electron-main/stores/window-state";
 import {
@@ -143,12 +145,16 @@ async function createMainWindowInstance() {
 
       const isMaximized = mainWindow.isMaximized();
       const bounds = mainWindow.getBounds();
+      if (isMaximized) {
+        rememberWorkAreaFromMaximized(bounds);
+      }
 
       setWindowState({
-        bounds:
+        bounds: shrinkBelowAutoMaximize(
           isWindowNormal(mainWindow) && isWindowBoundsVisible(bounds)
             ? bounds
             : lastVisibleBounds,
+        ),
         isMaximized,
       });
     } catch {

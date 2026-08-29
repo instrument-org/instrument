@@ -31,7 +31,7 @@ import {
   setMainWindow,
 } from "@/electron-main/windows/main/instance";
 import { is } from "@electron-toolkit/utils";
-import { type BaseWindow, BrowserWindow } from "electron";
+import { app, type BaseWindow, BrowserWindow } from "electron";
 import path from "node:path";
 import { debounce } from "radashi";
 
@@ -134,6 +134,13 @@ async function createMainWindowInstance() {
 
   const saveState = () => {
     try {
+      // A minimized window reports neither usable bounds nor, on Windows and
+      // Linux, the maximized state it will come back to, so leave the state the
+      // user last saw alone.
+      if (mainWindow.isMinimized()) {
+        return;
+      }
+
       const isMaximized = mainWindow.isMaximized();
       const bounds = mainWindow.getBounds();
 
@@ -156,6 +163,16 @@ async function createMainWindowInstance() {
     saveState();
   });
 
+  // Quitting never reaches the handler above: the quit teardown ends in
+  // `app.exit`, which destroys windows instead of closing them. Without this,
+  // a quit persists only what the debounce happened to have written, so the
+  // last half second of moving, resizing, or unmaximizing is lost.
+  const saveStateBeforeQuit = () => {
+    debouncedSaveState.cancel();
+    saveState();
+  };
+  app.on("before-quit", saveStateBeforeQuit);
+
   // Closing the last window quits the app (see `window-all-closed`), so the
   // running-agent warning has to happen here, while the window still exists.
   // Asking after the fact would destroy the window first and leave a canceled
@@ -173,6 +190,7 @@ async function createMainWindowInstance() {
   });
 
   mainWindow.on("closed", () => {
+    app.off("before-quit", saveStateBeforeQuit);
     debouncedSaveState.cancel();
     saveState();
     clearMainWindow(mainWindow);

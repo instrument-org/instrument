@@ -50,7 +50,7 @@
       }
     }
   ],
-  "plugins": ["unicorn", "typescript", "oxc", "import"],
+  "plugins": ["unicorn", "typescript", "oxc", "import", "react"],
   "rules": {
     "import/no-cycle": ["error"],
     "import/no-named-as-default": ["error"],

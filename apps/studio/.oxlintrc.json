@@ -19,6 +19,7 @@
     }
   },
   "rules": {
+    "react/react-compiler": "warn",
     "tailwindcss/enforce-sort-order": "error",
     "tailwindcss/no-conflicting-classes": "error",
     "tailwindcss/no-deprecated-classes": "error",

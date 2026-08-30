@@ -24,8 +24,17 @@ The package has four entry points (`package.json` `exports`): the root [`index.t
 - **Model discovery** — `fetch-model`, `fetch-model-results`, `fetch-ai-sdk-model`, backed by the per-provider fetchers in `lib/fetch-models/` (one file per provider; adding a provider means adding a file there). Results are cached via `model-cache` (Studio persists this to disk as `diskModelCache`).
 - **Provider config & selection** — `select-provider-configs`, `env-for-provider-configs`, `providers/metadata`, `verify-api-key`, `fetch-credits`.
 - **Model identity & metadata** — `schemas/model-uri` and `image-capabilities`, which give one canonical identity for a model across providers. (Naming and feature detection — `canonicalize-model-id`, `generate-model-name`, `is-model-new`, `get-model-features` — are internals of the fetch stack, not exports.)
+- **Which model answered** — `is-router-model` says whether a request named a decision rather than a model, and `find-cached-model` resolves a provider's own id to a record without a network fetch. Together they let a caller tell a router picking a model apart from a provider substituting one. See [Requested and served models](#requested-and-served-models).
 - **Image & web search** — `get-ai-sdk-image-model`, `stream-image`, `get-ai-sdk-web-search-model`.
 - **AI SDK glue** — `ai-sdk-provider-options`.
+
+## Requested and served models
+
+A provider does not always answer with the model the request named. Two different things cause that, and they need telling apart: a request for a **router** (`instrument/auto`, `openrouter/auto`) names a decision rather than a model, so a different answer is the feature working; a request naming a model outright and getting another back is a **substitution**.
+
+The AI SDK carries the answer on `finish-step` as `response.modelId`, which every provider we bundle populates from its own response body except `@ai-sdk/google` — it never emits `response-metadata`, so a Gemini request reports nothing at all no matter which version is pinned. The SDK seeds that field with the id we sent and overwrites it only when a provider reports one, so **an id equal to the request is not evidence that anything confirmed it**. Only a difference can have come from the provider, which is why `SessionMessage` records the served id only when it differs and treats absence as "no evidence" rather than "same model".
+
+Compare on the provider's own id (`AIGatewayModel.providerId`), never on `canonicalId`. The canonical id has the author stripped and any date normalized, so `claude-haiku-4.5` against `anthropic/claude-haiku-4.5` differs on every message; comparing that way reports a substitution on every turn and a real one never stands out. Resolving the served id back to a record (`find-cached-model`) is also what keeps a dated snapshot from reading as a substitution, since `claude-sonnet-4-5-20250929` and `claude-sonnet-4.5` are one model.
 
 ## Schemas
 

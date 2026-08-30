@@ -37,11 +37,11 @@ export function MarkdownTableModal({
       >
         {/* A header row rather than a bare table: the dialog's close control is
             pinned to its top corner, and without one it lands on the table. */}
-        <div className="flex h-10 shrink-0 items-center px-4">
-          <DialogTitle className="text-sm font-medium">Table</DialogTitle>
+        <div className="flex h-13 shrink-0 items-center px-5 pt-3">
+          <DialogTitle className="text-base/6 font-semibold">Table</DialogTitle>
         </div>
         <div
-          className="@container/transcript min-h-0 flex-1 overflow-y-auto px-4 pb-4"
+          className="markdown-table-modal-body @container/transcript min-h-0 flex-1 overflow-y-auto px-5 pb-5"
           data-transcript
         >
           <div className="prose prose-custom text-sm/relaxed [--transcript-room:100cqi] dark:prose-invert prose-table:text-sm">

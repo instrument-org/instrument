@@ -18,7 +18,11 @@ import { MarkdownTable } from "./markdown-table";
 /** A transcript with room beside the text column, the way a wide pane has. */
 async function renderWideTranscript() {
   await renderInBrowser(
-    <div data-transcript style={{ width: 880 }}>
+    <div
+      className="[--transcript-room:880px]"
+      data-transcript
+      style={{ width: 880 }}
+    >
       <div style={{ marginInline: "auto", width: 480 }}>
         <MarkdownTable>
           <thead>
@@ -64,7 +68,11 @@ test("the row copy survives the pointer crossing the gap to reach it", async () 
   // deliberate speed delivers on its way to the control. A jump that clears
   // the gap between two samples never fires `mouseleave` and proves nothing.
   const cell = page.getByText("North").element().getBoundingClientRect();
-  const frameRect = frame.getBoundingClientRect();
+  const table = frame.querySelector("table");
+  if (!table) {
+    throw new Error("the table did not render");
+  }
+  const tableRect = table.getBoundingClientRect();
   const rowRect = row.getBoundingClientRect();
   await userEvent.hover(row, {
     // `force`, because the point is past the row's own border box and a
@@ -72,7 +80,7 @@ test("the row copy survives the pointer crossing the gap to reach it", async () 
     // event's location; what receives it is whatever really is at it.
     force: true,
     position: {
-      x: frameRect.right - rowRect.left + 4,
+      x: tableRect.right - rowRect.left + 4,
       y: cell.top + cell.height / 2 - rowRect.top,
     },
   });

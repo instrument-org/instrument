@@ -1,6 +1,7 @@
 import {
   type AIGatewayModel,
   isRouterModel,
+  namesSameModel,
 } from "@instrument-org/ai-gateway/client";
 import { type SessionMessage } from "@instrument-org/workspace/client";
 
@@ -64,7 +65,7 @@ export function modelsAnswering(
     // Compared here as well as before it is stored, because a message recorded
     // before the field held only differences carries the requested id back as
     // though a provider had named it.
-    if (modelIdServed && modelIdServed !== aiGatewayModel?.providerId) {
+    if (modelIdServed && !namesSameModel(aiGatewayModel?.providerId, modelIdServed)) {
       if (!usage.served.some((s) => s.providerId === modelIdServed)) {
         usage.served.push({
           model: aiGatewayModelServed,

@@ -2587,6 +2587,27 @@ describe("llmRequestLogic", () => {
       ).toBeUndefined();
     });
 
+    // OpenAI's catalog carries undated aliases and its API answers with the
+    // dated build behind one, so without this a direct OpenAI key reported a
+    // substitution on every single turn.
+    it("records nothing when the provider pins the model we asked for to a build", async () => {
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { modelId: "mock-model-id-2026-01-15", type: "response-metadata" },
+          { id: "1", type: "text-start" },
+          { delta: "Hello", id: "1", type: "text-delta" },
+          { id: "1", type: "text-end" },
+        ],
+      });
+
+      const assistant = messages.find((message) => message.role === "assistant");
+      expect(
+        assistant && "modelIdServed" in assistant.metadata
+          ? assistant.metadata.modelIdServed
+          : undefined,
+      ).toBeUndefined();
+    });
+
     it("records nothing when the provider names the model we asked for", async () => {
       const { messages } = await createAndRunTestMachine({
         chunks: [

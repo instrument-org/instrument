@@ -6,6 +6,7 @@ import {
   CLIENT_SESSION_ID_HEADER,
   fetchAISDKModel,
   findCachedModelByProviderId,
+  namesSameModel,
   providerOptionsForModel,
 } from "@instrument-org/ai-gateway";
 import {
@@ -309,7 +310,11 @@ export const llmRequestLogic = fromPromise<
           // our request or a provider that never mentioned the subject, and
           // Google is always the second. A difference is the only thing that
           // can only have come from the provider.
-          if (part.response.modelId !== aiSDKModel.modelId) {
+          //
+          // A dated build of the model we asked for is not a difference worth
+          // recording, which is what keeps a provider that resolves its own
+          // aliases from reporting a substitution on every turn.
+          if (!namesSameModel(aiSDKModel.modelId, part.response.modelId)) {
             assistantMessage.metadata.modelIdServed = part.response.modelId;
             assistantMessage.metadata.aiGatewayModelServed =
               findCachedModelByProviderId({

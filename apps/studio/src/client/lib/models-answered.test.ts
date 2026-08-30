@@ -3,10 +3,7 @@ import {
   AIGatewayModelURI,
 } from "@instrument-org/ai-gateway/schemas";
 import { AIProviderConfigIdSchema, OUR_MODELS } from "@instrument-org/shared";
-import {
-  type SessionMessage,
-  StoreId,
-} from "@instrument-org/workspace/client";
+import { type SessionMessage, StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import { modelsAnswering } from "./models-answered";
@@ -154,6 +151,19 @@ describe("modelsAnswering", () => {
         step({
           aiGatewayModel: haiku,
           modelIdServed: "anthropic/claude-haiku-4.5",
+        }),
+      ]),
+    ).toMatchObject([{ kind: "ordinary", served: [] }]);
+  });
+
+  // A provider that resolves its own alias answers with the dated build behind
+  // it, which is one model rather than two.
+  it("ignores a served id that pins the requested model to a build", () => {
+    expect(
+      modelsAnswering([
+        step({
+          aiGatewayModel: haiku,
+          modelIdServed: "anthropic/claude-haiku-4.5-20251001",
         }),
       ]),
     ).toMatchObject([{ kind: "ordinary", served: [] }]);

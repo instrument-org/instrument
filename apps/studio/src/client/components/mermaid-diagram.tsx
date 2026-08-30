@@ -15,6 +15,7 @@ import {
 } from "./code-block";
 import { CopyButton } from "./copy-button";
 import { useTheme } from "./theme-provider";
+import { useReleaseAutoScroll } from "./transcript-scroll-context";
 
 /** How long to wait before asking again for a diagram whose render threw, and
  * how many times. Spaced out and few: a fetch still failing after this is not
@@ -39,6 +40,7 @@ export const MermaidDiagram = ({
 }) => {
   const { resolvedTheme } = useTheme();
   const openFilePreview = useSetAtom(openFilePreviewAtom);
+  const releaseAutoScroll = useReleaseAutoScroll();
   const surfaceRef = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState<string>();
   const [showSource, setShowSource] = useState(false);
@@ -142,6 +144,9 @@ export const MermaidDiagram = ({
           icon={showSource ? GraphIcon : CodeIcon}
           label={showSource ? "Show diagram" : "Show source"}
           onClick={() => {
+            // The source and the diagram rarely stand the same height, so the
+            // swap moves the transcript under a follow-bottom scroller.
+            releaseAutoScroll();
             setShowSource(!showSource);
           }}
         />

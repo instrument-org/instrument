@@ -2,6 +2,8 @@ import { zoomAtom } from "@/client/atoms/zoom";
 import { useAtomValue } from "jotai";
 import { useCallback } from "react";
 
+import { useReleaseAutoScroll } from "../components/transcript-scroll-context";
+
 /**
  * The element a `#fragment` names, under either spelling it can carry.
  *
@@ -31,6 +33,7 @@ const findFragmentTarget = (root: Document | Element, fragment: string) => {
 
 export const useHashLinkScroll = () => {
   const zoom = useAtomValue(zoomAtom);
+  const releaseAutoScroll = useReleaseAutoScroll();
   const handleHashLinkClick = useCallback(
     (event: React.MouseEvent<HTMLAnchorElement>) => {
       event.preventDefault();
@@ -54,6 +57,11 @@ export const useHashLinkScroll = () => {
 
         const element = findFragmentTarget(searchRoot, href.slice(1));
         if (element) {
+          // The smooth scroll below is programmatic, so the transcript's
+          // scroller never counts it as the reader taking over: left following
+          // the live end, the next content growth pulls the view back to the
+          // bottom instead of leaving it at the target.
+          releaseAutoScroll();
           // Find the nearest scrollable ancestor by checking computed styles
           let scrollContainer = element.parentElement;
           while (scrollContainer && scrollContainer !== document.body) {
@@ -85,7 +93,7 @@ export const useHashLinkScroll = () => {
         }
       }
     },
-    [zoom],
+    [releaseAutoScroll, zoom],
   );
 
   return handleHashLinkClick;

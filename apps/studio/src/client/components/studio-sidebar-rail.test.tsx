@@ -31,7 +31,7 @@ function handle() {
 
 function renderRail() {
   const rendered = renderWithProviders(
-    <StudioSidebarRail isOpen onCollapse={() => {}} />,
+    <StudioSidebarRail isOpen onCollapse={vi.fn()} />,
   );
   const rail = rendered.container.firstElementChild;
   if (!(rail instanceof HTMLElement)) {
@@ -67,9 +67,9 @@ it("ends the drag and commits the width when pointer capture is lost", async () 
 
 it("lets a drag take the width back from the opening slide's springs", async () => {
   const { container, rerender } = renderWithProviders(
-    <StudioSidebarRail isOpen={false} onCollapse={() => {}} />,
+    <StudioSidebarRail isOpen={false} onCollapse={vi.fn()} />,
   );
-  rerender(<StudioSidebarRail isOpen onCollapse={() => {}} />);
+  rerender(<StudioSidebarRail isOpen onCollapse={vi.fn()} />);
   const rail = container.firstElementChild;
   if (!(rail instanceof HTMLElement)) {
     throw new TypeError("rail did not render");

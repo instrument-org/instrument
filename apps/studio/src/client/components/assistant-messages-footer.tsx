@@ -99,6 +99,8 @@ export function AssistantMessagesFooter({
             seenSourceIds.add(part.sourceId);
             allSources.push(part);
           }
+          // Each text part is a separately rendered block. Retain that
+          // separation when copying, and skip blocks the transcript omits.
           if (part.type === "text") {
             const text = part.text.trim();
             if (text) {

@@ -158,12 +158,10 @@ function markLegacyProjectsMigrationDone(rootDir: string) {
   fs.writeFileSync(marker, "");
 }
 
-function workspaceLayoutMarkerPath(rootDir: string): string {
-  return path.join(
-    rootDir,
-    TASK_PRIVATE_FOLDER_NAME,
-    WORKSPACE_LAYOUT_VERSION_MARKER_NAME,
-  );
+function markWorkspaceLayoutCurrent(rootDir: string) {
+  const marker = workspaceLayoutMarkerPath(rootDir);
+  fs.mkdirSync(path.dirname(marker), { recursive: true });
+  fs.writeFileSync(marker, String(WORKSPACE_LAYOUT_VERSION));
 }
 
 // A missing or unreadable marker reads as stale, which just costs one sweep.
@@ -178,10 +176,12 @@ function workspaceLayoutCurrent(rootDir: string): boolean {
   }
 }
 
-function markWorkspaceLayoutCurrent(rootDir: string) {
-  const marker = workspaceLayoutMarkerPath(rootDir);
-  fs.mkdirSync(path.dirname(marker), { recursive: true });
-  fs.writeFileSync(marker, String(WORKSPACE_LAYOUT_VERSION));
+function workspaceLayoutMarkerPath(rootDir: string): string {
+  return path.join(
+    rootDir,
+    TASK_PRIVATE_FOLDER_NAME,
+    WORKSPACE_LAYOUT_VERSION_MARKER_NAME,
+  );
 }
 
 // Moves every top-level entry of source into destination (per-entry, so a
@@ -286,23 +286,6 @@ function normalizeTaskPrivateFiles(taskFolder: string) {
   );
 }
 
-// Normalizes every task folder to the current layout.
-function normalizeTasks(tasksDir: string) {
-  if (!fs.existsSync(tasksDir)) {
-    return 0;
-  }
-  let removedBrowserProfileCloneCount = 0;
-  for (const entry of fs.readdirSync(tasksDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-    removedBrowserProfileCloneCount += normalizeTask(
-      path.join(tasksDir, entry.name),
-    );
-  }
-  return removedBrowserProfileCloneCount;
-}
-
 // Normalizes one task folder to the current layout. Each step is idempotent
 // and no-ops on a task already in the current shape. Called for every task by
 // the marker-gated boot sweep, and by importTask for the task it extracts,
@@ -321,6 +304,23 @@ export function normalizeTask(taskFolder: string): number {
   // After the work/ move, so a pre-work-layout task's clones are found at
   // their current path rather than the root one they were written to.
   return removeBrowserProfileClones(taskFolder);
+}
+
+// Normalizes every task folder to the current layout.
+function normalizeTasks(tasksDir: string) {
+  if (!fs.existsSync(tasksDir)) {
+    return 0;
+  }
+  let removedBrowserProfileCloneCount = 0;
+  for (const entry of fs.readdirSync(tasksDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    removedBrowserProfileCloneCount += normalizeTask(
+      path.join(tasksDir, entry.name),
+    );
+  }
+  return removedBrowserProfileCloneCount;
 }
 
 // Moves the settings file from the task root into the private dir, whether it

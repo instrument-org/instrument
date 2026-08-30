@@ -8,9 +8,9 @@ import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
 import { extractTaskZip } from "./extract-task-zip";
-import { foldTaskStateFile } from "./fold-task-state-file";
 import { generateTaskFolderName } from "./generate-task-folder-name";
 import { getCurrentDate } from "./get-current-date";
+import { normalizeTask } from "./migrate-workspace-layout";
 import { getTaskSettings, updateTaskSettings } from "./task-settings";
 
 interface ImportTaskOptions {
@@ -69,10 +69,12 @@ export async function importTask(
         ),
     );
 
-    // A zip written before state was folded into the settings file carries both
-    // files. Nothing else would fold it until the next boot, and until then the
-    // imported task would open with no draft, no tabs and no attached folders.
-    foldTaskStateFile(taskDirPath);
+    // A zip written by an older build can carry any legacy piece of the task
+    // layout: a separate state file, legacy db and settings names, work entries
+    // at the root, or a cloned browser profile. The boot sweep is gated by the
+    // workspace layout-version marker and will not revisit this task, so the
+    // import is where it gets its one full normalization.
+    normalizeTask(taskDirPath);
 
     // An import is activity in this workspace whatever the zip says, so the
     // task lands at the top of the list the way it did when the answer was the

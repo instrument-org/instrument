@@ -120,6 +120,26 @@ export function migrateWorkspaceLayout({
   };
 }
 
+// Normalizes one task folder to the current layout. Each step is idempotent
+// and no-ops on a task already in the current shape. Called for every task by
+// the marker-gated boot sweep, and by importTask for the task it extracts,
+// which may come from a zip written before any of these steps existed. Returns
+// the number of browser profile clones deleted.
+export function normalizeTask(taskFolder: string): number {
+  normalizeTaskPrivateFiles(taskFolder);
+  normalizeTaskSettingsFile(taskFolder);
+  // After both, so `state.json` is under its current name and the settings
+  // file it folds into is in the private dir.
+  foldTaskStateFile(taskFolder);
+  // After the fold, so the stamp is written to the file that survives it.
+  stampTaskTimestamps(taskFolder);
+  normalizeTaskWorkLayout(taskFolder);
+  normalizeTaskAttachments(taskFolder);
+  // After the work/ move, so a pre-work-layout task's clones are found at
+  // their current path rather than the root one they were written to.
+  return removeBrowserProfileClones(taskFolder);
+}
+
 // A real project has a ProjectId (prj_<ULID>) in its settings; structurally
 // distinct from a TaskId, so legacy tasks are never misclassified.
 function isProjectFolder(folderPath: string): boolean {
@@ -162,26 +182,6 @@ function markWorkspaceLayoutCurrent(rootDir: string) {
   const marker = workspaceLayoutMarkerPath(rootDir);
   fs.mkdirSync(path.dirname(marker), { recursive: true });
   fs.writeFileSync(marker, String(WORKSPACE_LAYOUT_VERSION));
-}
-
-// A missing or unreadable marker reads as stale, which just costs one sweep.
-function workspaceLayoutCurrent(rootDir: string): boolean {
-  try {
-    return (
-      fs.readFileSync(workspaceLayoutMarkerPath(rootDir), "utf8") ===
-      String(WORKSPACE_LAYOUT_VERSION)
-    );
-  } catch {
-    return false;
-  }
-}
-
-function workspaceLayoutMarkerPath(rootDir: string): string {
-  return path.join(
-    rootDir,
-    TASK_PRIVATE_FOLDER_NAME,
-    WORKSPACE_LAYOUT_VERSION_MARKER_NAME,
-  );
 }
 
 // Moves every top-level entry of source into destination (per-entry, so a
@@ -284,26 +284,6 @@ function normalizeTaskPrivateFiles(taskFolder: string) {
     path.join(privateDir, LEGACY_STATE_FILE_NAME),
     path.join(privateDir, TASK_STATE_FILE_NAME),
   );
-}
-
-// Normalizes one task folder to the current layout. Each step is idempotent
-// and no-ops on a task already in the current shape. Called for every task by
-// the marker-gated boot sweep, and by importTask for the task it extracts,
-// which may come from a zip written before any of these steps existed. Returns
-// the number of browser profile clones deleted.
-export function normalizeTask(taskFolder: string): number {
-  normalizeTaskPrivateFiles(taskFolder);
-  normalizeTaskSettingsFile(taskFolder);
-  // After both, so `state.json` is under its current name and the settings
-  // file it folds into is in the private dir.
-  foldTaskStateFile(taskFolder);
-  // After the fold, so the stamp is written to the file that survives it.
-  stampTaskTimestamps(taskFolder);
-  normalizeTaskWorkLayout(taskFolder);
-  normalizeTaskAttachments(taskFolder);
-  // After the work/ move, so a pre-work-layout task's clones are found at
-  // their current path rather than the root one they were written to.
-  return removeBrowserProfileClones(taskFolder);
 }
 
 // Normalizes every task folder to the current layout.
@@ -450,4 +430,24 @@ function stampTaskTimestamps(taskFolder: string) {
   settings.lastActivityAt ??= observed.lastActivityAt;
 
   writeJsonFileSync(settingsPath, settings);
+}
+
+// A missing or unreadable marker reads as stale, which just costs one sweep.
+function workspaceLayoutCurrent(rootDir: string): boolean {
+  try {
+    return (
+      fs.readFileSync(workspaceLayoutMarkerPath(rootDir), "utf8") ===
+      String(WORKSPACE_LAYOUT_VERSION)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function workspaceLayoutMarkerPath(rootDir: string): string {
+  return path.join(
+    rootDir,
+    TASK_PRIVATE_FOLDER_NAME,
+    WORKSPACE_LAYOUT_VERSION_MARKER_NAME,
+  );
 }

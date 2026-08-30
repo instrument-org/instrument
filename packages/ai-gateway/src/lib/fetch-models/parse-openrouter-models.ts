@@ -51,12 +51,10 @@ export function parseOpenRouterModelsList({
     for (const model of modelsResult.data) {
       const providerId = AIGatewayModel.ProviderIdSchema.parse(model.id);
       const split = splitOpenRouterProviderId(providerId);
+      // A single catalog entry with an id shape we cannot split must not take
+      // down the provider's whole list, so skip it like the other filters do.
       if (!split) {
-        return Result.error(
-          new TypedError.Parse(
-            `Invalid model ID for ${config.type}: ${model.id}`,
-          ),
-        );
+        continue;
       }
 
       const { author, modelId } = split;

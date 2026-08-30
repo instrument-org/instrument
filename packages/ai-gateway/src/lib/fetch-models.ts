@@ -98,6 +98,13 @@ function getCaptureKey(config: AIGatewayProviderConfig.Type, error: Error) {
   return `${config.type}:${config.id}:${error.message}`;
 }
 
+// Statuses that describe the provider's moment, not our request: the
+// last-known-good cache is a better answer than an empty list. Auth and
+// not-found statuses stay loud because a bad key or URL needs the user.
+function isTransientHttpStatus(status: number) {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
 function shouldUseCachedModels(error: Error) {
   let current: unknown = error;
 
@@ -126,11 +133,4 @@ function shouldUseCachedModels(error: Error) {
   }
 
   return false;
-}
-
-// Statuses that describe the provider's moment, not our request: the
-// last-known-good cache is a better answer than an empty list. Auth and
-// not-found statuses stay loud because a bad key or URL needs the user.
-function isTransientHttpStatus(status: number) {
-  return status === 408 || status === 425 || status === 429 || status >= 500;
 }

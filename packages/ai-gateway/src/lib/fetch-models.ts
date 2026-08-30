@@ -107,6 +107,14 @@ function shouldUseCachedModels(error: Error) {
     }
 
     if (
+      current instanceof TypedError.Fetch &&
+      current.status !== undefined &&
+      isTransientHttpStatus(current.status)
+    ) {
+      return true;
+    }
+
+    if (
       current.name === "AbortError" ||
       current.name === "TimeoutError" ||
       TRANSIENT_FETCH_ERROR_PATTERN.test(current.message)
@@ -118,4 +126,11 @@ function shouldUseCachedModels(error: Error) {
   }
 
   return false;
+}
+
+// Statuses that describe the provider's moment, not our request: the
+// last-known-good cache is a better answer than an empty list. Auth and
+// not-found statuses stay loud because a bad key or URL needs the user.
+function isTransientHttpStatus(status: number) {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
 }

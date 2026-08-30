@@ -360,7 +360,7 @@ function SkillPage() {
           className={cn(
             "mt-8 border-t pt-8",
             skill.files.length > 0 &&
-              "grid gap-10 lg:grid-cols-[minmax(0,1fr)_14rem]",
+              "grid gap-10 @4xl/app-content:grid-cols-[minmax(0,1fr)_14rem]",
           )}
         >
           <article className="min-w-0">
@@ -395,7 +395,7 @@ function SkillPage() {
           </article>
 
           {skill.files.length > 0 ? (
-            <aside className="min-w-0 lg:sticky lg:top-10 lg:self-start">
+            <aside className="min-w-0 @4xl/app-content:sticky @4xl/app-content:top-10 @4xl/app-content:self-start">
               <div className="overflow-hidden rounded-lg bg-card shadow-xs">
                 <div className="border-b px-3 py-2">
                   <h2 className="text-xs font-medium">Skill files</h2>

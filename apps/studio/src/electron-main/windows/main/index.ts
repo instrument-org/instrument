@@ -2,6 +2,7 @@ import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { createContextMenu } from "@/electron-main/lib/context-menu";
 import { guardNavigation } from "@/electron-main/lib/guard-navigation";
+import { loadWindowURL } from "@/electron-main/lib/load-window-url";
 import { openExternal } from "@/electron-main/lib/open-external";
 import {
   isQuitApproved,
@@ -245,7 +246,7 @@ async function createMainWindowInstance() {
   // The path is cosmetic: the main window renders MainWindow based on its
   // `--windowType=main` argument, not on the route. It only needs a valid entry
   // URL, and the root path distinguishes it from the onboarding window.
-  void mainWindow.loadURL(studioURL("/"));
+  loadWindowURL(mainWindow.webContents, studioURL("/"));
 
   hasMaximizedRestoreToApply = getWindowState().isMaximized;
 

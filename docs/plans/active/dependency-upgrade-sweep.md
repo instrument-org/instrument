@@ -1,6 +1,6 @@
 # Dependency sweep: what upstream has fixed for us
 
-Status: first pass landed. hono, @hono/node-server, better-auth, vite, @parcel/watcher, xstate, use-stick-to-bottom, agent-browser, and electron-builder are upgraded and committed; electron and the AI SDK are blocked for the reasons recorded below; just-bash, execa, and dugite are untouched API migrations. Snapshot verified 2026-07-31 against the npm registry and upstream sources. Version claims go stale fast, so re-check anything here before acting on it.
+Status: first pass landed. hono, @hono/node-server, better-auth, vite, @parcel/watcher, xstate, use-stick-to-bottom, agent-browser, and electron-builder are upgraded and committed; electron and the AI SDK are blocked for the reasons recorded below; execa and dugite are untouched API migrations, and just-bash has since moved to 3.4.1, past the 3.2.0 this sweep scoped. Snapshot verified 2026-07-31 against the npm registry and upstream sources. Version claims go stale fast, so re-check anything here before acting on it.
 
 This is a read of the dependency tree against what we have actually been churning on: the auto-updater, the Windows launch path, the file watcher, the agent browser, the bash sandbox, and the chat transcript. It ranks by "does upstream already fix a bug we paid for", not by how far behind a version number is.
 

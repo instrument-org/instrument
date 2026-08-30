@@ -67,7 +67,10 @@ export function buildSessionFrontMatter(
   const modelsServed = [
     ...new Set(
       assistantMessages.flatMap(({ metadata }) =>
-        metadata.modelIdServed ? [metadata.modelIdServed] : [],
+        metadata.modelIdServed &&
+        metadata.modelIdServed !== metadata.aiGatewayModel?.providerId
+          ? [metadata.modelIdServed]
+          : [],
       ),
     ),
   ].sort((a, b) => a.localeCompare(b));
@@ -143,9 +146,17 @@ export function renderAssistantMetadata(
     `provider=${metadata.providerId}`,
     `model=${metadata.modelId}`,
   ];
-  // Only when it differs, so the line stays short for a step that named its
-  // model outright and carries the answer for one that went through an alias.
-  if (metadata.modelIdServed && metadata.modelIdServed !== metadata.modelId) {
+  // Compared against the provider's own id for the requested model rather than
+  // against `modelId`, which is the canonical id and so never equals a provider
+  // id: `claude-haiku-4.5` against `anthropic/claude-haiku-4.5` differs on
+  // every message, and dropping the author from one side of a comparison is
+  // enough to report an alias on a step that never went through one. Messages
+  // recorded before the field only held differences still come through here.
+  const requestedProviderId = metadata.aiGatewayModel?.providerId;
+  if (
+    metadata.modelIdServed &&
+    metadata.modelIdServed !== requestedProviderId
+  ) {
     fields.push(`served=${metadata.modelIdServed}`);
   }
   if (metadata.aiGatewayModel) {

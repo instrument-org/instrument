@@ -1,6 +1,6 @@
 # CDP keyboard input goes to the focused widget, not the target you sent it on
 
-**Status:** mitigated by a focus gate; the class is only removed by translating input to JS (not done). Last updated 2026-08-14.
+**Status:** mitigated: keyboard commands reclaim guest focus before dispatching, refusing only when the guest never takes it back (19f9dd72e); the class is only removed by translating input to JS (not done). Last updated 2026-08-30.
 
 ## Symptom
 

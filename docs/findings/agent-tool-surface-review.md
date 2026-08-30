@@ -370,7 +370,7 @@ Everything in section A is fixed, and the search tools are gone. What is left, w
 
 **Closed by other work**
 
-- **C1** (`web_fetch`) -- the `jmack/web-tools-exa` branch adds the tool.
+- **C1** (`web_fetch`) -- shipped (`tools/web-fetch.ts`).
 - **B6** (bash timeout, backgrounding) -- the `spike/background-shell` branch replaces the timeout with a yield-and-promote model plus `bash_output` and `bash_kill`, which is close to codex's `exec_command`/`write_stdin` design.
 - **B1, B2** -- moot; both tools are gone and `rg` has the full flag set.
 

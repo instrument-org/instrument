@@ -32,7 +32,7 @@ So the origin root is the task mount, and every mount point outside it is carved
 
 The reserved prefix has a shadowing hazard that has not bitten yet only because we own the directory: a real `mnt/` inside the task root is unreachable, since the longer mount point wins in `resolveHostPath`.
 
-Directory requests resolve to `index.html` ([`serve-static.ts`](../../packages/workspace/src/logic/server/serve-static.ts), a pinned fork of `@hono/node-server`'s implementation). Range requests are answered, which is what makes video and PDF seeking work.
+Directory requests resolve to `index.html` ([`serve-static.ts`](../../packages/workspace/src/logic/server/serve-static.ts), a pinned fork of `@hono/node-server`'s implementation). Range requests are answered, which is what makes video and PDF seeking work — and the CORS layer, applied only on this origin, exposes `Accept-Ranges` and `Content-Range` so a cross-origin reader can see that partial reads are answered and learn the whole file's size from a slice.
 
 ## Who builds the URLs
 
@@ -40,7 +40,7 @@ Three builders, one shape, and they must agree:
 
 - **The renderer.** [`asset-base-url.ts`](../../apps/studio/src/client/lib/asset-base-url.ts) resolves the server origin once at boot so `getAssetBaseUrl(taskId)` is synchronous everywhere; [`get-asset-url.ts`](../../apps/studio/src/client/lib/get-asset-url.ts) joins a stored file path onto it and appends the caller's `?version=` (see Caching). Consumers are the chat stream's file cards and image embeds, the file sidebar, and the file viewer.
 - **The agent's browser.** [`agent-browser-asset-url.ts`](../../packages/workspace/src/lib/shell-commands/agent-browser-asset-url.ts) rewrites a navigation argument naming a sandbox path onto the same origin, so `agent-browser goto output/report.html` loads a real page rather than a `file://` path that does not exist on the host. Its `assetPathForVirtualPath` is the inverse of the route's root rewrite, and the pair has to stay in step.
-- **The artifact preview.** Renders `getAssetUrl`'s output in a `<webview>` guest, so an HTML artifact runs as a **real origin** with storage and cookies, scoped to a per-task partition directory. See [in-app-browser.md](in-app-browser.md).
+- **The artifact preview.** Renders `getAssetUrl`'s output in a sandboxed `<iframe>` (`sandboxed-html-iframe.tsx`) with `allow-same-origin` withheld, so agent-authored HTML runs at an **opaque origin** with no storage or cookies — and no readable location, which is part of why it has no navigation chrome. See [the finding](../findings/html-artifact-iframe-navigation.md); routing artifacts through the `<webview>` pool instead is future work. The agent's own browser, by contrast, loads this origin as a real origin in a `<webview>` guest ([in-app-browser.md](in-app-browser.md)).
 
 The agent and the human therefore load the same URL for the same file, which is what lets the agent's own screenshot count as evidence about what the user will see.
 
@@ -49,7 +49,7 @@ The agent and the human therefore load the same URL for the same file, which is 
 `?version=` is the client's claim about *which* bytes a reference is for. The route decides policy by whether it can check that claim:
 
 - Task files whose `version` matches the file's current mtime: `public, max-age=31536000, immutable`.
-- Everything else, including every `/mnt` file regardless of `version`: `no-store`.
+- Everything else, including every file under a non-task mount (`/mnt` and `/project` alike) regardless of `version`: `no-store`.
 
 The split is "do we own the file." A file under a mount the user can edit outside the app has no reliable version to pin, so a mount version is inert by design.
 
@@ -77,7 +77,7 @@ The origin is deliberately narrower in two places, and narrower is fine:
 
 Four layers, each covering something the others do not:
 
-1. **Traversal.** `.`/`..` segments, doubled slashes, and backslashes are rejected before anything resolves.
+1. **Traversal.** The path is fully percent-decoded first — Hono's own decode leaves the reserved set escaped, so `..` spelled `%2E%2E` once sailed past this check — and then `.`/`..` segments, doubled slashes, and backslashes are rejected before anything resolves.
 2. **The private dir.** `.instrument` is refused as a path segment anywhere, case-insensitively, because the app runs on case-insensitive filesystems where `/.INSTRUMENT/task.db` names the same file. The rule is the exact directory name, not a prefix glob, so a sibling like `.instrument-notes/` is a normal task file. Matched anywhere rather than only at the root because more than one served mount has such a directory: the task's holds its database and state, and the project's holds the folders the project contributes and the access granted to each, which is worth more to an attacker than either. This route resolves host paths itself instead of going through the virtual filesystem, so [`maskPrivateDirFs`](../../packages/workspace/src/lib/mask-private-dir-fs.ts) — the mask that hides the same directories from the agent's shell — does not cover it, and this rule is the only thing in front of those files here. Any new mount inherits it; nothing else does it for you.
 3. **Mount ownership.** A path no mount owns is a 404; there is no fallback root.
 4. **Symlinks.** `hostPathEscapesMount` re-checks the resolved host path against its own mount's root after index resolution, and fails closed on anything other than a clean not-found.

@@ -1,3 +1,4 @@
+export { isRouterModel } from "./lib/is-router-model";
 export { modelNameFromURI } from "./lib/model-name-from-uri";
 export type { AIGatewayModel } from "./schemas/model";
 export type { AIGatewayModelURI } from "./schemas/model-uri";

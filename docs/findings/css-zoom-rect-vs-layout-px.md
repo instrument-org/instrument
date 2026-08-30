@@ -1,6 +1,6 @@
 # CSS zoom: mixing rect (on-screen px) with layout px
 
-**Status:** guidance, with an audit heuristic. The sites listed below are fixed; the open candidates are not.
+**Status:** guidance, with an audit heuristic. Every site listed below is fixed, including the three once flagged as open candidates. Kept for the heuristic, which is what a new site needs.
 
 ## Symptom
 
@@ -39,10 +39,7 @@ Safe by contrast:
 - Fixed: `sonner` toast stacking and swipe, via `patches/sonner@2.0.7.patch`. Toast heights were measured with the rect and spent on `--offset` (a `translateY`), and swipe deltas came from `event.clientX/Y` and were spent on `--swipe-amount-*`; both are layout px inside the zoomed subtree. An expanded stack's 14px gap rendered as 135px at 2x and -7px (overlap) at 0.5x. The patch divides by `node.currentCSSZoom`, which is the effective zoom of the whole ancestor chain and needs no wiring to `zoomAtom`. Covered by `apps/studio/src/client/components/ui/sonner.browser.test.tsx`.
 - Fixed: `studio-command-menu.tsx` (virtualizer, uses `offsetHeight`).
 - Fixed: `model-picker.tsx` (virtualizer, was `getBoundingClientRect().height`).
-- Open candidates flagged but not yet addressed:
-  - `nav-tasks.tsx` — rect delta + `scrollTop` fed as a virtualizer `scrollMargin`.
-  - `hooks/use-hash-link-scroll.ts` — rect delta + `scrollTop` fed to `scrollTo`; over/under-scrolls on `#`-anchor clicks by the zoom factor.
-  - `studio-modals/welcome-modal.tsx` — cosmetic: `event.clientX - rect.left` used as a CSS length in a mask on a self-zoomed dialog; spotlight drifts from the cursor.
+- Fixed: `nav-tasks.tsx` (rect delta divided back to layout px before feeding the virtualizer's `scrollMargin`), `hooks/use-hash-link-scroll.ts` (rect delta over zoom before `scrollTo`), and `studio-modals/welcome-modal.tsx` (cursor deltas over zoom before the spotlight mask).
 
 ## References
 

@@ -34,7 +34,8 @@ describe("context rollover: kept the format it chose", () => {
   const CHOSEN = "1. One\n2. Two\n3. Three";
 
   it("passes when the answer survives the rollover unchanged", async () => {
-    expect((await check(CHOSEN, CHOSEN))?.passed).toBe(true);
+    const result = await check(CHOSEN, CHOSEN);
+    expect(result?.passed).toBe(true);
   });
 
   // The recorded failure, verbatim from FP-1270: the numbering stayed and every
@@ -47,14 +48,40 @@ describe("context rollover: kept the format it chose", () => {
 
   // The other recorded degradation: words replaced by the digits themselves.
   it("fails when the words are replaced by digits", async () => {
-    expect((await check(CHOSEN, "1. 1\n2. 2\n3. 3"))?.passed).toBe(false);
+    const result = await check(CHOSEN, "1. 1\n2. 2\n3. 3");
+    expect(result?.passed).toBe(false);
   });
 
   // Measured: a model explained the format it had just chosen, and scoring the
   // whole answer marked a perfectly preserved format as lost.
   it("ignores prose the first answer added about its own format", async () => {
     const withTalk = `${CHOSEN}\n\nI'll use this exact format each time you ask.`;
-    expect((await check(withTalk, CHOSEN))?.passed).toBe(true);
+    const result = await check(withTalk, CHOSEN);
+    expect(result?.passed).toBe(true);
+  });
+
+  // Measured on gpt-oss-120b, which held its format across two rollovers and
+  // scored zero: the separator was a narrow no-break space on the first turn
+  // and an ordinary one on the last. The two answers are identical on screen.
+  it("passes when only the kind of whitespace changed", async () => {
+    const narrow = "\u2460\u202F\u2461\u202F\u2462";
+    const ordinary = "\u2460 \u2461 \u2462";
+    const result = await check(narrow, ordinary);
+    expect(result?.passed).toBe(true);
+  });
+
+  // Measured on deepseek-v4-flash, which kept `I, II, III` across two rollovers
+  // and failed on the full stop it had used the first time.
+  it("passes when the answer lost only its trailing punctuation", async () => {
+    const result = await check("I, II, III.", "I, II, III");
+    expect(result?.passed).toBe(true);
+  });
+
+  // The stripping is deliberately one-ended: punctuation inside the line is
+  // part of the format, and losing it is the degradation this exists to catch.
+  it("still fails when punctuation inside the answer goes", async () => {
+    const result = await check(CHOSEN, "1 One\n2 Two\n3 Three");
+    expect(result?.passed).toBe(false);
   });
 
   it("reports inconclusive rather than passing on an answer with nothing to carry", async () => {

@@ -1,6 +1,6 @@
 # Plan: chat stream turn-model refactor
 
-Status: proposed, not started. Prompted by the MessageScroller adoption, which wants clean per-turn rows, and by upcoming work to collapse tool/reasoning activity between assistant runs. Do this as a fast-follow to the scroller work, not folded into it.
+Status: proposed, not started. Prompted by the MessageScroller adoption ([landed](../completed/anchor-the-submitted-turn.md)), which wants clean per-turn rows. The activity collapsing this once gated shipped separately on the derived group model in `transcript-layout.ts`, so what remains here is debt reduction rather than a blocker for anything.
 
 ---
 

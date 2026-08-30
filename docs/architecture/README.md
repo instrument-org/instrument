@@ -15,4 +15,5 @@ Nothing here carries a status or a date. If a statement stops being true, correc
 - [in-app-browser.md](in-app-browser.md) — the per-task browser: the renderer-owned `<webview>` pool, paint-host vs visible, the CDP path from `agent-browser` to the guest, and what the panel may do that the agent may not.
 - [responsive-layout.md](responsive-layout.md) — why viewport breakpoints are the wrong proxy for layout width under UI zoom and a resizable sidebar, the `@container/app-content` shell container, and the unit rules for portalled content.
 - [auto-updater.md](auto-updater.md) — how Studio finds, stages, and installs a build: the pure-reducer / port-seam / wiring split, channel selection, and why the build offered and the build installed can diverge.
+- [releasing.md](releasing.md) — cutting a version, what the tag build produces, why the artifacts land in S3 rather than on the GitHub release, and why a build is live before its draft notes are published.
 - [studio-in-the-browser.md](studio-in-the-browser.md) — `apps/studio/web/`: the real renderer served as a plain web page with the Electron boundary replaced by fixtures. Development only.

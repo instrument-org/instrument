@@ -15,7 +15,7 @@ Status: **active (one step left)**. The move from ESLint+Prettier to the oxc too
 
 - **oxlint**: all TypeScript rules, type-aware and syntactic, + Tailwind.
 - **oxfmt**: all formatting (JS/TS/JSON/CSS/MD/YAML/HTML).
-- **ESLint**: everything else — perfectionist (sorting), react-hooks (React Compiler rules), unicorn, import-x, react, regexp, n, yml, jsonc, package-json, turbo, vitest, eslint-comments, core.
+- **ESLint**: everything else — perfectionist (sorting), react-hooks (`exhaustive-deps` and `rules-of-hooks`; the React Compiler analysis runs natively in oxlint as `react/react-compiler`), unicorn, import-x, react, regexp, n, yml, jsonc, package-json, turbo, vitest, eslint-comments, core.
 - **eslint-config-prettier**: kept. It is config-only (no rules); it disables ESLint's formatting rules (e.g. `unicorn/template-indent`) so they don't fight oxfmt. Per oxc's own migration guidance, keep it while ESLint stays.
 
 ## Deferred (do after the other branches merge)
@@ -51,7 +51,7 @@ Note: `newlinesBetween` is a boolean in oxfmt (no "ignore" mode), so it enforces
 
 ### 2. Move remaining untyped rules (unicorn/import/react/core) to oxlint
 
-The TypeScript-eslint slice of this is done (see "Done" above); this covers what's left. Consolidation step, not a speed win (the ESLint floor is `react-hooks/static-components` ~4.5s, which oxlint has no equivalent for) — unlike the TypeScript-rules step, this one is unvalidated, so check for tree-wide noise before committing to it (same approach: build a scratch `.oxlintrc.json`, run `oxlint --type-aware` repo-wide, and look at the diff before touching config for real).
+The TypeScript-eslint slice of this is done (see "Done" above); this covers what's left. Consolidation step, not a speed win — unlike the TypeScript-rules step, this one is unvalidated, so check for tree-wide noise before committing to it (same approach: build a scratch `.oxlintrc.json`, run `oxlint --type-aware` repo-wide, and look at the diff before touching config for real).
 
 Steps:
 
@@ -59,7 +59,7 @@ Steps:
 2. `oxlint.buildFromOxlintConfigFile(...)` (already wired in `base.ts`, see "Done") picks up any new rules automatically — no further `base.ts` changes needed, just extend `.oxlintrc.json`.
 3. Reconcile findings, watch for orphaned `eslint-disable` comments (convert to `oxlint-disable` the way the TypeScript-rules step did) and knip.
 
-Stays in ESLint (no oxlint equivalent): perfectionist, react-hooks React Compiler rules, most of regexp, yml, jsonc, package-json, turbo, vitest, eslint-comments, `unicorn/expiring-todo-comments`, `import/no-unused-modules`.
+Stays in ESLint (no oxlint equivalent): perfectionist, react-hooks (`exhaustive-deps`, `rules-of-hooks`), most of regexp, yml, jsonc, package-json, turbo, vitest, eslint-comments, `unicorn/expiring-todo-comments`, `import/no-unused-modules`.
 
 **Endgame** (per oxlint docs): once oxlint covers those gaps, ESLint can be removed entirely.
 

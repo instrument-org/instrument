@@ -11,7 +11,7 @@ We are on the published npm package, not a fork.
 - `just-bash@^3.4.1` from npm, declared in `packages/workspace/package.json`.
 - No local patches.
 
-`minimumReleaseAge` in `pnpm-workspace.yaml` holds installs to releases at least seven days old, so the newest published version is routinely not the newest installable one. `minimumReleaseAgeExclude` is for dependencies deliberately pinned to an exact version, not for reaching a fresh release early; the way past the gate is to wait.
+`minimumReleaseAge` in `pnpm-workspace.yaml` holds installs to releases at least seven days old, so the newest published version is routinely not the newest installable one. `minimumReleaseAgeExclude` carries the document-viewer libraries deliberately pinned to exact versions, plus `agent-browser`, which we do float onto fresh releases. It is not a general escape hatch: for anything else the way past the gate is to wait.
 
 Upstream cuts releases through changesets and merges a great deal between them, so **a fix being on upstream `main` does not mean we have it**. Check the published version, not the branch, before assuming a workaround can go.
 
@@ -38,7 +38,7 @@ Text we put in front of the model, or commands we withhold from it, because of a
 
 ## Open upstream pull requests
 
-Ours, all against `vercel-labs/just-bash`. Volatile by nature; the point of listing them is that a merged-and-released one usually retires a row from a register above. None had merged as of 3.4.1.
+Ours, all against `vercel-labs/just-bash`. Volatile by nature; the point of listing them is that a merged-and-released one usually retires a row from a register above. None had merged as of 3.4.1, nor in 3.4.2, a packaging-only release (#381).
 
 | PR | what | affects us |
 | --- | --- | --- |
@@ -61,9 +61,9 @@ Not workarounds, so they carry no removal trigger. They are here because each on
 - **`find -type l` and `cp -L` do not exist.** `find`'s type is `"f" | "d"` upstream, and `cp` has no dereference flag. Together they make a symlinked tree awkward to inspect or flatten, which is how the `cp -R` failure above usually gets discovered.
 - **Pipelines are not streaming.** Each stage runs to completion and its whole stdout is buffered as a string, so `tar -cf - big | tar -xf -` trips `total output size exceeded` against `maxOutputSize` even though nothing was headed for the agent. The message names `executionLimits.maxOutputSize`, which reads as "your output is too large" rather than "an intermediate did not fit".
 - **A parse error fails the whole script.** An unsupported construct anywhere means no statement runs, and the message locates the offending column without naming the construct. Every command before it is silently skipped.
-- **`ls -l` prints timestamps in host-local time.** `date` defaults to UTC unless `$TZ` is set, deliberately, so the host's zone does not leak. `ls`'s formatter uses local components instead, so the two commands disagree about what time a file carries, and a correctly stored UTC instant can display as the previous day. Found while fixing `touch`; reported on #364 rather than fixed, because the fix belongs in `ls` and would move every `ls -l` timestamp in the suite.
+- **`date` and `ls -l` can disagree about a file's time.** Upstream, `date` defaults to UTC when `$TZ` is unset while `ls`'s formatter uses host-local components, so a correctly stored UTC instant can display as the previous day. Our env seeds `TZ` from the host zone (`create-bash-env.ts`), so the two agree here; the gap belongs to any embedder that leaves `TZ` unset. Found while fixing `touch`; reported on #364 rather than fixed, because the fix belongs in `ls` and would move every `ls -l` timestamp in the suite.
 - **`sqlite3` dot commands are a parse error.** Already covered as a prompt workaround above; noted here too because it is the one gap upstream has declined rather than deferred.
-- **`mktemp` does not exist, so we ship one** (`shell-commands/mktemp.ts`). Its absence is not neutral: the idiom the model knows for "somewhere safe to put a scratch file" is the one place the sandbox refuses, so it reaches for `/tmp` and the write fails. Ours names files under `work/tmp`, the directory the subprocess hatches already get as `TMPDIR`. Unlike the other custom commands it needs nothing from the host — it is `-d`/`-p`/`-t`/`-u`/`-q` and a template against `ctx.fs` — so it is the one we offered upstream rather than carried, as #392 below.
+- **`mktemp` does not exist, so we ship one** (`shell-commands/mktemp.ts`). Its absence is not neutral: the idiom the model knows for "somewhere safe to put a scratch file" is the one place the sandbox refuses, so it reaches for `/tmp` and the write fails. Ours names files under `work/tmp`, the directory the subprocess hatches already get as `TMPDIR`. Unlike the other custom commands it needs nothing from the host — it is `-d`/`-p`/`-t`/`-u`/`-q` and a template against `ctx.fs` — so it is the one we offered upstream rather than carried, as #392 above.
 - **A handful of other coreutils are missing** with no equivalent: `zip`/`unzip`, `dd`, `yes`, `xxd`, `realpath`, `shuf`, `openssl`, `rsync`. Each appeared once in the production record, in a task probing the sandbox rather than doing work, and `od`, `strings`, `head -c`, `seq`, and the `zip` skill cover the ground between them. Listed so the next reader can weigh a request against the whole set rather than adding them one at a time.
 
 ## Checking whether a release has caught up

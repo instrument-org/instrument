@@ -7,7 +7,9 @@ import { describe, expect, it, vi } from "vitest";
 import { MessageError } from "./message-error";
 import { TooltipProvider } from "./ui/tooltip";
 
-type MessageError = NonNullable<SessionMessage.Assistant["metadata"]["error"]>;
+type MessageErrorData = NonNullable<
+  SessionMessage.Assistant["metadata"]["error"]
+>;
 
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
@@ -36,7 +38,7 @@ const UPSTREAM_THROTTLE_TEXT =
 // own platform errors, and whose account the provider's message is about.
 // `null` stands for a message that recorded no model at all, which must not be
 // mistaken for the user's own key.
-function messageWithError(error: MessageError, provider: null | string) {
+function messageWithError(error: MessageErrorData, provider: null | string) {
   return {
     id: "msg_test",
     metadata: {
@@ -62,7 +64,7 @@ function renderError({
   isLastMessage = true,
   provider = OUR_MODELS.providerType,
 }: {
-  error?: MessageError;
+  error?: MessageErrorData;
   isDeveloperMode?: boolean;
   isLastMessage?: boolean;
   provider?: null | string;

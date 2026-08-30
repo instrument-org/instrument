@@ -50,7 +50,7 @@ which is the second reason the composer's slash menu now uses `Popover`.
   full-bleed link
 
 Left raised on purpose, because each has to paint above a sibling subtree: the
-sidebar rail's resize handle, `ui/resizable.tsx`'s handle, `ui/sidebar.tsx`'s
+sidebar rail's resize handle, `ui/sidebar.tsx`'s
 fixed rail, `ui/button-group.tsx`'s focus ring, and the debug route's sticky
 header. Anything inside a Dialog is already contained by the fixed `z-50`
 content and needs nothing.

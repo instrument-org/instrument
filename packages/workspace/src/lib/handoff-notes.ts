@@ -4,6 +4,7 @@ import path from "node:path";
 import { TASK_FOLDER_NAMES } from "../constants";
 import { MOUNT } from "../mount-points";
 import { type TaskId } from "../schemas/task-id";
+import { truncateWithoutSplitting } from "./sanitize-model-text";
 import { taskDir } from "./task-dir-utils";
 
 /**
@@ -49,7 +50,7 @@ const MAX_NOTES_CHARACTERS = 8000;
  */
 export function contextRolloverNotice(notes: string | undefined): string {
   const preamble =
-    "This conversation ran out of context and continued in a fresh window. Everything the user said has been carried across in full. Your own earlier turns have not: the work you did, what you read, and anything you worked out before the cut are no longer in front of you.";
+    "This conversation ran out of context and continued in a fresh window. The user's messages have been carried across newest first, up to a size budget: older ones may have been dropped whole, and a bracketed [context rollover omitted ...] line stands where the middle of an oversized one was cut. Treat a line like that, or an earlier instruction you cannot find, as something to ask the user about rather than something that never existed. Your own earlier turns have not been carried across at all: the work you did, what you read, and anything you worked out before the cut are no longer in front of you.";
 
   if (notes === undefined) {
     return [
@@ -97,8 +98,11 @@ export async function readHandoffNotes(
       return undefined;
     }
 
+    // Truncated with the character-aware cut rather than a plain slice: the
+    // notice this feeds is appended after the outgoing sanitize pass, so half
+    // an emoji left here would reach the provider on every later request.
     return trimmed.length > MAX_NOTES_CHARACTERS
-      ? `${trimmed.slice(0, MAX_NOTES_CHARACTERS)}\n\n[Notes truncated at ${MAX_NOTES_CHARACTERS.toLocaleString("en-US")} characters.]`
+      ? `${truncateWithoutSplitting(trimmed, MAX_NOTES_CHARACTERS)}\n\n[Notes truncated at ${MAX_NOTES_CHARACTERS.toLocaleString("en-US")} characters.]`
       : trimmed;
   } catch {
     return undefined;

@@ -92,6 +92,7 @@ export function ModelPicker({
 }: ModelPickerProps) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isBrowsing, setIsBrowsing] = useState(false);
 
   const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
   const modelsWithoutAuto = useMemo(
@@ -160,6 +161,7 @@ export function ModelPicker({
   const closePopover = () => {
     setOpen(false);
     setSearchQuery("");
+    setIsBrowsing(false);
     onClose?.();
   };
 
@@ -172,7 +174,13 @@ export function ModelPicker({
 
   const isAutoMode = selectedModel?.providerId === OUR_MODELS.text.id;
 
-  const hideModelList = isAutoMode && !searchQuery;
+  // On Auto the list stays folded away, because the choice in front of the user
+  // is whether to leave Auto at all rather than which of a hundred models to
+  // take. Folded is not the same as absent, though: the row below says how many
+  // are behind it and opens them, so the picker never presents itself as a
+  // control with one option in it. That is what it looked like to a screen
+  // reader and to an agent driving the app, both of which read the same tree.
+  const hideModelList = isAutoMode && !searchQuery && !isBrowsing;
 
   // A selection outlives the list it came from, so a model the list no longer
   // resolves still gets named and flagged rather than silently reading as an
@@ -259,7 +267,7 @@ export function ModelPicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-0">
-        <Command shouldFilter={false}>
+        <Command label="Search models" shouldFilter={false}>
           <AutoModeSwitch
             autoModel={autoModel}
             checked={isAutoMode}
@@ -284,12 +292,13 @@ export function ModelPicker({
               value={searchQuery}
             />
           )}
-          <CommandList
-            className={cn(
-              "max-h-none! overflow-visible!",
-              hideModelList && "hidden",
-            )}
-          >
+          {/*
+            Only the model list folds away on Auto. The errors and the
+            no-provider prompt below used to fold with it, because the whole
+            list was hidden at once: a provider that failed to load said so
+            everywhere except in the one state most people sit in.
+          */}
+          <CommandList className="max-h-none! overflow-visible!">
             {hasErrors && (
               <ErrorsGroup
                 errors={errors}
@@ -310,7 +319,7 @@ export function ModelPicker({
                 <CommandItem disabled>Failed to load models</CommandItem>
               </CommandGroup>
             )}
-            {hasModels && (
+            {hasModels && !hideModelList && (
               <ModelGroups
                 groupedModels={filteredGroupedModels}
                 onAddProvider={() => {
@@ -337,6 +346,14 @@ export function ModelPicker({
               />
             )}
           </CommandList>
+          {hasModels && hideModelList && (
+            <BrowseModelsRow
+              count={modelsWithoutAuto.length}
+              onBrowse={() => {
+                setIsBrowsing(true);
+              }}
+            />
+          )}
         </Command>
       </PopoverContent>
     </Popover>
@@ -426,6 +443,37 @@ function AutoModeSwitch({
         Selects the best model for your task
       </span>
     </Label>
+  );
+}
+
+/**
+ * What stands in for the folded list on Auto.
+ *
+ * The count is the point of it. "Search models..." above says a search is
+ * possible and says nothing about whether searching would find anything, which
+ * is the reading that made an empty-looking picker look like a picker with one
+ * model in it. A named button carrying the number is the same fact stated where
+ * every reader of this UI can reach it: on screen, in the accessibility tree,
+ * and in the DOM a script walks.
+ */
+function BrowseModelsRow({
+  count,
+  onBrowse,
+}: {
+  count: number;
+  onBrowse: () => void;
+}) {
+  return (
+    <div className="border-t p-1">
+      <Button
+        className="h-8 w-full justify-center text-xs font-normal text-muted-foreground"
+        onClick={onBrowse}
+        size="sm"
+        variant="ghost"
+      >
+        Browse {count} {count === 1 ? "model" : "models"}
+      </Button>
+    </div>
   );
 }
 

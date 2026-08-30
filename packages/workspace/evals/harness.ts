@@ -21,8 +21,8 @@ import { isToolPart } from "../src/lib/is-tool-part";
 import { createProject } from "../src/lib/project";
 import { Store } from "../src/lib/store";
 import { getTaskUsageSummary } from "../src/lib/usage-summary";
-import { message as messageRoute } from "../src/rpc/routes/message";
 import { publisher } from "../src/rpc/publisher";
+import { message as messageRoute } from "../src/rpc/routes/message";
 import { session as sessionRoute } from "../src/rpc/routes/session";
 import { task as taskRoute } from "../src/rpc/routes/task";
 import { type FileUpload } from "../src/schemas/file-upload";
@@ -149,6 +149,7 @@ const STOP_GRACE_MS = 60_000;
 export interface EvalCase {
   assertions?: Assertion[];
   files?: FileUpload.Type[];
+  folders?: { access?: FolderAttachment.Access; path: string }[];
   /**
    * Further user turns, sent one at a time on the same session once the turn
    * before it has settled. For behavior that only exists across turns: a
@@ -156,7 +157,6 @@ export interface EvalCase {
    * rather than re-derive. Assertions see every session the run produced.
    */
   followUps?: string[];
-  folders?: { access?: FolderAttachment.Access; path: string }[];
   name: string;
   /**
    * Run the task inside a project created for it. The only way to exercise the

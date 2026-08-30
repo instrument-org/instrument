@@ -8,7 +8,7 @@ Core AI agents, workflow logic, RPC, tools, and runtime.
 - **Streaming**: every `eventIterator` procedure goes under `live.*` (snapshot on subscribe, then updates) or `events.*` (fires only on change), and nothing else does. A `live.*` mirror of a non-live procedure shares its leaf name: `task.byId` / `task.live.byId`.
 - **Tools**: `src/tools/`. Build with `setupTool()` from `create-tool.ts`; register in `all.ts`. Use neverthrow `Result` for fallible logic; map to tool output or throw for oRPC.
 - **Agents**: `src/agents/`. `main` is the only agent (`all.ts`); it runs the session and picks its tools from `TOOLS` in `main.ts`, wired by `create-agent.ts`.
-- **Workspace server**: Hono app in `src/logic/server/index.ts`. Serves shim script/iframe, assets, heartbeat, redirect, and proxies app traffic. AI gateway is mounted at `AI_GATEWAY_API_PATH` when provided.
+- **Workspace server**: Hono app in `src/logic/server/index.ts`. Serves shim script/iframe, assets, heartbeat, redirect, the CDP bridge, and proxies app traffic. AI gateway is mounted at `AI_GATEWAY_API_PATH` when provided.
 - **Schemas**: `src/schemas/` (paths, project, session, store-id, subdomain-part, task, task-settings, file-upload, folder-attachment, etc.). Use for RPC/tool I/O where applicable.
 - **Machines**: XState in `src/machines/` (workspace, session, agent, runtime, task-browser). `WorkspaceActorRef` is the main-process handle; RPC context gets `workspaceRef` and `workspaceConfig`.
 - **Skills**: `src/lib/skills.ts` discovers them across the bundled set, the registry, co-installed agent homes, and the workspace `skills/` dir, deduping symlinks by canonical directory and copies by package fingerprint. `skill-catalog.ts` renders the budgeted catalog, which `available-skills-context.ts` puts in the session's context message (`LoadSkill`'s description is static, so installing a skill never rewrites a tool definition); `validate-skill.ts` holds the rules the runtime enforces. The workspace `skills/` dir also mounts writable at `/skills` for the agent (see `docs/architecture/agent-sandbox.md`).
@@ -54,9 +54,11 @@ from one: a stopped run is `Stopped`, only a refused request is `Failed`.
 
 With no `--model`, a case runs against `MODELS` in `harness.ts`: the current
 frontier model from each closed provider plus the strongest open-weights one, so
-an affordance only one family finds shows up as a failure. Those are OpenRouter
-`~author/<name>-latest` aliases, which move as new builds ship and therefore need
-no edit here. The harness prints what each resolved to and records it as
+an affordance only one family finds shows up as a failure. Three are OpenRouter
+`~author/<name>-latest` aliases, which move as new builds ship; the OpenAI entry
+stays a pinned slug (`~openai/gpt-latest` resolves to the reasoning line rather
+than what the app's auto setting sends users to) and is the one that needs a
+bump by hand. The harness prints what each resolved to and records it as
 `resolvedModelId` in the run's `eval-case.json`, since "latest" is not a build
 anyone can identify a month later.
 
@@ -87,7 +89,8 @@ For choosing whether an eval is the right check at all, see the
 ## Seeded workspaces
 
 `scripts/seed-workspace.ts` builds a throwaway app workspace from a committed
-description in `fixtures/workspaces/`, for `ELECTRON_USER_DATA_DIR`.
+description in `fixtures/workspaces/` at the **repo root** (this package's own
+`fixtures/` is something else), for `ELECTRON_USER_DATA_DIR`.
 `scripts/record-fixture-session.ts` captures a real task's conversation into one.
 
 ```bash
@@ -100,4 +103,4 @@ The seeder goes through `initializeTask` and `Store`, never the filesystem: task
 storage is moving, and a seeder that lays out `tasks/<id>/.instrument` itself
 would keep producing workspaces the app can no longer read.
 
-`fixtures/workspaces/README.md` covers what a fixture holds and how to add one.
+The repo-root `fixtures/workspaces/README.md` covers what a fixture holds and how to add one.

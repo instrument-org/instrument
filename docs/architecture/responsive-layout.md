@@ -13,13 +13,13 @@ They compound. A zoomed-in window with a wide sidebar open can leave a page a fe
 
 ## The shell container
 
-`AppChrome` names the box a page actually occupies (`apps/studio/src/client/components/app-chrome.tsx`):
+`TabView` names the box a page actually occupies (`apps/studio/src/client/components/main-window.tsx`):
 
 ```
 @container/app-content
 ```
 
-It is the flex child between the sidebar rail and the window edge, inside the zoom root, so its inline size already accounts for both distortions above. A page adapts to it by prefixing utilities with the container instead of a viewport breakpoint:
+It is a per-tab `absolute inset-0` box inside the portal container, itself inside the flex child `AppChrome` puts between the sidebar rail and the window edge, inside the zoom root — so its inline size already accounts for both distortions above. A page adapts to it by prefixing utilities with the container instead of a viewport breakpoint:
 
 ```
 lg:px-8   ->  @5xl/app-content:px-8
@@ -67,7 +67,7 @@ Dividing an intrinsic size pins the element's rendered size while the text insid
 | `min(32rem, calc((100% - 2rem) / z))`  |       384 |         768 |
 | `min(32rem, calc((100vw - 2rem) / z))` |       512 |        1024 |
 
-Only the last keeps the dialog's layout room constant while letting it grow on screen. `zoomMaxSize(axis, intrinsic)` builds it, and `DialogContent`/`AlertDialogContent`/`TooltipContent` apply it as an inline `max-width`/`max-height` from their `maxWidth`/`maxHeight` props. A dialog that wants to be 42rem wide passes `maxWidth="42rem"`; the window cap is added for it.
+Only the last keeps the dialog's layout room constant while letting it grow on screen. `zoomMaxSize(axis, intrinsic)` builds it. `DialogContent`/`AlertDialogContent` apply it on both axes as an inline `max-width`/`max-height` from their `maxWidth`/`maxHeight` props; `TooltipContent` takes `maxWidth` only. A dialog that wants to be 42rem wide passes `maxWidth="42rem"`; the window cap is added for it.
 
 That is a prop and an inline style rather than a Tailwind class because a class is the form of this that can go missing. `cn()` merges a caller's `max-w-*` over the primitive's own and takes the window cap with it, silently, at the call site where the author is thinking about width and not about zoom. An inline style outranks every class, so the cap cannot be merged away and the intrinsic size can only be set by passing one in. `apps/studio/src/client/components/ui/dialog-zoom.browser.test.tsx` pins both halves of the contract: an oversized dialog stays inside the window at 1x/1.5x/2x, and a dialog that already fits grows with the zoom instead of staying pinned.
 
@@ -79,4 +79,3 @@ A viewport unit written anywhere else in the renderer is the same bug wearing di
 - **A container query naming a container that has no matching ancestor does not match, silently.** There is no warning and no fallback. This is why the breakpoint variants are not globally redefined as container queries: dialogs portal outside `app-content`, and every `sm:max-w-*` on them would quietly stop applying.
 - **`getBoundingClientRect()` returns on-screen px; `offsetWidth`/`offsetHeight`, `scrollTop`/`scrollHeight`/`clientHeight`, and `ResizeObserver` return layout px.** Under zoom these differ by the zoom factor, so any code that measures with one and positions or scrolls with the other is broken at zoom != 1. Two shapes recur: a virtualizer that measures rows with the rect and positions them with `transform: translateY()` (measure with `offsetHeight`), and a scroll container whose distance-to-bottom is a rect-derived content edge minus `scrollTop`/`clientHeight` -- the mismatch strands a scroll-to-bottom affordance and defeats stick-to-bottom (compute the gap from `scrollHeight`/`scrollTop`/`clientHeight` alone). See [`docs/findings/css-zoom-rect-vs-layout-px.md`](../findings/css-zoom-rect-vs-layout-px.md).
 - **The main window has `minWidth: 720`** (`apps/studio/src/electron-main/windows/main/index.ts`), so `sm:` (640px) is always true and `md:` (768px) only varies in a 48px band. Existing `sm:` utilities are effectively unconditional, not responsive.
-- The breakpoint readout in the dev panel deliberately reports the _viewport_ breakpoint and should stay a media query.

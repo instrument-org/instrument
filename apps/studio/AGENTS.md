@@ -45,7 +45,7 @@ Closing the last window quits the app on **every** platform, macOS included, and
 
 `AppShell`/`AppChrome` is a single web contents (the **main** window; see Windows), so modals are plain `<Dialog>`s at the chrome root, not separate overlay views.
 
-- **App-wide** (`login`, `welcome`, `settings`, `project`, `skill`, `delete-task`): a Jotai atom (`atoms/<name>-modal.ts`, created via `studioModalAtom()` from `atoms/studio-modal.ts`) + `openX()` setter callable from anywhere + a component in `components/studio-modals/<name>-modal.tsx`, all mounted once via `<StudioModals />` in `app-chrome.tsx`. At most one app-wide modal is open at a time: opening one replaces whichever is open (never stacks) — e.g. sign-in triggered from inside settings closes settings.
+- **App-wide** (`login`, `welcome`, `settings`, `project`, `skill`, `delete-task`, `shortcut-guide`): a Jotai atom (`atoms/<name>-modal.ts`, created via `studioModalAtom()` from `atoms/studio-modal.ts`) + `openX()` setter callable from anywhere + a component in `components/studio-modals/<name>-modal.tsx`, all mounted once via `<StudioModals />` in `app-chrome.tsx`. At most one app-wide modal is open at a time: opening one replaces whichever is open (never stacks) — e.g. sign-in triggered from inside settings closes settings. The exception is a modal created with `replaceable: false` (the `welcome` onboarding gate), which holds the slot until it closes itself; opening another over it is ignored.
 - **Contextual** (`delete-project`): `<Dialog>` inline next to its trigger with local `useState`. Use for a small number of co-located triggers.
 - `useBlockTabNavigation(open)` opts a modal out of tab shortcuts (Cmd+T/W/etc.) while open.
 
@@ -78,11 +78,13 @@ Confirm an assertion fails against the unfixed code before keeping it. A DOM tes
 
 Browser tests need `pnpm exec playwright install chromium` once, then `pnpm test:browser`; a failure leaves a Playwright trace under `__traces__/`.
 
+Outside the three projects, `vitest.smoke.config.ts` (`pnpm smoke-test`) runs the packaged-app boot smoke test CI gates releases on, saving screenshots under `smoke-test-screenshots/`.
+
 ## Where things are
 
 - **Client**: `src/client`, file routes in `src/client/routes/` (`_app/` = layout/auth).
 - **UI**: shadcn in `src/client/components/ui`; shared in `src/client/components/`.
-- **Debug**: `_app/debug/` and `settings/debug` — experimentation only.
+- **Debug**: `_app/debug/` and the settings modal's Debug tab (`components/settings/debug-section.tsx`) — experimentation only.
 - **RPC**: main handlers in `src/electron-main/rpc/routes/`; client in `src/client/rpc/client.ts` (MessageChannel only).
 - **Platform API**: main-process only, `src/electron-main/platform-api/`; UI reads via RPC (`user.me`, `plans.get`).
 - **Browser build**: `web/` runs this same renderer as a plain web page with the Electron boundary replaced by fixtures (`pnpm dev:web`, port 5180). Development only, never packaged. Adding a screen's data means adding fixtures there; see `docs/architecture/studio-in-the-browser.md`.

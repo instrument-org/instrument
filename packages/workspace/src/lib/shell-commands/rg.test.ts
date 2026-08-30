@@ -183,6 +183,20 @@ describe("rg command", () => {
     expect(result.exitCode).toBe(1);
   });
 
+  // ripgrep reads flags from the file named by RIPGREP_CONFIG_PATH, so a `--pre`
+  // there would reach the binary the argv denylist never sees. Were the config
+  // honored, ripgrep would search /bin/echo's output (the file paths) instead of
+  // the files and never find NEEDLE; the match proves the config was ignored.
+  it("ignores a --pre smuggled through RIPGREP_CONFIG_PATH", async () => {
+    const result = await run(
+      "printf '%s\\n' '--pre=/bin/echo' > work/rgc; " +
+        "RIPGREP_CONFIG_PATH=work/rgc rg --color=never NEEDLE",
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("work/a.ts");
+  });
+
   it("searches an attached folder and reports its mount path, not the host path", async () => {
     const result = await run("rg NEEDLE /mnt/Docs", true);
     expect(result.exitCode).toBe(0);

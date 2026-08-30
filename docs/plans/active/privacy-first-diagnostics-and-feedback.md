@@ -1,6 +1,6 @@
 # Plan: privacy-first diagnostics and feedback
 
-Status: proposal, not started. Owner: TBD. Depends on [conversation-storage.md](conversation-storage.md) for the report payload; related to [user-chosen-working-folder.md](user-chosen-working-folder.md).
+Status: proposal, not started apart from three leaky-field fixes out of phase 0 (the two content-carrying events, the tool error text on `llm.error`, and the crash-record redaction claim). The structural work is untouched: `enableUsageMetrics` still defaults on and PostHog still ships in both processes. Owner: TBD. Depends on [conversation-storage.md](conversation-storage.md) for the report payload; related to [user-chosen-working-folder.md](user-chosen-working-folder.md).
 
 ## Scope
 

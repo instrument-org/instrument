@@ -87,7 +87,7 @@ export function AssistantMessagesFooter({
         | SessionMessagePart.SourceDocumentPart
         | SessionMessagePart.SourceUrlPart
       )[] = [];
-      let combinedText = "";
+      const textParts: string[] = [];
       let latestDate: Date | undefined;
 
       for (const message of messages) {
@@ -99,8 +99,13 @@ export function AssistantMessagesFooter({
             seenSourceIds.add(part.sourceId);
             allSources.push(part);
           }
+          // Each text part is a separately rendered block. Retain that
+          // separation when copying, and skip blocks the transcript omits.
           if (part.type === "text") {
-            combinedText += part.text;
+            const text = part.text.trim();
+            if (text) {
+              textParts.push(text);
+            }
           }
         }
 
@@ -122,7 +127,7 @@ export function AssistantMessagesFooter({
       return {
         elapsedDuration: elapsed,
         latestCreatedAt: latestDate,
-        messageText: combinedText,
+        messageText: textParts.join("\n\n"),
         modelsUsed: modelsAnswering(messages),
         sources: allSources,
       };

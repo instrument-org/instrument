@@ -625,6 +625,18 @@ export const Markdown = memo(
       let isCancelled = false;
 
       async function loadPlugins() {
+        // A document that needs neither optional bundle settles on the module
+        // constants the state was initialized with. The references matter, not
+        // just the contents: react-markdown re-parses the whole document on
+        // every render, and only an `Object.is`-equal state lets React skip
+        // the re-render, so a fresh-but-identical array here would parse every
+        // plain message twice.
+        if (!needsRawHtml && !needsMath) {
+          setRehypePlugins(baseRehypePlugins);
+          setRemarkPlugins(emptyRemarkPluginList);
+          return;
+        }
+
         const nextRehypePlugins: PluginList = [];
         const nextRemarkPlugins: RemarkPluginList = [];
 

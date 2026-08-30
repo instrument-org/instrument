@@ -6,7 +6,7 @@ Status: landed for skills, deferred for the rest. The composer is ProseMirror (`
 
 ## Background / why
 
-Our prompt input is currently a controlled textarea with attachment chips rendered as siblings above the textarea. That keeps the implementation simple, but it makes reference-heavy prompts noisy:
+When this plan was written, the prompt input was a controlled textarea with attachment chips rendered as siblings above it. That kept the implementation simple, but it made reference-heavy prompts noisy:
 
 - File and folder references are plain text after insertion.
 - Tool and file-card "append to prompt" actions can only append strings.
@@ -40,10 +40,11 @@ This probably should not lead near-term work by itself. The strongest trigger is
 
 ## Current implementation to account for
 
-- [prompt-input.tsx](/Users/mytop/code/instrument/instrument/apps/studio/src/client/components/prompt-input.tsx) owns prompt UI, model selection, attachment state, paste handling, submit validation, and textarea auto-resize.
-- [prompt-value.ts](/Users/mytop/code/instrument/instrument/apps/studio/src/client/atoms/prompt-value.ts) stores drafts as strings and exposes textarea-specific focus/append helpers.
-- [user-message.tsx](/Users/mytop/code/instrument/instrument/apps/studio/src/client/components/user-message.tsx) renders sent user text as plain `whitespace-pre-wrap` content with collapse/copy chrome.
-- [assistant-message.tsx](/Users/mytop/code/instrument/instrument/apps/studio/src/client/components/assistant-message.tsx) already uses [SessionMarkdown](/Users/mytop/code/instrument/instrument/apps/studio/src/client/components/session-markdown.tsx) for assistant text. Reusing that wholesale for user messages is intentionally not the plan.
+- [prompt-input.tsx](../../../apps/studio/src/client/components/prompt-input.tsx) owns prompt UI, model selection, attachment state, paste handling, and submit validation, and mounts the editor.
+- [prompt-editor.tsx](../../../apps/studio/src/client/components/prompt-editor.tsx) is the ProseMirror composer: it owns the document, renders skill references as inline atom chips, and serializes to plain text on submit. File, folder, and task chips would be new inline atom nodes here.
+- [prompt-value.ts](../../../apps/studio/src/client/atoms/prompt-value.ts) stores drafts as strings and exposes focus/append helpers that target the mounted editor (`PromptEditorRef`).
+- [user-message.tsx](../../../apps/studio/src/client/components/user-message.tsx) renders sent user text as `whitespace-pre-wrap` content with collapse/copy chrome, recognizing skill mention tokens as chips (`SkillMentionText`).
+- [assistant-message.tsx](../../../apps/studio/src/client/components/assistant-message.tsx) already uses [SessionMarkdown](../../../apps/studio/src/client/components/session-markdown.tsx) for assistant text. Reusing that wholesale for user messages is intentionally not the plan.
 
 ## Proposed architecture
 

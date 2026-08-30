@@ -1,6 +1,6 @@
 # Task attention state (unread / needs-input) must be persisted per task, not derived from live status
 
-**Status:** open — design guidance. Recorded 2026-07-08 while building the unread-indicators feature (FP-1161) and reviewing the `jmack/connectors-v1` spike. Last updated 2026-07-08.
+**Status:** implemented for unread-on-completion (8cd75214b): `unreadIndicator` persists in the task's settings.json with the recommended discriminated `kind` (`packages/workspace/src/schemas/task-indicator.ts`), written by the workspace machine on the terminal session transition. The needs-input kind and the mid-run-restart reconciliation below remain open. Recorded 2026-07-08 while building the unread-indicators feature (FP-1161) and reviewing the `jmack/connectors-v1` spike. Last updated 2026-08-30.
 
 ## Context
 

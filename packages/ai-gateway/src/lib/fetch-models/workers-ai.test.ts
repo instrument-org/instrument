@@ -228,6 +228,44 @@ describe("fetchAndParseWorkersAiModels", () => {
     );
   });
 
+  it("skips entries with unexpected id shapes and keeps the rest", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          modelsSearchResponse([
+            openRouterModel({
+              id: "@hf/thebloke/deepseek-coder-6.7b-instruct-awq",
+              name: "DeepSeek Coder",
+              supported_features: ["tools"],
+            }),
+            openRouterModel({
+              id: "@cf/no-second-slash",
+              name: "No Second Slash",
+              supported_features: ["tools"],
+            }),
+            openRouterModel({
+              id: "@cf/meta/llama-4-scout-17b-16e-instruct",
+              name: "Llama 4 Scout",
+              supported_features: ["tools"],
+            }),
+          ]),
+        ),
+        { status: 200 },
+      ),
+    );
+
+    const result = await fetchAndParseWorkersAiModels(workersAiConfig);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.value.map((m) => m.providerId)).toEqual([
+      "@cf/meta/llama-4-scout-17b-16e-instruct",
+    ]);
+  });
+
   it("parses real API fixture correctly", async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify(modelsPageFixture), { status: 200 }),

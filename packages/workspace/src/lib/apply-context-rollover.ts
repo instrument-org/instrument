@@ -85,6 +85,53 @@ export function applyContextRollover({
 }
 
 /**
+ * The boundary that still applies, of the one the session recorded.
+ *
+ * A rollover is a decision taken under a constraint, and the constraint can go
+ * away. Reset on a small model, move to a roomy one, and an absolute boundary
+ * would keep the task assembling from a narrowed history for the rest of its
+ * life, hiding turns the new window has ample room for. Asking on every request
+ * instead means the boundary lifts by itself the moment the room appears, and
+ * settles back into place if the room goes away again, with nothing persisted
+ * either time and nothing for a user to have to ask for.
+ *
+ * The test is the window rather than the occupancy it was drawn against.
+ * Occupancy would have to be compared across tokenizers to be of any use here,
+ * and would have to estimate the size of a history nothing has measured since
+ * it was hidden. Windows are exact, both sides are known, and the comparison
+ * says precisely what the ticket asks: is the constraint that produced this
+ * boundary still in force. It is also self-consistent, in that a boundary
+ * cannot lift under the window it was drawn under, since a rollover only ever
+ * happens once occupancy has passed it.
+ *
+ * A boundary is kept whenever the answer is not clearly yes: a model whose
+ * window is unknown offers nothing to compare, and one recorded before the
+ * window was stored alongside it cannot be judged at all.
+ */
+export function contextRolloverBoundaryInForce({
+  rolledOverAfterMessageId,
+  rolledOverUnderUsableTokens,
+  usable,
+}: {
+  rolledOverAfterMessageId: StoreId.Message | undefined;
+  rolledOverUnderUsableTokens: number | undefined;
+  /** What the model now being asked may use, from `usableContextTokens`. */
+  usable: number | undefined;
+}): StoreId.Message | undefined {
+  if (
+    rolledOverAfterMessageId === undefined ||
+    rolledOverUnderUsableTokens === undefined ||
+    usable === undefined
+  ) {
+    return rolledOverAfterMessageId;
+  }
+
+  return usable > rolledOverUnderUsableTokens
+    ? undefined
+    : rolledOverAfterMessageId;
+}
+
+/**
  * Whether resetting the window now would actually free anything.
  *
  * Answered against the messages already inside the current window, so it reads

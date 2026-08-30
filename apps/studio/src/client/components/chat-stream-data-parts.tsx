@@ -12,6 +12,7 @@ import { type ReactNode } from "react";
 import { FilePathsGrid } from "./agent-files-block";
 import { AttachedFolderChangesNote } from "./attached-folder-changes-note";
 import { type RenderPartContext } from "./chat-stream-render-part";
+import { ModelChangeNote } from "./model-change-note";
 import { ModelContextDebugCard } from "./model-context-debug-card";
 import { ProjectChangesNote } from "./project-changes-note";
 import { SkillChangesCard } from "./skill-changes-card";
@@ -47,6 +48,10 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-fileChanges": "always",
   "data-intent": "dev",
   "data-maxSteps": "dev",
+  // Shown to everyone, unlike the rollover above it. The model a task runs on
+  // is the user's own choice, so naming the moment it changed describes
+  // something they did rather than something our assembly did.
+  "data-modelChange": "always",
   "data-paneTabs": "dev",
   "data-projectChanges": "always",
   "data-projectContext": "hidden",
@@ -170,6 +175,9 @@ export function renderDataPart({
           text={maxStepsModelNote(part.data)}
         />
       );
+    }
+    case "data-modelChange": {
+      return <ModelChangeNote data={part.data} key={part.metadata.id} />;
     }
     case "data-paneTabs": {
       return (

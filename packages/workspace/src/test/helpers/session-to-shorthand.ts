@@ -132,6 +132,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-maxSteps": {
       return `<data-maxSteps maxStepCount="${part.data.maxStepCount}" />`;
     }
+    case "data-modelChange": {
+      return `<data-modelChange from="${part.data.from.modelId}" to="${part.data.to.modelId}" />`;
+    }
     case "data-paneTabs": {
       const tabs = part.data.tabs
         .map((tab) => (tab.type === "file" ? tab.filePath : "browser"))

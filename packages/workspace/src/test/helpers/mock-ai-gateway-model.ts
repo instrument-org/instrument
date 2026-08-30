@@ -11,6 +11,7 @@ import {
 export function createMockAIGatewayModel(
   options: {
     author?: string;
+    /** Set it to tell two models apart, as a session that switches must. */
     canonicalId?: string;
     /** Omitted by default, which is what a provider reporting no window gives. */
     contextLength?: number;

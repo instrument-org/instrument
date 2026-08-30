@@ -10,17 +10,21 @@ import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { addCacheControlToMessages } from "./add-cache-control";
 import {
   applyContextRollover,
+  contextRolloverBoundaryInForce,
   contextRolloverWouldReclaim,
 } from "./apply-context-rollover";
 import {
   computeContextBudget,
   contextOccupancyFromMessages,
+  usableContextTokens,
 } from "./context-budget";
 import { contextBudgetNotice } from "./context-budget-notice";
+import { contextOverflowNeedsRollover } from "./context-overflow";
 import { dropTrailingFailedMessages } from "./drop-trailing-failed-messages";
 import { effectiveContextLength } from "./effective-context-length";
 import { filterUnsupportedMedia } from "./filter-unsupported-media";
 import { contextRolloverNotice, readHandoffNotes } from "./handoff-notes";
+import { modelChangeSincePreviousTurn } from "./model-change";
 import { normalizeModelImages } from "./normalize-model-images";
 import { normalizeToolCallIds } from "./normalize-tool-call-ids";
 import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning-details";
@@ -87,9 +91,49 @@ export async function prepareModelMessages({
   // longer being sent, and taking it at face value would roll the session over
   // again on every turn, eating another slice of history each time.
   const sessionResult = await Store.getSession(sessionId, taskId, { signal });
-  const rolledOverAfterMessageId = sessionResult.isOk()
-    ? sessionResult.value.rolledOverAfterMessageId
-    : undefined;
+  const session = sessionResult.isOk() ? sessionResult.value : undefined;
+
+  const contextLength = effectiveContextLength(model);
+  const usable = usableContextTokens(contextLength);
+
+  // Recorded before anything is measured or reset, so the transcript says the
+  // model moved even on a turn that then fails. Attached to the newest message
+  // the task has, which is the turn the new model is about to answer.
+  const modelChange = modelChangeSincePreviousTurn({
+    messages: allNonContextMessages,
+    model,
+  });
+  const newestMessage = allNonContextMessages.at(-1);
+
+  if (
+    modelChange &&
+    newestMessage &&
+    !newestMessage.parts.some((part) => part.type === "data-modelChange")
+  ) {
+    await Store.savePart(
+      {
+        data: modelChange,
+        metadata: {
+          createdAt: new Date(),
+          id: StoreId.newPartId(),
+          messageId: newestMessage.id,
+          sessionId,
+        },
+        type: "data-modelChange",
+      },
+      taskId,
+      { signal },
+    );
+  }
+
+  // Asked on every request rather than read straight off the session, so a
+  // boundary drawn when a smaller model ran out stops narrowing the history
+  // once a model with room for it is the one being asked.
+  const rolledOverAfterMessageId = contextRolloverBoundaryInForce({
+    rolledOverAfterMessageId: session?.rolledOverAfterMessageId,
+    rolledOverUnderUsableTokens: session?.rolledOverUnderUsableTokens,
+    usable,
+  });
 
   let nonContextMessages = applyContextRollover({
     messages: allNonContextMessages,
@@ -97,25 +141,69 @@ export async function prepareModelMessages({
   });
 
   let budget = computeContextBudget({
-    contextLength: effectiveContextLength(model),
-    occupied: contextOccupancyFromMessages(nonContextMessages),
+    contextLength,
+    modelId: model.canonicalId,
+    occupancy: contextOccupancyFromMessages(nonContextMessages),
   });
 
-  if (
-    budget.status === "exhausted" &&
-    contextRolloverWouldReclaim(nonContextMessages)
-  ) {
+  // A rollover spends history, so the verdict it acts on has to be a count this
+  // model reported. On the first turn after a switch the newest count came from
+  // the model before it, measured by a different tokenizer against a different
+  // window, and a roomy model's count held against a smaller one's window reads
+  // as exhausted whether or not it is. That is enough to warn the agent while
+  // it can still write handoff notes, which is the entire mechanism for
+  // carrying a task across a reset, and not enough to reset on. One turn later
+  // the current model has reported its own count and the ordinary path applies.
+  //
+  // Unless the provider refused the request for size, which is the case the
+  // deferral cannot survive on its own: a refused turn reports no usage, so the
+  // next turn reads the same carried-over count, defers again, and sends the
+  // same oversized request forever. A refusal is also the only evidence of a
+  // ceiling that a model with no reported window ever produces, and it is
+  // bounded to one reset per refusal for the reason given where it is read.
+  //
+  // Read from the messages inside the current window, like occupancy and for
+  // the same reason: a refusal an earlier reset already answered sits before
+  // that boundary, and reading past it would reset the session again on every
+  // turn over a request nothing is sending any more.
+  const rolloverIsWarranted =
+    (budget.status === "exhausted" && budget.occupancySource === "measured") ||
+    contextOverflowNeedsRollover(nonContextMessages);
+
+  if (rolloverIsWarranted && contextRolloverWouldReclaim(nonContextMessages)) {
     // Reset here rather than after assembling, so the request this call is
     // building is the smaller one. The boundary is the newest message the task
     // has: everything before it stops being sent, the user's own messages are
     // carried across, and the task continues in the same session rather than
     // failing the turn.
     const newest = allNonContextMessages.at(-1);
-    const session = sessionResult.isOk() ? sessionResult.value : undefined;
 
-    if (newest && session) {
+    // Applied before it is recorded, so what gets written down is a boundary
+    // that demonstrably changed the request rather than one that only should
+    // have. A boundary that drops nothing is not a smaller request by any
+    // amount; recording it would leave the session marked as having reset while
+    // sending exactly what it sent before, and the mark is what stops the next
+    // turn trying again.
+    const narrowed =
+      newest === undefined
+        ? undefined
+        : applyContextRollover({
+            messages: allNonContextMessages,
+            rolledOverAfterMessageId: newest.id,
+          });
+
+    if (
+      newest &&
+      session &&
+      narrowed &&
+      narrowed.length < allNonContextMessages.length
+    ) {
       const saveResult = await Store.saveSession(
-        { ...session, rolledOverAfterMessageId: newest.id },
+        {
+          ...session,
+          rolledOverAfterMessageId: newest.id,
+          rolledOverUnderUsableTokens: usable,
+        },
         taskId,
         { signal },
       );
@@ -125,13 +213,11 @@ export async function prepareModelMessages({
       // refused for size, which is the behavior this feature is replacing
       // rather than a regression it introduces.
       if (saveResult.isOk()) {
-        nonContextMessages = applyContextRollover({
-          messages: allNonContextMessages,
-          rolledOverAfterMessageId: newest.id,
-        });
+        nonContextMessages = narrowed;
         budget = computeContextBudget({
-          contextLength: effectiveContextLength(model),
-          occupied: contextOccupancyFromMessages(nonContextMessages),
+          contextLength,
+          modelId: model.canonicalId,
+          occupancy: contextOccupancyFromMessages(nonContextMessages),
         });
 
         // Written here, behind the same successful save, so the mark in the

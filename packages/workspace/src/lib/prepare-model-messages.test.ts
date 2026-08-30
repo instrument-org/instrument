@@ -684,6 +684,25 @@ describe("prepareModelMessages", () => {
       );
     }
 
+    /** A turn the provider refused for size, which reports no usage at all. */
+    function refusedForSize(): SessionMessage.AssistantWithParts {
+      const message = assistantMessage("");
+      return {
+        ...message,
+        metadata: {
+          ...message.metadata,
+          error: {
+            classification: "context-overflow",
+            kind: "api-call",
+            message: "prompt is too long",
+            name: "AI_APICallError",
+            url: "https://example.test/v1/messages",
+          },
+          finishReason: "error",
+        },
+      };
+    }
+
     describe("a model whose window is unknown", () => {
       it("produces no warning and no rollover, however full it is", async () => {
         await save(userMessage("First question"));
@@ -901,6 +920,209 @@ describe("prepareModelMessages", () => {
         await prepare(smallWindowModel);
 
         expect(await storedRolloverParts()).toHaveLength(1);
+      });
+    });
+
+    describe("a model switch", () => {
+      // Roomy enough that the small model's whole usable window is noise in it,
+      // so what these tests turn on is which window is being read rather than
+      // where a threshold happens to fall.
+      const roomyModel = createMockAIGatewayModel({
+        canonicalId: "roomy-model-id",
+        contextLength: 100_000,
+      });
+
+      /** The same turn, as the model that ran before the switch reported it. */
+      function fromAnotherModel(
+        message: SessionMessage.AssistantWithParts,
+      ): SessionMessage.AssistantWithParts {
+        return {
+          ...message,
+          metadata: { ...message.metadata, modelId: "roomy-model-id" },
+        };
+      }
+
+      /** A conversation the previous model filled, before the switch. */
+      async function fillPastOnAnotherModel(turns: number) {
+        await save(userMessage("First question"));
+        for (let index = 0; index < turns; index++) {
+          await save(
+            fromAnotherModel(assistantMessageWithUsage(`turn ${index}`, 900)),
+          );
+        }
+      }
+
+      async function storedModelChangeParts() {
+        const result = await Store.getMessagesWithParts({ sessionId, taskId });
+        return result
+          ._unsafeUnwrap()
+          .flatMap((message) => message.parts)
+          .filter((part) => part.type === "data-modelChange");
+      }
+
+      it("records the move, with the window either side of it", async () => {
+        await fillPastOnAnotherModel(4);
+
+        await prepare(smallWindowModel);
+
+        const parts = await storedModelChangeParts();
+
+        expect(parts).toHaveLength(1);
+        expect(parts[0]?.data).toEqual({
+          from: {
+            contextLength: undefined,
+            modelId: "roomy-model-id",
+            name: undefined,
+          },
+          to: {
+            contextLength: 1000,
+            modelId: "mock-model-id",
+            name: "Mock Model",
+          },
+        });
+      });
+
+      it("records it once, not again on every later turn", async () => {
+        await fillPastOnAnotherModel(4);
+        await prepare(smallWindowModel);
+
+        await save(assistantMessageWithUsage("answered here", 100));
+        await save(userMessage("and again"));
+        await prepare(smallWindowModel);
+
+        expect(await storedModelChangeParts()).toHaveLength(1);
+      });
+
+      it("records nothing for a session that never switched", async () => {
+        await save(userMessage("First question"));
+        await save(assistantMessageWithUsage("plenty of room", 100));
+
+        await prepare(smallWindowModel);
+
+        expect(await storedModelChangeParts()).toHaveLength(0);
+      });
+
+      it("warns on a count carried over from the model that ran before", async () => {
+        await fillPastOnAnotherModel(4);
+
+        const messages = await prepare(smallWindowModel);
+
+        // The warning is the whole mechanism for carrying a task across a
+        // reset, so it is the one thing a carried-over count must still buy.
+        expect(noticeIn(messages)).toContain("used all");
+      });
+
+      it("does not reset on it, however far past the window it reads", async () => {
+        await fillPastOnAnotherModel(4);
+
+        await prepare(smallWindowModel);
+
+        expect(await storedBoundary()).toBeUndefined();
+      });
+
+      it("resets once the model being asked has reported a count of its own", async () => {
+        await fillPastOnAnotherModel(4);
+        await prepare(smallWindowModel);
+        await save(assistantMessageWithUsage("first turn here", 900));
+
+        await prepare(smallWindowModel);
+
+        expect(await storedBoundary()).toBeDefined();
+      });
+
+      it("resets on a refused request without waiting for that count", async () => {
+        // Otherwise nothing ends this: a refused turn reports no usage, so the
+        // next turn reads the same carried-over count, defers again, and sends
+        // the same oversized request forever.
+        await fillPastOnAnotherModel(4);
+        await save(refusedForSize());
+
+        await prepare(smallWindowModel);
+
+        expect(await storedBoundary()).toBeDefined();
+      });
+
+      it("stops narrowing the history once a model has room for all of it", async () => {
+        await save(userMessage("First question"));
+        for (let index = 0; index < 4; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 900));
+        }
+        await prepare(smallWindowModel);
+        expect(
+          modelTexts(await prepare(smallWindowModel)).some((text) =>
+            text.includes("turn 0"),
+          ),
+        ).toBe(false);
+
+        const messages = await prepare(roomyModel);
+
+        expect(modelTexts(messages).some((text) => text.includes("turn 0"))).toBe(
+          true,
+        );
+        expect(
+          modelTexts(messages).some((text) =>
+            text.includes("<context-rollover>"),
+          ),
+        ).toBe(false);
+      });
+
+      it("leaves the boundary on disk, so returning to the small window restores it", async () => {
+        await save(userMessage("First question"));
+        for (let index = 0; index < 4; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 900));
+        }
+        await prepare(smallWindowModel);
+        const boundary = await storedBoundary();
+
+        await prepare(roomyModel);
+
+        expect(await storedBoundary()).toBe(boundary);
+        expect(
+          modelTexts(await prepare(smallWindowModel)).some((text) =>
+            text.includes("turn 0"),
+          ),
+        ).toBe(false);
+      });
+    });
+
+    describe("a request the provider refused for size", () => {
+      it("resets a session whose window the provider never reported", async () => {
+        // Budgeting is off for this model and cannot be turned on, so the
+        // refusal is the only evidence of a ceiling the session will ever get.
+        await save(userMessage("First question"));
+        for (let index = 0; index < 4; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 900));
+        }
+        await save(refusedForSize());
+
+        await prepare(anthropicModel);
+
+        expect(await storedBoundary()).toBeDefined();
+      });
+
+      it("resets a session the arithmetic reads as having room to spare", async () => {
+        // The advertised window was wrong, or something outside the transcript
+        // took the room. Either way the provider outranks the arithmetic.
+        await save(userMessage("First question"));
+        for (let index = 0; index < 4; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 10));
+        }
+        await save(refusedForSize());
+
+        await prepare(smallWindowModel);
+
+        expect(await storedBoundary()).toBeDefined();
+      });
+
+      it("leaves a session alone when the turn before it succeeded", async () => {
+        await save(userMessage("First question"));
+        for (let index = 0; index < 4; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 10));
+        }
+
+        await prepare(smallWindowModel);
+
+        expect(await storedBoundary()).toBeUndefined();
       });
     });
   });

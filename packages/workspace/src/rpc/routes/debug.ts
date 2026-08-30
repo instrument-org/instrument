@@ -3,6 +3,7 @@ import {
   AIProviderConfigIdSchema,
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
+import ms from "ms";
 import { z } from "zod";
 
 import { type AgentName } from "../../agents/types";
@@ -204,6 +205,16 @@ const replaySession = base
  */
 const RUN_BASH_STREAM_LIMIT = 256 * 1024;
 
+/**
+ * No real caller aborts the oRPC signal (the debug bridge fires and forgets),
+ * so the time bound lives here: without one a hung command holds its bash env
+ * and any shim subprocess until just-bash's own one-hour execution deadline.
+ * Generous next to the agent tool's 30s because a debug check may cold-start
+ * uv or pnpm; the cap keeps an override from reopening the hour-long hole.
+ */
+const RUN_BASH_DEFAULT_TIMEOUT_MS = ms("2 minutes");
+const RUN_BASH_MAX_TIMEOUT_MS = ms("10 minutes");
+
 function clampStream(stream: string) {
   return stream.slice(0, RUN_BASH_STREAM_LIMIT);
 }
@@ -230,6 +241,12 @@ const runBash = base
       command: z.string().min(1),
       sessionId: StoreId.SessionSchema,
       taskId: TaskIdSchema,
+      timeoutMs: z
+        .number()
+        .int()
+        .min(1)
+        .max(RUN_BASH_MAX_TIMEOUT_MS)
+        .default(RUN_BASH_DEFAULT_TIMEOUT_MS),
     }),
   )
   .output(
@@ -251,9 +268,12 @@ const runBash = base
     });
 
     const startedAt = performance.now();
+    const timeout = AbortSignal.timeout(input.timeoutMs);
 
     try {
-      const result = await bash.exec(input.command, { signal });
+      const result = await bash.exec(input.command, {
+        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      });
       return {
         durationMs: Math.round(performance.now() - startedAt),
         exitCode: result.exitCode,

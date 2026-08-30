@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { MermaidDiagram } from "./mermaid-diagram";
 import { ThemeProvider } from "./theme-provider";
+import { TranscriptScrollContext } from "./transcript-scroll-context";
 
 // Mermaid lays a diagram out by measuring the text it is about to draw, so it
 // needs `getBBox` and a font — neither of which jsdom has. A test there sees no
@@ -205,6 +206,28 @@ describe("MermaidDiagram", () => {
     expect(globalThis.getComputedStyle(node).fill).not.toBe(
       globalThis.getComputedStyle(surface).backgroundColor,
     );
+  });
+
+  // While the transcript's scroller follows the live end, swapping the diagram
+  // for its taller or shorter source re-pins it to the bottom and carries the
+  // view the reader just asked for off screen. `TranscriptScrollContext` is the
+  // contract: every control that reshapes a block hands scrolling back first.
+  it("hands scrolling back to the reader before swapping in the source", async () => {
+    const releaseAutoScroll = vi.fn();
+    const screen = await renderInBrowser(
+      <TranscriptScrollContext value={releaseAutoScroll}>
+        <ThemeProvider>
+          <div style={{ width: 600 }}>
+            <MermaidDiagram code={GRAPH} language="mermaid" />
+          </div>
+        </ThemeProvider>
+      </TranscriptScrollContext>,
+    );
+    await expect.poll(() => diagramSvg(screen.container)).toBeTruthy();
+
+    await screen.getByRole("button", { name: "Show source" }).click();
+
+    expect(releaseAutoScroll).toHaveBeenCalledOnce();
   });
 
   it("styles the source view as an ordinary code block", async () => {

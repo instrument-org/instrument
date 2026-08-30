@@ -45,22 +45,18 @@ export function parseWorkersAiModelsList({
     }
 
     const providerId = AIGatewayModel.ProviderIdSchema.parse(model.id);
-    // All Workers AI model IDs from the API are in @cf/author/model form.
-    // Strip the prefix to extract author and canonicalId.
+    // Workers AI model IDs are expected in @cf/author/model form; strip the
+    // prefix to extract author and canonicalId. An entry with any other shape
+    // must not take down the provider's whole list, so skip it like the
+    // modality and feature filters do.
     if (!providerId.startsWith("@cf/")) {
-      return Result.error(
-        new TypedError.Parse(
-          `Unexpected Workers AI model ID (missing @cf/ prefix): ${model.id}`,
-        ),
-      );
+      continue;
     }
 
     const withoutPrefix = providerId.slice(4);
     const slashIndex = withoutPrefix.indexOf("/");
     if (slashIndex === -1) {
-      return Result.error(
-        new TypedError.Parse(`Invalid Workers AI model ID: ${model.id}`),
-      );
+      continue;
     }
 
     const author = withoutPrefix.slice(0, slashIndex);

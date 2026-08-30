@@ -5,6 +5,7 @@ import {
   type AIGatewayModel,
   CLIENT_SESSION_ID_HEADER,
   fetchAISDKModel,
+  findCachedModelByProviderId,
   providerOptionsForModel,
 } from "@instrument-org/ai-gateway";
 import {
@@ -279,6 +280,7 @@ export const llmRequestLogic = fromPromise<
             completion_tokens_per_second: completionTokensPerSecond,
             finish_reason: part.finishReason,
             input_tokens: part.totalUsage.inputTokens ?? 0,
+            model_id_served: assistantMessage.metadata.modelIdServed,
             modelId,
             ms_to_finish: msToFinish ?? 0,
             ms_to_first_chunk: msToFirstChunk ?? 0,
@@ -298,10 +300,25 @@ export const llmRequestLogic = fromPromise<
         case "finish-step": {
           // We only run one step, so the rest of this is covered by "finish",
           // which has no response metadata of its own to read the served model
-          // from. Recorded even when it equals the requested id, so a step that
-          // went through a routing alias and one that named a model outright
-          // are read the same way.
-          assistantMessage.metadata.modelIdServed = part.response.modelId;
+          // from.
+          //
+          // Compared against the id we handed the SDK rather than stored
+          // outright, because the SDK seeds this field with that same id and
+          // only overwrites it if the provider reports one. An id equal to what
+          // we sent therefore says nothing: it is either a provider confirming
+          // our request or a provider that never mentioned the subject, and
+          // Google is always the second. A difference is the only thing that
+          // can only have come from the provider.
+          if (part.response.modelId !== aiSDKModel.modelId) {
+            assistantMessage.metadata.modelIdServed = part.response.modelId;
+            assistantMessage.metadata.aiGatewayModelServed =
+              findCachedModelByProviderId({
+                configs: workspaceConfig.getAIProviderConfigs(),
+                modelCache: workspaceConfig.modelCache,
+                providerConfigId: input.model.params.providerConfigId,
+                providerId: part.response.modelId,
+              });
+          }
           break;
         }
         case "raw": {

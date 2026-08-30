@@ -3,6 +3,7 @@ import {
   type LanguageModelV3Prompt,
   type LanguageModelV3StreamPart,
 } from "@ai-sdk/provider";
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import {
   type AIProviderType,
   OUR_PROVIDER_CONFIG,
@@ -100,11 +101,13 @@ describe("llmRequestLogic", () => {
 
   async function createTestMachine({
     beforeStream,
+    catalog,
     chunks,
     getMessages = () => Promise.resolve(mockMessages),
     provider = OUR_PROVIDER_CONFIG.type,
   }: {
     beforeStream?: () => Promise<void>;
+    catalog?: AIGatewayModel.Type[];
     chunks: LanguageModelV3StreamPart[];
     getMessages?: () => Promise<SessionMessage.ContextWithParts[]>;
     provider?: AIProviderType;
@@ -151,6 +154,7 @@ describe("llmRequestLogic", () => {
 
     const taskConfig = createMockTaskConfig(TaskIdSchema.parse(`mock`), {
       aiSDKModel: mockLanguageModel,
+      catalog,
       model,
     });
     await Store.saveSession(
@@ -309,7 +313,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -393,7 +396,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2.5,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -479,7 +481,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -567,7 +568,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -659,7 +659,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -754,7 +753,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -833,7 +831,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -924,7 +921,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2.5,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -1004,7 +1000,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -1089,7 +1084,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -1169,7 +1163,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -1267,7 +1260,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2.5,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -2376,7 +2368,6 @@ describe("llmRequestLogic", () => {
             "metadata": {
               "completionTokensPerSecond": 2,
               "finishReason": "stop",
-              "modelIdServed": "mock-model-id",
               "sessionId": "ses_00000000018888888888888888",
             },
             "parts": [
@@ -2483,7 +2474,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 1.6666666666666667,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -2529,5 +2519,109 @@ describe("llmRequestLogic", () => {
         },
       ]
     `);
+  });
+
+  // The AI SDK seeds its response metadata with the id we sent and overwrites it
+  // only when the provider reports one, so an id equal to the request is not
+  // evidence that anything named it. Only a difference can have come from the
+  // provider, and only a difference is worth storing.
+  describe("the model that served the request", () => {
+    it("records the served id when the provider names a different model", async () => {
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { modelId: "openai/gpt-5.6-luna", type: "response-metadata" },
+          { id: "1", type: "text-start" },
+          { delta: "Hello", id: "1", type: "text-delta" },
+          { id: "1", type: "text-end" },
+        ],
+      });
+
+      const assistant = messages.find((message) => message.role === "assistant");
+      expect(assistant?.metadata).toMatchObject({
+        modelIdServed: "openai/gpt-5.6-luna",
+      });
+    });
+
+    // Nothing in the mock cache answers to that id, which is the ordinary
+    // outcome for a model released between two refreshes of the list. The id
+    // stands on its own and everything reading it falls back to showing it.
+    it("snapshots the served model's record when the catalog has one", async () => {
+      const luna = createMockAIGatewayModel({
+        author: "openai",
+        canonicalId: "gpt-5.6-luna",
+        name: "GPT-5.6 Luna",
+        providerId: "openai/gpt-5.6-luna",
+      });
+      const { messages } = await createAndRunTestMachine({
+        catalog: [luna],
+        chunks: [
+          { modelId: "openai/gpt-5.6-luna", type: "response-metadata" },
+          { id: "1", type: "text-start" },
+          { delta: "Hello", id: "1", type: "text-delta" },
+          { id: "1", type: "text-end" },
+        ],
+      });
+
+      const assistant = messages.find((message) => message.role === "assistant");
+      expect(assistant?.metadata).toMatchObject({
+        aiGatewayModelServed: { name: "GPT-5.6 Luna" },
+        modelIdServed: "openai/gpt-5.6-luna",
+      });
+    });
+
+    it("leaves the served model record absent when the catalog has none", async () => {
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { modelId: "openai/gpt-5.6-luna", type: "response-metadata" },
+          { id: "1", type: "text-start" },
+          { delta: "Hello", id: "1", type: "text-delta" },
+          { id: "1", type: "text-end" },
+        ],
+      });
+
+      const assistant = messages.find((message) => message.role === "assistant");
+      expect(
+        assistant && "aiGatewayModelServed" in assistant.metadata
+          ? assistant.metadata.aiGatewayModelServed
+          : undefined,
+      ).toBeUndefined();
+    });
+
+    it("records nothing when the provider names the model we asked for", async () => {
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { modelId: "mock-model-id", type: "response-metadata" },
+          { id: "1", type: "text-start" },
+          { delta: "Hello", id: "1", type: "text-delta" },
+          { id: "1", type: "text-end" },
+        ],
+      });
+
+      const assistant = messages.find((message) => message.role === "assistant");
+      expect(
+        assistant && "modelIdServed" in assistant.metadata
+          ? assistant.metadata.modelIdServed
+          : undefined,
+      ).toBeUndefined();
+    });
+
+    // Google reports nothing at all, so its every turn used to claim it had
+    // been served the model we asked for.
+    it("records nothing when the provider reports no model", async () => {
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { id: "1", type: "text-start" },
+          { delta: "Hello", id: "1", type: "text-delta" },
+          { id: "1", type: "text-end" },
+        ],
+      });
+
+      const assistant = messages.find((message) => message.role === "assistant");
+      expect(
+        assistant && "modelIdServed" in assistant.metadata
+          ? assistant.metadata.modelIdServed
+          : undefined,
+      ).toBeUndefined();
+    });
   });
 });

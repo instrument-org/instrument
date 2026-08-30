@@ -10,6 +10,7 @@ import { getLanguageDisplayName } from "../lib/file-extension-to-language";
 import { cn } from "../lib/utils";
 import { CopyButton } from "./copy-button";
 import { FileIcon } from "./file-icon";
+import { useReleaseAutoScroll } from "./transcript-scroll-context";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 /** Shared styling for the controls that float over a rendered block. */
@@ -201,6 +202,7 @@ export const MarkdownCodeBlock = ({
 }) => {
   const [wrapLines, setWrapLines] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
+  const releaseAutoScroll = useReleaseAutoScroll();
 
   const lineCount = code.split("\n").length;
   const isCollapsible = lineCount > COLLAPSIBLE_LINES;
@@ -245,6 +247,7 @@ export const MarkdownCodeBlock = ({
             icon={wrapLines ? ArrowElbowDownLeftIcon : ArrowsHorizontalIcon}
             label="Wrap lines"
             onClick={() => {
+              releaseAutoScroll();
               setWrapLines(!wrapLines);
             }}
             pressed={wrapLines}
@@ -288,6 +291,7 @@ export const MarkdownCodeBlock = ({
           }
           isExpanded={isExpanded}
           onToggle={() => {
+            releaseAutoScroll();
             setIsExpanded(!isExpanded);
           }}
         />

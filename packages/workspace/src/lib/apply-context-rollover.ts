@@ -145,8 +145,15 @@ function cutTextToBudget(
     // A tail can open on the low half of a character whose high half was cut
     // away, which is the same broken encoding a naive head cut makes and which
     // providers reject. Dropping halves is what the sanitizer is for.
+    // Capped at the part's own length: for a part that starts past tailStart
+    // the overlap with the tail region is the whole part, and an uncapped
+    // count would push the slice index negative and cut text the budget had
+    // room for.
     const tail = sanitizeSurrogates(
-      part.text.slice(part.text.length - Math.max(0, consumed - tailStart)),
+      part.text.slice(
+        part.text.length -
+          Math.min(part.text.length, Math.max(0, consumed - tailStart)),
+      ),
     );
     const omitted = part.text.length - head.length - tail.length;
 

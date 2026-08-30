@@ -145,7 +145,9 @@ export function fetchOpenAICompatibleModels(
   setProviderAuthHeaders(headers, config);
 
   return fetchJson({
-    cache: cache || !metadata.api.defaultBaseURL.startsWith("http://localhost"),
+    // Local servers (Ollama, LM Studio, ...) change their model list while the
+    // app runs, so their responses are never worth an hour in the cache.
+    cache: cache && !metadata.api.defaultBaseURL.startsWith("http://localhost"),
     headers,
     url: openAICompatibleURL({ config, path: "/models" }),
   });

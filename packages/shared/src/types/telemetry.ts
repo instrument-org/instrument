@@ -40,6 +40,11 @@ export interface AnalyticsEvents {
     completion_tokens_per_second?: number | undefined;
     finish_reason: string;
     input_tokens: number | undefined;
+    // The provider's own id for the model it served, present only when that is
+    // a different model from the one `model_id` names. Without it a session run
+    // through a router reports the router on every event, and nothing about the
+    // model that did the work is recoverable from analytics.
+    model_id_served?: string | undefined;
     ms_to_finish: number;
     ms_to_first_chunk: number;
     output_tokens: number | undefined;

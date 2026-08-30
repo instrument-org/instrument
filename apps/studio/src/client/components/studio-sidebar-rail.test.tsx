@@ -25,6 +25,10 @@ beforeEach(() => {
   localStorage.clear();
 });
 
+function handle() {
+  return screen.getByLabelText("Resize sidebar");
+}
+
 function renderRail() {
   const rendered = renderWithProviders(
     <StudioSidebarRail isOpen onCollapse={() => {}} />,
@@ -34,10 +38,6 @@ function renderRail() {
     throw new TypeError("rail did not render");
   }
   return { ...rendered, rail };
-}
-
-function handle() {
-  return screen.getByLabelText("Resize sidebar");
 }
 
 // Long enough for the rail's spring (stiffness 520, damping 42) to visibly

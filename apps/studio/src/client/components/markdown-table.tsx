@@ -19,11 +19,24 @@ import {
 } from "./ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
-/** The middle of a row, which is the furthest a control gets from both rules. */
-const bandCenter = (row: Element | null) =>
-  row instanceof HTMLTableRowElement
-    ? row.offsetTop + row.offsetHeight / 2
-    : undefined;
+/** The table-relative top of a row. */
+const rowTop = (row: Element | null) =>
+  row instanceof HTMLTableRowElement ? row.offsetTop : undefined;
+
+/** The table-relative middle of a row. */
+const rowCenter = (row: Element | null) => {
+  if (!(row instanceof HTMLTableRowElement)) {
+    return;
+  }
+  const block = row.closest(".markdown-table-row");
+  if (!block) {
+    return row.offsetTop + row.offsetHeight / 2;
+  }
+  const rowBounds = row.getBoundingClientRect();
+  return (
+    rowBounds.top - block.getBoundingClientRect().top + rowBounds.height / 2
+  );
+};
 
 // How long the row control reports a copy for.
 const COPIED_MS = 2000;
@@ -64,24 +77,6 @@ const setFlag = (element: HTMLElement, name: string, on: boolean) => {
 /** The transcript the block sits in, where one named itself. */
 const transcriptOf = (frame: HTMLElement) => frame.closest("[data-transcript]");
 
-/**
- * How much transcript there is beside the block, on one side.
- *
- * The block is centered on the text measure and the measure is centered in the
- * transcript, so the two cancel and this is only ever half of what the block
- * has not taken. Zero without a transcript to measure, which leaves every
- * control on top of the table, as they were.
- *
- * Measured off the element rather than read from `--transcript-room`: that
- * value reaches this through a container query, and a resize can arrive here
- * before the query has been recomputed -- which reads as no room at all, and
- * sends every control back on top of the table for the rest of the session.
- */
-const roomBesideBlock = (frame: HTMLElement) => {
-  const room = transcriptOf(frame)?.clientWidth ?? 0;
-  return room > 0 ? (room - frame.offsetWidth) / 2 : 0;
-};
-
 const copy = (rows: string[][], format?: TableCopyFormat) => {
   if (rows.length === 0) {
     return;
@@ -94,8 +89,10 @@ const copy = (rows: string[][], format?: TableCopyFormat) => {
 };
 
 /**
- * A Markdown table, in a block that takes the room the transcript has before it
- * resorts to scrolling, and carries the controls a table wants once it is one
+ * A Markdown table whose resting position keeps the prose's leading edge. Its
+ * scroll frame spans the transcript: a leading spacer holds the table at that
+ * edge initially, then scrolls away so later columns can use the room before
+ * the prose too. It also carries the controls a table wants once it is one
  * thing rather than a run of prose: copy, copy one row, and open.
  *
  * The geometry is all in `markdown-table-row` / `markdown-table-frame`; what is
@@ -153,8 +150,17 @@ export const MarkdownTable = ({
    */
   const placeControl = (control: HTMLElement, frame: HTMLElement) => {
     const width = toolbarRef.current?.offsetWidth ?? 0;
-    const outside = width > 0 && roomBesideBlock(frame) >= width + CONTROL_GAP;
-    const edge = frame.offsetLeft + frame.clientWidth;
+    const table = element();
+    const scrollable = frame.scrollWidth - frame.clientWidth > 1;
+    const tableEnd = table
+      ? table.offsetLeft - frame.offsetLeft + table.offsetWidth
+      : frame.clientWidth;
+    const visibleEdge = scrollable
+      ? frame.clientWidth
+      : Math.min(frame.clientWidth, tableEnd);
+    const outside =
+      width > 0 && frame.clientWidth - visibleEdge >= width + CONTROL_GAP;
+    const edge = frame.offsetLeft + visibleEdge;
     setFlag(control, "data-outside", outside);
     setStyle(control, "left", `${outside ? edge : edge - 4}px`);
   };
@@ -171,20 +177,17 @@ export const MarkdownTable = ({
     setFlag(frame, "data-scroll-start", frame.scrollLeft > 1);
     setFlag(frame, "data-scroll-end", behind > 1);
 
-    // Centered in the header's own band, at the trailing end of what is
-    // visible: a control between two rows would sit on the rule that divides
-    // them, and centering is what puts the most air between it and both.
+    // Two pixels above the table's top edge, at the trailing end of what is
+    // visible. Unlike row-copy, this toolbar belongs to the whole table rather
+    // than to the header text, so it carries no cell-content inset.
     // `clientWidth` rather than the frame's box, so a scrollbar does not push
     // it under one; the controls are translated back by their own size, so
     // neither has to be measured.
     const toolbar = toolbarRef.current;
     const header = frame.querySelector("thead tr");
     if (toolbar) {
-      setStyle(
-        toolbar,
-        "top",
-        `${bandCenter(header) ?? frame.offsetTop + 12}px`,
-      );
+      const top = rowTop(header) ?? frame.offsetTop;
+      setStyle(toolbar, "top", `${top - 2}px`);
       placeControl(toolbar, frame);
     }
   };
@@ -285,7 +288,7 @@ export const MarkdownTable = ({
       clearCopied(chip);
     }
     chip.dataset.row = String(row.rowIndex);
-    setStyle(chip, "top", `${bandCenter(row) ?? 0}px`);
+    setStyle(chip, "top", `${rowCenter(row) ?? 0}px`);
     placeControl(chip, frame);
     chip.dataset.visible = "";
   };
@@ -332,6 +335,7 @@ export const MarkdownTable = ({
         ref={frameRef}
       >
         <span aria-hidden className="markdown-table-fade" data-edge="start" />
+        <span aria-hidden className="markdown-table-lead" />
         <table>{children}</table>
         <span aria-hidden className="markdown-table-fade" data-edge="end" />
       </div>

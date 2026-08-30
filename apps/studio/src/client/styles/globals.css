@@ -1057,44 +1057,51 @@ a.cursor-pointer {
 /* A Markdown table is the one block in a message that cannot be made
    narrower without being made unreadable: squeezed into the text measure, a
    six-column comparison gives each column about seventy pixels and stacks
-   every value, which reads worse than not showing it. So it is let out of
-   the measure and into whatever the transcript has left either side of it,
-   and only what still does not fit after that scrolls -- inside the block,
-   rather than under the whole conversation, which is what a bare `<table>`
-   did.
+   every value, which reads worse than not showing it. Its scroll frame spans
+   the transcript, while a leading spacer keeps the table aligned with prose
+   at rest. Scrolling spends that spacer first, letting later columns use the
+   room before the prose too. Only what still does not fit after that scrolls
+   inside the block rather than under the whole conversation, which is what a
+   bare `<table>` did.
  */
 .markdown-table-row {
   position: relative;
   display: grid;
+  container-type: inline-size;
   /* A definite track. An `auto` one is sized by its own item, which makes
      that item's percentage width cyclic; Chromium then drops the frame's
      `max-width` entirely and the table grows straight past the pane. */
   grid-template-columns: minmax(0, 1fr);
-  /* Centers the frame on the measure even when it is wider than the track,
-     which block-level auto margins do not do. */
+  /* The frame is wider than this track whenever the transcript has room, and
+     needs to grow equally past both sides of the centered response column. */
   justify-items: center;
   /* The rhythm the table's own margins carried before they moved onto the
      frame, where they would have been inside the scroll area. */
   margin-block: 2em;
 }
 
+/* A transcript needs paragraph rhythm around an inline table; its dedicated
+   modal already provides that structure. Keep a small separation from the
+   title and let the shell's padding finish immediately after the last row. */
+.markdown-table-modal-body .markdown-table-row {
+  margin-block: 1rem 0;
+}
+
 .markdown-table-frame {
   --table-edge: 1rem;
   --table-fade: 1.5rem;
-  /* Half the slack between the text measure and the transcript, so the block
-     stays centered on the column it grew out of, and 0 with no transcript to
-     measure -- which leaves the frame exactly the measure. */
+  /* The slack between the text measure and one edge of the centered
+     transcript, and 0 with no transcript to measure. */
   --table-bleed: max(
     0px,
-    calc((var(--transcript-room) - 2 * var(--table-edge) - 100%) / 2)
+    calc((var(--transcript-room) - 2 * var(--table-edge) - 100cqi) / 2)
   );
 
   display: flex;
-  /* Its natural width, floored at the measure so a two-column table still
-     fills the column the way it always has, and capped at the pane. */
-  width: max-content;
-  min-width: 100%;
-  max-width: calc(100% + 2 * var(--table-bleed));
+  /* The whole usable transcript is the viewport. The table does not begin at
+     its leading edge, though: `markdown-table-lead` occupies that gutter until
+     horizontal scrolling carries it away. */
+  width: calc(100% + 2 * var(--table-bleed));
   overflow-x: auto;
   /* `auto` on one axis makes the other a scroll container too, which a
      table's own block margins would then find something to scroll. */
@@ -1102,13 +1109,16 @@ a.cursor-pointer {
   overscroll-behavior-x: contain;
 }
 
+.markdown-table-lead {
+  flex: 0 0 var(--table-bleed);
+}
+
 .markdown-table-frame > table {
   flex: 0 0 auto;
   width: max-content;
-  /* Cyclic against a `max-content` parent, which is what makes it work:
-     intrinsic sizing ignores it, so the frame is sized by the table, and the
-     table then fills a frame the measure floor made wider. */
-  min-width: 100%;
+  /* The frame includes both gutters, so subtract them to preserve the old
+     behavior where a narrow table still fills the prose measure. */
+  min-width: calc(100% - 2 * var(--table-bleed));
   margin: 0;
 }
 
@@ -1146,16 +1156,15 @@ a.cursor-pointer {
 }
 
 /* Copy and expand. Outside the scroller, because the frame clips vertically to
-   keep a stray scrollbar off it, and these have to ride the table's top edge --
-   half of them in the block's own margin, where nothing else is. Placed from
-   the frame rather than from this box: the frame is wider than the measure
+   keep a stray scrollbar off it. Their top follows the table's top edge and
+   their inline position follows the frame: the frame is wider than the measure
    whenever it has taken room, so the two right edges are not the same one. */
 .markdown-table-toolbar {
   position: absolute;
   z-index: 3;
   display: flex;
   gap: 0.25rem;
-  transform: translate(-100%, -50%);
+  transform: translateX(-100%);
   opacity: 0;
   transition: opacity 100ms;
 }
@@ -1179,9 +1188,12 @@ a.cursor-pointer {
    padding. On the toolbar it is margin instead, because the toolbar's width is
    what the room check measures, and padding would widen the measurement by the
    very gap it is checking for. */
-.markdown-table-toolbar[data-outside],
+.markdown-table-toolbar[data-outside] {
+  transform: translateX(0);
+}
+
 .markdown-table-row-copy[data-outside] {
-  transform: translate(0, -50%);
+  transform: translateY(-50%);
 }
 
 .markdown-table-toolbar[data-outside] {
@@ -1194,8 +1206,9 @@ a.cursor-pointer {
 
 /* The table's own controls. A bare icon rather than the bordered button a code
    block and a diagram use: those sit on a filled surface a control has to lift
-   off, and these sit in the thin band of cell padding between two rows, where a
-   border is the only thing that would read as clutter.
+   off, and these sit in a table's cell padding, where a border is the only
+   thing that would read as clutter. The small elevation keeps their fill
+   distinct when it covers table content.
  
    The fill is not decoration. A control here overlaps the header or a row
    whenever the table is narrow enough, and an icon alone on top of text is
@@ -1209,10 +1222,11 @@ a.cursor-pointer {
   display: grid;
   flex: 0 0 auto;
   place-items: center;
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1.5rem;
+  height: 1.5rem;
   border-radius: var(--radius-sm);
   background: var(--background);
+  box-shadow: var(--shadow-xs);
   color: var(--muted-foreground);
 }
 
@@ -1225,10 +1239,9 @@ a.cursor-pointer {
    mid-stream would otherwise re-render every row of itself to answer a pointer
    move.
  
-   It rides the row's opening edge at the trailing end, which puts it in the
-   cell padding either side of that edge rather than over any of the row's text
-   -- the one place in a table that is reliably empty at every width. Reaching
-   for it still never leaves the row, because the row is what it is sitting on. */
+   It rides the center of the row at the trailing end, so its larger hit target
+   has equal room above and below it. Reaching for it still never leaves the
+   row, because the row is what it is sitting on. */
 .markdown-table-row-copy {
   position: absolute;
   z-index: 2;

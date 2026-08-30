@@ -85,7 +85,7 @@ export function AssistantMessagesFooter({
         | SessionMessagePart.SourceDocumentPart
         | SessionMessagePart.SourceUrlPart
       )[] = [];
-      let combinedText = "";
+      const textParts: string[] = [];
       let latestDate: Date | undefined;
 
       const modelMap = new Map<string, ModelUsageData>();
@@ -99,8 +99,16 @@ export function AssistantMessagesFooter({
             seenSourceIds.add(part.sourceId);
             allSources.push(part);
           }
+          // Joined with a blank line, because that is how they read on screen:
+          // a turn's prose arrives one part per step, each drawn as its own
+          // block, and a copy that ran them together would paste as run-on
+          // text. Whitespace-only parts are dropped the way the transcript
+          // drops them.
           if (part.type === "text") {
-            combinedText += part.text;
+            const text = part.text.trim();
+            if (text) {
+              textParts.push(text);
+            }
           }
         }
 
@@ -129,7 +137,7 @@ export function AssistantMessagesFooter({
       return {
         elapsedDuration: elapsed,
         latestCreatedAt: latestDate,
-        messageText: combinedText,
+        messageText: textParts.join("\n\n"),
         modelsUsed: [...modelMap.entries()]
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([, data]) => data),

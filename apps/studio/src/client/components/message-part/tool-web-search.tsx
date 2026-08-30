@@ -93,8 +93,9 @@ export function ToolWebSearch({
 
       {/* A summary and an excerpt are both somebody else's page, so their
           markdown gets embedded images only: an `<img>` naming a host is
-          fetched the moment the card renders, and `hideImages` keeps the
-          rejected ones from stacking up as placeholder rows. */}
+          fetched the moment the card renders, and `hideImages` swaps a
+          rejected one for a click-to-load placeholder instead of stacking up
+          full ones as placeholder rows. */}
       {results && hasSearchContent && (
         <ToolCardSection collapsedHeight={448}>
           {results.kind === "summary" ? (

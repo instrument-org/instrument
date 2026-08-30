@@ -1,6 +1,6 @@
 import { renderWithProviders } from "@/tests/render";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { FileViewer } from "./file-viewer";
@@ -73,12 +73,39 @@ describe("FileViewer markdown preview", () => {
     expect(sources).toEqual(["data:image/png;base64,QUJD"]);
   });
 
-  // Hidden rather than replaced: a README's badge row would otherwise open
-  // every file on a wall of placeholders.
-  it("drops a rejected image without leaving a placeholder", async () => {
+  // Not fetched until a reader clicks for it: a rejected source names its URL
+  // in a placeholder rather than reaching for it, so no `<img>` renders for it
+  // on its own.
+  it("holds a rejected image behind a click instead of fetching it", async () => {
     const { container } = renderMarkdownFile();
     await screen.findByText("Notes");
 
-    expect(container.textContent).not.toContain("raw.githubusercontent.com");
+    const sources = [...container.querySelectorAll("img")].map((image) =>
+      image.getAttribute("src"),
+    );
+    expect(sources).toEqual(["data:image/png;base64,QUJD"]);
+    expect(
+      screen.getByText("https://raw.githubusercontent.com/o/r/main/p.png"),
+    ).toBeTruthy();
+    expect(screen.getByText("http://x.localhost:11434/probe")).toBeTruthy();
+  });
+
+  // A reader who wants a rejected image anyway can still choose to load it: the
+  // click is the request, and it happens only for the one placeholder clicked.
+  it("draws a rejected image once its placeholder is clicked", async () => {
+    const { container } = renderMarkdownFile();
+    await screen.findByText("Notes");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /raw\.githubusercontent\.com/ }),
+    );
+
+    const sources = [...container.querySelectorAll("img")].map((image) =>
+      image.getAttribute("src"),
+    );
+    expect(sources).toEqual([
+      "data:image/png;base64,QUJD",
+      "https://raw.githubusercontent.com/o/r/main/p.png",
+    ]);
   });
 });

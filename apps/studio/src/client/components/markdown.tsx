@@ -73,11 +73,15 @@ interface MarkdownProps {
   // Which bytes this text's file references are about; see
   // `MarkdownTaskContext`.
   assetVersion?: string;
-  // Drops the images the allow-list rejects instead of standing a placeholder
-  // in for them. For markdown scraped from a page rather than authored for us:
-  // the allow-list passes nothing such a page carries, so every placeholder is
-  // permanent, and being block-level each one interrupts the prose it sits in
-  // to name a picture the reader will never see.
+  // Swaps the images the allow-list rejects for a compact, click-to-load
+  // placeholder instead of the full standing one. For markdown scraped from a
+  // page rather than authored for us, the allow-list passes nothing such a
+  // page carries, so every placeholder would otherwise be permanent and,
+  // being block-level, interrupt the prose it sits in to name a picture the
+  // reader will never see. A reader who wants the picture anyway can still
+  // load it: the placeholder names the URL and loads it only on a click,
+  // which is the same one-request-per-click a reader already accepts for any
+  // link.
   hideImages?: boolean;
   /**
    * Where an image in this markdown may point; see `lib/image-policy`.
@@ -107,6 +111,11 @@ type PluginList = NonNullable<Options["rehypePlugins"]>;
 type RemarkPluginList = NonNullable<Options["remarkPlugins"]>;
 
 const emptyRemarkPluginList: RemarkPluginList = [];
+
+// The initial value of a per-render "sources revealed by a click" set, held
+// apart so the `useState` call above passes the same reference across
+// renders instead of a fresh empty `Set` each time.
+const EMPTY_STRING_SET: ReadonlySet<string> = new Set();
 
 type FenceNode = NonNullable<ExtraProps["node"]>;
 
@@ -499,6 +508,37 @@ const ImagePlaceholder = ({ alt, src }: { alt?: string; src?: string }) => (
 );
 
 /**
+ * The same placeholder `hideImages` would otherwise drop, but named as a
+ * button: the URL is on screen before any request is made for it, and the
+ * request only happens once this is clicked. That is the one-request-per-click
+ * a reader already accepts for any link, which is why this can offer it even
+ * over content this app did not write -- the request the reader is choosing
+ * to make is the same one they can already see the address of.
+ */
+const BlockedImagePlaceholder = ({
+  alt,
+  onReveal,
+  src,
+}: {
+  alt?: string;
+  onReveal: () => void;
+  src?: string;
+}) => (
+  <button
+    className="flex max-w-full items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-left text-sm text-muted-foreground hover:bg-muted"
+    onClick={onReveal}
+    type="button"
+  >
+    <ImageIcon className="size-4 shrink-0" />
+    <div className="min-w-0 flex-1">
+      <div className="truncate">{alt || "Image"}</div>
+      {src && <div className="truncate text-xs opacity-70">{src}</div>}
+    </div>
+    <span className="shrink-0 text-xs underline">Load image</span>
+  </button>
+);
+
+/**
  * An image the message points at, which can turn out not to be there: an asset
  * pruned with its task, a path the model wrote from memory. Left alone that
  * draws as the browser's broken-image glyph, which names neither the image nor
@@ -595,6 +635,17 @@ export const Markdown = memo(
     taskId,
   }: MarkdownProps) => {
     const openFilePreview = useSetAtom(openFilePreviewAtom);
+    // Sources a reader has clicked "Load image" for, exempting each from the
+    // allow-list on this render only -- nothing here changes what the next
+    // file or message is allowed to fetch on its own.
+    const [revealedImageSrcs, setRevealedImageSrcs] = useState<
+      ReadonlySet<string>
+    >(EMPTY_STRING_SET);
+    const revealImageSrc = useCallback((src: string) => {
+      setRevealedImageSrcs((prev) =>
+        prev.has(src) ? prev : new Set(prev).add(src),
+      );
+    }, []);
     const [rehypePlugins, setRehypePlugins] =
       useState<PluginList>(baseRehypePlugins);
     const [remarkPlugins, setRemarkPlugins] = useState<RemarkPluginList>(
@@ -709,9 +760,26 @@ export const Markdown = memo(
                 assetBaseUrl,
                 assetVersion,
               );
-              if (!isImageSourceAllowed(resolvedSrc, imageKinds)) {
-                return hideImages ? null : (
-                  <ImagePlaceholder alt={alt} src={resolvedSrc} />
+              const isRevealed =
+                resolvedSrc !== undefined &&
+                revealedImageSrcs.has(resolvedSrc);
+              if (
+                !isRevealed &&
+                !isImageSourceAllowed(resolvedSrc, imageKinds)
+              ) {
+                // Nothing for a click to reveal when there is no source to
+                // load, so this stays the plain placeholder either way.
+                if (!hideImages || resolvedSrc === undefined) {
+                  return <ImagePlaceholder alt={alt} src={resolvedSrc} />;
+                }
+                return (
+                  <BlockedImagePlaceholder
+                    alt={alt}
+                    onReveal={() => {
+                      revealImageSrc(resolvedSrc);
+                    }}
+                    src={resolvedSrc}
+                  />
                 );
               }
               const filePath = taskFilePathFromImageSrc(src);

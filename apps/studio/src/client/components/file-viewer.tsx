@@ -175,9 +175,10 @@ function MarkdownPreview({ url }: { url: string }) {
   // Embedded bytes and nothing else, the notebook viewer's answer to the same
   // question: a `.md` in the task folder is a file someone else may have
   // written -- a cloned repo, an attachment, agent output -- and an `<img>`
-  // naming a host is a request the moment the preview renders. Rejected
-  // sources are hidden rather than replaced, so a README's badge row does not
-  // open every file on a wall of placeholders.
+  // naming a host is a request the moment the preview renders. `hideImages`
+  // swaps a rejected source for a click-to-load placeholder rather than the
+  // full one, so a README's badge row does not open as a wall of them; a
+  // reader who wants one anyway can still load it on a click.
   return (
     <SessionMarkdown
       className="p-8"

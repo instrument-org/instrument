@@ -52,6 +52,7 @@ export const WriteFile = setupTool({
     - The ${INPUT_PARAMS.filePath} parameter is a path relative to the task (e.g. ./${TASK_FOLDER_NAMES.output}/report.md), or the mount path of an attached folder you have read-and-write access to (${MOUNT.attachedFolders}/<name>/report.md). The attached-folders list in your context says which folders those are.
     - Writing to an existing path overwrites it, so read it with \`${ReadFile.name}\` first when you have not seen its current contents.
     - Never use this tool to re-emit content you already produced or read from disk, including to move a file somewhere the user can see it. That wastes tokens and corrupts bytes (line endings, whitespace, base64-ish or minified content). Copy or move it instead: \`cp work/foo.html output/foo.html\`.
+    - A \`.md\` file's preview only draws images embedded as \`data:\` URIs; a remote URL or a path to another file in the task, allowed elsewhere, renders as nothing there (the reader can still choose to load it). If a report needs a picture visible without that click, embed it as a base64 \`data:\` URI rather than linking to a downloaded file or a remote host.
   `,
   execute: async ({ input, signal, taskId, taskState }) => {
     const layout = buildWorkspaceFsLayout({

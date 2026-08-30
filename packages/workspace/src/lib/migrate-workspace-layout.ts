@@ -47,13 +47,24 @@ const DB_FILE_SUFFIXES = ["", "-wal", "-shm", "-journal"];
 // Presence = legacy projects/ already drained. Empty-by-design; only existence matters.
 const LEGACY_PROJECTS_MIGRATED_MARKER_NAME = ".legacy-projects-migrated";
 
+// Marker holding this value = a sweep at this version has visited every task
+// under tasks/, so boot skips the per-task walk (its cost grows with the task
+// count, and it is a no-op for every task a current build touched). Bump the
+// version when a normalization step is added, so existing workspaces run the
+// sweep once more. Between bumps, tasks must enter the workspace only through
+// code that leaves them in the current shape: initializeTask writes it, and
+// importTask runs normalizeTask on the one task it extracts. A task folder
+// hand-copied into tasks/ stays as copied until the next version bump.
+const WORKSPACE_LAYOUT_VERSION = 1;
+const WORKSPACE_LAYOUT_VERSION_MARKER_NAME = ".layout-version";
+
 // Cloned Chrome profiles left in a task's temp dir from when agent-browser
 // inherited it as TMPDIR. Each is a copy of the user's real profile -- cookies,
 // login data, browsing history -- and inside the task it is indexed, packed
 // into an export zip, and readable by the agent, so these are deleted rather
 // than moved. Current builds clone outside the task entirely
 // (getExternalBrowserTmpDir); a task restored from an old export can still
-// carry one, so this keeps running.
+// carry one, which is why importTask runs the full normalizeTask on it.
 const BROWSER_PROFILE_CLONE_PREFIX = "agent-browser-profile-";
 
 export interface WorkspaceLayoutMigration {
@@ -71,7 +82,11 @@ export interface WorkspaceLayoutMigration {
 // 1. Move legacy projects/ (old name for tasks/) into tasks/. Guard: sentinel
 //    runs the pass at most once; isProjectFolder skips any real project folder
 //    (load-bearing — survives a lost marker).
-// 2. Normalize tasks under tasks/ to current layout. Idempotent; runs every boot.
+// 2. Normalize tasks under tasks/ to current layout. Idempotent. Guard: the
+//    layout-version marker skips it once a sweep at the current version has
+//    completed, and is written only after one completes, so a sweep a crash
+//    cut short retries on the next boot. It also runs whenever pass 1 did,
+//    since the tasks that pass moves in are legacy-shaped.
 // Synchronous, and renames rather than copies except for the browser-profile
 // clones it deletes outright; no db handle open.
 export function migrateWorkspaceLayout({
@@ -84,16 +99,24 @@ export function migrateWorkspaceLayout({
     movedTaskCount: 0,
     removedBrowserProfileCloneCount: 0,
   };
-  if (!legacyProjectsMigrationDone(rootDir)) {
+  const legacyMigrationRan = !legacyProjectsMigrationDone(rootDir);
+  if (legacyMigrationRan) {
     migration = migrateLegacyProjectsDir(rootDir);
     markLegacyProjectsMigrationDone(rootDir);
   }
 
+  if (!legacyMigrationRan && workspaceLayoutCurrent(rootDir)) {
+    return migration;
+  }
+
+  const removedBrowserProfileCloneCount = normalizeTasks(
+    path.join(rootDir, TASKS_DIR_NAME),
+  );
+  markWorkspaceLayoutCurrent(rootDir);
+
   return {
     ...migration,
-    removedBrowserProfileCloneCount: normalizeTasks(
-      path.join(rootDir, TASKS_DIR_NAME),
-    ),
+    removedBrowserProfileCloneCount,
   };
 }
 
@@ -133,6 +156,32 @@ function markLegacyProjectsMigrationDone(rootDir: string) {
   const marker = legacyProjectsMarkerPath(rootDir);
   fs.mkdirSync(path.dirname(marker), { recursive: true });
   fs.writeFileSync(marker, "");
+}
+
+function workspaceLayoutMarkerPath(rootDir: string): string {
+  return path.join(
+    rootDir,
+    TASK_PRIVATE_FOLDER_NAME,
+    WORKSPACE_LAYOUT_VERSION_MARKER_NAME,
+  );
+}
+
+// A missing or unreadable marker reads as stale, which just costs one sweep.
+function workspaceLayoutCurrent(rootDir: string): boolean {
+  try {
+    return (
+      fs.readFileSync(workspaceLayoutMarkerPath(rootDir), "utf8") ===
+      String(WORKSPACE_LAYOUT_VERSION)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function markWorkspaceLayoutCurrent(rootDir: string) {
+  const marker = workspaceLayoutMarkerPath(rootDir);
+  fs.mkdirSync(path.dirname(marker), { recursive: true });
+  fs.writeFileSync(marker, String(WORKSPACE_LAYOUT_VERSION));
 }
 
 // Moves every top-level entry of source into destination (per-entry, so a
@@ -237,8 +286,7 @@ function normalizeTaskPrivateFiles(taskFolder: string) {
   );
 }
 
-// Normalizes every task folder to the current layout. Each step is idempotent
-// and no-ops on a task already in the current shape.
+// Normalizes every task folder to the current layout.
 function normalizeTasks(tasksDir: string) {
   if (!fs.existsSync(tasksDir)) {
     return 0;
@@ -248,21 +296,31 @@ function normalizeTasks(tasksDir: string) {
     if (!entry.isDirectory()) {
       continue;
     }
-    const taskFolder = path.join(tasksDir, entry.name);
-    normalizeTaskPrivateFiles(taskFolder);
-    normalizeTaskSettingsFile(taskFolder);
-    // After both, so `state.json` is under its current name and the settings
-    // file it folds into is in the private dir.
-    foldTaskStateFile(taskFolder);
-    // After the fold, so the stamp is written to the file that survives it.
-    stampTaskTimestamps(taskFolder);
-    normalizeTaskWorkLayout(taskFolder);
-    normalizeTaskAttachments(taskFolder);
-    // After the work/ move, so a pre-work-layout task's clones are found at
-    // their current path rather than the root one they were written to.
-    removedBrowserProfileCloneCount += removeBrowserProfileClones(taskFolder);
+    removedBrowserProfileCloneCount += normalizeTask(
+      path.join(tasksDir, entry.name),
+    );
   }
   return removedBrowserProfileCloneCount;
+}
+
+// Normalizes one task folder to the current layout. Each step is idempotent
+// and no-ops on a task already in the current shape. Called for every task by
+// the marker-gated boot sweep, and by importTask for the task it extracts,
+// which may come from a zip written before any of these steps existed. Returns
+// the number of browser profile clones deleted.
+export function normalizeTask(taskFolder: string): number {
+  normalizeTaskPrivateFiles(taskFolder);
+  normalizeTaskSettingsFile(taskFolder);
+  // After both, so `state.json` is under its current name and the settings
+  // file it folds into is in the private dir.
+  foldTaskStateFile(taskFolder);
+  // After the fold, so the stamp is written to the file that survives it.
+  stampTaskTimestamps(taskFolder);
+  normalizeTaskWorkLayout(taskFolder);
+  normalizeTaskAttachments(taskFolder);
+  // After the work/ move, so a pre-work-layout task's clones are found at
+  // their current path rather than the root one they were written to.
+  return removeBrowserProfileClones(taskFolder);
 }
 
 // Moves the settings file from the task root into the private dir, whether it

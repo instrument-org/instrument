@@ -58,6 +58,7 @@ function writeTaskSettings(taskId: string, settings: Record<string, unknown>) {
 }
 
 const MARKER = [".instrument", ".legacy-projects-migrated"];
+const LAYOUT_MARKER = [".instrument", ".layout-version"];
 
 describe("migrateWorkspaceLayout", () => {
   it("no-ops when there is no legacy projects/ dir, but still records the marker", () => {
@@ -363,6 +364,51 @@ describe("migrateWorkspaceLayout", () => {
     ).toBe(false);
     // The agent's own temp files are the point of work/tmp; only the clone goes.
     expect(read("tasks", "abc", "work", "tmp", "scratch.csv")).toBe("a,b");
+  });
+
+  describe("layout version marker", () => {
+    it("records the marker, then skips the per-task sweep while it is current", () => {
+      migrateWorkspaceLayout({ rootDir });
+      expect(exists(...LAYOUT_MARKER)).toBe(true);
+
+      // A legacy-shaped task appearing after the sweep (e.g. hand-copied into
+      // tasks/) is left alone until the layout version is bumped.
+      const taskDir = path.join(rootDir, "tasks", "abc");
+      fs.mkdirSync(taskDir, { recursive: true });
+      fs.writeFileSync(path.join(taskDir, "instrument.json"), `{"name":"Abc"}`);
+
+      migrateWorkspaceLayout({ rootDir });
+
+      expect(exists("tasks", "abc", "instrument.json")).toBe(true);
+      expect(exists("tasks", "abc", ".instrument", "settings.json")).toBe(
+        false,
+      );
+    });
+
+    it("re-runs the sweep when the marker holds a stale version", () => {
+      migrateWorkspaceLayout({ rootDir });
+      fs.writeFileSync(path.join(rootDir, ...LAYOUT_MARKER), "0");
+      const taskDir = path.join(rootDir, "tasks", "abc");
+      fs.mkdirSync(taskDir, { recursive: true });
+      fs.writeFileSync(path.join(taskDir, "instrument.json"), `{"name":"Abc"}`);
+
+      migrateWorkspaceLayout({ rootDir });
+
+      expect(readSettings("abc").name).toBe("Abc");
+      expect(exists("tasks", "abc", "instrument.json")).toBe(false);
+    });
+
+    it("sweeps tasks the legacy projects/ move brought in even when the marker is current", () => {
+      migrateWorkspaceLayout({ rootDir });
+      // A lost legacy marker re-runs pass 1; the tasks it moves in are
+      // legacy-shaped and must be normalized despite the current layout marker.
+      fs.rmSync(path.join(rootDir, ...MARKER));
+      writeLegacyTask("def", { "sessions.db": "db2" });
+
+      migrateWorkspaceLayout({ rootDir });
+
+      expect(read("tasks", "def", ".instrument", "task.db")).toBe("db2");
+    });
   });
 
   it("folds user-provided and agent-retrieved into attachments/", () => {

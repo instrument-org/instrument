@@ -168,8 +168,7 @@ async function linkDirect(
       createPwshFile: false,
     });
   } else {
-    const linkPath = path.join(binDir, name);
-    await fs.symlink(targetPath, linkPath);
+    await replaceSymlink(targetPath, path.join(binDir, name));
   }
 }
 
@@ -189,6 +188,27 @@ function prependBinDirectoryToPath(binDir: string): void {
   process.env.PATH = newPath;
 }
 
+// An entry can already be present when the link is attempted: development
+// instances share this directory, so another boot's relink can land between
+// this boot's wipe and its own, and a file the wipe could not remove is still
+// in place. Replace what is there, and treat losing the race to another
+// instance's identical link as success.
+async function replaceSymlink(
+  targetPath: string,
+  linkPath: string,
+): Promise<void> {
+  await fs.rm(linkPath, { force: true });
+  try {
+    await fs.symlink(targetPath, linkPath);
+  } catch (error) {
+    const code =
+      error instanceof Error && "code" in error ? error.code : undefined;
+    if (code !== "EEXIST") {
+      throw error;
+    }
+  }
+}
+
 async function setupNodeLink(binDir: string): Promise<void> {
   const isWindows = process.platform === "win32";
   const nodeExePath = process.execPath;
@@ -197,13 +217,14 @@ async function setupNodeLink(binDir: string): Promise<void> {
     if (isWindows) {
       await createNodeShim(binDir, nodeExePath);
     } else {
-      const linkPath = path.join(binDir, "node");
-      await fs.symlink(nodeExePath, linkPath);
+      await replaceSymlink(nodeExePath, path.join(binDir, "node"));
     }
   } catch (error) {
+    // The node link is a PATH convenience for user-app child processes, the
+    // same as the pnpm/git/rg links, so losing it degrades those processes
+    // rather than the launch.
     captureServerException(error, {
       scopes: ["studio"],
     });
-    throw error;
   }
 }

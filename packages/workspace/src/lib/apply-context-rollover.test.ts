@@ -170,6 +170,33 @@ describe("applyContextRollover", () => {
     expect(ids(rolled)).toEqual(["u2"]);
   });
 
+  it("keeps a text part that lies wholly inside the tail budget", () => {
+    // Two text parts: the first straddles the tail boundary, the second sits
+    // entirely inside the tail region and must survive whole. The second's
+    // start has to fall within its own length of the boundary, because a part
+    // further past it survives anyway through slice clamping.
+    const twoParts = {
+      id: id("u1"),
+      parts: [
+        { text: "a".repeat(40_000), type: "text" },
+        { text: "b".repeat(15_000), type: "text" },
+      ],
+      role: "user",
+    } as unknown as SessionMessage.WithParts;
+
+    const rolled = applyContextRollover({
+      messages: [twoParts, message("a1", "assistant")],
+      rolledOverAfterMessageId: id("a1"),
+    });
+
+    const parts = rolled[0]?.parts ?? [];
+    const first = parts[0]?.type === "text" ? parts[0].text : "";
+    const second = parts[1]?.type === "text" ? parts[1].text : "";
+
+    expect(first).toContain("[context rollover omitted");
+    expect(second).toBe("b".repeat(15_000));
+  });
+
   it("leaves no half characters at the edges of the cut", () => {
     // The eleven trailing plain characters shift the tail's cut onto the low
     // half of an emoji, which is the half a plain slice would keep.

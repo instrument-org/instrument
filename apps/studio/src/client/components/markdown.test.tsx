@@ -761,7 +761,9 @@ describe("Markdown plugin loading", () => {
 
     // Room for the re-render the effect would schedule, were it to schedule
     // one.
-    await act(async () => {});
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     expect(commits).toBe(1);
   });

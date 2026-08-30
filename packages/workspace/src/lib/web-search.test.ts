@@ -116,6 +116,31 @@ async function runProviderSearch(chunks: LanguageModelV3StreamPart[]) {
 }
 
 describe("webSearch", () => {
+  // The search model is picked by a priority list rather than by the user, so
+  // which one actually answered is the only way to attribute a search later.
+  describe("the model that ran the search", () => {
+    it("records the served model when the provider names a different one", async () => {
+      const { value } = await runProviderSearch([
+        { modelId: "perplexity/sonar-pro", type: "response-metadata" },
+        { id: "1", type: "text-start" },
+        { delta: "An answer.", id: "1", type: "text-delta" },
+        { id: "1", type: "text-end" },
+      ]);
+
+      expect(value.modelIdServed).toBe("perplexity/sonar-pro");
+    });
+
+    it("records nothing when the provider names the model it was given", async () => {
+      const { value } = await runProviderSearch([
+        { id: "1", type: "text-start" },
+        { delta: "An answer.", id: "1", type: "text-delta" },
+        { id: "1", type: "text-end" },
+      ]);
+
+      expect(value.modelIdServed).toBeUndefined();
+    });
+  });
+
   describe("a model on the user's own key", () => {
     it("keeps snippets from every search alongside the model's prose", async () => {
       const { value } = await runProviderSearch([

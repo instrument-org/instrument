@@ -99,6 +99,9 @@ const ExcerptResultsSchema = z.object({
 const SummaryResultsSchema = z.object({
   kind: z.literal("summary"),
   modelId: z.string(),
+  // Present only when the provider served a different model than the search
+  // was routed to.
+  modelIdServed: z.string().optional(),
   provider: ProviderOutputSchema,
   sources: z.array(
     z.object({

@@ -214,11 +214,9 @@ async function setupNodeLink(binDir: string): Promise<void> {
   const nodeExePath = process.execPath;
 
   try {
-    if (isWindows) {
-      await createNodeShim(binDir, nodeExePath);
-    } else {
-      await replaceSymlink(nodeExePath, path.join(binDir, "node"));
-    }
+    await (isWindows
+      ? createNodeShim(binDir, nodeExePath)
+      : replaceSymlink(nodeExePath, path.join(binDir, "node")));
   } catch (error) {
     // The node link is a PATH convenience for user-app child processes, the
     // same as the pnpm/git/rg links, so losing it degrades those processes

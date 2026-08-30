@@ -121,6 +121,18 @@ export namespace SessionMessage {
   const UserMetadataSchema = BaseMetadataSchema;
   const AssistantMetadataSchema = BaseMetadataSchema.extend({
     aiGatewayModel: AIGatewayModel.Schema.optional(),
+    /**
+     * The model record the served id resolves to, snapshotted here for the
+     * same reason the requested model is: a name and a provider are only
+     * knowable at the moment of the request. Resolved later it would be
+     * whatever answers to that id then, and nothing at all once the provider it
+     * came from is disconnected.
+     *
+     * Absent whenever `modelIdServed` is, and also when the id named a model
+     * the catalog has no record of, which is ordinary for one released between
+     * two refreshes. The id is still the answer in that case.
+     */
+    aiGatewayModelServed: AIGatewayModel.Schema.optional(),
     completionTokensPerSecond: z.number().optional(),
     endedAt: z.date().optional(),
     error: ErrorSchema.optional(),
@@ -145,15 +157,23 @@ export namespace SessionMessage {
       (v) => typeof v === "string",
     ),
     /**
-     * The model the provider reports having actually served, which is not
-     * always the one that was asked for: `modelId` records the request, and a
-     * request for a routing alias such as `auto` names a decision rather than a
-     * model. Without this, a session run through an alias cannot be attributed
-     * to anything -- every step reads `auto`, and which model wrote a given
-     * answer is unrecoverable after the fact.
+     * The provider's own id for the model it served, recorded only when that
+     * is a different model from the one the request named.
      *
-     * Absent when the provider does not report one, and absent on a synthetic
-     * message, which no provider served.
+     * Only when it differs, because the AI SDK fills its response metadata with
+     * the requested id when a provider reports nothing, so an id equal to the
+     * request is not evidence that anything confirmed it. Google reports
+     * nothing at all and would otherwise have every turn claiming a fact we
+     * were never told. Recording only the difference makes the field mean one
+     * thing: the provider named a model other than the one we asked for.
+     *
+     * That happens two ways, and `aiGatewayModel` is what tells them apart. A
+     * request for a router such as `auto` names a decision rather than a model,
+     * so a different answer is the router working. A request naming a model
+     * outright and getting another back is a substitution.
+     *
+     * Absent on a synthetic message, which no provider served, and on one
+     * aborted before its first step finished.
      */
     modelIdServed: z.string().optional(),
     msToFinish: z.number().optional(),

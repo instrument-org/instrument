@@ -55,10 +55,10 @@ test("the row copy survives the pointer crossing the gap to reach it", async () 
   const { chip, frame, row } = await renderWideTranscript();
 
   await page.getByText("North").hover();
-  await expect.poll(() => chip.hasAttribute("data-visible")).toBe(true);
+  await expect.poll(() => chip.dataset.visible).toBe("");
   // Beside the table, not on it -- on top of it there is no gap and nothing
   // for this test to say.
-  expect(chip.hasAttribute("data-outside")).toBe(true);
+  expect(chip.dataset.outside).toBe("");
 
   // One pointer sample in the gap, which is what a pointer moving at
   // deliberate speed delivers on its way to the control. A jump that clears
@@ -77,7 +77,7 @@ test("the row copy survives the pointer crossing the gap to reach it", async () 
     },
   });
 
-  expect(chip.hasAttribute("data-visible")).toBe(true);
+  expect(chip.dataset.visible).toBe("");
 
   // And the click lands: the reach ends on the control, and the control
   // answers.

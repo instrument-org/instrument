@@ -1170,10 +1170,26 @@ a.cursor-pointer {
 
 /* Placed from the table's trailing edge, and translated back over it unless
    the transcript had room to stand them beside it instead. Which of the two is
-   measured, since it depends on how much of the pane the table took. */
+   measured, since it depends on how much of the pane the table took.
+
+   The air between the edge and a control standing outside (`CONTROL_GAP`)
+   belongs to the control's own box, so a pointer crossing it is still on a
+   descendant of the row: over anything else that strip would fire the row's
+   `mouseleave` and take the row copy away mid-reach. On the row copy it is
+   padding. On the toolbar it is margin instead, because the toolbar's width is
+   what the room check measures, and padding would widen the measurement by the
+   very gap it is checking for. */
 .markdown-table-toolbar[data-outside],
 .markdown-table-row-copy[data-outside] {
   transform: translate(0, -50%);
+}
+
+.markdown-table-toolbar[data-outside] {
+  margin-inline-start: 8px;
+}
+
+.markdown-table-row-copy[data-outside] {
+  padding-inline-start: 8px;
 }
 
 /* The table's own controls. A bare icon rather than the bordered button a code

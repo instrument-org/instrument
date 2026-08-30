@@ -28,7 +28,12 @@ const bandCenter = (row: Element | null) =>
 // How long the row control reports a copy for.
 const COPIED_MS = 2000;
 
-// Between a control and the table's edge, whichever side of it the control is.
+// Between a control and the table's edge when the control stands beside it.
+// Only the room check spends it here: the offset itself is carried on the
+// control's own box (see `data-outside` in globals.css), so the gap is part of
+// the control and a pointer crossing it never leaves the row -- a sample
+// hit-testing to the transcript would fire the row's `mouseleave` and hide the
+// row copy before it could be reached.
 const CONTROL_GAP = 8;
 
 /**
@@ -151,7 +156,7 @@ export const MarkdownTable = ({
     const outside = width > 0 && roomBesideBlock(frame) >= width + CONTROL_GAP;
     const edge = frame.offsetLeft + frame.clientWidth;
     setFlag(control, "data-outside", outside);
-    setStyle(control, "left", `${outside ? edge + CONTROL_GAP : edge - 4}px`);
+    setStyle(control, "left", `${outside ? edge : edge - 4}px`);
   };
 
   // An attribute rather than state: a scroll handler that re-renders every

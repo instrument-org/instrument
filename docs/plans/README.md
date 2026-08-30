@@ -21,6 +21,7 @@ When a plan moves, fix the links pointing at it. Sibling links inside one direct
 | [Repeat search results](active/repeat-search-results.md) — stop paying for the same excerpt twice | proposed |
 | [Immutable session context](active/immutable-session-context.md) — append-only corrections, for cache reuse | phases 1-4 landed |
 | [Session recovery from unsendable content](active/session-recovery-from-unsendable-content.md) | in progress |
+| [Model request controls](active/model-request-controls.md) — reasoning effort and the rest, read from the catalog | proposed |
 
 ### The transcript and the composer
 

@@ -14,6 +14,7 @@ import { OUR_MODELS } from "@instrument-org/shared";
 const ROUTER_PROVIDER_IDS = new Set<string>([
   "openrouter/auto",
   "openrouter/auto-beta",
+  OUR_MODELS.image.id,
   OUR_MODELS.text.id,
 ]);
 

@@ -5,6 +5,7 @@ import {
   getImageModel,
   type ImageGenerationProviderType,
   imageModelSupportsStreaming,
+  namesSameModel,
   resolveImageParameters,
   streamOpenRouterImage,
   TEST_IMAGE_MODEL_OVERRIDE_KEY,
@@ -33,6 +34,13 @@ interface ImageStreamChunk {
   images: { base64: string; mediaType: string }[];
   kind: "final" | "partial";
   modelId: string;
+  /**
+   * What the provider reports having served, recorded only when that is a
+   * different model from the one asked for. Same rule as a text turn: the SDK
+   * fills its response metadata with the requested id when a provider reports
+   * nothing, so an equal id is not evidence of anything.
+   */
+  modelIdServed?: string;
   usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
 }
 
@@ -50,6 +58,21 @@ function appliedParametersFrom({
   return aspectRatio
     ? { ...providerParams, aspectRatio }
     : { ...providerParams };
+}
+
+/**
+ * The served id when it names a different model from the one requested, and
+ * nothing when it does not. Absent means no evidence rather than "the same",
+ * because a provider that reports nothing is indistinguishable here from one
+ * that confirms the request.
+ */
+function servedModelId(
+  requestedModelId: string,
+  reportedModelId: string | undefined,
+): string | undefined {
+  return reportedModelId && !namesSameModel(requestedModelId, reportedModelId)
+    ? reportedModelId
+    : undefined;
 }
 
 const SOURCE_IMAGE_LIMITS: Partial<
@@ -122,6 +145,10 @@ export async function generateBufferedImage({
           config,
           images: textResult.files,
           modelId: model.modelId,
+          modelIdServed: servedModelId(
+            model.modelId,
+            textResult.response.modelId,
+          ),
           usage: textResult.usage,
         };
       }
@@ -160,6 +187,10 @@ export async function generateBufferedImage({
         config,
         images: imageResult.images,
         modelId: model.modelId,
+        modelIdServed: servedModelId(
+          model.modelId,
+          imageResult.responses[0]?.modelId,
+        ),
         usage: imageResult.usage,
       };
     })(),
@@ -241,6 +272,7 @@ export async function* generateImageStream(args: {
     })),
     kind: "final",
     modelId: value.modelId,
+    modelIdServed: value.modelIdServed,
     usage: {
       inputTokens: value.usage.inputTokens,
       outputTokens: value.usage.outputTokens,
@@ -301,6 +333,10 @@ async function* streamViaOpenRouter(args: {
         ],
         kind: event.type === "completed" ? "final" : "partial",
         modelId,
+        modelIdServed:
+          event.type === "completed"
+            ? servedModelId(modelId, event.modelId)
+            : undefined,
         usage: event.type === "completed" ? event.usage : undefined,
       });
     }

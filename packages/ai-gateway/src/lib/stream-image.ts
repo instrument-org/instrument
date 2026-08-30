@@ -17,6 +17,12 @@ export type OpenRouterImageStreamEvent =
   | {
       base64: string;
       mediaType: string;
+      /**
+       * The model the API reports having served, when it reports one. Our image
+       * alias routes the same way the text one does, so without this an image
+       * records the alias and nothing about what drew it.
+       */
+      modelId?: string;
       type: "completed";
       usage?: ImageStreamUsage;
     }
@@ -39,6 +45,9 @@ const ImageStreamEventSchema = z.discriminatedUnion("type", [
   z.object({
     b64_json: z.string(),
     media_type: z.string().nullish(),
+    // Absent unless the API sends it, which is the same thing as not having
+    // been told, so nothing downstream has to tell the two apart.
+    model: z.string().nullish(),
     type: z.literal("image_generation.completed"),
     usage: UsageSchema.nullish(),
   }),
@@ -149,6 +158,7 @@ export async function* streamOpenRouterImage({
         yield {
           base64: event.b64_json,
           mediaType: event.media_type ?? "image/png",
+          ...(event.model ? { modelId: event.model } : {}),
           type: "completed",
           usage: toUsage(event.usage),
         };

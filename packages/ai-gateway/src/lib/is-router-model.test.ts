@@ -13,9 +13,9 @@ describe("isRouterModel", () => {
     // Named outright rather than matched on a prefix, so a model whose name
     // merely starts with the word is not mistaken for a router.
     ["openrouter/autopilot", false],
-    // Our image alias routes too, but nothing reads a served model for images
-    // yet, so claiming it here would describe a behavior that does not exist.
-    [OUR_MODELS.image.id, false],
+    // The image alias routes the same way, and the generate_image tool records
+    // what it resolved to.
+    [OUR_MODELS.image.id, true],
   ])("reads %s as %s", (providerId, expected) => {
     expect(isRouterModel({ providerId })).toBe(expected);
   });

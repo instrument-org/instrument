@@ -130,6 +130,64 @@ describe("GenerateImage source images", () => {
   // The whole point of the conversion pass: what leaves here is a format the
   // provider accepts, whatever the user happened to attach. A HEIC reaching it
   // comes back as a 400 that names the image by position and nothing else.
+  // Our image model is an alias the same way the text one is, so without the
+  // served id an image records the alias and nothing about what drew it.
+  it("records the model that drew the image when it is a different one", async () => {
+    doGenerate.mockResolvedValueOnce({
+      images: [PNG_BASE64],
+      rawResponse: { headers: {} },
+      response: {
+        modelId: "openai/gpt-image-2",
+        timestamp: new Date("2026-08-30T00:00:00.000Z"),
+      },
+      usage: { inputTokens: 10, outputTokens: 0, totalTokens: 10 },
+      warnings: [],
+    });
+
+    const result = await runTool(
+      GenerateImage,
+      makeExecuteArgs({
+        explanation: "draw",
+        filePath: "output/drawn",
+        prompt: "A cat",
+      }),
+    );
+
+    const output = result._unsafeUnwrap();
+    expect(output.state).toBe("success");
+    if (output.state === "success") {
+      expect(output.modelIdServed).toBe("openai/gpt-image-2");
+    }
+  });
+
+  it("leaves the served model absent when the provider names the one we asked for", async () => {
+    doGenerate.mockResolvedValueOnce({
+      images: [PNG_BASE64],
+      rawResponse: { headers: {} },
+      response: {
+        modelId: "mock-image-model",
+        timestamp: new Date("2026-08-30T00:00:00.000Z"),
+      },
+      usage: { inputTokens: 10, outputTokens: 0, totalTokens: 10 },
+      warnings: [],
+    });
+
+    const result = await runTool(
+      GenerateImage,
+      makeExecuteArgs({
+        explanation: "draw",
+        filePath: "output/drawn",
+        prompt: "A cat",
+      }),
+    );
+
+    const output = result._unsafeUnwrap();
+    expect(output.state).toBe("success");
+    if (output.state === "success") {
+      expect(output.modelIdServed).toBeUndefined();
+    }
+  });
+
   it("converts a phone photo before the provider ever sees it", async () => {
     await fs.copyFile(HEIC_FIXTURE, path.join(photosDir, "IMG_4021.heic"));
 

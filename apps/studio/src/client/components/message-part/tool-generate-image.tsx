@@ -1,4 +1,9 @@
-import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
+import { isRouterModel } from "@instrument-org/ai-gateway/client";
+import {
+  type AIProviderType,
+  APP_NAME,
+  OUR_MODELS,
+} from "@instrument-org/shared";
 import {
   type SessionMessagePart,
   type TaskId,
@@ -20,6 +25,7 @@ import { FileIcon } from "../file-icon";
 import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
 import { isActiveToolPart } from "../transcript-layout";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ToolCapabilityFailure } from "./tool-capability-failure";
 import {
   ToolCard,
@@ -158,6 +164,9 @@ export function ToolGenerateImage({
   );
   const modelName = resolveImageModelName(successOutput?.modelId);
   const modelProviderType = successOutput?.provider.type;
+  // Our image model is an alias like the text one, so the pill names a setting
+  // and the card behind it names what that setting picked.
+  const servedModelName = resolveImageModelName(successOutput?.modelIdServed);
 
   const openInPanel = ({ filePath }: { filePath: string }) => {
     openFiles([filePath]);
@@ -212,19 +221,21 @@ export function ToolGenerateImage({
           {(modelName || parameterTags.length > 0) && (
             <div className="mb-2 flex flex-wrap gap-1">
               {modelName && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs">
-                  {modelProviderType && (
-                    <AIProviderIcon
-                      className="size-3 shrink-0 opacity-70"
-                      displayName={successOutput.provider.displayName}
-                      showTooltip
-                      type={modelProviderType}
-                    />
-                  )}
-                  <span className="font-medium text-foreground/80">
-                    {modelName}
-                  </span>
-                </span>
+                <ModelChip
+                  chose={
+                    isRouterModel({ providerId: successOutput?.modelId ?? "" })
+                      ? servedModelName
+                      : undefined
+                  }
+                  displayName={successOutput?.provider.displayName}
+                  name={modelName}
+                  providerType={modelProviderType}
+                  replacedBy={
+                    isRouterModel({ providerId: successOutput?.modelId ?? "" })
+                      ? undefined
+                      : servedModelName
+                  }
+                />
               )}
               {parameterTags.map(({ label, value }) => (
                 <span
@@ -449,6 +460,80 @@ function ImageActions({ filePath, id }: { filePath: string; id: TaskId }) {
   );
 }
 
+// A quiet quote glyph marks the text as the generation prompt without a
+// technical label.
+/**
+ * The pill naming the model, and the card behind it when a router picked one.
+ *
+ * Same two shapes as the assistant footer, for the same reason. Our image model
+ * is a router, so a different answer is the setting working and the card says
+ * what it chose. Any other model answering with something else is a
+ * substitution, where both names go in the pill with the requested one struck
+ * through and there is nothing left for a card to add.
+ */
+function ModelChip({
+  chose,
+  displayName,
+  name,
+  providerType,
+  replacedBy,
+}: {
+  chose?: string;
+  displayName?: string;
+  name: string;
+  providerType?: AIProviderType;
+  replacedBy?: string;
+}) {
+  const pill = (
+    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs">
+      {providerType && (
+        <AIProviderIcon
+          className="size-3 shrink-0 opacity-70"
+          displayName={displayName}
+          showTooltip={!chose}
+          type={providerType}
+        />
+      )}
+      <span className="font-medium text-foreground/80">
+        {replacedBy ? (
+          <>
+            <span className="text-muted-foreground/50 line-through">
+              {name}
+            </span>{" "}
+            {replacedBy}
+          </>
+        ) : (
+          name
+        )}
+      </span>
+    </span>
+  );
+
+  if (!chose) {
+    return pill;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{pill}</TooltipTrigger>
+      <TooltipContent align="start" className="p-3 text-xs" side="top">
+        <div className="flex items-baseline justify-between gap-6">
+          <span className="flex items-center gap-1.5 opacity-80">
+            {providerType && (
+              <AIProviderIcon
+                className="size-3.5 shrink-0"
+                type={providerType}
+              />
+            )}
+            <span>{`${name} chose:`}</span>
+          </span>
+          <span className="truncate font-medium">{chose}</span>
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function PreviewSkeleton() {
   return (
     <div className="flex size-full animate-pulse items-center justify-center bg-muted">
@@ -457,8 +542,6 @@ function PreviewSkeleton() {
   );
 }
 
-// A quiet quote glyph marks the text as the generation prompt without a
-// technical label.
 function PromptText({ prompt }: { prompt: string }) {
   return (
     <div className="flex items-start gap-1.5">

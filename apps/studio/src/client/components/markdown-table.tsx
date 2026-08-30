@@ -26,7 +26,7 @@ const rowTop = (row: Element | null) =>
 /** The table-relative middle of a row. */
 const rowCenter = (row: Element | null) => {
   if (!(row instanceof HTMLTableRowElement)) {
-    return undefined;
+    return;
   }
   const block = row.closest(".markdown-table-row");
   if (!block) {

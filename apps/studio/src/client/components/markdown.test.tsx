@@ -5,7 +5,8 @@ import {
 } from "@/client/lib/image-policy";
 import { renderWithProviders } from "@/tests/render";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { Profiler } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { Markdown } from "./markdown";
@@ -736,5 +737,32 @@ describe("Markdown image sources", () => {
     expect(imageSources("![a](//tracker.test/pixel.png)", imageKinds)).toEqual(
       [],
     );
+  });
+});
+
+// react-markdown's sync component re-parses the whole document on every
+// render, so a render is a parse. The plugin effect must therefore leave the
+// state of a document that needs no optional bundle exactly where the mount
+// put it: a fresh-but-identical array there defeats React's Object.is bailout,
+// and every plain message in a transcript parses twice.
+describe("Markdown plugin loading", () => {
+  it("commits a document that needs no optional plugin exactly once", async () => {
+    let commits = 0;
+    renderWithProviders(
+      <Profiler
+        id="markdown"
+        onRender={() => {
+          commits += 1;
+        }}
+      >
+        <Markdown markdown="Plain prose with **emphasis** and nothing else." />
+      </Profiler>,
+    );
+
+    // Room for the re-render the effect would schedule, were it to schedule
+    // one.
+    await act(async () => {});
+
+    expect(commits).toBe(1);
   });
 });

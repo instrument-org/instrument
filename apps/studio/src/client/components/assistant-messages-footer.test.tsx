@@ -43,7 +43,9 @@ function assistantMessage(
 // keep them apart too, or the paste reads "plan:Done." where the screen showed
 // a paragraph break.
 test("copies a turn's text parts as the separate blocks they are drawn as", async () => {
-  const writeText = vi.fn<(text: string) => Promise<void>>(async () => {});
+  const writeText = vi.fn<(text: string) => Promise<void>>(() =>
+    Promise.resolve(),
+  );
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: { writeText },

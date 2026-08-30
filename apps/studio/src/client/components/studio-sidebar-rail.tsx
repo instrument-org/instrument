@@ -70,6 +70,24 @@ export function StudioSidebarRail({
     panelX.set(0);
   };
 
+  // Whatever is currently driving those values, so an interaction can take them
+  // back. `set` changes a motion value without canceling its animation, so a
+  // spring still running writes over every frame a drag applies -- the rail
+  // ignores the pointer, and the width committed on pointerup is one the spring
+  // then overwrites on its way to the old target. The handle is on screen for
+  // the whole of an opening slide, so that window is reachable by hand.
+  const widthAnimationsRef = useRef<AnimationPlaybackControls[]>([]);
+
+  function stopWidthAnimations() {
+    for (const control of widthAnimationsRef.current) {
+      control.stop();
+    }
+    widthAnimationsRef.current = [];
+    // Only reachable while the rail is open, so a half-played fade is finished
+    // rather than left at whatever the interrupted slide had reached.
+    opacity.set(1);
+  }
+
   // Slide the panel in/out when the open state flips. Width changes while open
   // are driven directly by their handlers, so this only reacts to open/close. A
   // drag drives the width by hand and a mid-drag collapse animates itself, so
@@ -105,10 +123,12 @@ export function StudioSidebarRail({
         animate(opacity, 0, RAIL_FADE_TRANSITION),
       );
     }
+    widthAnimationsRef.current = controls;
     return () => {
       for (const control of controls) {
         control.stop();
       }
+      widthAnimationsRef.current = [];
     };
   }, [isOpen, layoutWidth, opacity, panelWidth, panelX]);
 
@@ -142,6 +162,7 @@ export function StudioSidebarRail({
       return;
     }
     event.preventDefault();
+    stopWidthAnimations();
     applyWidth(next);
     setStoredWidth(next);
   }
@@ -155,6 +176,7 @@ export function StudioSidebarRail({
     const handle = event.currentTarget;
     const { pointerId } = event;
     const left = containerRef.current?.getBoundingClientRect().left ?? 0;
+    stopWidthAnimations();
     handle.setPointerCapture(pointerId);
     draggingRef.current = true;
     collapsingRef.current = false;
@@ -208,6 +230,16 @@ export function StudioSidebarRail({
     handle.addEventListener("pointercancel", handleUp, {
       signal: listeners.signal,
     });
+    // Capture can end without a pointerup ever arriving -- the element is
+    // replaced, the window loses the device, the OS takes the gesture. Ending
+    // the same way keeps two things true: the move listener does not outlive
+    // the drag, so the rail cannot follow a pointer merely passing over the
+    // handle, and the width the drag reached is still the width that gets
+    // kept. Releasing the pointer also raises this, after `handleUp` has
+    // already torn the listeners down, so it runs once either way.
+    handle.addEventListener("lostpointercapture", handleUp, {
+      signal: listeners.signal,
+    });
   }
 
   return (
@@ -239,8 +271,13 @@ export function StudioSidebarRail({
             "outline-hidden hover:after:bg-muted-foreground/40 focus-visible:after:w-0.5 focus-visible:after:bg-ring active:after:bg-primary/50",
           )}
           onDoubleClick={() => {
-            animate(panelWidth, SIDEBAR_WIDTH, RAIL_SLIDE_TRANSITION);
-            animate(layoutWidth, SIDEBAR_WIDTH, RAIL_SLIDE_TRANSITION);
+            stopWidthAnimations();
+            // Tracked like the slide's own, so a drag that starts while this
+            // is still springing takes the values back from it.
+            widthAnimationsRef.current = [
+              animate(panelWidth, SIDEBAR_WIDTH, RAIL_SLIDE_TRANSITION),
+              animate(layoutWidth, SIDEBAR_WIDTH, RAIL_SLIDE_TRANSITION),
+            ];
             setStoredWidth(SIDEBAR_WIDTH);
           }}
           onKeyDown={handleKeyDown}

@@ -1,6 +1,8 @@
 import { renderInBrowser } from "@/tests/render-browser";
-import { describe, expect, it } from "vitest";
+import { noop } from "radashi";
+import { describe, expect, it, vi } from "vitest";
 
+import { TranscriptScrollContext } from "../transcript-scroll-context";
 import { ToolCard, ToolCardSection } from "./tool-card";
 
 // Long enough to run off a section several times over, and unbroken by spaces
@@ -14,21 +16,24 @@ const EXPANDED_HEIGHT = 480;
 
 const renderSection = (props?: {
   copyText?: string;
+  releaseAutoScroll?: () => void;
   text?: string;
   wrappable?: boolean;
 }) =>
   renderInBrowser(
-    <div style={{ width: 480 }}>
-      <ToolCard>
-        <ToolCardSection
-          collapsedHeight={COLLAPSED_HEIGHT}
-          copyText={props?.copyText}
-          wrappable={props?.wrappable}
-        >
-          <pre className="font-mono text-sm">{props?.text ?? LONG_LINE}</pre>
-        </ToolCardSection>
-      </ToolCard>
-    </div>,
+    <TranscriptScrollContext value={props?.releaseAutoScroll ?? noop}>
+      <div style={{ width: 480 }}>
+        <ToolCard>
+          <ToolCardSection
+            collapsedHeight={COLLAPSED_HEIGHT}
+            copyText={props?.copyText}
+            wrappable={props?.wrappable}
+          >
+            <pre className="font-mono text-sm">{props?.text ?? LONG_LINE}</pre>
+          </ToolCardSection>
+        </ToolCard>
+      </div>
+    </TranscriptScrollContext>,
   );
 
 const preIn = (root: Element) => {
@@ -188,6 +193,36 @@ describe("tool card section", () => {
         .element(screen.getByRole("button", { name: "Wrap lines" }))
         .toBeVisible();
       expect(screen.container.querySelectorAll("button")).toHaveLength(1);
+    });
+  });
+
+  // While the transcript's scroller follows the live end, any growth re-pins it
+  // to the bottom -- including growth the reader just clicked for, which carries
+  // the opened region off screen. `TranscriptScrollContext` is the contract:
+  // every control that reshapes a region hands scrolling back first.
+  describe("handing scrolling back to the reader", () => {
+    it("releases the scroller before opening the section", async () => {
+      const releaseAutoScroll = vi.fn();
+      const screen = await renderSection({
+        releaseAutoScroll,
+        wrappable: true,
+      });
+
+      await screen.getByRole("button", { name: /Show more/ }).click();
+
+      expect(releaseAutoScroll).toHaveBeenCalledOnce();
+    });
+
+    it("releases the scroller before rewrapping the lines", async () => {
+      const releaseAutoScroll = vi.fn();
+      const screen = await renderSection({
+        releaseAutoScroll,
+        wrappable: true,
+      });
+
+      await screen.getByRole("button", { name: "Wrap lines" }).click();
+
+      expect(releaseAutoScroll).toHaveBeenCalledOnce();
     });
   });
 });

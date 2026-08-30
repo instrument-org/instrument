@@ -14,6 +14,7 @@ import {
   wrapLinesClassName,
 } from "../code-block";
 import { CopyButton } from "../copy-button";
+import { useReleaseAutoScroll } from "../transcript-scroll-context";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 export function FileChip({ part }: { part: SessionMessagePart.ToolPart }) {
@@ -219,6 +220,7 @@ export function ToolCardSection({
   // remembered setting would instead reflow every other card in the transcript
   // around whatever they were reading.
   const [wrapLines, setWrapLines] = useState(true);
+  const releaseAutoScroll = useReleaseAutoScroll();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -310,6 +312,7 @@ export function ToolCardSection({
               icon={wrapLines ? ArrowElbowDownLeftIcon : ArrowsHorizontalIcon}
               label="Wrap lines"
               onClick={() => {
+                releaseAutoScroll();
                 setWrapLines(!wrapLines);
               }}
               pressed={wrapLines}
@@ -327,6 +330,7 @@ export function ToolCardSection({
           className="opacity-0 group-hover/section:opacity-100 focus-visible:opacity-100"
           isExpanded={isExpanded}
           onToggle={() => {
+            releaseAutoScroll();
             setIsExpanded(!isExpanded);
           }}
         />

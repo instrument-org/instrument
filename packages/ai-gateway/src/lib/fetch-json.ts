@@ -61,6 +61,7 @@ export function fetchJson({
         if (!response.ok) {
           throw new TypedError.Fetch(
             `Failed to fetch from ${url}: ${response.status} ${response.statusText}`,
+            { status: response.status },
           );
         }
 

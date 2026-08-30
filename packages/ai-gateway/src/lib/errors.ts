@@ -4,6 +4,13 @@ export namespace TypedError {
 
   export class Fetch extends Error {
     readonly type = `${PREFIX}-fetch-error`;
+    /** HTTP status code, when the failure was a non-ok response. */
+    readonly status?: number;
+
+    constructor(message: string, options?: ErrorOptions & { status?: number }) {
+      super(message, options);
+      this.status = options?.status;
+    }
   }
 
   export class Parse extends Error {

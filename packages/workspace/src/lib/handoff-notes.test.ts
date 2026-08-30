@@ -80,7 +80,7 @@ describe("readHandoffNotes", () => {
     // of the emoji, which is where a fixed-index slice makes a lone surrogate.
     await fs.writeFile(
       path.join(dir, "work", "handoff-notes.md"),
-      `${"x".repeat(7_999)}🙈${"y".repeat(100)}`,
+      `${"x".repeat(7999)}🙈${"y".repeat(100)}`,
     );
     const taskId = createMockTaskConfigForDir(dir);
 

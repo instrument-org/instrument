@@ -6,6 +6,7 @@ import { StudioSidebarRail } from "@/client/components/studio-sidebar-rail";
 import { StudioToolbar } from "@/client/components/studio-toolbar";
 import { Toaster } from "@/client/components/ui/sonner";
 import { UpdatedToast } from "@/client/components/updated-toast";
+import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
 import { setSidebarOpen, useSidebarOpen } from "@/client/hooks/use-sidebar";
@@ -61,55 +62,59 @@ export function AppChrome({ children }: { children: ReactNode }) {
   useRefreshSkillsOnChange();
 
   return (
-    <div
-      className="flex h-full w-full flex-col overflow-hidden"
-      data-testid="app-page"
-    >
-      <StudioToolbar />
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <StudioSidebarRail
-          isOpen={isSidebarOpen}
-          onCollapse={() => {
-            setSidebarOpen(false);
-          }}
-        />
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          {children}
+    // The toolbar this renders is the band floating content is held out of, so
+    // this is where the window declares how deep that band is.
+    <ChromeInsetProvider top={TOOLBAR_HEIGHT}>
+      <div
+        className="flex h-full w-full flex-col overflow-hidden"
+        data-testid="app-page"
+      >
+        <StudioToolbar />
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <StudioSidebarRail
+            isOpen={isSidebarOpen}
+            onCollapse={() => {
+              setSidebarOpen(false);
+            }}
+          />
+          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            {children}
+          </div>
         </div>
+
+        {isDeveloperMode && (
+          <Suspense fallback={null}>
+            <DevTools />
+          </Suspense>
+        )}
+
+        {Agentation && isDeveloperMode && activePanel === "agentation" && (
+          <Suspense fallback={null}>
+            <Agentation />
+          </Suspense>
+        )}
+
+        <Suspense fallback={null}>
+          <StudioCommandMenu />
+        </Suspense>
+        <StudioModals />
+        {isTaskFileViewerOpen && (
+          <Suspense fallback={null}>
+            <LazyTaskFileViewerModal />
+          </Suspense>
+        )}
+        {isFilePreviewOpen && (
+          <Suspense fallback={null}>
+            <LazyFilePreviewModal />
+          </Suspense>
+        )}
+        <Toaster
+          mobileOffset={{ top: TOOLBAR_HEIGHT + 16 }}
+          offset={{ top: TOOLBAR_HEIGHT + 16 }}
+          position="top-center"
+        />
+        <UpdatedToast />
       </div>
-
-      {isDeveloperMode && (
-        <Suspense fallback={null}>
-          <DevTools />
-        </Suspense>
-      )}
-
-      {Agentation && isDeveloperMode && activePanel === "agentation" && (
-        <Suspense fallback={null}>
-          <Agentation />
-        </Suspense>
-      )}
-
-      <Suspense fallback={null}>
-        <StudioCommandMenu />
-      </Suspense>
-      <StudioModals />
-      {isTaskFileViewerOpen && (
-        <Suspense fallback={null}>
-          <LazyTaskFileViewerModal />
-        </Suspense>
-      )}
-      {isFilePreviewOpen && (
-        <Suspense fallback={null}>
-          <LazyFilePreviewModal />
-        </Suspense>
-      )}
-      <Toaster
-        mobileOffset={{ top: TOOLBAR_HEIGHT + 16 }}
-        offset={{ top: TOOLBAR_HEIGHT + 16 }}
-        position="top-center"
-      />
-      <UpdatedToast />
-    </div>
+    </ChromeInsetProvider>
   );
 }

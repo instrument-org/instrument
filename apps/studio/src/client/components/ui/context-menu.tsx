@@ -1,4 +1,5 @@
 import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
+import { useChromeCollisionPadding } from "@/client/hooks/use-chrome-inset";
 import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
@@ -41,10 +42,12 @@ function ContextMenuCheckboxItem({
 
 function ContextMenuContent({
   className,
+  collisionPadding,
   style,
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
   const container = usePortalContainer();
+  const chromeCollisionPadding = useChromeCollisionPadding();
 
   return (
     <ContextMenuPrimitive.Portal container={container}>
@@ -55,6 +58,7 @@ function ContextMenuContent({
           "z-50 max-h-[calc(var(--radix-context-menu-content-available-height)/var(--content-zoom))] min-w-[8rem] origin-(--radix-context-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-xl bg-popover p-1 text-popover-foreground shadow-sm data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           className,
         )}
+        collisionPadding={collisionPadding ?? chromeCollisionPadding}
         data-slot="context-menu-content"
         style={useAppZoomStyle(style)}
         {...props}

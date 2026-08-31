@@ -1,4 +1,5 @@
 import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
+import { useChromeCollisionPadding } from "@/client/hooks/use-chrome-inset";
 import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
@@ -45,11 +46,13 @@ function DropdownMenuCheckboxItem({
 
 function DropdownMenuContent({
   className,
+  collisionPadding,
   sideOffset = 4,
   style,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
   const container = usePortalContainer();
+  const chromeCollisionPadding = useChromeCollisionPadding();
 
   return (
     <DropdownMenuPrimitive.Portal container={container}>
@@ -60,6 +63,7 @@ function DropdownMenuContent({
           "z-50 max-h-[calc(var(--radix-dropdown-menu-content-available-height)/var(--content-zoom))] min-w-32 origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-xl bg-popover p-1 text-popover-foreground shadow-sm data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           className,
         )}
+        collisionPadding={collisionPadding ?? chromeCollisionPadding}
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
         style={useAppZoomStyle(style)}

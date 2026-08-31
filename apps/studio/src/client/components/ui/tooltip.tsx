@@ -1,6 +1,7 @@
 "use client";
 
 import { useAppZoomStyle, zoomMaxSize } from "@/client/hooks/use-app-zoom";
+import { useChromeCollisionPadding } from "@/client/hooks/use-chrome-inset";
 import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
@@ -17,6 +18,7 @@ function TooltipContent({
   arrowClassName,
   children,
   className,
+  collisionPadding,
   maxWidth = "20rem",
   sideOffset = 0,
   style,
@@ -28,6 +30,7 @@ function TooltipContent({
   maxWidth?: string;
 }) {
   const container = usePortalContainer();
+  const chromeCollisionPadding = useChromeCollisionPadding();
 
   return (
     <TooltipPrimitive.Portal container={container}>
@@ -39,6 +42,7 @@ function TooltipContent({
           "z-50 w-fit origin-(--radix-tooltip-content-transform-origin) animate-in rounded-md bg-foreground px-3 py-1.5 text-xs text-pretty text-background fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           className,
         )}
+        collisionPadding={collisionPadding ?? chromeCollisionPadding}
         data-slot="tooltip-content"
         sideOffset={sideOffset}
         style={useAppZoomStyle({

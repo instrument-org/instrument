@@ -1,4 +1,5 @@
 import { useAppZoomStyle } from "@/client/hooks/use-app-zoom";
+import { useChromeCollisionPadding } from "@/client/hooks/use-chrome-inset";
 import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
@@ -17,11 +18,16 @@ function SelectContent({
   align = "center",
   children,
   className,
+  collisionPadding,
   position = "item-aligned",
   style,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
   const container = usePortalContainer();
+  // Read by `position="popper"` alone: item-aligned placement is Radix's own
+  // arithmetic against the window rather than the collision middleware, and
+  // takes the whole window height the way a native menu does.
+  const chromeCollisionPadding = useChromeCollisionPadding();
 
   return (
     <SelectPrimitive.Portal container={container}>
@@ -37,6 +43,7 @@ function SelectContent({
             "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
           className,
         )}
+        collisionPadding={collisionPadding ?? chromeCollisionPadding}
         data-slot="select-content"
         position={position}
         style={useAppZoomStyle(style)}

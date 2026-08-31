@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   normalizeUserAgent,
   platformHint,
+  secChUaBrands,
   secChUaHeader,
   standardUserAgentHeaders,
   weightedAcceptLanguage,
@@ -41,11 +42,76 @@ describe("normalizeUserAgent", () => {
   });
 });
 
+describe("secChUaBrands", () => {
+  // Pinned against what a real Electron reports in navigator.userAgentData:
+  // Electron 42.3.3 (Chromium 148) serves exactly this list. The e2e test
+  // re-checks the live browser; these cases keep the generation honest without
+  // booting one.
+  it("generates the engine's own brand list for a major version", () => {
+    expect(secChUaBrands(148)).toMatchInlineSnapshot(`
+      [
+        {
+          "brand": "Not/A)Brand",
+          "version": "99",
+        },
+        {
+          "brand": "Chromium",
+          "version": "148",
+        },
+      ]
+    `);
+  });
+
+  it("puts the Chromium brand first for an odd major version", () => {
+    expect(secChUaBrands(147)).toMatchInlineSnapshot(`
+      [
+        {
+          "brand": "Chromium",
+          "version": "147",
+        },
+        {
+          "brand": "Not.A/Brand",
+          "version": "8",
+        },
+      ]
+    `);
+  });
+
+  // Majors whose published Chrome sec-ch-ua headers are known, so the cycle is
+  // checked against three releases rather than only the one installed here.
+  it("cycles the GREASE punctuation and version with the major", () => {
+    expect(
+      [120, 128, 131].map((major) =>
+        secChUaBrands(major).find(({ brand }) => brand !== "Chromium"),
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "brand": "Not_A Brand",
+          "version": "8",
+        },
+        {
+          "brand": "Not;A=Brand",
+          "version": "24",
+        },
+        {
+          "brand": "Not_A Brand",
+          "version": "24",
+        },
+      ]
+    `);
+  });
+});
+
 describe("secChUaHeader", () => {
-  it("derives a brand list from the Chrome major version", () => {
+  it("serializes the brand list from the Chrome major version", () => {
     expect(secChUaHeader(ELECTRON_UA)).toMatchInlineSnapshot(
-      `""Chromium";v="128", "Google Chrome";v="128", "Not=A?Brand";v="24""`,
+      `""Not;A=Brand";v="24", "Chromium";v="128""`,
     );
+  });
+
+  it("names no brand the page's navigator.userAgentData cannot report", () => {
+    expect(secChUaHeader(ELECTRON_UA)).not.toContain("Google Chrome");
   });
 
   it("returns null when no Chrome/Chromium version is present", () => {
@@ -98,7 +164,7 @@ describe("standardUserAgentHeaders", () => {
         "Accept": "text/html",
         "Accept-Language": "en-US,en;q=0.9",
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-        "sec-ch-ua": ""Chromium";v="128", "Google Chrome";v="128", "Not=A?Brand";v="24"",
+        "sec-ch-ua": ""Not;A=Brand";v="24", "Chromium";v="128"",
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": ""macOS"",
       }

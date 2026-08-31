@@ -9,18 +9,26 @@ import { app, type Session } from "electron";
 //   1. session.setUserAgent(ua): remove the Electron and app-name product
 //      tokens from the session's real UA. This updates both the outbound
 //      User-Agent header and the in-page navigator.userAgent.
-//   2. onBeforeSendHeaders: add the sec-ch-ua* client hints that setUserAgent
-//      doesn't set, derived from the same Chrome major version so the header and
-//      the client hints stay consistent.
+//   2. onBeforeSendHeaders: add the sec-ch-ua* client hints. Electron returns a
+//      null ClientHintsControllerDelegate, so its network stack never emits
+//      these headers on its own -- a Chrome-shaped UA that sends no client hints
+//      at all is the anomaly this step removes.
 //
 // The UA is derived by removing tokens from the real UA rather than
 // hand-writing one, so the AppleWebKit/Chrome/Safari tokens and the real
-// Chromium version stay accurate and feature detection keeps working.
-//
-// Note: navigator.userAgentData (the high-entropy client-hint JS API) is not
-// updated here and still reports Chromium.
+// Chromium version stay accurate and feature detection keeps working. The brand
+// list follows the same rule: it reproduces what the engine reports in the page
+// through navigator.userAgentData rather than naming a browser the page-side API
+// contradicts, so a site reading both surfaces sees one identity.
 
 const CHROME_VERSION = /\b(?:Chrome|Chromium)\/(\d+)\./;
+
+// Chromium derives its brand list from the major version alone: a real
+// "Chromium" entry plus a GREASE entry whose punctuation, version, and position
+// in the list all cycle with that major, so the list stays stable per release
+// while staying unparsable as a vendor name.
+const GREASE_CHARS = [" ", "(", ":", "-", ".", "/", ")", ";", "=", "?", "_"];
+const GREASE_VERSIONS = ["8", "99", "24"];
 
 // Apply the normalized User-Agent to a session: clean the UA (both the outbound
 // header and in-page navigator.userAgent via setUserAgent) and add matching
@@ -71,14 +79,30 @@ export function platformHint(platform: NodeJS.Platform): string {
   return '"Linux"';
 }
 
-// Derive the `sec-ch-ua` brand list from the Chrome major version left in the
-// UA, so the client hint agrees with the (rewritten) UA string. Returns null
-// when no Chrome/Chromium version is present to derive from.
+// The brand list Chromium generates for a given major version, in the order it
+// generates it. Equal to what navigator.userAgentData.brands reports in the
+// page, which is what `sec-ch-ua` has to serialize for the two surfaces to
+// describe the same browser.
+export function secChUaBrands(
+  major: number,
+): { brand: string; version: string }[] {
+  const grease = {
+    brand: `Not${cycle(GREASE_CHARS, major)}A${cycle(GREASE_CHARS, major + 1)}Brand`,
+    version: cycle(GREASE_VERSIONS, major),
+  };
+  const chromium = { brand: "Chromium", version: String(major) };
+  return major % 2 === 0 ? [grease, chromium] : [chromium, grease];
+}
+
+// Serialize the brand list for the Chrome major version left in the UA. Returns
+// null when no Chrome/Chromium version is present to derive from.
 export function secChUaHeader(userAgent: string): null | string {
   const major = CHROME_VERSION.exec(userAgent)?.[1];
   return major == null
     ? null
-    : `"Chromium";v="${major}", "Google Chrome";v="${major}", "Not=A?Brand";v="24"`;
+    : secChUaBrands(Number(major))
+        .map(({ brand, version }) => `"${brand}";v="${version}"`)
+        .join(", ");
 }
 
 // Pure core: given the request's headers and the inputs, return a new header map
@@ -134,6 +158,10 @@ export function weightedAcceptLanguage(languages: string[]): string {
         : `${language};q=${Math.max(1 - index * 0.1, 0.1).toFixed(1)}`,
     )
     .join(",");
+}
+
+function cycle(pool: string[], index: number): string {
+  return pool[index % pool.length] ?? "";
 }
 
 function preferredAcceptLanguage(): string {

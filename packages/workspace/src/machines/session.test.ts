@@ -1392,7 +1392,12 @@ describe("sessionMachine", () => {
         </user>
         <assistant finishReason="aborted" model="mock-model-id" provider="instrument" errorKind="aborted" errorMessage="Aborted">
           <step-start step="1" />
-          <tool tool="read_file" state="input-streaming" callId="test-call-1"></tool>
+          <tool tool="read_file" state="output-error" callId="test-call-1">
+            <input>
+              "none"
+            </input>
+            <error>This action was stopped.</error>
+          </tool>
         </assistant>
         <session-context main realRole="system" />
         <session-context main realRole="user" />

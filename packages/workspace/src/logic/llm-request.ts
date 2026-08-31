@@ -797,6 +797,10 @@ export const llmRequestLogic = fromPromise<
       }
     }
 
+    // Detection only. The agent machine finalizes this run's dangling
+    // `input-*` parts on its way into `Finishing` (stops included), so a part
+    // reported here points at a leftover that sweep does not cover, or a race
+    // with it. Repairing here would hide whatever produced the leftover.
     const parts = await getCurrentParts();
     for (const part of parts) {
       if (isToolPart(part) && part.state === "input-streaming") {

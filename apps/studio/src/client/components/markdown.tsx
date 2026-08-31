@@ -51,7 +51,6 @@ import { rehypeAnimateWords } from "../lib/rehype-animate-words";
 import { remarkDropBreakAfterBr } from "../lib/remark-drop-break-after-br";
 import { isTaskFileHref, taskFilePathFromHref } from "../lib/task-file-href";
 import { cn } from "../lib/utils";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { AgentFilesBlock } from "./agent-files-block";
 import { MarkdownCodeBlock } from "./code-block";
 import { FileActionsMenuItems } from "./file-actions-menu";
@@ -70,6 +69,7 @@ import {
   ContextMenuTrigger,
 } from "./ui/context-menu";
 import { contextMenuComponents } from "./ui/menu-components";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 interface MarkdownProps {
   assetBaseUrl?: string;
@@ -547,8 +547,8 @@ const BlockedImage = ({
         </TooltipTrigger>
         <TooltipContent>
           {failed
-            ? "This image couldn't be loaded."
-            : "This image can't be shown here."}
+            ? "This image couldn’t be loaded."
+            : "This image can’t be shown here."}
         </TooltipContent>
       </Tooltip>
     );
@@ -572,7 +572,7 @@ const BlockedImage = ({
       </TooltipTrigger>
       <TooltipContent maxWidth="20rem">
         <p>
-          Images from the web aren't loaded here, so opening a file never
+          Images from the web aren’t loaded here, so opening a file never
           contacts another site on its own.
         </p>
         <p>Click to view the image in your browser.</p>

@@ -22,11 +22,13 @@ import { attachedFolderMountPoint } from "../../lib/attached-folder-mounts";
 import { backgroundProcessesModelNote } from "../../lib/background-processes-model-text";
 import { browserStatusModelNote } from "../../lib/browser-status-model-text";
 import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text";
+import { dateChangeModelNote } from "../../lib/date-change-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
 import { paneTabsModelNote } from "../../lib/pane-tabs-model-text";
 import { projectChangesModelNote } from "../../lib/project-changes-model-text";
+import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
 import { TOOL_NAMES } from "../../tools/name";
 import { StoreId } from "../store-id";
 import { SessionMessagePart } from "./message-part";
@@ -105,12 +107,33 @@ export namespace SessionMessage {
   });
   const ContextMetadataSchema = BaseMetadataSchema.extend({
     agentName: z.custom<AgentName>(),
+    /**
+     * Which shape of the session baseline this message holds
+     * (`SESSION_CONTEXT_VERSION`), so a release that puts something new in the
+     * baseline reaches sessions that already have one stored.
+     *
+     * Absent on a message written before the marker existed, which reads as
+     * older than any shape a build names and so is rebuilt once.
+     */
+    contextVersion: z.number().optional(),
     realRole: z.enum(["system", "user", "assistant"]),
   });
   const SystemMetadataSchema = BaseMetadataSchema;
   const UserMetadataSchema = BaseMetadataSchema;
   const AssistantMetadataSchema = BaseMetadataSchema.extend({
     aiGatewayModel: AIGatewayModel.Schema.optional(),
+    /**
+     * The model record the served id resolves to, snapshotted here for the
+     * same reason the requested model is: a name and a provider are only
+     * knowable at the moment of the request. Resolved later it would be
+     * whatever answers to that id then, and nothing at all once the provider it
+     * came from is disconnected.
+     *
+     * Absent whenever `modelIdServed` is, and also when the id named a model
+     * the catalog has no record of, which is ordinary for one released between
+     * two refreshes. The id is still the answer in that case.
+     */
+    aiGatewayModelServed: AIGatewayModel.Schema.optional(),
     completionTokensPerSecond: z.number().optional(),
     endedAt: z.date().optional(),
     error: ErrorSchema.optional(),
@@ -135,15 +158,23 @@ export namespace SessionMessage {
       (v) => typeof v === "string",
     ),
     /**
-     * The model the provider reports having actually served, which is not
-     * always the one that was asked for: `modelId` records the request, and a
-     * request for a routing alias such as `auto` names a decision rather than a
-     * model. Without this, a session run through an alias cannot be attributed
-     * to anything -- every step reads `auto`, and which model wrote a given
-     * answer is unrecoverable after the fact.
+     * The provider's own id for the model it served, recorded only when that
+     * is a different model from the one the request named.
      *
-     * Absent when the provider does not report one, and absent on a synthetic
-     * message, which no provider served.
+     * Only when it differs, because the AI SDK fills its response metadata with
+     * the requested id when a provider reports nothing, so an id equal to the
+     * request is not evidence that anything confirmed it. Google reports
+     * nothing at all and would otherwise have every turn claiming a fact we
+     * were never told. Recording only the difference makes the field mean one
+     * thing: the provider named a model other than the one we asked for.
+     *
+     * That happens two ways, and `aiGatewayModel` is what tells them apart. A
+     * request for a router such as `auto` names a decision rather than a model,
+     * so a different answer is the router working. A request naming a model
+     * outright and getting another back is a substitution.
+     *
+     * Absent on a synthetic message, which no provider served, and on one
+     * aborted before its first step finished.
      */
     modelIdServed: z.string().optional(),
     msToFinish: z.number().optional(),
@@ -242,6 +273,15 @@ export namespace SessionMessage {
     // halted, but the note belongs on the user turn that resumes it (injection
     // only runs for user messages). Carry it forward to the next user message.
     let pendingMaxStepsNote: string | undefined;
+    // Skills the agent wrote are recorded the same way, on the assistant
+    // message of the turn that wrote them. Several turns can run before the
+    // user speaks again, so these accumulate rather than replace: each skill is
+    // announced once, and none is lost to a later turn that changed a different
+    // one.
+    const pendingSkillChanges = {
+      created: new Set<string>(),
+      updated: new Set<string>(),
+    };
 
     const uiMessages: UIMessage[] = messages.map((message) => {
       const maxStepsPart = message.parts.find(
@@ -252,6 +292,22 @@ export namespace SessionMessage {
       );
       if (maxStepsPart) {
         pendingMaxStepsNote = maxStepsModelNote(maxStepsPart.data);
+      }
+
+      const skillChangesPart = message.parts.find(
+        (
+          part,
+        ): part is SessionMessagePart.DataPart & {
+          type: "data-skillChanges";
+        } => part.type === "data-skillChanges",
+      );
+      if (skillChangesPart) {
+        for (const name of skillChangesPart.data.created) {
+          pendingSkillChanges.created.add(name);
+        }
+        for (const name of skillChangesPart.data.updated) {
+          pendingSkillChanges.updated.add(name);
+        }
       }
 
       const filteredParts = message.parts
@@ -322,6 +378,20 @@ export namespace SessionMessage {
 
             injectedParts.push({ text: folderAttachmentText, type: "text" });
           }
+        }
+
+        const dateChangePart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-dateChange";
+          } => part.type === "data-dateChange",
+        );
+        if (dateChangePart) {
+          injectedParts.push({
+            text: dateChangeModelNote(dateChangePart.data),
+            type: "text",
+          });
         }
 
         const backgroundProcessesPart = message.parts.find(
@@ -426,6 +496,16 @@ export namespace SessionMessage {
         if (pendingMaxStepsNote) {
           injectedParts.push({ text: pendingMaxStepsNote, type: "text" });
           pendingMaxStepsNote = undefined;
+        }
+
+        const skillChangesNote = skillChangesModelNote({
+          created: [...pendingSkillChanges.created],
+          updated: [...pendingSkillChanges.updated],
+        });
+        if (skillChangesNote) {
+          injectedParts.push({ text: skillChangesNote, type: "text" });
+          pendingSkillChanges.created.clear();
+          pendingSkillChanges.updated.clear();
         }
 
         // When the harness appends synthetic context (uploaded files, attached

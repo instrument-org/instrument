@@ -12,10 +12,14 @@ const { fetchAndParseAnthropicModels } = vi.hoisted(() => ({
 
 vi.mock("./fetch-models/anthropic", () => ({ fetchAndParseAnthropicModels }));
 
-// The fetcher is mocked, so the model shape is irrelevant to the caching logic
-// under test.
-const MODELS = [{ name: "claude" }] as unknown as AIGatewayModel.Type[];
-const CACHED = [{ name: "claude-cached" }] as unknown as AIGatewayModel.Type[];
+// The fetcher is mocked, so only `canonicalId` matters, and only because the
+// variant rule reads it on the way through to the cache.
+const MODELS = [
+  { canonicalId: "claude", name: "claude" },
+] as unknown as AIGatewayModel.Type[];
+const CACHED = [
+  { canonicalId: "claude-cached", name: "claude-cached" },
+] as unknown as AIGatewayModel.Type[];
 
 const config: AIGatewayProviderConfig.Type = {
   apiKey: "test-key",
@@ -88,6 +92,44 @@ describe("fetchModelsForProvider", () => {
     });
 
     expect(result.getOrNull()).toEqual(CACHED);
+  });
+
+  it("falls back to cached models on a transient HTTP status", async () => {
+    fetchAndParseAnthropicModels.mockRejectedValue(
+      new TypedError.Fetch("Failed to fetch from https://example.test/models", {
+        cause: new TypedError.Fetch(
+          "Failed to fetch from https://example.test/models: 503 Service Unavailable",
+          { status: 503 },
+        ),
+      }),
+    );
+    const cache = createMemoryCache(CACHED);
+
+    const result = await fetchModelsForProvider(config, {
+      captureException,
+      modelCache: cache,
+    });
+
+    expect(result.getOrNull()).toEqual(CACHED);
+  });
+
+  it("returns the error on an auth HTTP status even with a cache", async () => {
+    fetchAndParseAnthropicModels.mockRejectedValue(
+      new TypedError.Fetch("Failed to fetch from https://example.test/models", {
+        cause: new TypedError.Fetch(
+          "Failed to fetch from https://example.test/models: 401 Unauthorized",
+          { status: 401 },
+        ),
+      }),
+    );
+    const cache = createMemoryCache(CACHED);
+
+    const result = await fetchModelsForProvider(config, {
+      captureException,
+      modelCache: cache,
+    });
+
+    expect(result.ok).toBe(false);
   });
 
   it("returns the error when parsing fails even with a cache", async () => {

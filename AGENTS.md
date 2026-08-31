@@ -18,6 +18,8 @@ pnpm monorepo for the Instrument desktop app platform.
 
 Never commit machine-local paths (`/Users/...`, `~/code/...`, `C:\...`) or names of sibling repos/checkouts on one dev's disk — not in code, docs, plans, commits, or PRs. Meaningless to others, goes stale when layout changes. Such pointers go in local notes, not shared history.
 
+Sources outside this repo are reachable by name instead: `agent-reference.json` (shared) and `agent-reference.local.json` (gitignored, where machine paths go) declare them, and `agent-reference status` lists them.
+
 ## Registry Submodule
 
 **NEVER edit `registry/`.** It is the `instrument-org/skills` git submodule. Read freely; do not create, edit, or delete files there.
@@ -48,10 +50,10 @@ Run lint/types from **repo root** through Turbo for caching. Avoid package-loop 
 
 - `pnpm exec turbo run check:types check:lint` — all packages, or `--filter=@instrument-org/{workspace,studio}` for one
 - `pnpm check-and-test` — full local check (includes spelling, format, etc.)
-- `pnpm check-and-test:ci` — what CI runs (omits pedantic checks that don't affect correctness)
+- `pnpm check-and-test:ci` — what CI runs (drops format/spelling/markdown, adds `check:packages:dedupe`, so it is not a strict subset)
 - `pnpm turbo:fix:lint` — fix lint
 
-`check:lint` / `fix:lint` run both ESLint (syntactic rules: perfectionist, react-compiler, regexp, yml/jsonc, turbo) and `oxlint --type-aware` (all TypeScript type-aware rules via tsgolint, plus Tailwind class rules). There is no typed linting in the ESLint config, so it is fast.
+`check:lint` / `fix:lint` run both ESLint (syntactic rules: perfectionist, react-hooks, regexp, yml/jsonc, turbo) and `oxlint --type-aware` (all TypeScript type-aware rules via tsgolint, the React Compiler analysis via `react/react-compiler`, plus Tailwind class rules). There is no typed linting in the ESLint config, so it is fast.
 
 A format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`) runs oxfmt on every file you Edit/Write, then oxfmt + `oxlint --fix` + `eslint --fix` on Stop over the files that session edited. Anything ESLint could not fix blocks the turn and comes back to you to fix in context. So: expect files to change after you write them, never hand-format or hand-fix order-only and auto-fixable lint (including Tailwind class order), and don't run `check:lint` proactively to find what the hook is about to hand you anyway.
 
@@ -115,6 +117,6 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `docs/architecture/responsive-layout.md` — Why viewport breakpoints are the wrong proxy for layout width in Studio (UI zoom + resizable sidebar), the `@container/app-content` shell container, and the unit rules for sizing portalled content under zoom.
 - `docs/architecture/studio-in-the-browser.md` — `apps/studio/web/`: Studio's real renderer served as a plain web page with the Electron boundary replaced by fixtures, for development only. How to add a fixture, and the live-query rules that make one work.
 - `docs/architecture/auto-updater.md` — How Studio finds, stages, and installs a build: the pure-reducer / port-seam / wiring split, channel selection, and why the build offered and the build installed can diverge.
-- `.agents/cloud-dev.md` — Headless/CI dev: `NO_SANDBOX`, shim + Studio startup, CDP port 48160, Xvfb, pnpm checks.
+- `.agents/cloud-dev.md` — Headless/CI dev: `NO_SANDBOX`, the CDP port default, Xvfb, and build approvals.
 - `apps/studio/AGENTS.md` — Electron deps vs devDeps, React 19 + TanStack Router + oRPC patterns, where client/main/RPC code lives.
 - `packages/workspace/AGENTS.md` — RPC routes, tools/agents layout, workspace server, XState machines, neverthrow + Zod tool conventions.

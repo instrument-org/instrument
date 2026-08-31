@@ -9,10 +9,16 @@ import {
   StoreId,
   TaskIdSchema,
 } from "@instrument-org/workspace/electron";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { sendCommand } from "./dispatch-command";
 import { type BrowserEntry, createEntry } from "./entry";
+import {
+  clearGuestSurface,
+  getDesiredGuestSurfaces,
+  recordEffectiveGuestSurface,
+  setRasterBudget,
+} from "./guest-surface";
 
 const SUBDOMAIN = TaskIdSchema.parse("agent-browser-test");
 const SESSION_ID = StoreId.newSessionId();
@@ -309,11 +315,93 @@ describe("sendCommand", () => {
     });
   });
 
+  describe("Browser.getWindowForTarget", () => {
+    afterEach(() => {
+      clearGuestSurface(TARGET_ID);
+    });
+
+    it("reports the size the guest is actually laid out at", async () => {
+      recordEffectiveGuestSurface({
+        size: { height: 910, width: 1300 },
+        targetId: TARGET_ID,
+      });
+      const entries = new Map([[TARGET_ID, makeEntry({})]]);
+
+      const result = (await sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries,
+        method: "Browser.getWindowForTarget",
+        params: {},
+        targetId: TARGET_ID,
+      })) as { bounds: { height: number; width: number } };
+
+      // A constant here goes stale the moment an agent asks for a viewport or
+      // the window shrinks under one, and this is the only channel that answers
+      // agent-browser's window probe.
+      expect(result.bounds).toMatchObject({ height: 910, width: 1300 });
+    });
+
+    it("falls back to the default before the renderer has reported", async () => {
+      const entries = new Map([[TARGET_ID, makeEntry({})]]);
+
+      const result = (await sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries,
+        method: "Browser.getWindowForTarget",
+        params: {},
+        targetId: TARGET_ID,
+      })) as { bounds: { height: number; width: number } };
+
+      expect(result.bounds).toMatchObject({ height: 800, width: 1280 });
+    });
+  });
+
   describe("Emulation.setDeviceMetricsOverride", () => {
-    it("rejects device emulation and points the agent at PDF export", async () => {
+    // The renderer owns the budget and reports it; a unit test has to stand in
+    // for that. 1440x1265 is a window whose budget is 1872x1644.
+    const setBudget = () => {
+      setRasterBudget({ height: 1644, width: 1872 });
+    };
+
+    afterEach(() => {
+      clearGuestSurface(TARGET_ID);
+    });
+
+    it("records a size within the budget without touching the debugger", async () => {
+      setBudget();
       const wcSendCommand = vi.fn();
-      const entry = makeEntry({ sendCommand: wcSendCommand });
-      const entries = new Map([[TARGET_ID, entry]]);
+      const entries = new Map([
+        [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+      ]);
+
+      await expect(
+        sendCommand({
+          ensureDebuggerAttached: vi.fn(),
+          entries,
+          method: "Emulation.setDeviceMetricsOverride",
+          params: {
+            deviceScaleFactor: 0,
+            height: 1000,
+            mobile: false,
+            width: 1600,
+          },
+          targetId: TARGET_ID,
+        }),
+      ).resolves.toEqual({});
+
+      // The guest is resized by the renderer, so nothing is emulated here.
+      expect(wcSendCommand).not.toHaveBeenCalled();
+      expect(getDesiredGuestSurfaces()).toEqual([
+        [TARGET_ID, { height: 1000, width: 1600 }],
+      ]);
+    });
+
+    it("refuses a size past the budget, naming the maximum, and records nothing", async () => {
+      setBudget();
+      const wcSendCommand = vi.fn();
+      const entries = new Map([
+        [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+      ]);
 
       await expect(
         sendCommand({
@@ -328,7 +416,43 @@ describe("sendCommand", () => {
           },
           targetId: TARGET_ID,
         }),
-      ).rejects.toThrow(/pdf/i);
+      ).rejects.toThrow(/1872x1644/);
+
+      // Refused rather than clamped: a clamped guest would report the size it
+      // was asked for and its captures would disagree with it.
+      expect(getDesiredGuestSurfaces()).toEqual([]);
+      expect(wcSendCommand).not.toHaveBeenCalled();
+    });
+
+    it("clears the recorded size without touching the debugger", async () => {
+      setBudget();
+      const wcSendCommand = vi.fn();
+      const entries = new Map([
+        [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+      ]);
+      const call = (
+        method: Parameters<typeof sendCommand>[0]["method"],
+        params?: unknown,
+      ) =>
+        sendCommand({
+          ensureDebuggerAttached: vi.fn(),
+          entries,
+          method,
+          params,
+          targetId: TARGET_ID,
+        });
+
+      await call("Emulation.setDeviceMetricsOverride", {
+        deviceScaleFactor: 0,
+        height: 1000,
+        mobile: false,
+        width: 1600,
+      });
+      await expect(
+        call("Emulation.clearDeviceMetricsOverride"),
+      ).resolves.toEqual({});
+
+      expect(getDesiredGuestSurfaces()).toEqual([]);
       expect(wcSendCommand).not.toHaveBeenCalled();
     });
   });

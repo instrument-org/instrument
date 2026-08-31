@@ -8,6 +8,7 @@ import {
   TOOL_EXPLANATION_PARAM_NAME,
 } from "../constants";
 import { assignAttachedMounts } from "../lib/attached-folder-mounts";
+import { buildAvailableSkillsContext } from "../lib/available-skills-context";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import {
   buildProjectContextText,
@@ -55,9 +56,9 @@ interface MountedFolderAttachment {
 /**
  * How to choose between browsers, for the builds that have a choice.
  *
- * This text is written into the session context, which is rebuilt on a timer
- * rather than per turn, so it can outlive a change to the feature flag by up to
- * an hour. That rules out stating here which browsers exist: the flag can be
+ * This text is written into the session context, which is built once and never
+ * rewritten, so it outlives a change to the feature flag for the rest of the
+ * session. That rules out stating here which browsers exist: the flag can be
  * turned on mid-session, and a stale "there is no other browser" would stop the
  * model from trying something the build now allows, with no failed command to
  * correct it. Availability is claimed only where it is recomputed every request
@@ -165,7 +166,7 @@ export const mainAgent = setupAgent({
     Do not unnecessarily mention the app by name; users already know where they are. Don't add emojis of your own, to replies or to files you write, unless asked; emojis already present in the user's own material stay when you transcribe, convert, or edit it.
     If you genuinely cannot do something, say so plainly, keep the explanation brief, and offer a useful alternative when one exists. Do not reach for that shape when you could simply do the task: a list of things you could do instead is not a substitute for doing the thing that was asked.
     When you get something wrong, correct it in a sentence and give the rest of the reply to the right answer, not to a catalogue of what went wrong.
-    Your responses are rendered as Markdown. Use Markdown intentionally when it makes an answer easier to scan: short headings for sections, bullets or numbered lists for multiple points, bold text for key labels, tables for comparisons, Markdown links for URLs, and syntax-highlighted fenced code blocks for code or commands. Showing Sources to the User covers which URLs belong in a reply at all. Files are the exception to linking altogether: they are shown rather than linked, and Showing Files to the User covers how.
+    Your responses are rendered as Markdown, and so is every Markdown file you write, which the user opens in the same renderer. Both are GitHub-flavored, down to heading anchors and its subset of inline HTML. Use Markdown intentionally when it makes an answer easier to scan: short headings for sections, bullets or numbered lists for multiple points, bold text for key labels, tables for comparisons, Markdown links for URLs, and syntax-highlighted fenced code blocks for code or commands. Showing Sources to the User covers which URLs belong in a reply at all. Files are the exception to linking altogether: they are shown rather than linked, and Showing Files to the User covers how.
     Use \`$$...$$\` for math expressions. Do not use single-dollar math delimiters in prose, so currency values like \`$100\` remain plain text.
     A \`\`\`mermaid fence renders as a diagram, so draw one when a flow, a sequence, or how a set of things relate is easier to see than to read: an architecture, a decision tree, a process with branches. Prefer prose or a list for anything a sentence already settles, and keep labels short -- a diagram that restates the paragraph above it earns nothing. Always quote node labels (\`A["Check the token"]\`): unquoted parentheses or braces in a label do not parse, and a diagram that does not parse is shown as its source instead of drawn.
     
@@ -340,6 +341,7 @@ export const mainAgent = setupAgent({
           intro:
             "The user has attached these folders to this task, mounted for direct access:",
         }),
+        await buildAvailableSkillsContext(),
         taskLayout,
       ],
     });

@@ -23,6 +23,7 @@ export const AssistantMessage = memo(function AssistantMessage({
     <div className="flex flex-col items-start">
       <SessionMarkdown
         assetBaseUrl={assetBaseUrl}
+        assetVersion={part.metadata.id}
         className="w-full"
         isStreaming={part.state === "streaming"}
         markdown={messageText}

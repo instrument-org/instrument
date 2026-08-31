@@ -15,14 +15,14 @@ import {
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
+import {
+  type DroppedFolder,
+  useFileDropRegion,
+} from "@/client/hooks/use-file-drop-region";
 import { BLOCK_CLOSE, BLOCK_OPEN, ITEM_IN } from "@/client/lib/motion";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { folderNameFromPath } from "@/client/lib/path-utils";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
-import {
-  type DroppedFolder,
-  useWindowFileDrop,
-} from "@/client/lib/use-window-file-drop";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
@@ -41,7 +41,6 @@ import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { StopIcon } from "@phosphor-icons/react/Stop";
-import { UploadSimpleIcon } from "@phosphor-icons/react/UploadSimple";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { AnimatePresence, motion } from "motion/react";
@@ -62,6 +61,7 @@ import {
   type PromptDraftKey,
   promptDraftRefAtom,
   promptFocusSignalAtom,
+  promptNudgeSignalAtom,
   removeTransientDraft,
 } from "../atoms/prompt-value";
 import { PromptProjectChip } from "./project/prompt-project-chip";
@@ -134,6 +134,11 @@ interface PromptInputProps {
   isStoppable?: boolean;
   isSubmittable?: boolean;
   modelURI?: AIGatewayModelURI.Type;
+  // Whether a navigation that landed on the page this composer is already on is
+  // answered here. On where the composer is what the page is for, so pressing
+  // "New task" from the new task page has something to point at; off where the
+  // page is about something else and its composer is a place to reply.
+  nudgeOnReentry?: boolean;
   onFolderCountChange?: (count: number) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onStop?: () => void;
@@ -169,6 +174,7 @@ export const PromptInput = ({
   isStoppable = false,
   isSubmittable = true,
   modelURI,
+  nudgeOnReentry = false,
   onFolderCountChange,
   onModelChange,
   onStop,
@@ -180,7 +186,15 @@ export const PromptInput = ({
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
-  const focusSignal = useAtomValue(promptFocusSignalAtom(useTabId()));
+  const tabId = useTabId();
+  const focusSignal = useAtomValue(promptFocusSignalAtom(tabId));
+  const nudgeSignal = useAtomValue(promptNudgeSignalAtom(tabId));
+  // The signal only counts up, and a composer arriving on a tab that was nudged
+  // before is not the one being nudged now, so what it mounted at is the floor.
+  const [nudgeFloor] = useState(nudgeSignal);
+  // Keys the ring, so each bump is its own element and its own play of the
+  // animation rather than one that has already finished.
+  const nudgeKey = nudgeOnReentry && nudgeSignal > nudgeFloor ? nudgeSignal : 0;
   const [attachedItems, setAttachedItems] = useState<AttachedItem[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<null | ProjectId>(
     null,
@@ -344,8 +358,11 @@ export const PromptInput = ({
     }
   };
 
-  const { isDragging } = useWindowFileDrop({
+  useFileDropRegion({
     enabled: isActiveTab,
+    // The message, not the task: this composer is also a new tab, a project
+    // page and a skill page, and the file lands in the message on all of them.
+    note: "Drop to attach to your message",
     onFilesDropped: processFiles,
     onFoldersDropped: (folders: DroppedFolder[]) => {
       // Split the drop against the rendered list so the toast happens here,
@@ -913,14 +930,18 @@ export const PromptInput = ({
         }
         maxHeight={autoResizeMaxHeight}
         overlay={
-          isDragging && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-[20px] border border-dashed border-foreground/20 bg-background/70">
-              <UploadSimpleIcon className="size-8 text-primary" />
-              <span className="text-sm font-medium text-primary">
-                Drop files or folders to add them
-              </span>
-            </div>
-          )
+          <>
+            {/* Just outside the box rather than on it, so the ring reads as
+                something arriving around the composer and never crowds what is
+                written in it. */}
+            {nudgeKey > 0 && (
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -inset-0.5 z-10 composer-nudge rounded-[22px]"
+                key={nudgeKey}
+              />
+            )}
+          </>
         }
         ref={setComposerBounds}
       >

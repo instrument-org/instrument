@@ -11,6 +11,7 @@ import { TypedError } from "./errors";
 import { getIgnore } from "./get-ignore";
 import { getMimeType } from "./get-mime-type";
 import { normalizePath } from "./normalize-path";
+import { pathExists } from "./path-exists";
 import { SKILL_ARTIFACT_IGNORE } from "./skill-artifact-ignore";
 import { taskDir } from "./task-dir-utils";
 
@@ -81,19 +82,32 @@ export type TaskFile = z.output<typeof TaskFileSchema>;
 
 export type TaskFileIndex = Map<string, TaskFileEntry>;
 
+function errorCode(error: unknown): string | undefined {
+  return error instanceof Error &&
+    "code" in error &&
+    typeof error.code === "string"
+    ? error.code
+    : undefined;
+}
+
+// An entry the process may not look at: a mode the agent set on a directory it
+// made, or one restored from an archive that carried its permissions. The index
+// is a best-effort view of what is on disk, so one closed door hides its own
+// subtree rather than emptying the whole panel.
+function isUnreadablePathError(error: unknown): boolean {
+  const code = errorCode(error);
+  return code === "EACCES" || code === "EPERM";
+}
 // While walking a live tree, a path can disappear between its parent's readdir
 // and the moment we touch it -- routine when the tree is being rewritten under
 // us (a failed clone getting cleaned up, a checkout aborting). Treat these
 // codes as "the entry is gone" and skip it rather than aborting the whole walk.
 function isVanishedPathError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    (error.code === "ENOENT" || error.code === "ENOTDIR")
-  );
+  const code = errorCode(error);
+  return code === "ENOENT" || code === "ENOTDIR";
 }
-// Reads a directory, tolerating a subtree that vanished mid-walk (returns null
-// to skip it). The task root going missing is a real error and still throws.
+// Reads a directory, tolerating a subtree that vanished or cannot be read
+// (returns null to skip it). The task root is the walk itself and still throws.
 async function readDirEntries(
   absoluteDir: string,
   { isRoot }: { isRoot: boolean },
@@ -101,19 +115,23 @@ async function readDirEntries(
   try {
     return await fs.readdir(absoluteDir, { withFileTypes: true });
   } catch (error) {
-    if (isRoot || !isVanishedPathError(error)) {
+    if (
+      isRoot ||
+      !(isVanishedPathError(error) || isUnreadablePathError(error))
+    ) {
       throw error;
     }
     return null;
   }
 }
-// lstats a walked entry, tolerating a file deleted between the readdir above
-// and now (returns null to skip it). Other errors still abort the walk.
+// lstats a walked entry, tolerating one deleted between the readdir above and
+// now, or sitting somewhere we may not look (returns null to skip it). Other
+// errors still abort the walk.
 async function statEntry(absolutePath: string) {
   try {
     return await fs.lstat(absolutePath);
   } catch (error) {
-    if (isVanishedPathError(error)) {
+    if (isVanishedPathError(error) || isUnreadablePathError(error)) {
       return null;
     }
     throw error;
@@ -171,9 +189,18 @@ export async function getTaskFileIndex(
         );
 
         // A filename containing backslashes (treated as separators by
-        // normalizePath) can collapse into a traversal path that escapes
-        // dir. Skip rather than letting lstat throw and abort the walk.
-        if (relativePath === ".." || relativePath.startsWith("../")) {
+        // normalizePath) can collapse into a traversal path that escapes dir,
+        // or into one that reads as absolute -- `\logs\out.txt` is a single
+        // legal name on macOS and Linux, and the kind of thing an agent writes
+        // when it spells a path the Windows way. Skip both here: the ignore
+        // matcher throws on an absolute path, and neither shape names a file
+        // the index can address.
+        const filePath = RelativePathSchema.safeParse(relativePath);
+        if (
+          !filePath.success ||
+          relativePath === ".." ||
+          relativePath.startsWith("../")
+        ) {
           continue;
         }
 
@@ -202,10 +229,9 @@ export async function getTaskFileIndex(
           return;
         }
 
-        const filePath = RelativePathSchema.parse(relativePath);
         files.push({
           filename: path.basename(relativePath),
-          filePath,
+          filePath: filePath.data,
           mimeType: getMimeType(relativePath),
           mtimeMs: stats.mtimeMs,
           size: stats.size,
@@ -217,10 +243,21 @@ export async function getTaskFileIndex(
 
     return ok(new Map(files.map((file) => [file.filePath, file])));
   } catch (error) {
+    // A task whose directory is gone is not a failure to report: the user
+    // trashed it, and whatever is still asking for its files is on its way to
+    // unmounting. Every other throw is real, and names what it was -- the
+    // errno, or the class for a throw that carries none -- because the message
+    // alone is the same sentence for a permission error, an unreadable
+    // .gitignore, and a disk that went away.
+    if (isVanishedPathError(error) && !(await pathExists(dir))) {
+      return err(new TypedError.NotFound(`No directory for task at ${dir}`));
+    }
+
     return err(
-      new TypedError.FileSystem("Error listing task files", {
-        cause: error,
-      }),
+      new TypedError.FileSystem(
+        `Error listing task files (${errorCode(error) ?? describeThrown(error)})`,
+        { cause: error },
+      ),
     );
   }
 }
@@ -232,6 +269,13 @@ export async function getTaskFiles(taskId: TaskId) {
   }
 
   return ok(taskFilesFromIndex(indexResult.value));
+}
+
+// The class of a throw carrying no errno, for the message above. Not the
+// value's own text, which for an fs error holds the path it failed on: this is
+// the one message here that reaches telemetry.
+function describeThrown(error: unknown): string {
+  return error instanceof Error ? error.constructor.name : typeof error;
 }
 
 /**

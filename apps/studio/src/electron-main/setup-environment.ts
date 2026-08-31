@@ -6,6 +6,11 @@ import fixPath from "fix-path";
 import path from "node:path";
 
 import { initializeElectronLogging, logger } from "./lib/electron-logger";
+import {
+  OZONE_PLATFORMS,
+  ozonePlatformSwitch,
+  resolveOzonePlatform,
+} from "./lib/ozone-platform";
 import { setupDBusEnvironment } from "./lib/setup-dbus-env";
 
 /**
@@ -65,13 +70,24 @@ initializeElectronLogging();
 const passwordStore = setupDBusEnvironment();
 
 if (platform.isLinux) {
-  // Fix issues with Wayland on Linux until it stabilizes
-  // https://github.com/RocketChat/Rocket.Chat.Electron/pull/3159
-  // https://github.com/electron/electron/pull/48301
-  //
-  // `ELECTRON_OZONE_PLATFORM_HINT` was removed.
-  // https://www.electronjs.org/docs/latest/breaking-changes#planned-breaking-api-changes-380
-  app.commandLine.appendSwitch("ozone-platform", "x11");
+  const ozone = resolveOzonePlatform(process.env.INSTRUMENT_OZONE_PLATFORM);
+  if (ozone.ignored) {
+    logger.warn(
+      `Ignoring INSTRUMENT_OZONE_PLATFORM=${ozone.ignored}; expected one of ${OZONE_PLATFORMS.join(", ")}`,
+    );
+  }
+  app.commandLine.appendSwitch(
+    "ozone-platform",
+    ozonePlatformSwitch(ozone.platform),
+  );
+  // The switch after the fact, not the request, because the two can disagree:
+  // a `--ozone-platform` already on argv is not always removable from here, and
+  // an app logging `auto` while talking X11 is a run nobody can diagnose.
+  const appliedOzoneSwitch =
+    app.commandLine.getSwitchValue("ozone-platform") || "none";
+  logger.info(
+    `Using ozone platform: ${ozone.platform} (switch: ${appliedOzoneSwitch})`,
+  );
 
   // Allow CDP Input.dispatchMouseEvent on occluded web contents (e.g.
   // agent-browser webview guests parked offscreen in the paint host).

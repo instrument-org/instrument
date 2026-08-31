@@ -15,8 +15,14 @@ const config: ReturnType<typeof tseslint.config> = tseslint.config(
       "react-hooks": pluginReactHooks,
     },
     rules: {
-      // Hooks can occur in TSX and TS files.
-      ...pluginReactHooks.configs.recommended.rules,
+      // Listed rather than spread from `configs.recommended`, which also turns
+      // on the React Compiler rule family. Those fourteen rules share one
+      // analysis pass over each file and cost about 40% of this config's lint
+      // time; oxlint runs the same analysis natively via `react/react-compiler`
+      // in each React package's `.oxlintrc.json`. Hooks can occur in TSX and TS
+      // files.
+      "react-hooks/exhaustive-deps": "warn",
+      "react-hooks/rules-of-hooks": "error",
       // React scope no longer necessary with new JSX transform.
       "react/react-in-jsx-scope": "off",
     },

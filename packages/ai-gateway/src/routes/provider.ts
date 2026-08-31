@@ -5,7 +5,7 @@ import {
 import { Hono } from "hono";
 import { proxy } from "hono/proxy";
 
-import { PROVIDERS_PATH } from "../constants";
+import { CLIENT_SESSION_ID_HEADER, PROVIDERS_PATH } from "../constants";
 import { apiURL } from "../lib/providers/api-url";
 import { setProviderAuthHeaders } from "../lib/providers/set-auth-headers";
 import { setAttributionHeaders } from "../lib/set-attribution-headers";
@@ -45,10 +45,14 @@ providerApp.all("/:providerConfigId/*", async (context) => {
   targetUrl.search = url.search;
 
   const headers = new Headers(context.req.raw.headers);
+  // Held aside and re-set below for our own provider, the same gate the client
+  // metadata goes through.
+  const sessionId = headers.get(CLIENT_SESSION_ID_HEADER);
+  headers.delete(CLIENT_SESSION_ID_HEADER);
   setAttributionHeaders(headers, config.type);
   setProviderAuthHeaders(headers, config);
   if (config.type === OUR_PROVIDER_CONFIG.type) {
-    setClientHeaders(headers, context.var.clientInfo);
+    setClientHeaders(headers, context.var.clientInfo, sessionId);
   }
 
   return proxy(targetUrl.toString(), {

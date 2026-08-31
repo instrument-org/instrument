@@ -12,6 +12,19 @@ import { sleep } from "radashi";
 // transport failure doesn't spin.
 const RECONNECT_DELAY_MS = 500;
 
+// A guest is a remote frame, and Blink rasterizes one only within its
+// compositing rect: this document's viewport, outset by 15% of that viewport on
+// each side to cover scrolling, then clamped to the frame's own size
+// (`RemoteFrameView::ComputeCompositingRect`). So a guest laid out beyond
+// `innerWidth`/`innerHeight` x 1.3 is painted only that far, while it and
+// `Page.getLayoutMetrics` both keep reporting the size it was laid out at --
+// nothing downstream can tell a cropped frame from a whole one. The exact bound
+// is `v + 2 * ceil(0.15 * v)`, never below `1.3v`, so flooring the product stays
+// under it and absorbs device-pixel rounding as well. The viewport it follows is
+// this window's, not the OS window's, which is why `innerWidth` is the input.
+// See docs/findings/browser-guest-raster-cap.md.
+const GUEST_RASTER_BUDGET = 1.3;
+
 /**
  * Renderer-owned pool of browser `<webview>` guests. The main process owns
  * which targets should exist and streams that desired set over
@@ -45,13 +58,21 @@ interface Bounds {
 
 interface PooledWebview {
   container: HTMLDivElement;
+  // A size the agent asked this guest to lay out at, which outranks
+  // `lastVisibleBounds` while parked. Null means "whatever the panel last
+  // showed it at", which is the only sizing a guest nobody has asked about has.
+  desiredSurface: null | { height: number; width: number };
   // Generation of the entry this guest was mounted for. A destroy+recreate of
   // the same targetId bumps it, so reconcile knows to dispose this guest and
   // mount a fresh one rather than reusing an element bound to a dead entry.
   generation: number;
+  // Last size reported to main, so a park/show cycle that lands on the same
+  // number doesn't re-send it.
+  lastReportedSurface: null | { height: number; width: number };
   // Last size the guest was shown at, so paint-host keeps it that size while
   // hidden (avoids a jarring resize when re-shown).
   lastVisibleBounds: Bounds | null;
+  targetId: BrowserTargetId;
   webview: WebviewElement;
 }
 
@@ -143,6 +164,15 @@ function restoreHostFocus() {
 // can't park the guest the foreground one is showing (last-writer-wins otherwise).
 const paintOwners = new Map<BrowserTargetId, symbol>();
 
+// Agent-requested guest sizes, kept beside the pool rather than only on the
+// pooled entry: main replays them when this stream subscribes, which can happen
+// before the target's guest has mounted, and a recreated guest should come back
+// at the size the model last asked for.
+const desiredSurfaces = new Map<
+  BrowserTargetId,
+  { height: number; width: number }
+>();
+
 // Ids of targets whose guest has attached, mirrored from the desired-targets
 // stream so the UI can show the live guest vs a placeholder without a second
 // polled endpoint. Replaced (not mutated) on each reconcile so the snapshot is a
@@ -173,6 +203,7 @@ export function initBrowserPool(): () => void {
   const controller = new AbortController();
   const { signal } = controller;
   document.addEventListener("focusin", recordHostFocus);
+  window.addEventListener("resize", onWindowResize);
 
   async function run() {
     while (true) {
@@ -246,13 +277,42 @@ export function initBrowserPool(): () => void {
     }
   }
 
+  async function runGuestSurfaces() {
+    while (true) {
+      if (signal.aborted) {
+        return;
+      }
+      try {
+        const subscription =
+          await rpcClient.browser.events.setGuestSurface.call(undefined, {
+            signal,
+          });
+        for await (const { size, targetId } of subscription) {
+          applyDesiredSurface(targetId, size);
+        }
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        captureException(error);
+      }
+      await sleep(RECONNECT_DELAY_MS);
+    }
+  }
+
+  // Report before subscribing to anything: main refuses an agent's viewport
+  // request until it knows what this window can render.
+  reportRasterBudget();
+
   void run();
   void runFocusRestores();
   void runGuestFocusRequests();
+  void runGuestSurfaces();
 
   return () => {
     controller.abort();
     document.removeEventListener("focusin", recordHostFocus);
+    window.removeEventListener("resize", onWindowResize);
   };
 }
 
@@ -303,6 +363,10 @@ export function showOverSlot(
   }
   paintOwners.set(targetId, owner);
   pooled.lastVisibleBounds = bounds;
+  reportEffectiveSurface(pooled, {
+    height: bounds.height,
+    width: bounds.width,
+  });
   const { container, webview } = pooled;
 
   Object.assign(container.style, {
@@ -355,13 +419,42 @@ export function subscribeAttachedTargets(listener: () => void): () => void {
   };
 }
 
+// Record a size the agent asked for and put the guest at it if it is parked.
+// A guest a slot is showing keeps the slot's bounds: the user is looking at it,
+// and the request takes effect the next time it parks.
+function applyDesiredSurface(
+  targetId: BrowserTargetId,
+  size: null | { height: number; width: number },
+) {
+  if (size) {
+    desiredSurfaces.set(targetId, size);
+  } else {
+    desiredSurfaces.delete(targetId);
+  }
+
+  const pooled = pool.get(targetId);
+  if (!pooled) {
+    return;
+  }
+  pooled.desiredSurface = size;
+  if (!paintOwners.has(targetId)) {
+    applyPaintHost(pooled);
+  }
+}
+
 // On-screen-sized but visually hidden. NOT display:none / far-offscreen, which
 // would drop the compositor surface and break CDP capture/input. Held at the
-// last visible size (or a default before first shown) so re-showing doesn't jump.
+// last visible size (or a default before first shown) so re-showing doesn't jump,
+// and clamped to what this window can actually rasterize: a guest shown in a
+// panel is bounded by the window anyway, but the default is not, so in a window
+// narrower than 985px or shorter than 616px it would otherwise park over the cap.
 function applyPaintHost(pooled: PooledWebview) {
-  const { container, lastVisibleBounds, webview } = pooled;
-  const width = lastVisibleBounds?.width ?? VIEW_W;
-  const height = lastVisibleBounds?.height ?? VIEW_H;
+  const { container, desiredSurface, lastVisibleBounds, webview } = pooled;
+  const budget = maxRasterSize();
+  const requested = desiredSurface ?? lastVisibleBounds;
+  const width = Math.min(requested?.width ?? VIEW_W, budget.width);
+  const height = Math.min(requested?.height ?? VIEW_H, budget.height);
+  reportEffectiveSurface(pooled, { height, width });
 
   Object.assign(container.style, {
     borderRadius: "",
@@ -447,13 +540,38 @@ function ensureWebview(
 
   const pooled: PooledWebview = {
     container,
+    desiredSurface: desiredSurfaces.get(targetId) ?? null,
     generation,
+    lastReportedSurface: null,
     lastVisibleBounds: null,
+    targetId,
     webview,
   };
   pool.set(targetId, pooled);
   applyPaintHost(pooled);
   return pooled;
+}
+
+/** The largest guest, in CSS px, this window can rasterize in full. */
+function maxRasterSize() {
+  return {
+    height: Math.floor(window.innerHeight * GUEST_RASTER_BUDGET),
+    width: Math.floor(window.innerWidth * GUEST_RASTER_BUDGET),
+  };
+}
+
+// The budget follows the window, so a guest parked at a size the window could
+// afford stops being affordable when the window shrinks under it, and main's
+// answer to the next viewport request goes stale. Only parked guests need
+// re-sizing: a guest a slot is showing is re-measured against the slot, which
+// the window bounds anyway.
+function onWindowResize() {
+  reportRasterBudget();
+  for (const [targetId, pooled] of pool) {
+    if (!paintOwners.has(targetId)) {
+      applyPaintHost(pooled);
+    }
+  }
 }
 
 /** Bring the pool in line with the desired target set: create any missing
@@ -482,4 +600,29 @@ function reconcile(targets: BrowserGuestTarget[]) {
   for (const listener of targetListeners) {
     listener();
   }
+}
+
+// Tell main what the guest is actually laid out at. `desiredSurfaces` in main
+// keeps what an agent asked for, so that a guest returns to it when the window
+// grows back; this is the other half, and what a window-dimension probe should
+// be answered with. Without it a granted size that the window later shrank under
+// would keep being reported as though it still held.
+function reportEffectiveSurface(
+  pooled: PooledWebview,
+  size: { height: number; width: number },
+) {
+  const last = pooled.lastReportedSurface;
+  if (last?.width === size.width && last.height === size.height) {
+    return;
+  }
+  pooled.lastReportedSurface = size;
+  void rpcClient.browser.syncGuestSurface.call({
+    height: size.height,
+    targetId: pooled.targetId,
+    width: size.width,
+  });
+}
+
+function reportRasterBudget() {
+  void rpcClient.browser.syncRasterBudget.call(maxRasterSize());
 }

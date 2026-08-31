@@ -1,5 +1,19 @@
-blank_issues_enabled: false
+# The repository restricts issue creation to collaborators, so the gate no
+# longer has to be built out of a template chooser with no way through it. What
+# reaches this file is either a maintainer writing up accepted work, who needs a
+# blank issue, or someone without access, who cannot open one regardless and is
+# better served by the links below than by a dead end.
+blank_issues_enabled: true
 contact_links:
-  - about: Our preferred starting point if you have any questions, feature requests, or bug reports.
-    name: Bug Reports, Feature Requests & Questions
-    url: https://github.com/instrument-org/instrument/discussions/new/choose
+  - about: Something is broken or behaving unexpectedly. Start here for every bug, and fill the template in completely.
+    name: Report a Bug
+    url: https://github.com/instrument-org/instrument/discussions/new?category=issue-triage
+  - about: Ask for something Instrument does not do yet, or float a direction you are still turning over.
+    name: Request a Feature or Share an Idea
+    url: https://github.com/instrument-org/instrument/discussions/new?category=feature-requests-ideas
+  - about: Ask how to do something, or get help with setup, providers, and API keys. Not for bug reports.
+    name: Ask a Question
+    url: https://github.com/instrument-org/instrument/discussions/new?category=q-a
+  - about: Please disclose privately by email rather than filing in public.
+    name: Report a Security Vulnerability
+    url: https://github.com/instrument-org/instrument/security/policy

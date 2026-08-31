@@ -8,16 +8,19 @@ Core AI agents, workflow logic, RPC, tools, and runtime.
 - **Streaming**: every `eventIterator` procedure goes under `live.*` (snapshot on subscribe, then updates) or `events.*` (fires only on change), and nothing else does. A `live.*` mirror of a non-live procedure shares its leaf name: `task.byId` / `task.live.byId`.
 - **Tools**: `src/tools/`. Build with `setupTool()` from `create-tool.ts`; register in `all.ts`. Use neverthrow `Result` for fallible logic; map to tool output or throw for oRPC.
 - **Agents**: `src/agents/`. `main` is the only agent (`all.ts`); it runs the session and picks its tools from `TOOLS` in `main.ts`, wired by `create-agent.ts`.
-- **Workspace server**: Hono app in `src/logic/server/index.ts`. Serves shim script/iframe, assets, heartbeat, redirect, and proxies app traffic. AI gateway is mounted at `AI_GATEWAY_API_PATH` when provided.
+- **Workspace server**: Hono app in `src/logic/server/index.ts`. Serves shim script/iframe, assets, heartbeat, redirect, the CDP bridge, and proxies app traffic. AI gateway is mounted at `AI_GATEWAY_API_PATH` when provided.
 - **Schemas**: `src/schemas/` (paths, project, session, store-id, subdomain-part, task, task-settings, file-upload, folder-attachment, etc.). Use for RPC/tool I/O where applicable.
 - **Machines**: XState in `src/machines/` (workspace, session, agent, runtime, task-browser). `WorkspaceActorRef` is the main-process handle; RPC context gets `workspaceRef` and `workspaceConfig`.
-- **Skills**: `src/lib/skills.ts` discovers them across the bundled set, the registry, co-installed agent homes, and the workspace `skills/` dir, deduping symlinks by canonical directory and copies by package fingerprint. `skill-catalog.ts` renders the budgeted catalog into `LoadSkill`'s description; `validate-skill.ts` holds the rules the runtime enforces. The workspace `skills/` dir also mounts writable at `/skills` for the agent (see `docs/architecture/agent-sandbox.md`).
+- **Skills**: `src/lib/skills.ts` discovers them across the bundled set, the registry, co-installed agent homes, and the workspace `skills/` dir, deduping symlinks by canonical directory and copies by package fingerprint. `skill-catalog.ts` renders the budgeted catalog, which `available-skills-context.ts` puts in the session's context message (`LoadSkill`'s description is static, so installing a skill never rewrites a tool definition); `validate-skill.ts` holds the rules the runtime enforces. The workspace `skills/` dir also mounts writable at `/skills` for the agent (see `docs/architecture/agent-sandbox.md`).
 - **Mount paths**: `src/mount-points.ts` holds `MOUNT`, the four virtual paths the agent works in. Interpolate it into prompts, tool descriptions, and command help rather than typing a path out, so what the agent is told cannot disagree with what it gets; `no-bare-mount-path` (`eslint-rules.ts`) fails the lint on a literal anywhere under `src/`.
 
 ## Context messages
 
-- `session-context` message (system prompt + `agent.getMessages`) persisted once per session, reused across turns. `prepare-model-messages.ts` rebuilds only when stale (`STALE_MESSAGE_THRESHOLD_MINUTES`, 60 min).
-- So `getMessages`-derived values (project instructions, folder list, task layout) lag up to 60 min. Need-it-now changes: attach a per-turn `data-*` part to the user message (`detect-project-changes.ts`, `create-pane-tabs-part.ts`). Derive standing values from current state (`getEffectiveProjectContext`) so rebuild doesn't revert to a stale snapshot.
+- `session-context` message (system prompt + `agent.getMessages`) is the session's immutable baseline: written once by `prepare-model-messages.ts` when the session first needs model input, then reused byte for byte, so the request prefix a provider cache is keyed on does not move.
+- The single exception is an upgrade. Each stored baseline carries the `SESSION_CONTEXT_VERSION` it was written under, and one older than the running build's (or from before the marker existed) is replaced on the first turn after the upgrade, then reused like any other. Bump that constant when a change to `getMessages` has to reach tasks that already have a baseline stored, or those tasks never see it.
+- So every `getMessages`-derived value (system date, project instructions, folder list, skill catalog, task layout) is a startup snapshot for the life of the session. A fact that must reach the model later is an **append-only correction**: a persisted `data-*` part rendered onto a user turn (`detect-project-changes.ts`, `create-pane-tabs-part.ts`, `date-change.ts`), never an edit to an earlier message. Corrections must be deterministic to render from what is stored, so no live reads or timers during model-message conversion.
+- Derive standing values from current state (`getEffectiveProjectContext`) so a value read at baseline time is not pinned to a snapshot that later parts already superseded.
+- A correction recorded on an assistant message (`data-maxSteps`, `data-skillChanges`) is carried forward in `SessionMessage.toModelMessages` to the next user turn, since injection only runs for user messages.
 
 ## Evals
 
@@ -51,9 +54,11 @@ from one: a stopped run is `Stopped`, only a refused request is `Failed`.
 
 With no `--model`, a case runs against `MODELS` in `harness.ts`: the current
 frontier model from each closed provider plus the strongest open-weights one, so
-an affordance only one family finds shows up as a failure. Those are OpenRouter
-`~author/<name>-latest` aliases, which move as new builds ship and therefore need
-no edit here. The harness prints what each resolved to and records it as
+an affordance only one family finds shows up as a failure. Three are OpenRouter
+`~author/<name>-latest` aliases, which move as new builds ship; the OpenAI entry
+stays a pinned slug (`~openai/gpt-latest` resolves to the reasoning line rather
+than what the app's auto setting sends users to) and is the one that needs a
+bump by hand. The harness prints what each resolved to and records it as
 `resolvedModelId` in the run's `eval-case.json`, since "latest" is not a build
 anyone can identify a month later.
 
@@ -84,7 +89,8 @@ For choosing whether an eval is the right check at all, see the
 ## Seeded workspaces
 
 `scripts/seed-workspace.ts` builds a throwaway app workspace from a committed
-description in `fixtures/workspaces/`, for `ELECTRON_USER_DATA_DIR`.
+description in `fixtures/workspaces/` at the **repo root** (this package's own
+`fixtures/` is something else), for `ELECTRON_USER_DATA_DIR`.
 `scripts/record-fixture-session.ts` captures a real task's conversation into one.
 
 ```bash
@@ -97,4 +103,4 @@ The seeder goes through `initializeTask` and `Store`, never the filesystem: task
 storage is moving, and a seeder that lays out `tasks/<id>/.instrument` itself
 would keep producing workspaces the app can no longer read.
 
-`fixtures/workspaces/README.md` covers what a fixture holds and how to add one.
+The repo-root `fixtures/workspaces/README.md` covers what a fixture holds and how to add one.

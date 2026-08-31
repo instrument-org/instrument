@@ -128,6 +128,14 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
           : "";
       return `<data-browserStatus status="${part.data.status}"${target}${previousUrl} />`;
     }
+    case "data-contextRollover": {
+      const retained = ` retainedUserMessages="${part.data.retainedUserMessages}"`;
+      const dropped = ` droppedMessages="${part.data.droppedMessages}"`;
+      return `<data-contextRollover${retained}${dropped} />`;
+    }
+    case "data-dateChange": {
+      return `<data-dateChange date="${part.data.date}" />`;
+    }
     case "data-fileChanges": {
       const files = part.data.files
         .map((file) => `${file.filePath} (${file.status})`)
@@ -139,6 +147,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     }
     case "data-maxSteps": {
       return `<data-maxSteps maxStepCount="${part.data.maxStepCount}" />`;
+    }
+    case "data-modelChange": {
+      return `<data-modelChange from="${part.data.from.modelId}" to="${part.data.to.modelId}" />`;
     }
     case "data-paneTabs": {
       const tabs = part.data.tabs

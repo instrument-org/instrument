@@ -42,9 +42,9 @@ const MAX_PARTIAL_LINE_BYTES = 1024 * 1024;
  * Read a subprocess's merged output stream to completion, forwarding whole lines
  * to `sink` and resolving with the text, bounded to a head and a tail.
  *
- * The caller must not also let execa buffer the stream: two consumers of one
- * stream split the chunks between them. Shims pass `buffer: false` when a sink
- * is active and use this text as the command's output instead.
+ * The stream to pass is one execa tees for a second reader (`subprocess.readable`),
+ * not the buffered one execa is consuming itself: two consumers of a single
+ * stream split the chunks between them.
  */
 export function collectAndForward(
   all: Readable,

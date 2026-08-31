@@ -98,7 +98,6 @@ export const CODE_EXTENSION_MIME_TYPES: Record<string, string> = {
   vb: "text/plain",
   vim: "text/plain",
   vue: "text/plain",
-  wasm: "text/plain",
   yaml: "text/plain",
   yml: "text/plain",
   zig: "text/plain",

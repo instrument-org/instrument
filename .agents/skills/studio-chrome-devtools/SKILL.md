@@ -11,8 +11,10 @@ How to drive and inspect the Studio Electron app.
 
 ## Driving: `studio-drive.mjs`
 
+Resolve the path from the repo root rather than writing it relative, so a later `cd` into a package does not turn every command in the run into `MODULE_NOT_FOUND`:
+
 ```bash
-DRIVE=.agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs
+DRIVE=$(git rev-parse --show-toplevel)/.agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs
 
 node $DRIVE boot --purpose "skills dialog"           # your own instance
 node $DRIVE goto /release-notes
@@ -123,6 +125,19 @@ node $DRIVE rpc gateway.models.list
 The input is one JSON argument, and the routes are the ones in `packages/workspace/src/rpc/routes/` under `workspace.`, plus Studio's own (`apps/studio/src/electron-main/rpc/routes/`) at the top level.
 
 Reach for this before the DOM whenever the question is about state rather than about pixels. Scraping `document.body.innerText` for a status answers what the UI painted; the route answers what the UI painted _from_, which is the thing under test, and it does not move when a component does.
+
+## Running a command in the app's own sandbox
+
+`bash` runs one command in a task's real sandbox and returns `stdout`, `stderr`, `exitCode`, and `durationMs`, through `workspace.debug.runBash`:
+
+```bash
+node $DRIVE bash 'curl -sS -o /dev/null -w "%{http_code}" https://example.com' --task <task-id>
+node $DRIVE bash 'ffprobe /nope.mp4 2>/dev/null; echo exit=$?' --task <task-id>
+```
+
+The session is the task's most recent unless `--session` names one, and a packaged build needs an explicit `--task` for the same reason every other command does.
+
+This is not `run-bash`, and the difference decides which one answers a question. `run-bash` builds its own sandbox from a checkout's dependencies, with no task and no app, which makes it fast and makes it blind to anything about a package: a command missing from a bundle resolves fine from `node_modules` and reports success. `bash` runs the mounts, shims, network policy, and bundled binaries of the build that is actually running. Verifying a shipped release wants this one; iterating on a shell fix wants the other.
 
 - It is gated on the **Developer Mode** preference, checked per call. Fixture workspaces pin it on; the shared dev workspace depends on what was last set in Settings > General, and the bridge cannot turn it on for you.
 - `live.*` routes are event iterators and cannot come back through a single evaluation. Call the plain sibling in a loop instead (`task.agentStatus.byIds`, not `task.agentStatus.live.byId`).

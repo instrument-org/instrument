@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
 
+import { type FileDragProps } from "@/client/hooks/use-file-drag";
 import { cn } from "@/client/lib/utils";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function PreviewListItem({
+  dragProps,
   icon,
   isSelected = false,
   label,
@@ -12,6 +14,9 @@ export function PreviewListItem({
   rightElement,
   tooltipContent,
 }: {
+  // Present only where the row stands for a file on disk, which is the only
+  // thing there is to hand another app.
+  dragProps?: FileDragProps;
   icon: ReactNode;
   isSelected?: boolean;
   label: string;
@@ -37,6 +42,7 @@ export function PreviewListItem({
       )}
       onClick={onClick}
       type="button"
+      {...dragProps}
     >
       {icon}
       <span className="min-w-0 truncate text-xs/tight">{label}</span>

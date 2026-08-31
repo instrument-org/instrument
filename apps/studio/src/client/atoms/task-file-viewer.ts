@@ -1,4 +1,4 @@
-import { type TaskId } from "@instrument-org/workspace/client";
+import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { atom } from "jotai";
 
 // A file some surface is offering to show or act on. Only the first three
@@ -19,6 +19,11 @@ interface TaskFileViewerState {
   currentIndex: number;
   files: TaskFileViewerFile[];
   isModalOpen: boolean;
+  // The session the file was opened from. The modal mounts at the app chrome
+  // rather than inside the task, so this is the only thing that carries the
+  // session across -- and a link in a Markdown file needs it to name the
+  // browser it could open in.
+  sessionId?: StoreId.Session;
 }
 
 const initialState: TaskFileViewerState = {
@@ -37,9 +42,11 @@ export const openFileViewerAtom = atom(
     {
       currentIndex = 0,
       files,
+      sessionId,
     }: {
       currentIndex?: number;
       files: TaskFileViewerFile[];
+      sessionId?: StoreId.Session;
     },
   ) => {
     set(taskFileViewerAtom, (prev) => ({
@@ -47,6 +54,7 @@ export const openFileViewerAtom = atom(
       currentIndex,
       files,
       isModalOpen: true,
+      sessionId,
     }));
   },
 );

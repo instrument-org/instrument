@@ -820,16 +820,17 @@ export function createAgentBrowserCommand({
       }
     }
 
-    const combined = scrubHostPaths(
-      [result.stdout, result.stderr].filter(Boolean).join("\n"),
-      { homeDir: os.homedir(), taskDirPath: taskDir(taskId) },
-    );
+    const scrub = (text: string) =>
+      scrubHostPaths(text, {
+        homeDir: os.homedir(),
+        taskDirPath: taskDir(taskId),
+      });
 
     const exitCode = result.exitCode ?? 1;
     return {
       exitCode,
-      stderr: "",
-      stdout: combined,
+      stderr: scrub(result.stderr),
+      stdout: scrub(result.stdout),
     };
   });
 }

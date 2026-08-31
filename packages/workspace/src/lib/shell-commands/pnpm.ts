@@ -139,8 +139,8 @@ export function createPnpmCommand(taskId: TaskId) {
       });
       return {
         exitCode: execResult.exitCode,
-        stderr: "",
-        stdout: execResult.combined,
+        stderr: execResult.stderr,
+        stdout: execResult.stdout,
       };
     }
 
@@ -212,7 +212,7 @@ export function createPnpmCommand(taskId: TaskId) {
         taskId,
       });
       if (installResult.exitCode !== 0) {
-        installOutput = `[auto-install failed]\n${installResult.combined}\n\n`;
+        installOutput = `[auto-install failed]\n${installResult.stdout}${installResult.stderr}\n\n`;
       }
     }
     const result = await runPnpmCommand({
@@ -235,8 +235,11 @@ export function createPnpmCommand(taskId: TaskId) {
 
     return {
       exitCode: result.exitCode,
-      stderr: "",
-      stdout: installOutput + result.combined + globalNote,
+      // The auto-install report and the stripped-flag note are this wrapper's
+      // own diagnostics, so they join the command's stderr rather than its
+      // output.
+      stderr: installOutput + result.stderr + globalNote,
+      stdout: result.stdout,
     };
   });
 }
@@ -274,8 +277,8 @@ function createDlxAliasCommand(
 
     return {
       exitCode: result.exitCode,
-      stderr: "",
-      stdout: result.combined,
+      stderr: result.stderr,
+      stdout: result.stdout,
     };
   });
 }

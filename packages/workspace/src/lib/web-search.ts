@@ -3,6 +3,7 @@ import {
   type AIGatewayModel,
   type AIGatewayProviderConfig,
   getWebSearchModel,
+  namesSameModel,
 } from "@instrument-org/ai-gateway";
 import { OUR_MODELS, type WorkspaceServerURL } from "@instrument-org/shared";
 import { APICallError, type LanguageModelUsage, streamText } from "ai";
@@ -54,6 +55,13 @@ export type WebSearchResults =
   | {
       kind: "summary";
       modelId: string;
+      /**
+       * What the provider reports having served, when that is a different model
+       * from the one the search was routed to. The search model is picked for
+       * the user rather than by them, so which one actually answered is the
+       * only way to attribute a search after the fact.
+       */
+      modelIdServed?: string;
       provider: AIGatewayProviderConfig.Type;
       sources: WebSearchSource[];
       text: string;
@@ -267,10 +275,13 @@ async function* searchWithProviderModel({
   let generatedText = "";
   let usage = emptyUsage;
 
+  let modelIdServed: string | undefined;
+
   const currentResult = () =>
     ok({
       kind: "summary" as const,
       modelId: model.modelId,
+      modelIdServed,
       provider: config,
       sources,
       text: [...snippets, generatedText]
@@ -300,6 +311,15 @@ async function* searchWithProviderModel({
         case "finish": {
           usage = usageFrom(part.totalUsage);
           yield currentResult();
+          break;
+        }
+        case "finish-step": {
+          // Same rule as an agent turn: the SDK seeds this with the id we sent
+          // and only overwrites it when the provider reports one, so only a
+          // difference can have come from the provider.
+          if (!namesSameModel(model.modelId, part.response.modelId)) {
+            modelIdServed = part.response.modelId;
+          }
           break;
         }
         case "source": {

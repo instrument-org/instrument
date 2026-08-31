@@ -41,6 +41,10 @@ export function goForward() {
   sendAppCommand({ type: "navigateForward" });
 }
 
+export function isMainWindowFullScreen() {
+  return getMainWindow()?.isFullScreen() ?? false;
+}
+
 export function isMainWindowMaximized() {
   return getMainWindow()?.isMaximized() ?? false;
 }

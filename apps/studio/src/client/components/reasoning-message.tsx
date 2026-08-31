@@ -157,8 +157,8 @@ export const ReasoningMessage = memo(function ReasoningMessage({
       </CollapsibleTrigger>
 
       {hasText && groupHead === null && (
-        <CollapsibleContent animated>
-          <div className="mt-2">
+        <CollapsibleContent animated className="pb-2">
+          <div className="mt-1">
             <div
               className="max-h-44 overflow-y-auto scroll-fade-y"
               ref={(el) => {
@@ -168,7 +168,10 @@ export const ReasoningMessage = memo(function ReasoningMessage({
               }}
             >
               <SessionMarkdown
-                className={cn("italic opacity-50", isLoading && "opacity-100")}
+                className={cn(
+                  "opacity-50 prose-headings:mb-0! [&_:is(h1,h2,h3,h4,h5,h6)+p]:mt-1! [&_p:has(>strong:only-child)]:mb-0! [&_p:has(>strong:only-child)+p]:mt-1!",
+                  isLoading && "opacity-100",
+                )}
                 markdown={
                   isLoading
                     ? displayText

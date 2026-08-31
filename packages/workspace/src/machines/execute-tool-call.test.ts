@@ -29,13 +29,14 @@ interface MockExecResult {
 }
 
 /**
- * execa returns a subprocess that is both awaitable and exposes its output as a
- * stream, and it returns it synchronously. `runPnpmCommand` reads that stream so
- * a background run can follow the output live, so the mock has to be both things
- * -- and must not be wrapped in an extra promise, which would hide `.all`.
+ * execa returns a subprocess that is both awaitable and able to hand out a
+ * second reader of its merged output, and it returns it synchronously.
+ * `runPnpmCommand` takes that reader so a background run can follow the output
+ * live, so the mock has to be both things -- and must not be wrapped in an extra
+ * promise, which would hide `readable`.
  */
 function mockSubprocess(outcome: Promise<MockExecResult>, all: string) {
-  return Object.assign(outcome, { all: Readable.from([all]) });
+  return Object.assign(outcome, { readable: () => Readable.from([all]) });
 }
 
 describe("executeToolCallMachine", () => {
@@ -221,7 +222,8 @@ describe("executeToolCallMachine", () => {
             "durationMs": 0,
             "exitCode": 0,
             "omittedBytes": 0,
-            "output": "mocked all",
+            "output": "mocked stdout
+        mocked stderr",
             "spillFilePath": undefined,
           },
           "preliminary": false,
@@ -332,7 +334,8 @@ describe("executeToolCallMachine", () => {
             "durationMs": 0,
             "exitCode": 0,
             "omittedBytes": 0,
-            "output": "mocked all",
+            "output": "mocked stdout
+        mocked stderr",
             "spillFilePath": undefined,
           },
           "preliminary": false,
@@ -526,7 +529,7 @@ describe("executeToolCallMachine", () => {
         }
         expect(part.output).toMatchObject({
           exitCode: 0,
-          output: "mocked all",
+          output: "mocked stdout\nmocked stderr",
         });
       },
     );

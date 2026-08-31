@@ -1,5 +1,6 @@
 import { renderInBrowser } from "@/tests/render-browser";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
+import { useState } from "react";
 import { expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -356,5 +357,399 @@ test("still reorders on a drag, with the animation over it turned off", async ()
         "file:output/notes.md",
       ],
     ]
+  `);
+});
+
+/**
+ * A strip that closes a tab, so the row is laid out for what is left of it.
+ *
+ * The component takes the tabs it draws from its props, and the collapse is a
+ * share of the row being given back, so nothing about it shows against a list
+ * that never shrinks.
+ */
+function ClosingStrip({
+  fileCount,
+  width,
+}: {
+  fileCount: number;
+  width: number;
+}) {
+  const [files, setFiles] = useState(FILES.slice(0, fileCount));
+
+  return (
+    <div style={{ width }}>
+      <PaneTabs
+        fileTabs={files.map((filePath) => ({
+          filePath,
+          type: "file" as const,
+        }))}
+        onClose={(key) => {
+          // A render later, which is what the app does. The tabs come from a
+          // query, and the write that drops one notifies its subscribers on
+          // its own schedule -- so the close lands in one commit and the
+          // shorter list in the next, and for that render the strip is holding
+          // a tab it has been told to close and still has.
+          queueMicrotask(() => {
+            setFiles((current) =>
+              current.filter((filePath) => `file:${filePath}` !== key),
+            );
+          });
+        }}
+        onReorder={vi.fn()}
+        onSelect={vi.fn()}
+        // Held on a tab that is not the one being closed, so the widths read
+        // afterwards are the collapse rather than a selection moving.
+        selectedKey={`file:${FILES[2] ?? ""}`}
+        taskId={taskId}
+      />
+    </div>
+  );
+}
+
+async function closingStrip(fileCount: number, width: number) {
+  const { container } = await renderInBrowser(
+    <ClosingStrip fileCount={fileCount} width={width} />,
+  );
+  const list = container.querySelector<HTMLElement>('[role="tablist"]');
+  if (!list) {
+    throw new Error("the strip drew no tab list");
+  }
+  await settled(list);
+  return list;
+}
+
+/** Close a tab the way the middle button does, at any width. */
+function middleClick(list: HTMLElement, filename: string) {
+  const tab = list.querySelector(`[role="tab"][title="${filename}"]`);
+  if (!tab) {
+    throw new Error(`the strip drew no tab for ${filename}`);
+  }
+  tab.dispatchEvent(
+    new PointerEvent("pointerdown", { bubbles: true, button: 1 }),
+  );
+}
+
+/** What each tab the strip drew came out at, frame by frame. */
+async function sample(list: HTMLElement, frames: number) {
+  const taken: Record<string, number>[] = [];
+  for (let frame = 0; frame < frames; frame++) {
+    await new Promise((resolve) => {
+      requestAnimationFrame(resolve);
+    });
+    taken.push(
+      Object.fromEntries(
+        [...list.querySelectorAll<HTMLElement>('[role="tab"]')].map((tab) => [
+          tab.title,
+          tab.offsetWidth,
+        ]),
+      ),
+    );
+  }
+  return taken;
+}
+
+test("holds a closing tab in the row, collapsed, and then drops it", async () => {
+  // The collapse itself is a CSS transition, which this project cuts to zero
+  // (see `setup-browser.ts`), so what is read here is the mechanism under it
+  // rather than the frames over it: the tab is still in the row and still in
+  // its place, it is carrying the widths that hand its share back, it answers
+  // to nothing while it does, and it goes when the collapse is over.
+  const list = await closingStrip(3, WIDE);
+  const closed = "quarterly-report-2026.pdf";
+
+  middleClick(list, closed);
+  await new Promise((resolve) => {
+    requestAnimationFrame(resolve);
+  });
+
+  const collapsing = list.querySelector<HTMLElement>(
+    `[role="tab"][title="${closed}"]`,
+  );
+  if (!collapsing) {
+    throw new Error("the strip dropped the tab instead of collapsing it");
+  }
+  const collapsed = getComputedStyle(collapsing);
+
+  expect({
+    // Nobody's tab any more: not read, not reachable, not a stop.
+    detached: {
+      ariaHidden: collapsing.getAttribute("aria-hidden"),
+      pointerEvents: collapsed.pointerEvents,
+      tabIndex: collapsing.tabIndex,
+    },
+    // Off the share it was taking, off the floor under it, and off the gap it
+    // would otherwise still be holding open.
+    giving: {
+      flexGrow: collapsed.flexGrow,
+      marginRight: collapsed.marginRight,
+      minWidth: collapsed.minWidth,
+      opacity: collapsed.opacity,
+    },
+    // Which the row has taken: three even tabs are two.
+    widths: [...list.querySelectorAll<HTMLElement>('[role="tab"]')].map(
+      (tab) => `${tab.title}:${tab.offsetWidth}`,
+    ),
+  }).toMatchInlineSnapshot(`
+    {
+      "detached": {
+        "ariaHidden": "true",
+        "pointerEvents": "none",
+        "tabIndex": -1,
+      },
+      "giving": {
+        "flexGrow": "0",
+        "marginRight": "-4px",
+        "minWidth": "0px",
+        "opacity": "0",
+      },
+      "widths": [
+        "Browser:86",
+        "quarterly-report-2026.pdf:0",
+        "chart.png:171",
+        "notes.md:171",
+      ],
+    }
+  `);
+
+  await new Promise((resolve) => {
+    setTimeout(resolve, 300);
+  });
+  expect(list.querySelector(`[role="tab"][title="${closed}"]`)).toBeNull();
+});
+
+test("keeps a closing tab where it was rather than at the end of the row", async () => {
+  // It is gone from the task's list, so the strip is drawing it from its own
+  // copy -- and a copy appended to what is left is a tab that jumps to the end
+  // of the row on its way out.
+  const list = await closingStrip(3, WIDE);
+
+  middleClick(list, "chart.png");
+  const [frame] = await sample(list, 1);
+
+  expect(Object.keys(frame ?? {})).toMatchInlineSnapshot(`
+    [
+      "Browser",
+      "quarterly-report-2026.pdf",
+      "chart.png",
+      "notes.md",
+    ]
+  `);
+});
+
+test("does not draw a hidden tab into a row a closing tab is still in", async () => {
+  // Closing a tab off a full strip makes room for the tab behind the end of it.
+  // The room is not there yet: the tab being closed is still collapsing through
+  // it. Drawn now, the strip is briefly fuller than it was laid out for and
+  // clips the difference, so the run stays where it is until the collapse ends.
+  const list = await closingStrip(8, NARROW);
+  const before = list.querySelectorAll('[role="tab"]').length;
+
+  middleClick(list, "quarterly-report-2026.pdf");
+  const frames = await sample(list, 30);
+
+  expect({
+    // Never more tabs than the strip was laid out for.
+    overFull: frames
+      .map((frame) => Object.keys(frame).length)
+      .filter((drawn) => drawn > before),
+    // And the one that was behind the end is drawn once the room is real.
+    settled: Object.keys(frames.at(-1) ?? {}),
+  }).toMatchInlineSnapshot(`
+    {
+      "overFull": [],
+      "settled": [
+        "Browser",
+        "chart.png",
+        "notes.md",
+        "summary.docx",
+        "data.csv",
+        "screenshot-of-the-thing.png",
+        "one-more.txt",
+      ],
+    }
+  `);
+});
+
+/**
+ * Drag the first file tab across the third, recording what the tab being
+ * carried was standing on while it moved. Read as it happens, since the drag is
+ * over by the time `dragAndDrop` returns.
+ *
+ * In the dark theme, which is the only one where this can be got wrong: the
+ * tints a tab can carry are opaque tokens in the light theme and white at 5-8%
+ * in the dark one, so a reading taken in the default theme would agree with
+ * anything.
+ */
+async function carriedSurface(selectedKey: string) {
+  document.documentElement.classList.add("dark");
+  const { container } = await renderInBrowser(
+    <div style={{ width: WIDE }}>
+      <PaneTabs
+        fileTabs={FILES.slice(0, 3).map((filePath) => ({
+          filePath,
+          type: "file" as const,
+        }))}
+        onClose={vi.fn()}
+        onReorder={vi.fn()}
+        onSelect={vi.fn()}
+        selectedKey={selectedKey}
+        taskId={taskId}
+      />
+    </div>,
+  );
+  const list = container.querySelector<HTMLElement>('[role="tablist"]');
+  if (!list) {
+    throw new Error("the strip drew no tab list");
+  }
+  await settled(list);
+
+  const seen = new Set<string>();
+  const observer = new MutationObserver(() => {
+    for (const tab of list.querySelectorAll<HTMLElement>('[role="tab"]')) {
+      if (!tab.className.includes("shadow-xs-soft")) {
+        continue;
+      }
+      const style = getComputedStyle(tab);
+      seen.add(
+        [
+          style.backgroundColor,
+          // The alpha is the whole of what was wrong.
+          /rgba|\/\s*0?\./.test(style.backgroundColor)
+            ? "SEE-THROUGH"
+            : "opaque",
+          // And the selected tint has to survive being stood on the card.
+          style.backgroundImage === "none" ? "no tint" : "tinted",
+        ].join(", "),
+      );
+    }
+  });
+  observer.observe(list, { attributes: true, subtree: true });
+
+  await userEvent.dragAndDrop(
+    page.getByTitle("quarterly-report-2026.pdf"),
+    page.getByTitle("notes.md"),
+  );
+  observer.disconnect();
+  document.documentElement.classList.remove("dark");
+  return [...seen];
+}
+
+test("carries a background tab on a surface of its own", async () => {
+  // A tab draws nothing of its own until it is hovered, and the hover is a
+  // translucent overlay that reads as a tab only because of the row behind it.
+  // Lifted out of the row and carried across its neighbors, what is behind it
+  // is their names.
+  expect(await carriedSurface("browser")).toMatchInlineSnapshot(`
+    [
+      "rgb(41, 37, 36), opaque, no tint",
+    ]
+  `);
+});
+
+test("carries the tab being read without giving up that it is", async () => {
+  // The selected background is the same kind of overlay, so the tab being read
+  // has the same hole in it -- and covering that hole must not cost the tint
+  // that says which tab the pane is showing.
+  expect(await carriedSurface(`file:${FILES[0] ?? ""}`)).toMatchInlineSnapshot(`
+    [
+      "rgb(41, 37, 36), opaque, tinted",
+    ]
+  `);
+});
+
+/** Which tabs the strip is pointing at, if any. */
+function arriving(list: HTMLElement) {
+  return [...list.querySelectorAll<HTMLElement>('[role="tab"]')]
+    .filter((tab) => tab.className.includes("pane-tab-arriving"))
+    .map((tab) => tab.title);
+}
+
+/** A strip whose tabs can be added to and whose task can be swapped. */
+function ArrivingStrip({
+  fileCount,
+  width,
+}: {
+  fileCount: number;
+  width: number;
+}) {
+  const [files, setFiles] = useState(FILES.slice(0, fileCount));
+  const [id, setId] = useState(taskId);
+
+  return (
+    <div style={{ width }}>
+      <button
+        onClick={() => {
+          setFiles((current) => [...current, FILES[current.length] ?? ""]);
+        }}
+        type="button"
+      >
+        open one
+      </button>
+      <button
+        onClick={() => {
+          setFiles(FILES.slice(0, fileCount).toReversed());
+          setId(TaskIdSchema.parse("pane-tabs-other"));
+        }}
+        type="button"
+      >
+        another task
+      </button>
+      <PaneTabs
+        fileTabs={files.map((filePath) => ({
+          filePath,
+          type: "file" as const,
+        }))}
+        onClose={vi.fn()}
+        onReorder={vi.fn()}
+        onSelect={vi.fn()}
+        selectedKey={`file:${FILES[0] ?? ""}`}
+        taskId={id}
+      />
+    </div>
+  );
+}
+
+test("points at a tab that was just opened, and at nothing else", async () => {
+  // A tab the strip has started drawing is not necessarily one that arrived:
+  // the run it has room for slides along, a collapsing tab hands its place to
+  // whatever was behind the end of it, and another task's row is new in its
+  // entirety. Pointing at any of those points at nothing.
+  const { container } = await renderInBrowser(
+    <ArrivingStrip fileCount={3} width={WIDE} />,
+  );
+  const list = container.querySelector<HTMLElement>('[role="tablist"]');
+  if (!list) {
+    throw new Error("the strip drew no tab list");
+  }
+  await settled(list);
+
+  const onFirstPaint = arriving(list);
+
+  await page.getByRole("button", { name: "open one" }).click();
+  const onOpen = arriving(list);
+
+  // Long enough for the growth to be over, so the class does not outlive it.
+  await new Promise((resolve) => {
+    setTimeout(resolve, 300);
+  });
+  const afterwards = arriving(list);
+
+  await page.getByRole("button", { name: "another task" }).click();
+  const onTaskSwitch = arriving(list);
+
+  expect({
+    afterwards,
+    onFirstPaint,
+    onOpen,
+    onTaskSwitch,
+  }).toMatchInlineSnapshot(`
+    {
+      "afterwards": [],
+      "onFirstPaint": [],
+      "onOpen": [
+        "summary.docx",
+      ],
+      "onTaskSwitch": [],
+    }
   `);
 });

@@ -6,7 +6,7 @@ Focus on correctness and user impact. The rules below only calibrate what the re
 
 Use 🔴 Important for concrete defects that should be fixed before merging. Preserve the default bar for correctness bugs, security vulnerabilities, and regressions, and pay particular attention to:
 
-- **Containment regressions.** The agent must stay within the `/task`, `/skills`, and read-only `/mnt` layout. Widening the real-binary path bridge, `agent-browser` allowlist, or git argv/env policy is Important.
+- **Containment regressions.** The agent must stay within the `/task`, `/project`, `/skills`, and `/mnt` layout, with each attached folder held to the access the user granted it (read-only or read-write). Widening the real-binary path bridge, `agent-browser` allowlist, or git argv/env policy is Important.
 - **Packaging and release breakage.** Main-process runtime packages belong in `dependencies`, renderer-only packages in `devDependencies`, and native binaries may require `asarUnpack`. Flag changes that work locally but break or materially bloat the packaged app.
 - **Data loss or incompatibility.** Changes must preserve `tasks/<id>/.instrument/{task.db,settings.json}` and continue loading data written by the previous release unless they include a migration.
 - **Privacy leaks.** Prompts, agent messages, file contents, user paths, API keys, and `.env` values must not reach telemetry, logs, or unintended network destinations.
@@ -20,7 +20,7 @@ Report at most five Nits per review. If you found more, say "plus N similar item
 
 ## Do not report
 
-- Anything `pnpm check-and-test` already enforces: formatting, lint, type errors, spelling, markdownlint, knip, and lockfile policy.
+- Anything the `check-and-test` scripts already enforce: formatting, lint, type errors, spelling, markdownlint, knip, lockfile policy, dependency dedupe, Actions pinning, and the Electron/Node version check (see the root `package.json`).
 - Changes under `registry/`, which is a read-only git submodule.
 - Generated outputs: `apps/studio/src/client/routeTree.gen.ts`, `apps/studio/icons/.generated-hashes.json`, and `pnpm-lock.yaml`.
 - Version bumps in release commits.
@@ -32,7 +32,7 @@ Report at most five Nits per review. If you found more, say "plus N similar item
 - **Studio privilege boundaries.** Renderer code must not import Electron, Node built-ins, or platform API modules directly. Privileged operations use the narrow preload API or main-process oRPC, and remote Instrument API calls go through main-process routes. Fetching task files from validated localhost workspace URLs is expected.
 - **Workspace error handling.** Do not discard neverthrow `Result` errors. Expected tool failures stay typed through the tool boundary, and RPC handlers map known failures with `toORPCError`; internal invariant failures may still throw.
 - **Persisted shapes.** Changed Zod schemas, database columns, and state keys must remain backward compatible or include a migration.
-- **Session-context freshness.** Values derived from `agent.getMessages` can be 60 minutes stale. Values required in the next turn must be attached per turn.
+- **Session-context freshness.** Values derived from `agent.getMessages` are a startup snapshot fixed for the life of the session. Values required in a later turn must be attached to that turn as a persisted `data-*` part, and rendering one must be deterministic from what is stored.
 - **Test observability.** jsdom cannot verify browser-owned layout, scrolling, caret, or selection behavior. Those assertions belong in `*.browser.test.tsx`; every added regression test should fail against the unfixed behavior.
 
 ## Verification bar

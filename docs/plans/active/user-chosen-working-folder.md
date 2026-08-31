@@ -1,6 +1,6 @@
 # Plan: folders decoupled from tasks, writable in place
 
-Status: proposal, not started. Owner: TBD. Supersedes an earlier proposal to move the workspace root into the user's documents directory; see [Why moving the workspace is unnecessary](#why-moving-the-workspace-is-unnecessary). Conversation data is a separate axis, planned in [conversation-storage.md](conversation-storage.md).
+Status: partly landed, and not by the route below. Writable folders shipped as an `access` flag on the existing attachment (`schemas/folder-attachment.ts`) rather than as change 3's separate working-folder concept, and project-owned folders shipped with them; read change 3 as history. Still open: the `/work` + `/scratch` mount split, `~/Documents/Instrument/`, folderless-by-default, and the file tree. Owner: TBD. Supersedes an earlier proposal to move the workspace root into the user's documents directory; see [Why moving the workspace is unnecessary](#why-moving-the-workspace-is-unnecessary). Conversation data is a separate axis, planned in [conversation-storage.md](conversation-storage.md).
 
 ## Summary
 

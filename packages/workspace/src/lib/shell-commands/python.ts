@@ -4,12 +4,13 @@ import { type TaskId } from "../../schemas/task-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
 import { taskVenvPython } from "../uv";
-import { execShim, shimOutput } from "./exec-shim";
+import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
   bridgeInlineCodePaths,
   resolveCommandContext,
   resolvePathArgs,
   scanScriptFileForVirtualPaths,
+  unreachablePathArgError,
 } from "./utils";
 import { ensureTaskVenv } from "./uv";
 
@@ -42,17 +43,22 @@ function createPythonCommandNamed(taskId: TaskId, name: string) {
     if (args[0] === "-m" && args[1] === "pip") {
       return {
         exitCode: 1,
-        stderr: "",
-        stdout:
+        stderr:
           "`python -m pip` is not available (pip is not seeded in the venv). Use the `pip` command instead, e.g. `pip install <package>`.\n",
+        stdout: "",
       };
+    }
+
+    const unreachable = unreachablePathArgError(name, args, ctx.cwd);
+    if (unreachable !== undefined) {
+      return { exitCode: 1, stderr: unreachable, stdout: "" };
     }
 
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
 
     const venvError = await ensureTaskVenv({ ctx, taskId });
     if (venvError !== undefined) {
-      return { exitCode: 1, stderr: "", stdout: venvError };
+      return { exitCode: 1, stderr: venvError, stdout: "" };
     }
 
     // Inline program text (`-c` code, or a heredoc program when python reads
@@ -111,8 +117,9 @@ function createPythonCommandNamed(taskId: TaskId, name: string) {
 
     return {
       exitCode: result.exitCode ?? 1,
-      stderr: "",
-      stdout: filterShellOutput(shimOutput(result, name), taskDir(taskId)),
+      ...mapStreams(shimOutput(result, name), (text) =>
+        filterShellOutput(text, taskDir(taskId)),
+      ),
     };
   });
 }

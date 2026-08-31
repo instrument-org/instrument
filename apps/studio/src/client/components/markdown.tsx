@@ -1,15 +1,18 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useTaskPaneActions } from "@/client/hooks/use-task-pane";
 import {
   AGENT_FILES_LANGUAGE,
   isAddressableTaskFilePath,
   type TaskId,
 } from "@instrument-org/workspace/client";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { ImageIcon } from "@phosphor-icons/react/Image";
 import { useSetAtom } from "jotai";
 import {
+  isValidElement,
   memo,
   type ReactNode,
   useCallback,
@@ -23,26 +26,41 @@ import ReactMarkdown, {
   defaultUrlTransform,
   type ExtraProps,
   type Options,
+  type UrlTransform,
 } from "react-markdown";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import rehypeSlug from "rehype-slug";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remend from "remend";
 
 import { useHashLinkScroll } from "../hooks/use-hash-link-scroll";
+import { useOpenExternalLink } from "../hooks/use-open-external-link";
 import { getAssetUrl } from "../lib/get-asset-url";
+import {
+  type ImageSourceKind,
+  isImageSourceAllowed,
+  MARKDOWN_IMAGE_KINDS,
+} from "../lib/image-policy";
 import {
   containsMermaidFence,
   isMermaidLanguage,
   prefetchMermaid,
 } from "../lib/mermaid";
 import { rehypeAnimateWords } from "../lib/rehype-animate-words";
+import { remarkDropBreakAfterBr } from "../lib/remark-drop-break-after-br";
 import { isTaskFileHref, taskFilePathFromHref } from "../lib/task-file-href";
 import { cn } from "../lib/utils";
 import { AgentFilesBlock } from "./agent-files-block";
 import { MarkdownCodeBlock } from "./code-block";
-import { ExternalLink } from "./external-link";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileIcon } from "./file-icon";
+import {
+  INLINE_CHIP_CLASS_NAME,
+  INLINE_CHIP_ICON_CLASS_NAME,
+  InlineLink,
+} from "./inline-link";
+import { MarkdownTable } from "./markdown-table";
 import { MarkdownTaskContext } from "./markdown-task-context";
 import { MermaidDiagram } from "./mermaid-diagram";
 import {
@@ -51,16 +69,33 @@ import {
   ContextMenuTrigger,
 } from "./ui/context-menu";
 import { contextMenuComponents } from "./ui/menu-components";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 interface MarkdownProps {
-  allowRawHtml?: boolean;
   assetBaseUrl?: string;
-  // Drops the images the allow-list rejects instead of standing a placeholder
-  // in for them. For markdown scraped from a page rather than authored for us:
-  // the allow-list passes nothing such a page carries, so every placeholder is
-  // permanent, and being block-level each one interrupts the prose it sits in
-  // to name a picture the reader will never see.
+  // Which bytes this text's file references are about; see
+  // `MarkdownTaskContext`.
+  assetVersion?: string;
+  // Drops the images the allow-list rejects instead of standing a chip in for
+  // them. For markdown scraped from a page rather than authored for us: such a
+  // page carries logos, badges, and tracker pixels by the dozen, the prose is
+  // what the surface is for, and the full page is a click away through its own
+  // source link.
   hideImages?: boolean;
+  /**
+   * Where an image in this markdown may point; see `lib/image-policy`.
+   *
+   * Defaults to everything markdown the agent wrote or the user did may reach,
+   * remote hosts and the task's own asset origin included. Markdown that
+   * arrived inside a file someone else authored passes
+   * `UNTRUSTED_FILE_IMAGE_KINDS` instead: an image is fetched the moment the
+   * file is opened, with no click in between, which discloses an IP, confirms
+   * the file was read, and over the asset origin's loopback host reaches
+   * whatever else is listening on this machine. The notebook viewer passes it
+   * for that reason, and loses nothing by it -- a notebook's own images are
+   * embedded.
+   */
+  imageKinds?: readonly ImageSourceKind[];
   // Fades each word in as it arrives, and is passed through to the constructs
   // that resolve their own contents; see `MarkdownTaskContext`.
   isStreaming?: boolean;
@@ -74,7 +109,6 @@ interface MarkdownProps {
 type PluginList = NonNullable<Options["rehypePlugins"]>;
 type RemarkPluginList = NonNullable<Options["remarkPlugins"]>;
 
-const emptyPluginList: PluginList = [];
 const emptyRemarkPluginList: RemarkPluginList = [];
 
 type FenceNode = NonNullable<ExtraProps["node"]>;
@@ -84,6 +118,61 @@ function containsMathSyntax(markdown: string) {
     markdown,
   );
 }
+
+/**
+ * What raw HTML is held to once `rehype-raw` has re-parsed it: an author's
+ * `<details>` and a README's `<img width>` are drawn, while an `onerror`, a
+ * `<script>`, or a `style` never reaches the renderer process. The markdown
+ * here is not ours -- a model wrote it, or it is a `.md` file that arrived in a
+ * download or a folder the user shared -- so the allow-list is what makes
+ * parsing it at all safe.
+ *
+ * Three departures from the default. `file:` is how a model spells a link to a
+ * file it just wrote, which `markdownUrlTransform` reduces to a path and
+ * `TaskFileLink` then judges against the task and its mounts.
+ *
+ * Then `data:` on a `src`, without which an embedded image is dropped by the
+ * pass rather than by any policy: the default admits `http` and `https` there
+ * and nothing else, and this pass runs over the whole document rather than only
+ * the markup it re-parsed. So a notebook cell holding both a `<br>` and one of
+ * its own attachments lost the attachment, which is the case attachments exist
+ * for. What a `data:` src may actually carry is still the image policy's
+ * question, one place rather than two, and the tag names below are what keep
+ * this reaching an `<img>` rather than an `iframe`, an `embed`, or a `script`.
+ *
+ * And `picture` and `source` come off that tag list, leaving the `<img>` as the
+ * only shape a picture takes here. A `<source srcset>` is fetched exactly as an
+ * `<img src>` is, but it is not a `src` and so is a request no image policy
+ * reads -- and `srcSet` carries no protocol list either, so the default admits
+ * any host on it. Dropping the two elements keeps whatever `<img>` a `<picture>`
+ * wrapped, which is the source that gets judged and drawn.
+ */
+const sanitizeSchema = {
+  ...defaultSchema,
+  protocols: {
+    ...defaultSchema.protocols,
+    href: [...(defaultSchema.protocols?.href ?? []), "file"],
+    src: [...(defaultSchema.protocols?.src ?? []), "data"],
+  },
+  tagNames: (defaultSchema.tagNames ?? []).filter(
+    (tagName) => tagName !== "picture" && tagName !== "source",
+  ),
+};
+
+// Only a document carrying HTML this renderer would actually draw is worth
+// re-parsing, which is why this reads the allow-list rather than looking for
+// anything angle-bracketed. Prose holding `Array<string>` keeps rendering as
+// itself: turning the parser on for it would cost the word, since an unknown
+// tag is unwrapped rather than shown.
+const rawHtmlPattern = new RegExp(
+  `<!--|</?(?:${sanitizeSchema.tagNames.join("|")})(?=[\\s/>])`,
+  "i",
+);
+
+// `rehype-slug` is what makes a link to a heading resolve to anything, so it
+// runs for every document rather than waiting on the effect below -- an id that
+// only appears on the second render is one a reader can click through first.
+const baseRehypePlugins: PluginList = [rehypeSlug];
 
 const nodeText = (node: FenceNode["children"][number]): string => {
   if (node.type === "text") {
@@ -230,6 +319,13 @@ const TaskFileLink = ({
   const filename = filePath.split("/").at(-1) ?? filePath;
   const { openFiles } = useTaskPaneActions(taskId);
   const appendToPrompt = useSetAtom(appendToPromptAtom);
+  // Before the guard below, so the chip that turns out not to name a task file
+  // still asks in the same order every render.
+  const dragProps = useFileDrag(
+    taskId && isAddressableTaskFilePath(filePath)
+      ? { filePath, taskId }
+      : undefined,
+  );
 
   if (!isAddressableTaskFilePath(filePath)) {
     return <span className={className}>{children}</span>;
@@ -241,18 +337,13 @@ const TaskFileLink = ({
 
   const chip = (
     <button
-      className={cn(
-        "inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted/50 px-1.5 py-0.5 align-text-bottom text-sm font-medium text-foreground no-underline hover:bg-muted",
-        className,
-      )}
+      className={cn(INLINE_CHIP_CLASS_NAME, className)}
       onClick={openInPanel}
       title={filePath}
       type="button"
+      {...dragProps}
     >
-      <FileIcon
-        className="size-3.5 shrink-0 text-muted-foreground"
-        filename={filename}
-      />
+      <FileIcon className={INLINE_CHIP_ICON_CLASS_NAME} filename={filename} />
       <span className="truncate">{children}</span>
     </button>
   );
@@ -290,6 +381,27 @@ const TaskFileLink = ({
   );
 };
 
+// The label as text, which is what the destination is compared against.
+//
+// Walked rather than read off the top, because the markup a label carries is
+// not the reader's problem: a model writing a host in backticks or bold has
+// still written the host, and comparing against an element instead would put a
+// redundant origin after every one of them. Anything with no text in it at all
+// comes back empty and is disclosed, which is the same answer a label that says
+// nothing gets.
+const plainText = (children: ReactNode): string => {
+  if (typeof children === "string") {
+    return children;
+  }
+  if (Array.isArray(children)) {
+    return children.map((child: ReactNode) => plainText(child)).join("");
+  }
+  if (isValidElement<{ children?: ReactNode }>(children)) {
+    return plainText(children.props.children);
+  }
+  return "";
+};
+
 const MarkdownLink: Components["a"] = ({
   children,
   className,
@@ -302,8 +414,17 @@ const MarkdownLink: Components["a"] = ({
   // Whatever `urlTransform` refused arrives with its href emptied: a `file:` URL
   // that does not parse, a `javascript:` one. There is nothing left to open, and
   // an anchor with an empty href reads as a live link and does nothing.
+  //
+  // An anchor that never had an href is the other thing this shape covers: a
+  // link target rather than a link, which is how a document written for another
+  // renderer names a place in itself. Nothing to open there either, but the name
+  // is the whole point of it, so the id comes along.
   if (!href) {
-    return <span className={className}>{children}</span>;
+    return (
+      <span className={className} id={props.id}>
+        {children}
+      </span>
+    );
   }
 
   if (href.startsWith("#")) {
@@ -329,19 +450,37 @@ const MarkdownLink: Components["a"] = ({
   }
 
   return (
-    <ExternalLink {...props} className={className} href={href}>
+    <InlineLink
+      {...props}
+      className={className}
+      href={href}
+      label={plainText(children)}
+    >
       {children}
-    </ExternalLink>
+    </InlineLink>
   );
 };
 
+// react-markdown's own URL filter drops every `data:` URI before a component
+// ever sees it, so an embedded image silently rendered as nothing -- which is
+// how a notebook's attachments arrive, and the only way they can arrive. This
+// hands them back for `<img>` alone and decides nothing else: what a `data:`
+// src may actually carry stays with `isImageAllowed` above, one place rather
+// than two. A `data:` *link* is still dropped, because clicking one hands the
+// URI to the OS via `shell.openExternal`, which an image never does, and so is
+// a `data:` src anywhere but an `<img>` -- `iframe`, `embed`, and `script`
+// carry one too, which is why the raw-HTML allow-list drops all three.
+//
 // `file:` is how a model spells a link to a file it just wrote, and the default
 // transform drops the href whole rather than pass a scheme it does not know.
 // Reduce such a URL to its path so it reaches `TaskFileLink` on the same terms
 // as any other file reference. Passing it through instead only ever reaches
 // `ExternalLink`, where the protocol allowlist refuses it: a blocked-link toast
 // and a captured exception, never an opened file.
-const markdownUrlTransform = (url: string): string => {
+const markdownUrlTransform: UrlTransform = (url, key, node) => {
+  if (key === "src" && node.tagName === "img" && url.startsWith("data:")) {
+    return url;
+  }
   if (!/^file:/i.test(url)) {
     return defaultUrlTransform(url);
   }
@@ -352,34 +491,96 @@ const markdownUrlTransform = (url: string): string => {
   }
 };
 
-const ALLOWED_IMAGE_PATTERNS = [
-  /^data:/,
-  /^http:\/\/.*\.localhost(:\d+)?\//,
-  /^https:\/\/images\.google\.com\//,
-  /^https:\/\/github\.com\//,
-  /^https:\/\/.*\.github\.com\//,
-  /^https:\/\/.*\.githubusercontent\.com\//,
-];
-
-const isImageAllowed = (src: string | undefined): boolean => {
-  if (!src) {
-    return false;
+// What a chip prints beside its label: the host for a URL, the path itself for
+// a path. A source too long to read inline (a rejected `data:` URI, mostly)
+// prints nothing, and the label stands alone.
+const imageSourceHint = (src: string): string | undefined => {
+  try {
+    return new URL(src).hostname || undefined;
+  } catch {
+    return src.length <= 96 ? src : undefined;
   }
-  if (src.startsWith("/") || src.startsWith("./") || src.startsWith("../")) {
-    return true;
-  }
-  return ALLOWED_IMAGE_PATTERNS.some((pattern) => pattern.test(src));
 };
 
-const ImagePlaceholder = ({ alt, src }: { alt?: string; src?: string }) => (
-  <div className="flex max-w-full items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-    <ImageIcon className="size-4 shrink-0" />
-    <div className="min-w-0 flex-1">
-      <div className="truncate">{alt || "Image"}</div>
-      {src && <div className="truncate text-xs opacity-70">{src}</div>}
-    </div>
-  </div>
-);
+const blockedImageChipClass =
+  "inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-1 align-middle text-xs text-muted-foreground";
+
+/**
+ * The stand-in for an image this surface does not fetch, and for one that
+ * failed to arrive: an inline chip sized to what it says, so it flows with the
+ * prose (a row of badges wraps as a row of chips) rather than interrupting it.
+ * It names the image by its alt text and its source by host.
+ *
+ * A chip with a web source is a button that hands the URL to the system
+ * browser: the same trust a link in the same document already gets, since the
+ * reader sees where it goes and the request is theirs, and it works for any
+ * host where drawing the image inline would not. The tooltip says why the
+ * picture is not simply shown, in the reader's terms.
+ */
+const BlockedImage = ({
+  alt,
+  failed,
+  src,
+}: {
+  alt?: string;
+  failed?: boolean;
+  src?: string;
+}) => {
+  const openExternalLink = useOpenExternalLink();
+  const hint = src ? imageSourceHint(src) : undefined;
+  const isWebSource = src !== undefined && /^https?:\/\//i.test(src);
+  const body = (
+    <>
+      <ImageIcon className="size-3.5 shrink-0" />
+      <span className="min-w-0 truncate">{alt?.trim() || "Image"}</span>
+      {hint && (
+        <span className="max-w-48 min-w-0 truncate opacity-60">{hint}</span>
+      )}
+    </>
+  );
+
+  if (failed || !isWebSource) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className={blockedImageChipClass}>{body}</span>
+        </TooltipTrigger>
+        <TooltipContent>
+          {failed
+            ? "This image couldn’t be loaded."
+            : "This image can’t be shown here."}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          className={cn(
+            blockedImageChipClass,
+            "cursor-pointer text-left hover:bg-muted hover:text-foreground",
+          )}
+          onClick={() => {
+            openExternalLink(src, { addReferral: false });
+          }}
+          type="button"
+        >
+          {body}
+          <ArrowSquareOutIcon className="size-3.5 shrink-0 opacity-60" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent maxWidth="20rem">
+        <p>
+          Images from the web aren’t loaded here, so opening a file never
+          contacts another site on its own.
+        </p>
+        <p>Click to view the image in your browser.</p>
+        {src.length <= 300 && <p className="break-all opacity-70">{src}</p>}
+      </TooltipContent>
+    </Tooltip>
+  );
+};
 
 /**
  * An image the message points at, which can turn out not to be there: an asset
@@ -393,16 +594,24 @@ const ImagePlaceholder = ({ alt, src }: { alt?: string; src?: string }) => (
 const MarkdownImage = ({
   alt,
   className,
+  filePath,
   src,
   ...props
-}: React.ImgHTMLAttributes<HTMLImageElement>) => {
-  const { isStreaming } = useContext(MarkdownTaskContext);
+}: React.ImgHTMLAttributes<HTMLImageElement> & {
+  // The task-relative path behind `src`, when there is one. An embed can just
+  // as well point at a real URL, which names no file to hand anyone.
+  filePath?: string;
+}) => {
+  const { isStreaming, taskId } = useContext(MarkdownTaskContext);
   const [failedSrc, setFailedSrc] = useState<null | string>(null);
+  const dragProps = useFileDrag(
+    filePath && taskId ? { filePath, taskId } : undefined,
+  );
 
   if (src !== undefined && src === failedSrc) {
     // Half a URL fails the same way a missing file does, and until the text
     // settles there is no telling which this is.
-    return isStreaming ? null : <ImagePlaceholder alt={alt} src={src} />;
+    return isStreaming ? null : <BlockedImage alt={alt} failed src={src} />;
   }
 
   return (
@@ -414,13 +623,18 @@ const MarkdownImage = ({
         setFailedSrc(src ?? null);
       }}
       src={src}
+      {...dragProps}
     />
   );
 };
 
+const isAbsoluteImageSrc = (src: string) =>
+  /^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//");
+
 const resolveImageSrc = (
   src: string | undefined,
   assetBaseUrl: string | undefined,
+  assetVersion: string | undefined,
 ): string | undefined => {
   if (!src) {
     return src;
@@ -428,55 +642,102 @@ const resolveImageSrc = (
   // Leave real URLs (http/https/data/blob) and protocol-relative srcs for the
   // allow-list to judge; only resolve task-relative paths against the asset
   // origin. This covers bare `output/x.png` in addition to `./`/`../`.
-  if (/^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//")) {
+  if (isAbsoluteImageSrc(src)) {
     return src;
   }
   if (!assetBaseUrl) {
     return src;
   }
-  return getAssetUrl({ assetBase: assetBaseUrl, filePath: src });
+  return getAssetUrl({
+    assetBase: assetBaseUrl,
+    filePath: src,
+    version: assetVersion,
+  });
 };
+
+/**
+ * The task file an `![](...)` embed points at, for the surfaces that act on the
+ * file rather than on the picture.
+ *
+ * Written against the source as authored rather than the resolved asset URL:
+ * the path is what the rest of the app names a file by, and reading it back out
+ * of a URL means re-deriving something we were handed.
+ */
+const taskFilePathFromImageSrc = (src: string | undefined) =>
+  src && !isAbsoluteImageSrc(src) && isAddressableTaskFilePath(src)
+    ? src
+    : undefined;
 
 export const Markdown = memo(
   ({
-    allowRawHtml,
     assetBaseUrl,
+    assetVersion,
     hideImages,
+    imageKinds = MARKDOWN_IMAGE_KINDS,
     isStreaming,
     markdown,
     taskId,
   }: MarkdownProps) => {
     const openFilePreview = useSetAtom(openFilePreviewAtom);
     const [rehypePlugins, setRehypePlugins] =
-      useState<PluginList>(emptyPluginList);
+      useState<PluginList>(baseRehypePlugins);
     const [remarkPlugins, setRemarkPlugins] = useState<RemarkPluginList>(
       emptyRemarkPluginList,
     );
     const needsMath = useMemo(() => containsMathSyntax(markdown), [markdown]);
+    const needsRawHtml = useMemo(
+      () => rawHtmlPattern.test(markdown),
+      [markdown],
+    );
     const needsMermaid = containsMermaidFence(markdown);
 
     const handleImageClick = useCallback(
-      (event: React.MouseEvent<HTMLImageElement>) => {
+      (event: React.MouseEvent<HTMLImageElement>, filePath?: string) => {
         const src = event.currentTarget.src;
         const alt = event.currentTarget.alt || "image";
         if (src) {
-          openFilePreview({ filename: alt, url: src });
+          // The path rides along so the expanded view can act on the file and
+          // not just draw it. Absent for an embed pointing at a real URL, where
+          // there is no file to act on.
+          openFilePreview({ filename: alt, filePath, taskId, url: src });
         }
       },
-      [openFilePreview],
+      [openFilePreview, taskId],
     );
 
     useEffect(() => {
       let isCancelled = false;
 
       async function loadPlugins() {
+        // A document that needs neither optional bundle settles on the module
+        // constants the state was initialized with. The references matter, not
+        // just the contents: react-markdown re-parses the whole document on
+        // every render, and only an `Object.is`-equal state lets React skip
+        // the re-render, so a fresh-but-identical array here would parse every
+        // plain message twice.
+        if (!needsRawHtml && !needsMath) {
+          setRehypePlugins(baseRehypePlugins);
+          setRemarkPlugins(emptyRemarkPluginList);
+          return;
+        }
+
         const nextRehypePlugins: PluginList = [];
         const nextRemarkPlugins: RemarkPluginList = [];
 
-        if (allowRawHtml) {
+        // The HTML parser behind `rehype-raw` is the largest thing this
+        // component can pull in, so it waits for a document that has HTML in
+        // it. Sanitizing is only meaningful over a tree it has re-parsed, so
+        // the pair goes in together.
+        if (needsRawHtml) {
           const { default: rehypeRaw } = await import("rehype-raw");
-          nextRehypePlugins.push(rehypeRaw);
+
+          nextRehypePlugins.push(rehypeRaw, [rehypeSanitize, sanitizeSchema]);
         }
+
+        // After the sanitize pass, so the ids it generates are the ones a
+        // heading link in the same document was written against rather than
+        // the clobber-prefixed spelling.
+        nextRehypePlugins.push(...baseRehypePlugins);
 
         if (needsMath) {
           const [{ default: rehypeKatex }, { default: remarkMath }] =
@@ -503,7 +764,7 @@ export const Markdown = memo(
       return () => {
         isCancelled = true;
       };
-    }, [allowRawHtml, needsMath]);
+    }, [needsMath, needsRawHtml]);
 
     // Mermaid is not a plugin, so it loads on its own schedule — but on the
     // same terms as the math bundle above: multiple megabytes that only
@@ -525,7 +786,9 @@ export const Markdown = memo(
       : rehypePlugins;
 
     return (
-      <MarkdownTaskContext value={{ assetBaseUrl, isStreaming, taskId }}>
+      <MarkdownTaskContext
+        value={{ assetBaseUrl, assetVersion, isStreaming, taskId }}
+      >
         <ReactMarkdown
           components={{
             a: MarkdownLink,
@@ -537,27 +800,41 @@ export const Markdown = memo(
               src,
               ...props
             }) => {
-              const resolvedSrc = resolveImageSrc(src, assetBaseUrl);
-              if (!isImageAllowed(resolvedSrc)) {
+              const resolvedSrc = resolveImageSrc(
+                src,
+                assetBaseUrl,
+                assetVersion,
+              );
+              if (!isImageSourceAllowed(resolvedSrc, imageKinds)) {
                 return hideImages ? null : (
-                  <ImagePlaceholder alt={alt} src={resolvedSrc} />
+                  <BlockedImage alt={alt} src={resolvedSrc} />
                 );
               }
+              const filePath = taskFilePathFromImageSrc(src);
               return (
                 <MarkdownImage
                   {...props}
                   alt={alt}
                   className={className}
-                  onClick={handleImageClick}
+                  filePath={filePath}
+                  onClick={(event) => {
+                    handleImageClick(event, filePath);
+                  }}
                   src={resolvedSrc}
                 />
               );
             },
             ol: markdownOrderedList,
             pre: markdownPre,
+            table: MarkdownTable,
           }}
           rehypePlugins={streamingRehypePlugins}
-          remarkPlugins={[remarkGfm, remarkBreaks, ...remarkPlugins]}
+          remarkPlugins={[
+            remarkGfm,
+            remarkBreaks,
+            remarkDropBreakAfterBr,
+            ...remarkPlugins,
+          ]}
           urlTransform={markdownUrlTransform}
         >
           {remend(markdown)}

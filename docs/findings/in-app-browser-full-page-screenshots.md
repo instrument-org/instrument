@@ -2,7 +2,7 @@
 
 **Status:** open — workaround in place (PDF export). Last updated 2026-07-07.
 
-See also [in-app-browser-device-emulation.md](in-app-browser-device-emulation.md): `Emulation.setDeviceMetricsOverride` (an agent's `set viewport`) hits the same root cause via a different CDP entry point.
+See also [in-app-browser-device-emulation.md](in-app-browser-device-emulation.md): `Emulation.setDeviceMetricsOverride` (an agent's `set viewport`) reached the same root cause via a different CDP entry point, and is now served by resizing the guest rather than overriding it. That does not lift this limitation — [browser-guest-raster-cap](browser-guest-raster-cap.md) measures the ceiling it runs into, 1.3x the window per axis, which a full page is normally taller than.
 
 ## Symptom
 

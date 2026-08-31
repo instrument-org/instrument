@@ -1,0 +1,28 @@
+body:
+  - attributes:
+      value: |
+        > [!IMPORTANT]
+        > This category is for things Instrument does not do yet. If something is broken, use [Issue Triage](https://github.com/instrument-org/instrument/discussions/new?category=issue-triage) instead, which asks for the version and platform details a bug needs.
+
+        Please search [existing discussions](https://github.com/instrument-org/instrument/discussions) first. If someone has already asked for this, upvote it rather than opening another one. Upvotes are how we see what is wanted most.
+    type: markdown
+  - attributes:
+      description: Describe the situation you are in when you hit this, rather than the solution you have in mind. Knowing the goal often changes what we build.
+      label: What are you trying to do?
+    id: problem
+    type: textarea
+    validations:
+      required: true
+  - attributes:
+      description: A rough sketch is fine. This does not need to be a finished design.
+      label: What would you like Instrument to do?
+    id: proposal
+    type: textarea
+    validations:
+      required: true
+  - attributes:
+      description: Workarounds you use now, inside Instrument or in another tool. If you have none and simply go without, say that.
+      label: How do you handle it today?
+    id: alternatives
+    type: textarea
+labels: ["needs-triage"]

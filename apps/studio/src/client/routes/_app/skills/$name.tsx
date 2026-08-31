@@ -1,6 +1,7 @@
 import { setPromptDraftAtom } from "@/client/atoms/prompt-value";
 import { openEditSkill } from "@/client/atoms/skill-modal";
 import { CopyButton } from "@/client/components/copy-button";
+import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileIcon } from "@/client/components/file-icon";
 import { InternalLink } from "@/client/components/internal-link";
 import { Markdown } from "@/client/components/markdown";
@@ -179,7 +180,7 @@ function SkillPage() {
   };
 
   return (
-    <div className="h-full overflow-y-auto scroll-fade-y">
+    <FileDropRegion className="h-full overflow-y-auto scroll-fade-y">
       <div className="mx-auto w-full max-w-5xl px-8 py-12">
         <InternalLink
           className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
@@ -282,9 +283,9 @@ function SkillPage() {
                 },
                 {
                   onError: (error) => {
-                    toast.error(
-                      `There was an error starting your task: ${error.message}`,
-                    );
+                    toast.error("Failed to start task", {
+                      description: error.message,
+                    });
                   },
                   onSuccess: ({ id, sessionId }) => {
                     promptInputRef.current?.clear();
@@ -359,7 +360,7 @@ function SkillPage() {
           className={cn(
             "mt-8 border-t pt-8",
             skill.files.length > 0 &&
-              "grid gap-10 lg:grid-cols-[minmax(0,1fr)_14rem]",
+              "grid gap-10 @4xl/app-content:grid-cols-[minmax(0,1fr)_14rem]",
           )}
         >
           <article className="min-w-0">
@@ -384,7 +385,7 @@ function SkillPage() {
                     </pre>
                   ) : null}
                 </div>
-                <div className="prose prose-custom max-w-none px-4 py-4 text-sm/relaxed wrap-break-word dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm">
+                <div className="prose prose-custom px-4 py-4 text-sm/relaxed wrap-break-word dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm">
                   <Markdown markdown={skill.content} />
                 </div>
               </div>
@@ -394,7 +395,7 @@ function SkillPage() {
           </article>
 
           {skill.files.length > 0 ? (
-            <aside className="min-w-0 lg:sticky lg:top-10 lg:self-start">
+            <aside className="min-w-0 @4xl/app-content:sticky @4xl/app-content:top-10 @4xl/app-content:self-start">
               <div className="overflow-hidden rounded-lg bg-card shadow-xs">
                 <div className="border-b px-3 py-2">
                   <h2 className="text-xs font-medium">Skill files</h2>
@@ -429,7 +430,7 @@ function SkillPage() {
           ) : null}
         </div>
       </div>
-    </div>
+    </FileDropRegion>
   );
 }
 

@@ -2,7 +2,7 @@
 
 Status: **landed.** All five steps are in. What remains of the idea is the two rules below, which the surfaces built after this are expected to keep.
 
-Three mechanisms currently infer, from disk, what the user should see and how fresh it is: a recursive watcher over the task directory, a per-turn diff of that watcher into a change card, and a per-reference existence query at render. All three exist because the app had to guess what a turn produced. It no longer has to guess: a ` ```files ` fence says what the reply hands over ([presentation-syntax.md](presentation-syntax.md)) and `show` says what goes on screen ([pane-tabs-and-the-show-command.md](../completed/pane-tabs-and-the-show-command.md)). This deletes the guessing.
+Three mechanisms currently infer, from disk, what the user should see and how fresh it is: a recursive watcher over the task directory, a per-turn diff of that watcher into a change card, and a per-reference existence query at render. All three exist because the app had to guess what a turn produced. It no longer has to guess: a ` ```files ` fence says what the reply hands over ([presentation-syntax.md](../active/presentation-syntax.md)) and `show` says what goes on screen ([pane-tabs-and-the-show-command.md](../completed/pane-tabs-and-the-show-command.md)). This deletes the guessing.
 
 The forcing function is [user-chosen-working-folder.md](../active/user-chosen-working-folder.md): the work is about to live in a folder the user picked, which can be a monorepo. A recursive index over that is not a thing to tune, it is a thing not to build.
 
@@ -64,6 +64,8 @@ Worth being precise about which way that cuts. **The behavior being lost is argu
 
 What we cannot do is the fully correct thing — show each card the bytes that existed when it was written — because nothing versions the file. So an old card shows old bytes until it refetches and current bytes afterwards, which is unstable in a small way either direction. Not worth a watcher. If it ever reads as broken, the honest fix is content-addressed history, not a subscription; and the file someone is actually looking at is covered by the pane's own watch. The prompt already steers toward new filenames for revisions, which is what keeps this rare.
 
+**One premise here was wrong, and the correction is load-bearing.** "An old card shows old bytes and a new one shows current bytes" assumed a newly drawn card fetches. It does not: the renderer serves a second `<img>` at a URL it already has from a per-document memory cache, without a request, and `no-store` does not stop it. So a reply reporting a rewrite drew the *previous* reply's picture — the bug this design was willing to accept, arriving in the surface it was not. The fix keeps both rules: a transcript card still asks disk nothing, and it carries the id of the message part that named the file, so two replies about one path do not share a URL. [asset-origin.md](../../architecture/asset-origin.md) has the mechanism; content-addressed history is still the honest fix for pinning an old card to old bytes.
+
 ### The mechanism
 
 `@parcel/watcher` cannot do this: its API is `subscribe(dir, fn, opts)`, directory-only and recursive-only.
@@ -86,7 +88,7 @@ Prior art worth knowing: a comparable desktop agent app runs precisely this pair
 
 - **The pane's live mtime** — the subscription above. It also supplies the cache-buster for the pane's own URL, which is the only place one is still needed.
 - **The toolbar's file-list popover** — the only surviving reader of the standing index. It needs a list, not a live list: it fetches its own and polls while open.
-- **Transcript cards** — no version parameter, so `no-store`, which is already what every mounted file gets.
+- **Transcript cards** — the id of the message part that named the file, which the route cannot check against an mtime, so `no-store`, which is already what every mounted file gets. It is there to separate two references, not to date one; see the correction above.
 
 ## One thing to reconcile
 

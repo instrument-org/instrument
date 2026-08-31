@@ -1,0 +1,90 @@
+{
+  "$schema": "https://agent-reference.dev/schema/agent-reference.schema.json",
+  "references": {
+    "electron": {
+      "source": "npm:electron@42.3.3",
+      "directory": ".",
+      "description": "The Electron apps/studio builds against. docs/api/ covers the APIs this build ships, lib/ the browser and renderer JS behind them, spec/ the maintainers' tests. directory is \".\" and it reports unverified because the repository root manifest is @electron-ci/dev-root and default_app/ claims the package name without a version; both are deliberate."
+    },
+    "radashi": {
+      "source": "npm:radashi@12.6.0",
+      "ref": "v12.6.0",
+      "description": "Lodash-style helpers this repo standardizes on; read src/ and its co-located tests, which the published dist/ omits. ref is pinned because radashi keeps package.json at 12.2.0 on every branch and tag and publishes from CI, so version matching always falls back to the default branch. Move version and ref together."
+    },
+    "pnpm": {
+      "source": "npm:pnpm@11.10.0",
+      "ref": "v11.10.0",
+      "directory": "pnpm11/pnpm",
+      "description": "The package manager this repo runs on: workspaces, catalogs, patches. Monorepo, so directory points at the published CLI; ref is pinned because the root package.json lags the release tag."
+    },
+    "electron-builder": {
+      "source": "npm:electron-builder@26.15.7",
+      "ref": "electron-builder@26.15.7",
+      "directory": "packages/electron-builder",
+      "description": "How Studio is packaged and its updates published. Monorepo, so directory points at the package; the root manifest is private and carries no version."
+    },
+    "shadcn-react": {
+      "source": "github:mutewinter/ui",
+      "description": "The component library apps/studio installs as @shadcn/react, a fork of shadcn-ui/ui. packages/react/ holds the source and its co-located tests; the shadcn-react-dist branch carries the built package a git dependency resolves to."
+    },
+    "@tanstack/react-router": {
+      "source": "npm:@tanstack/react-router@1.170.16",
+      "directory": ".",
+      "description": "The router apps/studio navigates with. Monorepo, and directory is \".\" rather than the package, because the half that answers most questions is packages/router-core, published on its own version line: buildLocation, navigate, and the search-middleware chain are all there, while packages/react-router holds the hooks, Link, and Transitioner. The tag carries the router-core this repo installs. Reports unverified for the same reason electron does, the root manifest carrying no version of its own."
+    },
+    "just-bash": {
+      "source": "github:vercel-labs/just-bash",
+      "description": "Upstream of the workspace sandbox; read before steering the agent around sandbox behavior"
+    },
+    "agent-browser": {
+      "source": "github:vercel-labs/agent-browser",
+      "description": "Browser-automation CLI for agents, a native Rust binary. Upstream of the agent's browser tool."
+    },
+    "vscode": {
+      "source": "github:microsoft/vscode",
+      "description": "Microsoft's editor, and the largest Electron app whose source is readable. The reference for how a desktop app of this shape solves a platform problem: src/vs/platform for the service layer, src/vs/workbench/contrib for features, src/vs/base/browser/dnd.ts and the electron-main/electron-browser folders for native OS integration."
+    },
+    "document-viewers": {
+      "description": "The document viewers apps/studio embeds, one package per format. They publish under the @extend-ai npm scope from repositories in the extend-hq GitHub org, so neither name leads to the other.",
+      "references": {
+        "@extend-ai/react-xlsx": {
+          "source": "npm:@extend-ai/react-xlsx@0.15.0",
+          "description": "Spreadsheet viewer. src/types.ts carries the props, src/controller.tsx the hook driving them, and src/xlsx-worker.ts with src/wasm.ts the worker that parses a workbook."
+        },
+        "@extend-ai/react-docx": {
+          "source": "npm:@extend-ai/react-docx@0.8.1",
+          "description": "Word viewer and editor, the react-viewer package of a monorepo whose sibling packages hold the document model, the OOXML reader, and the layout engine. src/editor.tsx is the editing surface."
+        },
+        "@extend-ai/react-pptx": {
+          "source": "npm:@extend-ai/react-pptx@0.1.2",
+          "description": "Slide viewer. src/ReactPptxViewer.tsx is the component, src/types.ts its props, and src/parse.ts the deck reader behind them."
+        }
+      }
+    },
+    "harnesses": {
+      "description": "Agent harness reference repos",
+      "references": {
+        "opencode": {
+          "source": "github:anomalyco/opencode",
+          "description": "The open source terminal AI coding agent."
+        },
+        "codex": {
+          "source": "github:openai/codex",
+          "description": "OpenAI's terminal coding agent (Rust), runs locally."
+        },
+        "pi-mono": {
+          "source": "github:badlogic/pi-mono",
+          "description": "Pi agent harness monorepo: coding-agent CLI, agent runtime, and a multi-provider LLM API."
+        },
+        "grok-build": {
+          "source": "github:xai-org/grok-build",
+          "description": "Grok Build (`grok`): xAI's terminal coding agent, a full-screen Rust TUI."
+        },
+        "deepseek-harness": {
+          "source": "github:deepseek-ai/deepseek-harness",
+          "description": "DeepSeek's agent harness, built so that every capability is a plugin. Its .agents/notes/implemented/architecture/ folder carries dated design notes, each with the decision, the alternatives rejected, and why."
+        }
+      }
+    }
+  }
+}

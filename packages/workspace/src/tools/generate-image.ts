@@ -104,6 +104,9 @@ export const GenerateImage = setupTool({
         }),
       ),
       modelId: z.string(),
+      // Present only when the provider served a different model, which is what
+      // our image alias does on every call.
+      modelIdServed: z.string().optional(),
       provider: ProviderOutputSchema,
       // The requested path was taken, so the image was saved under a new name.
       renamedToAvoidOverwrite: z.boolean(),
@@ -330,8 +333,15 @@ export const GenerateImage = setupTool({
         }
       }
 
-      const { appliedParameters, config, images, kind, modelId, usage } =
-        chunk.value;
+      const {
+        appliedParameters,
+        config,
+        images,
+        kind,
+        modelId,
+        modelIdServed,
+        usage,
+      } = chunk.value;
 
       if (kind === "partial") {
         const now = Date.now();
@@ -347,6 +357,7 @@ export const GenerateImage = setupTool({
         appliedParameters,
         images: writtenImages,
         modelId,
+        modelIdServed,
         provider: {
           displayName: config.displayName,
           id: config.id,

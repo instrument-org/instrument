@@ -95,7 +95,15 @@ The feed URL is re-applied before every check, so a release-channel change in pr
 
 ## Linux install path
 
-Linux does not call `autoUpdater.quitAndInstall()`, which hangs there, and cannot use `app.relaunch()`: that sets `PR_SET_NO_NEW_PRIVS=1` on the child and permanently strips the pkexec privileges future updates need. It spawns a detached shell that waits for the process to exit before relaunching. The staged build is applied by electron-updater's own quit handler.
+Linux publishes four targets (`AppImage`, `deb`, `rpm`, `tar.gz`) and every one of them is fed by the same update feed, so the install path is chosen by the package that produced the running installation rather than by the platform. electron-builder records that as a `package-type` file beside the app resources, holding `deb`, `rpm` or `pacman`; an AppImage build ships no such file. `isDebInstall` reads it, which is the same marker electron-updater consults to pick between its `DebUpdater`, `RpmUpdater`, `PacmanUpdater` and `AppImageUpdater`, so the two never disagree about which package is being replaced.
+
+Everything but the Debian package installs through `autoUpdater.quitAndInstall()`, which reaches whichever of those installers matches, and leaves `autoInstallOnAppQuit` at its default so an ordinary quit applies a staged build too.
+
+The Debian package is the exception, and two constraints shape it. `app.relaunch()` is unusable: it sets `PR_SET_NO_NEW_PRIVS=1` on the child and permanently strips the pkexec privileges later updates authenticate with. And electron-updater must not install from its own quit handler, which runs `dpkg` synchronously as a child of the exiting process: the transaction lands in the app's cgroup, so anything ending the app severs it with the package unpacked and its AppArmor profile removed, and takes the `apt-get install -f` recovery down with the process that would have run it. See [the finding](../findings/deb-update-left-the-package-unconfigured.md).
+
+So the deb, and only the deb, turns `autoInstallOnAppQuit` off and writes a shell script into `userData` instead. The script re-runs itself inside a transient systemd scope to get out of the app's cgroup, waits for the app's pid to exit, runs `dpkg -i … || apt-get install -f -y` under `pkexec`, and relaunches unless an instance came back on its own while it worked. Its output is the only account there will ever be of an install that finishes after the process that asked for it is gone, so it goes to a log file the next start reads and then deletes.
+
+That authentication prompt is also why the `installing` status carries a notice on this path and no other: declining the prompt is the one way an update quietly does not happen.
 
 ## Upstream
 

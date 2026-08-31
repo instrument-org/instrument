@@ -14,6 +14,10 @@ export async function timeBootStep<T>(
   const startedAt = performance.now();
   try {
     return await run();
+  } catch (error) {
+    // The step's name rides on the failure, so whatever reports the rejection
+    // can say which step ended the boot, not just that one did.
+    throw new Error(`Boot failed during ${name}`, { cause: error });
   } finally {
     scopedLogger.info(
       `${name}: ${Math.round(performance.now() - startedAt)}ms`,

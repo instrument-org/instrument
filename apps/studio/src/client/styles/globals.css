@@ -93,6 +93,7 @@ body {
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-border: var(--border);
+  --color-window-border: var(--window-border);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-sidebar: var(--sidebar);
@@ -226,6 +227,10 @@ body {
   --accent-foreground: var(--gray-800);
   --destructive: var(--error-500);
   --border: var(--gray-200);
+  /* Outlines the whole window against an unknown desktop background, so it is
+   * pitched darker than `--border`, which only has to separate two of our own
+   * surfaces. Against a white window behind it, `--border` is nearly invisible. */
+  --window-border: var(--gray-400);
   --input: var(--gray-200);
   --ring: var(--gray-400);
   --sidebar: var(--background);
@@ -363,6 +368,10 @@ body {
   --accent-foreground: #ffffff;
   --destructive: var(--error-500);
   --border: rgb(255 255 255 / 10%);
+  /* Composited over the window background rather than the desktop (the window
+   * is opaque), so it needs more than `--border`'s 10% to read as an edge when
+   * the window sits on a dark background. */
+  --window-border: rgb(255 255 255 / 20%);
   --input: rgb(255 255 255 / 10%);
   --ring: rgb(255 255 255 / 30%);
   --brand-text: var(--brand-400);
@@ -390,6 +399,26 @@ body {
   --elevation-xl: 0 0 0 1px rgb(255 255 255 / 0.13), var(--elevation-xl-soft);
   --elevation-2xl: 0 0 0 1px rgb(255 255 255 / 0.14), var(--elevation-2xl-soft);
   --elevation-3xl: 0 0 0 1px rgb(255 255 255 / 0.16), var(--elevation-3xl-soft);
+}
+
+/* Typography gives `.prose` a `max-width: 65ch` measure of its own, and every
+   surface here is already laid out inside a column that decided its own width
+   -- the chat's `max-w-3xl`, a viewer's panel -- so the second cap only ever
+   takes room the first one already granted.
+ 
+   `max-w-none` beside `prose` is the documented way to drop it and does not
+   work: both are utilities of equal specificity, and Tailwind emits `.prose`
+   after `.max-w-*`, so the cap wins on source order and the class reads as
+   though it is doing something it is not. Raising the specificity is what
+   settles it, in the utilities layer so that a surface which does want a
+   measure can still say so.
+ 
+   This is why `prose prose-custom` carries no `max-w-none` at its call sites:
+   pairing the two is the opt out. */
+@layer utilities {
+  .prose.prose-custom {
+    max-width: none;
+  }
 }
 
 @utility prose-custom {
@@ -428,6 +457,15 @@ body {
 
   > div:last-child:has(pre) pre {
     margin-bottom: 0;
+  }
+
+  /* Tailwind Typography gives an image 2em of air above and below, enough that
+     it reads as a section of its own. An image here is nearly always the answer
+     to the sentence that introduces it, so it sits on the same rhythm as a
+     paragraph instead. */
+  img {
+    margin-top: 1.25em;
+    margin-bottom: 1.25em;
   }
 
   h1,
@@ -502,6 +540,21 @@ body {
   &::-webkit-scrollbar {
     display: none;
   }
+}
+
+/* The inline size the transcript has, as a length, so a block inside a message
+   can size itself against the pane instead of against the column it sits in.
+   Registered rather than left a bare custom property: a registered `<length>`
+   resolves `100cqi` where it is declared and inherits the px it computed to,
+   while an unregistered one would carry the token down and re-resolve it
+   against whatever container each reader happened to sit in.
+
+   It is 0 wherever nothing declares it, which is what leaves a Markdown table
+   in a file viewer or a tool result an ordinary scroller at its own width. */
+@property --transcript-room {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
 }
 
 /* Scroll-driven edge fade for a vertical scroll area. The mask's top/bottom
@@ -864,9 +917,363 @@ a.cursor-pointer {
   }
 }
 
+/* A pane tab growing into the row it was just opened in; see `pane-tabs.tsx`,
+ * which puts the class there and only on a tab the task did not have a moment
+ * ago. Drawn for the first time is not the same as new.
+ *
+ * The collapse a closing tab runs, backwards, and an animation rather than the
+ * transition that one is for the single reason the two differ: an arriving tab
+ * is painted at its full width on the frame it mounts, so there is no earlier
+ * state for a transition to run from. A keyframe carries that state itself.
+ *
+ * The width is opened with `max-width` rather than by growing the tab's share
+ * of the row, which is what the collapse closes. A share is the wrong handle in
+ * this direction: while the row has slack -- tabs sitting at their cap with
+ * space to spare -- a share of it a fraction over zero is already more width
+ * than the cap allows, so the tab reaches full size in a frame or two and pops
+ * rather than grows. A cap opening from zero is the width itself, and it runs
+ * evenly whether the row has room to spare or none. `min-width` comes with it,
+ * so the per-density floor does not hold the tab open before the cap does.
+ *
+ * These beat the strip's own width classes for free, since an animation's
+ * values outrank a stylesheet's. The margin is the strip's `gap-1`, which a tab
+ * at zero width is otherwise still holding open. */
+.pane-tab-arriving {
+  /* Set on the strip in `pane-tabs.tsx`, which is where the length of both of
+     these lives; see `TAB_MOTION_MS`. */
+  animation: pane-tab-in var(--tab-motion) ease-out;
+}
+
+@keyframes pane-tab-in {
+  from {
+    margin-right: -4px;
+    max-width: 0;
+    min-width: 0;
+    opacity: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pane-tab-arriving {
+    animation: none;
+  }
+}
+
+/* The composer answering a press that asked for the page it was already on; see
+ * `nudgeOnReentry`, which mounts a ring on the box for one play of this.
+ *
+ * An outline that holds for a moment, with a brighter length of it traveling
+ * the way the eye reads: the line alone is a border that blinked, and the glint
+ * crossing it is what reads as an answer to something. Nothing moves and
+ * nothing about the composer is repainted, so a draft mid-sentence is
+ * undisturbed by the app agreeing with a click.
+ *
+ * On the press and not a moment after: the outline is at full strength in the
+ * first frame, and the band comes in over the left edge right behind it at its
+ * fastest, easing out into the far side. Anything at the front of this -- a
+ * ramp onto the line, a slow start, a longer run in from off the box -- is time
+ * in which the click looks like it did nothing, which is the one thing the
+ * whole gesture is here to answer.
+ *
+ * Ink rather than the brand, and pale: this is the app noticing a press, not an
+ * accent worth spending a color on, and `--foreground` inverts with the theme
+ * so the line contrasts with the box it hugs in both.
+ *
+ * The ring is the whole element, the glint is a band of background lit through
+ * it -- the mask keeps the border box and drops the padding box, leaving a 2px
+ * ring for both to paint on. The band is three boxes wide so its lit stretch is
+ * a fraction of a box, and it starts just off the left edge and ends just off
+ * the right, which is what makes it a pass rather than a fade.
+ *
+ * Held long enough to be caught by an eye still on the button that was pressed,
+ * short enough that a second press is a second pass and not an interruption.
+ *
+ * Under reduced motion the pass is dropped and the ring still answers: the band
+ * is parked off the left edge, so what is left is the outline fading in and
+ * out. */
+@utility composer-nudge {
+  --composer-nudge-line: color-mix(
+    in oklab,
+    var(--foreground) 12%,
+    transparent
+  );
+  --composer-nudge-glint: color-mix(
+    in oklab,
+    var(--foreground) 28%,
+    transparent
+  );
+
+  border: 2px solid var(--composer-nudge-line);
+  background: linear-gradient(
+      115deg,
+      transparent 45%,
+      var(--composer-nudge-glint) 50%,
+      transparent 55%
+    )
+    border-box;
+  background-position: 100% 0;
+  background-size: 300% 100%;
+  mask:
+    linear-gradient(#000 0 0) padding-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation:
+    composer-nudge-glint 550ms ease-out,
+    composer-nudge-ring 750ms ease-out both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: composer-nudge-ring 750ms ease-out both;
+  }
+}
+
+@keyframes composer-nudge-glint {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+@keyframes composer-nudge-ring {
+  0%,
+  76% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 /* Semantic component classes. Defined in @layer components so the
  * better-tailwindcss/no-unknown-classes ESLint rule recognizes them
  * automatically via detectComponentClasses — no manual ignore entries needed. */
+/* Unlayered on purpose. Tailwind Typography generates `prose` into the
+   utilities layer, which outranks anything in `components` whatever its
+   specificity, so a table rule that lives there loses `width` to
+   `.prose :where(table)` and the block silently stops sizing itself. */
+/* A Markdown table is the one block in a message that cannot be made
+   narrower without being made unreadable: squeezed into the text measure, a
+   six-column comparison gives each column about seventy pixels and stacks
+   every value, which reads worse than not showing it. Its scroll frame spans
+   the transcript, while a leading spacer keeps the table aligned with prose
+   at rest. Scrolling spends that spacer first, letting later columns use the
+   room before the prose too. Only what still does not fit after that scrolls
+   inside the block rather than under the whole conversation, which is what a
+   bare `<table>` did.
+ */
+.markdown-table-row {
+  position: relative;
+  display: grid;
+  container-type: inline-size;
+  /* A definite track. An `auto` one is sized by its own item, which makes
+     that item's percentage width cyclic; Chromium then drops the frame's
+     `max-width` entirely and the table grows straight past the pane. */
+  grid-template-columns: minmax(0, 1fr);
+  /* The frame is wider than this track whenever the transcript has room, and
+     needs to grow equally past both sides of the centered response column. */
+  justify-items: center;
+  /* The rhythm the table's own margins carried before they moved onto the
+     frame, where they would have been inside the scroll area. */
+  margin-block: 2em;
+}
+
+/* A transcript needs paragraph rhythm around an inline table; its dedicated
+   modal already provides that structure. Keep a small separation from the
+   title and let the shell's padding finish immediately after the last row. */
+.markdown-table-modal-body .markdown-table-row {
+  margin-block: 1rem 0;
+}
+
+.markdown-table-frame {
+  --table-edge: 1rem;
+  --table-fade: 1.5rem;
+  /* The slack between the text measure and one edge of the centered
+     transcript, and 0 with no transcript to measure. */
+  --table-bleed: max(
+    0px,
+    calc((var(--transcript-room) - 2 * var(--table-edge) - 100cqi) / 2)
+  );
+
+  display: flex;
+  /* The whole usable transcript is the viewport. The table does not begin at
+     its leading edge, though: `markdown-table-lead` occupies that gutter until
+     horizontal scrolling carries it away. */
+  width: calc(100% + 2 * var(--table-bleed));
+  overflow-x: auto;
+  /* `auto` on one axis makes the other a scroll container too, which a
+     table's own block margins would then find something to scroll. */
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+}
+
+.markdown-table-lead {
+  flex: 0 0 var(--table-bleed);
+}
+
+.markdown-table-frame > table {
+  flex: 0 0 auto;
+  width: max-content;
+  /* The frame includes both gutters, so subtract them to preserve the old
+     behavior where a narrow table still fills the prose measure. */
+  min-width: calc(100% - 2 * var(--table-bleed));
+  margin: 0;
+}
+
+/* Where the table continues past the frame, on whichever side it does. Sticky
+   flex items rather than overlays: the frame is the scroll container, so
+   anything drawn inside it scrolls away with the table, and anything outside it
+   cannot know how wide the frame ended up. Each one's negative margin on its
+   far side keeps it out of the frame's own max-content width, so their presence
+   never widens the block. */
+.markdown-table-fade {
+  position: sticky;
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: var(--table-fade);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.markdown-table-fade[data-edge="start"] {
+  inset-inline-start: 0;
+  margin-inline-end: calc(-1 * var(--table-fade));
+  background: linear-gradient(to right, var(--background), transparent);
+}
+
+.markdown-table-fade[data-edge="end"] {
+  inset-inline-end: 0;
+  margin-inline-start: calc(-1 * var(--table-fade));
+  background: linear-gradient(to right, transparent, var(--background));
+}
+
+.markdown-table-frame[data-scroll-start]
+  .markdown-table-fade[data-edge="start"],
+.markdown-table-frame[data-scroll-end] .markdown-table-fade[data-edge="end"] {
+  opacity: 1;
+}
+
+/* Copy and expand. Outside the scroller, because the frame clips vertically to
+   keep a stray scrollbar off it. Their top follows the table's top edge and
+   their inline position follows the frame: the frame is wider than the measure
+   whenever it has taken room, so the two right edges are not the same one. */
+.markdown-table-toolbar {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  gap: 0.25rem;
+  transform: translateX(-100%);
+  opacity: 0;
+  transition: opacity 100ms;
+}
+
+/* Focus as well as hover, so tabbing through never lands on an invisible
+   control, and while a menu it opened is still up. */
+.markdown-table-row:hover .markdown-table-toolbar,
+.markdown-table-toolbar:focus-within,
+.markdown-table-toolbar[data-menu-open="true"] {
+  opacity: 1;
+}
+
+/* Placed from the table's trailing edge, and translated back over it unless
+   the transcript had room to stand them beside it instead. Which of the two is
+   measured, since it depends on how much of the pane the table took.
+
+   The air between the edge and a control standing outside (`CONTROL_GAP`)
+   belongs to the control's own box, so a pointer crossing it is still on a
+   descendant of the row: over anything else that strip would fire the row's
+   `mouseleave` and take the row copy away mid-reach. On the row copy it is
+   padding. On the toolbar it is margin instead, because the toolbar's width is
+   what the room check measures, and padding would widen the measurement by the
+   very gap it is checking for. */
+.markdown-table-toolbar[data-outside] {
+  transform: translateX(0);
+}
+
+.markdown-table-row-copy[data-outside] {
+  transform: translateY(-50%);
+}
+
+.markdown-table-toolbar[data-outside] {
+  margin-inline-start: 8px;
+}
+
+.markdown-table-row-copy[data-outside] {
+  padding-inline-start: 8px;
+}
+
+/* The table's own controls. A bare icon rather than the bordered button a code
+   block and a diagram use: those sit on a filled surface a control has to lift
+   off, and these sit in a table's cell padding, where a border is the only
+   thing that would read as clutter. The small elevation keeps their fill
+   distinct when it covers table content.
+ 
+   The fill is not decoration. A control here overlaps the header or a row
+   whenever the table is narrow enough, and an icon alone on top of text is
+   unreadable. `card` for the hover rather than `muted`, which is a translucent
+   white in dark mode and would let the row read straight through it.
+ 
+   `flex: 0 0 auto` because the toolbar is a zero-width box: without it these
+   shrink to their icons against all that negative free space and stop being
+   square, which the hover fill then advertises. */
+.markdown-table-control {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  box-shadow: var(--shadow-xs);
+  color: var(--muted-foreground);
+}
+
+.markdown-table-control:hover {
+  background: var(--card);
+  color: var(--foreground);
+}
+
+/* One row's own copy. Placed by hand from the hovered row, since a table
+   mid-stream would otherwise re-render every row of itself to answer a pointer
+   move.
+ 
+   It rides the center of the row at the trailing end, so its larger hit target
+   has equal room above and below it. Reaching for it still never leaves the
+   row, because the row is what it is sitting on. */
+.markdown-table-row-copy {
+  position: absolute;
+  z-index: 2;
+  transform: translate(-100%, -50%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Reporting a copy without a render: both icons are drawn and one is picked.
+   The control is a single element moved between rows, so the state is cleared
+   the moment it lands on a different one -- a check carried over from the row
+   above would report a copy that never happened. */
+.markdown-table-copied,
+.markdown-table-row-copy[data-copied] .markdown-table-idle {
+  display: none;
+}
+
+.markdown-table-row-copy[data-copied] .markdown-table-copied {
+  display: block;
+}
+
+.markdown-table-row-copy[data-visible] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markdown-table-toolbar {
+    transition: none;
+  }
+}
+
 @layer components {
   /* Keyed off the theme class rather than the OS preference: the theme is a
    * setting, and `system` resolves to the same class, so the media query read
@@ -1014,4 +1421,32 @@ a.cursor-pointer {
 
 .dark .toaster [data-sonner-toast][data-styled="true"] [data-button]:hover {
   background: var(--gray-700);
+}
+
+/* Sonner lays a toast out as one row -- icon, text, button -- and the text
+   column is the part that gives when the button takes its width. A toast
+   carrying a description then has roughly half the card to say it in, so a
+   filename or an error message breaks mid-word into a ragged stack beside a
+   button sitting in its own whitespace. Give those two rows: the text spans
+   the card, the button drops beneath it. Both children are placed in the
+   second column explicitly so the layout holds for a toast with no icon. */
+.toaster
+  [data-sonner-toast][data-styled="true"]:has([data-description]):has(
+    [data-button]
+  ) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  row-gap: 10px;
+
+  [data-icon] {
+    grid-column: 1;
+    /* Centered on the title's first line, not on the whole text block. */
+    margin-top: 2px;
+  }
+
+  [data-content],
+  [data-button] {
+    grid-column: 2;
+  }
 }

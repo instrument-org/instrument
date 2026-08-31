@@ -39,8 +39,20 @@ export async function ensureTaskVenvForTask({
   const workDir = getTaskWorkDir(taskDir(taskId));
   mkdirSync(workDir, { recursive: true });
 
+  // `--clear` because we only get here when the venv is missing or unusable,
+  // so replacing whatever is there is the intent. Without it uv refuses to
+  // touch an existing venv, which would strand a task whose interpreter went
+  // missing: the venv never becomes usable, so every python/pip call fails and
+  // nothing in the app can recover it. uv still declines to clear a directory
+  // that is not a virtual environment, so this cannot delete a task's own files.
   const creation = runUvCommand({
-    args: ["venv", "--python", MANAGED_PYTHON_VERSION, taskVenvDir(taskId)],
+    args: [
+      "venv",
+      "--clear",
+      "--python",
+      MANAGED_PYTHON_VERSION,
+      taskVenvDir(taskId),
+    ],
     cwd: workDir,
     taskId,
   })

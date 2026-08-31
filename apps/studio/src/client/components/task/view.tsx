@@ -9,6 +9,7 @@ import {
 } from "@/client/components/file-viewer";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { useTaskPaneActions } from "@/client/hooks/use-task-pane";
+import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { cn } from "@/client/lib/utils";
@@ -154,81 +155,94 @@ export function TaskView({
   };
 
   return (
-    <div className="relative h-full w-full overflow-hidden">
-      <TaskPaneSplit
-        chat={
-          <TaskSidebar
-            activeFilePath={filePanel?.filePath ?? null}
-            attachedFolders={attachedFolders}
-            chatProps={chatProps}
-            onFileSelect={handleFileSelect}
-            selectedSessionId={selectedSessionId}
-            task={task}
-          />
-        }
-        isPaneOpen={showArtifactPanel}
-        onCollapse={close}
-        taskId={task.id}
-      >
-        {({ isSliding }) => (
-          <div className="flex h-full flex-col p-2">
-            {/* One card, with the strip as its first row. The viewers below
+    // Everything on this page belongs to one task and one session, which is
+    // what lets a link anywhere under it -- the transcript, a tool's output, a
+    // Markdown file in the pane -- offer the task's own browser without each of
+    // those being handed the pair.
+    <TaskSessionProvider sessionId={selectedSessionId} taskId={task.id}>
+      <div className="relative h-full w-full overflow-hidden">
+        <TaskPaneSplit
+          chat={
+            <TaskSidebar
+              activeFilePath={filePanel?.filePath ?? null}
+              attachedFolders={attachedFolders}
+              chatProps={chatProps}
+              onFileSelect={handleFileSelect}
+              selectedSessionId={selectedSessionId}
+              task={task}
+            />
+          }
+          isPaneOpen={showArtifactPanel}
+          onCollapse={close}
+          taskId={task.id}
+        >
+          {({ isSliding }) => (
+            <div className="flex h-full flex-col p-2">
+              {/* One card, with the strip as its first row. The viewers below
                 already stack a title and a toolbar inside this same frame,
                 so the tabs join that band instead of floating above the
                 pane on the task's own background. */}
-            <div className={paneSurfaceClassName}>
-              <PaneTabs
-                fileTabs={fileTabs}
-                onClose={closeTab}
-                onReorder={reorderTabs}
-                onSelect={selectTab}
-                selectedKey={selected ? TaskPane.tabKey(selected) : undefined}
-                taskId={task.id}
-              />
+              <div className={paneSurfaceClassName}>
+                <PaneTabs
+                  fileTabs={fileTabs}
+                  onClose={closeTab}
+                  onReorder={reorderTabs}
+                  onSelect={selectTab}
+                  selectedKey={selected ? TaskPane.tabKey(selected) : undefined}
+                  taskId={task.id}
+                />
 
-              <div className="min-h-0 flex-1">
-                {selected?.type === "browser" && selectedSessionId ? (
-                  <TaskBrowserPanel
-                    active={browserActive}
-                    className={paneContentClassName}
-                    sessionId={selectedSessionId}
-                    sliding={isSliding}
-                    taskId={task.id}
-                  />
-                ) : currentFile ? (
-                  <FileViewer
-                    className={paneContentClassName}
-                    file={currentFile}
-                    // The path, not the URL. The URL carries the file's mtime,
-                    // so keying on it tore the viewer down and rebuilt it every
-                    // time the file was saved -- losing the scroll position,
-                    // the raw/preview toggle, and whatever was on screen, for a
-                    // file the user is watching precisely because it keeps
-                    // changing. A remount is for a different file; new bytes of
-                    // the same one are a content change.
-                    key={currentFile.filePath}
-                    onExpand={() => {
-                      openFileViewer({ files: [currentFile] });
-                    }}
-                  />
-                ) : filePanel ? (
-                  // Only claim the file is gone once the lookup has answered.
-                  // Rendering the missing state while the query is still in
-                  // flight flashes "File not found" over every file on its way
-                  // in, which is a lie the panel then corrects a frame later.
-                  // The wait itself shows nothing: it is over faster than the
-                  // eye settles, so anything drawn there is a flicker between
-                  // two files rather than a sign of progress.
-                  <ArtifactPanelShell filePath={filePanel.filePath}>
-                    {isResolvingFile ? <FileLoading /> : <MissingFileNotice />}
-                  </ArtifactPanelShell>
-                ) : null}
+                <div className="min-h-0 flex-1">
+                  {selected?.type === "browser" && selectedSessionId ? (
+                    <TaskBrowserPanel
+                      active={browserActive}
+                      className={paneContentClassName}
+                      sessionId={selectedSessionId}
+                      sliding={isSliding}
+                      taskId={task.id}
+                    />
+                  ) : currentFile ? (
+                    <FileViewer
+                      className={paneContentClassName}
+                      file={currentFile}
+                      // The path, not the URL. The URL carries the file's mtime,
+                      // so keying on it tore the viewer down and rebuilt it every
+                      // time the file was saved -- losing the scroll position,
+                      // the raw/preview toggle, and whatever was on screen, for a
+                      // file the user is watching precisely because it keeps
+                      // changing. A remount is for a different file; new bytes of
+                      // the same one are a content change.
+                      key={currentFile.filePath}
+                      onExpand={() => {
+                        openFileViewer({
+                          files: [currentFile],
+                          sessionId: selectedSessionId,
+                        });
+                      }}
+                    />
+                  ) : filePanel ? (
+                    // Only claim the file is gone once the lookup has answered.
+                    // Rendering the missing state while the query is still in
+                    // flight flashes "File not found" over every file on its way
+                    // in, which is a lie the panel then corrects a frame later.
+                    // The wait itself shows nothing: it is over faster than the
+                    // eye settles, so anything drawn there is a flicker between
+                    // two files rather than a sign of progress.
+                    <ArtifactPanelShell filePath={filePanel.filePath}>
+                      {isResolvingFile ? (
+                        <FileLoading />
+                      ) : (
+                        <MissingFileNotice />
+                      )}
+                    </ArtifactPanelShell>
+                  ) : null}
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </TaskPaneSplit>
-    </div>
+          )}
+        </TaskPaneSplit>
+      </div>
+    </TaskSessionProvider>
   );
 }
 

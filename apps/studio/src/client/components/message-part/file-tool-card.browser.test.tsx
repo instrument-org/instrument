@@ -35,11 +35,7 @@ const taskId = TaskIdSchema.parse("task-fixture");
 const renderCard = (content: string) =>
   renderInBrowser(
     <div style={{ width: 480 }}>
-      <ToolCallSessionProvider
-        backgroundProcess={undefined}
-        isRunning={false}
-        isStreaming={false}
-      >
+      <ToolCallSessionProvider isRunning={false} isStreaming={false}>
         <FileToolCard
           content={content}
           filePath="src/utils/helpers.ts"

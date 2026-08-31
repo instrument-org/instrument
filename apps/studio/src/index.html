@@ -2,6 +2,13 @@
 <html>
   <head>
     <meta charset="UTF-8" />
+    <!--
+      `img-src` is wider than anything content is allowed to reach, because it
+      also covers chrome this app drew itself. What a document written by a
+      model, a shared file, or a notebook may point an `<img>` at is decided in
+      `client/lib/image-policy.ts`; this is the backstop under it, never the
+      reason a source is safe.
+    -->
     <meta
       http-equiv="Content-Security-Policy"
       content="

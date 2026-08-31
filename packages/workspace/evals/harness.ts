@@ -22,6 +22,7 @@ import { createProject } from "../src/lib/project";
 import { Store } from "../src/lib/store";
 import { getTaskUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
+import { message as messageRoute } from "../src/rpc/routes/message";
 import { session as sessionRoute } from "../src/rpc/routes/session";
 import { task as taskRoute } from "../src/rpc/routes/task";
 import { type FileUpload } from "../src/schemas/file-upload";
@@ -149,6 +150,13 @@ export interface EvalCase {
   assertions?: Assertion[];
   files?: FileUpload.Type[];
   folders?: { access?: FolderAttachment.Access; path: string }[];
+  /**
+   * Further user turns, sent one at a time on the same session once the turn
+   * before it has settled. For behavior that only exists across turns: a
+   * context rollover, or anything the agent is supposed to carry forward
+   * rather than re-derive. Assertions see every session the run produced.
+   */
+  followUps?: string[];
   name: string;
   /**
    * Run the task inside a project created for it. The only way to exercise the
@@ -425,10 +433,35 @@ export async function runEvals(
 
       // A stop that never takes effect would otherwise hold the whole suite
       // behind this one run for as long as the process lives.
-      const outcome = await waitForSessionDone(sessionId, id, {
-        timeoutMs:
-          maxRunSeconds > 0 ? maxRunSeconds * 1000 + STOP_GRACE_MS : undefined,
+      const doneTimeoutMs =
+        maxRunSeconds > 0 ? maxRunSeconds * 1000 + STOP_GRACE_MS : undefined;
+      let outcome = await waitForSessionDone(sessionId, id, {
+        timeoutMs: doneTimeoutMs,
       });
+
+      // Follow-ups run before the teardown below, so the caps timer and the
+      // part subscription cover the whole conversation rather than its first
+      // turn: a run that loops on turn four is the same runaway as one that
+      // loops on turn one. A turn that stopped or timed out ends the run
+      // rather than asking the next question into a session that is not
+      // listening.
+      for (const followUp of evalCase.followUps ?? []) {
+        if (stoppedBy || outcome === "timeout") {
+          break;
+        }
+        write(
+          `${evalPrefix(label)}${c.dim}Follow-up: ${followUp.slice(0, 60)}${c.reset}\n`,
+        );
+        await call(
+          messageRoute.create,
+          { id, modelURI: uri, prompt: followUp, sessionId },
+          { context },
+        );
+        outcome = await waitForSessionDone(sessionId, id, {
+          timeoutMs: doneTimeoutMs,
+        });
+      }
+
       clearInterval(enforcementTimer);
       abortController.abort();
 

@@ -73,7 +73,7 @@ We accepted that gap because what it protects is narrow. A misspelled identifier
 ## What landed
 
 - `typos.toml` at the root, and `scripts/typos.ts`, which fetches the pinned checksum-verified binary from crate-ci's GitHub releases into `node_modules/.cache` on first use. There is no first-party npm package, and the third-party wrapper would have needed a postinstall allowance in [pnpm-workspace.yaml](../../pnpm-workspace.yaml) for a single-maintainer package that downloads binaries.
-- `check:spelling` now runs it, and unlike its predecessor it runs in CI. `fix:spelling` applies the corrections.
+- `check:spelling` now runs it, and `fix:spelling` applies the corrections. CI runs it too, but as a `continue-on-error` step outside `check-and-test:ci` rather than as a gate. The reasoning above is why: what it protects is comments, docs, and copy, every finding is machine-applicable, and a blocking gate on that would fail a run whose types, lint, build, and tests all passed. Reporting keeps the signal without spending a red run on a word.
 - `ignore-hidden = false`, because typos skips dotted directories by default and the workflows, agent skills, and editor config in them are content like anything else. `.git/` comes into scope with them and is excluded.
 - `check:unused-words` is gone.
 - 154 corrections across the tree, including `unparseable` to `unparsable` (a discriminated-union member, its producer, and its snapshots) and one genuine typo cspell had never seen (`macoS`).

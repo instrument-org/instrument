@@ -63,6 +63,18 @@ export namespace AIGatewayModel {
   export const Schema = z.object({
     author: z.string(),
     canonicalId: AIGatewayModelURI.CanonicalIdSchema,
+    /**
+     * Tokens the model accepts in one request, when the provider tells us.
+     *
+     * Optional because most provider model endpoints omit it: only
+     * OpenRouter-shaped responses (`context_length`, which covers our own
+     * gateway) and Google (`inputTokenLimit`) carry one. Absent means unknown,
+     * and every consumer treats unknown as "do not act" rather than
+     * substituting a guess. Guessing low is the harmful direction, since it
+     * would spend a session's remaining room on a limit the model does not
+     * have.
+     */
+    contextLength: z.number().int().positive().optional(),
     features: ModelFeaturesSchema.array(),
     name: z.string(),
     params: AIGatewayModelURI.ParamsSchema,

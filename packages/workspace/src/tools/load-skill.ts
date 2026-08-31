@@ -34,7 +34,6 @@ import { getWorkspaceConfig } from "../lib/workspace-config";
 import { MOUNT } from "../mount-points";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
-import { TOOL_NAMES } from "./name";
 const TAGS = {
   file: "file",
   skillFiles: "skill_files",
@@ -105,41 +104,22 @@ export const LoadSkill = setupTool({
     }),
   ]),
 }).create({
-  description: async () => {
-    const sources = getSkillSources(getWorkspaceConfig());
-    const skills = await findSkills(sources);
-    const catalog = renderSkillCatalog(
-      skills.filter((skill) => skill.modelInvocable),
-    );
+  // Static on purpose. The catalog this used to render was rediscovered per
+  // request, so a skill installed or edited mid-session rewrote a tool
+  // definition at the front of the prompt. The catalog now lives in the
+  // session's context message; what stays here is the part that only changes
+  // when the tool itself does.
+  description: dedent`
+    Load a specialized skill that provides domain-specific instructions, pre-built scripts, and dependencies for a specific task.
+    Check for a matching skill before writing custom code or installing packages -- even for tasks that seem simple.
 
-    const examples = catalog.entries
-      .slice(0, 3)
-      .map((entry) => `'${entry.name}'`)
-      .join(", ");
-    const hint = examples.length > 0 ? ` (e.g., ${examples})` : "";
+    The skills available to you are listed in the \`<available_skills>\` block in the conversation, plus any later message naming a skill added since. Pass \`name\` exactly as it appears there. If no skill answers to that name, this tool returns the current list, so a name you are unsure of costs one call rather than a guess.
 
-    const budgetNotes = [
-      catalog.shortened > 0 &&
-        `Note: ${catalog.shortened} description(s) were shortened to fit the skills context budget. Load a skill to see its full instructions.`,
-      catalog.omitted > 0 &&
-        `Note: ${catalog.omitted} further skill(s) were left out of this list entirely. ${TOOL_NAMES.loadSkill} still accepts them by name.`,
-    ].filter((note) => typeof note === "string");
+    The skill will inject detailed instructions and workflows into the conversation context.
+    Tool output delivers the loaded content between \`BEGIN_${BOUNDARY_LABEL}\` and \`END_${BOUNDARY_LABEL}\` markers that carry a nonce generated for that one call.
 
-    return dedent`
-      Load a specialized skill that provides domain-specific instructions, pre-built scripts, and dependencies for a specific task.
-      Check for a matching skill before writing custom code or installing packages -- even for tasks that seem simple.
-
-      The skill will inject detailed instructions and workflows into the conversation context.
-      Tool output delivers the loaded content between \`BEGIN_${BOUNDARY_LABEL}\` and \`END_${BOUNDARY_LABEL}\` markers that carry a nonce generated for that one call.
-
-      Available skills${hint}:
-
-      ${catalog.xml}
-
-      Note: skills with declared Node.js or Python dependencies install them automatically after being copied into the task.
-      ${budgetNotes.join("\n")}
-    `.trim();
-  },
+    Note: skills with declared Node.js or Python dependencies install them automatically after being copied into the task.
+  `.trim(),
   execute: async ({ input, signal, taskId }) => {
     const workspaceConfig = getWorkspaceConfig();
     const all = await findSkills(getSkillSources(workspaceConfig));
@@ -198,7 +178,7 @@ export const LoadSkill = setupTool({
 
     if (runtime.node) {
       if (provenance.installDependencies) {
-        const { combined, exitCode } = await runPnpmCommand({
+        const { exitCode, stderr, stdout } = await runPnpmCommand({
           args: ["install"],
           cwd: getTaskWorkDir(taskDir(taskId)),
           signal,
@@ -207,7 +187,12 @@ export const LoadSkill = setupTool({
         installResults.push(
           exitCode === 0
             ? { runtime: "node", state: "success" }
-            : { exitCode, output: combined, runtime: "node", state: "failure" },
+            : {
+                exitCode,
+                output: stdout + stderr,
+                runtime: "node",
+                state: "failure",
+              },
         );
       } else {
         installResults.push({ runtime: "node", state: "skipped" });

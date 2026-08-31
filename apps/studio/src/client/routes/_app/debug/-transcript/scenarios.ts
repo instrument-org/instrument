@@ -83,6 +83,8 @@ const AWKWARD_SHAPES = [
   "## The shapes that move while they arrive",
   "A table is the worst of them, because the column widths are computed from content that has not all landed yet:",
   "| Region | Change | Driver |\n| --- | --- | --- |\n| North | +11% | Volume, not price |\n| South | 0% | Flat for four quarters |\n| East | -6% | One account churned |\n| West | +2% | Too small to read |",
+  "A wide one cannot be made to fit a column that prose is comfortable in, so it starts at the prose's left edge, then uses the full transcript as it scrolls:",
+  "| Product | Pack price | Approx. per can | Caffeine | Calories and sugar | Takeaway |\n| --- | ---: | ---: | ---: | --- | --- |\n| Sparkling Ice +Caffeine Variety Pack | $15.11 / 12 | $1.26 | 70 mg | ~5 calories, zero sugar | Best value |\n| PHOCUS Caffeinated Sparkling Water | $25.99 / 12 | $2.17 | 75 mg | Zero calories, zero sugar | Closest nutritional alternative |\n| JUNO Energy Sparkling Drink | $32.99 / 12 | $2.75 | 125 mg | Sugar-free | More caffeine, substantially pricier |\n| ARDOR Energy Sparkling Water | $35.99 / 12 | $3.00 | 100 mg | Zero calories, zero sugar | More than double the per-can price |",
   "An ordered list is the other one. The gutter is sized to the widest marker it will have to draw, so the tenth item moves every item above it:",
   "1. Pull the account-level export.\n2. Split North by cohort.\n3. Check the renewal dates against the contract table.\n4. Re-run the chart script.\n5. Reissue the three decks drawn from January data.\n6. Confirm the currency formatter is out of the render path.\n7. Diff the corrected charts against the originals.\n8. Ask whether the reissue needs a note attached.\n9. File the attribution question.\n10. Close the loop on the February churn.",
   "Code never fades, by design: `pnpm test run` sits at full strength in the middle of a sentence that is still arriving.",
@@ -173,6 +175,36 @@ export const summarize = async (source: string, destination: string) => {
   return totals.size;
 };
 \`\`\``,
+].join("\n\n");
+
+/**
+ * Every kind of link a reply puts in front of a reader, in the shapes that
+ * decide how each is drawn.
+ *
+ * Three treatments answer for all of them, and the cases are here to check that
+ * each lands on the right links and no others, and that a shape reads the same
+ * whoever wrote it: the two bare URLs here are the pair the sent messages carry,
+ * one naming a site and one naming a page inside it. A page link carries the origin
+ * it leads to unless its own label already names that origin, which is what
+ * keeps the cue on the links that need it and off the ones that do not. An
+ * address and a task file are chips instead, because both already name their
+ * whole destination and what is worth saying about them is what clicking does.
+ *
+ * The line of three chips is the alignment case: a chip is centered on the text
+ * rather than sitting on its baseline, so a run of them has to read along the
+ * same middle as the words between them without making the line taller. The
+ * table row is the tightest line the app has, and a chip has to sit inside one
+ * without growing it.
+ */
+const LINKS = [
+  "## Where the rotation is documented",
+  "Rotation is written up on [the channels doc](https://channels.finalpoint.org), and the runbook it points at is [finalpoint.co/runbooks/rotation](https://finalpoint.co/runbooks/rotation). The status page is https://status.finalpoint.org and the one incident this month is https://status.finalpoint.org/incidents/4, which closed on the Tuesday.",
+  "The one I would not follow is on the vendor page: it offers [github.com](https://keys.finalpoint-cdn.example/gh) for the signing keys, which is not GitHub. The real one is [github.com](https://github.com).",
+  "### What I changed",
+  "Send [release-notes.md](output/release-notes.md) to [neil@finalpoint.co](mailto:neil@finalpoint.co) once [linear.app](https://linear.app) is updated, and copy jeremy@finalpoint.co on it.",
+  "- The changelog entry is in [output/CHANGELOG.md](output/CHANGELOG.md), alongside [the diff I generated](output/rotation.patch).\n- Upstream tracked it as [an issue with a title long enough that the label wraps across two lines before the origin arrives](https://github.com/instrument-org/instrument/issues/1)\n- The staging copy is [channels.finalpoint.org:8443](https://channels.finalpoint.org:8443), and the local one is http://localhost:5173/.",
+  "| Where | Link |\n| --- | --- |\n| Docs | [the channels doc](https://channels.finalpoint.org) |\n| Keys | [github.com](https://github.com) |\n| Owner | [neil@finalpoint.co](mailto:neil@finalpoint.co) |",
+  "Nothing above needs a decision from you today; [reply on the doc](https://channels.finalpoint.org/c/rotation) if the staging host should move first.",
 ].join("\n\n");
 
 /**
@@ -900,7 +932,7 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
   },
   {
     about:
-      "Tables, ordered lists, code, quotes, links and text with no spaces in it, all arriving a few words at a time. The companion to the long answer: that one is for whether ordinary prose reads well, this one is for the constructs that move, restructure or refuse to animate while they arrive.",
+      "Tables, ordered lists, code, quotes, links and text with no spaces in it, all arriving a few words at a time. The companion to the long answer: that one is for whether ordinary prose reads well, this one is for the constructs that move, restructure or refuse to animate while they arrive. The second table is the one that cannot fit: watch it start at the measure's left edge, use the full transcript as it scrolls, and keep that scrolling inside itself rather than under the whole conversation.",
     id: "awkward-shapes",
     name: "Shapes that arrive badly",
     script: [
@@ -923,6 +955,21 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
     script: [
       user("Show me what you wrote, and the output it produced."),
       prose(CODE_BLOCKS, 90),
+    ],
+  },
+  {
+    about:
+      "Every kind of link either side of the conversation can carry, on one screen. Every link to a page takes one shape, whatever its label: the site's icon, the label, and the origin it leads to unless the label already says. Only an address and a task file are chips, since neither opens a page. The same reading runs over what the person typed, so a link they pasted reads the way the reply's links do. Replay it to judge which links earned a cue and which were left alone, and to check that no icon is left behind at the end of a line.",
+    id: "links",
+    name: "Links of every kind",
+    script: [
+      user(
+        "Following up on [the channels doc](https://channels.finalpoint.org): rotation is also mentioned at https://status.finalpoint.org/incidents/4, and neil@finalpoint.co owns it. Use /release when you write it up.",
+      ),
+      user(
+        "Oh, and https://linear.app is already updated. The tracking issue is https://github.com/instrument-org/instrument/issues/1.",
+      ),
+      prose(LINKS, 90),
     ],
   },
   {
@@ -1046,12 +1093,12 @@ done`,
   },
   {
     about:
-      "What the user sent along with their message. The first has enough files to make the grid collapse itself, across every folder it sorts by; the second is a pair of folders from the user's own disk, which stack above the files rather than in with them.",
+      "What the user sent along with their message. The first has every kind of file the grid draws, across every folder it sorts by; the second is a pair of folders from the user's own disk, which stack above the files rather than in with them.",
     id: "attachments",
     name: "Attachments",
     script: [
       user(
-        "Here is a full attachment grid: types, folders, and the expand control.",
+        "Here is a full attachment grid: every type it draws, and folders.",
         {
           data: {
             files: [
@@ -1084,14 +1131,14 @@ done`,
                 mimeType: "video/mp4",
                 size: 1_024_000,
               }),
-              // Root-level, so they only appear once the grid is expanded.
+              // Root-level.
               file({ filePath: "NOTES.txt" }),
               file({
                 filePath: "index.html",
                 mimeType: "text/html",
                 size: 2048,
               }),
-              // The supporting sections, collapsed until "Show more".
+              // The supporting sections.
               file({ filePath: `${TASK_FOLDER_NAMES.work}/deploy.sh` }),
               file({
                 filePath: `${TASK_FOLDER_NAMES.skills}/pdf/SKILL.md`,
@@ -1110,7 +1157,7 @@ done`,
         },
       ),
       prose(
-        "Six files show to begin with; the rest are behind the expand control, grouped by where they live.",
+        "Every file the user attached shows, in the order they attached them.",
       ),
       user("Folder rows sit above the compact file attachments.", {
         data: {

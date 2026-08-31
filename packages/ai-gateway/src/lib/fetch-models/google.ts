@@ -37,67 +37,106 @@ type MinimalProviderConfig = Pick<
   "apiKey" | "baseURL" | "type"
 >;
 
+// The documented maximum page size; the pagination loop covers a catalog that
+// grows past it.
+const GOOGLE_MODELS_PAGE_SIZE = 1000;
+
 export function fetchAndParseGoogleModels(
   config: AIGatewayProviderConfig.Type,
 ) {
-  return Result.gen(function* () {
-    const data = yield* fetchGoogleModels(config);
+  return Result.gen(async function* () {
+    const models = yield* await fetchAllGoogleModels(config);
     const metadata = getProviderMetadata(config.type);
 
-    const modelsResult = yield* Result.try(
-      () => GoogleModelsResponseSchema.parse(data),
-      (error) =>
-        new TypedError.Parse(`Failed to validate models from ${config.type}`, {
-          cause: error,
-        }),
-    );
-
     const author = config.type;
-    return modelsResult.models.map((model) => {
-      const providerId = AIGatewayModel.ProviderIdSchema.parse(model.name);
-      let canonicalModelId = AIGatewayModel.CanonicalIdSchema.parse(model.name);
-      const [prefix, modelId] = model.name.split("/");
-      if (prefix === "models") {
-        canonicalModelId = AIGatewayModel.CanonicalIdSchema.parse(modelId);
-      }
+    return Result.ok(
+      models.map((model) => {
+        const providerId = AIGatewayModel.ProviderIdSchema.parse(model.name);
+        let canonicalModelId = AIGatewayModel.CanonicalIdSchema.parse(
+          model.name,
+        );
+        const [prefix, modelId] = model.name.split("/");
+        if (prefix === "models") {
+          canonicalModelId = AIGatewayModel.CanonicalIdSchema.parse(modelId);
+        }
 
-      const features = getModelFeatures(canonicalModelId);
+        const features = getModelFeatures(canonicalModelId);
 
-      const params = { provider: config.type, providerConfigId: config.id };
+        const params = { provider: config.type, providerConfigId: config.id };
 
-      return addHeuristicTags(
-        {
-          author,
-          canonicalId: canonicalModelId,
-          features,
-          name: model.displayName,
-          params,
-          providerId,
-          providerName: config.displayName ?? metadata.name,
-          tags: [],
-          uri: AIGatewayModelURI.fromModel({
+        return addHeuristicTags(
+          {
             author,
             canonicalId: canonicalModelId,
+            contextLength: model.inputTokenLimit,
+            features,
+            name: model.displayName,
             params,
-          }),
-        },
-        config,
-      );
-    });
+            providerId,
+            providerName: config.displayName ?? metadata.name,
+            tags: [],
+            uri: AIGatewayModelURI.fromModel({
+              author,
+              canonicalId: canonicalModelId,
+              params,
+            }),
+          },
+          config,
+        );
+      }),
+    );
   });
 }
 
 export function fetchGoogleModels(
   config: MinimalProviderConfig,
-  { cache = true }: { cache?: boolean } = {},
+  {
+    cache = true,
+    pageSize,
+    pageToken,
+  }: { cache?: boolean; pageSize?: number; pageToken?: string } = {},
 ) {
   const headers = new Headers({ "Content-Type": "application/json" });
   setProviderAuthHeaders(headers, config);
 
   const url = new URL(apiURL({ config, path: "/models" }));
+  if (pageSize !== undefined) {
+    url.searchParams.set("pageSize", String(pageSize));
+  }
+  if (pageToken !== undefined) {
+    url.searchParams.set("pageToken", pageToken);
+  }
   return fetchJson({
     cache,
     headers,
     url: url.toString(),
+  });
+}
+
+function fetchAllGoogleModels(config: MinimalProviderConfig) {
+  return Result.gen(async function* () {
+    const allModels = [];
+    let pageToken: string | undefined;
+
+    do {
+      const data = yield* await fetchGoogleModels(config, {
+        pageSize: GOOGLE_MODELS_PAGE_SIZE,
+        pageToken,
+      });
+
+      const page = yield* Result.try(
+        () => GoogleModelsResponseSchema.parse(data),
+        (error) =>
+          new TypedError.Parse(
+            `Failed to validate models from ${config.type}`,
+            { cause: error },
+          ),
+      );
+
+      allModels.push(...page.models);
+      pageToken = page.nextPageToken;
+    } while (pageToken);
+
+    return Result.ok(allModels);
   });
 }

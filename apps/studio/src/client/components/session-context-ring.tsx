@@ -8,46 +8,79 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 const DEFAULT_CONTEXT_WINDOW = 200_000;
 
-// Context windows (in tokens) keyed by canonicalId prefix, matched longest-first.
-// Models with no matching prefix fall back to DEFAULT_CONTEXT_WINDOW.
+// Fallback context windows (in tokens) keyed by canonicalId prefix, matched
+// longest-first, for the providers that never report one. Only OpenRouter-shaped
+// responses (which covers our own gateway) and Google carry a length, so a
+// direct Anthropic, OpenAI, or OpenAI-compatible key lands here. Gemini is
+// absent on purpose: Google always answers with `inputTokenLimit`, so an entry
+// for it could only ever go stale unread.
 const MODEL_CONTEXT_WINDOW_PREFIXES: [string, number][] = [
   // Inception
   ["mercury", 128_000],
-  // Anthropic — haiku/sonnet <4 and opus <4.6 are 200k; sonnet 4+ and opus 4.6+ are 1M
+  // Anthropic — haiku and sonnet <4 are 200k; sonnet 4+, opus 4.6+, and fable are 1M
   ["claude-haiku", 200_000],
   ["claude-sonnet-4", 1_000_000],
+  ["claude-sonnet-5", 1_000_000],
   ["claude-sonnet", 200_000],
   ["claude-opus-4.6", 1_000_000],
   ["claude-opus-4.7", 1_000_000],
+  ["claude-opus-4.8", 1_000_000],
+  ["claude-opus-5", 1_000_000],
   ["claude-opus", 200_000],
-  // OpenAI GPT-5.x — chat/nano variants are 128k; others are 400k
+  ["claude-fable", 1_000_000],
+  // OpenAI — chat/nano variants are 128k; GPT-5 through 5.3 are 400k, 5.4+ are 1.05M
   ["gpt-5", 400_000],
-  // Google — gemini 2.5+ and 3+ are all 1M
-  ["gemini-2.5", 1_000_000],
-  ["gemini-3", 1_000_000],
+  ["gpt-5.4", 1_050_000],
+  ["gpt-5.5", 1_050_000],
+  ["gpt-5.6", 1_050_000],
+  // xAI — 4.3 and the 4.20 line are wide; 4.5+ traded width for speed
   ["grok-4.3", 1_000_000],
+  ["grok-4.20", 2_000_000],
+  ["grok-4.5", 500_000],
+  ["grok-4.6", 500_000],
+  ["grok-build", 256_000],
   // Moonshot / Kimi
-  ["kimi-k2", 131_000],
-  // Qwen — coder-plus is 128k; coder base is 262k
+  ["kimi-k2", 262_000],
+  ["kimi-k3", 1_048_576],
+  // Qwen — the numbered releases from 3.7 on are 1M; the older coder line is 262k
   ["qwen3-coder-plus", 128_000],
   ["qwen3-coder", 262_000],
   ["qwen3-max", 256_000],
   ["qwen-3-coder", 262_000],
+  ["qwen3.7", 1_000_000],
+  ["qwen3.8", 1_000_000],
   // Mistral
-  ["devstral", 131_000],
+  ["devstral", 262_144],
   // MiniMax
   ["minimax-m1", 1_000_000],
   ["minimax-m2", 196_000],
+  ["minimax-m3", 1_048_576],
   // ZhipuAI / GLM (4.5–4.7 range ~128–202k; use 200k as reasonable default)
   ["glm-4", 200_000],
+  ["glm-5", 204_800],
+  ["glm-5.2", 1_048_576],
+  ["glm-5.3", 1_310_720],
 ];
 
-function getContextWindowForModel(canonicalId: string): number {
+// The provider's own answer wherever there is one, so that a model released
+// after this build still reads its real window. The table below only stands in
+// where the provider stayed silent, and `estimated` is how the tooltip says so
+// rather than presenting a guess as the model's stated limit.
+function getContextWindowForModel(model?: AIGatewayModel.Type): {
+  estimated: boolean;
+  tokens: number;
+} {
+  if (model?.contextLength !== undefined) {
+    return { estimated: false, tokens: model.contextLength };
+  }
+
   const sorted = [...MODEL_CONTEXT_WINDOW_PREFIXES].sort(
     ([a], [b]) => b.length - a.length,
   );
-  const match = sorted.find(([prefix]) => canonicalId.startsWith(prefix));
-  return match?.[1] ?? DEFAULT_CONTEXT_WINDOW;
+  const match = model
+    ? sorted.find(([prefix]) => model.canonicalId.startsWith(prefix))
+    : undefined;
+  return { estimated: true, tokens: match?.[1] ?? DEFAULT_CONTEXT_WINDOW };
 }
 
 // Models tend to underperform past ~200k tokens of context, so we cap the ring
@@ -76,9 +109,7 @@ export function SessionContextRing({
 
   const tokens = data?.inputTokens ?? 0;
 
-  const contextWindow = model
-    ? getContextWindowForModel(model.canonicalId)
-    : DEFAULT_CONTEXT_WINDOW;
+  const { estimated, tokens: contextWindow } = getContextWindowForModel(model);
 
   if (tokens === 0) {
     return null;
@@ -147,6 +178,12 @@ export function SessionContextRing({
             <div className="flex items-baseline justify-between gap-6">
               <span className="opacity-80">Usage:</span>
               <span className="font-medium tabular-nums">{percentUsed}%</span>
+            </div>
+          )}
+          {estimated && (
+            <div className="max-w-52 opacity-60">
+              This provider does not report a window size, so this is an
+              estimate.
             </div>
           )}
         </div>

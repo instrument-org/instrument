@@ -1,4 +1,5 @@
 import { BrowserFindBar } from "@/client/components/task/browser-find-bar";
+import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -351,30 +352,36 @@ export function TaskBrowserPanel({
       )}
     >
       <div className="flex items-center gap-1 border-b p-1.5">
-        <Button
-          disabled={!active || !nav.back}
-          onClick={() => webviewFor()?.goBack()}
-          size="icon-sm"
-          variant="ghost"
-        >
-          <ArrowLeftIcon className="size-4" />
-        </Button>
-        <Button
-          disabled={!active || !nav.forward}
-          onClick={() => webviewFor()?.goForward()}
-          size="icon-sm"
-          variant="ghost"
-        >
-          <ArrowRightIcon className="size-4" />
-        </Button>
-        <Button
-          disabled={!active}
-          onClick={() => webviewFor()?.reload()}
-          size="icon-sm"
-          variant="ghost"
-        >
-          <ArrowClockwiseIcon className="size-4" />
-        </Button>
+        <ToolbarTooltip shortcut="goBack">
+          <Button
+            disabled={!active || !nav.back}
+            onClick={() => webviewFor()?.goBack()}
+            size="icon-sm"
+            variant="ghost"
+          >
+            <ArrowLeftIcon className="size-4" />
+          </Button>
+        </ToolbarTooltip>
+        <ToolbarTooltip shortcut="goForward">
+          <Button
+            disabled={!active || !nav.forward}
+            onClick={() => webviewFor()?.goForward()}
+            size="icon-sm"
+            variant="ghost"
+          >
+            <ArrowRightIcon className="size-4" />
+          </Button>
+        </ToolbarTooltip>
+        <ToolbarTooltip shortcut="reloadPage">
+          <Button
+            disabled={!active}
+            onClick={() => webviewFor()?.reload()}
+            size="icon-sm"
+            variant="ghost"
+          >
+            <ArrowClockwiseIcon className="size-4" />
+          </Button>
+        </ToolbarTooltip>
         <form
           className="min-w-0 flex-1"
           onSubmit={(event) => {
@@ -411,19 +418,19 @@ export function TaskBrowserPanel({
               align="inline-end"
               className="hidden group-focus-within/input-group:flex group-hover/input-group:flex"
             >
-              <InputGroupButton
-                aria-label="Open in external browser"
-                disabled={!pageUrl}
-                onClick={() => {
-                  if (pageUrl) {
-                    openExternalLink.mutate({ url: pageUrl });
-                  }
-                }}
-                size="icon-xs"
-                title="Open in external browser"
-              >
-                <ArrowSquareOutIcon />
-              </InputGroupButton>
+              <ToolbarTooltip label="Open in external browser">
+                <InputGroupButton
+                  disabled={!pageUrl}
+                  onClick={() => {
+                    if (pageUrl) {
+                      openExternalLink.mutate({ url: pageUrl });
+                    }
+                  }}
+                  size="icon-xs"
+                >
+                  <ArrowSquareOutIcon />
+                </InputGroupButton>
+              </ToolbarTooltip>
             </InputGroupAddon>
           </InputGroup>
         </form>

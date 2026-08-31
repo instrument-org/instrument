@@ -59,6 +59,12 @@ export function createMockTaskConfig(
   id: TaskId,
   options: {
     aiSDKModel?: LanguageModelV3;
+    /**
+     * Models this config's provider knows about, for the paths that resolve an
+     * id the app did not ask for. Empty by default, which is the cold-cache
+     * outcome those paths all have to survive anyway.
+     */
+    catalog?: AIGatewayModel.Type[];
     externalBrowser?: boolean;
     imageModel?: ImageModelV3;
     model?: AIGatewayModel.Type;
@@ -117,7 +123,9 @@ export function createMockTaskConfig(
     // Off by default, as it ships: a test that wants the external-browser path
     // opts into it the same way a user does.
     isExternalBrowserEnabled: () => options.externalBrowser ?? false,
-    modelCache: noopModelCache,
+    modelCache: options.catalog
+      ? { ...noopModelCache, read: () => options.catalog }
+      : noopModelCache,
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/tmp/pnpm"),
     projectsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.projects),

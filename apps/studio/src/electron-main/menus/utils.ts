@@ -1,7 +1,7 @@
 import { openExternal } from "@/electron-main/lib/open-external";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
-import { APP_URL, SUPPORT_URL } from "@instrument-org/shared";
+import { APP_URL, BUG_REPORT_URL, SUPPORT_URL } from "@instrument-org/shared";
 import { app, type MenuItemConstructorOptions } from "electron";
 
 import { shortcutMenuItem } from "./shortcuts";
@@ -110,6 +110,12 @@ export function createHelpMenu({
           void openExternal(SUPPORT_URL);
         },
         label: "Share Feedback",
+      },
+      {
+        click: () => {
+          void openExternal(BUG_REPORT_URL);
+        },
+        label: "Report a Bug",
       },
     ],
   };

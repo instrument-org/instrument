@@ -39,10 +39,6 @@ export async function runPnpmCommand({
     args,
     {
       all: true,
-      // A background run reads the merged stream itself so lines reach its sink
-      // as pnpm writes them; execa buffering the same stream would split the
-      // chunks between the two consumers.
-      buffer: sink === undefined,
       cancelSignal: sink ? undefined : signal,
       detached: sink !== undefined && process.platform !== "win32",
       env: {
@@ -73,16 +69,18 @@ export async function runPnpmCommand({
   // too would only duplicate the work. Whole lines still matter, because that
   // redaction is line-anchored and a chunk boundary mid-line would let a
   // `password=` line through split in two.
-  const streamed = sink ? collectAndForward(subprocess.all, sink) : undefined;
+  const streamed = sink
+    ? collectAndForward(subprocess.readable({ from: "all" }), sink)
+    : undefined;
   const execResult = await subprocess;
+  await streamed;
   await finishTreeTermination?.();
-  const combined = filterShellOutput(
-    streamed ? await streamed : execResult.all,
-    taskDir(taskId),
-  );
+  const clean = (text: unknown) =>
+    typeof text === "string" ? filterShellOutput(text, taskDir(taskId)) : "";
   return {
-    combined,
     command: `${PNPM_NAME} ${args.join(" ")}`,
     exitCode: execResult.exitCode ?? 1,
+    stderr: clean(execResult.stderr),
+    stdout: clean(execResult.stdout),
   };
 }

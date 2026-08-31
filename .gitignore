@@ -25,6 +25,9 @@ node_modules/
 # Local folders
 *.local/
 
+# Machine-local agent-reference config; personal paths never reach a commit
+agent-reference.local.json
+
 # Turbo
 .turbo
 
@@ -61,3 +64,4 @@ node_modules/
 # is a link nobody else can follow. Ask for one to be committed if it should
 # outlive the conversation that produced it.
 /docs/plans/**/wireframes-*.html
+/docs/plans/**/wireframes-index.txt

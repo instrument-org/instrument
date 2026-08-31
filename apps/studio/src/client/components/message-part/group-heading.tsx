@@ -35,7 +35,11 @@ export function GroupHeading({
 
   return (
     <button
-      className={cn(TRANSCRIPT_ROW, "cursor-default text-left")}
+      className={cn(
+        TRANSCRIPT_ROW,
+        "cursor-default text-left",
+        isRunning && "-ml-0.5",
+      )}
       disabled={!canExpand}
       onClick={group?.toggle}
       type="button"

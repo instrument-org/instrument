@@ -8,6 +8,7 @@ export {
 export { attachedFolderChangesModelNote } from "./lib/attached-folder-changes-model-text";
 export { backgroundProcessesModelNote } from "./lib/background-processes-model-text";
 export { browserStatusModelNote } from "./lib/browser-status-model-text";
+export { dateChangeModelNote } from "./lib/date-change-model-text";
 export { formatBytes } from "./lib/format-bytes";
 export { getToolNameByType } from "./lib/get-tool-name-by-type";
 export { isInteractiveTool } from "./lib/is-interactive-tool";

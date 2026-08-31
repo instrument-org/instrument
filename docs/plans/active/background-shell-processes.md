@@ -253,31 +253,33 @@ The mitigation with a real payoff is a pid file reaped at next boot, which is th
 same shape [agent-browser-orphaned-daemons.md](../../findings/agent-browser-orphaned-daemons.md)
 wants, and worth doing once for both rather than twice.
 
-## Integrating with main's split of stdout and stderr
+## Streaming alongside the split of stdout and stderr
 
-Landed on `main` while this was open, in `300b8ad60` and `15f7de5b6`: `execShim`
-now returns `stdout` and `stderr` apart, with a `ShimStreams` type and a
-`mapStreams` helper, and every shim has moved onto it. The reasoning is sound and
-is not this branch's to overturn -- keeping them apart is what makes `cmd > file`
-put diagnostics on the terminal instead of into the file, and what leaves
+`execShim` returns `stdout` and `stderr` apart, with a `ShimStreams` type and a
+`mapStreams` helper. Keeping them apart is what makes `cmd > file` put
+diagnostics on the terminal instead of into the file, and what leaves
 `2>/dev/null` something to silence.
 
-It collides with this design head on. Streaming here is built on `all: true`, one
-merged stream read by `collectAndForward`, and the merged text *is* the command's
-result. `matchesStreamedOutput` and `appendFinalOutput` both compare the streamed
-copy against a single final output that no longer exists as a single thing.
+Streaming needs the opposite: someone watching a process wants the interleaving a
+terminal would have shown, which is what `all` is. The two are not in
+competition, because execa will hand out a second reader of the merged stream
+while still buffering the split ones itself. `subprocess.readable({ from: "all" })`
+feeds `collectAndForward`, and the buffered `stdout` and `stderr` come back
+untouched as the command's result.
 
-The reconciliation, when it is done, is probably that the two answer different
-questions rather than that one wins. `all` is an *additional* stream in execa, so
-a shim can populate it for the live view -- where interleaving is exactly what
-someone watching a process wants -- while returning the split streams as the
-authoritative result, where redirection has to mean what it says. What that costs
-is the comparison: the streamed copy would be compared against the two
-concatenated, which is close to but not the same as what the shell would have
-produced.
+That tee is why nothing here sets `buffer: false`. Reading a stream execa is
+itself consuming would split the chunks between the two consumers, so the earlier
+shape -- buffering off, the merged text standing in as the result -- had to choose
+one or the other. It no longer does, and a promoted command's redirections behave
+the same as a foreground one's.
 
-Recorded because it is invisible until a merge conflicts, and because resolving
-it inside a conflict is how the reasoning above gets lost.
+What stays true is that the live copy and the final one can differ. The streamed
+copy is in arrival order; the shell renders stdout and then stderr. A command
+writing to both will not match, and `appendFinalOutput` reports the difference
+under `[final shell output]` rather than silently preferring one. That is the case
+it was written for -- redirects and pipelines make the shell's answer differ from
+what the subprocess below it printed -- and the ordering difference is one more
+instance of it, not a new failure.
 
 ## What the user and the agent are told
 

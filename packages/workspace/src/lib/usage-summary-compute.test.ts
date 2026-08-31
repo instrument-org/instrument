@@ -115,6 +115,55 @@ describe("getUsageSummaryFromMessages", () => {
     `);
   });
 
+  it("merges overlapping steps into one stretch of active time", () => {
+    const output = {
+      sources: [],
+      state: "success",
+      text: "results",
+      usage: tokens,
+    };
+    // A subagent step running inside its parent's span: two seconds of active
+    // time between them, not four.
+    const parent = assistantMessage([output]);
+    const child = assistantMessage([output]);
+    child.metadata.createdAt = new Date("2024-01-01T10:00:01Z");
+
+    const summary = getUsageSummaryFromMessages([parent, child]);
+
+    expect({
+      activeMs: summary.activeMs,
+      msToFinish: summary.msToFinish,
+    }).toMatchInlineSnapshot(`
+      {
+        "activeMs": 2000,
+        "msToFinish": 4000,
+      }
+    `);
+  });
+
+  it("leaves the gap between two turns out of active time", () => {
+    const output = {
+      sources: [],
+      state: "success",
+      text: "results",
+      usage: tokens,
+    };
+    const first = assistantMessage([output]);
+    const second = assistantMessage([output]);
+    second.metadata.createdAt = new Date("2024-01-01T10:05:00Z");
+    const [secondPart] = second.parts;
+    if (secondPart) {
+      secondPart.metadata = {
+        ...secondPart.metadata,
+        endedAt: new Date("2024-01-01T10:05:02Z"),
+      };
+    }
+
+    expect(
+      getUsageSummaryFromMessages([first, second]).activeMs,
+    ).toMatchInlineSnapshot(`4000`);
+  });
+
   it("counts a tool part with no end timestamp as taking no time", () => {
     const message = assistantMessage([
       { sources: [], state: "success", text: "results", usage: tokens },

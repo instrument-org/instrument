@@ -149,11 +149,8 @@ function RouteComponent() {
                 </CardHeader>
                 <CardContent className="border-t border-border/50 px-6 py-6">
                   {release.body ? (
-                    <div className="prose prose-sm prose-custom max-w-none dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm">
-                      <Markdown
-                        allowRawHtml // To support GitHub's HTML-based image attachments
-                        markdown={release.body}
-                      />
+                    <div className="prose prose-sm prose-custom dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm">
+                      <Markdown markdown={release.body} />
                     </div>
                   ) : (
                     <p className="text-muted-foreground italic">

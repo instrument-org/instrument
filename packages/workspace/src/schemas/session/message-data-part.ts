@@ -11,11 +11,12 @@ export namespace SessionMessageDataPart {
    * whether it needs to guard against repeating itself.
    *
    * - **Event**: something that happened on this turn -- `attachments`,
-   *   `intent`, `maxSteps`, `skillChanges`, `skillMentions`, and
-   *   `projectContext`, which is written once at creation. A repeat is
-   *   impossible by construction; nothing to guard.
+   *   `contextRollover`, `intent`, `maxSteps`, `skillChanges`,
+   *   `skillMentions`, and `projectContext`, which is written once at
+   *   creation. A repeat is impossible by construction; nothing to guard.
    * - **Diff**: what changed since last time -- `projectChanges`,
-   *   `attachedFolderChanges`. Self-limiting: no change, no part.
+   *   `attachedFolderChanges`, `modelChange`. Self-limiting: no change, no
+   *   part.
    * - **State**: the whole current picture -- `backgroundProcesses`,
    *   `browserStatus`, `paneTabs`.
    *   These are the ones that will restate an unchanged fact on every single
@@ -34,11 +35,14 @@ export namespace SessionMessageDataPart {
     "attachments",
     "backgroundProcesses",
     "browserStatus",
+    "contextRollover",
+    "dateChange",
     "fileChanges",
     "intent",
     "skillChanges",
     "skillMentions",
     "maxSteps",
+    "modelChange",
     "paneTabs",
     "projectChanges",
     "projectContext",
@@ -51,8 +55,8 @@ export namespace SessionMessageDataPart {
   // saw them -- attached to the user message that triggers the next turn so the
   // model stops relying on stale names, removed folders, or an access level the
   // user has since changed. The standing folder list lives in the session
-  // context, which is rebuilt at most hourly, so this is what makes a change
-  // reach the model in the turn it happens.
+  // context, which is written once and never rewritten, so this is the only
+  // thing that gets a change to the model at all.
   const AttachedFolderChangesDataPartSchema = z.object({
     accessChanged: z
       .array(
@@ -192,8 +196,8 @@ export namespace SessionMessageDataPart {
    * What the task's pane already has open, at the start of a turn.
    *
    * Attached per turn rather than written into the session context, which is
-   * rebuilt at most hourly: what is on screen changes several times inside one
-   * turn, and standing context that lags an hour would have the agent reasoning
+   * written once and never rewritten: what is on screen changes several times
+   * inside one turn, and a startup snapshot would have the agent reasoning
    * about a pane the user closed long ago.
    */
   const PaneTabsDataPartSchema = z.object({
@@ -201,6 +205,76 @@ export namespace SessionMessageDataPart {
   });
 
   export type PaneTabsDataPart = z.output<typeof PaneTabsDataPartSchema>;
+
+  /**
+   * The point where assembly stopped sending the turns before it.
+   *
+   * Written on the message the boundary sits after, at the moment the boundary
+   * is recorded, so it marks the same message assembly cuts at. It is the only
+   * durable sign a rollover happened: the warning that precedes one is derived
+   * per request and never persisted, and the boundary itself is a single id on
+   * the session that nothing else records.
+   *
+   * `retainedUserMessages` is what carried across verbatim; `droppedMessages`
+   * is everything before the boundary that did not, all of which is still on
+   * disk. Both are counts of what the request carries, so they belong to
+   * developer mode and to a recorded session rather than to the transcript: a
+   * rollover is not a compaction, nothing is summarized, and there is no
+   * faithful way to describe it to a reader mid-task that is not a description
+   * of our request assembly. That treatment waits for the summarizing
+   * compaction it would actually be about.
+   */
+  const ContextRolloverDataPartSchema = z.object({
+    droppedMessages: z.number().int().nonnegative(),
+    retainedUserMessages: z.number().int().nonnegative(),
+  });
+
+  export type ContextRolloverDataPart = z.output<
+    typeof ContextRolloverDataPartSchema
+  >;
+
+  /**
+   * The turn where this session started asking a different model, and the two
+   * windows either side of the change.
+   *
+   * A session's model is a per-request choice, so nothing in the transcript
+   * otherwise says when it moved. Every consequence of a move is then a fact
+   * with no visible cause: an answer in a different register, a different
+   * refusal, and a context budget measured against a window that changed under
+   * it. Recording the move is what makes those legible, and it is the one piece
+   * of context-window behavior that can be described to a reader without
+   * reaching for a word we have not earned -- the model changed, and here is
+   * what it changed from.
+   *
+   * The windows travel with it because they are what the change actually
+   * costs. They are also the fact a later trigger needs: a move to a smaller
+   * window is the case worth acting on, and it cannot be recognized from the
+   * ids alone. Absent where the provider never reported one.
+   *
+   * The display name travels with it for the same reason the window does: it is
+   * known now and only now. Resolving an id to a name at read time would show
+   * whatever currently answers to that id, or nothing once a provider is
+   * disconnected, which is exactly when a reader most wants to know what
+   * answered. Optional, because a message recorded before this existed has no
+   * name to recover; the id is the fallback and is always present.
+   *
+   * Diff cadence, so a session that never switches carries none of these, and a
+   * session that switches once carries one rather than one per later turn.
+   */
+  const ModelChangeDataPartSchema = z.object({
+    from: z.object({
+      contextLength: z.number().int().positive().optional(),
+      modelId: z.string(),
+      name: z.string().optional(),
+    }),
+    to: z.object({
+      contextLength: z.number().int().positive().optional(),
+      modelId: z.string(),
+      name: z.string().optional(),
+    }),
+  });
+
+  export type ModelChangeDataPart = z.output<typeof ModelChangeDataPartSchema>;
 
   // Attached to the synthetic assistant message written when a run stops after
   // reaching the max unattended step count. Hidden from the chat UI (the
@@ -253,6 +327,20 @@ export namespace SessionMessageDataPart {
   });
 
   export type MaxStepsDataPart = z.output<typeof MaxStepsDataPartSchema>;
+
+  /**
+   * The local calendar date a session moved onto, as `yyyy-MM-dd`, written to
+   * the first user message sent on a later day than the one the session context
+   * records. The session context is a startup snapshot and is never rewritten,
+   * so this is how a session that runs past midnight learns what day it is
+   * without invalidating everything cached behind that snapshot. Recorded at
+   * send time from a single clock read; no timer watches for the rollover.
+   */
+  const DateChangeDataPartSchema = z.object({
+    date: z.string(),
+  });
+
+  export type DateChangeDataPart = z.output<typeof DateChangeDataPartSchema>;
 
   /**
    * Retired, and read anyway.
@@ -326,9 +414,12 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.backgroundProcesses]: BackgroundProcessesDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
+    [NameSchema.enum.contextRollover]: ContextRolloverDataPartSchema,
+    [NameSchema.enum.dateChange]: DateChangeDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
+    [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
     [NameSchema.enum.paneTabs]: PaneTabsDataPartSchema,
     [NameSchema.enum.projectChanges]: ProjectChangesDataPartSchema,
     [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,

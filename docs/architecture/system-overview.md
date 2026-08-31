@@ -43,7 +43,7 @@ Two OS processes matter: Electron **main** and the **renderer**. Almost all serv
 ```
 
 - **Renderer ↔ main** is [oRPC](../../apps/studio/AGENTS.md) over a `MessageChannel`; the UI never calls remote services directly, only through main-process RPC. Main hosts Studio's own routes (`apps/studio/src/electron-main/rpc/routes/`) plus the workspace router (`workspaceRouter` from `@instrument-org/workspace/electron`).
-- **Boot** happens in [`create-workspace-actor.ts`](../../apps/studio/src/electron-main/lib/create-workspace-actor.ts): it starts `workspaceMachine`, injecting `aiGatewayApp`, `shimClientDir`, the browser manager, `getAIProviderConfigs`, the on-disk model cache, and the registry/task-template directories.
+- **Boot** happens in [`create-workspace-actor.ts`](../../apps/studio/src/electron-main/lib/create-workspace-actor.ts): it starts `workspaceMachine`, injecting `aiGatewayApp`, `shimClientDir`, the browser manager, `getAIProviderConfigs`, the on-disk model cache, the registry / system-skills / task-template directories, the bundled `pnpm` and `uv` binary paths (plus uv's data dir), the `external_browser` flag getter, and the web-search client.
 - **Workspace server** is a Hono app served in-process via `@hono/node-server` ([`server/index.ts`](../../packages/workspace/src/logic/server/index.ts)). It serves task files from a dedicated `assets.<task>.<host>` origin ([asset-origin.md](asset-origin.md)), plus the shim, heartbeat, CDP bridge, and ai-gateway app. The bare task origin retains the app-runtime proxy, runtime machine, and spawn path for future full-stack app viewing, but no current Studio UI navigates to it. The port falls back to a free one, so multiple dev instances can coexist.
 - **Per-task runtimes** are XState actors the workspace machine supervises (`runtimeRefs`, keyed by `TaskId`); session/agent machines (`packages/workspace/src/machines/`) drive an agent turn within a task.
 - **Sandboxing** of what the agent's tools can touch is a userland concern implemented inside each tool, not OS isolation. See [agent-sandbox.md](agent-sandbox.md).
@@ -54,15 +54,15 @@ Rooted at the workspace folder ([`get-workspace-folder`](../../apps/studio/src/e
 
 - `tasks/<id>/` — one folder per task, with `.instrument/{task.db, settings.json}` (per-task SQLite plus one JSON record: what the app knows about the task at the top level, where the user left off under `state`). Legacy layouts are normalized on boot by `migrateWorkspaceLayout`.
 - `projects/` — project folders tasks reference.
-- `skills/` — user-authored and imported skills, mounted writable into the agent at `/skills`. Distinct from the read-only registry below; skills discovered elsewhere on the machine stay where they are.
-- `registry/` — the skills submodule (read-only; never edited here).
+- `skills/` — user-authored and imported skills, mounted writable into the agent at `/skills`. Skills discovered elsewhere on the machine (co-installed agent homes like `~/.claude` and its peers, enumerated by `getSkillSources` in `packages/workspace/src/lib/skills.ts`) stay where they are.
+- The bundled skills registry is **not** here: `registryDir` points at the `registry/` git submodule in development and at the app's `resources/` when packaged, read-only either way, with the bundled system skills (`systemSkillsDir`) beside it.
 - Model cache and `uv` data live under Electron's `userData`, not the workspace folder.
 
 ## An agent turn, end to end
 
 1. The renderer sends a message via oRPC to the main process.
 2. The workspace/session machine runs the agent, which selects tools per agent (`create-agent.ts`) and executes them against the task folder.
-3. Model calls go through the ai-gateway app (credentials injected there, never in the renderer); model metadata/selection uses the ai-gateway library.
+3. Model calls go through the ai-gateway app (credentials injected there, never in the renderer): the user's own provider keys, plus a first-party provider config synthesized from their auth token when they are signed in. Model metadata/selection uses the ai-gateway library.
 4. Results are persisted as message parts in the task's `task.db` and streamed back to the renderer over RPC.
 5. Stopping walks the same chain in reverse: session → agent → the in-flight `executeToolCallMachine`, which writes its own "stopped by you" part before the agent finishes. Cancellation is owned by whichever machine holds the work, because leaving a state that invokes a child hard-stops that child before it can react.
 

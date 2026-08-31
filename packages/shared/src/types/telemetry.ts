@@ -25,9 +25,6 @@ export interface AnalyticsEvents {
     eval_names: string[];
     model_ids: string[];
   };
-  "external_link.clicked": {
-    external_url: string;
-  };
   "framework.not_supported": {
     framework: string;
   };
@@ -43,6 +40,11 @@ export interface AnalyticsEvents {
     completion_tokens_per_second?: number | undefined;
     finish_reason: string;
     input_tokens: number | undefined;
+    // The provider's own id for the model it served, present only when that is
+    // a different model from the one `model_id` names. Without it a session run
+    // through a router reports the router on every event, and nothing about the
+    // model that did the work is recoverable from analytics.
+    model_id_served?: string | undefined;
     ms_to_finish: number;
     ms_to_first_chunk: number;
     output_tokens: number | undefined;
@@ -57,15 +59,19 @@ export interface AnalyticsEvents {
     success: boolean;
     tool_name: string;
   }>;
+  // Numbers and structure only: how much a tool's own ceiling removed from what
+  // the model was shown, never any of the removed content. What it is for is
+  // deciding whether that ceiling is set anywhere near the right place.
+  "llm.tool_result_clipped": WithModelProperties<{
+    original_characters: number;
+    retained_characters: number;
+    tool_name: string;
+  }>;
   "message.created": WithModelProperties<{
     files_count: number;
   }>;
   "model_picker.model_selected": WithModelProperties;
   "model_picker.opened": never;
-  "model_picker.searched": {
-    had_results: boolean;
-    query: string;
-  };
   "pin.added": never;
   "pin.removed": never;
   "project.created": never;
@@ -187,11 +193,6 @@ type LLMAnalyticsError =
       error_type: "streamed";
     }
   | {
-      error_message: string;
-      error_type: "tool-error";
-      tool_name: string;
-    }
-  | {
       error_type: "aborted";
     }
   | {
@@ -202,6 +203,16 @@ type LLMAnalyticsError =
     }
   | {
       error_type: "no-such-tool";
+      tool_name: string;
+    }
+  // No message. A tool's error text is whatever the tool wrote: an ENOENT
+  // naming the path it tried, a validation error quoting the value that failed,
+  // a command's stderr. `describe-error.ts` already states the rule for
+  // exception reports -- a failure is owed its shape, never its contents -- and
+  // this was the one place sending the contents. The tool name and the type say
+  // what a count of these is for.
+  | {
+      error_type: "tool-error";
       tool_name: string;
     };
 

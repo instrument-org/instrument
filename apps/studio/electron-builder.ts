@@ -129,15 +129,14 @@ const config: Configuration = {
     "**/node_modules/date-fns/locale/_lib/**",
     "**/node_modules/date-fns/locale/en-US/**",
     "**/node_modules/date-fns/locale/en-US.*",
-    // just-bash declares quickjs-emscripten to back its `js-exec` command and
-    // turndown (which pulls domino) to back `html-to-markdown`. Neither
-    // command can run here: `js-exec` is absent from the command registry
-    // just-bash builds, and `html-to-markdown` is filtered out by
-    // BROKEN_COMMANDS in create-bash-env. Both are required from inside the
-    // command body, so excluding them removes 9.4MB nothing can reach.
-    "!**/node_modules/{quickjs-emscripten,turndown}/**",
+    // just-bash declares quickjs-emscripten to back its `js-exec` command,
+    // which is absent from the command registry just-bash builds. It is
+    // required from inside the command body, so excluding it drops weight
+    // nothing can reach. turndown and the domino it pulls are packaged
+    // instead: they back `html-to-markdown`, which the agent is offered and
+    // resolves at runtime from inside the same command body.
+    "!**/node_modules/quickjs-emscripten/**",
     "!**/node_modules/@jitl/quickjs-*/**",
-    "!**/node_modules/@mixmark-io/domino/**",
     // These two are last among the node_modules rules because a later pattern
     // wins: they have to apply to whatever the package-specific rules above
     // re-included, not be undone by them.
@@ -164,7 +163,6 @@ const config: Configuration = {
   linux: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
     category: "Utility",
-    executableArgs: ["--ozone-platform=x11"],
     executableName: APP_EXECUTABLE,
     icon: "build/icons",
     maintainer: APP_DOMAIN,

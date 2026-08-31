@@ -33,7 +33,7 @@ export function ComposerFrame({
   children: React.ReactNode;
   /** Layout px: inside the zoom root, so the cap scales with the rest of the UI. */
   maxHeight: number;
-  /** Covers the whole box, out of flow. The drag-and-drop target. */
+  /** Laid over the whole box, out of flow: the drop target, the re-entry ring. */
   overlay?: React.ReactNode;
   /** The box itself, for anything that has to be sized or placed against it. */
   ref?: React.Ref<HTMLDivElement>;

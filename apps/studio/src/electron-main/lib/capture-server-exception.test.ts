@@ -90,4 +90,50 @@ describe("captureServerException", () => {
       "error_details",
     );
   });
+
+  // Recorded from the shape a failed file listing arrives in: the RPC error
+  // names the route's error code, the typed error under it says one sentence
+  // for every way the walk can fail, and only the throw under *that* says which
+  // way it did.
+  it("reports what a wrapped throw was, which the message it kept cannot say", () => {
+    const walkFailed = Object.assign(
+      new Error("EACCES: permission denied, scandir '/Users/someone/locked'"),
+      { code: "EACCES" },
+    );
+    const typedError = Object.assign(new Error("Error listing task files"), {
+      cause: walkFailed,
+      type: "workspace-filesystem-error",
+    });
+    const rpcError = Object.assign(new Error("Error listing task files"), {
+      cause: typedError,
+      code: "FILE_SYSTEM_ERROR",
+    });
+
+    captureServerException(rpcError, {
+      rpc_path: ["workspace", "task", "files", "list"],
+    });
+
+    expect(captureException.mock.calls[0]?.[2]).toMatchObject({
+      error_causes: "workspace-filesystem-error <- Error(EACCES)",
+    });
+  });
+
+  it("keeps a cause that points back at itself from filling the report", () => {
+    const looping: Error & { cause?: unknown } = new Error("round and round");
+    looping.cause = looping;
+
+    captureServerException(looping);
+
+    expect(captureException.mock.calls[0]?.[2]).toMatchObject({
+      error_causes: "Error",
+    });
+  });
+
+  it("says nothing about causes for a throw that wrapped none", () => {
+    captureServerException(new Error("plain failure"));
+
+    expect(captureException.mock.calls[0]?.[2]).not.toHaveProperty(
+      "error_causes",
+    );
+  });
 });

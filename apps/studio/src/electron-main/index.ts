@@ -36,7 +36,10 @@ import { registerAppProtocol } from "./lib/app-protocol";
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
 import { timeBootStep } from "./lib/boot-timing";
 import { createWorkspaceActor } from "./lib/create-workspace-actor";
+import { registerFileDragHandler } from "./lib/file-drag";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
+import { handleBootFailure } from "./lib/handle-boot-failure";
+import { registerCrashDiagnostics } from "./lib/register-crash-diagnostics";
 import { registerTelemetry } from "./lib/register-telemetry";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
 import {
@@ -71,6 +74,7 @@ if (gotTheLock) {
 
   app.setAsDefaultProtocolClient(APP_PROTOCOL);
 
+  registerCrashDiagnostics(app);
   registerTelemetry(app);
 
   app.on("second-instance", (_event, commandLine) => {
@@ -83,7 +87,7 @@ if (gotTheLock) {
   });
 
   // eslint-disable-next-line unicorn/prefer-top-level-await
-  void app.whenReady().then(bootstrapPrimaryInstance);
+  void app.whenReady().then(bootstrapPrimaryInstance).catch(handleBootFailure);
 } else {
   // A lock loser has no application state to tear down. Exit synchronously so
   // quit handlers cannot keep it alive long enough to enter primary startup.
@@ -196,6 +200,8 @@ async function bootstrapPrimaryInstance() {
   if (process.env.DISABLE_AUTO_UPDATE_POLLING !== "true") {
     updater.pollForUpdates();
   }
+
+  registerFileDragHandler();
 
   await timeBootStep("initializeRPC", () => {
     initializeRPC({

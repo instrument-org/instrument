@@ -46,31 +46,6 @@ export function buildSessionFrontMatter(
   );
   const usage = getUsageSummaryFromMessages(session.messages);
 
-  let firstActivityAt: Date | undefined;
-  let lastActivityAt: Date | undefined;
-  const recordActivity = (date: unknown) => {
-    if (!(date instanceof Date)) {
-      return;
-    }
-    if (!firstActivityAt || date < firstActivityAt) {
-      firstActivityAt = date;
-    }
-    if (!lastActivityAt || date > lastActivityAt) {
-      lastActivityAt = date;
-    }
-  };
-  for (const message of session.messages) {
-    recordActivity(message.metadata.createdAt);
-    if (message.role === "assistant") {
-      recordActivity(message.metadata.endedAt);
-      recordActivity(message.metadata.finishedAt);
-    }
-    for (const part of message.parts) {
-      recordActivity(part.metadata.createdAt);
-      recordActivity(part.metadata.endedAt);
-    }
-  }
-
   const modelMap = new Map<
     string,
     { modelId: string; modelUri?: string; providerId: string }
@@ -92,7 +67,10 @@ export function buildSessionFrontMatter(
   const modelsServed = [
     ...new Set(
       assistantMessages.flatMap(({ metadata }) =>
-        metadata.modelIdServed ? [metadata.modelIdServed] : [],
+        metadata.modelIdServed &&
+        metadata.modelIdServed !== metadata.aiGatewayModel?.providerId
+          ? [metadata.modelIdServed]
+          : [],
       ),
     ),
   ].sort((a, b) => a.localeCompare(b));
@@ -105,12 +83,12 @@ export function buildSessionFrontMatter(
   ).length;
 
   return {
+    // Time the session spent working, which is not the span it covers: a
+    // session sits idle between one turn and the next prompt, and counting that
+    // reports the reader's coffee break as work.
+    activeDurationMs: usage.activeMs,
     aiGenerationDurationMs: usage.msToFinish,
     assistantMessageCount: assistantMessages.length,
-    elapsedDurationMs:
-      firstActivityAt && lastActivityAt
-        ? lastActivityAt.getTime() - firstActivityAt.getTime()
-        : undefined,
     messageCount: session.messages.length,
     ...(modelsServed.length > 0 ? { modelsServed } : {}),
     modelsUsed: [...modelMap.values()].sort((a, b) =>
@@ -168,9 +146,17 @@ export function renderAssistantMetadata(
     `provider=${metadata.providerId}`,
     `model=${metadata.modelId}`,
   ];
-  // Only when it differs, so the line stays short for a step that named its
-  // model outright and carries the answer for one that went through an alias.
-  if (metadata.modelIdServed && metadata.modelIdServed !== metadata.modelId) {
+  // Compared against the provider's own id for the requested model rather than
+  // against `modelId`, which is the canonical id and so never equals a provider
+  // id: `claude-haiku-4.5` against `anthropic/claude-haiku-4.5` differs on
+  // every message, and dropping the author from one side of a comparison is
+  // enough to report an alias on a step that never went through one. Messages
+  // recorded before the field only held differences still come through here.
+  const requestedProviderId = metadata.aiGatewayModel?.providerId;
+  if (
+    metadata.modelIdServed &&
+    metadata.modelIdServed !== requestedProviderId
+  ) {
     fields.push(`served=${metadata.modelIdServed}`);
   }
   if (metadata.aiGatewayModel) {

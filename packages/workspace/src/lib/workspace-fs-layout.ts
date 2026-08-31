@@ -46,6 +46,31 @@ export { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 const DEV_MOUNT_POINT = "/dev";
 
 /**
+ * The `/dev` entries a real subprocess may receive verbatim in its argv.
+ *
+ * These are host character devices, not virtual paths, so quarantining them
+ * protects nothing: they hold no user data, name no part of the machine's
+ * layout, and a subprocess can already open any of them from inside inline
+ * code or a script file, neither of which is rewritten. What the quarantine
+ * does catch is the standard idiom -- `ffmpeg -pass 1 -f mp4 /dev/null`,
+ * `python /dev/stdin` -- which fails with a not-found error naming a path the
+ * agent never wrote.
+ *
+ * Exact names only. A `/dev/` prefix rule would also admit `/dev/disk0`,
+ * `/dev/rdisk0`, and `/dev/fd/<n>`, which are raw devices and other processes'
+ * descriptors; those stay quarantined.
+ */
+const HOST_DEVICE_NAMES = new Set([
+  "null",
+  "random",
+  "stderr",
+  "stdin",
+  "stdout",
+  "urandom",
+  "zero",
+]);
+
+/**
  * Virtual mount point of the workspace's own `skills/` directory.
  *
  * Always writable, whatever access the attached folders have: authoring a skill
@@ -380,6 +405,30 @@ export function nonTaskMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
 /** Virtual mount point of the masked-off private dir under the task mount. */
 export function privateMountPoint(taskMountPoint: string): string {
   return `${taskMountPoint}/${TASK_FOLDER_NAMES.private}`;
+}
+
+/**
+ * The host spelling of a device path a native binary may receive, or undefined
+ * for every other path, which the caller quarantines as usual.
+ *
+ * Windows has no `/dev`; `NUL` is the only one of these with an equivalent, and
+ * it is spelled as a device namespace path so it stays absolute.
+ */
+export function resolveHostDevicePath(
+  virtualAbsPath: string,
+): string | undefined {
+  const relative = relativeWithin(
+    DEV_MOUNT_POINT,
+    normalizePath(virtualAbsPath),
+  );
+  const name = relative?.slice(1);
+  if (name === undefined || !HOST_DEVICE_NAMES.has(name)) {
+    return undefined;
+  }
+  if (process.platform === "win32") {
+    return name === "null" ? String.raw`\\.\NUL` : undefined;
+  }
+  return `${DEV_MOUNT_POINT}/${name}`;
 }
 
 /**

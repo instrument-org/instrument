@@ -71,7 +71,7 @@ export async function getAISDKWebSearchModel({
       result = {
         model: isCallingModelSameProvider
           ? sdk(callingModel.providerId)
-          : sdk("claude-sonnet-4-5-20250929"),
+          : sdk("claude-sonnet-5"),
         tools: {
           web_search: sdk.tools.webSearch_20250305({ maxUses: 2 }),
         },
@@ -81,7 +81,7 @@ export async function getAISDKWebSearchModel({
     case "google": {
       const sdk = await createGoogleSDK(config, workspaceServerURL);
       result = {
-        model: sdk("gemini-3-pro-preview"),
+        model: sdk("gemini-3.7-flash"),
         tools: {
           web_search: sdk.tools.googleSearch({}),
         },
@@ -93,7 +93,7 @@ export async function getAISDKWebSearchModel({
       result = {
         model: isCallingModelSameProvider
           ? sdk(callingModel.providerId)
-          : sdk("gpt-5.4-mini"),
+          : sdk("gpt-5.6-luna"),
         tools: {
           web_search: sdk.tools.webSearch(),
         },
@@ -123,7 +123,7 @@ export async function getAISDKWebSearchModel({
       result = {
         model: isCallingModelSameProvider
           ? sdk(callingModel.providerId)
-          : sdk("anthropic/claude-sonnet-4.5"),
+          : sdk("anthropic/claude-sonnet-5"),
         tools: {
           perplexity_search: sdk.tools.perplexitySearch(),
         },
@@ -135,7 +135,7 @@ export async function getAISDKWebSearchModel({
       result = {
         model: isCallingModelSameProvider
           ? sdk.responses(callingModel.providerId)
-          : sdk.responses("grok-4-1-fast-non-reasoning"),
+          : sdk.responses("grok-4.6"),
         tools: {
           web_search: sdk.tools.webSearch(),
         },

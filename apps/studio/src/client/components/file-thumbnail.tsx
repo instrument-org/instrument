@@ -21,6 +21,9 @@ const HAS_LINE_THUMBNAIL: Record<FileType, boolean> = {
   iwork: false,
   jsonl: true,
   markdown: true,
+  // No `.ipynb` icon exists, so the alternative is the generic one, which says
+  // nothing; the lines at least say "a document with text in it".
+  notebook: true,
   parquet: false,
   pdf: false,
   pptx: false,

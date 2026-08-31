@@ -10,7 +10,7 @@ Create one HTML artifact whose form follows the question. This is a flexible exp
 ## Make the artifact
 
 1. Identify the exact thing the reader is trying to understand or decide. Use context and evidence already available in the task, inspecting only the additional source needed to avoid guessing.
-2. Copy `template.html` to `docs/visual-explanations/YYYY-MM-DD-<topic>.html` under the repository root without reading or rebuilding its theme shell. Create the directory when needed. Honor a different path only when it is also inside the repository.
+2. Choose the output path before writing. When `docs/visual-explanations/` already exists under the repository root, the repository has opted into keeping these and is normally ignoring them in git, so copy `template.html` there as `YYYY-MM-DD-<topic>.html`. When it does not exist, write to the OS temporary directory instead, and do not create it. A repository that has not opted in should not gain an untracked directory as a side effect of one explanation. Honor a different path when the user names one. Either way, do not read or rebuild the template's theme shell.
 3. Copy the template rather than writing the file; two thirds of it is a theme block a script maintains, and the tab title and favicon derive from the `h1`. Replace the placeholder body with the clearest visual answer you can make. Choose any combination of causal chain, system map, sequence, lifecycle, timeline, before/after comparison, annotated UI, decision matrix, focused diff, evidence view, worked example, or another form better suited to the subject. The tab title is derived from the `h1`, so write a real one and leave the `<title>` placeholder alone.
 4. Return a direct link to the HTML file and a one-sentence description of what it explains.
 
@@ -32,11 +32,32 @@ A design conversation often wants several artifacts, one per round, each a new f
 - **Say plainly when you are reversing your own earlier recommendation, and on what new information.** A revision that quietly changes position makes the reader re-derive which version they are holding.
 - **Calibrate against a real reference implementation** when one exists, and verify rather than recall it. Comparing against how a known product actually behaves is usually more decisive than reasoning from first principles, and it can turn out to support the opposite conclusion.
 - **Keep the open questions last and shrinking.** Lead with the answer while the design is still moving; once it has converged, a short list of what is genuinely undecided is the most useful ending.
+- **Build one page that plays the series** once there are more than three, rather than handing over a row of tabs. `node .agents/skills/product-wireframe/scripts/build-index.ts` indexes explanations and wireframes together; see Walking a set in that skill.
 - **Add a section for what the reader said they might be forgetting**, when they say so. Adjacent consequences they have not asked about are often the highest-value part of a late round.
+
+## Embedding a wireframe
+
+When the explanation needs to show product UI, build it once with the `product-wireframe` skill and embed that file, rather than redrawing the same frames inline. Hand-rolled UI in an explanation drifts from the app on details the kit already gets right, and building it twice is paid for twice.
+
+Embed with `srcdoc`, carrying the whole wireframe document escaped into the attribute:
+
+```python
+html.escape(pathlib.Path(wireframe_path).read_text(), quote=True)
+```
+
+`src="./wireframes-topic.html"` does **not** work. Chrome refuses to load a sibling local file into an iframe, so from `file://` the frame renders blank with no error and it looks like the idea is unworkable. `srcdoc` involves no origin, so it always renders, and the wireframe's own scripts run: frames scale to the iframe's width and enlarge-on-click works.
+
+The separate document is the point. Both templates ship their own Tailwind build and `@theme` block, so splicing wireframe markup into the page instead would collide, and the frame-measuring script would measure the wrong container.
+
+Three rules:
+
+- **Embed frames that are small at true size; link the ones that are not.** Enlarge-on-click is bounded by the iframe, so a 1280x800 window state cannot open to full size inside one. A conversation-width frame at 720 is fine; a whole-window flow stays its own file with a sentence pointing at it.
+- **The embedded copy is a snapshot.** Revising the wireframe afterwards leaves the page silently stale, so re-embed on every revision or do not embed it.
+- **Open the explanation only.** The wireframe is already on screen inside it, and opening both puts two tabs up for one thing to look at.
 
 ## Hand off quickly
 
-Treat the artifact as a single-use visual answer for the human reading it now. `docs/visual-explanations/` is gitignored, so these are not history and nothing has to be pruned; if one should outlive the conversation, the user will ask for it to be committed or for its content to move into a durable doc under `docs/`. Open it when it is written (`open <path>` on macOS) so it is on screen rather than waiting to be found. Beyond that, do not take screenshots, test multiple widths, run theme synchronization, audit the content, or iterate on visual details unless the user explicitly asks or the creation step reported a concrete error. Do not knowingly include secrets or private operational data.
+Treat the artifact as a single-use visual answer for the human reading it now. Whether it lands in an ignored `docs/visual-explanations/` or the temporary directory, it is not history and nothing has to be pruned; if one should outlive the conversation, the user will ask for it to be committed or for its content to move into a durable doc under `docs/`. Open it when it is written (`open <path>` on macOS) so it is on screen rather than waiting to be found. Beyond that, do not take screenshots, test multiple widths, run theme synchronization, audit the content, or iterate on visual details unless the user explicitly asks or the creation step reported a concrete error. Do not knowingly include secrets or private operational data.
 
 The theme synchronizer is maintenance tooling for changes to the template or Studio theme, not part of ordinary artifact creation:
 

@@ -121,8 +121,8 @@ export function createTsCommand(taskId: TaskId) {
 
       return {
         exitCode: result.exitCode,
-        stderr: "",
-        stdout: result.combined,
+        stderr: result.stderr,
+        stdout: result.stdout,
       };
     } finally {
       if (evalFileToCleanup !== undefined) {

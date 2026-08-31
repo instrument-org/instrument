@@ -6,7 +6,7 @@
 
 The per-task asset origin ([asset-origin.md](../architecture/asset-origin.md)) serves files over plain HTTP with no authentication of any kind, and four properties compound:
 
-1. **Wildcard CORS.** [`assets.ts`](../../packages/workspace/src/logic/server/routes/assets.ts) applies bare `cors()`. Hono's default is `origin: "*"`, so every response carries `Access-Control-Allow-Origin: *` and any web origin can read the body, not merely issue the request. A `GET` needs no preflight.
+1. **Wildcard CORS.** [`assets.ts`](../../packages/workspace/src/logic/server/routes/assets.ts) applies `cors()` with only `exposeHeaders` set and no `origin`, so Hono's `origin: "*"` default still stands: every response carries `Access-Control-Allow-Origin: *` and any web origin can read the body, not merely issue the request. A `GET` needs no preflight.
 2. **Guessable task ids.** [`generate-task-folder-name.ts`](../../packages/workspace/src/lib/generate-task-folder-name.ts) derives the id from the date and a slug of the user's first prompt (`2026-06-23-add-a-dark-mode-toggle`). It is a human-readable name, not a secret, and it is the whole of the origin's identity.
 3. **A known port.** The default is fixed (`PORTS.appsServer`), and the fallback-to-free-port path only triggers when it is taken.
 4. **Loopback resolves from anywhere.** `*.localhost` resolves to 127.0.0.1 in every current browser, and `lvh.me` is accepted as a second domain for the ones that do not.

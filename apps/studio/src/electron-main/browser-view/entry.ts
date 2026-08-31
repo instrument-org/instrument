@@ -8,6 +8,7 @@ import {
 } from "@instrument-org/workspace/electron";
 import { noop } from "radashi";
 
+import { clearGuestSurface } from "./guest-surface";
 import { log } from "./log";
 
 // Bumped per createEntry so each entry (even a recreate of a just-destroyed
@@ -117,6 +118,7 @@ export function destroyEntry(
   drainDisposers(entry);
   fireDestruction(entry);
   entries.delete(targetId);
+  clearGuestSurface(targetId);
 }
 
 export function handleDetach(
@@ -137,6 +139,7 @@ export function handleDetach(
   drainDisposers(entry);
   fireDestruction(entry);
   entries.delete(targetId);
+  clearGuestSurface(targetId);
 }
 
 export function subscribeEvents({

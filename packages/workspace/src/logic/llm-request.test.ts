@@ -3,6 +3,7 @@ import {
   type LanguageModelV3Prompt,
   type LanguageModelV3StreamPart,
 } from "@ai-sdk/provider";
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import {
   type AIProviderType,
   OUR_PROVIDER_CONFIG,
@@ -19,6 +20,7 @@ import {
 } from "xstate";
 
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
+import { SESSION_CONTEXT_VERSION } from "../lib/prepare-model-messages";
 import { Store } from "../lib/store";
 import { RelativePathSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
@@ -99,11 +101,13 @@ describe("llmRequestLogic", () => {
 
   async function createTestMachine({
     beforeStream,
+    catalog,
     chunks,
     getMessages = () => Promise.resolve(mockMessages),
     provider = OUR_PROVIDER_CONFIG.type,
   }: {
     beforeStream?: () => Promise<void>;
+    catalog?: AIGatewayModel.Type[];
     chunks: LanguageModelV3StreamPart[];
     getMessages?: () => Promise<SessionMessage.ContextWithParts[]>;
     provider?: AIProviderType;
@@ -150,6 +154,7 @@ describe("llmRequestLogic", () => {
 
     const taskConfig = createMockTaskConfig(TaskIdSchema.parse(`mock`), {
       aiSDKModel: mockLanguageModel,
+      catalog,
       model,
     });
     await Store.saveSession(
@@ -284,6 +289,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
+            "contextVersion": 1,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -307,7 +313,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -367,6 +372,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
+            "contextVersion": 1,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -390,7 +396,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2.5,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -452,6 +457,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
+            "contextVersion": 1,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -475,7 +481,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -539,6 +544,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
+            "contextVersion": 1,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -562,7 +568,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -630,6 +635,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
+            "contextVersion": 1,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -653,7 +659,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -724,6 +729,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
+            "contextVersion": 1,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -747,7 +753,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -802,6 +807,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
+            "contextVersion": 1,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -825,7 +831,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -892,6 +897,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
+            "contextVersion": 1,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -915,7 +921,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2.5,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -971,6 +976,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
+            "contextVersion": 1,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -994,7 +1000,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -1055,6 +1060,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
+            "contextVersion": 1,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -1078,7 +1084,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -1134,6 +1139,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
+            "contextVersion": 1,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -1157,7 +1163,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -1231,6 +1236,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
+            "contextVersion": 1,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -1254,7 +1260,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 2.5,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -1319,6 +1324,7 @@ describe("llmRequestLogic", () => {
             "id": "msg_00000000018888888888888889",
             "metadata": {
               "agentName": "main",
+              "contextVersion": 1,
               "createdAt": 2013-08-31T12:00:00.000Z,
               "realRole": "assistant",
               "sessionId": "ses_00000000018888888888888888",
@@ -1394,6 +1400,7 @@ describe("llmRequestLogic", () => {
             "id": "msg_00000000018888888888888889",
             "metadata": {
               "agentName": "main",
+              "contextVersion": 1,
               "createdAt": 2013-08-31T12:00:00.000Z,
               "realRole": "assistant",
               "sessionId": "ses_00000000018888888888888888",
@@ -1438,6 +1445,13 @@ describe("llmRequestLogic", () => {
           },
         ]
       `);
+      // Stripped from the snapshot above, and the point of this assertion: a
+      // turn stopped part way through spent the time it spent, and reporting
+      // nothing for it reads as a turn that was instant.
+      const aborted = messages.at(-1);
+      expect(
+        aborted?.role === "assistant" ? aborted.metadata.msToFinish : undefined,
+      ).toMatchInlineSnapshot(`3000`);
     });
 
     it("should handle unknown errors", async () => {
@@ -1453,6 +1467,7 @@ describe("llmRequestLogic", () => {
             "id": "msg_00000000018888888888888889",
             "metadata": {
               "agentName": "main",
+              "contextVersion": 1,
               "createdAt": 2013-08-31T12:00:00.000Z,
               "realRole": "assistant",
               "sessionId": "ses_00000000018888888888888888",
@@ -2220,7 +2235,10 @@ describe("llmRequestLogic", () => {
       `);
     });
 
-    it("replaces stale agent messages", async () => {
+    // The session context is the session's immutable baseline: however long ago
+    // it was written, it is reused byte for byte rather than rebuilt, so the
+    // prefix every later request shares with the cached one does not move.
+    it("reuses session context of any age", async () => {
       await setupPromptMessagesTest();
       const testMachine = await createTestMachine({
         chunks: [
@@ -2232,13 +2250,14 @@ describe("llmRequestLogic", () => {
 
       const staleDate = new Date("2013-08-31T10:00:00.000Z");
       const staleMessageId = StoreId.newMessageId();
-      const oldText = "You are an old assistant that should be replaced.";
+      const oldText = "You are an assistant from two hours ago.";
 
       await Store.saveMessageWithParts(
         {
           id: staleMessageId,
           metadata: {
             agentName: "main",
+            contextVersion: SESSION_CONTEXT_VERSION,
             createdAt: staleDate,
             realRole: "system",
             sessionId,
@@ -2261,34 +2280,19 @@ describe("llmRequestLogic", () => {
       );
 
       const { messages } = await runTestMachine(testMachine);
+      const contextMessages = messages.filter(
+        (message) => message.role === "session-context",
+      );
       expect(
-        JSON.stringify(messages),
-        "Old message should be replaced",
-      ).not.toContain(oldText);
+        contextMessages.map((message) => message.id),
+        "The stored context message should be the only one, with its id intact",
+      ).toEqual([staleMessageId]);
+      expect(
+        JSON.stringify(contextMessages),
+        "The stored context text should reach the model unchanged",
+      ).toContain(oldText);
       expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
         [
-          {
-            "id": "msg_00000000018888888888888889",
-            "metadata": {
-              "agentName": "main",
-              "createdAt": 2013-08-31T12:00:00.000Z,
-              "realRole": "assistant",
-              "sessionId": "ses_00000000018888888888888888",
-            },
-            "parts": [
-              {
-                "metadata": {
-                  "createdAt": 2013-08-31T12:00:00.000Z,
-                  "id": "prt_0000000001888888888888888A",
-                  "messageId": "msg_00000000018888888888888889",
-                  "sessionId": "ses_00000000018888888888888888",
-                },
-                "text": "You are a helpful assistant.",
-                "type": "text",
-              },
-            ],
-            "role": "session-context",
-          },
           {
             "id": "msg_0000000001888888888888888B",
             "metadata": {
@@ -2337,11 +2341,33 @@ describe("llmRequestLogic", () => {
             "role": "assistant",
           },
           {
+            "id": "msg_00000000ZV8888888888888889",
+            "metadata": {
+              "agentName": "main",
+              "contextVersion": 1,
+              "createdAt": 2013-08-31T10:00:00.000Z,
+              "realRole": "system",
+              "sessionId": "ses_00000000018888888888888888",
+            },
+            "parts": [
+              {
+                "metadata": {
+                  "createdAt": 2013-08-31T10:00:00.000Z,
+                  "id": "prt_00000000ZV888888888888888A",
+                  "messageId": "msg_00000000ZV8888888888888889",
+                  "sessionId": "ses_00000000018888888888888888",
+                },
+                "text": "You are an assistant from two hours ago.",
+                "type": "text",
+              },
+            ],
+            "role": "session-context",
+          },
+          {
             "id": "msg_00000000ZV888888888888888B",
             "metadata": {
               "completionTokensPerSecond": 2,
               "finishReason": "stop",
-              "modelIdServed": "mock-model-id",
               "sessionId": "ses_00000000018888888888888888",
             },
             "parts": [
@@ -2424,6 +2450,7 @@ describe("llmRequestLogic", () => {
           "id": "msg_00000000018888888888888889",
           "metadata": {
             "agentName": "main",
+            "contextVersion": 1,
             "createdAt": 2013-08-31T12:00:00.000Z,
             "realRole": "assistant",
             "sessionId": "ses_00000000018888888888888888",
@@ -2447,7 +2474,6 @@ describe("llmRequestLogic", () => {
           "metadata": {
             "completionTokensPerSecond": 1.6666666666666667,
             "finishReason": "stop",
-            "modelIdServed": "mock-model-id",
             "sessionId": "ses_00000000018888888888888888",
           },
           "parts": [
@@ -2493,5 +2519,130 @@ describe("llmRequestLogic", () => {
         },
       ]
     `);
+  });
+
+  // The AI SDK seeds its response metadata with the id we sent and overwrites it
+  // only when the provider reports one, so an id equal to the request is not
+  // evidence that anything named it. Only a difference can have come from the
+  // provider, and only a difference is worth storing.
+  describe("the model that served the request", () => {
+    it("records the served id when the provider names a different model", async () => {
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { modelId: "openai/gpt-5.6-luna", type: "response-metadata" },
+          { id: "1", type: "text-start" },
+          { delta: "Hello", id: "1", type: "text-delta" },
+          { id: "1", type: "text-end" },
+        ],
+      });
+
+      const assistant = messages.find((message) => message.role === "assistant");
+      expect(assistant?.metadata).toMatchObject({
+        modelIdServed: "openai/gpt-5.6-luna",
+      });
+    });
+
+    // Nothing in the mock cache answers to that id, which is the ordinary
+    // outcome for a model released between two refreshes of the list. The id
+    // stands on its own and everything reading it falls back to showing it.
+    it("snapshots the served model's record when the catalog has one", async () => {
+      const luna = createMockAIGatewayModel({
+        author: "openai",
+        canonicalId: "gpt-5.6-luna",
+        name: "GPT-5.6 Luna",
+        providerId: "openai/gpt-5.6-luna",
+      });
+      const { messages } = await createAndRunTestMachine({
+        catalog: [luna],
+        chunks: [
+          { modelId: "openai/gpt-5.6-luna", type: "response-metadata" },
+          { id: "1", type: "text-start" },
+          { delta: "Hello", id: "1", type: "text-delta" },
+          { id: "1", type: "text-end" },
+        ],
+      });
+
+      const assistant = messages.find((message) => message.role === "assistant");
+      expect(assistant?.metadata).toMatchObject({
+        aiGatewayModelServed: { name: "GPT-5.6 Luna" },
+        modelIdServed: "openai/gpt-5.6-luna",
+      });
+    });
+
+    it("leaves the served model record absent when the catalog has none", async () => {
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { modelId: "openai/gpt-5.6-luna", type: "response-metadata" },
+          { id: "1", type: "text-start" },
+          { delta: "Hello", id: "1", type: "text-delta" },
+          { id: "1", type: "text-end" },
+        ],
+      });
+
+      const assistant = messages.find((message) => message.role === "assistant");
+      expect(
+        assistant && "aiGatewayModelServed" in assistant.metadata
+          ? assistant.metadata.aiGatewayModelServed
+          : undefined,
+      ).toBeUndefined();
+    });
+
+    // OpenAI's catalog carries undated aliases and its API answers with the
+    // dated build behind one, so without this a direct OpenAI key reported a
+    // substitution on every single turn.
+    it("records nothing when the provider pins the model we asked for to a build", async () => {
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { modelId: "mock-model-id-2026-01-15", type: "response-metadata" },
+          { id: "1", type: "text-start" },
+          { delta: "Hello", id: "1", type: "text-delta" },
+          { id: "1", type: "text-end" },
+        ],
+      });
+
+      const assistant = messages.find((message) => message.role === "assistant");
+      expect(
+        assistant && "modelIdServed" in assistant.metadata
+          ? assistant.metadata.modelIdServed
+          : undefined,
+      ).toBeUndefined();
+    });
+
+    it("records nothing when the provider names the model we asked for", async () => {
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { modelId: "mock-model-id", type: "response-metadata" },
+          { id: "1", type: "text-start" },
+          { delta: "Hello", id: "1", type: "text-delta" },
+          { id: "1", type: "text-end" },
+        ],
+      });
+
+      const assistant = messages.find((message) => message.role === "assistant");
+      expect(
+        assistant && "modelIdServed" in assistant.metadata
+          ? assistant.metadata.modelIdServed
+          : undefined,
+      ).toBeUndefined();
+    });
+
+    // Google reports nothing at all, so its every turn used to claim it had
+    // been served the model we asked for.
+    it("records nothing when the provider reports no model", async () => {
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { id: "1", type: "text-start" },
+          { delta: "Hello", id: "1", type: "text-delta" },
+          { id: "1", type: "text-end" },
+        ],
+      });
+
+      const assistant = messages.find((message) => message.role === "assistant");
+      expect(
+        assistant && "modelIdServed" in assistant.metadata
+          ? assistant.metadata.modelIdServed
+          : undefined,
+      ).toBeUndefined();
+    });
   });
 });

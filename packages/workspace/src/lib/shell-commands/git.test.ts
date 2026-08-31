@@ -15,7 +15,8 @@ import {
   createMockTaskConfigForDir,
   MOCK_WORKSPACE_DIRS,
 } from "../../test/helpers/mock-task-config";
-import { collapseProgress, createGitCommand } from "./git";
+import { collapseProgress } from "./exec-shim";
+import { createGitCommand } from "./git";
 
 const mockCtx = createCommandContext({
   cwd: "/task",
@@ -208,7 +209,9 @@ describe("createGitCommand", () => {
     );
 
     expect(result.exitCode).not.toBe(0);
-    expect(result.stdout).not.toContain("user.email");
+    // Both streams, so the assertion cannot pass by the config simply having
+    // been written to the one it does not look at.
+    expect(result.stdout + result.stderr).not.toContain("user.email");
   });
 
   it("drops GIT_* vars the agent exported into the shell", async () => {
@@ -232,7 +235,7 @@ describe("createGitCommand", () => {
       ["clone", "ssh://git@github.com/o/r.git", "work/ssh"],
       hostileCtx,
     );
-    expect(clone.stdout).toContain("transport 'ssh' not allowed");
+    expect(clone.stderr).toContain("transport 'ssh' not allowed");
 
     await command.execute(["init", "-q", "work/env"], hostileCtx);
     const log = await command.execute(
@@ -283,7 +286,8 @@ describe("createGitCommand", () => {
       },
     );
 
-    expect(result.stdout).not.toContain("LEAKED");
+    // Both streams: a credential reaching either one has escaped.
+    expect(result.stdout + result.stderr).not.toContain("LEAKED");
   });
 
   it.each([
@@ -294,7 +298,7 @@ describe("createGitCommand", () => {
     const result = await command.execute(["ls-remote", url], mockCtx);
 
     expect(result.exitCode).not.toBe(0);
-    expect(result.stdout).toContain("not allowed");
+    expect(result.stderr).toContain("not allowed");
   });
 });
 

@@ -94,6 +94,24 @@ describe("parseOpenRouterModelsList", () => {
     `);
   });
 
+  it("skips a model with a malformed id and keeps the rest of the list", () => {
+    const models = parseOpenRouterModelsList({
+      config,
+      data: {
+        data: [
+          openRouterModel({ id: "slashless-id", name: "Slashless" }),
+          openRouterModel(),
+        ],
+      },
+    }).getOrThrow();
+
+    expect(models.map((model) => model.providerId)).toMatchInlineSnapshot(`
+      [
+        "x-ai/grok-4.3",
+      ]
+    `);
+  });
+
   it("accepts a reason this client does not know", () => {
     expect(
       parseOne(

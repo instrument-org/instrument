@@ -24,7 +24,8 @@ export function ToolCallSessionProvider({
   isRunning,
   isStreaming,
 }: {
-  backgroundProcess: RunningBackgroundProcess | undefined;
+  /** Optional because only a `bash` call can have one; everything else omits it. */
+  backgroundProcess?: RunningBackgroundProcess;
   children: ReactNode;
   isRunning: boolean;
   isStreaming: boolean;

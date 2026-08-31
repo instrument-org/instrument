@@ -64,14 +64,14 @@ describe("ffmpegCommand", () => {
     );
   });
 
-  it("disables interactive stdin ahead of the caller's arguments", async () => {
+  it("disables interactive stdin and the banner ahead of the caller's arguments", async () => {
     const execa = await mockExeca();
 
     await command.execute(["-version"], mockCtx);
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       expect.any(String),
-      ["-nostdin", "-version"],
+      ["-nostdin", "-hide_banner", "-version"],
       expect.anything(),
     );
   });

@@ -1,6 +1,7 @@
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { FolderAttachmentRow } from "@/client/components/folder-attachment-row";
+import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { getFileKindLabel } from "@/client/lib/get-file-type";
@@ -14,6 +15,7 @@ import {
   TASK_FOLDER_NAMES,
   type TaskId,
 } from "@instrument-org/workspace/client";
+import { isDefinedError } from "@orpc/client";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
@@ -82,7 +84,7 @@ export function TaskFiles({
   onFileSelect: (file: TaskFileViewerFile) => void;
   task: Task;
 }) {
-  const { data: files } = useQuery(
+  const { data: files, error } = useQuery(
     rpcClient.workspace.task.files.list.queryOptions({
       input: { taskId: task.id },
       refetchInterval: REFETCH_INTERVAL_MS,
@@ -128,6 +130,19 @@ export function TaskFiles({
   }, [files, task.id, assetBaseUrl]);
 
   if (!computed) {
+    // A failed poll leaves the last list on screen, so this is the first read
+    // failing. Without it the skeleton pulses for as long as the panel is open,
+    // which reads as a slow load rather than as a listing that cannot be made.
+    if (error) {
+      return (
+        <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+          {isDefinedError(error) && error.code === "NOT_FOUND"
+            ? "This task's files are no longer on disk."
+            : "Couldn't read this task's files. Still trying."}
+        </div>
+      );
+    }
+
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 p-2">
         {Array.from({ length: 6 }).map((_, i) => (
@@ -315,6 +330,7 @@ function FileRow({
   onClick: () => void;
 }) {
   const appendToPrompt = useSetAtom(appendToPromptAtom);
+  const dragProps = useFileDrag(file);
 
   const handleAddToChat = () => {
     appendToPrompt({
@@ -336,6 +352,7 @@ function FileRow({
             )}
             isActive={isActive}
             onClick={onClick}
+            {...dragProps}
           >
             <FileThumbnail file={file} isActive={isActive} />
             <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 text-left">

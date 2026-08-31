@@ -15,7 +15,7 @@ import {
   resolveReadOnlyHostPath,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
-import { execShim, shimOutput } from "./exec-shim";
+import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
   privateDirLiteralError,
   resolveCommandContext,
@@ -35,6 +35,11 @@ export const RG_COMMAND = {
  * They are what would turn a read-only binary into an execution vector, which
  * is the assumption `resolveReadOnlyHostPath` is documented to rely on, so they
  * are refused rather than sanitized.
+ *
+ * The denylist only sees argv, but ripgrep also reads these same flags from the
+ * file named by `RIPGREP_CONFIG_PATH`, which the agent can set in its own bash
+ * env. `--no-config` on the exec argv (below) is what keeps that path from
+ * reintroducing a `--pre` the denylist never inspected.
  */
 const DENIED_LONG_FLAGS = new Set([
   "--hostname-bin",
@@ -118,7 +123,11 @@ export function createRgCommand({
 
     const result = await execShim(
       RG_DISK_PATH,
-      ["--path-separator=/", ...withPrivateDirDenied(bridged.args)],
+      [
+        "--no-config",
+        "--path-separator=/",
+        ...withPrivateDirDenied(bridged.args),
+      ],
       {
         cancelSignal: ctx.signal,
         cwd: taskCwd,
@@ -132,17 +141,19 @@ export function createRgCommand({
       },
     );
 
-    return {
-      exitCode: result.exitCode ?? 1,
-      stderr: "",
-      stdout: filterShellOutput(
-        virtualizeOutput(shimOutput(result, RG_COMMAND.name), layout),
+    const streams = mapStreams(shimOutput(result, RG_COMMAND.name), (text) =>
+      filterShellOutput(
+        virtualizeOutput(text, layout),
         taskDir(taskId),
         // `--path-separator=/` already makes ripgrep print POSIX paths, so the
         // separator rewrite has nothing to fix here and would only corrupt
         // backslashes inside matched lines and `--json` escapes.
         { rewriteSeparators: false },
       ),
+    );
+    return {
+      exitCode: result.exitCode ?? 1,
+      ...streams,
     };
   });
 }

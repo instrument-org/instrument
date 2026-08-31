@@ -1,6 +1,7 @@
 import { setPromptDraftAtom } from "@/client/atoms/prompt-value";
 import { skillModalAtom } from "@/client/atoms/skill-modal";
 import { ExternalLink } from "@/client/components/external-link";
+import { FileDropRegion } from "@/client/components/file-drop-region";
 import { PromptInput } from "@/client/components/prompt-input";
 import {
   Dialog,
@@ -92,80 +93,85 @@ export function SkillModal() {
       }}
       open={isOpen}
     >
-      <DialogContent maxWidth="42rem">
-        <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit skill" : "Create a skill"}</DialogTitle>
-          <DialogDescription>
-            {isEdit ? (
-              `${APP_NAME} revises the skill with you and saves it back to this workspace.`
-            ) : (
-              <>
-                Describe the know-how you want to reuse. {APP_NAME} shapes it
-                with you and saves it to this workspace, or browse ready-made
-                skills to install from{" "}
-                <ExternalLink
-                  className="underline underline-offset-2 hover:text-foreground"
-                  href={SKILLS_MARKETPLACE_URL}
-                >
-                  skills.sh
-                </ExternalLink>
-                .
-              </>
-            )}
-          </DialogDescription>
-        </DialogHeader>
-        <PromptInput
-          allowOpenInNewTab
-          autoFocus
-          autoResizeMaxHeight={240}
-          draftKey={draftKey}
-          isLoading={createTaskMutation.isPending}
-          modelURI={selectedModelURI}
-          onModelChange={setSelectedModelURI}
-          onSubmit={({ files, folders, modelURI, openInNewTab, prompt }) => {
-            saveSelectedModelURI(modelURI);
-            createTaskMutation.mutate(
-              {
-                files,
-                folders,
-                intent: isEdit
-                  ? editSkillIntent(state.name)
-                  : CREATE_SKILL_INTENT,
-                modelURI,
-                name: isEdit ? `Edit ${state.title}` : "Create a skill",
-                projectId: null,
-                prompt,
-              },
-              {
-                onError: (error) => {
-                  toast.error(
-                    isEdit
-                      ? `There was an error starting skill editing: ${error.message}`
-                      : `There was an error starting skill creation: ${error.message}`,
-                  );
+      <DialogContent className="p-0" maxWidth="42rem">
+        <FileDropRegion className="grid gap-4 p-6">
+          <DialogHeader>
+            <DialogTitle>
+              {isEdit ? "Edit skill" : "Create a skill"}
+            </DialogTitle>
+            <DialogDescription>
+              {isEdit ? (
+                `${APP_NAME} revises the skill with you and saves it back to this workspace.`
+              ) : (
+                <>
+                  Describe the know-how you want to reuse. {APP_NAME} shapes it
+                  with you and saves it to this workspace, or browse ready-made
+                  skills to install from{" "}
+                  <ExternalLink
+                    className="underline underline-offset-2 hover:text-foreground"
+                    href={SKILLS_MARKETPLACE_URL}
+                  >
+                    skills.sh
+                  </ExternalLink>
+                  .
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <PromptInput
+            allowOpenInNewTab
+            autoFocus
+            autoResizeMaxHeight={240}
+            draftKey={draftKey}
+            isLoading={createTaskMutation.isPending}
+            modelURI={selectedModelURI}
+            onModelChange={setSelectedModelURI}
+            onSubmit={({ files, folders, modelURI, openInNewTab, prompt }) => {
+              saveSelectedModelURI(modelURI);
+              createTaskMutation.mutate(
+                {
+                  files,
+                  folders,
+                  intent: isEdit
+                    ? editSkillIntent(state.name)
+                    : CREATE_SKILL_INTENT,
+                  modelURI,
+                  name: isEdit ? `Edit ${state.title}` : "Create a skill",
+                  projectId: null,
+                  prompt,
                 },
-                onSuccess: ({ id, sessionId }) => {
-                  setState(null);
-                  const destination = {
-                    params: { id },
-                    search: { selectedSessionId: sessionId },
-                    to: "/tasks/$id" as const,
-                  };
-                  if (openInNewTab) {
-                    void addTab(destination, { select: false });
-                  } else {
-                    void navigate(destination);
-                  }
+                {
+                  onError: (error) => {
+                    toast.error(
+                      isEdit
+                        ? "Failed to start skill editing"
+                        : "Failed to start skill creation",
+                      { description: error.message },
+                    );
+                  },
+                  onSuccess: ({ id, sessionId }) => {
+                    setState(null);
+                    const destination = {
+                      params: { id },
+                      search: { selectedSessionId: sessionId },
+                      to: "/tasks/$id" as const,
+                    };
+                    if (openInNewTab) {
+                      void addTab(destination, { select: false });
+                    } else {
+                      void navigate(destination);
+                    }
+                  },
                 },
-              },
-            );
-          }}
-          placeholder={
-            isEdit
-              ? "Describe the change you want to make"
-              : "Describe the skill you want to create"
-          }
-        />
+              );
+            }}
+            placeholder={
+              isEdit
+                ? "Describe the change you want to make"
+                : "Describe the skill you want to create"
+            }
+          />
+        </FileDropRegion>
       </DialogContent>
     </Dialog>
   );

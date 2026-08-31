@@ -31,6 +31,8 @@ function callBuffered(
 ) {
   vi.mocked(generateImage).mockResolvedValue({
     images: [{ base64: "aGk=", mediaType: "image/png" }],
+    // Always an array from the real call, one entry per request it made.
+    responses: [],
     usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
   } as unknown as Awaited<ReturnType<typeof generateImage>>);
   return generateBufferedImage({
@@ -71,6 +73,8 @@ function mockImageModel(configType: string) {
   } as unknown as Awaited<ReturnType<typeof getImageModel>>);
   vi.mocked(generateImage).mockResolvedValue({
     images: [{ base64: "aGk=", mediaType: "image/png" }],
+    // Always an array from the real call, one entry per request it made.
+    responses: [],
     usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
   } as unknown as Awaited<ReturnType<typeof generateImage>>);
 }
@@ -196,6 +200,7 @@ describe("generateImageStream", () => {
     } as unknown as Awaited<ReturnType<typeof getImageModel>>);
     vi.mocked(generateImage).mockResolvedValue({
       images: [{ base64: "file", mediaType: "image/png" }],
+      responses: [],
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
     } as unknown as Awaited<ReturnType<typeof generateImage>>);
 

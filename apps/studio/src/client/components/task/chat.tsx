@@ -399,8 +399,15 @@ export function TaskChat({
       <ScrollToEndBridge signal={scrollToEndSignal} />
       <div className="flex h-full min-h-0 flex-col">
         <MessageScroller className="min-h-0 flex-1">
-          <MessageScrollerViewport>
-            <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8">
+          {/* Named so a block inside a message can measure the pane rather
+              than the column it sits in, and `--transcript-room` declared one
+              level in, where `100cqi` resolves against that container. A wide
+              Markdown table is the only reader today. */}
+          <MessageScrollerViewport
+            className="@container/transcript"
+            data-transcript
+          >
+            <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]">
               {selectedSessionId ? (
                 isLoadingMessages ? (
                   <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">

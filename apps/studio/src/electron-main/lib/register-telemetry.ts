@@ -3,11 +3,9 @@ import path from "node:path";
 import { noop } from "radashi";
 import { z } from "zod";
 
-import { getPreferencesStore, isDeveloperMode } from "../stores/preferences";
+import { getPreferencesStore } from "../stores/preferences";
 import { captureServerEvent } from "./capture-server-event";
-import { describeError } from "./describe-error";
 import { logger } from "./electron-logger";
-import { addServerException } from "./server-exceptions";
 import { telemetry } from "./telemetry";
 
 const CaptureSchema = z.looseObject({
@@ -102,20 +100,6 @@ export function registerTelemetry(app: Electron.App) {
       console.groupEnd();
     }
   });
-
-  // Setup global error handling for dev if telemetry is disabled
-  if (!initialOptIn) {
-    const handleError = (error: unknown) => {
-      logger.error(error);
-
-      if (isDeveloperMode()) {
-        addServerException(describeError(error));
-      }
-    };
-
-    process.on("uncaughtException", handleError);
-    process.on("unhandledRejection", handleError);
-  }
 }
 
 async function updateOptInState(isOptedIn: boolean) {

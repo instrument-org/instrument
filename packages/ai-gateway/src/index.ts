@@ -1,5 +1,6 @@
 export type { AIGatewayApp } from "./app";
 export { aiGatewayApp } from "./app";
+export { CLIENT_SESSION_ID_HEADER } from "./constants";
 export { providerOptionsForModel } from "./lib/ai-sdk-provider-options";
 export {
   envForProviderConfig,
@@ -9,10 +10,13 @@ export type { TypedError as AIGatewayTypedError } from "./lib/errors";
 export * from "./lib/fetch-ai-sdk-model";
 export * from "./lib/fetch-model";
 export * from "./lib/fetch-model-results";
+export * from "./lib/find-cached-model";
 export * from "./lib/get-ai-sdk-image-model";
 export * from "./lib/get-ai-sdk-web-search-model";
 export * from "./lib/image-capabilities";
+export { isRouterModel } from "./lib/is-router-model";
 export * from "./lib/model-cache";
+export { namesSameModel } from "./lib/names-same-model";
 export { baseURLWithDefault } from "./lib/providers/base-url-with-default";
 export { fetchCredits } from "./lib/providers/fetch-credits";
 export {

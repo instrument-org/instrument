@@ -94,6 +94,44 @@ describe("streamOpenRouterImage", () => {
     expect(await collect()).toEqual([{ message: "bad prompt", type: "error" }]);
   });
 
+  it("keeps the provider's own reply alongside the summarized message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        sseResponse([
+          {
+            error: {
+              code: 400,
+              message: "Your request was rejected by the safety sys",
+              metadata: {
+                provider_name: "openai",
+                raw: "Your request was rejected by the safety system. safety_violations=[sexual_minors]",
+              },
+            },
+            type: "error",
+          },
+        ]),
+      ),
+    );
+
+    expect(await collect()).toMatchInlineSnapshot(`
+      [
+        {
+          "message": "Your request was rejected by the safety sys",
+          "responseBody": "{
+        "message": "Your request was rejected by the safety sys",
+        "code": 400,
+        "metadata": {
+          "provider_name": "openai",
+          "raw": "Your request was rejected by the safety system. safety_violations=[sexual_minors]"
+        }
+      }",
+          "type": "error",
+        },
+      ]
+    `);
+  });
+
   it("yields an error when the stream ends without producing an image", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(sseResponse([])));
 

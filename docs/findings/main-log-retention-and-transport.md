@@ -33,7 +33,15 @@ Squirrel's file survives six weeks in 38 KB because it writes one line per miles
 
 ## What changed
 
-`maxSize` raised to 8 MB and `sync` set to false. The second introduces a trade worth stating: electron-log's async path queues into `asyncWriteQueue` and drains via `fs.writeFile` with no flush API and no drain on exit, so lines still queued when the process dies are lost. That window is one write round trip, but it covers the last lines before a crash, which are the ones worth having. Crash diagnostics are Crashpad minidumps under the plan's Phase 3, not this file, so the exposure is bounded; a transport with explicit flush-on-quit removes it entirely.
+`maxSize` raised to 8 MB and `sync` set to false. The second introduces a trade worth stating: electron-log's async path queues into `asyncWriteQueue` and drains via `fs.writeFile` with no flush API and no drain on exit, so lines still queued when the process dies are lost. That window is one write round trip, but it covers the last lines before a crash, which are the ones worth having.
+
+The plan's Phase 3 Crashpad minidumps are the compensating record, and they are not built, so nothing currently covers what the queue drops. Two things narrow the exposure to its real shape.
+
+**A crash the app survives is a crash it has time to write down.** [register-crash-diagnostics.ts](../../apps/studio/src/electron-main/lib/register-crash-diagnostics.ts) records `render-process-gone`, `child-process-gone`, and unhandled rejections through the logger. All three run with the main process still alive, so their lines drain like any other.
+
+**A crash the app does not survive needs a write that outlives it.** An uncaught exception in main is the one process-level record whose handler does not return to a running app: the same module watches it with `uncaughtExceptionMonitor` rather than `uncaughtException`, which means Node's default still ends the process, which in turn means a line handed to the queue here is a line nobody ever reads. So that record alone is appended synchronously to `last-crash.log` in `userData` and folded into this file on the next start. The exposure that remains is a native main-process crash, and a JavaScript handler is not the instrument for that: it runs none of its own code, which is the same reason those crashes need minidumps rather than a log line.
+
+**There is no runtime lever to flush on the way out.** electron-log 5.4.1 `src/node/transports/file/FileRegistry.js`: `provide` caches the `File` by resolved path and returns the cached instance without reconsidering `writeAsync`, so flipping `transport.sync` after the first write changes nothing, and the queued lines are reachable only through the File's internals. A transport with explicit flush-on-quit removes the exposure; poking at this one does not.
 
 ## What might resolve it later
 

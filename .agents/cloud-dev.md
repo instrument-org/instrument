@@ -9,11 +9,11 @@ pnpm manages Node via `devEngines.runtime` (`onFail: "download"`). Bootstrap: `c
 Set `NO_SANDBOX=1` (read by electron-vite's `startElectron`). Turbo doesn't forward it reliably; run services directly:
 
 ```bash
-cd apps/studio && NO_SANDBOX=1 REMOTE_DEBUGGING_PORT=48160 pnpm dev
+cd apps/studio && NO_SANDBOX=1 pnpm dev
 ```
 
-- `REMOTE_DEBUGGING_PORT=48160` enables the CDP endpoint used by `chrome-devtools-mcp` and the devtools skill. Without it, port 48160 won't be listening.
-- Ensure `DISPLAY=:1` (Xvfb). D-Bus errors are harmless.
+- `REMOTE_DEBUGGING_PORT` picks the CDP port used by `chrome-devtools-mcp` and the devtools skill. It defaults to 48160 (`electron.vite.config.ts`), so a hand-started dev instance is already listening there; set it only to choose a different port.
+- Ensure `DISPLAY` points at a running Xvfb (`:1` on Cursor Cloud; this repo's CI uses `:99`). D-Bus errors are harmless.
 
 ## Quick reference
 

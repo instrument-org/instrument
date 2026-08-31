@@ -145,7 +145,7 @@ const copySessionTranscript = devOnly
 
 const saveSessionTranscript = devOnly
   .input(transcriptInput)
-  .output(z.object({ filename: z.string(), filepath: z.string() }))
+  .output(z.object({ filepath: z.string() }))
   .handler(async ({ context, input, signal }) => {
     const content = await renderTranscript({ context, input, signal });
 
@@ -166,7 +166,7 @@ const saveSessionTranscript = devOnly
     // next step into a paste instead of a hunt through Downloads.
     clipboard.writeText(filepath);
 
-    return { filename, filepath };
+    return { filepath };
   });
 
 // Names the file after the task it came from, the way the zip export does, so a

@@ -229,9 +229,14 @@ export const FIXTURES: Record<string, unknown> = {
   "updates.live.status": { status: "idle" },
   "user.live.me": null,
   "user.live.subscriptionStatus": null,
+  // The web build stands in for a Linux X11 window, which is the case that
+  // draws a border at all.
+  "utils.displayProtocol": "x11",
   "utils.events.windowFocusChanged": undefined,
   "utils.live.serverExceptions": undefined,
-  "utils.live.windowMaximized": false,
+  // A page is neither, so the custom controls show the maximize glyph and the
+  // Linux window border draws.
+  "utils.live.windowState": { fullScreen: false, maximized: false },
   // A browser cannot raise the native folder panel, so picking one always
   // lands on the same folder. Enough for the composer's folder tray, which is
   // what a page here is for.

@@ -264,6 +264,19 @@ export function buildTranscriptLayout({
         continue;
       }
 
+      if (part.type === "data-contextRollover") {
+        // Positional where the other notes are incidental: this one's whole
+        // content is where it sits, so it ends the phase around it the way
+        // prose does. It is recorded against whatever message was newest when
+        // assembly ran, which mid-run is an assistant step inside an open
+        // phase, and the rule below would fold it in among the steps. Reading
+        // it then means expanding a group to find the one row that says where
+        // the cut was, which is the whole of what it is for.
+        settle();
+        push(id, kind);
+        continue;
+      }
+
       // Only a step opens an inferred group. Anything else -- a data note, an
       // attachment -- stands alone unless a group is already taking rows.
       if (!open) {

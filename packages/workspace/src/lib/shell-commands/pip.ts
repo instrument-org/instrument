@@ -1,7 +1,11 @@
 import { defineCommand } from "just-bash";
 
 import { type TaskId } from "../../schemas/task-id";
-import { resolveCommandContext, resolvePathArgs } from "./utils";
+import {
+  resolveCommandContext,
+  resolvePathArgs,
+  unreachablePathArgError,
+} from "./utils";
 import { ensureTaskVenv, runUv } from "./uv";
 
 // `pip` (and the `pip3` alias) route through `uv pip`, which installs into the
@@ -48,11 +52,16 @@ function createPipCommandNamed(taskId: TaskId, name: string) {
       };
     }
 
+    const unreachable = unreachablePathArgError(name, args, ctx.cwd);
+    if (unreachable !== undefined) {
+      return { exitCode: 1, stderr: unreachable, stdout: "" };
+    }
+
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
 
     const venvError = await ensureTaskVenv({ ctx, taskId });
     if (venvError !== undefined) {
-      return { exitCode: 1, stderr: "", stdout: venvError };
+      return { exitCode: 1, stderr: venvError, stdout: "" };
     }
 
     const result = await runUv({
@@ -62,6 +71,6 @@ function createPipCommandNamed(taskId: TaskId, name: string) {
       taskCwd,
       taskId,
     });
-    return { exitCode: result.exitCode, stderr: "", stdout: result.stdout };
+    return result;
   });
 }

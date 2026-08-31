@@ -76,6 +76,30 @@ describe("useTitleArrival", () => {
     expect(result.current.className).toBe("title-arrival");
   });
 
+  it("stays put when the element is handed another task", () => {
+    const { rerender, result } = renderHook(
+      (props: { id: TaskId; title: string }) =>
+        useTitleArrival(props.id, props.title),
+      { initialProps: { id: taskId("first"), title: "Sailing card" } },
+    );
+
+    rerender({ id: taskId("second"), title: "Duplicates in the export" });
+    expect(result.current.className).toBeUndefined();
+  });
+
+  it("sweeps a name arriving after the element changed task", () => {
+    const { rerender, result } = renderHook(
+      (props: { id: TaskId; title: string }) =>
+        useTitleArrival(props.id, props.title),
+      { initialProps: { id: taskId("switched-from"), title: "Sailing card" } },
+    );
+
+    const id = taskId("switched-to");
+    rerender({ id, title: "make me a card" });
+    rerender({ id, title: "Birthday card for dad" });
+    expect(result.current.className).toBe("title-arrival");
+  });
+
   it("keeps a rename quiet in a second place showing the same task", () => {
     const id = taskId("two-places");
     const sidebar = renderTitle(id, "Sailing birthday card");

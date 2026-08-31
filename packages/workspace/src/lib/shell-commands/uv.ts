@@ -6,11 +6,12 @@ import { ensureTaskVenvForTask } from "../ensure-task-venv";
 import { filterShellOutput } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
 import { getUvBinPath } from "../uv";
-import { execShim, shimOutput } from "./exec-shim";
+import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
   resolveCommandContext,
   resolvePathArgs,
   subprocessStdin,
+  unreachablePathArgError,
 } from "./utils";
 
 export const UV_COMMAND = {
@@ -26,6 +27,11 @@ export function createUvCommand(taskId: TaskId) {
       return blocked;
     }
 
+    const unreachable = unreachablePathArgError(UV_COMMAND.name, args, ctx.cwd);
+    if (unreachable !== undefined) {
+      return { exitCode: 1, stderr: unreachable, stdout: "" };
+    }
+
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
 
     // `uv pip` requires the venv to exist (VIRTUAL_ENV points at work/.venv).
@@ -34,7 +40,7 @@ export function createUvCommand(taskId: TaskId) {
     if (args[0] === "pip") {
       const venvError = await ensureTaskVenv({ ctx, taskId });
       if (venvError !== undefined) {
-        return { exitCode: 1, stderr: "", stdout: venvError };
+        return { exitCode: 1, stderr: venvError, stdout: "" };
       }
     }
 
@@ -45,7 +51,7 @@ export function createUvCommand(taskId: TaskId) {
       taskCwd,
       taskId,
     });
-    return { exitCode: result.exitCode, stderr: "", stdout: result.stdout };
+    return result;
   });
 }
 
@@ -91,9 +97,8 @@ export async function runUv({
   });
   return {
     exitCode: result.exitCode ?? 1,
-    stdout: filterShellOutput(
-      shimOutput(result, UV_COMMAND.name),
-      taskDir(taskId),
+    ...mapStreams(shimOutput(result, UV_COMMAND.name), (text) =>
+      filterShellOutput(text, taskDir(taskId)),
     ),
   };
 }

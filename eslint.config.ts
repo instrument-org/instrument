@@ -22,7 +22,12 @@ export default [
   ]),
   ...baseConfig,
   {
-    files: [".github/ISSUE_TEMPLATE/**/*.yml"],
+    // Dropdown options render in the order they are written, so the reader
+    // sees them ranked by how likely each is rather than by spelling.
+    files: [
+      ".github/ISSUE_TEMPLATE/**/*.yml",
+      ".github/DISCUSSION_TEMPLATE/**/*.yml",
+    ],
     rules: {
       "yml/sort-sequence-values": "off",
     },

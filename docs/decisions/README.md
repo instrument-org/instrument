@@ -10,9 +10,12 @@ Newest first. A struck-through entry has been superseded.
 
 | Date | Decision |
 | --- | --- |
+| 2026-08-27 | [We carry no just-bash patches, and #365 is the one that would change that](2026-08-27-no-local-just-bash-patches.md) |
+| 2026-08-26 | [Discussions are the front door, issues are the accepted backlog](2026-08-26-discussions-are-the-front-door.md) |
 | 2026-08-15 | [Plugins over connectors](2026-08-15-plugins-over-connectors.md) |
 | 2026-08-15 | [anti-slop is not part of the lint pipeline](2026-08-15-anti-slop-is-not-in-the-lint-pipeline.md) |
 | 2026-08-12 | [Try again runs the turn again rather than speaking for the user](2026-08-12-try-again-runs-the-turn-rather-than-speaking-for-the-user.md) |
+| 2026-08-12 | [No always-on budget across one step's tool results](2026-08-12-no-always-on-per-step-tool-result-budget.md) |
 | 2026-08-11 | [A retired data part is read and filtered, not migrated](2026-08-11-retired-parts-are-read-not-migrated.md) |
 | 2026-08-06 | [ffmpeg and ffprobe come from a fork, pinned to a release candidate](2026-08-06-ffmpeg-from-a-fork-at-a-release-candidate.md) |
 | 2026-07-31 | [pdfium is the PDF engine](2026-07-31-pdfium-is-the-pdf-engine.md) |

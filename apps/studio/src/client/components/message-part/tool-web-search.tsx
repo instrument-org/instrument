@@ -4,6 +4,7 @@ import {
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
 
+import { UNTRUSTED_FILE_IMAGE_KINDS } from "../../lib/image-policy";
 import { getToolLabel } from "../../lib/tool-display";
 import { Favicon } from "../favicon";
 import { SessionMarkdown } from "../session-markdown";
@@ -90,11 +91,22 @@ export function ToolWebSearch({
         />
       )}
 
+      {/* A summary and an excerpt are both somebody else's page, so their
+          markdown gets embedded images only: an `<img>` naming a host is
+          fetched the moment the card renders. `hideImages` drops the rest
+          outright rather than standing chips in for them; a scraped page
+          carries logos and tracker pixels by the dozen, and the page itself
+          is a click away through its source link. */}
       {results && hasSearchContent && (
         <ToolCardSection collapsedHeight={448}>
           {results.kind === "summary" ? (
             <>
-              <SessionMarkdown className="w-full" markdown={results.text} />
+              <SessionMarkdown
+                className="w-full"
+                hideImages
+                imageKinds={UNTRUSTED_FILE_IMAGE_KINDS}
+                markdown={results.text}
+              />
 
               {!isStreaming && results.sources.length > 0 && (
                 <div className="mt-4 space-y-2 border-t border-border pt-3">
@@ -116,6 +128,7 @@ export function ToolWebSearch({
                   <SessionMarkdown
                     className={EXCERPT_PROSE}
                     hideImages
+                    imageKinds={UNTRUSTED_FILE_IMAGE_KINDS}
                     markdown={source.text}
                   />
                 </div>

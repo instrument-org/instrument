@@ -6,11 +6,16 @@ import type {
 
 import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
+import { prepareFileDrag } from "@/electron-main/lib/file-drag";
 import {
   getFileOpenCandidates,
   getFileOpenTarget,
 } from "@/electron-main/lib/file-open-target";
 import { openExternal } from "@/electron-main/lib/open-external";
+import {
+  effectiveDisplayProtocol,
+  resolveOzonePlatform,
+} from "@/electron-main/lib/ozone-platform";
 import {
   clearServerExceptions,
   getServerExceptions,
@@ -20,6 +25,7 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import { setMainWindowZoom } from "@/electron-main/stores/window-state";
 import {
   closeMainWindow,
+  isMainWindowFullScreen,
   isMainWindowMaximized,
   minimizeMainWindow,
   setTrafficLightForZoom,
@@ -540,6 +546,32 @@ const getSupportedEditors = base
     return await initializeSupportedEditorsCache();
   });
 
+/**
+ * Which display protocol the app is talking, or null where the question does
+ * not arise. Linux is the only platform whose window decoration depends on it:
+ * a frameless window is decorated by the compositor under Wayland and by
+ * nothing at all under X11.
+ *
+ * Constant for the life of the process, so it is a query rather than part of
+ * the window-state stream it is read alongside.
+ */
+const displayProtocol = base
+  .output(z.enum(["wayland", "x11"]).nullable())
+  .handler(() => {
+    if (process.platform !== "linux") {
+      return null;
+    }
+
+    const { platform } = resolveOzonePlatform(
+      process.env.INSTRUMENT_OZONE_PLATFORM,
+    );
+    return effectiveDisplayProtocol(
+      platform,
+      process.env.WAYLAND_DISPLAY,
+      app.commandLine.getSwitchValue("ozone-platform"),
+    );
+  });
+
 const clearExceptions = base.input(z.void()).handler(() => {
   clearServerExceptions();
 });
@@ -608,20 +640,34 @@ const live = {
         yield getServerExceptions();
       }
     }),
-  // Current maximized state, so the custom controls can toggle the
-  // maximize/restore glyph. Re-yields on OS-driven maximize/unmaximize.
-  windowMaximized: base
-    .output(eventIterator(z.object({ maximized: z.boolean() })))
+  // What the renderer needs to draw window chrome for itself: the custom controls
+  // pick the maximize/restore glyph, and the Linux window border hides when an
+  // edge sits against the screen. Re-yields on OS-driven transitions too (snap,
+  // double-click, Win+Up) and after a resize, which is when a move between
+  // displays can have changed the scale the border insets itself for.
+  windowState: base
+    .output(
+      eventIterator(
+        z.object({ fullScreen: z.boolean(), maximized: z.boolean() }),
+      ),
+    )
     .handler(async function* ({ signal }) {
-      yield { maximized: isMainWindowMaximized() };
+      yield readMainWindowState();
 
-      for await (const _ of publisher.subscribe("window.maximized-changed", {
+      for await (const _ of publisher.subscribe("window.state-changed", {
         signal,
       })) {
-        yield { maximized: isMainWindowMaximized() };
+        yield readMainWindowState();
       }
     }),
 };
+
+function readMainWindowState() {
+  return {
+    fullScreen: isMainWindowFullScreen(),
+    maximized: isMainWindowMaximized(),
+  };
+}
 
 const copyTaskPathToClipboard = base
   .input(
@@ -707,6 +753,22 @@ const copyFileToClipboard = base
     }
   });
 
+// Warms what a native drag of this file will need. Separate from starting the
+// drag, which cannot wait on anything: see electron-main/lib/file-drag. Says
+// nothing about whether the file resolved, because there is nothing useful for
+// the caller to do about it -- a drag with nothing behind it simply does not
+// start.
+const prepareTaskFileDrag = base
+  .input(
+    z.object({
+      filePath: WorkspaceFilePathSchema,
+      id: TaskIdSchema,
+    }),
+  )
+  .handler(async ({ input }) => {
+    await prepareFileDrag({ filePath: input.filePath, taskId: input.id });
+  });
+
 const showFolderPicker = base
   .output(z.object({ path: z.string() }).nullable())
   .handler(async () => {
@@ -734,6 +796,7 @@ export const utils = {
   copyFileToClipboard,
   copyProjectPathToClipboard,
   copyTaskPathToClipboard,
+  displayProtocol,
   events,
   exportZip,
   getSupportedEditors,
@@ -746,6 +809,7 @@ export const utils = {
   openTaskFile,
   openTaskFileWith,
   openTaskIn,
+  prepareTaskFileDrag,
   showFileInFolder,
   showFolderPicker,
   showProjectInFolder,

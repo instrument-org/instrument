@@ -19,7 +19,7 @@ export function WindowControls() {
   const shouldRender = isWindows() || isLinux() || (isMacOS() && forceShow);
 
   const { data } = useQuery(
-    rpcClient.utils.live.windowMaximized.experimental_liveOptions(),
+    rpcClient.utils.live.windowState.experimental_liveOptions(),
   );
   const { mutate: minimize } = useMutation(
     rpcClient.utils.minimizeWindow.mutationOptions(),

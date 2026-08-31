@@ -1,3 +1,7 @@
+import type {
+  JSONValue,
+  LanguageModelV2ToolResultOutput,
+} from "@ai-sdk/provider";
 import type * as z from "zod";
 
 import { tool } from "ai";
@@ -47,6 +51,34 @@ function buildTool<
   setup: SetupOptions<TName, TInputSchema, TOutputSchema>,
   options: CreateOptions<TName, TInputSchema, TOutputSchema>,
 ): AgentTool<TName, TInputSchema, TOutputSchema> {
+  // A tool's output schema moves on while sessions recorded against older
+  // shapes stay on disk, and every one of their parts is converted again on
+  // each turn and each transcript render. Reading a field the record predates
+  // throws, so without this one stale part fails the whole conversion. Handing
+  // the raw output back keeps the rest of the conversation intact, and matches
+  // what the AI SDK does for a tool that declares no mapping at all.
+  const toModelOutput = ({
+    input,
+    output,
+    toolCallId,
+  }: {
+    input: unknown;
+    output: unknown;
+    toolCallId: string;
+  }): LanguageModelV2ToolResultOutput => {
+    try {
+      return options.toModelOutput({
+        input: input as z.output<TInputSchema>,
+        output: output as z.output<TOutputSchema>,
+        toolCallId,
+      });
+    } catch {
+      return typeof output === "string"
+        ? { type: "text", value: output }
+        : { type: "json", value: output as JSONValue };
+    }
+  };
+
   return {
     ...setup,
     ...options,
@@ -68,12 +100,7 @@ function buildTool<
           description,
           inputSchema: toolInputSchemaForLLM(inputSchema),
           outputSchema: setup.outputSchema,
-          toModelOutput: ({ input, output, toolCallId }) =>
-            options.toModelOutput({
-              input: input as z.output<TInputSchema>,
-              output: output as z.output<TOutputSchema>,
-              toolCallId,
-            }),
+          toModelOutput,
           type: "function",
         })
       );
@@ -95,12 +122,7 @@ function buildTool<
           description: "", // None because this is never shown to agent
           inputSchema,
           outputSchema: setup.outputSchema,
-          toModelOutput: ({ input, output, toolCallId }) =>
-            options.toModelOutput({
-              input: input as z.output<TInputSchema>,
-              output: output as z.output<TOutputSchema>,
-              toolCallId,
-            }),
+          toModelOutput,
           type: "function",
         })
       );

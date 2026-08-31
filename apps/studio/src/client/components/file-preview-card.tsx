@@ -2,6 +2,7 @@ import type { RefObject } from "react";
 
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
+import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useTaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getFileKindLabel, getFileType } from "@/client/lib/get-file-type";
@@ -17,6 +18,7 @@ import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
 import { FileThumbnail } from "./file-thumbnail";
 import { ImageWithFallback } from "./image-with-fallback";
+import { type MediaCardShape } from "./media-card-shape";
 import { MediaCardShell } from "./media-card-shell";
 import { MediaOverlayButton } from "./media-overlay-button";
 import { OpenTaskFileButton } from "./open-task-file-button";
@@ -33,11 +35,14 @@ export function FilePreviewCard({
   hideActionsMenu,
   isSelected,
   onClick,
+  shape,
 }: {
   file: TaskFileViewerFile;
   hideActionsMenu?: boolean;
   isSelected?: boolean;
   onClick: () => void;
+  /** The box a media card takes; ignored by the types drawn as a row. */
+  shape?: MediaCardShape;
 }) {
   const { filename, mimeType } = file;
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -86,6 +91,7 @@ export function FilePreviewCard({
         hideActionsMenu={hideActionsMenu}
         isSelected={isSelected}
         onClick={onClick}
+        shape={shape}
       />
     );
   }
@@ -108,6 +114,7 @@ export function FilePreviewCard({
           setVideoProgress(duration ? (currentTime / duration) * 100 : 0);
           setTimeRemaining(duration ? duration - currentTime : null);
         }}
+        shape={shape}
         timeRemaining={timeRemaining}
         videoDuration={videoDuration}
         videoProgress={videoProgress}
@@ -138,6 +145,7 @@ function FileRowCard({
   onClick: () => void;
 }) {
   const { filename, filePath } = file;
+  const dragProps = useFileDrag(file);
   const fileActions = useFileActionVisibility(file);
   const hasFileActions =
     fileActions.showCopy ||
@@ -158,6 +166,7 @@ function FileRowCard({
       onMouseEnter={() => {
         prefetchOpenTarget(file);
       }}
+      {...dragProps}
     >
       {/* The row is what opens the file, and a row is not a control: without
           this it could be clicked and nothing else -- no tab stop, no name, no
@@ -231,11 +240,13 @@ function ImagePreviewCard({
   hideActionsMenu,
   isSelected,
   onClick,
+  shape,
 }: {
   file: TaskFileViewerFile;
   hideActionsMenu?: boolean;
   isSelected?: boolean;
   onClick: () => void;
+  shape?: MediaCardShape;
 }) {
   const { filename, url } = file;
   const fileActions = useFileActionVisibility(file);
@@ -319,6 +330,7 @@ function ImagePreviewCard({
         ) : undefined
       }
       scrim={<div className="absolute inset-0 bg-black/20" />}
+      shape={shape}
     >
       <div className="flex size-full items-center justify-center">
         <ImageWithFallback
@@ -347,6 +359,7 @@ function VideoPreviewCard({
   onClick,
   onLoadedMetadata,
   onTimeUpdate,
+  shape,
   timeRemaining,
   videoDuration,
   videoProgress,
@@ -361,6 +374,7 @@ function VideoPreviewCard({
   onClick: () => void;
   onLoadedMetadata: React.ReactEventHandler<HTMLVideoElement>;
   onTimeUpdate: React.ReactEventHandler<HTMLVideoElement>;
+  shape?: MediaCardShape;
   timeRemaining: null | number;
   videoDuration: null | number;
   videoProgress: number;
@@ -434,9 +448,10 @@ function VideoPreviewCard({
         ) : undefined
       }
       scrim={<div className="absolute inset-0 bg-black/20" />}
+      shape={shape}
     >
       {/* No surface of its own: the card's is what shows around a frame that
-          does not fill the square, the same as an image's. A black box would
+          does not fill the box, the same as an image's. A black box would
           be the heaviest thing in the reply, and next to the image tiles it
           sits beside it reads as a different component rather than a
           different kind of file. */}

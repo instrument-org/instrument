@@ -3,6 +3,12 @@ import { execa, type Options } from "execa";
 import { watchSubprocessTree } from "../subprocess-tree";
 import { collectAndForward, currentShellOutputSink } from "./output-sink";
 
+/** A finished subprocess's two output streams, kept apart. */
+export interface ShimStreams {
+  stderr: string;
+  stdout: string;
+}
+
 /**
  * Options a shim may set. The output-shaping ones are fixed by `execShim`, so
  * they are excluded rather than merely overridden: leaving them settable would
@@ -26,23 +32,42 @@ type ShimOptions = Omit<
 >;
 
 /**
+ * Keep only the last state of each carriage-return progress line, which is what
+ * a terminal would have shown.
+ *
+ * A tool that redraws a counter in place writes one enormous line: `git clone`
+ * does it with "Updating files: 1%...2%", ffmpeg with a `frame=... speed=...`
+ * line per second. A long run arrives as tens of kilobytes on a single line, so
+ * line-based truncation cannot trim it and it buries whatever the command
+ * actually reported.
+ */
+export function collapseProgress(output: string) {
+  // The lookahead spares \r\n, so Windows line endings are left intact.
+  return output.replaceAll(/[^\n]*\r(?!\n)/g, "");
+}
+
+/**
  * Run a real binary on behalf of a sandbox command, with the settings every
  * shim needs to behave like a shell command rather than a library call:
  *
- * - `all` merges stdout and stderr in the order the process wrote them. That
- *   ordering is only available here: the interpreter carries a single output
- *   buffer per command, so a shim handing back two separate streams would have
- *   to concatenate them and lose the interleaving.
+ * - stdout and stderr are kept apart, because that is what makes a redirection
+ *   mean what it says. Merging them costs the agent the interleaving of a
+ *   process that writes to both, but handing the merged text back as stdout
+ *   costs far more: `cmd > file` writes the diagnostics into the file and
+ *   leaves the agent an empty result to explain a non-zero exit, and
+ *   `2>/dev/null` silences nothing because nothing is on stderr to silence.
+ *   Real bash separates them under redirection too.
  * - `stripFinalNewline` is off. execa drops a subprocess's trailing newline by
  *   default; because the interpreter concatenates each command's output, losing
  *   it runs one command's last line into the next command's first.
  * - `reject` is off so a non-zero exit arrives as an exit code, the way a shell
  *   reports it, rather than as a thrown error.
  *
- * When a background run has installed an output sink, the merged stream is read
- * here instead of by execa so lines reach the sink as the process writes them.
- * execa's own buffering is off in that case; two consumers of one stream would
- * each get a share of the chunks rather than the whole thing.
+ * When a background run has installed an output sink, a second reader of the
+ * merged stream forwards lines to it as the process writes them. execa tees
+ * that stream rather than handing it over, so buffering stays on and the split
+ * streams above remain authoritative: the sink shows the interleaving a
+ * terminal would have, and a redirection still means what it says.
  */
 export async function execShim(
   file: string,
@@ -54,7 +79,6 @@ export async function execShim(
   const subprocess = execa(file, args, {
     ...subprocessOptions,
     all: true,
-    buffer: sink === undefined,
     cancelSignal: sink ? undefined : cancelSignal,
     detached: sink !== undefined && process.platform !== "win32",
     reject: false,
@@ -63,19 +87,13 @@ export async function execShim(
   const finishTreeTermination = sink
     ? watchSubprocessTree({ pid: subprocess.pid, signal: cancelSignal })
     : undefined;
-  const streamed = sink ? collectAndForward(subprocess.all, sink) : undefined;
+  const streamed = sink
+    ? collectAndForward(subprocess.readable({ from: "all" }), sink)
+    : undefined;
   const result = await subprocess;
+  await streamed;
   await finishTreeTermination?.();
   return {
-    // execa types `all` as optional (only populated when asked for) and as
-    // possibly an array (when `lines` is on). It is always asked for here and
-    // `lines` is not settable, so the string branch is the only reachable one;
-    // narrowing rather than asserting keeps that guarantee checked.
-    all: streamed
-      ? await streamed
-      : typeof result.all === "string"
-        ? result.all
-        : "",
     exitCode: result.exitCode,
     // The binary that was launched, kept so a diagnostic can name the command
     // the way the agent spells it rather than by its path on this machine.
@@ -83,6 +101,23 @@ export async function execShim(
     // Set when the subprocess failed without producing output of its own, which
     // is the only diagnostic a shim can report in that case.
     shortMessage: result.shortMessage,
+    // execa types these as possibly an array (when `lines` is on) or a buffer
+    // (when `encoding` is set). Neither is settable here, so the string branch
+    // is the only reachable one; narrowing rather than asserting keeps that
+    // guarantee checked.
+    stderr: typeof result.stderr === "string" ? result.stderr : "",
+    stdout: typeof result.stdout === "string" ? result.stdout : "",
+  };
+}
+
+/** Apply a text transform to both streams of a finished shim. */
+export function mapStreams(
+  streams: ShimStreams,
+  transform: (text: string) => string,
+): ShimStreams {
+  return {
+    stderr: transform(streams.stderr),
+    stdout: transform(streams.stdout),
   };
 }
 
@@ -114,18 +149,20 @@ export async function execShim(
  */
 export function shimOutput(
   result: {
-    all: string;
     exitCode: number | undefined;
     file?: string;
     shortMessage?: string;
+    stderr: string;
+    stdout: string;
   },
   commandName: string,
-): string {
+): ShimStreams {
+  const streams = { stderr: result.stderr, stdout: result.stdout };
   if (result.exitCode !== undefined) {
-    return result.all;
+    return streams;
   }
-  if (result.all) {
-    return result.all;
+  if (result.stdout || result.stderr) {
+    return streams;
   }
 
   const detail = (result.shortMessage ?? "")
@@ -137,7 +174,11 @@ export function shimOutput(
     .join("\n")
     .trim();
 
-  return detail
-    ? `${commandName} could not start.\n${detail}\n`
-    : `${commandName} failed without diagnostic output.\n`;
+  // A spawn failure is a diagnostic, so it goes where diagnostics go.
+  return {
+    stderr: detail
+      ? `${commandName} could not start.\n${detail}\n`
+      : `${commandName} failed without diagnostic output.\n`,
+    stdout: "",
+  };
 }

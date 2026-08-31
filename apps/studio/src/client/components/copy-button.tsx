@@ -8,6 +8,7 @@ export function CopyButton({
   className,
   disabled,
   iconSize = 16,
+  label = "Copy",
   onCopy,
   tooltip,
   ...props
@@ -15,6 +16,8 @@ export function CopyButton({
   className?: string;
   disabled?: boolean;
   iconSize?: number;
+  /** The accessible name, where several copies share one screen. */
+  label?: string;
   onCopy: () => Promise<void> | void;
   /**
    * What the button says it will copy, for the places where "Copy" on its own
@@ -36,7 +39,7 @@ export function CopyButton({
   const button = (
     <button
       {...props}
-      aria-label="Copy"
+      aria-label={label}
       className={className}
       disabled={disabled}
       onClick={() => void handleClick()}

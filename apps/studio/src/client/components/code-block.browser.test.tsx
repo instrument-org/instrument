@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { CodeWithCopy, MarkdownCodeBlock } from "./code-block";
 import { ImageViewer } from "./image-viewer";
+import { TranscriptScrollContext } from "./transcript-scroll-context";
 
 // A block asks which theme to highlight against, and the real provider answers
 // through an RPC round trip the browser project has no main process for. Every
@@ -79,11 +80,10 @@ describe("block toolbar", () => {
       const screen = await renderInBrowser(
         <div style={{ height: 300, width: 300 }}>
           <ImageViewer
-            filename="pixel.gif"
+            file={{ filename: "pixel.gif", url: PIXEL }}
             onError={() => {
               throw new Error("the pixel should load");
             }}
-            url={PIXEL}
           />
         </div>,
       );
@@ -141,7 +141,7 @@ describe("block toolbar scope", () => {
 // wrapper is measured here rather than read off a class list.
 describe("code block spacing in prose", () => {
   const PROSE_CLASS =
-    "prose prose-custom max-w-none text-sm/relaxed dark:prose-invert prose-pre:text-sm";
+    "prose prose-custom text-sm/relaxed dark:prose-invert prose-pre:text-sm";
 
   const codeBlocksIn = (root: Element) => {
     const blocks = [...root.querySelectorAll("pre")];
@@ -269,7 +269,7 @@ describe("code block spacing in prose", () => {
 
 describe("markdown code block", () => {
   const PROSE_CLASS =
-    "prose prose-custom max-w-none text-sm/relaxed dark:prose-invert prose-pre:text-sm";
+    "prose prose-custom text-sm/relaxed dark:prose-invert prose-pre:text-sm";
 
   const LONG_LINE = `const message = "${"long ".repeat(60)}";`;
 
@@ -363,5 +363,42 @@ describe("markdown code block", () => {
 
     expect(pre.getBoundingClientRect().height).toBeGreaterThan(capped);
     expect(pre.scrollHeight).toBe(pre.clientHeight);
+  });
+
+  // While the transcript's scroller follows the live end, any growth re-pins it
+  // to the bottom -- including growth the reader just clicked for, which carries
+  // the opened block off screen. `TranscriptScrollContext` is the contract:
+  // every control that reshapes a block hands scrolling back first.
+  describe("handing scrolling back to the reader", () => {
+    const renderInTranscript = (releaseAutoScroll: () => void, code: string) =>
+      renderInBrowser(
+        <TranscriptScrollContext value={releaseAutoScroll}>
+          <div className={PROSE_CLASS} style={{ width: 480 }}>
+            <MarkdownCodeBlock code={code} language="ts" />
+          </div>
+        </TranscriptScrollContext>,
+      );
+
+    it("releases the scroller before opening the block", async () => {
+      const releaseAutoScroll = vi.fn();
+      const code = Array.from(
+        { length: 60 },
+        (_, index) => `line ${index}`,
+      ).join("\n");
+      const screen = await renderInTranscript(releaseAutoScroll, code);
+
+      await screen.getByRole("button", { name: "Show more" }).click();
+
+      expect(releaseAutoScroll).toHaveBeenCalledOnce();
+    });
+
+    it("releases the scroller before rewrapping the lines", async () => {
+      const releaseAutoScroll = vi.fn();
+      const screen = await renderInTranscript(releaseAutoScroll, LONG_LINE);
+
+      await screen.getByRole("button", { name: "Wrap lines" }).click();
+
+      expect(releaseAutoScroll).toHaveBeenCalledOnce();
+    });
   });
 });

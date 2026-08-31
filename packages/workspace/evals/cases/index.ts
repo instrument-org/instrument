@@ -1,6 +1,7 @@
 import { BACKGROUND_PROCESS_EVALS } from "./background-processes";
 import { BROWSER_SELECTION_EVALS } from "./browser-selection";
 import { CHECK_EVALS } from "./check";
+import { CONTEXT_ROLLOVER_EVALS } from "./context-rollover";
 import { FILES_FENCE_EVALS } from "./files-fence";
 import { IMAGE_REGION_EVALS } from "./image-region";
 import { PDF_SKILL_EVALS } from "./pdf-skill";
@@ -15,6 +16,7 @@ export const EVALS = [
   ...BACKGROUND_PROCESS_EVALS,
   ...BROWSER_SELECTION_EVALS,
   ...CHECK_EVALS,
+  ...CONTEXT_ROLLOVER_EVALS,
   ...FILES_FENCE_EVALS,
   ...IMAGE_REGION_EVALS,
   ...PDF_SKILL_EVALS,

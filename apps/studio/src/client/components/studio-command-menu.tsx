@@ -499,7 +499,6 @@ function CommandResultsList({
     return flat;
   }, [matchedTasks, matchedProjects, matchedDebugItems]);
 
-  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rows.length,
     estimateSize: (i) => (rows[i]?.type === "header" ? 28 : 36),

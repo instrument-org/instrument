@@ -6,7 +6,7 @@
 
 That runs on the thread that owns the app window. Studio subscribed twice on the launch path, so the app froze for roughly twelve seconds with two console windows flashing behind it, and Windows painted "Not Responding" over a build that was still starting. macOS and Linux were unaffected: their probe is cheap and opens nothing.
 
-The fix is `backend: NATIVE_WATCHER_BACKEND` on every `subscribe`. `task-file-watcher` had always passed it; `workspace-skill-watcher` did not, and the skill watcher is the one on the launch path. Both now take the pin from `native-watcher-backend.ts`, whose `NativeWatcherApi` makes `backend` a required option so a third watcher cannot reach the auto-detection path without a type error.
+The fix is `backend: NATIVE_WATCHER_BACKEND` on every `subscribe`. `workspace-skill-watcher` did not pass it, and it is the one on the launch path; it is now also the only `subscribe` caller left (the task file watcher was replaced by a per-turn walk). The pin comes from `native-watcher-backend.ts`, whose `NativeWatcherApi` makes `backend` a required option so a new watcher cannot reach the auto-detection path without a type error.
 
 ## What made this expensive to find
 

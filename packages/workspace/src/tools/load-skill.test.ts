@@ -114,6 +114,26 @@ function createTaskConfigWithDirs() {
 
 /* eslint-disable unicorn/no-await-expression-member */
 describe("LoadSkill", () => {
+  // The catalog this tool used to render lives in the session's context message
+  // now, so installing or editing a skill mid-session cannot rewrite a tool
+  // definition at the front of the prompt. A literal description is what
+  // guarantees that: it has nothing to rediscover between requests. The
+  // not-found path below is the recovery route for a name it does not carry.
+  it("describes itself without discovering the installed skills", async () => {
+    await createSkill({ name: "invisible-skill" });
+
+    expect(typeof LoadSkill.description).toBe("string");
+    const description = await (typeof LoadSkill.description === "function"
+      ? LoadSkill.description({
+          agentName: "main",
+          model,
+          taskId: createTaskConfigWithDirs(),
+        })
+      : LoadSkill.description);
+    expect(description).not.toContain("invisible-skill");
+    expect(description).toContain("<available_skills>");
+  });
+
   it("returns not-found state when skill does not exist", async () => {
     await createSkill({ name: "existing-skill" });
 
@@ -888,9 +908,10 @@ describe("LoadSkill", () => {
     const { runPnpmCommand } = await import("../lib/run-pnpm");
     vi.mocked(installPythonSkill).mockResolvedValueOnce({ state: "success" });
     vi.mocked(runPnpmCommand).mockResolvedValueOnce({
-      combined: "",
       command: "pnpm install",
       exitCode: 0,
+      stderr: "",
+      stdout: "",
     });
     await createSkill({
       extraFiles: {

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { Session } from "../schemas/session";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
+import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import {
   buildSessionFrontMatter,
   renderAssistantMetadata,
@@ -271,9 +272,9 @@ describe("session diagnostics", () => {
   it("summarizes persisted session metadata for front matter", () => {
     expect(buildSessionFrontMatter(session)).toMatchInlineSnapshot(`
       {
+        "activeDurationMs": 2000,
         "aiGenerationDurationMs": 2000,
         "assistantMessageCount": 1,
-        "elapsedDurationMs": 4000,
         "messageCount": 4,
         "modelsUsed": [
           {
@@ -307,6 +308,7 @@ describe("session diagnostics", () => {
     );
     const lines = renderAssistantMetadata({
       ...assistantMessage?.metadata,
+      aiGatewayModel: createMockAIGatewayModel(),
       modelId: "auto",
       modelIdServed: "x-ai/grok-4.5",
     } as SessionMessage.Assistant["metadata"]);
@@ -315,14 +317,18 @@ describe("session diagnostics", () => {
     expect(lines[0]).toContain("served=x-ai/grok-4.5");
   });
 
-  it("omits the served model when it matches the requested one", () => {
+  // The canonical id never equals a provider id for a provider that namespaces
+  // by author, so comparing against it reported an alias on every message.
+  it("omits the served model when it is the model that was requested", () => {
     const assistantMessage = session.messages.find(
       (message) => message.role === "assistant",
     );
+    const aiGatewayModel = createMockAIGatewayModel();
     const lines = renderAssistantMetadata({
       ...assistantMessage?.metadata,
-      modelId: "x-ai/grok-4.5",
-      modelIdServed: "x-ai/grok-4.5",
+      aiGatewayModel,
+      modelId: aiGatewayModel.canonicalId,
+      modelIdServed: aiGatewayModel.providerId,
     } as SessionMessage.Assistant["metadata"]);
 
     expect(lines[0]).not.toContain("served=");

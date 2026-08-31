@@ -11,6 +11,11 @@ import {
   DEFAULT_VIEWPORT_WIDTH,
 } from "./device-metrics";
 import { applyDownloadBehavior } from "./downloads";
+import {
+  clearGuestSurface,
+  getEffectiveGuestSurface,
+  requestGuestSurface,
+} from "./guest-surface";
 import { log } from "./log";
 import { withMacEditingCommands } from "./mac-editing-commands";
 import { handlePrintToPDF } from "./print-to-pdf";
@@ -120,7 +125,7 @@ export async function sendCommand({
   }
 
   if (method === "Browser.getWindowForTarget") {
-    return getWindowForTargetStub();
+    return getWindowForTargetStub(targetId);
   }
 
   // Browser.setContentsSize is an experimental CDP command that resizes the
@@ -141,24 +146,34 @@ export async function sendCommand({
     return applyDownloadBehavior(entry, params);
   }
 
-  // Device emulation (Emulation.setDeviceMetricsOverride) isn't supported for
-  // agent-browser, for the same underlying reason captureBeyondViewport isn't
-  // (above): this guest's compositor can't reliably rasterize a layout much
-  // larger than its actual on-screen size. Two different attempts at making
-  // an override "safe" (scaling it to fit the panel, then routing capture
-  // through real CDP instead of capturePage()) each traded the corruption for
-  // a different one -- capturePage() painted only a corner of the emulated
-  // layout and left the rest transparent; real CDP capture at the full
-  // emulated size hit Chromium's own tiling limitation and returned the
-  // page's content repeated in a grid instead of laid out once. Refuse it
-  // outright rather than keep chasing new failure modes; agents needing a
-  // larger capture should use PDF export instead (see above). The browser
-  // panel's own device-preview menu (device-emulation.ts) is unaffected: it
-  // only offers a few bounded, real device sizes, which don't provoke this.
+  // A viewport request resizes the guest element itself rather than overriding
+  // device metrics. The guest's layout viewport follows its element size
+  // exactly, so there is never a second, larger layout for the compositor to
+  // fall short of -- which is what corrupted both earlier attempts at honoring
+  // this command as a real override (see in-app-browser-device-emulation).
+  // The size applies while the guest is parked; a panel showing the guest sizes
+  // it to the panel, and the request takes over again once it parks. Sizes past
+  // what this window can rasterize are refused rather than clamped, because a
+  // clamped guest still reports the size it was asked for.
   if (method === "Emulation.setDeviceMetricsOverride") {
-    throw new Error(
-      "Device/viewport emulation is not supported in this browser. The guest always renders at its on-screen panel size; to capture more than what's visible, export to PDF instead: `agent-browser pdf <path>`.",
-    );
+    const p = (params ??
+      {}) as Protocol.Emulation.SetDeviceMetricsOverrideRequest;
+    const requested = requestGuestSurface({
+      size: { height: p.height, width: p.width },
+      targetId,
+    });
+    if (!requested.ok) {
+      throw new Error(requested.error);
+    }
+    return {};
+  }
+
+  // Not forwarded to the debugger: the guest was resized rather than emulated,
+  // so there is no override to clear, and the panel clears its own preview when
+  // it parks.
+  if (method === "Emulation.clearDeviceMetricsOverride") {
+    clearGuestSurface(targetId);
+    return {};
   }
 
   if (
@@ -284,13 +299,22 @@ async function captureViewportScreenshot(
 // probes Browser.getWindowForTarget to discover window dimensions; return
 // a fixed stub matching our DEFAULT_VIEWPORT so callers can size relative
 // to the agent's logical viewport without hitting an error log per session.
-function getWindowForTargetStub(): Protocol.Browser.GetWindowForTargetResponse {
+// agent-browser probes this to discover its window's dimensions, and Electron's
+// debugger has no Browser domain to answer it. Report what the guest is laid out
+// at rather than a constant: it moves whenever an agent asks for a viewport, and
+// again if the window shrinks under one and the pool clamps to what it can
+// rasterize, so a fixed answer goes stale the first time either happens. Falls
+// back to the default only before the renderer has reported a size.
+function getWindowForTargetStub(
+  targetId: BrowserTargetId,
+): Protocol.Browser.GetWindowForTargetResponse {
+  const surface = getEffectiveGuestSurface(targetId);
   return {
     bounds: {
-      height: DEFAULT_VIEWPORT_HEIGHT,
+      height: surface?.height ?? DEFAULT_VIEWPORT_HEIGHT,
       left: 0,
       top: 0,
-      width: DEFAULT_VIEWPORT_WIDTH,
+      width: surface?.width ?? DEFAULT_VIEWPORT_WIDTH,
       windowState: "normal",
     },
     windowId: 1,

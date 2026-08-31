@@ -6,12 +6,24 @@ interface ModelChipProps {
   aiGatewayModel?: AIGatewayModel.Type;
   className?: string;
   modelId?: string;
+  /**
+   * The model that answered, on a turn where the provider served something
+   * other than what was asked for. The requested name stays and is struck
+   * through, because what was chosen and what answered are both facts about
+   * the turn and the reader picked one of them.
+   *
+   * One mark rather than two: a provider can only substitute within its own
+   * catalog, so both names carry the same one and drawing it twice would say
+   * the models came from different places.
+   */
+  replacedBy?: string;
 }
 
 export function ModelChip({
   aiGatewayModel,
   className = "",
   modelId,
+  replacedBy,
 }: ModelChipProps) {
   const displayName = aiGatewayModel?.name ?? modelId;
   const provider = aiGatewayModel?.params.provider;
@@ -29,7 +41,16 @@ export function ModelChip({
         />
       )}
       <span className="truncate text-xs text-muted-foreground">
-        {displayName}
+        {replacedBy ? (
+          <>
+            <span className="text-muted-foreground/50 line-through">
+              {displayName}
+            </span>{" "}
+            {replacedBy}
+          </>
+        ) : (
+          displayName
+        )}
       </span>
     </div>
   );

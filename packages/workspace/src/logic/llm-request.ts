@@ -3,7 +3,10 @@ import type { ActorRef, AnyMachineSnapshot } from "xstate";
 
 import {
   type AIGatewayModel,
+  CLIENT_SESSION_ID_HEADER,
   fetchAISDKModel,
+  findCachedModelByProviderId,
+  namesSameModel,
   providerOptionsForModel,
 } from "@instrument-org/ai-gateway";
 import {
@@ -87,6 +90,17 @@ export const llmRequestLogic = fromPromise<
     role: "assistant",
   };
 
+  // Stamped when the request goes out, so a turn that ends by abort or error
+  // can still report the time it spent generating. Absent until then: a turn
+  // stopped before its request left spent none.
+  let requestStartedAtMs: number | undefined;
+
+  function msSinceRequestStart() {
+    return requestStartedAtMs === undefined
+      ? undefined
+      : getCurrentDate().getTime() - requestStartedAtMs;
+  }
+
   function saveAbortMessage() {
     assistantMessage.metadata.error = {
       kind: "aborted",
@@ -94,6 +108,7 @@ export const llmRequestLogic = fromPromise<
     };
     assistantMessage.metadata.finishedAt = getCurrentDate();
     assistantMessage.metadata.finishReason = "aborted";
+    assistantMessage.metadata.msToFinish ??= msSinceRequestStart();
     void scopedStore.saveMessage(assistantMessage);
   }
 
@@ -207,9 +222,12 @@ export const llmRequestLogic = fromPromise<
 
     const aiSDKModel = aiSDKModelResult.value;
 
-    const startTimestampMs = getCurrentDate().getTime();
+    requestStartedAtMs = getCurrentDate().getTime();
     const result = streamText({
       abortSignal: signal,
+      // Groups this session's generations into one trace in the analytics our
+      // gateway reports.
+      headers: { [CLIENT_SESSION_ID_HEADER]: input.sessionId },
       maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
       maxRetries: 0, // Handled outside this function
       messages: messagesResult.value,
@@ -244,9 +262,9 @@ export const llmRequestLogic = fromPromise<
           throw part.error;
         }
         case "finish": {
-          msToFinish = getCurrentDate().getTime() - startTimestampMs;
+          msToFinish = msSinceRequestStart();
           const completionTokensPerSecond =
-            part.totalUsage.outputTokens && msToFinish > 0
+            part.totalUsage.outputTokens && msToFinish
               ? (part.totalUsage.outputTokens / msToFinish) * 1000
               : undefined;
           assistantMessage.metadata.usage = part.totalUsage;
@@ -263,8 +281,9 @@ export const llmRequestLogic = fromPromise<
             completion_tokens_per_second: completionTokensPerSecond,
             finish_reason: part.finishReason,
             input_tokens: part.totalUsage.inputTokens ?? 0,
+            model_id_served: assistantMessage.metadata.modelIdServed,
             modelId,
-            ms_to_finish: msToFinish,
+            ms_to_finish: msToFinish ?? 0,
             ms_to_first_chunk: msToFirstChunk ?? 0,
             output_tokens: part.totalUsage.outputTokens ?? 0,
             providerId,
@@ -282,10 +301,29 @@ export const llmRequestLogic = fromPromise<
         case "finish-step": {
           // We only run one step, so the rest of this is covered by "finish",
           // which has no response metadata of its own to read the served model
-          // from. Recorded even when it equals the requested id, so a step that
-          // went through a routing alias and one that named a model outright
-          // are read the same way.
-          assistantMessage.metadata.modelIdServed = part.response.modelId;
+          // from.
+          //
+          // Compared against the id we handed the SDK rather than stored
+          // outright, because the SDK seeds this field with that same id and
+          // only overwrites it if the provider reports one. An id equal to what
+          // we sent therefore says nothing: it is either a provider confirming
+          // our request or a provider that never mentioned the subject, and
+          // Google is always the second. A difference is the only thing that
+          // can only have come from the provider.
+          //
+          // A dated build of the model we asked for is not a difference worth
+          // recording, which is what keeps a provider that resolves its own
+          // aliases from reporting a substitution on every turn.
+          if (!namesSameModel(aiSDKModel.modelId, part.response.modelId)) {
+            assistantMessage.metadata.modelIdServed = part.response.modelId;
+            assistantMessage.metadata.aiGatewayModelServed =
+              findCachedModelByProviderId({
+                configs: workspaceConfig.getAIProviderConfigs(),
+                modelCache: workspaceConfig.modelCache,
+                providerConfigId: input.model.params.providerConfigId,
+                providerId: part.response.modelId,
+              });
+          }
           break;
         }
         case "raw": {
@@ -402,7 +440,7 @@ export const llmRequestLogic = fromPromise<
 
         case "start-step": {
           // We only run one step, so this is covered by "start"
-          msToFirstChunk ??= getCurrentDate().getTime() - startTimestampMs;
+          msToFirstChunk ??= msSinceRequestStart();
           break;
         }
         case "text-delta": {
@@ -575,7 +613,6 @@ export const llmRequestLogic = fromPromise<
             });
           }
           captureEvent("llm.error", {
-            error_message: errorText,
             error_type: "tool-error",
             modelId,
             providerId,
@@ -785,6 +822,7 @@ export const llmRequestLogic = fromPromise<
     }
 
     assistantMessage.metadata.finishedAt = getCurrentDate();
+    assistantMessage.metadata.msToFinish ??= msSinceRequestStart();
     await scopedStore.saveMessage(assistantMessage);
   }
 

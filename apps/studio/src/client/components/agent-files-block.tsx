@@ -17,12 +17,18 @@ import { MarkdownTaskContext } from "./markdown-task-context";
  * is the point, now that a shared folder is somewhere the agent can write and
  * the task-directory watcher cannot see.
  *
- * Every card is drawn from its path alone, without asking whether the file is
- * there. A transcript is a record of what a reply handed over, and whether those
- * bytes still exist is a question with a different answer every minute; the
- * honest time to ask it is when someone acts on the file. An image answers it
- * for free -- the asset origin is a static file server, so the thumbnail either
- * loads or 404s onto the fallback card.
+ * Every card is drawn from its path and the id of the reply that named it,
+ * without asking disk whether the file is there. A transcript is a record of
+ * what a reply handed over, and whether those bytes still exist is a question
+ * with a different answer every minute; the honest time to ask it is when
+ * someone acts on the file. An image answers it for free -- the asset origin is
+ * a static file server, so the thumbnail either loads or 404s onto the fallback
+ * card.
+ *
+ * The id rides in the URL because two replies naming one path that was
+ * rewritten between them would otherwise ask for the same URL, and the renderer
+ * hands the second one the picture it already decoded for the first. That is
+ * how a reply reporting a change draws the file as it was before it.
  */
 export function AgentFilesBlock({ content }: { content: string }) {
   const { isStreaming } = useContext(MarkdownTaskContext);
@@ -72,7 +78,8 @@ export function FilePathsGrid({
   paths: string[];
   pendingFilePath?: string;
 }) {
-  const { assetBaseUrl, taskId } = useContext(MarkdownTaskContext);
+  const { assetBaseUrl, assetVersion, taskId } =
+    useContext(MarkdownTaskContext);
 
   if (
     taskId === undefined ||
@@ -86,7 +93,11 @@ export function FilePathsGrid({
     filename: filePath.split("/").at(-1) ?? filePath,
     filePath,
     taskId,
-    url: getAssetUrl({ assetBase: assetBaseUrl, filePath }),
+    url: getAssetUrl({
+      assetBase: assetBaseUrl,
+      filePath,
+      version: assetVersion,
+    }),
   }));
 
   return (

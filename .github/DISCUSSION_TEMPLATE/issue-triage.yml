@@ -1,0 +1,79 @@
+body:
+  - attributes:
+      value: |
+        > [!IMPORTANT]
+        > This category is for bugs only. If you want a feature, use [Feature Requests, Ideas](https://github.com/instrument-org/instrument/discussions/new?category=feature-requests-ideas). If you have a question, use [Q&A](https://github.com/instrument-org/instrument/discussions/new?category=q-a).
+        >
+        > Those categories do not ask for the details below, so a bug filed there means we have to come back and ask for all of it by hand.
+
+        Please search [existing discussions](https://github.com/instrument-org/instrument/discussions) and [issues](https://github.com/instrument-org/instrument/issues) first. If you find a match, add a reaction rather than a comment, so everyone subscribed is not emailed.
+    type: markdown
+  - attributes:
+      description: What went wrong, and what did you expect instead? Screenshots and screen recordings help a lot.
+      label: What happened
+    id: what-happened
+    type: textarea
+    validations:
+      required: true
+  - attributes:
+      description: The smallest sequence that reproduces it. If you cannot reproduce it on demand, say so and describe what you were doing when it happened.
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a new task.
+        2. Ask it to generate an image.
+        3. The request fails with an error.
+    id: steps
+    type: textarea
+    validations:
+      required: true
+  - attributes:
+      description: Settings, then General, then About.
+      label: Instrument version
+      placeholder: 1.6.2
+    id: version
+    type: input
+    validations:
+      required: true
+  - attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux
+    id: os
+    type: dropdown
+    validations:
+      required: true
+  - attributes:
+      description: On Linux, include the distribution and the desktop environment. Both matter more often than you would expect.
+      label: Operating system version
+      placeholder: Ubuntu 24.04, GNOME 46
+    id: os-version
+    type: input
+    validations:
+      required: true
+  - attributes:
+      description: Open the model picker next to the send button to check. Auto often selects a different provider than people assume, and that is frequently the whole explanation.
+      label: Which model were you using?
+      options:
+        - Instrument Auto
+        - A model I picked myself
+        - Not sure
+        - Not related to a model
+    id: model-selection
+    type: dropdown
+    validations:
+      required: true
+  - attributes:
+      description: If you picked a model yourself, paste what the model picker shows.
+      label: Model name
+      placeholder: claude-opus-5
+    id: model
+    type: input
+  - attributes:
+      description: Paste the full text rather than a screenshot of it, so it turns up in search later. Remove any API keys first.
+      label: Error message or logs
+      render: text
+    id: logs
+    type: textarea
+labels: ["needs-triage"]

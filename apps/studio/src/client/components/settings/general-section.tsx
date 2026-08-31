@@ -21,6 +21,7 @@ import { rpcClient } from "@/client/rpc/client";
 import {
   APP_NAME,
   APP_REPO_URL,
+  BUG_REPORT_URL,
   MANUAL_DOWNLOAD_URL,
 } from "@instrument-org/shared";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
@@ -312,16 +313,24 @@ function About() {
             <div className="space-y-1">
               <div className="text-sm font-medium">Open source</div>
               <p className="text-xs text-muted-foreground">
-                {APP_NAME} is open source and free to use. You can view the
-                source code on GitHub.
+                {APP_NAME} is open source and free to use. View the source on
+                GitHub, or tell us about something that isn&apos;t working.
               </p>
             </div>
-            <Button asChild size="sm" variant="outline">
-              <ExternalLink href={APP_REPO_URL}>
-                View source on GitHub
-                <ArrowSquareOutIcon className="size-3.5" />
-              </ExternalLink>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild size="sm" variant="outline">
+                <ExternalLink href={APP_REPO_URL}>
+                  View source on GitHub
+                  <ArrowSquareOutIcon className="size-3.5" />
+                </ExternalLink>
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <ExternalLink href={BUG_REPORT_URL}>
+                  Report a bug
+                  <ArrowSquareOutIcon className="size-3.5" />
+                </ExternalLink>
+              </Button>
+            </div>
           </div>
         </Card>
       </div>

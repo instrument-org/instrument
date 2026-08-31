@@ -1,6 +1,7 @@
 import {
   backgroundProcessesModelNote,
   browserStatusModelNote,
+  dateChangeModelNote,
   isAddressableTaskFilePath,
   maxStepsModelNote,
   paneTabsModelNote,
@@ -12,6 +13,7 @@ import { type ReactNode } from "react";
 import { FilePathsGrid } from "./agent-files-block";
 import { AttachedFolderChangesNote } from "./attached-folder-changes-note";
 import { type RenderPartContext } from "./chat-stream-render-part";
+import { ModelChangeNote } from "./model-change-note";
 import { ModelContextDebugCard } from "./model-context-debug-card";
 import { ProjectChangesNote } from "./project-changes-note";
 import { SkillChangesCard } from "./skill-changes-card";
@@ -36,6 +38,15 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // context for the model, and a debug peek for us.
   "data-backgroundProcesses": "dev",
   "data-browserStatus": "dev",
+  // Developer-mode only, deliberately. What happens here is a rollover, not a
+  // compaction: assembly stops sending the model's own earlier turns and
+  // carries the user's across verbatim, with nothing summarized. Any wording
+  // faithful to that is a wording about our request assembly, which is not a
+  // thing to hand a reader mid-task, and the familiar word for it promises a
+  // summary that does not exist. The user-facing treatment belongs with the
+  // summarizing compaction it would be describing.
+  "data-contextRollover": "dev",
+  "data-dateChange": "dev",
   // Retired, and shown to everyone rather than to developers, which is the
   // opposite of where it ended up before it was deleted. It was demoted to
   // "dev" because it was a live change card nobody wanted; what it is now is
@@ -44,6 +55,10 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-fileChanges": "always",
   "data-intent": "dev",
   "data-maxSteps": "dev",
+  // Shown to everyone, unlike the rollover above it. The model a task runs on
+  // is the user's own choice, so naming the moment it changed describes
+  // something they did rather than something our assembly did.
+  "data-modelChange": "always",
   "data-paneTabs": "dev",
   "data-projectChanges": "always",
   "data-projectContext": "hidden",
@@ -119,6 +134,24 @@ export function renderDataPart({
         />
       );
     }
+    case "data-contextRollover": {
+      return (
+        <ModelContextDebugCard
+          className="mt-2"
+          key={part.metadata.id}
+          text={`Context rollover: dropped ${part.data.droppedMessages} messages, retained ${part.data.retainedUserMessages} user messages`}
+        />
+      );
+    }
+    case "data-dateChange": {
+      return (
+        <ModelContextDebugCard
+          className="mt-2"
+          key={part.metadata.id}
+          text={dateChangeModelNote(part.data)}
+        />
+      );
+    }
     case "data-fileChanges": {
       // Only `output/`. The watcher behind this part reported everything a turn
       // touched, and the overwhelming majority of that is `work/`: the scripts
@@ -158,6 +191,9 @@ export function renderDataPart({
           text={maxStepsModelNote(part.data)}
         />
       );
+    }
+    case "data-modelChange": {
+      return <ModelChangeNote data={part.data} key={part.metadata.id} />;
     }
     case "data-paneTabs": {
       return (

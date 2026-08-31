@@ -9,6 +9,7 @@ import {
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { toggleSidebar } from "@/client/hooks/use-sidebar";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
+import { requestTaskPaneToggle } from "@/client/lib/foreground-task-pane-registry";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import { debugPages } from "@/client/routes/_app/debug/-debug-routes";
 import { scenarios } from "@/client/routes/_app/debug/-transcript/scenarios";
@@ -261,10 +262,15 @@ export function StudioCommandMenu() {
     "Toggle sidebar",
     commandSearch,
   );
+  // The pane belongs to a task, so the row is only offered where there is one
+  // to act on.
+  const showToggleTaskPaneCommand =
+    Boolean(currentTaskId) && commandMatches("Toggle panel", commandSearch);
   const showCommands =
     showNewTaskCommand ||
     showCheckForUpdatesCommand ||
-    showToggleSidebarCommand;
+    showToggleSidebarCommand ||
+    showToggleTaskPaneCommand;
 
   const handleClose = () => {
     setOpen(false);
@@ -307,6 +313,13 @@ export function StudioCommandMenu() {
   const handleToggleSidebar = () => {
     handleClose();
     toggleSidebar();
+  };
+
+  const handleToggleTaskPane = () => {
+    handleClose();
+    // Through the same registry the chord goes through, so the row and the
+    // chord land on one task and one code path.
+    requestTaskPaneToggle();
   };
 
   const handleSelectDebugItem = (item: DebugItem) => {
@@ -378,6 +391,15 @@ export function StudioCommandMenu() {
                   >
                     <SidebarSimpleIcon className="size-4" />
                     <span>Toggle sidebar</span>
+                  </CommandItem>
+                )}
+                {showToggleTaskPaneCommand && (
+                  <CommandItem
+                    onSelect={handleToggleTaskPane}
+                    value="toggle-panel"
+                  >
+                    <SidebarSimpleIcon className="size-4 rotate-180" />
+                    <span>Toggle panel</span>
                   </CommandItem>
                 )}
                 {showCheckForUpdatesCommand && (

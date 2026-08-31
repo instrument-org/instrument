@@ -8,6 +8,7 @@ import {
   isAddressableTaskFilePath,
   type TaskId,
 } from "@instrument-org/workspace/client";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { ImageIcon } from "@phosphor-icons/react/Image";
 import { useSetAtom } from "jotai";
 import {
@@ -34,6 +35,7 @@ import remarkGfm from "remark-gfm";
 import remend from "remend";
 
 import { useHashLinkScroll } from "../hooks/use-hash-link-scroll";
+import { useOpenExternalLink } from "../hooks/use-open-external-link";
 import { getAssetUrl } from "../lib/get-asset-url";
 import {
   type ImageSourceKind,
@@ -67,17 +69,18 @@ import {
   ContextMenuTrigger,
 } from "./ui/context-menu";
 import { contextMenuComponents } from "./ui/menu-components";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 interface MarkdownProps {
   assetBaseUrl?: string;
   // Which bytes this text's file references are about; see
   // `MarkdownTaskContext`.
   assetVersion?: string;
-  // Drops the images the allow-list rejects instead of standing a placeholder
-  // in for them. For markdown scraped from a page rather than authored for us:
-  // the allow-list passes nothing such a page carries, so every placeholder is
-  // permanent, and being block-level each one interrupts the prose it sits in
-  // to name a picture the reader will never see.
+  // Drops the images the allow-list rejects instead of standing a chip in for
+  // them. For markdown scraped from a page rather than authored for us: such a
+  // page carries logos, badges, and tracker pixels by the dozen, the prose is
+  // what the surface is for, and the full page is a click away through its own
+  // source link.
   hideImages?: boolean;
   /**
    * Where an image in this markdown may point; see `lib/image-policy`.
@@ -488,15 +491,96 @@ const markdownUrlTransform: UrlTransform = (url, key, node) => {
   }
 };
 
-const ImagePlaceholder = ({ alt, src }: { alt?: string; src?: string }) => (
-  <div className="flex max-w-full items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-    <ImageIcon className="size-4 shrink-0" />
-    <div className="min-w-0 flex-1">
-      <div className="truncate">{alt || "Image"}</div>
-      {src && <div className="truncate text-xs opacity-70">{src}</div>}
-    </div>
-  </div>
-);
+// What a chip prints beside its label: the host for a URL, the path itself for
+// a path. A source too long to read inline (a rejected `data:` URI, mostly)
+// prints nothing, and the label stands alone.
+const imageSourceHint = (src: string): string | undefined => {
+  try {
+    return new URL(src).hostname || undefined;
+  } catch {
+    return src.length <= 96 ? src : undefined;
+  }
+};
+
+const blockedImageChipClass =
+  "inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-1 align-middle text-xs text-muted-foreground";
+
+/**
+ * The stand-in for an image this surface does not fetch, and for one that
+ * failed to arrive: an inline chip sized to what it says, so it flows with the
+ * prose (a row of badges wraps as a row of chips) rather than interrupting it.
+ * It names the image by its alt text and its source by host.
+ *
+ * A chip with a web source is a button that hands the URL to the system
+ * browser: the same trust a link in the same document already gets, since the
+ * reader sees where it goes and the request is theirs, and it works for any
+ * host where drawing the image inline would not. The tooltip says why the
+ * picture is not simply shown, in the reader's terms.
+ */
+const BlockedImage = ({
+  alt,
+  failed,
+  src,
+}: {
+  alt?: string;
+  failed?: boolean;
+  src?: string;
+}) => {
+  const openExternalLink = useOpenExternalLink();
+  const hint = src ? imageSourceHint(src) : undefined;
+  const isWebSource = src !== undefined && /^https?:\/\//i.test(src);
+  const body = (
+    <>
+      <ImageIcon className="size-3.5 shrink-0" />
+      <span className="min-w-0 truncate">{alt?.trim() || "Image"}</span>
+      {hint && (
+        <span className="max-w-48 min-w-0 truncate opacity-60">{hint}</span>
+      )}
+    </>
+  );
+
+  if (failed || !isWebSource) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className={blockedImageChipClass}>{body}</span>
+        </TooltipTrigger>
+        <TooltipContent>
+          {failed
+            ? "This image couldn’t be loaded."
+            : "This image can’t be shown here."}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          className={cn(
+            blockedImageChipClass,
+            "cursor-pointer text-left hover:bg-muted hover:text-foreground",
+          )}
+          onClick={() => {
+            openExternalLink(src, { addReferral: false });
+          }}
+          type="button"
+        >
+          {body}
+          <ArrowSquareOutIcon className="size-3.5 shrink-0 opacity-60" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent maxWidth="20rem">
+        <p>
+          Images from the web aren’t loaded here, so opening a file never
+          contacts another site on its own.
+        </p>
+        <p>Click to view the image in your browser.</p>
+        {src.length <= 300 && <p className="break-all opacity-70">{src}</p>}
+      </TooltipContent>
+    </Tooltip>
+  );
+};
 
 /**
  * An image the message points at, which can turn out not to be there: an asset
@@ -527,7 +611,7 @@ const MarkdownImage = ({
   if (src !== undefined && src === failedSrc) {
     // Half a URL fails the same way a missing file does, and until the text
     // settles there is no telling which this is.
-    return isStreaming ? null : <ImagePlaceholder alt={alt} src={src} />;
+    return isStreaming ? null : <BlockedImage alt={alt} failed src={src} />;
   }
 
   return (
@@ -723,7 +807,7 @@ export const Markdown = memo(
               );
               if (!isImageSourceAllowed(resolvedSrc, imageKinds)) {
                 return hideImages ? null : (
-                  <ImagePlaceholder alt={alt} src={resolvedSrc} />
+                  <BlockedImage alt={alt} src={resolvedSrc} />
                 );
               }
               const filePath = taskFilePathFromImageSrc(src);

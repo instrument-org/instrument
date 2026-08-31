@@ -345,12 +345,15 @@ describe("Markdown fences", () => {
 // attribute surviving the trip through the rehype pipeline and out of
 describe("Markdown images", () => {
   it("names the image that could not be drawn, rather than breaking", () => {
-    renderMarkdown("![The chart](output/chart.png)");
+    const { container } = renderMarkdown("![The chart](output/chart.png)");
 
     fireEvent.error(screen.getByRole("img"));
 
+    expect(container.querySelector("img")).toBeNull();
     expect(screen.getByText("The chart")).toBeTruthy();
-    expect(screen.getByText(`${ASSET_BASE}/output/chart.png`)).toBeTruthy();
+    expect(screen.getByText("assets.a-task.localhost")).toBeTruthy();
+    // A failed image is a fact rather than an offer, so the chip is no button.
+    expect(screen.queryByRole("button", { name: /The chart/ })).toBeNull();
   });
 
   // A reply routinely names the file it is still writing, so mid-turn a miss

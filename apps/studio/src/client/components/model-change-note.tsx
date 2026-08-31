@@ -25,7 +25,16 @@ import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
  * it is what they recognize; the id is what survives when a name was never
  * stored, and an id is still better than an empty space where a model should
  * be.
+ *
+ * Trimmed, because the gateway's names arrive with a leading space and this is
+ * a sentence rather than a table cell: untrimmed they read as "from  Auto to
+ * Gemini", with the gap visible mid-line. `ModelPicker` trims the same field
+ * for the same reason.
  */
+function displayName(side: { modelId: string; name?: string }): string {
+  return side.name?.trim() || side.modelId;
+}
+
 export function ModelChangeNote({
   data,
 }: {
@@ -33,9 +42,9 @@ export function ModelChangeNote({
 }) {
   return (
     <div className="my-4 w-full px-4 text-center text-xs text-balance text-muted-foreground">
-      Switched model from {data.from.name ?? data.from.modelId} to{" "}
+      Switched model from {displayName(data.from)} to{" "}
       <span className="font-medium text-muted-foreground">
-        {data.to.name ?? data.to.modelId}
+        {displayName(data.to)}
       </span>
     </div>
   );

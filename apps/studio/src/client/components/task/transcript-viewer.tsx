@@ -210,6 +210,7 @@ function TranscriptBody({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [filter, setFilter] = useState("");
 
+  // oxlint-disable-next-line react/incompatible-library
   const virtualizer = useVirtualizer({
     count: lines.length,
     estimateSize: () => LINE_HEIGHT,

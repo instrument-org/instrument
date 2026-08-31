@@ -29,7 +29,10 @@ import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { getToolByType, type ToolOutputByName } from "../tools/all";
 import { type AnyAgentTool } from "../tools/types";
-import { executeToolCallMachine } from "./execute-tool-call";
+import {
+  executeToolCallMachine,
+  saveStoppedToolCallPart,
+} from "./execute-tool-call";
 
 export type AgentParentEvent =
   | {
@@ -73,6 +76,69 @@ export const agentMachine = setup({
 
   actors: {
     executeToolCallMachine,
+
+    /**
+     * Every path into `Finishing` runs this first. A tool part of this run
+     * still in `input-*` at that point has no writer left: the stream that
+     * saved it is gone, queued calls are never re-executed on resume, and
+     * model-message conversion filters `input-*` parts out entirely, so the
+     * part would sit unresolved in the transcript forever and the resumed
+     * model would lose the record of having made the call. That covers queued
+     * siblings of a stopped call, parts an aborted stream saved before the
+     * machine left `LLMStreaming` (they reach no context array), pending
+     * interactive calls, and parts left by an errored stream attempt.
+     */
+    finalizeDanglingToolCalls: fromPromise<
+      // oxlint-disable-next-line typescript/no-invalid-void-type
+      void,
+      {
+        parentMessageId: StoreId.Message;
+        sessionId: StoreId.Session;
+        stopRequested: boolean;
+        taskId: TaskId;
+      }
+    >(async ({ input, signal }) => {
+      const messagesResult = await Store.getMessagesWithParts(
+        { sessionId: input.sessionId, taskId: input.taskId },
+        { signal },
+      );
+
+      if (messagesResult.isErr()) {
+        throw new Error(
+          `Error loading messages: ${JSON.stringify(messagesResult.error)}`,
+        );
+      }
+
+      for (const message of messagesResult.value) {
+        // Only this run's steps: assistant messages created after the message
+        // that started the run (ids are monotonic ULIDs, so id order is
+        // creation order). A part left dangling by an earlier run keeps
+        // whatever record that run wrote.
+        if (
+          message.role !== "assistant" ||
+          message.id <= input.parentMessageId
+        ) {
+          continue;
+        }
+        for (const part of message.parts) {
+          if (
+            !isToolPart(part) ||
+            (part.state !== "input-available" &&
+              part.state !== "input-streaming")
+          ) {
+            continue;
+          }
+          await saveStoppedToolCallPart(
+            {
+              part,
+              reason: input.stopRequested ? "manual" : "unknown",
+              taskId: input.taskId,
+            },
+            { signal },
+          );
+        }
+      }
+    }),
 
     llmRequestLogic,
 
@@ -274,6 +340,9 @@ export const agentMachine = setup({
       target: ".Finishing",
     },
     stop: {
+      // Recorded so the finalizing sweep can tell a user stop (parts get the
+      // "stopped by you" copy) from an error-driven finish.
+      actions: assign({ stopRequested: true }),
       target: ".Finishing",
     },
     updateInteractiveToolCall: {
@@ -386,17 +455,35 @@ export const agentMachine = setup({
     },
 
     Finishing: {
-      invoke: {
-        input: ({ context }) => ({
-          agent: context.agent,
-          model: context.model,
-          parentMessageId: context.parentMessageId,
-          sessionId: context.sessionId,
-          taskId: context.taskId,
-        }),
-        onDone: "Done",
-        onError: { actions: "assignEventError", target: "Done" },
-        src: "onFinish",
+      initial: "FinalizingDanglingToolCalls",
+      states: {
+        FinalizingDanglingToolCalls: {
+          invoke: {
+            input: ({ context }) => ({
+              parentMessageId: context.parentMessageId,
+              sessionId: context.sessionId,
+              stopRequested: context.stopRequested,
+              taskId: context.taskId,
+            }),
+            onDone: "RunningOnFinish",
+            onError: { actions: "assignEventError", target: "RunningOnFinish" },
+            src: "finalizeDanglingToolCalls",
+          },
+        },
+        RunningOnFinish: {
+          invoke: {
+            input: ({ context }) => ({
+              agent: context.agent,
+              model: context.model,
+              parentMessageId: context.parentMessageId,
+              sessionId: context.sessionId,
+              taskId: context.taskId,
+            }),
+            onDone: "#agent.Done",
+            onError: { actions: "assignEventError", target: "#agent.Done" },
+            src: "onFinish",
+          },
+        },
       },
     },
 

@@ -216,6 +216,18 @@ export const SHORTCUTS = {
     label: "Toggle Sidebar",
     owner: "menu",
   },
+  // The task's own pane, which is the sidebar's opposite number and so takes
+  // the sidebar's chord with Alt added.
+  //
+  // `menu` rather than `renderer` because the pane holds the browser: the chord
+  // that closes it has to work while the user's focus is inside the guest,
+  // which only a native accelerator reaches.
+  toggleTaskPane: {
+    accelerator: "CmdOrCtrl+Alt+B",
+    group: "View",
+    label: "Toggle Panel",
+    owner: "menu",
+  },
   zoomIn: {
     accelerator: "CmdOrCtrl+Plus",
     // `Ctrl+=` is what a Windows keyboard physically offers for zoom in, and the

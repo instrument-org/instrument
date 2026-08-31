@@ -13,6 +13,40 @@ import { getToolByType } from "../tools/all";
 
 type CancellationReason = "manual" | "timeout" | "unknown";
 
+/**
+ * Writes the terminal record for a tool call that will never produce its own
+ * output: `output-error` with copy naming why it stopped. Shared by the cancel
+ * path here and the agent machine's finishing sweep over dangling parts.
+ */
+export async function saveStoppedToolCallPart(
+  input: {
+    part: SessionMessagePart.ToolPart;
+    reason: CancellationReason;
+    taskId: TaskId;
+  },
+  { signal }: { signal?: AbortSignal } = {},
+) {
+  await Store.updatePart(
+    {
+      messageId: input.part.metadata.messageId,
+      partId: input.part.metadata.id,
+      sessionId: input.part.metadata.sessionId,
+    },
+    (current) =>
+      ({
+        ...current,
+        errorText: `This action was stopped${input.reason === "timeout" ? " because it took too long" : input.reason === "manual" ? " by you" : ""}.`,
+        metadata: {
+          ...current.metadata,
+          endedAt: getCurrentDate(),
+        },
+        state: "output-error",
+      }) as SessionMessagePart.Type,
+    input.taskId,
+    { signal },
+  );
+}
+
 const executeToolLogic = fromPromise<
   { preliminarySaved: boolean },
   {
@@ -51,25 +85,7 @@ export const executeToolCallMachine = setup({
         taskId: TaskId;
       }
     >(async ({ input, signal }) => {
-      await Store.updatePart(
-        {
-          messageId: input.part.metadata.messageId,
-          partId: input.part.metadata.id,
-          sessionId: input.part.metadata.sessionId,
-        },
-        (current) =>
-          ({
-            ...current,
-            errorText: `This action was stopped${input.reason === "timeout" ? " because it took too long" : input.reason === "manual" ? " by you" : ""}.`,
-            metadata: {
-              ...current.metadata,
-              endedAt: getCurrentDate(),
-            },
-            state: "output-error",
-          }) as SessionMessagePart.Type,
-        input.taskId,
-        { signal },
-      );
+      await saveStoppedToolCallPart(input, { signal });
     }),
 
     executeToolLogic,

@@ -42,6 +42,7 @@ export type AppCommand =
   | { type: "selectPrevious" }
   | { type: "toggleCommandMenu" }
   | { type: "toggleSidebar" }
+  | { type: "toggleTaskPane" }
   | { type: "zoomIn" }
   | { type: "zoomOut" }
   | { type: "zoomReset" };

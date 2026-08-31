@@ -121,7 +121,11 @@ describe("the remote allowlist inside the CSP", () => {
         return true;
       }
       const wildcard = /^https:\/\/\*(\..+)$/.exec(source)?.[1];
-      return wildcard !== undefined && host.endsWith(wildcard) && host !== wildcard.slice(1);
+      return (
+        wildcard !== undefined &&
+        host.endsWith(wildcard) &&
+        host !== wildcard.slice(1)
+      );
     });
 
   it("found the directive", () => {

@@ -22,21 +22,50 @@ const ZOOM_DIVISORS = ["var(--content-zoom)", "var(--app-zoom)"];
 
 const VIEWPORT_UNIT = /[\d.]+v(?:h|w|max|min)\b/g;
 
-/** The Tailwind arbitrary value or CSS expression a match sits inside. */
+/** Quote characters, which bound the expression a match can belong to. */
+const QUOTES = ['"', "'", "`"];
+
+/**
+ * The Tailwind arbitrary value or CSS expression a match sits inside.
+ *
+ * Climbs out through nested CSS functions rather than stopping at the innermost
+ * bracket, because the divisor answering for a unit is written outside them: a
+ * length written as a `var()` fallback is divided by the `calc()` around that
+ * `var()`, and reading the `var()` alone would report it as unanswered for. The
+ * climb stops at the string the match is written in, so an expression can never
+ * be excused by code that merely sits near it.
+ */
 function enclosingExpression(source: string, index: number) {
-  const open = Math.max(
-    source.lastIndexOf("[", index),
-    source.lastIndexOf("(", index),
+  const literal = Math.max(
+    ...QUOTES.map((quote) => source.lastIndexOf(quote, index)),
   );
-  const close = Math.min(
-    ...[source.indexOf("]", index), source.indexOf(")", index)].filter(
+  let start = index;
+  let end = index;
+  let from = index;
+
+  for (;;) {
+    const open = Math.max(
+      source.lastIndexOf("[", from),
+      source.lastIndexOf("(", from),
+    );
+    if (open === -1 || open < literal) {
+      break;
+    }
+    const closers = [source.indexOf("]", end), source.indexOf(")", end)].filter(
       (at) => at !== -1,
-    ),
-  );
-  return source.slice(
-    open === -1 ? index : open,
-    Number.isFinite(close) ? close + 1 : index,
-  );
+    );
+    start = open;
+    end = closers.length > 0 ? Math.min(...closers) + 1 : end;
+    // A `[` is the Tailwind arbitrary value, which is as far out as an
+    // expression goes. A `(` with a name in front of it is a CSS function,
+    // which may be nested in another one.
+    if (source[start] === "[" || !/[\w-]$/.test(source.slice(0, start))) {
+      break;
+    }
+    from = start - 1;
+  }
+
+  return source.slice(start, end);
 }
 
 function sourceFiles(dir: string): string[] {

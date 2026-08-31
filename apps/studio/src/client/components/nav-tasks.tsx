@@ -136,6 +136,7 @@ function TasksList({
     };
   }, [zoom]);
 
+  // oxlint-disable-next-line react/incompatible-library
   const virtualizer = useVirtualizer({
     count: tasks.length,
     estimateSize: () => TASK_ROW_HEIGHT,

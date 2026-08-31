@@ -14,9 +14,15 @@
  * whose `+` reports the same character as a shifted `=`, and the named keys that
  * produce no character at all.
  *
- * The gap this leaves is Alt: on macOS `key` is the composed character, so
- * Option+A arrives as `å`. No chord in the table takes Alt; one that did would
- * need matching on `code` and a note about which layouts it holds for.
+ * Alt is the exception, because it rewrites the character a key types: on macOS
+ * `key` is the composed character, so Option+A arrives as `å`. A chord holding
+ * Alt is therefore decided on `code`, and only for the keys whose position this
+ * can name -- letters, digits, and the keys that were already positional.
+ * Anything else under Alt is refused rather than matched against a character
+ * that never arrives. The cost is the disagreement described above, in the one
+ * place it is unavoidable: a positional chord follows the physical key across
+ * layouts while its menu item follows the character, so the two land on the
+ * same key only where that key sits where QWERTY keeps it.
  */
 
 import { type Input } from "electron";
@@ -201,7 +207,7 @@ export function parseAccelerator(
     }
   }
 
-  const definition = keyDefinition(key);
+  const definition = keyDefinition(key, { alt });
   if (!definition) {
     return null;
   }
@@ -218,8 +224,24 @@ export function parseAccelerator(
   };
 }
 
-function keyDefinition(key: string): KeyDefinition | null {
+function keyDefinition(
+  key: string,
+  { alt }: { alt: boolean },
+): KeyDefinition | null {
   const token = key.toLowerCase();
+  // Held Alt puts a different character on the event than the key is named
+  // for, so the letters and digits are read as the positions they sit at and
+  // the keys that carry a character no position can name are refused. See the
+  // note at the top of the file.
+  if (alt) {
+    if (/^[a-z]$/.test(token)) {
+      return { on: "code", value: `Key${token.toUpperCase()}` };
+    }
+    if (/^\d$/.test(token)) {
+      return { on: "code", value: `Digit${token}` };
+    }
+    return positionalDefinition(token);
+  }
   // A letter's shifted face is its upper case, which the comparison folds away.
   if (/^[a-z]$/.test(token)) {
     return { on: "key", value: token };
@@ -237,6 +259,15 @@ function keyDefinition(key: string): KeyDefinition | null {
   if (SHIFTED_CHARACTERS.has(token)) {
     return { ignoresShift: true, on: "key", value: token };
   }
+  return positionalDefinition(token);
+}
+
+/**
+ * The keys that name a position rather than a character: the function row, the
+ * numpad, and the named keys that type nothing at all. They are decided on
+ * `code` whatever is held, so Alt leaves them alone.
+ */
+function positionalDefinition(token: string): KeyDefinition | null {
   if (/^f(?:[1-9]|1\d|2[0-4])$/.test(token)) {
     return { on: "code", value: token.toUpperCase() };
   }

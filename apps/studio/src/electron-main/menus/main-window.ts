@@ -37,6 +37,7 @@ export function createMainWindowMenu(): MenuItemConstructorOptions[] {
       shortcutMenuItem("findInPage"),
       { type: "separator" as const },
       shortcutMenuItem("toggleSidebar"),
+      shortcutMenuItem("toggleTaskPane"),
       { type: "separator" as const },
       { role: "togglefullscreen" as const },
     ],

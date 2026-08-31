@@ -8,9 +8,11 @@ import {
   FileViewerHeader,
 } from "@/client/components/file-viewer";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
+import { useIsTaskPageVisible } from "@/client/hooks/use-task-page-visible";
 import { useTaskPaneActions } from "@/client/hooks/use-task-pane";
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
+import { registerForegroundTaskPane } from "@/client/lib/foreground-task-pane-registry";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
@@ -23,7 +25,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 
 import { FileLoading } from "../file-loading";
 import { TaskBrowserPanel } from "./browser-panel";
@@ -59,8 +61,18 @@ export function TaskView({
 }) {
   const openFileViewer = useSetAtom(openFileViewerAtom);
   const assetBaseUrl = getAssetBaseUrl(task.id);
-  const { close, closeTab, openFiles, reorderTabs, selectTab } =
+  const { close, closeTab, openFiles, reorderTabs, selectTab, toggle } =
     useTaskPaneActions(task.id);
+
+  // Hand the pane's toggle to the app command that opens and closes it, for as
+  // long as this is the task on screen.
+  const isTaskVisible = useIsTaskPageVisible();
+  useEffect(() => {
+    if (!isTaskVisible) {
+      return;
+    }
+    return registerForegroundTaskPane({ toggle });
+  }, [isTaskVisible, toggle]);
 
   // Whether a live browser exists for this session, used to show the guest vs a
   // placeholder in the browser panel.

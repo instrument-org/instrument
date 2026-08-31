@@ -334,6 +334,27 @@ describe("session diagnostics", () => {
     expect(lines[0]).not.toContain("served=");
   });
 
+  // A provider that resolves its own alias answers with the dated build behind
+  // it, which is one model rather than two. Read here by the same rule as the
+  // transcript, so an export and the app it came from cannot disagree about the
+  // same message.
+  it("omits the served model when the provider pinned the requested one to a build", () => {
+    const assistantMessage = session.messages.find(
+      (message) => message.role === "assistant",
+    );
+    const aiGatewayModel = createMockAIGatewayModel({
+      providerId: "openai/gpt-5.6-luna",
+    });
+    const lines = renderAssistantMetadata({
+      ...assistantMessage?.metadata,
+      aiGatewayModel,
+      modelId: aiGatewayModel.canonicalId,
+      modelIdServed: "openai/gpt-5.6-luna-2026-01-15",
+    } as SessionMessage.Assistant["metadata"]);
+
+    expect(lines[0]).not.toContain("served=");
+  });
+
   it("renders response-level model, usage, timing, and error metadata", () => {
     const assistantMessage = session.messages.find(
       (message) => message.role === "assistant",

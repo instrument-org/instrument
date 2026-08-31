@@ -1,3 +1,4 @@
+import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { useTaskPane, useTaskPaneActions } from "@/client/hooks/use-task-pane";
@@ -20,14 +21,18 @@ export function PaneToggle({ taskId }: { taskId: TaskId }) {
   const { toggle } = useTaskPaneActions(taskId);
 
   return (
-    <Button
-      aria-label={pane.open ? "Close panel" : "Open panel"}
-      className={toolbarClassName({ className: "shrink-0", pressed: false })}
-      onClick={toggle}
-      size="icon-sm"
-      variant="ghost"
-    >
-      <SidebarSimpleIcon className="size-4 rotate-180" />
-    </Button>
+    // The tooltip names the control and shows its chord; the button keeps its
+    // own accessible name, which says which way this press goes.
+    <ToolbarTooltip shortcut="toggleTaskPane">
+      <Button
+        aria-label={pane.open ? "Close panel" : "Open panel"}
+        className={toolbarClassName({ className: "shrink-0", pressed: false })}
+        onClick={toggle}
+        size="icon-sm"
+        variant="ghost"
+      >
+        <SidebarSimpleIcon className="size-4 rotate-180" />
+      </Button>
+    </ToolbarTooltip>
   );
 }

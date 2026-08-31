@@ -83,10 +83,6 @@ function getContextWindowForModel(model?: AIGatewayModel.Type): {
   return { estimated: true, tokens: match?.[1] ?? DEFAULT_CONTEXT_WINDOW };
 }
 
-// Models tend to underperform past ~200k tokens of context, so we cap the ring
-// at this threshold regardless of the model's actual maximum. The tooltip still
-// shows the true context size so users know the model's real limit.
-const RING_CAP = 200_000;
 const SIZE = 20;
 const CENTER = SIZE / 2;
 const RADIUS = 8;
@@ -115,7 +111,11 @@ export function SessionContextRing({
     return null;
   }
 
-  const ratio = Math.min(tokens / Math.min(contextWindow, RING_CAP), 1);
+  // Against the model's own window, so the ring answers "how full is this
+  // model" rather than how full some other limit would have been. A ring that
+  // fills against a threshold the model does not have reads as running out
+  // while there is most of a window left.
+  const ratio = Math.min(tokens / contextWindow, 1);
   const dashOffset = CIRCUMFERENCE * (1 - ratio);
 
   const percentUsed = Math.round(ratio * 100);
@@ -166,24 +166,14 @@ export function SessionContextRing({
               {formatNumber(tokens)} / {formatNumber(contextWindow)}
             </span>
           </div>
-          {contextWindow > RING_CAP && (
-            <div className="flex items-baseline justify-between gap-6">
-              <span className="opacity-80">Effective limit:</span>
-              <span className="font-medium tabular-nums">
-                {formatNumber(RING_CAP)} ({percentUsed}%)
-              </span>
-            </div>
-          )}
-          {contextWindow <= RING_CAP && (
-            <div className="flex items-baseline justify-between gap-6">
-              <span className="opacity-80">Usage:</span>
-              <span className="font-medium tabular-nums">{percentUsed}%</span>
-            </div>
-          )}
+          <div className="flex items-baseline justify-between gap-6">
+            <span className="opacity-80">Usage:</span>
+            <span className="font-medium tabular-nums">{percentUsed}%</span>
+          </div>
           {estimated && (
             <div className="max-w-52 opacity-60">
-              This provider does not report a window size, so this is an
-              estimate.
+              This provider does not report its window size, so the limit above
+              is our estimate and the real one may be larger.
             </div>
           )}
         </div>

@@ -75,6 +75,7 @@ export const ReasoningMessage = memo(function ReasoningMessage({
     if (!isLoading) {
       return;
     }
+    // oxlint-disable-next-line react/set-state-in-effect
     setNow(Date.now());
     const interval = setInterval(() => {
       setNow(Date.now());

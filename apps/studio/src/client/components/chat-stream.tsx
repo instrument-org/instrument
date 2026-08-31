@@ -173,12 +173,41 @@ export function ChatStream({
     ReadonlySet<StoreId.Part>
   >(() => new Set());
 
-  const toggleGroup = (groupId: StoreId.Part) => {
+  const toggleGroup = (group: TranscriptGroupData) => {
     releaseAutoScroll();
+    const isOpening = !expandedGroupIds.has(group.id);
     setExpandedGroupIds((current) => {
       const next = new Set(current);
-      if (!next.delete(groupId)) {
-        next.add(groupId);
+      if (!next.delete(group.id)) {
+        next.add(group.id);
+      }
+      return next;
+    });
+
+    // A run the agent never named is headed by a copy of one of its own steps,
+    // so the click that opened it was a click on that step. Opening the run
+    // alone answers with the row the reader just clicked, shut, somewhere among
+    // its neighbors; opening the step too is what they asked for. Shutting takes
+    // both back, since the head line is the only thing left to shut the run
+    // with.
+    //
+    // A named phase is headed by its own title instead, and a click there asks
+    // for the phase's steps rather than any one of them. Its copy is an ordinary
+    // row that already opens itself and the phase around it; see
+    // `setRowExpanded`.
+    const headRowId =
+      group.headingRowId === undefined
+        ? groupStandInRowId({ group, isExpanded: !isOpening })
+        : undefined;
+    if (headRowId === undefined) {
+      return;
+    }
+    setExpandedRowIds((current) => {
+      const next = new Set(current);
+      if (isOpening) {
+        next.add(headRowId);
+      } else {
+        next.delete(headRowId);
       }
       return next;
     });
@@ -769,7 +798,7 @@ function collectGroups({
 }: {
   groups: Map<StoreId.Part, TranscriptGroupData>;
   isGroupExpanded: (group: TranscriptGroupData | undefined) => boolean;
-  onToggle: (groupId: StoreId.Part) => void;
+  onToggle: (group: TranscriptGroupData) => void;
   renderStandIn: (group: TranscriptGroupData) => React.ReactNode;
   rows: MessageRow[];
 }): React.ReactNode[] {
@@ -820,7 +849,7 @@ function collectGroups({
         isExpanded={isGroupExpanded(group)}
         key={`group-${group.id}-${run.rows[0]?.id ?? ""}`}
         onToggle={() => {
-          onToggle(group.id);
+          onToggle(group);
         }}
       >
         {heading !== undefined && (

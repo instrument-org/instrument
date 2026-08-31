@@ -1,5 +1,20 @@
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 
+export function ModelChangeNote({
+  data,
+}: {
+  data: SessionMessageDataPart.ModelChangeDataPart;
+}) {
+  return (
+    <div className="my-4 w-full px-4 text-center text-xs text-balance text-muted-foreground">
+      Switched model from {displayName(data.from)} to{" "}
+      <span className="font-medium text-muted-foreground">
+        {displayName(data.to)}
+      </span>
+    </div>
+  );
+}
+
 /**
  * The turn where the task started asking a different model.
  *
@@ -33,19 +48,4 @@ import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
  */
 function displayName(side: { modelId: string; name?: string }): string {
   return side.name?.trim() || side.modelId;
-}
-
-export function ModelChangeNote({
-  data,
-}: {
-  data: SessionMessageDataPart.ModelChangeDataPart;
-}) {
-  return (
-    <div className="my-4 w-full px-4 text-center text-xs text-balance text-muted-foreground">
-      Switched model from {displayName(data.from)} to{" "}
-      <span className="font-medium text-muted-foreground">
-        {displayName(data.to)}
-      </span>
-    </div>
-  );
 }

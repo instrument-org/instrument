@@ -13,7 +13,7 @@ function change(
 }
 
 function noteText() {
-  return screen.getByText(/Switched model/).textContent ?? "";
+  return screen.getByText(/Switched model/).textContent;
 }
 
 describe("ModelChangeNote", () => {

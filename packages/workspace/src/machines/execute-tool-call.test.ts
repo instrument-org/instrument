@@ -11,7 +11,10 @@ import {
   createMockTaskConfig,
   MOCK_WORKSPACE_DIRS,
 } from "../test/helpers/mock-task-config";
-import { executeToolCallMachine } from "./execute-tool-call";
+import {
+  executeToolCallMachine,
+  saveStoppedToolCallPart,
+} from "./execute-tool-call";
 
 vi.mock(import("ulid"));
 vi.mock(import("../lib/session-store-storage"));
@@ -615,6 +618,70 @@ describe("executeToolCallMachine", () => {
           "type": "tool-bash",
         }
       `);
+    });
+  });
+
+  // The stop record is for a call that will never answer. Two writers can reach
+  // one part when a tool finishes as the user stops, or as the finishing sweep
+  // scans, and the answer has to win: a real output replaced by an account of
+  // the stop is a result the model and the reader both lose.
+  describe("saveStoppedToolCallPart", () => {
+    async function readStoredPart(partId: StoreId.Part) {
+      const session = await Store.getSessionWithMessagesAndParts(
+        sessionId,
+        taskConfig,
+      );
+      return session
+        ._unsafeUnwrap()
+        .messages.flatMap((message) => message.parts)
+        .find((part) => part.metadata.id === partId);
+    }
+
+    it("finalizes a call that never produced output", async () => {
+      const part = createShellCommandPart("sleep 30");
+      await Store.savePart(part, taskConfig);
+
+      await saveStoppedToolCallPart({
+        part,
+        reason: "manual",
+        taskId: taskConfig,
+      });
+
+      expect(await readStoredPart(part.metadata.id)).toMatchObject({
+        errorText: "This action was stopped by you.",
+        state: "output-error",
+      });
+    });
+
+    it("leaves a call that answered first exactly as it answered", async () => {
+      const part = createShellCommandPart("echo hi");
+      await Store.savePart(
+        {
+          ...part,
+          output: {
+            command: "echo hi",
+            commands: ["echo"],
+            durationMs: 0,
+            exitCode: 0,
+            output: "hi",
+            spillFilePath: undefined,
+          },
+          preliminary: false,
+          state: "output-available",
+        },
+        taskConfig,
+      );
+
+      // The stale input-available snapshot a scan would still be holding.
+      await saveStoppedToolCallPart({
+        part,
+        reason: "manual",
+        taskId: taskConfig,
+      });
+
+      const stored = await readStoredPart(part.metadata.id);
+      expect(stored).toMatchObject({ state: "output-available" });
+      expect(stored).not.toHaveProperty("errorText");
     });
   });
 });

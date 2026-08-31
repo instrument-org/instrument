@@ -10,6 +10,7 @@ import {
 } from "@instrument-org/shared";
 import { simulateReadableStream } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
+import { errAsync } from "neverthrow";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type ActorRefFrom,
@@ -19,6 +20,7 @@ import {
   waitFor,
 } from "xstate";
 
+import { TypedError } from "../lib/errors";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { SESSION_CONTEXT_VERSION } from "../lib/prepare-model-messages";
 import { Store } from "../lib/store";
@@ -2894,6 +2896,54 @@ describe("llmRequestLogic", () => {
       expect(assistant?.metadata.error?.kind).toBe("unknown");
       const textPart = assistant?.parts.find((part) => part.type === "text");
       expect(textPart?.text).toBe(deltaTexts.join(""));
+    });
+
+    it("flushes the unsaved tail when a delta save failed", async () => {
+      // Time advances past the coalescing interval on every delta, so each one
+      // writes through and the failing write is the last one before the stream
+      // errors. The store rejects that write once, which leaves the delta's
+      // text unsaved for the flush to write.
+      let nowMs = 0;
+      vi.spyOn(performance, "now").mockImplementation(() => {
+        nowMs += 1000;
+        return nowMs;
+      });
+      const deltaTexts = ["first ", "second ", "third"];
+      const fullText = deltaTexts.join("");
+      const savePart = Store.savePart;
+      let rejectedWrite = false;
+      vi.spyOn(Store, "savePart").mockImplementation(
+        (part, taskId, options) => {
+          if (
+            !rejectedWrite &&
+            part.type === "text" &&
+            part.text === fullText
+          ) {
+            rejectedWrite = true;
+            return errAsync(new TypedError.Storage("Write failed"));
+          }
+          return savePart(part, taskId, options);
+        },
+      );
+
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { id: "1", type: "text-start" },
+          ...deltaTexts.map((delta) => ({
+            delta,
+            id: "1",
+            type: "text-delta" as const,
+          })),
+          { error: "stream failed", type: "error" },
+        ],
+      });
+
+      expect(rejectedWrite).toBe(true);
+      const assistant = messages.findLast(
+        (message) => message.role === "assistant",
+      );
+      const textPart = assistant?.parts.find((part) => part.type === "text");
+      expect(textPart?.text).toBe(fullText);
     });
 
     it("flushes the unsaved tail when the request is aborted", async () => {

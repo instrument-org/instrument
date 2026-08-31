@@ -34,6 +34,15 @@ import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { ToolNameSchema } from "../tools/name";
 
+// A streaming save writes the part's entire accumulated text through a full
+// schema parse, serialization, and synchronous SQLite write, and publishes a
+// part.updated event, so saving on every delta makes per-turn store work
+// quadratic in part size. Delta saves are coalesced instead: a part is only
+// written when this much time has passed or this much text has accumulated
+// since its last save, whichever comes first.
+const DELTA_SAVE_INTERVAL_MS = 100;
+const DELTA_SAVE_MAX_UNSAVED_CHARS = 4096;
+
 interface LLMRequestInput {
   agent: AnyAgent;
   model: AIGatewayModel.Type;
@@ -72,6 +81,52 @@ export const llmRequestLogic = fromPromise<
         }
         return result.value;
       }),
+  };
+
+  // Bookkeeping for coalesced delta saves, keyed by part id. `save` persists
+  // the part's current accumulated state and is refreshed on every delta, so
+  // a flush always writes the latest text. An entry with unsaved characters
+  // means the store is behind the in-memory part. The clock is
+  // performance.now rather than getCurrentDate because the cadence should
+  // follow real elapsed time, not the mockable timestamp source.
+  const pendingDeltaSaves = new Map<
+    string,
+    {
+      lastSavedAtMs?: number;
+      save: () => PromiseLike<unknown>;
+      unsavedChars: number;
+    }
+  >();
+
+  // Saves a part that accumulates streamed deltas, writing through on the
+  // part's first delta and after that only when DELTA_SAVE_INTERVAL_MS or
+  // DELTA_SAVE_MAX_UNSAVED_CHARS has built up since its last save. The
+  // part-end handlers save the complete part unconditionally and drop the
+  // entry; the flush in getCurrentParts covers parts that never get an end
+  // event before parts are read back.
+  const savePartCoalesced = async (
+    partId: string,
+    deltaLength: number,
+    save: () => PromiseLike<unknown>,
+  ) => {
+    let entry = pendingDeltaSaves.get(partId);
+    if (!entry) {
+      entry = { save, unsavedChars: 0 };
+      pendingDeltaSaves.set(partId, entry);
+    }
+    entry.save = save;
+    entry.unsavedChars += deltaLength;
+    const nowMs = performance.now();
+    if (
+      entry.lastSavedAtMs !== undefined &&
+      nowMs - entry.lastSavedAtMs < DELTA_SAVE_INTERVAL_MS &&
+      entry.unsavedChars < DELTA_SAVE_MAX_UNSAVED_CHARS
+    ) {
+      return;
+    }
+    entry.lastSavedAtMs = nowMs;
+    entry.unsavedChars = 0;
+    await save();
   };
 
   const captureEvent = getWorkspaceConfig().captureEvent;
@@ -113,6 +168,15 @@ export const llmRequestLogic = fromPromise<
   }
 
   async function getCurrentParts() {
+    // Delta saves are coalesced, so an in-memory part can hold text the store
+    // has not seen; write those tails through before reading parts back, or
+    // they would be missing from the returned parts.
+    for (const entry of pendingDeltaSaves.values()) {
+      if (entry.unsavedChars > 0) {
+        await entry.save();
+      }
+    }
+    pendingDeltaSaves.clear();
     const partsResult = await Store.getParts(
       input.sessionId,
       assistantMessage.id,
@@ -193,6 +257,7 @@ export const llmRequestLogic = fromPromise<
       };
       reasoningMap[id] = updatedPart;
       await scopedStore.savePart(updatedPart);
+      pendingDeltaSaves.delete(updatedPart.metadata.id);
     }
   };
 
@@ -342,7 +407,11 @@ export const llmRequestLogic = fromPromise<
             reasoningPart.state = "streaming";
             reasoningPart.metadata.endedAt = undefined;
             if (reasoningPart.text) {
-              await scopedStore.savePart(reasoningPart);
+              await savePartCoalesced(
+                reasoningPart.metadata.id,
+                part.text.length,
+                () => scopedStore.savePart(reasoningPart),
+              );
             }
           }
           break;
@@ -365,6 +434,7 @@ export const llmRequestLogic = fromPromise<
               text: reasoningPart.text.trimEnd(),
             };
             await scopedStore.savePart(updatedPart);
+            pendingDeltaSaves.delete(updatedPart.metadata.id);
             // oxlint-disable-next-line typescript/no-dynamic-delete
             delete reasoningMap[part.id];
           }
@@ -445,12 +515,17 @@ export const llmRequestLogic = fromPromise<
         }
         case "text-delta": {
           if (currentTextPart) {
-            currentTextPart.text += part.text;
+            const textPart = currentTextPart;
+            textPart.text += part.text;
             if (part.providerMetadata !== undefined) {
-              currentTextPart.providerMetadata = part.providerMetadata;
+              textPart.providerMetadata = part.providerMetadata;
             }
-            if (currentTextPart.text) {
-              await scopedStore.savePart(currentTextPart);
+            if (textPart.text) {
+              await savePartCoalesced(
+                textPart.metadata.id,
+                part.text.length,
+                () => scopedStore.savePart(textPart),
+              );
             }
           }
           break;
@@ -470,6 +545,7 @@ export const llmRequestLogic = fromPromise<
               text: currentTextPart.text.trimEnd(),
             };
             await scopedStore.savePart(updatedPart);
+            pendingDeltaSaves.delete(updatedPart.metadata.id);
           }
           currentTextPart = undefined;
           break;
@@ -505,6 +581,7 @@ export const llmRequestLogic = fromPromise<
               state: "input-available",
             };
             await scopedStore.savePart(updatedPart);
+            pendingDeltaSaves.delete(existingPart.metadata.id);
           } else if (existingPart) {
             // Unexpected state, but don't throw - just log
             getWorkspaceConfig().captureException(
@@ -583,6 +660,7 @@ export const llmRequestLogic = fromPromise<
                 state: "output-error",
               };
               await scopedStore.savePart(updatedPart);
+              pendingDeltaSaves.delete(toolCall.metadata.id);
               continue;
             } else {
               // Unexpected state, capture exception
@@ -625,15 +703,28 @@ export const llmRequestLogic = fromPromise<
           if (toolCall?.state === "input-streaming") {
             toolCallInputText[part.id] =
               (toolCallInputText[part.id] || "") + part.delta;
-            const { value: partialArgs } = await parsePartialJson(
-              toolCallInputText[part.id],
+            await savePartCoalesced(
+              toolCall.metadata.id,
+              part.delta.length,
+              async () => {
+                // Runs from the flush as well as from a delta, so the call
+                // may have completed or errored in the meantime; that part
+                // was already saved in its final state and must stay.
+                const streamingCall = toolCalls[part.id];
+                if (streamingCall?.state !== "input-streaming") {
+                  return;
+                }
+                const { value: partialArgs } = await parsePartialJson(
+                  toolCallInputText[part.id] ?? "",
+                );
+                const updatedPart: SessionMessagePart.ToolPart = {
+                  ...streamingCall,
+                  input: partialArgs as never,
+                };
+                toolCalls[part.id] = updatedPart;
+                await scopedStore.savePart(updatedPart);
+              },
             );
-            const updatedPart: SessionMessagePart.ToolPart = {
-              ...toolCall,
-              input: partialArgs as never,
-            };
-            toolCalls[part.id] = updatedPart;
-            await scopedStore.savePart(updatedPart);
           }
           break;
         }

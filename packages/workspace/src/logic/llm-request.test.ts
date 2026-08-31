@@ -10,7 +10,7 @@ import {
 } from "@instrument-org/shared";
 import { simulateReadableStream } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type ActorRefFrom,
   type AnyActorRef,
@@ -104,12 +104,14 @@ describe("llmRequestLogic", () => {
     catalog,
     chunks,
     getMessages = () => Promise.resolve(mockMessages),
+    onChunkReceived,
     provider = OUR_PROVIDER_CONFIG.type,
   }: {
     beforeStream?: () => Promise<void>;
     catalog?: AIGatewayModel.Type[];
     chunks: LanguageModelV3StreamPart[];
     getMessages?: () => Promise<SessionMessage.ContextWithParts[]>;
+    onChunkReceived?: () => void;
     provider?: AIProviderType;
   }) {
     const mockLanguageModel = new MockLanguageModelV3({
@@ -201,7 +203,9 @@ describe("llmRequestLogic", () => {
               },
               emitDeltas: true,
               model,
-              self: { send: vi.fn() } as unknown as AnyActorRef,
+              self: {
+                send: vi.fn(() => onChunkReceived?.()),
+              } as unknown as AnyActorRef,
               sessionId,
               stepCount: 1,
               taskId: taskConfig,
@@ -2536,7 +2540,9 @@ describe("llmRequestLogic", () => {
         ],
       });
 
-      const assistant = messages.find((message) => message.role === "assistant");
+      const assistant = messages.find(
+        (message) => message.role === "assistant",
+      );
       expect(assistant?.metadata).toMatchObject({
         modelIdServed: "openai/gpt-5.6-luna",
       });
@@ -2562,7 +2568,9 @@ describe("llmRequestLogic", () => {
         ],
       });
 
-      const assistant = messages.find((message) => message.role === "assistant");
+      const assistant = messages.find(
+        (message) => message.role === "assistant",
+      );
       expect(assistant?.metadata).toMatchObject({
         aiGatewayModelServed: { name: "GPT-5.6 Luna" },
         modelIdServed: "openai/gpt-5.6-luna",
@@ -2579,7 +2587,9 @@ describe("llmRequestLogic", () => {
         ],
       });
 
-      const assistant = messages.find((message) => message.role === "assistant");
+      const assistant = messages.find(
+        (message) => message.role === "assistant",
+      );
       expect(
         assistant && "aiGatewayModelServed" in assistant.metadata
           ? assistant.metadata.aiGatewayModelServed
@@ -2600,7 +2610,9 @@ describe("llmRequestLogic", () => {
         ],
       });
 
-      const assistant = messages.find((message) => message.role === "assistant");
+      const assistant = messages.find(
+        (message) => message.role === "assistant",
+      );
       expect(
         assistant && "modelIdServed" in assistant.metadata
           ? assistant.metadata.modelIdServed
@@ -2618,7 +2630,9 @@ describe("llmRequestLogic", () => {
         ],
       });
 
-      const assistant = messages.find((message) => message.role === "assistant");
+      const assistant = messages.find(
+        (message) => message.role === "assistant",
+      );
       expect(
         assistant && "modelIdServed" in assistant.metadata
           ? assistant.metadata.modelIdServed
@@ -2637,12 +2651,297 @@ describe("llmRequestLogic", () => {
         ],
       });
 
-      const assistant = messages.find((message) => message.role === "assistant");
+      const assistant = messages.find(
+        (message) => message.role === "assistant",
+      );
       expect(
         assistant && "modelIdServed" in assistant.metadata
           ? assistant.metadata.modelIdServed
           : undefined,
       ).toBeUndefined();
+    });
+  });
+
+  // Streaming saves are coalesced: a delta only writes through when enough
+  // time or unsaved text has built up since the part's last save, and any
+  // unsaved tail is flushed before parts are read back from the store.
+  // performance.now is pinned so no time ever appears to pass, which makes
+  // every save after a part's first attributable to the character threshold,
+  // an end event, or the flush.
+  describe("delta save coalescing", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("coalesces text delta saves", async () => {
+      vi.spyOn(performance, "now").mockReturnValue(0);
+      const savePartSpy = vi.spyOn(Store, "savePart");
+      const deltaTexts = Array.from(
+        { length: 200 },
+        (_, index) => `word-${index} `,
+      );
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { id: "1", type: "text-start" },
+          ...deltaTexts.map((delta) => ({
+            delta,
+            id: "1",
+            type: "text-delta" as const,
+          })),
+          { id: "1", type: "text-end" },
+        ],
+      });
+
+      const assistant = messages.findLast(
+        (message) => message.role === "assistant",
+      );
+      const textPart = assistant?.parts.find((part) => part.type === "text");
+      expect(textPart?.text).toBe(deltaTexts.join("").trimEnd());
+      expect(savePartSpy.mock.calls.length).toBeLessThan(
+        deltaTexts.length / 10,
+      );
+      // The step-start part, the first delta, and the text-end save.
+      expect(savePartSpy.mock.calls.length).toMatchInlineSnapshot(`3`);
+    });
+
+    it("coalesces reasoning delta saves", async () => {
+      vi.spyOn(performance, "now").mockReturnValue(0);
+      const savePartSpy = vi.spyOn(Store, "savePart");
+      const deltaTexts = Array.from(
+        { length: 200 },
+        (_, index) => `thought-${index} `,
+      );
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { id: "1", type: "reasoning-start" },
+          ...deltaTexts.map((delta) => ({
+            delta,
+            id: "1",
+            type: "reasoning-delta" as const,
+          })),
+          { id: "1", type: "reasoning-end" },
+        ],
+      });
+
+      const assistant = messages.findLast(
+        (message) => message.role === "assistant",
+      );
+      const reasoningPart = assistant?.parts.find(
+        (part) => part.type === "reasoning",
+      );
+      expect(reasoningPart?.text).toBe(deltaTexts.join("").trimEnd());
+      expect(savePartSpy.mock.calls.length).toBeLessThan(
+        deltaTexts.length / 10,
+      );
+      // The step-start part, the empty part saved at reasoning-start, the
+      // first delta, and the reasoning-end save.
+      expect(savePartSpy.mock.calls.length).toMatchInlineSnapshot(`4`);
+    });
+
+    it("writes through when enough unsaved text accumulates", async () => {
+      vi.spyOn(performance, "now").mockReturnValue(0);
+      const savePartSpy = vi.spyOn(Store, "savePart");
+      const deltaTexts = Array.from({ length: 100 }, () => "x".repeat(100));
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { id: "1", type: "text-start" },
+          ...deltaTexts.map((delta) => ({
+            delta,
+            id: "1",
+            type: "text-delta" as const,
+          })),
+          { id: "1", type: "text-end" },
+        ],
+      });
+
+      const assistant = messages.findLast(
+        (message) => message.role === "assistant",
+      );
+      const textPart = assistant?.parts.find((part) => part.type === "text");
+      expect(textPart?.text).toBe(deltaTexts.join(""));
+      // The step-start part, the first delta, the writes where the unsaved
+      // text crossed the character threshold, and the text-end save.
+      expect(savePartSpy.mock.calls.length).toMatchInlineSnapshot(`5`);
+    });
+
+    it("coalesces tool input delta saves", async () => {
+      vi.spyOn(performance, "now").mockReturnValue(0);
+      const savePartSpy = vi.spyOn(Store, "savePart");
+      const input = JSON.stringify({ filePath: `${"a".repeat(1000)}.txt` });
+      const deltas = Array.from(
+        { length: Math.ceil(input.length / 5) },
+        (_, index) => input.slice(index * 5, index * 5 + 5),
+      );
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { id: "call-1", toolName: "read_file", type: "tool-input-start" },
+          ...deltas.map((delta) => ({
+            delta,
+            id: "call-1",
+            type: "tool-input-delta" as const,
+          })),
+          {
+            input,
+            toolCallId: "call-1",
+            toolName: "read_file",
+            type: "tool-call",
+          },
+        ],
+      });
+
+      const assistant = messages.findLast(
+        (message) => message.role === "assistant",
+      );
+      const toolPart = assistant?.parts.find(
+        (part) => part.type === "tool-read_file",
+      );
+      expect(
+        toolPart?.type === "tool-read_file" &&
+          toolPart.state === "input-available"
+          ? toolPart.input
+          : undefined,
+      ).toEqual({ filePath: `${"a".repeat(1000)}.txt` });
+      expect(savePartSpy.mock.calls.length).toBeLessThan(deltas.length / 10);
+      // The step-start part, the part created at tool-input-start, the first
+      // delta, and the tool-call save.
+      expect(savePartSpy.mock.calls.length).toMatchInlineSnapshot(`4`);
+    });
+
+    it("flushes the partial tool input when the stream errors", async () => {
+      vi.spyOn(performance, "now").mockReturnValue(0);
+      const input = JSON.stringify({ filePath: "flushed.txt" });
+      const deltas = Array.from(
+        { length: Math.ceil(input.length / 3) },
+        (_, index) => input.slice(index * 3, index * 3 + 3),
+      );
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { id: "call-1", toolName: "read_file", type: "tool-input-start" },
+          ...deltas.map((delta) => ({
+            delta,
+            id: "call-1",
+            type: "tool-input-delta" as const,
+          })),
+          { error: "stream failed", type: "error" },
+        ],
+      });
+
+      const assistant = messages.findLast(
+        (message) => message.role === "assistant",
+      );
+      const toolPart = assistant?.parts.find(
+        (part) => part.type === "tool-read_file",
+      );
+      expect(
+        toolPart?.type === "tool-read_file" &&
+          toolPart.state === "input-streaming"
+          ? toolPart.input
+          : undefined,
+      ).toEqual({ filePath: "flushed.txt" });
+    });
+
+    it("does not overwrite a tool error with a stale streaming save", async () => {
+      vi.spyOn(performance, "now").mockReturnValue(0);
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { id: "call-1", toolName: "read_file", type: "tool-input-start" },
+          ...["inv", "alid", " json"].map((delta) => ({
+            delta,
+            id: "call-1",
+            type: "tool-input-delta" as const,
+          })),
+          {
+            input: "invalid json",
+            toolCallId: "call-1",
+            toolName: "read_file",
+            type: "tool-call",
+          },
+        ],
+      });
+
+      const assistant = messages.findLast(
+        (message) => message.role === "assistant",
+      );
+      const toolPart = assistant?.parts.find(
+        (part) => part.type === "tool-read_file",
+      );
+      expect(
+        toolPart?.type === "tool-read_file" ? toolPart.state : undefined,
+      ).toBe("output-error");
+    });
+
+    it("flushes the unsaved tail when the stream errors", async () => {
+      vi.spyOn(performance, "now").mockReturnValue(0);
+      const deltaTexts = Array.from(
+        { length: 10 },
+        (_, index) => `piece-${index} `,
+      );
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { id: "1", type: "text-start" },
+          ...deltaTexts.map((delta) => ({
+            delta,
+            id: "1",
+            type: "text-delta" as const,
+          })),
+          { error: "stream failed", type: "error" },
+        ],
+      });
+
+      const assistant = messages.findLast(
+        (message) => message.role === "assistant",
+      );
+      expect(assistant?.metadata.error?.kind).toBe("unknown");
+      const textPart = assistant?.parts.find((part) => part.type === "text");
+      expect(textPart?.text).toBe(deltaTexts.join(""));
+    });
+
+    it("flushes the unsaved tail when the request is aborted", async () => {
+      vi.spyOn(performance, "now").mockReturnValue(0);
+      const deltaTexts = Array.from(
+        { length: 10 },
+        (_, index) => `piece-${index} `,
+      );
+      let chunksReceived = 0;
+      let actor: ActorRefFrom<typeof testMachine.machine> | null = null;
+      const testMachine = await createTestMachine({
+        chunks: [
+          { id: "1", type: "text-start" },
+          ...deltaTexts.map((delta) => ({
+            delta,
+            id: "1",
+            type: "text-delta" as const,
+          })),
+        ],
+        onChunkReceived: () => {
+          chunksReceived += 1;
+          // "start", "start-step", and "text-start" arrive first, then the
+          // deltas: abort while the last delta is being processed, so its text
+          // is accumulated but the coalesced save for it never runs.
+          if (chunksReceived === deltaTexts.length + 3) {
+            actor?.send({ type: "stop" });
+          }
+        },
+      });
+
+      actor = createActor(testMachine.machine);
+      actor.start();
+      await waitFor(actor, (state) => state.status === "done");
+
+      // The aborted request keeps running detached from the machine, so poll
+      // until its flush lands in the store.
+      await vi.waitFor(async () => {
+        const sessionResult = await Store.getSessionWithMessagesAndParts(
+          sessionId,
+          testMachine.taskId,
+        );
+        const assistant = sessionResult
+          ._unsafeUnwrap()
+          .messages.findLast((message) => message.role === "assistant");
+        expect(assistant?.metadata.finishReason).toBe("aborted");
+        const textPart = assistant?.parts.find((part) => part.type === "text");
+        expect(textPart?.text).toBe(deltaTexts.join(""));
+      });
     });
   });
 });

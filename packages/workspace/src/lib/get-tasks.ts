@@ -18,6 +18,12 @@ import { getTaskDirTimestamps } from "./get-task-dir-timestamps";
 import { isTaskId } from "./is-task-id";
 import { getTaskSettings } from "./task-settings";
 
+export interface TaskListOptions {
+  direction?: "asc" | "desc";
+  limit?: number;
+  sortBy?: "createdAt" | "updatedAt";
+}
+
 export async function getTask(
   id: TaskId,
   workspaceConfig: WorkspaceConfig,
@@ -41,24 +47,8 @@ export async function getTask(
 
 export async function getTasks(
   workspaceConfig: WorkspaceConfig,
-  options: {
-    direction?: "asc" | "desc";
-    limit?: number;
-    sortBy?: "createdAt" | "updatedAt";
-  } = {},
+  options: TaskListOptions = {},
 ): Promise<{ tasks: Task[]; total: number }> {
-  const { direction, limit, sortBy } = assign(
-    {
-      direction: "desc",
-      sortBy: "updatedAt",
-    },
-    options,
-  );
-  const sortByFn =
-    sortBy === "createdAt"
-      ? (task: Task) => task.createdAt.getTime()
-      : (task: Task) => task.updatedAt.getTime();
-
   const taskDirs = await taskDirsInRootDir(workspaceConfig.tasksDir);
   // Read tasks concurrently; each readTask is several independent fs ops and a
   // workspace can hold many tasks, so a serial loop dominates list latency.
@@ -72,6 +62,32 @@ export async function getTasks(
   const tasks = taskResults
     .filter((result) => result.isOk())
     .map((result) => result.value);
+
+  return sortTasks(tasks, options);
+}
+
+/**
+ * The order and window the task list asks for, over a set already read.
+ *
+ * Shared with the live subscription's snapshot, which holds the tasks it has
+ * read and applies this per subscriber, so a list patched from one event and a
+ * list from a full scan cannot order the same tasks differently.
+ */
+export function sortTasks(
+  tasks: Task[],
+  options: TaskListOptions = {},
+): { tasks: Task[]; total: number } {
+  const { direction, limit, sortBy } = assign(
+    {
+      direction: "desc",
+      sortBy: "updatedAt",
+    },
+    options,
+  );
+  const sortByFn =
+    sortBy === "createdAt"
+      ? (task: Task) => task.createdAt.getTime()
+      : (task: Task) => task.updatedAt.getTime();
 
   const sortedTasks = sort(
     tasks,

@@ -65,3 +65,6 @@ agent-reference.local.json
 # outlive the conversation that produced it.
 /docs/plans/**/wireframes-*.html
 /docs/plans/**/wireframes-index.txt
+
+# repo-local copy replaced by an ignored symlink to ~/.agents/skills/visual-explanation
+.agents/skills/visual-explanation

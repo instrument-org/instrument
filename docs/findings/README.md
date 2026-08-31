@@ -44,6 +44,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Full-page screenshots are not supported](in-app-browser-full-page-screenshots.md) | open, workaround in place |
 | [HTML artifacts: in-iframe navigation](html-artifact-iframe-navigation.md) | open, minimal reset shipped |
 | [WebMCP readiness](webmcp-agent-browser-readiness.md) — calling a third-party site's own tools; probed, blocked on Electron 44 | open, not implemented |
+| [The client hints are ours, not Chromium's](browser-client-hints-are-ours-not-chromium-s.md) — Electron emits none, so the header identity is entirely what we write | brand mismatch fixed |
 
 ### Renderer and layout
 

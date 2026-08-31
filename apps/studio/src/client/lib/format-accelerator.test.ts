@@ -106,6 +106,7 @@ describe("formatAcceleratorFor", () => {
         "themeSystem: ⇧ ⌘ M  /  Ctrl Shift M",
         "toggleFullscreen: ⌃ ⌘ F  /  F11",
         "toggleSidebar: ⌘ B  /  Ctrl B",
+        "toggleTaskPane: ⌥ ⌘ B  /  Ctrl Alt B",
         "zoomIn: ⌘ +  /  Ctrl +",
         "zoomOut: ⌘ -  /  Ctrl -",
       ]

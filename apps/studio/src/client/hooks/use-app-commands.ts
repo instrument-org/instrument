@@ -14,6 +14,7 @@ import {
   requestBrowserFind,
   requestBrowserReload,
 } from "@/client/lib/foreground-browser-registry";
+import { requestTaskPaneToggle } from "@/client/lib/foreground-task-pane-registry";
 import { closeSelectedTab, openTab, reopenTab } from "@/client/lib/tab-actions";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import {
@@ -30,8 +31,8 @@ import { useStore } from "jotai";
 import { sleep } from "radashi";
 import { useEffect } from "react";
 
-// Commands allowed to run while a blocking modal is open: they drive app-wide
-// view state (settings, command menu, sidebar, zoom, reload), never the tab
+// Commands allowed to run while a blocking modal is open: they drive view state
+// (settings, command menu, sidebar, the task pane, zoom, reload), never the tab
 // stack, so they can't pull the user out from under a modal. Everything else
 // (open/close/switch/navigate) is blocked. Allow-list, not deny-list, so a new
 // command is blocked by default until it's explicitly marked modal-safe.
@@ -42,6 +43,7 @@ const MODAL_SAFE_COMMANDS = new Set<AppCommand["type"]>([
   "setTheme",
   "toggleCommandMenu",
   "toggleSidebar",
+  "toggleTaskPane",
   "zoomIn",
   "zoomOut",
   "zoomReset",
@@ -240,6 +242,10 @@ export function useAppCommands() {
               }
               case "toggleSidebar": {
                 toggleSidebar();
+                break;
+              }
+              case "toggleTaskPane": {
+                requestTaskPaneToggle();
                 break;
               }
               case "zoomIn": {

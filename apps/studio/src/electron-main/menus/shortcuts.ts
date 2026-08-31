@@ -131,6 +131,11 @@ const SHORTCUT_ACTIONS: Record<ShortcutId, null | ShortcutAction> = {
   toggleSidebar: () => {
     sendAppCommand({ type: "toggleSidebar" });
   },
+  toggleTaskPane: () => {
+    // Lands on the task the user is looking at, and on nothing at all when the
+    // foreground tab is not a task; only the renderer knows which that is.
+    sendAppCommand({ type: "toggleTaskPane" });
+  },
   zoomIn: () => {
     zoomIn();
   },

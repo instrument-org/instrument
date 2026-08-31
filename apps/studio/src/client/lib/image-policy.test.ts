@@ -9,6 +9,7 @@ import {
   REMOTE_HOST_SUFFIXES,
   REMOTE_HOSTS,
   UNTRUSTED_FILE_IMAGE_KINDS,
+  UNTRUSTED_TASK_FILE_IMAGE_KINDS,
 } from "./image-policy";
 
 describe("classifyImageSource", () => {
@@ -83,6 +84,32 @@ describe("isImageSourceAllowed", () => {
       "https://raw.githubusercontent.com/o/r/main/p.png",
     ]) {
       expect(isImageSourceAllowed(src, UNTRUSTED_FILE_IMAGE_KINDS)).toBe(false);
+    }
+  });
+
+  // The same file with a directory to resolve against adds the task's own
+  // pictures and nothing that names an origin. A source is judged as authored,
+  // which is what keeps the loopback host out: a document naming one has picked
+  // that host, however much the URL it resolves to looks like a path's.
+  it("gives a task's own markdown file the paths inside it", () => {
+    for (const src of [
+      "data:image/png;base64,QUJD",
+      "./output/plot.png",
+      "/output/plot.png",
+      "../output/plot.png",
+    ]) {
+      expect(isImageSourceAllowed(src, UNTRUSTED_TASK_FILE_IMAGE_KINDS)).toBe(
+        true,
+      );
+    }
+
+    for (const src of [
+      "http://assets.task-1.localhost:4321/p.png",
+      "https://raw.githubusercontent.com/o/r/main/p.png",
+    ]) {
+      expect(isImageSourceAllowed(src, UNTRUSTED_TASK_FILE_IMAGE_KINDS)).toBe(
+        false,
+      );
     }
   });
 

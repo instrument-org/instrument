@@ -104,17 +104,30 @@ export function classifyImageSource(src: string | undefined): ImageSourceKind {
 }
 
 /**
- * Whether a source is one of the kinds this surface takes.
+ * Whether a kind is one this surface takes, for a caller that read the kind
+ * itself.
  *
  * `rejected` is never among them, so a caller cannot admit it by listing every
  * kind.
+ *
+ * Asked directly by a surface that resolves a source before drawing it, where
+ * the kind is a fact about the source as authored and the resolved URL cannot
+ * tell it: a path joined to the document's own origin and an origin the
+ * document named itself arrive in the same shape.
  */
+export function isImageKindAllowed(
+  kind: ImageSourceKind,
+  kinds: readonly ImageSourceKind[],
+): boolean {
+  return kind !== "rejected" && kinds.includes(kind);
+}
+
+/** Whether a source is one of the kinds this surface takes. */
 export function isImageSourceAllowed(
   src: string | undefined,
   kinds: readonly ImageSourceKind[],
 ): boolean {
-  const kind = classifyImageSource(src);
-  return kind !== "rejected" && kinds.includes(kind);
+  return isImageKindAllowed(classifyImageSource(src), kinds);
 }
 
 /**
@@ -143,6 +156,29 @@ export const MARKDOWN_IMAGE_KINDS = [
  */
 export const UNTRUSTED_FILE_IMAGE_KINDS = [
   "embedded",
+] as const satisfies readonly ImageSourceKind[];
+
+/**
+ * The same file, when it sits in the task's own folder and its reader resolves
+ * a relative source against it.
+ *
+ * Prose no more trusted than the above -- a `.md` in a task is as likely to
+ * have arrived in a clone as to have been written by the agent -- with the
+ * task's own pictures added, which is what a report referencing the chart
+ * beside it is made of. A relative source is safe on a different ground than
+ * the allow-list's: it names no origin, so resolving it against the document's
+ * own URL can only ever land on the origin the reader already opened the file
+ * from.
+ *
+ * That holds for the source as authored and not for what it resolves to, so a
+ * surface passing this list must read the kind before it resolves anything.
+ * `http://something.localhost:11434/probe` written into the file resolves to
+ * the same shape a relative path does and is a host of the author's choosing;
+ * it is judged as itself and gets the treatment above.
+ */
+export const UNTRUSTED_TASK_FILE_IMAGE_KINDS = [
+  "embedded",
+  "task-relative",
 ] as const satisfies readonly ImageSourceKind[];
 
 function isRemoteHost(hostname: string): boolean {

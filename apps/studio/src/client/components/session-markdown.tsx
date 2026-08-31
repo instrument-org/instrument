@@ -9,6 +9,7 @@ export const SessionMarkdown = ({
   assetBaseUrl,
   assetVersion,
   className,
+  documentUrl,
   hideImages,
   imageKinds,
   isStreaming,
@@ -19,6 +20,7 @@ export const SessionMarkdown = ({
   assetBaseUrl?: string;
   assetVersion?: string;
   className?: string;
+  documentUrl?: string;
   hideImages?: boolean;
   imageKinds?: readonly ImageSourceKind[];
   isStreaming?: boolean;
@@ -37,6 +39,7 @@ export const SessionMarkdown = ({
       <Markdown
         assetBaseUrl={assetBaseUrl}
         assetVersion={assetVersion}
+        documentUrl={documentUrl}
         hideImages={hideImages}
         imageKinds={imageKinds}
         isStreaming={isStreaming}

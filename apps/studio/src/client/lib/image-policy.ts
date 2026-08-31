@@ -29,11 +29,18 @@ export type ImageSourceKind =
   | "task-relative";
 
 // Hosts an image may be fetched from over the network.
-const REMOTE_HOSTS = new Set(["github.com", "images.google.com"]);
+//
+// Exported for one reader only: the test pinning this list inside the
+// renderer's `img-src`. The reveal a chip offers for a `remote` source
+// promises a load, so a host here that the CSP refuses turns that click into
+// a no-op; the test fails the drift instead of a reader finding it. Every
+// other caller asks `classifyImageSource`.
+export const REMOTE_HOSTS = new Set(["github.com", "images.google.com"]);
 
 // Subdomains, held apart from the exact hosts above because an image comes from
-// `raw.githubusercontent.com` and never from the bare domain.
-const REMOTE_HOST_SUFFIXES = [".github.com", ".githubusercontent.com"];
+// `raw.githubusercontent.com` and never from the bare domain. Exported on the
+// same terms as `REMOTE_HOSTS`.
+export const REMOTE_HOST_SUFFIXES = [".github.com", ".githubusercontent.com"];
 
 // This machine's own asset server, which is per-task and local and so the one
 // host an image may be fetched from without TLS. A port is not part of

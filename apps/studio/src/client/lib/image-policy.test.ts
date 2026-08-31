@@ -1,6 +1,10 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  REMOTE_HOST_SUFFIXES,
+  REMOTE_HOSTS,
   classifyImageSource,
   isImageSourceAllowed,
   MARKDOWN_IMAGE_KINDS,
@@ -93,5 +97,42 @@ describe("isImageSourceAllowed", () => {
         "task-relative",
       ]),
     ).toBe(false);
+  });
+});
+
+// The chip a blocked image stands behind offers Load only for `remote`
+// sources, and that offer is a promise: the window's `img-src` must actually
+// fetch from every host this module calls remote, or the click swaps in a
+// broken image. The CSP staying wider than this list is fine and deliberate;
+// this only fails when the policy names a host the CSP refuses.
+describe("the remote allowlist inside the CSP", () => {
+  const html = readFileSync(
+    fileURLToPath(new URL("../../index.html", import.meta.url)),
+    "utf8",
+  );
+  const imgSrc = /img-src ([^;]+);/.exec(html)?.[1];
+  const sources = imgSrc?.split(/\s+/).filter(Boolean) ?? [];
+
+  // CSP host-source matching, for the shapes this file uses: an exact
+  // `https://host` and a wildcard `https://*.suffix`.
+  const cspAllows = (host: string) =>
+    sources.some((source) => {
+      if (source === `https://${host}`) {
+        return true;
+      }
+      const wildcard = /^https:\/\/\*(\..+)$/.exec(source)?.[1];
+      return wildcard !== undefined && host.endsWith(wildcard) && host !== wildcard.slice(1);
+    });
+
+  it("found the directive", () => {
+    expect(sources.length).toBeGreaterThan(0);
+  });
+
+  it.each([...REMOTE_HOSTS])("fetches from %s", (host) => {
+    expect(cspAllows(host)).toBe(true);
+  });
+
+  it.each(REMOTE_HOST_SUFFIXES)("fetches from a host under %s", (suffix) => {
+    expect(cspAllows(`probe${suffix}`)).toBe(true);
   });
 });

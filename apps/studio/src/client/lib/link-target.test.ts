@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { mailtoAddress, originToDisclose, webUrl } from "./link-target";
+import {
+  destinationParts,
+  mailtoAddress,
+  originToDisclose,
+  webUrl,
+} from "./link-target";
 
 const disclosed = (label: string, href: string) =>
   originToDisclose(label, new URL(href));
+
+const parts = (href: string) => destinationParts(new URL(href));
 
 describe("originToDisclose", () => {
   // The cases that decide the rule: a label either names the destination's
@@ -128,6 +135,50 @@ describe("mailtoAddress", () => {
     expect(mailtoAddress("mailto:100%@finalpoint.co")).toBe(
       "100%@finalpoint.co",
     );
+  });
+});
+
+describe("destinationParts", () => {
+  it.each([
+    [
+      "https://channels.finalpoint.org",
+      ["https://", "channels.finalpoint.org", "/"],
+    ],
+    [
+      "https://channels.finalpoint.org/rotation?team=core#today",
+      ["https://", "channels.finalpoint.org", "/rotation?team=core#today"],
+    ],
+    ["http://localhost:5173/x", ["http://", "localhost:5173", "/x"]],
+    // Credentials go with the host rather than into the muted run in front of
+    // it: they are the half of a destination a reader is least expecting, and
+    // the disclosure beside the label never shows them at all.
+    [
+      "https://neil:hunter2@finalpoint.co/x",
+      ["https://", "neil:hunter2@finalpoint.co", "/x"],
+    ],
+  ])("splits %j", (href, expected) => {
+    const { authority, scheme, tail } = parts(href);
+
+    expect([scheme, authority, tail]).toEqual(expected);
+  });
+
+  // A label can carry lookalike glyphs and bidi controls. What the parser
+  // resolved cannot, which is the whole reason this is read off the URL.
+  it("prints a host in punycode and a path percent-encoded", () => {
+    expect(parts("https://finalpoınt.co/é")).toMatchObject({
+      authority: "xn--finalpont-1pb.co",
+      tail: "/%C3%A9",
+    });
+  });
+
+  it("stands in for the rest of a tail nobody is going to read", () => {
+    const { authority, tail } = parts(
+      `https://finalpoint.co/x?q=${"tracking".repeat(60)}`,
+    );
+
+    expect(authority).toBe("finalpoint.co");
+    expect(tail).toHaveLength(181);
+    expect(tail.endsWith("…")).toBe(true);
   });
 });
 

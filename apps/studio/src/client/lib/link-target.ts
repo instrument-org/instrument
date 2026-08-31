@@ -14,6 +14,23 @@ const LABEL_ADDRESS =
 
 const DEFAULT_PORT: Record<string, string> = { "http:": "80", "https:": "443" };
 
+// How much of a path, query, and fragment is worth printing before the rest of
+// it stands for itself. A tracking URL runs to thousands of characters, and a
+// destination nobody can take in at a glance is one nobody reads at all; what
+// fits here is a few lines, which is also as much as a tooltip can cover
+// without hiding the sentence it was hovered from.
+const MAX_TAIL_LENGTH = 180;
+
+/** A destination in the three pieces it is read in. */
+export interface DestinationParts {
+  /** Credentials, host, and port: the part that decides where a click lands. */
+  authority: string;
+  /** The scheme and its slashes. */
+  scheme: string;
+  /** Path, query, and fragment, cut short once it runs past reading length. */
+  tail: string;
+}
+
 /** The origin a label claims for itself, when it claims one at all. */
 interface ClaimedOrigin {
   host: string;
@@ -21,6 +38,35 @@ interface ClaimedOrigin {
   port: string;
   /** Empty when the label named no scheme, which then matches any scheme. */
   scheme: string;
+}
+
+/**
+ * The whole destination, split so the part deciding where a click lands can be
+ * drawn apart from the parts that do not.
+ *
+ * Read off the parsed URL rather than the href as it was written, so what is
+ * shown is the destination the way it resolved: a host in punycode and a path
+ * percent-encoded, ASCII throughout, which is what keeps the lookalike glyphs
+ * and bidi controls a label can carry out of the one place they would be
+ * believed. `originToDisclose` reads the same URL, so the origin beside a label
+ * and the origin in the middle of this are always the same string.
+ */
+export function destinationParts(url: URL): DestinationParts {
+  const scheme = `${url.protocol}//`;
+  const credentials = url.username
+    ? `${url.username}${url.password ? `:${url.password}` : ""}@`
+    : "";
+  const authority = `${credentials}${url.host}`;
+  const tail = url.href.slice(scheme.length + authority.length);
+
+  return {
+    authority,
+    scheme,
+    tail:
+      tail.length > MAX_TAIL_LENGTH
+        ? `${tail.slice(0, MAX_TAIL_LENGTH)}…`
+        : tail,
+  };
 }
 
 /**
@@ -49,10 +95,12 @@ export function mailtoAddress(href: string): null | string {
  * already names it.
  *
  * A Markdown label is written by whoever wrote the message: a model quoting a
- * page it fetched, or text the person pasted into the composer. Nothing else on
- * screen says where the link lands, since the app has no status bar to hover
- * over, so a label that does not already name its destination gets the
- * destination put beside it.
+ * page it fetched, or text the person pasted into the composer. So a label that
+ * does not already name its destination gets the destination put beside it,
+ * where it is read without hovering anything. `destinationParts` carries the
+ * whole URL for a reader who goes looking; this is the part that has to be on
+ * screen already, because a reader with no reason to suspect a link is the one
+ * who never hovers it.
  *
  * Host and port only, never the path. The path is long enough to wrap and is
  * not the part that decides whether a link is what it claims to be, and keeping

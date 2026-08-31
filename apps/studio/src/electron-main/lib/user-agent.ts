@@ -9,10 +9,11 @@ import { app, type Session } from "electron";
 //   1. session.setUserAgent(ua): remove the Electron and app-name product
 //      tokens from the session's real UA. This updates both the outbound
 //      User-Agent header and the in-page navigator.userAgent.
-//   2. onBeforeSendHeaders: add the sec-ch-ua* client hints. Electron returns a
-//      null ClientHintsControllerDelegate, so its network stack never emits
-//      these headers on its own -- a Chrome-shaped UA that sends no client hints
-//      at all is the anomaly this step removes.
+//   2. onBeforeSendHeaders: add the sec-ch-ua* client hints, on the requests
+//      Chromium would attach them to. Electron returns a null
+//      ClientHintsControllerDelegate, so its network stack never emits these
+//      headers on its own -- a Chrome-shaped UA that sends no client hints at
+//      all is the anomaly this step removes.
 //
 // The UA is derived by removing tokens from the real UA rather than
 // hand-writing one, so the AppleWebKit/Chrome/Safari tokens and the real
@@ -30,6 +31,10 @@ const CHROME_VERSION = /\b(?:Chrome|Chromium)\/(\d+)\./;
 const GREASE_CHARS = [" ", "(", ":", "-", ".", "/", ")", ";", "=", "?", "_"];
 const GREASE_VERSIONS = ["8", "99", "24"];
 
+// Loopback hosts, which are potentially trustworthy whatever their scheme.
+// Chromium counts the whole 127.0.0.0/8 range and every `.localhost` name.
+const LOOPBACK_HOST = /^(?:\[::1\]|127(?:\.\d{1,3}){3}|localhost)$/;
+
 // Apply the normalized User-Agent to a session: clean the UA (both the outbound
 // header and in-page navigator.userAgent via setUserAgent) and add matching
 // client hints. Re-callable -- setUserAgent and the single onBeforeSendHeaders
@@ -44,10 +49,28 @@ export function applyStandardUserAgent(ses: Session): void {
         acceptLanguage: preferredAcceptLanguage(),
         platform: process.platform,
         requestHeaders: details.requestHeaders,
+        url: details.url,
         userAgent: ses.getUserAgent(),
       }),
     });
   });
+}
+
+// Whether Chromium would attach client hints to a request for this URL. It
+// restricts them to potentially trustworthy origins, so hinting a plain http://
+// request is a header no real Chrome sends -- the same kind of contradiction as
+// naming a brand the page denies, pointed the other way.
+export function isPotentiallyTrustworthy(url: string): boolean {
+  const parsed = URL.parse(url);
+  if (parsed == null) {
+    return false;
+  }
+  return (
+    parsed.protocol === "https:" ||
+    parsed.protocol === "wss:" ||
+    LOOPBACK_HOST.test(parsed.hostname) ||
+    parsed.hostname.endsWith(".localhost")
+  );
 }
 
 // Electron's default User-Agent is a standard Chrome UA with two extra product
@@ -112,14 +135,17 @@ export function standardUserAgentHeaders({
   acceptLanguage,
   platform,
   requestHeaders,
+  url,
   userAgent,
 }: {
   acceptLanguage: string;
   platform: NodeJS.Platform;
   requestHeaders: Record<string, string>;
+  url: string;
   userAgent: string;
 }): Record<string, string> {
   const cleanUserAgent = normalizeUserAgent(userAgent);
+  const hinted = isPotentiallyTrustworthy(url);
   const secChUa = secChUaHeader(cleanUserAgent);
 
   // Drop any case-variant of the headers we set below so we replace Chromium's
@@ -140,6 +166,9 @@ export function standardUserAgentHeaders({
 
   headers["User-Agent"] = cleanUserAgent;
   headers["Accept-Language"] = acceptLanguage;
+  if (!hinted) {
+    return headers;
+  }
   if (secChUa != null) {
     headers["sec-ch-ua"] = secChUa;
   }

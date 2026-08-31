@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isPotentiallyTrustworthy,
   normalizeUserAgent,
   platformHint,
   secChUaBrands,
@@ -119,6 +120,23 @@ describe("secChUaHeader", () => {
   });
 });
 
+describe("isPotentiallyTrustworthy", () => {
+  it.each([
+    ["https://example.com/", true],
+    ["wss://example.com/socket", true],
+    ["http://localhost:5173/", true],
+    ["http://app.localhost:3000/", true],
+    ["http://127.0.0.1:8080/", true],
+    ["http://127.5.5.5/", true],
+    ["http://[::1]:9222/json", true],
+    ["http://example.com/", false],
+    ["http://10.0.0.4/", false],
+    ["not a url", false],
+  ])("%s -> %s", (url, expected) => {
+    expect(isPotentiallyTrustworthy(url)).toBe(expected);
+  });
+});
+
 describe("platformHint", () => {
   it.each([
     ["darwin", '"macOS"'],
@@ -157,6 +175,7 @@ describe("standardUserAgentHeaders", () => {
         Accept: "text/html",
         "User-Agent": ELECTRON_UA,
       },
+      url: "https://example.com/",
       userAgent: ELECTRON_UA,
     });
     expect(result).toMatchInlineSnapshot(`
@@ -176,6 +195,7 @@ describe("standardUserAgentHeaders", () => {
       acceptLanguage: "en-US",
       platform: "linux",
       requestHeaders: { "accept-language": "de", "user-agent": ELECTRON_UA },
+      url: "https://example.com/",
       userAgent: ELECTRON_UA,
     });
     expect(Object.keys(result)).toMatchInlineSnapshot(`
@@ -195,9 +215,28 @@ describe("standardUserAgentHeaders", () => {
       acceptLanguage: "en-US",
       platform: "win32",
       requestHeaders: {},
+      url: "https://example.com/",
       userAgent: "Mozilla/5.0 Safari/537.36",
     });
     expect(result["sec-ch-ua"]).toBeUndefined();
     expect(result["sec-ch-ua-platform"]).toBe('"Windows"');
+  });
+
+  it("sends no client hints to an origin Chromium would not hint", () => {
+    const result = standardUserAgentHeaders({
+      acceptLanguage: "en-US",
+      platform: "darwin",
+      requestHeaders: { Accept: "text/html" },
+      url: "http://example.com/",
+      userAgent: ELECTRON_UA,
+    });
+    expect(Object.keys(result)).toMatchInlineSnapshot(`
+      [
+        "Accept",
+        "User-Agent",
+        "Accept-Language",
+      ]
+    `);
+    expect(result["User-Agent"]).not.toContain("Electron/");
   });
 });

@@ -47,6 +47,9 @@ export async function saveStoppedToolCallPart(
       ) {
         return current;
       }
+      // The part union is discriminated by tool type as well as by state, so
+      // a spread that moves only the state does not land on a member of it;
+      // the fields written here are the ones an errored call carries.
       return {
         ...current,
         errorText: `This action was stopped${input.reason === "timeout" ? " because it took too long" : input.reason === "manual" ? " by you" : ""}.`,
@@ -55,7 +58,7 @@ export async function saveStoppedToolCallPart(
           endedAt: getCurrentDate(),
         },
         state: "output-error",
-      } satisfies SessionMessagePart.ToolPart;
+      } as SessionMessagePart.Type;
     },
     input.taskId,
     { signal },

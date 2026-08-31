@@ -86,7 +86,12 @@ export const agentMachine = setup({
      * call. That covers queued siblings of a stopped call, parts an aborted
      * stream saved before the machine left `LLMStreaming` (they reach no
      * context array), pending interactive calls, and parts left by an errored
-     * stream attempt. `Finishing` runs this on the paths that can strand one.
+     * stream attempt. `Finishing` runs this on the paths that can strand one,
+     * after `onFinish`. A stop gives the whole of `Finishing` about a second
+     * before the session force-stops this actor, and the two have different
+     * stakes in that budget: skill changes are consumed as `onFinish` reads
+     * them, so a run that misses it loses them, while a sweep that misses
+     * leaves parts exactly as they were without it.
      */
     finalizeDanglingToolCalls: fromPromise<
       // oxlint-disable-next-line typescript/no-invalid-void-type
@@ -480,7 +485,7 @@ export const agentMachine = setup({
     },
 
     Finishing: {
-      initial: "MaybeFinalizingDanglingToolCalls",
+      initial: "RunningOnFinish",
       states: {
         FinalizingDanglingToolCalls: {
           invoke: {
@@ -490,8 +495,8 @@ export const agentMachine = setup({
               stopRequested: context.stopRequested,
               taskId: context.taskId,
             }),
-            onDone: "RunningOnFinish",
-            onError: { actions: "assignEventError", target: "RunningOnFinish" },
+            onDone: "#agent.Done",
+            onError: { actions: "assignEventError", target: "#agent.Done" },
             src: "finalizeDanglingToolCalls",
           },
         },
@@ -507,7 +512,7 @@ export const agentMachine = setup({
                 !context.stopRequested &&
                 context.pendingToolCalls.length === 0 &&
                 context.toolCallQueue.length === 0,
-              target: "RunningOnFinish",
+              target: "#agent.Done",
             },
             { target: "FinalizingDanglingToolCalls" },
           ],
@@ -521,8 +526,11 @@ export const agentMachine = setup({
               sessionId: context.sessionId,
               taskId: context.taskId,
             }),
-            onDone: "#agent.Done",
-            onError: { actions: "assignEventError", target: "#agent.Done" },
+            onDone: "MaybeFinalizingDanglingToolCalls",
+            onError: {
+              actions: "assignEventError",
+              target: "MaybeFinalizingDanglingToolCalls",
+            },
             src: "onFinish",
           },
         },

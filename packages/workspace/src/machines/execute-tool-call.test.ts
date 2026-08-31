@@ -655,22 +655,23 @@ describe("executeToolCallMachine", () => {
 
     it("leaves a call that answered first exactly as it answered", async () => {
       const part = createShellCommandPart("echo hi");
-      await Store.savePart(
-        {
-          ...part,
-          output: {
-            command: "echo hi",
-            commands: ["echo"],
-            durationMs: 0,
-            exitCode: 0,
-            output: "hi",
-            spillFilePath: undefined,
-          },
-          preliminary: false,
-          state: "output-available",
+      // The part union is discriminated by tool type as well as by state, so
+      // an answered bash call is built here rather than spread from the
+      // pending one, whose state this fixture is replacing.
+      const answered = {
+        ...part,
+        output: {
+          command: "echo hi",
+          commands: ["echo"],
+          durationMs: 0,
+          exitCode: 0,
+          output: "hi",
+          spillFilePath: undefined,
         },
-        taskConfig,
-      );
+        preliminary: false,
+        state: "output-available",
+      } as SessionMessagePart.ToolPart;
+      await Store.savePart(answered, taskConfig);
 
       // The stale input-available snapshot a scan would still be holding.
       await saveStoppedToolCallPart({

@@ -249,6 +249,74 @@ describe("agentMachine", () => {
     `);
   });
 
+  // `onFinish` consumes the turn's skill changes as it reads them, so a run
+  // that misses it loses them, while a sweep that misses leaves parts as they
+  // were. A stop gives all of `Finishing` about a second, so the order is what
+  // decides which one can be cut off: `onFinish` sees the run as it ended,
+  // with the queued calls still dangling.
+  it("persists what the turn produced before sweeping its dangling parts", async () => {
+    const runSessionId = StoreId.newSessionId();
+    const parentMessageId = StoreId.newMessageId();
+    const runMessage = createAssistantMessage(
+      StoreId.newMessageId(),
+      runSessionId,
+    );
+    const queuedParts = [1, 2, 3].map((n) =>
+      createQueuedReadFilePart(n, {
+        messageId: runMessage.id,
+        sessionId: runSessionId,
+      }),
+    );
+    const statesDuringOnFinish: string[] = [];
+
+    const actor = createActor(
+      agentMachine.provide({
+        actors: {
+          executeToolCallMachine: executeToolCallMachine.provide({
+            actors: {
+              executeToolLogic: fromPromise(
+                () => new Promise<{ preliminarySaved: boolean }>(noop),
+              ),
+            },
+          }),
+          llmRequestLogic: fromPromise(async () => {
+            const savedResult = await Store.saveMessageWithParts(
+              { ...runMessage, parts: queuedParts },
+              taskId,
+            );
+            savedResult._unsafeUnwrap();
+            return { message: runMessage, parts: queuedParts };
+          }),
+          onFinish: fromPromise(async () => {
+            const partsAtFinish = await readToolParts(runSessionId);
+            statesDuringOnFinish.push(
+              ...partsAtFinish.map((part) => part.state),
+            );
+          }),
+          onStart: fromPromise(() => Promise.resolve()),
+          shouldContinue: fromPromise(() => Promise.resolve(false)),
+        },
+      }),
+      { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
+    );
+
+    actor.start();
+    await waitFor(actor, (state) => state.matches("ExecutingToolCall"));
+
+    actor.send({ type: "stop" });
+    await waitFor(actor, (state) => state.matches("Done"));
+
+    // The executing call cancels itself on the way in, so what proves the
+    // sweep had not run yet is the queued pair it would have finalized.
+    expect(statesDuringOnFinish).toContain("input-available");
+    const toolParts = await readToolParts(runSessionId);
+    expect(toolParts.map((part) => part.state)).toEqual([
+      "output-error",
+      "output-error",
+      "output-error",
+    ]);
+  });
+
   it("finalizes saved parts when the turn is stopped during input streaming", async () => {
     const runSessionId = StoreId.newSessionId();
     const parentMessageId = StoreId.newMessageId();

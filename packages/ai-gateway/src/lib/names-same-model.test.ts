@@ -11,9 +11,14 @@ describe("namesSameModel", () => {
     // substitution.
     ["gpt-5.6-luna", "gpt-5.6-luna-2026-01-15", true],
     ["claude-sonnet-4-5", "claude-sonnet-4-5-20250929", true],
+    ["google/gemini-1.5-pro", "google/gemini-1.5-pro-002", true],
     // A different model that happens to share a prefix.
     ["gpt-5", "gpt-5-mini", false],
     ["claude-sonnet-4-5", "claude-sonnet-4-5-thinking", false],
+    // A parameter count and a context window both open with a digit, so a
+    // suffix has to be a build number outright to read as the same model.
+    ["meta-llama/llama-3.3", "meta-llama/llama-3.3-70b-instruct", false],
+    ["gpt-4", "gpt-4-32k", false],
     // A different model outright, which is the substitution worth showing.
     ["anthropic/claude-fable-5", "anthropic/claude-opus-5", false],
     ["instrument/auto", "openai/gpt-5.6-luna", false],

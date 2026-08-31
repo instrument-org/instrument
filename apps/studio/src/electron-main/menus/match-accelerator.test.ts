@@ -179,6 +179,62 @@ describe("matchesAccelerator", () => {
     },
   );
 
+  // Alt is the one modifier that changes what the key types, so it is the one
+  // case decided on where the key sits.
+  describe("with Alt held", () => {
+    it("takes the key that sits at B, whatever Option made it type", () => {
+      // macOS composes Option+B into the integral sign; the position is B.
+      expect(
+        matchesAccelerator(
+          keyInput("∫", "KeyB", "meta", "alt"),
+          "CmdOrCtrl+Alt+B",
+          { isMac: true },
+        ),
+      ).toBe(true);
+    });
+
+    it("still wants Alt held", () => {
+      expect(
+        matchesAccelerator(keyInput("b", "KeyB", "meta"), "CmdOrCtrl+Alt+B", {
+          isMac: true,
+        }),
+      ).toBe(false);
+      expect(
+        matchesAccelerator(
+          keyInput("∫", "KeyB", "meta", "alt", "shift"),
+          "CmdOrCtrl+Alt+B",
+          { isMac: true },
+        ),
+      ).toBe(false);
+    });
+
+    it("reads Ctrl+Alt+B off the same position", () => {
+      // Nothing composes it here, so the character arrives intact and the
+      // position decides it anyway.
+      expect(
+        matchesAccelerator(
+          keyInput("b", "KeyB", "control", "alt"),
+          "CmdOrCtrl+Alt+B",
+          { isMac: false },
+        ),
+      ).toBe(true);
+    });
+
+    it("leaves the keys that carry no character alone", () => {
+      expect(
+        matchesAccelerator(keyInput("Enter", "Enter", "alt"), "Alt+Enter", {
+          isMac: true,
+        }),
+      ).toBe(true);
+    });
+
+    // Position can name a letter or a digit and nothing else here, so a chord
+    // asking for a character under Alt is refused rather than approximated.
+    it("refuses a punctuation chord it would have to guess at", () => {
+      expect(parseAccelerator("CmdOrCtrl+Alt+[", { isMac: true })).toBeNull();
+    });
+  });
+
   // A chord means the key that types its character, the way the native menu
   // means it. Deciding on the physical position instead puts the app's chords
   // on top of the user's editing keys everywhere but QWERTY.

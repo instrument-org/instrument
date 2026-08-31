@@ -78,15 +78,15 @@ export const agentMachine = setup({
     executeToolCallMachine,
 
     /**
-     * Every path into `Finishing` runs this first. A tool part of this run
-     * still in `input-*` at that point has no writer left: the stream that
-     * saved it is gone, queued calls are never re-executed on resume, and
-     * model-message conversion filters `input-*` parts out entirely, so the
-     * part would sit unresolved in the transcript forever and the resumed
-     * model would lose the record of having made the call. That covers queued
-     * siblings of a stopped call, parts an aborted stream saved before the
-     * machine left `LLMStreaming` (they reach no context array), pending
-     * interactive calls, and parts left by an errored stream attempt.
+     * A tool part of this run still in `input-*` when the run ends has no
+     * writer left: the stream that saved it is gone, queued calls are never
+     * re-executed on resume, and model-message conversion filters `input-*`
+     * parts out entirely, so the part would sit unresolved in the transcript
+     * forever and the resumed model would lose the record of having made the
+     * call. That covers queued siblings of a stopped call, parts an aborted
+     * stream saved before the machine left `LLMStreaming` (they reach no
+     * context array), pending interactive calls, and parts left by an errored
+     * stream attempt. `Finishing` runs this on the paths that can strand one.
      */
     finalizeDanglingToolCalls: fromPromise<
       // oxlint-disable-next-line typescript/no-invalid-void-type
@@ -98,46 +98,65 @@ export const agentMachine = setup({
         taskId: TaskId;
       }
     >(async ({ input, signal }) => {
-      const messagesResult = await Store.getMessagesWithParts(
-        { sessionId: input.sessionId, taskId: input.taskId },
+      const messageIdsResult = await Store.getMessageIds(
+        input.sessionId,
+        input.taskId,
         { signal },
       );
 
-      if (messagesResult.isErr()) {
+      if (messageIdsResult.isErr()) {
         throw new Error(
-          `Error loading messages: ${JSON.stringify(messagesResult.error)}`,
+          `Error loading message ids: ${JSON.stringify(messageIdsResult.error)}`,
         );
       }
 
-      for (const message of messagesResult.value) {
-        // Only this run's steps: assistant messages created after the message
-        // that started the run (ids are monotonic ULIDs, so id order is
-        // creation order). A part left dangling by an earlier run keeps
-        // whatever record that run wrote.
-        if (
-          message.role !== "assistant" ||
-          message.id <= input.parentMessageId
-        ) {
-          continue;
+      // Only this run's steps: messages created after the one that started the
+      // run (ids are monotonic ULIDs, so id order is creation order). A part
+      // left dangling by an earlier run keeps whatever record that run wrote,
+      // and reading those messages' parts alone keeps a finish off the rest of
+      // the session, which a long one makes expensive to parse.
+      const runMessageIds = messageIdsResult.value.filter(
+        (messageId) => messageId > input.parentMessageId,
+      );
+
+      const partsResults = await Promise.all(
+        runMessageIds.map((messageId) =>
+          Store.getParts(input.sessionId, messageId, input.taskId, { signal }),
+        ),
+      );
+
+      const danglingParts: SessionMessagePart.ToolPart[] = [];
+      for (const partsResult of partsResults) {
+        if (partsResult.isErr()) {
+          throw new Error(
+            `Error loading parts: ${JSON.stringify(partsResult.error)}`,
+          );
         }
-        for (const part of message.parts) {
+        for (const part of partsResult.value) {
           if (
-            !isToolPart(part) ||
-            (part.state !== "input-available" &&
-              part.state !== "input-streaming")
+            isToolPart(part) &&
+            (part.state === "input-available" ||
+              part.state === "input-streaming")
           ) {
-            continue;
+            danglingParts.push(part);
           }
-          await saveStoppedToolCallPart(
+        }
+      }
+
+      // Written together so a run holding several of them costs about one
+      // write, which is what keeps the sweep inside a stop's deadline.
+      await Promise.all(
+        danglingParts.map((part) =>
+          saveStoppedToolCallPart(
             {
               part,
               reason: input.stopRequested ? "manual" : "unknown",
               taskId: input.taskId,
             },
             { signal },
-          );
-        }
-      }
+          ),
+        ),
+      );
     }),
 
     llmRequestLogic,
@@ -287,6 +306,11 @@ export const agentMachine = setup({
       taskId: TaskId;
       toolCallQueue: SessionMessagePart.ToolPartInputAvailable[];
       toolChoice?: "auto" | "none" | "required";
+      // Streams whose tool parts no queue has taken over: raised when a
+      // request starts and lowered when that request's own end hands its parts
+      // to the queues, so an attempt the machine walked away from stays
+      // counted for the rest of the run.
+      unaccountedStreamCount: number;
     },
     events: {} as AgentMachineEvent,
     input: {} as {
@@ -323,6 +347,7 @@ export const agentMachine = setup({
     taskId: input.taskId,
     toolCallQueue: [],
     toolChoice: input.toolChoice,
+    unaccountedStreamCount: 0,
   }),
   id: "agent",
   initial: "Starting",
@@ -455,7 +480,7 @@ export const agentMachine = setup({
     },
 
     Finishing: {
-      initial: "FinalizingDanglingToolCalls",
+      initial: "MaybeFinalizingDanglingToolCalls",
       states: {
         FinalizingDanglingToolCalls: {
           invoke: {
@@ -469,6 +494,23 @@ export const agentMachine = setup({
             onError: { actions: "assignEventError", target: "RunningOnFinish" },
             src: "finalizeDanglingToolCalls",
           },
+        },
+        MaybeFinalizingDanglingToolCalls: {
+          always: [
+            {
+              // Every stream of this run handed its tool parts to the queues,
+              // both queues are drained, and no stop cut a call short, so
+              // nothing of this run is left in `input-*` and the sweep would
+              // buy the turn nothing for the read it costs.
+              guard: ({ context }) =>
+                context.unaccountedStreamCount === 0 &&
+                !context.stopRequested &&
+                context.pendingToolCalls.length === 0 &&
+                context.toolCallQueue.length === 0,
+              target: "RunningOnFinish",
+            },
+            { target: "FinalizingDanglingToolCalls" },
+          ],
         },
         RunningOnFinish: {
           invoke: {
@@ -488,6 +530,10 @@ export const agentMachine = setup({
     },
 
     LLMStreaming: {
+      entry: assign({
+        unaccountedStreamCount: ({ context }) =>
+          context.unaccountedStreamCount + 1,
+      }),
       initial: "PendingTimeout",
       invoke: {
         input: ({ context, self }) => {
@@ -513,7 +559,7 @@ export const agentMachine = setup({
 
               return { type: "executeToolCalls" };
             }),
-            assign(({ event: { output } }) => {
+            assign(({ context, event: { output } }) => {
               const { message, parts } = output;
               if (getErrorAction(message).type !== "continue") {
                 return {};
@@ -544,7 +590,11 @@ export const agentMachine = setup({
                 toolCallQueue.push(part);
               }
 
-              return { pendingToolCalls, toolCallQueue };
+              return {
+                pendingToolCalls,
+                toolCallQueue,
+                unaccountedStreamCount: context.unaccountedStreamCount - 1,
+              };
             }),
           ],
         },

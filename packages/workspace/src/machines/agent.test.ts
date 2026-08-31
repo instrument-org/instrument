@@ -1,5 +1,5 @@
 import { noop } from "radashi";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { type AnyActorRef, createActor, fromPromise, waitFor } from "xstate";
 
 import { mainAgent } from "../agents/main";
@@ -22,6 +22,10 @@ describe("agentMachine", () => {
   const sessionId = StoreId.newSessionId();
   const messageId = StoreId.newMessageId();
   const createdAt = new Date("2025-01-01T00:00:00.000Z");
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   const assistantMessage: SessionMessage.Assistant = {
     id: messageId,
@@ -327,6 +331,59 @@ describe("agentMachine", () => {
         },
       ]
     `);
+  });
+
+  it("reads nothing back when a completed turn leaves the queues empty", async () => {
+    const runSessionId = StoreId.newSessionId();
+    const parentMessageId = StoreId.newMessageId();
+    const runMessage = createAssistantMessage(
+      StoreId.newMessageId(),
+      runSessionId,
+    );
+    const runParts: SessionMessagePart.Type[] = [
+      {
+        metadata: {
+          createdAt,
+          endedAt: createdAt,
+          id: StoreId.newPartId(),
+          messageId: runMessage.id,
+          sessionId: runSessionId,
+        },
+        state: "done",
+        text: "All done.",
+        type: "text",
+      },
+    ];
+    const getMessagesWithParts = vi.spyOn(Store, "getMessagesWithParts");
+    const getMessageIds = vi.spyOn(Store, "getMessageIds");
+    const getParts = vi.spyOn(Store, "getParts");
+
+    const actor = createActor(
+      agentMachine.provide({
+        actors: {
+          llmRequestLogic: fromPromise(async () => {
+            const runResult = await Store.saveMessageWithParts(
+              { ...runMessage, parts: runParts },
+              taskId,
+            );
+            runResult._unsafeUnwrap();
+            return { message: runMessage, parts: runParts };
+          }),
+          onFinish: fromPromise(() => Promise.resolve()),
+          onStart: fromPromise(() => Promise.resolve()),
+          shouldContinue: fromPromise(() => Promise.resolve(false)),
+        },
+      }),
+      { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
+    );
+
+    actor.start();
+    await waitFor(actor, (state) => state.matches("Done"));
+
+    // Nothing this turn produced can be unresolved, so finishing costs no read.
+    expect(getMessagesWithParts).not.toHaveBeenCalled();
+    expect(getMessageIds).not.toHaveBeenCalled();
+    expect(getParts).not.toHaveBeenCalled();
   });
 
   it("leaves finished and prior-run parts alone on a turn that ends without a stop", async () => {

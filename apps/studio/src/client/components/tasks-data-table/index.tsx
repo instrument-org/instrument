@@ -61,6 +61,7 @@ export function TasksDataTable({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
+  // oxlint-disable-next-line react/incompatible-library
   const table = useReactTable<Task>({
     columns,
     data,

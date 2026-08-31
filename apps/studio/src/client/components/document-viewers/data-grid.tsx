@@ -158,6 +158,7 @@ export function DataGrid({
     [columns, measured],
   );
 
+  // oxlint-disable-next-line react/incompatible-library
   const table = useReactTable({
     columnResizeMode: "onChange",
     columns: columnDefs,

@@ -34,10 +34,25 @@ import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useId, useMemo, useRef, useState } from "react";
+import {
+  type RefObject,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 
 const fuzzy = new uFuzzy({ intraMode: 1 });
+
+/**
+ * How tall the panel asks to be before the window has any say. Roughly the Auto
+ * row, the search field and six model rows: enough that the list reads as a list
+ * rather than a peephole, and short enough that a picker hanging off one control
+ * in the composer does not answer with a full-height panel.
+ */
+const PANEL_MAX_HEIGHT = "27rem";
 
 import { captureClientEvent } from "@/client/lib/capture-client-event";
 
@@ -93,6 +108,7 @@ export function ModelPicker({
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isBrowsing, setIsBrowsing] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
   const modelsWithoutAuto = useMemo(
@@ -266,86 +282,116 @@ export function ModelPicker({
           <CaretDownIcon className="size-3 shrink-0" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-80 p-0">
+      <PopoverContent
+        align="start"
+        className="flex w-80 flex-col p-0"
+        maxHeight={PANEL_MAX_HEIGHT}
+      >
         <Command label="Search models" shouldFilter={false}>
-          <AutoModeSwitch
-            autoModel={autoModel}
-            checked={isAutoMode}
-            isUnavailable={isUnavailable}
-            onCheckedChange={(checked) => {
-              if (checked && autoModel) {
-                onValueChange(autoModel.uri);
-              } else {
-                onValueChange("" as AIGatewayModelURI.Type);
-              }
-            }}
-            selectedName={selectedName}
-          />
-          {autoModel && !hideModelList && <hr className="border-t" />}
-          {hasModels && (
-            <CommandInput
-              autoFocus
-              className="h-9"
-              containerClassName={cn(isAutoMode && "border-b-0")}
-              onValueChange={setSearchQuery}
-              placeholder="Search models..."
-              value={searchQuery}
-            />
-          )}
           {/*
-            Only the model list folds away on Auto. The errors and the
-            no-provider prompt below used to fold with it, because the whole
-            list was hidden at once: a provider that failed to load said so
-            everywhere except in the one state most people sit in.
+            One scroll for the whole panel. Holding the Auto row and the search
+            field still cost the model list the height they took, which in a
+            short window (or a zoomed-in one) left the list a sliver scrolling
+            beneath them. So the Auto row scrolls away like everything else, and
+            the search field alone sticks to the top of what it leaves, since a
+            list you are scrolling is a list you may still want to search.
+
+            `relative` because this is what the virtualized list below measures
+            its own offset against.
           */}
-          <CommandList className="max-h-none! overflow-visible!">
-            {hasErrors && (
-              <ErrorsGroup
-                errors={errors}
-                hasOurProviderError={hasOurProviderError}
+          <div
+            className="relative min-h-0 overflow-y-auto"
+            data-slot="model-picker-scroll"
+            ref={scrollRef}
+          >
+            <AutoModeSwitch
+              autoModel={autoModel}
+              checked={isAutoMode}
+              isUnavailable={isUnavailable}
+              onCheckedChange={(checked) => {
+                if (checked && autoModel) {
+                  onValueChange(autoModel.uri);
+                } else {
+                  onValueChange("" as AIGatewayModelURI.Type);
+                }
+              }}
+              selectedName={selectedName}
+            />
+            {autoModel && !hideModelList && <hr className="border-t" />}
+            {hasModels && (
+              <CommandInput
+                autoFocus
+                className="h-9"
+                containerClassName={cn(
+                  // Above the rows, which are positioned and would otherwise
+                  // paint over it on their way past.
+                  "sticky top-0 z-10 bg-popover",
+                  isAutoMode && "border-b-0",
+                )}
+                onValueChange={setSearchQuery}
+                placeholder="Search models..."
+                value={searchQuery}
               />
             )}
-            {hasModels ? null : (
-              <NoProvidersMessage
-                hasAutoModel={!!autoModel}
-                onAddProvider={() => {
-                  closePopover();
-                  onAddProvider?.();
-                }}
-              />
-            )}
-            {isError && (
-              <CommandGroup>
-                <CommandItem disabled>Failed to load models</CommandItem>
-              </CommandGroup>
-            )}
-            {hasModels && !hideModelList && (
-              <ModelGroups
-                groupedModels={filteredGroupedModels}
-                onAddProvider={() => {
-                  closePopover();
-                  onAddProvider?.();
-                }}
-                onSelectModel={(model) => {
-                  if (model.restricted) {
-                    toast.info(`${model.name.trim()} is unavailable`, {
-                      description: model.restricted.message,
-                      dismissible: true,
-                      duration: 7000,
-                    });
-                  } else {
-                    captureClientEvent("model_picker.model_selected", {
-                      modelId: model.canonicalId,
-                      providerId: model.params.provider,
-                    });
-                    onValueChange(model.uri);
-                  }
-                  closePopover();
-                }}
-                selectedModel={selectedModel}
-              />
-            )}
-          </CommandList>
+            {/*
+              Only the model list folds away on Auto. The errors and the
+              no-provider prompt below used to fold with it, because the whole
+              list was hidden at once: a provider that failed to load said so
+              everywhere except in the one state most people sit in.
+
+              `cmdk` caps this at 300px and scrolls it, which would be a second
+              scroll inside the panel's own.
+            */}
+            <CommandList className="max-h-none! overflow-visible!">
+              {hasErrors && (
+                <ErrorsGroup
+                  errors={errors}
+                  hasOurProviderError={hasOurProviderError}
+                />
+              )}
+              {hasModels ? null : (
+                <NoProvidersMessage
+                  hasAutoModel={!!autoModel}
+                  onAddProvider={() => {
+                    closePopover();
+                    onAddProvider?.();
+                  }}
+                />
+              )}
+              {isError && (
+                <CommandGroup>
+                  <CommandItem disabled>Failed to load models</CommandItem>
+                </CommandGroup>
+              )}
+              {hasModels && !hideModelList && (
+                <ModelGroups
+                  groupedModels={filteredGroupedModels}
+                  onAddProvider={() => {
+                    closePopover();
+                    onAddProvider?.();
+                  }}
+                  onSelectModel={(model) => {
+                    if (model.restricted) {
+                      toast.info(`${model.name.trim()} is unavailable`, {
+                        description: model.restricted.message,
+                        dismissible: true,
+                        duration: 7000,
+                      });
+                    } else {
+                      captureClientEvent("model_picker.model_selected", {
+                        modelId: model.canonicalId,
+                        providerId: model.params.provider,
+                      });
+                      onValueChange(model.uri);
+                    }
+                    closePopover();
+                  }}
+                  scrollRef={scrollRef}
+                  selectedModel={selectedModel}
+                />
+              )}
+            </CommandList>
+          </div>
           {hasModels && hideModelList && (
             <BrowseModelsRow
               count={modelsWithoutAuto.length}
@@ -486,6 +532,9 @@ function ErrorsGroup({
 }) {
   return (
     <CommandGroup
+      // An error explains why a provider's models are missing, so it keeps its
+      // height and the list below it absorbs the squeeze instead.
+      className="shrink-0"
       heading={
         <div className="flex w-full items-center justify-between">
           <span>Errors</span>
@@ -540,14 +589,39 @@ function ModelGroups({
   groupedModels,
   onAddProvider,
   onSelectModel,
+  scrollRef,
   selectedModel,
 }: {
   groupedModels: Record<string, MatchedModel[]>;
   onAddProvider: () => void;
   onSelectModel: (model: AIGatewayModel.Type) => void;
+  /** The panel's scroll, which this list is only one part of. */
+  scrollRef: RefObject<HTMLDivElement | null>;
   selectedModel?: AIGatewayModel.Type;
 }) {
-  const parentRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+
+  // Where this list starts within that scroll, which is what the virtualizer
+  // needs to turn a scroll position into a range of rows.
+  //
+  // Read after every render rather than off a dependency list: what moves the
+  // list is anything above it changing height -- the Auto row swapping for its
+  // unavailable state, a provider error arriving -- and every one of those is
+  // already a render of this component. There is no observer for an element
+  // that moved without resizing, so a narrower trigger would be a list of the
+  // reasons it can move, kept by hand, one prop away from being wrong. The
+  // chain of updates the rule warns about is what the equality guard rules
+  // out: a position that has not moved writes nothing.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (list) {
+      setScrollMargin((current) =>
+        current === list.offsetTop ? current : list.offsetTop,
+      );
+    }
+  });
 
   const rows = useMemo<VirtualRow[]>(() => {
     const flat: VirtualRow[] = [];
@@ -566,14 +640,33 @@ function ModelGroups({
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rows.length,
     estimateSize: (i) => (rows[i]?.type === "header" ? 28 : 56),
-    getScrollElement: () => parentRef.current,
+    getScrollElement: () => scrollRef.current,
     // `offsetHeight`, not `getBoundingClientRect()`: the picker sits inside CSS
     // `zoom`, where the rect is the on-screen height while the row offsets and
     // spacer height this feeds are layout px. Measuring the rect reports every
     // row as `zoom x` its own height, spacing the list out with gaps and
     // stretching the scroll range to match.
     measureElement: (el) => el.offsetHeight,
+    // Same unit, for the scrollport this reads its visible range from. The
+    // stock one measures the rect and would believe the panel `zoom x` taller
+    // than the rows filling it are.
+    observeElementRect: (instance, cb) => {
+      const element = instance.scrollElement;
+      if (!element) {
+        return;
+      }
+      const measure = () => {
+        cb({ height: element.offsetHeight, width: element.offsetWidth });
+      };
+      measure();
+      const observer = new ResizeObserver(measure);
+      observer.observe(element);
+      return () => {
+        observer.disconnect();
+      };
+    },
     overscan: 8,
+    scrollMargin,
   });
 
   if (rows.length === 0) {
@@ -593,85 +686,86 @@ function ModelGroups({
   }
 
   return (
+    // Sized to hold every row, rendered or not, so the panel's scroll runs the
+    // length of the whole list rather than of the handful currently in the DOM.
     <div
-      className="overflow-y-auto"
-      ref={parentRef}
-      style={{ maxHeight: "328px" }}
+      className="relative w-full"
+      data-slot="model-list"
+      ref={listRef}
+      style={{ height: `${virtualizer.getTotalSize()}px` }}
     >
-      <div
-        className="relative w-full"
-        style={{ height: `${virtualizer.getTotalSize()}px` }}
-      >
-        {virtualizer.getVirtualItems().map((virtualItem) => {
-          const row = rows[virtualItem.index];
-          if (!row) {
-            return null;
-          }
+      {virtualizer.getVirtualItems().map((virtualItem) => {
+        const row = rows[virtualItem.index];
+        if (!row) {
+          return null;
+        }
+        // Row offsets are measured from the top of the panel's scroll; this
+        // box starts partway down it.
+        const offset = virtualItem.start - scrollMargin;
 
-          if (row.type === "header") {
-            return (
-              <div
-                className="absolute top-0 right-1 left-1 px-2 py-1.5 text-xs font-medium text-muted-foreground"
-                data-index={virtualItem.index}
-                key={virtualItem.key}
-                ref={virtualizer.measureElement}
-                style={{ transform: `translateY(${virtualItem.start}px)` }}
-              >
-                {row.groupName}
-              </div>
-            );
-          }
-
-          const { matched } = row;
-          const { model, nameRanges, providerRanges } = matched;
+        if (row.type === "header") {
           return (
             <div
-              className="absolute top-0 right-1 left-1"
+              className="absolute top-0 right-1 left-1 px-2 py-1.5 text-xs font-medium text-muted-foreground"
               data-index={virtualItem.index}
               key={virtualItem.key}
               ref={virtualizer.measureElement}
-              style={{ transform: `translateY(${virtualItem.start}px)` }}
+              style={{ transform: `translateY(${offset}px)` }}
             >
-              <CommandItem
-                className="flex w-full items-center justify-between px-2 py-2"
-                onSelect={() => {
-                  onSelectModel(model);
-                }}
-                value={model.uri}
-              >
-                <div className="flex items-center">
-                  <CheckIcon
-                    className={cn(
-                      "mr-2 size-4 shrink-0",
-                      selectedModel?.uri === model.uri
-                        ? "opacity-100"
-                        : "opacity-0",
-                    )}
-                  />
-                  <div className="flex flex-col gap-1">
-                    <span className="text-sm">
-                      <FuzzyHighlight ranges={nameRanges} text={model.name} />
-                    </span>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <AIProviderIcon
-                        className="size-3 shrink-0"
-                        type={model.params.provider}
-                      />
-                      <FuzzyHighlight
-                        ranges={providerRanges}
-                        text={model.providerName}
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-1 ml-2 flex gap-1 self-start">
-                  <ModelBadges model={model} />
-                </div>
-              </CommandItem>
+              {row.groupName}
             </div>
           );
-        })}
-      </div>
+        }
+
+        const { matched } = row;
+        const { model, nameRanges, providerRanges } = matched;
+        return (
+          <div
+            className="absolute top-0 right-1 left-1"
+            data-index={virtualItem.index}
+            key={virtualItem.key}
+            ref={virtualizer.measureElement}
+            style={{ transform: `translateY(${offset}px)` }}
+          >
+            <CommandItem
+              className="flex w-full items-center justify-between px-2 py-2"
+              onSelect={() => {
+                onSelectModel(model);
+              }}
+              value={model.uri}
+            >
+              <div className="flex items-center">
+                <CheckIcon
+                  className={cn(
+                    "mr-2 size-4 shrink-0",
+                    selectedModel?.uri === model.uri
+                      ? "opacity-100"
+                      : "opacity-0",
+                  )}
+                />
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm">
+                    <FuzzyHighlight ranges={nameRanges} text={model.name} />
+                  </span>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <AIProviderIcon
+                      className="size-3 shrink-0"
+                      type={model.params.provider}
+                    />
+                    <FuzzyHighlight
+                      ranges={providerRanges}
+                      text={model.providerName}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="mt-1 ml-2 flex gap-1 self-start">
+                <ModelBadges model={model} />
+              </div>
+            </CommandItem>
+          </div>
+        );
+      })}
     </div>
   );
 }

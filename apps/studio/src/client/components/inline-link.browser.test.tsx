@@ -1,6 +1,8 @@
+import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { renderInBrowser } from "@/tests/render-browser";
-import { StoreId } from "@instrument-org/workspace/client";
-import { describe, expect, it } from "vitest";
+import { StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { describe, expect, it, vi } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { Markdown } from "./markdown";
 import { UserMessage } from "./user-message";
@@ -50,6 +52,31 @@ const chips = () =>
   [...document.querySelectorAll("a, button")].filter(
     (element) => getComputedStyle(element).display === "inline-flex",
   );
+
+/** The whole URL, once a hover has asked for it. */
+const destination = () =>
+  document.querySelector('[data-slot="link-destination"]');
+
+/**
+ * Hovering a link and waiting out the delay in front of a tooltip.
+ *
+ * Longer than the retry a matcher gets on its own, which is shorter than the
+ * delay itself.
+ */
+async function hoverLink(assert: (element: Element) => void) {
+  await userEvent.hover(page.getByRole("link"));
+
+  await vi.waitFor(
+    () => {
+      const element = destination();
+      if (!element) {
+        throw new Error("the hover produced no destination");
+      }
+      assert(element);
+    },
+    { timeout: 3000 },
+  );
+}
 
 describe("An inline link in a browser", () => {
   // The line a chip sits in has to be the height it would have been without
@@ -194,6 +221,56 @@ describe("An inline link in a browser", () => {
     }
 
     expect(getComputedStyle(icon).textDecorationLine).toBe("none");
+  });
+
+  // The window has no status bar, so the whole URL is on screen only while a
+  // link is hovered. Whether it arrives is a question about a real pointer.
+  it("gives up the whole URL when a link is hovered", async () => {
+    await renderReply(
+      "Rotation is on [the docs](https://finalpoint.co/handbook/rotation?team=core).",
+    );
+
+    await hoverLink((element) => {
+      expect(element.textContent).toBe(
+        "https://finalpoint.co/handbook/rotation?team=core",
+      );
+    });
+  });
+
+  // A URL is one unbreakable token, so a tooltip allowed to break only between
+  // words is one that a long URL runs straight out the side of.
+  it("keeps a URL longer than the tooltip inside it", async () => {
+    await renderReply(
+      `Rotation is on [the docs](https://finalpoint.co/${"handbook".repeat(12)}).`,
+    );
+
+    await hoverLink((element) => {
+      expect(element.scrollWidth).toBeLessThanOrEqual(element.clientWidth);
+    });
+  });
+
+  // Inside a task the click has a menu of its own, hanging off the same anchor
+  // the tooltip does and drawn over the same sentence. Only one of the two was
+  // asked for.
+  it("clears the tooltip when the link's own menu opens", async () => {
+    await renderInBrowser(
+      <TaskSessionProvider
+        sessionId={StoreId.newSessionId()}
+        taskId={"task_1" as TaskId}
+      >
+        <div className={PROSE} style={{ width: 600 }}>
+          <Markdown markdown="Rotation is on [the docs](https://finalpoint.co/handbook)." />
+        </div>
+      </TaskSessionProvider>,
+    );
+
+    await hoverLink((element) => {
+      expect(element.textContent).toBe("https://finalpoint.co/handbook");
+    });
+    await userEvent.click(page.getByRole("link"));
+
+    expect(document.querySelector('[role="menu"]')).not.toBeNull();
+    expect(destination()).toBeNull();
   });
 
   // The icon a plain link carries is the same size as a chip's and sits in the

@@ -42,7 +42,7 @@ describe("openExternal", () => {
     );
   });
 
-  it("keeps an unparseable URL out of the captured exception", async () => {
+  it("keeps an unparsable URL out of the captured exception", async () => {
     const opened = await openExternal("http://[/Users/someone/secret");
 
     expect(opened).toBe(false);

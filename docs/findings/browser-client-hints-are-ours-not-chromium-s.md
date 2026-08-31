@@ -25,13 +25,15 @@ Chromium derives the whole brand list from the major version: the GREASE brand's
 
 The generation is checked three ways: against the live browser in the e2e test, against this Electron's `navigator.userAgentData` in a pinned unit snapshot, and against the published headers of Chrome 120, 128, and 131 for the GREASE cycle. The list order is the weakest of these. It is confirmed at one major only, and a wrong parity rule would put the right brands in the wrong order on some future Chromium. The e2e test is what catches that.
 
+Which requests get hints at all is the same question asked about the transport. Chromium restricts client hints to potentially trustworthy origins, so hinting a plain `http://` request is a header no real Chrome sends, which is the brand mismatch pointed the other way. The injection is gated on the request URL for that reason. Loopback stays hinted, because Chromium treats the whole `127.0.0.0/8` range and every `.localhost` name as trustworthy regardless of scheme.
+
 ## What is still not coherent
 
 **High-entropy hints are absent rather than wrong.** A site that negotiates `Accept-CH: sec-ch-ua-full-version-list` gets nothing back, where a real Chrome answers. Supplying them means tracking `Accept-CH` per origin, because sending high-entropy hints unprompted is itself unusual. Absence is a weaker signal than contradiction, so this was left alone.
 
 **The compatibility case for the Google Chrome brand was never captured.** The comment in `user-agent.ts` cites avatar and asset rate limiting and inconsistent sign-in handling as the reason the session is normalized at all, but that motivation belongs to the UA string, which is unchanged. Whether any site keyed on the brand specifically is unknown. If one turns up, capture the response difference here before adding the brand back, because adding it back reopens the mismatch this finding is about.
 
-**`Runtime.enable` is unrelated and still open.** `agent-browser` enables the CDP `Runtime` domain on every attached page and child target, which is a much louder automation signal than any header. It is a change to that package's Rust client, not something Instrument can configure. See `docs/plans/active/task-browser-automation-detection-resistance.md`.
+**`Runtime.enable` is unrelated and still open.** `agent-browser` enables the CDP `Runtime` domain on every attached page and child target, which is a much louder automation signal than any header. Confirmed still present at four call sites in the published `0.35.2` source, alongside no `Console.enable` anywhere. It is a change to that package's Rust client, which ships as prebuilt per-platform binaries, so it is an upstream contribution rather than anything Instrument can configure or patch locally.
 
 ## What not to do
 

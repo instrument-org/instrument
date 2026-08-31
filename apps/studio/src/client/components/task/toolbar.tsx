@@ -150,11 +150,12 @@ export function TaskToolbar({
                 </Button>
               </PopoverTrigger>
               {/* The panel scrolls, not the list inside it: height is whatever
-                  the files need, capped by the space Radix measured under the
-                  trigger, divided into this content's own zoomed pixels. */}
+                  the files need, up to 560px and down to the room the popover
+                  has under the trigger. */}
               <PopoverContent
                 align="end"
-                className="max-h-[min(560px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] w-100 overflow-y-auto p-0"
+                className="w-100 overflow-y-auto p-0"
+                maxHeight="560px"
               >
                 <TaskFiles
                   activeFilePath={activeFilePath}

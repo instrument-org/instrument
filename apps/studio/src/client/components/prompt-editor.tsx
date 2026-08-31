@@ -582,10 +582,6 @@ export function PromptEditor({
         and not for where it lands either, which the composer decides so that a
         typed slash and the plus button open the same menu in the same place.
 
-        `--radix-popover-content-available-height` is measured on screen, while
-        the content re-applies zoom to its own layout units, so it is divided by
-        `--content-zoom` to land back inside the window.
-
         The corner is the composer's own rather than the popover radius, for the
         same reason the width is the composer's: this is read against the edge of
         the box it hangs off.
@@ -594,7 +590,8 @@ export function PromptEditor({
         align="start"
         alignOffset={alignOffset}
         avoidCollisions={false}
-        className="max-h-[min(18rem,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] overflow-y-auto rounded-[20px] p-1 shadow-lg"
+        className="overflow-y-auto rounded-[20px] p-1 shadow-lg"
+        maxHeight="18rem"
         onCloseAutoFocus={preventDefault}
         onFocusOutside={preventDefault}
         onInteractOutside={preventDefault}

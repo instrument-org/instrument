@@ -581,6 +581,7 @@ export const llmRequestLogic = fromPromise<
               state: "input-available",
             };
             await scopedStore.savePart(updatedPart);
+            pendingDeltaSaves.delete(existingPart.metadata.id);
           } else if (existingPart) {
             // Unexpected state, but don't throw - just log
             getWorkspaceConfig().captureException(
@@ -659,6 +660,7 @@ export const llmRequestLogic = fromPromise<
                 state: "output-error",
               };
               await scopedStore.savePart(updatedPart);
+              pendingDeltaSaves.delete(toolCall.metadata.id);
               continue;
             } else {
               // Unexpected state, capture exception
@@ -701,15 +703,28 @@ export const llmRequestLogic = fromPromise<
           if (toolCall?.state === "input-streaming") {
             toolCallInputText[part.id] =
               (toolCallInputText[part.id] || "") + part.delta;
-            const { value: partialArgs } = await parsePartialJson(
-              toolCallInputText[part.id],
+            await savePartCoalesced(
+              toolCall.metadata.id,
+              part.delta.length,
+              async () => {
+                // Runs from the flush as well as from a delta, so the call
+                // may have completed or errored in the meantime; that part
+                // was already saved in its final state and must stay.
+                const streamingCall = toolCalls[part.id];
+                if (streamingCall?.state !== "input-streaming") {
+                  return;
+                }
+                const { value: partialArgs } = await parsePartialJson(
+                  toolCallInputText[part.id] ?? "",
+                );
+                const updatedPart: SessionMessagePart.ToolPart = {
+                  ...streamingCall,
+                  input: partialArgs as never,
+                };
+                toolCalls[part.id] = updatedPart;
+                await scopedStore.savePart(updatedPart);
+              },
             );
-            const updatedPart: SessionMessagePart.ToolPart = {
-              ...toolCall,
-              input: partialArgs as never,
-            };
-            toolCalls[part.id] = updatedPart;
-            await scopedStore.savePart(updatedPart);
           }
           break;
         }

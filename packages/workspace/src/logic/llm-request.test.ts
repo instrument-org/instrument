@@ -2764,6 +2764,112 @@ describe("llmRequestLogic", () => {
       expect(savePartSpy.mock.calls.length).toMatchInlineSnapshot(`5`);
     });
 
+    it("coalesces tool input delta saves", async () => {
+      vi.spyOn(performance, "now").mockReturnValue(0);
+      const savePartSpy = vi.spyOn(Store, "savePart");
+      const input = JSON.stringify({ filePath: `${"a".repeat(1000)}.txt` });
+      const deltas = Array.from(
+        { length: Math.ceil(input.length / 5) },
+        (_, index) => input.slice(index * 5, index * 5 + 5),
+      );
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { id: "call-1", toolName: "read_file", type: "tool-input-start" },
+          ...deltas.map((delta) => ({
+            delta,
+            id: "call-1",
+            type: "tool-input-delta" as const,
+          })),
+          {
+            input,
+            toolCallId: "call-1",
+            toolName: "read_file",
+            type: "tool-call",
+          },
+        ],
+      });
+
+      const assistant = messages.findLast(
+        (message) => message.role === "assistant",
+      );
+      const toolPart = assistant?.parts.find(
+        (part) => part.type === "tool-read_file",
+      );
+      expect(
+        toolPart?.type === "tool-read_file" &&
+          toolPart.state === "input-available"
+          ? toolPart.input
+          : undefined,
+      ).toEqual({ filePath: `${"a".repeat(1000)}.txt` });
+      expect(savePartSpy.mock.calls.length).toBeLessThan(deltas.length / 10);
+      // The step-start part, the part created at tool-input-start, the first
+      // delta, and the tool-call save.
+      expect(savePartSpy.mock.calls.length).toMatchInlineSnapshot(`4`);
+    });
+
+    it("flushes the partial tool input when the stream errors", async () => {
+      vi.spyOn(performance, "now").mockReturnValue(0);
+      const input = JSON.stringify({ filePath: "flushed.txt" });
+      const deltas = Array.from(
+        { length: Math.ceil(input.length / 3) },
+        (_, index) => input.slice(index * 3, index * 3 + 3),
+      );
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { id: "call-1", toolName: "read_file", type: "tool-input-start" },
+          ...deltas.map((delta) => ({
+            delta,
+            id: "call-1",
+            type: "tool-input-delta" as const,
+          })),
+          { error: "stream failed", type: "error" },
+        ],
+      });
+
+      const assistant = messages.findLast(
+        (message) => message.role === "assistant",
+      );
+      const toolPart = assistant?.parts.find(
+        (part) => part.type === "tool-read_file",
+      );
+      expect(
+        toolPart?.type === "tool-read_file" &&
+          toolPart.state === "input-streaming"
+          ? toolPart.input
+          : undefined,
+      ).toEqual({ filePath: "flushed.txt" });
+    });
+
+    it("does not overwrite a tool error with a stale streaming save", async () => {
+      vi.spyOn(performance, "now").mockReturnValue(0);
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { id: "call-1", toolName: "read_file", type: "tool-input-start" },
+          ...["inv", "alid", " json"].map((delta) => ({
+            delta,
+            id: "call-1",
+            type: "tool-input-delta" as const,
+          })),
+          {
+            input: "invalid json",
+            toolCallId: "call-1",
+            toolName: "read_file",
+            type: "tool-call",
+          },
+        ],
+      });
+
+      const assistant = messages.findLast(
+        (message) => message.role === "assistant",
+      );
+      const toolPart = assistant?.parts.find(
+        (part) => part.type === "tool-read_file",
+      );
+      expect(
+        toolPart?.type === "tool-read_file" ? toolPart.state : undefined,
+      ).toBe("output-error");
+    });
+
     it("flushes the unsaved tail when the stream errors", async () => {
       vi.spyOn(performance, "now").mockReturnValue(0);
       const deltaTexts = Array.from(

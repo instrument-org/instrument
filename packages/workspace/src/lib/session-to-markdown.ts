@@ -1,3 +1,4 @@
+import { namesSameModel } from "@instrument-org/ai-gateway";
 import {
   type AssistantModelMessage,
   type ModelMessage,
@@ -68,7 +69,10 @@ export function buildSessionFrontMatter(
     ...new Set(
       assistantMessages.flatMap(({ metadata }) =>
         metadata.modelIdServed &&
-        metadata.modelIdServed !== metadata.aiGatewayModel?.providerId
+        !namesSameModel(
+          metadata.aiGatewayModel?.providerId,
+          metadata.modelIdServed,
+        )
           ? [metadata.modelIdServed]
           : [],
       ),
@@ -146,16 +150,16 @@ export function renderAssistantMetadata(
     `provider=${metadata.providerId}`,
     `model=${metadata.modelId}`,
   ];
-  // Compared against the provider's own id for the requested model rather than
-  // against `modelId`, which is the canonical id and so never equals a provider
-  // id: `claude-haiku-4.5` against `anthropic/claude-haiku-4.5` differs on
-  // every message, and dropping the author from one side of a comparison is
-  // enough to report an alias on a step that never went through one. Messages
-  // recorded before the field only held differences still come through here.
-  const requestedProviderId = metadata.aiGatewayModel?.providerId;
+  // Read by the same rule as the transcript, and against the provider's own id
+  // for the requested model rather than against `modelId`, which is the
+  // canonical id and so never equals a provider id: `claude-haiku-4.5` against
+  // `anthropic/claude-haiku-4.5` differs on every message, and dropping the
+  // author from one side of a comparison is enough to report an alias on a step
+  // that never went through one. Messages recorded before the field only held
+  // differences still come through here.
   if (
     metadata.modelIdServed &&
-    metadata.modelIdServed !== requestedProviderId
+    !namesSameModel(metadata.aiGatewayModel?.providerId, metadata.modelIdServed)
   ) {
     fields.push(`served=${metadata.modelIdServed}`);
   }

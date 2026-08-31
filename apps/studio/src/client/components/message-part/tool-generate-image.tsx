@@ -460,8 +460,6 @@ function ImageActions({ filePath, id }: { filePath: string; id: TaskId }) {
   );
 }
 
-// A quiet quote glyph marks the text as the generation prompt without a
-// technical label.
 /**
  * The pill naming the model, and the card behind it when a router picked one.
  *
@@ -542,6 +540,8 @@ function PreviewSkeleton() {
   );
 }
 
+// A quiet quote glyph marks the text as the generation prompt without a
+// technical label.
 function PromptText({ prompt }: { prompt: string }) {
   return (
     <div className="flex items-start gap-1.5">

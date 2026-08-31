@@ -96,6 +96,13 @@ const SENT_BOX = "flex flex-col gap-2";
 
 interface AssistantMessageCheck {
   isDeveloperMode: boolean;
+  /**
+   * Whether the agent is still writing into this message, which is the tail of
+   * a running transcript and nothing else. A part carries a start with no end
+   * long after the run that wrote it died, so what it is worth on screen can
+   * only be read against the session.
+   */
+  isLiveMessage: boolean;
   isToolStreaming: (
     part: SessionMessagePart.ToolPart,
     message: SessionMessage.WithParts,
@@ -236,6 +243,8 @@ export function ChatStream({
     lastAssistantMessage !== undefined &&
     hasVisibleAssistantParts({
       isDeveloperMode,
+      isLiveMessage:
+        isAgentRunning && lastMessageId === lastAssistantMessage.id,
       isToolStreaming,
       message: lastAssistantMessage,
     });
@@ -745,6 +754,7 @@ export function ChatStream({
 // turn stopped before it started is one the user is looking away from already.
 function assistantMessageHasContent({
   isDeveloperMode,
+  isLiveMessage,
   isToolStreaming,
   message,
 }: AssistantMessageCheck) {
@@ -754,6 +764,7 @@ function assistantMessageHasContent({
   }
   return hasVisibleAssistantParts({
     isDeveloperMode,
+    isLiveMessage,
     isToolStreaming,
     message,
   });
@@ -872,12 +883,14 @@ function collectGroups({
  */
 function hasVisibleAssistantParts({
   isDeveloperMode,
+  isLiveMessage,
   isToolStreaming,
   message,
 }: AssistantMessageCheck) {
   return message.parts.some((part) =>
     isVisibleAssistantPart({
       isDeveloperMode,
+      isLiveMessage,
       isStreaming: isToolPart(part) ? isToolStreaming(part, message) : false,
       part,
     }),
@@ -905,10 +918,11 @@ function readTurnOpenings({
   isDeveloperMode,
   isToolStreaming,
   regularMessages,
-}: Omit<AssistantMessageCheck, "message"> & {
+}: Omit<AssistantMessageCheck, "isLiveMessage" | "message"> & {
   isAgentRunning: boolean;
   regularMessages: SessionMessage.WithParts[];
 }) {
+  const lastMessageId = regularMessages.at(-1)?.id;
   const wordmarkMessageIds = new Set<StoreId.Message>();
   let openedBy: SessionMessage.WithParts | undefined;
   let hasContent = false;
@@ -930,6 +944,7 @@ function readTurnOpenings({
     openedBy ??= message;
     hasContent ||= assistantMessageHasContent({
       isDeveloperMode,
+      isLiveMessage: isAgentRunning && message.id === lastMessageId,
       isToolStreaming,
       message,
     });

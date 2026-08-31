@@ -11,6 +11,7 @@ import {
   generatedGroupHeading,
   groupCanExpand,
   groupStandInRowId,
+  isVisibleAssistantPart,
   planRow,
   type TranscriptGroup,
 } from "./transcript-layout";
@@ -30,6 +31,7 @@ type Spec = [
   (
     | "activity"
     | "bash"
+    | "blank-thinking"
     | "note"
     | "prose"
     | "queued"
@@ -45,6 +47,23 @@ type Spec = [
 ];
 
 type Turns = { role: "assistant" | "user"; specs: Spec[] }[];
+
+/**
+ * What the check behind the turn's wordmark makes of a single part, read either
+ * side of the live session it belongs to.
+ */
+function assistantPartVisibility(spec: Spec) {
+  const part = onlyPart(spec);
+  const read = (isLiveMessage: boolean) =>
+    isVisibleAssistantPart({
+      isDeveloperMode: false,
+      isLiveMessage,
+      // What the stream passes for anything that is not a tool call.
+      isStreaming: false,
+      part,
+    });
+  return { dead: read(false), live: read(true) };
+}
 
 /** Each row's wide boundary, read back under the label the spec gave it. */
 function boundaries(turns: Turns): Map<string, boolean> {
@@ -122,6 +141,12 @@ function buildMessage(
           output: {},
           type: "tool-bash",
         };
+      }
+      // A run that died between the reasoning block opening and its first
+      // delta. The state says streaming for the rest of the part's life, and
+      // there is nothing under it to draw.
+      case "blank-thinking": {
+        return { metadata, state: "streaming", text: "", type: "reasoning" };
       }
       // Something the run attached to the turn rather than something the agent
       // did or said. It draws a card of its own and is never a step.
@@ -282,6 +307,15 @@ function groupSpans(turns: Turns): string[] {
       `canExpand=${groupCanExpand(group) ? "true" : "false"}`,
     ].join(" "),
   );
+}
+
+/** The one part a single-spec message holds. */
+function onlyPart(spec: Spec): SessionMessagePart.Type {
+  const [part] = buildMessage("assistant", [spec]).message.parts;
+  if (!part) {
+    throw new Error(`no part built for "${spec[0]}"`);
+  }
+  return part;
 }
 
 describe("groups the agent named", () => {
@@ -1014,5 +1048,93 @@ describe("the space around what the agent said", () => {
       }
       previous = current;
     }
+  });
+});
+
+// A reasoning part carries `state: "streaming"` for the rest of its life, so a
+// run killed between the block opening and its first delta leaves one behind
+// with nothing written under it. It draws nothing once the run is over, and the
+// layout has to agree with what it draws or it counts a row that is not there.
+describe("a reasoning part the run died inside of", () => {
+  it("is gone from a transcript the agent is no longer working on", () => {
+    expect(
+      draw([
+        {
+          role: "assistant",
+          specs: [
+            ["read", "one"],
+            ["blank-thinking", "cut off"],
+          ],
+        },
+      ]),
+    ).toMatchInlineSnapshot(`
+      "--- inferred settled
+        one"
+    `);
+  });
+
+  // The chevron is drawn off the tally rather than off what the rows turn out
+  // to draw, so a row counted here is a fold that opens onto nothing.
+  it("is not a row the fold can count", () => {
+    expect(
+      groupSpans([
+        {
+          role: "assistant",
+          specs: [
+            ["read", "one"],
+            ["blank-thinking", "cut off"],
+          ],
+        },
+      ]),
+    ).toMatchInlineSnapshot(`
+      [
+        "inferred folds=1 opensOn="one" canExpand=false",
+      ]
+    `);
+  });
+
+  // The same part while the run is still writing it, which is the row that
+  // says the agent is thinking. Reading the part alone is what confuses the two.
+  it("is the row in flight while the run is still writing it", () => {
+    expect(
+      draw(
+        [
+          {
+            role: "assistant",
+            specs: [
+              ["read", "one"],
+              ["blank-thinking", "cut off"],
+            ],
+          },
+        ],
+        { isAgentRunning: true },
+      ),
+    ).toMatchInlineSnapshot(`
+      "--- inferred working
+      > cut off
+      ·   one
+      ·   cut off"
+    `);
+  });
+
+  it("is not content the turn's wordmark can head", () => {
+    expect(assistantPartVisibility(["blank-thinking", "cut off"]))
+      .toMatchInlineSnapshot(`
+      {
+        "dead": false,
+        "live": true,
+      }
+    `);
+  });
+
+  // Nothing about liveness reaches a part that has something to show.
+  it("counts either way once it has written something", () => {
+    expect(assistantPartVisibility(["thinking", "weighing it up"]))
+      .toMatchInlineSnapshot(`
+      {
+        "dead": true,
+        "live": true,
+      }
+    `);
   });
 });

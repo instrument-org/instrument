@@ -242,7 +242,14 @@ export function buildTranscriptLayout({
       const isStreaming = isToolPart(part)
         ? isToolStreaming(part, message)
         : false;
-      if (!isRenderableInlinePart({ isDeveloperMode, isStreaming, part })) {
+      if (
+        !isRenderableInlinePart({
+          isDeveloperMode,
+          isLiveMessage,
+          isStreaming,
+          part,
+        })
+      ) {
         continue;
       }
 
@@ -407,10 +414,12 @@ export function isActiveToolPart(part: SessionMessagePart.ToolPart) {
 
 export function isVisibleAssistantPart({
   isDeveloperMode,
+  isLiveMessage,
   isStreaming,
   part,
 }: {
   isDeveloperMode: boolean;
+  isLiveMessage: boolean;
   isStreaming: boolean;
   part: SessionMessagePart.Type;
 }) {
@@ -423,7 +432,7 @@ export function isVisibleAssistantPart({
   }
 
   if (part.type === "reasoning") {
-    return isReasoningPartVisible(part);
+    return isReasoningPartVisible({ isLive: isLiveMessage, part });
   }
 
   if (isDataPart(part)) {
@@ -532,10 +541,12 @@ function isProseBoundary(above: TranscriptRow, below: TranscriptRow): boolean {
 // the same source `renderChatPart` uses, so the two stay consistent.
 function isRenderableInlinePart({
   isDeveloperMode,
+  isLiveMessage,
   isStreaming,
   part,
 }: {
   isDeveloperMode: boolean;
+  isLiveMessage: boolean;
   isStreaming: boolean;
   part: SessionMessagePart.Type;
 }) {
@@ -571,8 +582,9 @@ function isRenderableInlinePart({
     return isToolCallVisible({ isDeveloperMode, isStreaming, part });
   }
 
-  // Only reasoning parts remain; visibility depends on their content.
-  return isReasoningPartVisible(part);
+  // Only reasoning parts remain; visibility depends on their content and on
+  // whether the run that opened them is still writing into them.
+  return isReasoningPartVisible({ isLive: isLiveMessage, part });
 }
 
 function markLive({

@@ -1,6 +1,6 @@
 import { renderWithProviders } from "@/tests/render";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { FileViewer } from "./file-viewer";
@@ -13,9 +13,21 @@ vi.mock("../hooks/use-task-file-open-control", () => ({
 vi.mock("./open-task-file-button", () => ({
   OpenTaskFileButton: () => null,
 }));
+// The chip a blocked image stands behind hands its URL to the system browser;
+// the spy is that seam.
+const { openExternalLinkSpy } = vi.hoisted(() => ({
+  openExternalLinkSpy: vi.fn(),
+}));
+
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
     utils: {
+      openExternalLink: {
+        mutationOptions: (options: object) => ({
+          ...options,
+          mutationFn: openExternalLinkSpy,
+        }),
+      },
       showTaskFileInFolder: {
         mutationOptions: (options: object) => options,
       },
@@ -32,6 +44,7 @@ const MARKDOWN_FILE = [
   "![embedded](data:image/png;base64,QUJD)",
   "![remote](https://raw.githubusercontent.com/o/r/main/p.png)",
   "![loopback](http://x.localhost:11434/probe)",
+  "![chart](./chart.png)",
 ].join("\n\n");
 
 function renderMarkdownFile() {
@@ -73,24 +86,25 @@ describe("FileViewer markdown preview", () => {
     expect(sources).toEqual(["data:image/png;base64,QUJD"]);
   });
 
-  // A rejected source stands as a chip naming its host, and only a source on
-  // the remote allowlist gets a Load button: those are the hosts the window's
-  // CSP would let a click actually fetch, and the allowlist has no loopback
-  // spelling, so a document cannot hand the reader a click that requests
-  // against this machine's own ports.
-  it("offers Load only for an allowlisted remote host", async () => {
+  // A rejected source stands as a chip naming its host. A chip with a web
+  // source is a button out to the system browser, the same trust a link in
+  // the same document gets; a path names nothing a browser could be handed,
+  // so that chip is not a button at all.
+  it("offers a web image as a click out to the browser, and a path as none", async () => {
     renderMarkdownFile();
     await screen.findByText("Notes");
 
     expect(
       screen.getByRole("button", { name: /raw\.githubusercontent\.com/ }),
     ).toBeTruthy();
-    expect(screen.getByText("x.localhost")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /x\.localhost/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /x\.localhost/ })).toBeTruthy();
+    expect(screen.getByText("./chart.png")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /chart\.png/ })).toBeNull();
   });
 
-  // The click is the request, and it happens only for the one chip clicked.
-  it("draws an allowlisted remote image once its chip is clicked", async () => {
+  // The click leaves the app rather than fetching in it: the URL goes to the
+  // system browser and the preview still draws no image for it.
+  it("hands a clicked image to the system browser", async () => {
     const { container } = renderMarkdownFile();
     await screen.findByText("Notes");
 
@@ -98,12 +112,14 @@ describe("FileViewer markdown preview", () => {
       screen.getByRole("button", { name: /raw\.githubusercontent\.com/ }),
     );
 
+    await waitFor(() => {
+      expect(openExternalLinkSpy.mock.calls[0]?.[0]).toEqual({
+        url: "https://raw.githubusercontent.com/o/r/main/p.png",
+      });
+    });
     const sources = [...container.querySelectorAll("img")].map((image) =>
       image.getAttribute("src"),
     );
-    expect(sources).toEqual([
-      "data:image/png;base64,QUJD",
-      "https://raw.githubusercontent.com/o/r/main/p.png",
-    ]);
+    expect(sources).toEqual(["data:image/png;base64,QUJD"]);
   });
 });

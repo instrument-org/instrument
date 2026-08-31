@@ -100,11 +100,11 @@ describe("isImageSourceAllowed", () => {
   });
 });
 
-// The chip a blocked image stands behind offers Load only for `remote`
-// sources, and that offer is a promise: the window's `img-src` must actually
-// fetch from every host this module calls remote, or the click swaps in a
-// broken image. The CSP staying wider than this list is fine and deliberate;
-// this only fails when the policy names a host the CSP refuses.
+// A surface that admits the `remote` kind draws these images inline, so the
+// window's `img-src` must actually fetch from every host this module calls
+// remote, or an allowed image draws broken. The CSP staying wider than this
+// list is fine and deliberate; this only fails when the policy names a host
+// the CSP refuses.
 describe("the remote allowlist inside the CSP", () => {
   const html = readFileSync(
     fileURLToPath(new URL("../../index.html", import.meta.url)),

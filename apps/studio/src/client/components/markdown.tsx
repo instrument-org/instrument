@@ -8,6 +8,7 @@ import {
   isAddressableTaskFilePath,
   type TaskId,
 } from "@instrument-org/workspace/client";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { ImageIcon } from "@phosphor-icons/react/Image";
 import { useSetAtom } from "jotai";
 import {
@@ -34,9 +35,9 @@ import remarkGfm from "remark-gfm";
 import remend from "remend";
 
 import { useHashLinkScroll } from "../hooks/use-hash-link-scroll";
+import { useOpenExternalLink } from "../hooks/use-open-external-link";
 import { getAssetUrl } from "../lib/get-asset-url";
 import {
-  classifyImageSource,
   type ImageSourceKind,
   isImageSourceAllowed,
   MARKDOWN_IMAGE_KINDS,
@@ -50,6 +51,7 @@ import { rehypeAnimateWords } from "../lib/rehype-animate-words";
 import { remarkDropBreakAfterBr } from "../lib/remark-drop-break-after-br";
 import { isTaskFileHref, taskFilePathFromHref } from "../lib/task-file-href";
 import { cn } from "../lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { AgentFilesBlock } from "./agent-files-block";
 import { MarkdownCodeBlock } from "./code-block";
 import { FileActionsMenuItems } from "./file-actions-menu";
@@ -108,11 +110,6 @@ type PluginList = NonNullable<Options["rehypePlugins"]>;
 type RemarkPluginList = NonNullable<Options["remarkPlugins"]>;
 
 const emptyRemarkPluginList: RemarkPluginList = [];
-
-// The initial value of a per-render "sources revealed by a click" set, held
-// apart so the `useState` call above passes the same reference across
-// renders instead of a fresh empty `Set` each time.
-const EMPTY_STRING_SET: ReadonlySet<string> = new Set();
 
 type FenceNode = NonNullable<ExtraProps["node"]>;
 
@@ -512,27 +509,26 @@ const blockedImageChipClass =
  * The stand-in for an image this surface does not fetch, and for one that
  * failed to arrive: an inline chip sized to what it says, so it flows with the
  * prose (a row of badges wraps as a row of chips) rather than interrupting it.
- * It names the image by its alt text and its source by host, with the full
- * source in the tooltip.
+ * It names the image by its alt text and its source by host.
  *
- * `onReveal` turns the chip into a button that swaps itself for the image, one
- * request per click. It is only ever offered for sources on the app's own
- * remote-image allowlist: those are hosts the window's CSP will actually fetch
- * from, so the click keeps its promise, and the allowlist has no loopback
- * spelling, so a document cannot dress a request against this machine's own
- * ports as a picture and hand the reader the trigger.
+ * A chip with a web source is a button that hands the URL to the system
+ * browser: the same trust a link in the same document already gets, since the
+ * reader sees where it goes and the request is theirs, and it works for any
+ * host where drawing the image inline would not. The tooltip says why the
+ * picture is not simply shown, in the reader's terms.
  */
 const BlockedImage = ({
   alt,
-  onReveal,
+  failed,
   src,
 }: {
   alt?: string;
-  onReveal?: () => void;
+  failed?: boolean;
   src?: string;
 }) => {
+  const openExternalLink = useOpenExternalLink();
   const hint = src ? imageSourceHint(src) : undefined;
-  const title = src && src.length <= 300 ? src : undefined;
+  const isWebSource = src !== undefined && /^https?:\/\//i.test(src);
   const body = (
     <>
       <ImageIcon className="size-3.5 shrink-0" />
@@ -543,26 +539,46 @@ const BlockedImage = ({
     </>
   );
 
-  if (!onReveal) {
+  if (failed || !isWebSource) {
     return (
-      <span className={blockedImageChipClass} title={title}>
-        {body}
-      </span>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className={blockedImageChipClass}>{body}</span>
+        </TooltipTrigger>
+        <TooltipContent>
+          {failed
+            ? "This image couldn't be loaded."
+            : "This image can't be shown here."}
+        </TooltipContent>
+      </Tooltip>
     );
   }
   return (
-    <button
-      className={cn(
-        blockedImageChipClass,
-        "cursor-pointer text-left hover:bg-muted hover:text-foreground",
-      )}
-      onClick={onReveal}
-      title={title}
-      type="button"
-    >
-      {body}
-      <span className="shrink-0 font-medium">Load</span>
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          className={cn(
+            blockedImageChipClass,
+            "cursor-pointer text-left hover:bg-muted hover:text-foreground",
+          )}
+          onClick={() => {
+            openExternalLink(src, { addReferral: false });
+          }}
+          type="button"
+        >
+          {body}
+          <ArrowSquareOutIcon className="size-3.5 shrink-0 opacity-60" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent maxWidth="20rem">
+        <p>
+          Images from the web aren't loaded here, so opening a file never
+          contacts another site on its own.
+        </p>
+        <p>Click to view the image in your browser.</p>
+        {src.length <= 300 && <p className="break-all opacity-70">{src}</p>}
+      </TooltipContent>
+    </Tooltip>
   );
 };
 
@@ -595,7 +611,7 @@ const MarkdownImage = ({
   if (src !== undefined && src === failedSrc) {
     // Half a URL fails the same way a missing file does, and until the text
     // settles there is no telling which this is.
-    return isStreaming ? null : <BlockedImage alt={alt} src={src} />;
+    return isStreaming ? null : <BlockedImage alt={alt} failed src={src} />;
   }
 
   return (
@@ -663,27 +679,6 @@ export const Markdown = memo(
     taskId,
   }: MarkdownProps) => {
     const openFilePreview = useSetAtom(openFilePreviewAtom);
-    // Sources a reader has clicked Load for, exempting each from the
-    // allow-list -- nothing here changes what the next file or message is
-    // allowed to fetch on its own.
-    const [revealedImageSrcs, setRevealedImageSrcs] =
-      useState<ReadonlySet<string>>(EMPTY_STRING_SET);
-    // A reveal is consent to fetch one source from one document revision, so
-    // text that changes takes the reveals with it: a file rewritten in place
-    // while open cannot ride an old click into a fresh fetch. Render-phase
-    // derived state, converging in one pass.
-    const [revealedForMarkdown, setRevealedForMarkdown] = useState(markdown);
-    if (revealedForMarkdown !== markdown) {
-      setRevealedForMarkdown(markdown);
-      if (revealedImageSrcs.size > 0) {
-        setRevealedImageSrcs(EMPTY_STRING_SET);
-      }
-    }
-    const revealImageSrc = useCallback((src: string) => {
-      setRevealedImageSrcs((prev) =>
-        prev.has(src) ? prev : new Set(prev).add(src),
-      );
-    }, []);
     const [rehypePlugins, setRehypePlugins] =
       useState<PluginList>(baseRehypePlugins);
     const [remarkPlugins, setRemarkPlugins] = useState<RemarkPluginList>(
@@ -798,33 +793,9 @@ export const Markdown = memo(
                 assetBaseUrl,
                 assetVersion,
               );
-              const isRevealed =
-                resolvedSrc !== undefined && revealedImageSrcs.has(resolvedSrc);
-              if (
-                !isRevealed &&
-                !isImageSourceAllowed(resolvedSrc, imageKinds)
-              ) {
-                if (hideImages) {
-                  return null;
-                }
-                // A reveal is offered only for a source the chip's docblock
-                // says it may be: on the remote allowlist, so the click both
-                // works and stays off this machine's own ports.
-                const canReveal =
-                  resolvedSrc !== undefined &&
-                  classifyImageSource(resolvedSrc) === "remote";
-                return (
-                  <BlockedImage
-                    alt={alt}
-                    onReveal={
-                      canReveal
-                        ? () => {
-                            revealImageSrc(resolvedSrc);
-                          }
-                        : undefined
-                    }
-                    src={resolvedSrc}
-                  />
+              if (!isImageSourceAllowed(resolvedSrc, imageKinds)) {
+                return hideImages ? null : (
+                  <BlockedImage alt={alt} src={resolvedSrc} />
                 );
               }
               const filePath = taskFilePathFromImageSrc(src);

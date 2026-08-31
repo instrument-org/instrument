@@ -31,10 +31,10 @@ export type ImageSourceKind =
 // Hosts an image may be fetched from over the network.
 //
 // Exported for one reader only: the test pinning this list inside the
-// renderer's `img-src`. The reveal a chip offers for a `remote` source
-// promises a load, so a host here that the CSP refuses turns that click into
-// a no-op; the test fails the drift instead of a reader finding it. Every
-// other caller asks `classifyImageSource`.
+// renderer's `img-src`. A surface that admits the `remote` kind draws these
+// images inline, so a host here that the CSP refuses draws as a broken image;
+// the test fails the drift instead of a reader finding it. Every other caller
+// asks `classifyImageSource`.
 export const REMOTE_HOSTS = new Set(["github.com", "images.google.com"]);
 
 // Subdomains, held apart from the exact hosts above because an image comes from

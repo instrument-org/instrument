@@ -137,6 +137,25 @@ describe("workspace.task.live.list", () => {
     expect(updated).toEqual(await freshList());
   });
 
+  // The publisher buffers one event per subscription, so a subscriber reading
+  // the events as they come would keep only the later of these two and leave
+  // the other task at its old title and place.
+  it("keeps both ids when two tasks change before the next pull", async () => {
+    const { iterator } = await liveList();
+
+    await updateTaskSettings(alpha, {
+      lastActivityAt: new Date("2026-02-05T00:00:00.000Z"),
+      name: "alpha moved",
+    });
+    await updateTaskSettings(beta, { name: "beta renamed" });
+
+    const patched = yielded(await iterator.next());
+
+    expect(scans.count).toBe(1);
+    expect(titles(patched)).toEqual(["alpha moved", "gamma", "beta renamed"]);
+    expect(patched).toEqual(await freshList());
+  });
+
   it("drops a removed task", async () => {
     const { iterator } = await liveList();
 

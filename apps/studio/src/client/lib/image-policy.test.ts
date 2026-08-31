@@ -3,11 +3,11 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
-  REMOTE_HOST_SUFFIXES,
-  REMOTE_HOSTS,
   classifyImageSource,
   isImageSourceAllowed,
   MARKDOWN_IMAGE_KINDS,
+  REMOTE_HOST_SUFFIXES,
+  REMOTE_HOSTS,
   UNTRUSTED_FILE_IMAGE_KINDS,
 } from "./image-policy";
 

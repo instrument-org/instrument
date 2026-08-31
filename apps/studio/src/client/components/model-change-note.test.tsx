@@ -27,7 +27,9 @@ describe("ModelChangeNote", () => {
       />,
     );
 
-    expect(noteText()).toBe("Switched model from Auto to Gemini 3.1 Pro Preview");
+    expect(noteText()).toBe(
+      "Switched model from Auto to Gemini 3.1 Pro Preview",
+    );
   });
 
   // The gateway hands these names over with a leading space, so an untrimmed

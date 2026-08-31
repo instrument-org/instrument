@@ -21,8 +21,11 @@ const assistant = (modelId: string, contextLength?: number, name?: string) =>
   }) as unknown as SessionMessage.WithParts;
 
 const user = () =>
-  ({ metadata: {}, parts: [], role: "user" }) as unknown as
-    SessionMessage.WithParts;
+  ({
+    metadata: {},
+    parts: [],
+    role: "user",
+  }) as unknown as SessionMessage.WithParts;
 
 describe("modelChangeSincePreviousTurn", () => {
   it("reports nothing on the first turn, which changes nothing", () => {
@@ -56,7 +59,11 @@ describe("modelChangeSincePreviousTurn", () => {
         modelId: "roomier-model",
         name: "Roomier Model",
       },
-      to: { contextLength: 200_000, modelId: "current-model", name: "Mock Model" },
+      to: {
+        contextLength: 200_000,
+        modelId: "current-model",
+        name: "Mock Model",
+      },
     });
   });
 

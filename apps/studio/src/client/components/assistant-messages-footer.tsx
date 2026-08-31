@@ -275,7 +275,10 @@ export function AssistantMessagesFooter({
                     >
                       <div className="space-y-2">
                         {getModelInfoRows(usage).map((row, rowIndex) => (
-                          <TooltipRow key={`${row.label}-${rowIndex}`} {...row} />
+                          <TooltipRow
+                            key={`${row.label}-${rowIndex}`}
+                            {...row}
+                          />
                         ))}
                       </div>
                     </TooltipContent>

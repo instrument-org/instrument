@@ -4,8 +4,11 @@ import { type SessionMessage } from "../schemas/session/message";
 import { contextOverflowNeedsRollover } from "./context-overflow";
 
 const user = (parts: { type: string }[] = []) =>
-  ({ metadata: {}, parts, role: "user" }) as unknown as
-    SessionMessage.WithParts;
+  ({
+    metadata: {},
+    parts,
+    role: "user",
+  }) as unknown as SessionMessage.WithParts;
 
 /** A user turn carrying the mark a reset leaves behind. */
 const userAfterReset = () => user([{ type: "data-contextRollover" }]);

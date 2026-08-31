@@ -1056,9 +1056,9 @@ describe("prepareModelMessages", () => {
 
         const messages = await prepare(roomyModel);
 
-        expect(modelTexts(messages).some((text) => text.includes("turn 0"))).toBe(
-          true,
-        );
+        expect(
+          modelTexts(messages).some((text) => text.includes("turn 0")),
+        ).toBe(true);
         expect(
           modelTexts(messages).some((text) =>
             text.includes("<context-rollover>"),

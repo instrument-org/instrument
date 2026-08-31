@@ -31,7 +31,9 @@ const fable = AIGatewayModel.Schema.parse({
 });
 
 it("names the model that answered without dropping the one that was asked for", async () => {
-  await renderInBrowser(<ModelChip aiGatewayModel={fable} replacedBy="Opus 5" />);
+  await renderInBrowser(
+    <ModelChip aiGatewayModel={fable} replacedBy="Opus 5" />,
+  );
 
   await expect.element(page.getByText("Fable 5")).toBeVisible();
   await expect.element(page.getByText("Opus 5")).toBeVisible();

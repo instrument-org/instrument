@@ -52,10 +52,13 @@ import { Button } from "./ui/button";
 import { MessageScrollerItem } from "./ui/message-scroller";
 import { Wordmark } from "./wordmark";
 
-// How far the rows a group holds sit inside its head line: one step in, enough
-// that the indent reads at a glance without pushing the run away from the
-// margin the rest of the transcript is set against.
-const GROUP_INDENT = "pl-6";
+// How far the rows a group holds sit inside its head line: the room a working
+// heading's live indicator takes, which is the dot's 20px slot and the row's 8px
+// gap less the 2px the heading is nudged by to sit the dot right. So while a
+// phase runs, its steps begin exactly where its own title begins -- an icon
+// under the first letter of the heading rather than two pixels off it. Once the
+// heading settles and the dot goes, the same 26px is what reads as the indent.
+const GROUP_INDENT = "pl-6.5";
 
 // The wordmark's row key, for the one case where it is not a message's own
 // chrome but a row in the turn that has not started yet.

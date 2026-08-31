@@ -31,6 +31,11 @@ vi.mock("@/client/components/theme-provider", () => ({
   }),
 }));
 
+// What `GROUP_INDENT` puts on a row drawn inside a group. Matched as a class
+// token rather than written `.pl-6.5`, which a selector parser reads as two
+// classes and finds nothing.
+const INDENTED = '[class~="pl-6.5"]';
+
 const sessionId = StoreId.newSessionId();
 const messageId = StoreId.newMessageId();
 
@@ -382,7 +387,7 @@ describe("ChatStream groups the agent named", () => {
     // folded group holds still as the agent works down the transcript.
     const [inFlight] = screen.getAllByText("Reading the second quarter");
     expect(screen.getAllByText("Reading the second quarter")).toHaveLength(1);
-    expect(inFlight?.closest(".pl-6")).not.toBeNull();
+    expect(inFlight?.closest(INDENTED)).not.toBeNull();
     expect(screen.queryByText("Reading the first quarter")).toBeNull();
   });
 });
@@ -498,7 +503,7 @@ describe("ChatStream groups that span messages", () => {
 
     const note = screen.getByText("These are older than I expected.");
     expect(note).toBeDefined();
-    expect(note.closest(".pl-6")).toBeNull();
+    expect(note.closest(INDENTED)).toBeNull();
   });
 
   // Everything the agent said stays said. Phases open and close above and below
@@ -514,10 +519,10 @@ describe("ChatStream groups that span messages", () => {
     ]);
 
     expect(
-      screen.getByText("These are older than I expected.").closest(".pl-6"),
+      screen.getByText("These are older than I expected.").closest(INDENTED),
     ).toBeNull();
     expect(
-      screen.getByText("Revenue grew in the north.").closest(".pl-6"),
+      screen.getByText("Revenue grew in the north.").closest(INDENTED),
     ).toBeNull();
   });
 

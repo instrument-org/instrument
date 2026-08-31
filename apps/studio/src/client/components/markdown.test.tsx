@@ -348,8 +348,8 @@ describe("Markdown images", () => {
 
     fireEvent.error(screen.getByRole("img"));
 
-    expect(screen.getByText("The chart")).toBeTruthy();
-    expect(screen.getByText(`${ASSET_BASE}/output/chart.png`)).toBeTruthy();
+    const chip = screen.getByText("The chart").closest("span[title]");
+    expect(chip?.getAttribute("title")).toBe(`${ASSET_BASE}/output/chart.png`);
   });
 
   // A reply routinely names the file it is still writing, so mid-turn a miss

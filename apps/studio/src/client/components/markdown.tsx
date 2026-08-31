@@ -36,6 +36,7 @@ import remend from "remend";
 import { useHashLinkScroll } from "../hooks/use-hash-link-scroll";
 import { getAssetUrl } from "../lib/get-asset-url";
 import {
+  classifyImageSource,
   type ImageSourceKind,
   isImageSourceAllowed,
   MARKDOWN_IMAGE_KINDS,
@@ -73,15 +74,11 @@ interface MarkdownProps {
   // Which bytes this text's file references are about; see
   // `MarkdownTaskContext`.
   assetVersion?: string;
-  // Swaps the images the allow-list rejects for a compact, click-to-load
-  // placeholder instead of the full standing one. For markdown scraped from a
-  // page rather than authored for us, the allow-list passes nothing such a
-  // page carries, so every placeholder would otherwise be permanent and,
-  // being block-level, interrupt the prose it sits in to name a picture the
-  // reader will never see. A reader who wants the picture anyway can still
-  // load it: the placeholder names the URL and loads it only on a click,
-  // which is the same one-request-per-click a reader already accepts for any
-  // link.
+  // Drops the images the allow-list rejects instead of standing a chip in for
+  // them. For markdown scraped from a page rather than authored for us: such a
+  // page carries logos, badges, and tracker pixels by the dozen, the prose is
+  // what the surface is for, and the full page is a click away through its own
+  // source link.
   hideImages?: boolean;
   /**
    * Where an image in this markdown may point; see `lib/image-policy`.
@@ -497,46 +494,77 @@ const markdownUrlTransform: UrlTransform = (url, key, node) => {
   }
 };
 
-const ImagePlaceholder = ({ alt, src }: { alt?: string; src?: string }) => (
-  <div className="flex max-w-full items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-    <ImageIcon className="size-4 shrink-0" />
-    <div className="min-w-0 flex-1">
-      <div className="truncate">{alt || "Image"}</div>
-      {src && <div className="truncate text-xs opacity-70">{src}</div>}
-    </div>
-  </div>
-);
+// What a chip prints beside its label: the host for a URL, the path itself for
+// a path. A source too long to read inline (a rejected `data:` URI, mostly)
+// prints nothing, and the label stands alone.
+const imageSourceHint = (src: string): string | undefined => {
+  try {
+    return new URL(src).hostname || undefined;
+  } catch {
+    return src.length <= 96 ? src : undefined;
+  }
+};
+
+const blockedImageChipClass =
+  "inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-1 align-middle text-xs text-muted-foreground";
 
 /**
- * The same placeholder `hideImages` would otherwise drop, but named as a
- * button: the URL is on screen before any request is made for it, and the
- * request only happens once this is clicked. That is the one-request-per-click
- * a reader already accepts for any link, which is why this can offer it even
- * over content this app did not write -- the request the reader is choosing
- * to make is the same one they can already see the address of.
+ * The stand-in for an image this surface does not fetch, and for one that
+ * failed to arrive: an inline chip sized to what it says, so it flows with the
+ * prose (a row of badges wraps as a row of chips) rather than interrupting it.
+ * It names the image by its alt text and its source by host, with the full
+ * source in the tooltip.
+ *
+ * `onReveal` turns the chip into a button that swaps itself for the image, one
+ * request per click. It is only ever offered for sources on the app's own
+ * remote-image allowlist: those are hosts the window's CSP will actually fetch
+ * from, so the click keeps its promise, and the allowlist has no loopback
+ * spelling, so a document cannot dress a request against this machine's own
+ * ports as a picture and hand the reader the trigger.
  */
-const BlockedImagePlaceholder = ({
+const BlockedImage = ({
   alt,
   onReveal,
   src,
 }: {
   alt?: string;
-  onReveal: () => void;
+  onReveal?: () => void;
   src?: string;
-}) => (
-  <button
-    className="flex max-w-full items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-left text-sm text-muted-foreground hover:bg-muted"
-    onClick={onReveal}
-    type="button"
-  >
-    <ImageIcon className="size-4 shrink-0" />
-    <div className="min-w-0 flex-1">
-      <div className="truncate">{alt || "Image"}</div>
-      {src && <div className="truncate text-xs opacity-70">{src}</div>}
-    </div>
-    <span className="shrink-0 text-xs underline">Load image</span>
-  </button>
-);
+}) => {
+  const hint = src ? imageSourceHint(src) : undefined;
+  const title = src && src.length <= 300 ? src : undefined;
+  const body = (
+    <>
+      <ImageIcon className="size-3.5 shrink-0" />
+      <span className="min-w-0 truncate">{alt?.trim() || "Image"}</span>
+      {hint && (
+        <span className="min-w-0 max-w-48 truncate opacity-60">{hint}</span>
+      )}
+    </>
+  );
+
+  if (!onReveal) {
+    return (
+      <span className={blockedImageChipClass} title={title}>
+        {body}
+      </span>
+    );
+  }
+  return (
+    <button
+      className={cn(
+        blockedImageChipClass,
+        "cursor-pointer text-left transition-colors hover:bg-muted hover:text-foreground",
+      )}
+      onClick={onReveal}
+      title={title}
+      type="button"
+    >
+      {body}
+      <span className="shrink-0 font-medium">Load</span>
+    </button>
+  );
+};
 
 /**
  * An image the message points at, which can turn out not to be there: an asset
@@ -567,7 +595,7 @@ const MarkdownImage = ({
   if (src !== undefined && src === failedSrc) {
     // Half a URL fails the same way a missing file does, and until the text
     // settles there is no telling which this is.
-    return isStreaming ? null : <ImagePlaceholder alt={alt} src={src} />;
+    return isStreaming ? null : <BlockedImage alt={alt} src={src} />;
   }
 
   return (
@@ -638,9 +666,8 @@ export const Markdown = memo(
     // Sources a reader has clicked "Load image" for, exempting each from the
     // allow-list on this render only -- nothing here changes what the next
     // file or message is allowed to fetch on its own.
-    const [revealedImageSrcs, setRevealedImageSrcs] = useState<
-      ReadonlySet<string>
-    >(EMPTY_STRING_SET);
+    const [revealedImageSrcs, setRevealedImageSrcs] =
+      useState<ReadonlySet<string>>(EMPTY_STRING_SET);
     const revealImageSrc = useCallback((src: string) => {
       setRevealedImageSrcs((prev) =>
         prev.has(src) ? prev : new Set(prev).add(src),
@@ -761,23 +788,30 @@ export const Markdown = memo(
                 assetVersion,
               );
               const isRevealed =
-                resolvedSrc !== undefined &&
-                revealedImageSrcs.has(resolvedSrc);
+                resolvedSrc !== undefined && revealedImageSrcs.has(resolvedSrc);
               if (
                 !isRevealed &&
                 !isImageSourceAllowed(resolvedSrc, imageKinds)
               ) {
-                // Nothing for a click to reveal when there is no source to
-                // load, so this stays the plain placeholder either way.
-                if (!hideImages || resolvedSrc === undefined) {
-                  return <ImagePlaceholder alt={alt} src={resolvedSrc} />;
+                if (hideImages) {
+                  return null;
                 }
+                // A reveal is offered only for a source the chip's docblock
+                // says it may be: on the remote allowlist, so the click both
+                // works and stays off this machine's own ports.
+                const canReveal =
+                  resolvedSrc !== undefined &&
+                  classifyImageSource(resolvedSrc) === "remote";
                 return (
-                  <BlockedImagePlaceholder
+                  <BlockedImage
                     alt={alt}
-                    onReveal={() => {
-                      revealImageSrc(resolvedSrc);
-                    }}
+                    onReveal={
+                      canReveal
+                        ? () => {
+                            revealImageSrc(resolvedSrc);
+                          }
+                        : undefined
+                    }
                     src={resolvedSrc}
                   />
                 );

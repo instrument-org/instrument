@@ -73,26 +73,24 @@ describe("FileViewer markdown preview", () => {
     expect(sources).toEqual(["data:image/png;base64,QUJD"]);
   });
 
-  // Not fetched until a reader clicks for it: a rejected source names its URL
-  // in a placeholder rather than reaching for it, so no `<img>` renders for it
-  // on its own.
-  it("holds a rejected image behind a click instead of fetching it", async () => {
-    const { container } = renderMarkdownFile();
+  // A rejected source stands as a chip naming its host, and only a source on
+  // the remote allowlist gets a Load button: those are the hosts the window's
+  // CSP would let a click actually fetch, and the allowlist has no loopback
+  // spelling, so a document cannot hand the reader a click that requests
+  // against this machine's own ports.
+  it("offers Load only for an allowlisted remote host", async () => {
+    renderMarkdownFile();
     await screen.findByText("Notes");
 
-    const sources = [...container.querySelectorAll("img")].map((image) =>
-      image.getAttribute("src"),
-    );
-    expect(sources).toEqual(["data:image/png;base64,QUJD"]);
     expect(
-      screen.getByText("https://raw.githubusercontent.com/o/r/main/p.png"),
+      screen.getByRole("button", { name: /raw\.githubusercontent\.com/ }),
     ).toBeTruthy();
-    expect(screen.getByText("http://x.localhost:11434/probe")).toBeTruthy();
+    expect(screen.getByText("x.localhost")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /x\.localhost/ })).toBeNull();
   });
 
-  // A reader who wants a rejected image anyway can still choose to load it: the
-  // click is the request, and it happens only for the one placeholder clicked.
-  it("draws a rejected image once its placeholder is clicked", async () => {
+  // The click is the request, and it happens only for the one chip clicked.
+  it("draws an allowlisted remote image once its chip is clicked", async () => {
     const { container } = renderMarkdownFile();
     await screen.findByText("Notes");
 

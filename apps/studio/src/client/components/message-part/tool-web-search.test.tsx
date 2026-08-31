@@ -70,4 +70,23 @@ describe("ToolWebSearch images", () => {
     expect(sources).not.toContain(REMOTE_IMAGE);
     expect(sources).not.toContain(LOOPBACK_IMAGE);
   });
+
+  // Dropped means dropped: a scraped page's images leave no chip behind, so a
+  // page of logos and tracker pixels does not become a column of them.
+  it("stands no chip in for a dropped image", () => {
+    const { container } = renderWithProviders(
+      <ToolCallSessionProvider isRunning={false} isStreaming={false}>
+        <ToolWebSearch
+          onRetry={vi.fn()}
+          part={part({
+            kind: "summary",
+            sources: [{ url: "https://example.test/a" }],
+            text: PAGE_MARKDOWN,
+          })}
+        />
+      </ToolCallSessionProvider>,
+    );
+    expect(container.textContent).not.toContain("raw.githubusercontent.com");
+    expect(container.textContent).not.toContain("x.localhost");
+  });
 });

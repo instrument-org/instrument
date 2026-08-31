@@ -538,7 +538,7 @@ const BlockedImage = ({
       <ImageIcon className="size-3.5 shrink-0" />
       <span className="min-w-0 truncate">{alt?.trim() || "Image"}</span>
       {hint && (
-        <span className="min-w-0 max-w-48 truncate opacity-60">{hint}</span>
+        <span className="max-w-48 min-w-0 truncate opacity-60">{hint}</span>
       )}
     </>
   );
@@ -554,7 +554,7 @@ const BlockedImage = ({
     <button
       className={cn(
         blockedImageChipClass,
-        "cursor-pointer text-left transition-colors hover:bg-muted hover:text-foreground",
+        "cursor-pointer text-left hover:bg-muted hover:text-foreground",
       )}
       onClick={onReveal}
       title={title}

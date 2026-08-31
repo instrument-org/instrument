@@ -663,11 +663,22 @@ export const Markdown = memo(
     taskId,
   }: MarkdownProps) => {
     const openFilePreview = useSetAtom(openFilePreviewAtom);
-    // Sources a reader has clicked "Load image" for, exempting each from the
-    // allow-list on this render only -- nothing here changes what the next
-    // file or message is allowed to fetch on its own.
+    // Sources a reader has clicked Load for, exempting each from the
+    // allow-list -- nothing here changes what the next file or message is
+    // allowed to fetch on its own.
     const [revealedImageSrcs, setRevealedImageSrcs] =
       useState<ReadonlySet<string>>(EMPTY_STRING_SET);
+    // A reveal is consent to fetch one source from one document revision, so
+    // text that changes takes the reveals with it: a file rewritten in place
+    // while open cannot ride an old click into a fresh fetch. Render-phase
+    // derived state, converging in one pass.
+    const [revealedForMarkdown, setRevealedForMarkdown] = useState(markdown);
+    if (revealedForMarkdown !== markdown) {
+      setRevealedForMarkdown(markdown);
+      if (revealedImageSrcs.size > 0) {
+        setRevealedImageSrcs(EMPTY_STRING_SET);
+      }
+    }
     const revealImageSrc = useCallback((src: string) => {
       setRevealedImageSrcs((prev) =>
         prev.has(src) ? prev : new Set(prev).add(src),

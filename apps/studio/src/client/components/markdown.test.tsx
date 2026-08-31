@@ -737,4 +737,32 @@ describe("Markdown image sources", () => {
       [],
     );
   });
+
+  // A reveal is consent to fetch one source from one document revision. A file
+  // rewritten while open arrives as new markdown, and the old click must not
+  // ride along: the same URL in the new text stands behind its chip again.
+  it("takes a reveal with the text it was given for", () => {
+    const src = "https://raw.githubusercontent.com/o/r/main/p.png";
+    const { container, rerender } = renderWithProviders(
+      <Markdown
+        imageKinds={UNTRUSTED_FILE_IMAGE_KINDS}
+        markdown={`![a](${src})`}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /raw\.githubusercontent\.com/ }),
+    );
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(src);
+
+    rerender(
+      <Markdown
+        imageKinds={UNTRUSTED_FILE_IMAGE_KINDS}
+        markdown={`rewritten\n\n![a](${src})`}
+      />,
+    );
+    expect(container.querySelector("img")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /raw\.githubusercontent\.com/ }),
+    ).toBeTruthy();
+  });
 });

@@ -4,6 +4,13 @@ import { ExternalLink } from "@/client/components/external-link";
 import { ThemeToggle } from "@/client/components/theme-toggle";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/client/components/ui/dialog";
 import { Label } from "@/client/components/ui/label";
 import { Progress } from "@/client/components/ui/progress";
 import {
@@ -25,10 +32,10 @@ import {
   MANUAL_DOWNLOAD_URL,
 } from "@instrument-org/shared";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
-import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
+import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
 function SettingsSection({
@@ -379,6 +386,110 @@ const NOTIFICATION_MODES = [
   { menuLabel: "Never", triggerLabel: "Never", value: "never" },
 ] as const;
 
+/**
+ * Where someone is sent when they are asked for their log.
+ *
+ * In Advanced because most people never need it, and out of the developer-only
+ * tab because the people who need it are not developers: the whole point is a
+ * support conversation that can say "open settings and send me this" to anyone.
+ *
+ * Reading it and saving a copy, rather than a path into the app's own data
+ * directory. That directory holds the databases and settings the app runs on,
+ * and pointing someone at it to hunt for one file puts everything else in the
+ * same window. Reading first is the other half: what is in here is worth
+ * looking at before sending it to anyone.
+ */
+function DiagnosticLog() {
+  const [viewerOpen, setViewerOpen] = useState(false);
+
+  const logQuery = useQuery({
+    ...rpcClient.utils.readDiagnosticLog.queryOptions(),
+    enabled: viewerOpen,
+  });
+
+  const saveLogMutation = useMutation(
+    rpcClient.utils.saveDiagnosticLog.mutationOptions({
+      onError: () => {
+        toast.error("Couldn't save the log");
+      },
+      onSuccess: ({ status }) => {
+        if (status === "saved") {
+          toast.success("Saved a copy of the log");
+        } else if (status === "failed") {
+          toast.error("Couldn't save the log");
+        } else if (status === "no-log") {
+          toast.error("There's no log to save yet");
+        }
+      },
+    }),
+  );
+
+  return (
+    <Card className="p-4">
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <div className="text-sm font-medium">Diagnostic log</div>
+          <p className="text-xs text-muted-foreground">
+            {APP_NAME} keeps a record of what it did while running. Save a copy
+            to send along when you report a problem. It can name files and tasks
+            you worked on, so read it before you share it.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={() => {
+              setViewerOpen(true);
+            }}
+            size="sm"
+            variant="outline"
+          >
+            View log
+          </Button>
+          <Button
+            disabled={saveLogMutation.isPending}
+            onClick={() => {
+              saveLogMutation.mutate();
+            }}
+            size="sm"
+            variant="outline"
+          >
+            Save a copy
+            <DownloadSimpleIcon className="size-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      <Dialog onOpenChange={setViewerOpen} open={viewerOpen}>
+        <DialogContent maxHeight="44rem" maxWidth="60rem">
+          <DialogHeader>
+            <DialogTitle>Diagnostic log</DialogTitle>
+            <DialogDescription>
+              {logQuery.data?.truncated
+                ? "The most recent part of the log. A saved copy holds all of it."
+                : "Everything the app has recorded this session."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border bg-muted/40 p-3">
+            {logQuery.isPending ? (
+              <p className="text-xs text-muted-foreground">
+                Reading the log...
+              </p>
+            ) : logQuery.data ? (
+              <pre className="font-mono text-xs leading-5 whitespace-pre-wrap">
+                {logQuery.data.text}
+              </pre>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                There&rsquo;s no log yet. It fills up as you use the app.
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
 function Notifications() {
   const { data: preferences } = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
@@ -469,54 +580,6 @@ function Notifications() {
         </div>
       </Card>
     </SettingsSection>
-  );
-}
-
-/**
- * Where someone is sent when they are asked for their log.
- *
- * In Advanced because most people never need it, and out of the developer-only
- * tab because the people who need it are not developers: the whole point is a
- * support conversation that can say "open settings and send me this" to anyone.
- */
-function DiagnosticLog() {
-  const showLogFileMutation = useMutation(
-    rpcClient.utils.showLogFile.mutationOptions({
-      onError: () => {
-        toast.error("Couldn't open the log file");
-      },
-      onSuccess: ({ shown }) => {
-        if (!shown) {
-          toast.error("Couldn't find the log file");
-        }
-      },
-    }),
-  );
-
-  return (
-    <Card className="p-4">
-      <div className="space-y-3">
-        <div className="space-y-1">
-          <div className="text-sm font-medium">Diagnostic log</div>
-          <p className="text-xs text-muted-foreground">
-            {APP_NAME} keeps a record of what it did while running. Send it
-            along when you report a problem. It can name files and tasks you
-            worked on, so read it over first.
-          </p>
-        </div>
-        <Button
-          disabled={showLogFileMutation.isPending}
-          onClick={() => {
-            showLogFileMutation.mutate();
-          }}
-          size="sm"
-          variant="outline"
-        >
-          Show log file
-          <FolderOpenIcon className="size-3.5" />
-        </Button>
-      </div>
-    </Card>
   );
 }
 

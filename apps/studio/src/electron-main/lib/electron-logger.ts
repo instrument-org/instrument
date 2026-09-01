@@ -1,6 +1,5 @@
-import { app, ipcMain, shell } from "electron";
+import { app, ipcMain } from "electron";
 import log, { type Transport } from "electron-log";
-import fs from "node:fs";
 import path from "node:path";
 
 import {
@@ -23,53 +22,15 @@ const MAX_LOG_FILE_BYTES = 8 * 1024 * 1024;
 /**
  * Where the packaged build writes its log.
  *
- * Named rather than inlined into `resolvePathFn` so that settings can reveal
- * the same file the transport writes to, with one rule for where that is.
+ * Named rather than inlined into `resolvePathFn` so that the copy offered in
+ * settings comes from the same file the transport writes to, with one rule for
+ * where that is.
  */
 export function getMainLogFilePath() {
   return path.join(app.getPath("userData"), "logs", "main.log");
 }
 
 log.transports.file.resolvePathFn = getMainLogFilePath;
-
-/**
- * Show the log in the file manager, and report whether anything was shown.
- *
- * Read-only by construction. It creates nothing, writes nothing, moves nothing
- * and deletes nothing, because any user can reach it from settings and the
- * worst outcome of a curious click has to be a file manager window opening
- * somewhere unhelpful.
- *
- * It falls back down to the first location that exists rather than making one.
- * The log is absent for a whole class of ordinary runs -- every development
- * run, where the file transport is off, and any packaged build whose first log
- * line has not landed yet -- and revealing a path that is not there is silently
- * nothing at all, which reads as a broken button.
- */
-export async function revealMainLogFile(): Promise<boolean> {
-  try {
-    const filePath = getMainLogFilePath();
-    if (fs.existsSync(filePath)) {
-      shell.showItemInFolder(filePath);
-      return true;
-    }
-
-    const fallback = [path.dirname(filePath), app.getPath("userData")].find(
-      (candidate) => fs.existsSync(candidate),
-    );
-    if (!fallback) {
-      return false;
-    }
-
-    // Resolves to an error string rather than rejecting, so an unopenable path
-    // is a `false` here instead of a rejected call the button has to catch.
-    const failure = await shell.openPath(fallback);
-    return failure === "";
-  } catch (error) {
-    log.warn(new Error("Could not reveal the log file", { cause: error }));
-    return false;
-  }
-}
 
 log.transports.file.level = IS_DEV ? false : "info";
 log.transports.file.maxSize = MAX_LOG_FILE_BYTES;

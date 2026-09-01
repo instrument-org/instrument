@@ -6,12 +6,12 @@ import type {
 
 import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
+import { readLogTail, saveLogCopy } from "@/electron-main/lib/diagnostic-log";
 import { prepareFileDrag } from "@/electron-main/lib/file-drag";
 import {
   getFileOpenCandidates,
   getFileOpenTarget,
 } from "@/electron-main/lib/file-open-target";
-import { revealMainLogFile } from "@/electron-main/lib/electron-logger";
 import { GpuStatusSchema, readGpuStatus } from "@/electron-main/lib/gpu-status";
 import { openExternal } from "@/electron-main/lib/open-external";
 import {
@@ -586,17 +586,35 @@ const gpuStatus = base
   .handler(() => readGpuStatus(app));
 
 /**
- * Show the log file in the file manager, so someone asked for their log can
- * find it without being taught a path first.
+ * The end of the log, so someone can read what they are about to send.
  *
- * Answers whether anything opened rather than returning nothing. The caller is
- * a button any user can press, and a button that silently does nothing is the
- * one outcome worth reporting.
+ * Null rather than an error when there is no log yet, which is ordinary on a
+ * build whose first line has not landed.
  */
-const showLogFile = base
+const readDiagnosticLog = base
   .input(z.void())
-  .output(z.object({ shown: z.boolean() }))
-  .handler(async () => ({ shown: await revealMainLogFile() }));
+  .output(
+    z
+      .object({
+        text: z.string(),
+        totalBytes: z.number(),
+        truncated: z.boolean(),
+      })
+      .nullable(),
+  )
+  .handler(() => readLogTail() ?? null);
+
+/**
+ * Write a copy of the log wherever the user chooses.
+ *
+ * The alternative was opening the app's own data directory, which holds the
+ * databases and settings the app runs on. That is not a folder to send anyone
+ * hunting through, so nothing here exposes it.
+ */
+const saveDiagnosticLog = base
+  .input(z.void())
+  .output(z.object({ status: z.enum(["canceled", "failed", "no-log", "saved"]) }))
+  .handler(() => saveLogCopy(getMainWindow() ?? undefined));
 
 const clearExceptions = base.input(z.void()).handler(() => {
   clearServerExceptions();
@@ -838,8 +856,9 @@ export const utils = {
   openTaskIn,
   prepareTaskFileDrag,
   showFileInFolder,
+  readDiagnosticLog,
+  saveDiagnosticLog,
   showFolderPicker,
-  showLogFile,
   showProjectInFolder,
   showTaskFileInFolder,
   syncZoom,

@@ -21,10 +21,22 @@ const DEFAULT_PORT: Record<string, string> = { "http:": "80", "https:": "443" };
 // without hiding the sentence it was hovered from.
 const MAX_TAIL_LENGTH = 180;
 
-/** A destination in the three pieces it is read in. */
+/** A destination in the four pieces it is read in. */
 export interface DestinationParts {
-  /** Credentials, host, and port: the part that decides where a click lands. */
+  /** Host and port: the part that decides where a click lands. */
   authority: string;
+  /**
+   * The user and password an href can carry, ending in the `@` that separates
+   * them from the host. Empty for almost every URL there is.
+   *
+   * Held apart from the authority because they are chosen by whoever wrote the
+   * href and decide nothing about where it goes, which is the whole of what
+   * makes `https://github.com@evil.test/x` work: read as one run, it opens on
+   * a name the reader trusts. So they are drawn with the scheme and the path
+   * rather than with the host, and the host is left as the one thing said at
+   * full strength.
+   */
+  credentials: string;
   /** The scheme and its slashes. */
   scheme: string;
   /** Path, query, and fragment, cut short once it runs past reading length. */
@@ -49,18 +61,23 @@ interface ClaimedOrigin {
  * percent-encoded, ASCII throughout, which is what keeps the lookalike glyphs
  * and bidi controls a label can carry out of the one place they would be
  * believed. `originToDisclose` reads the same URL, so the origin beside a label
- * and the origin in the middle of this are always the same string.
+ * and the origin in the middle of this are always the same string -- including
+ * where the href carries credentials, which neither of them counts as part of
+ * the origin.
  */
 export function destinationParts(url: URL): DestinationParts {
   const scheme = `${url.protocol}//`;
   const credentials = url.username
     ? `${url.username}${url.password ? `:${url.password}` : ""}@`
     : "";
-  const authority = `${credentials}${url.host}`;
-  const tail = url.href.slice(scheme.length + authority.length);
+  const authority = url.host;
+  const tail = url.href.slice(
+    scheme.length + credentials.length + authority.length,
+  );
 
   return {
     authority,
+    credentials,
     scheme,
     tail:
       tail.length > MAX_TAIL_LENGTH

@@ -142,24 +142,32 @@ describe("destinationParts", () => {
   it.each([
     [
       "https://channels.finalpoint.org",
-      ["https://", "channels.finalpoint.org", "/"],
+      ["https://", "", "channels.finalpoint.org", "/"],
     ],
     [
       "https://channels.finalpoint.org/rotation?team=core#today",
-      ["https://", "channels.finalpoint.org", "/rotation?team=core#today"],
+      ["https://", "", "channels.finalpoint.org", "/rotation?team=core#today"],
     ],
-    ["http://localhost:5173/x", ["http://", "localhost:5173", "/x"]],
-    // Credentials go with the host rather than into the muted run in front of
-    // it: they are the half of a destination a reader is least expecting, and
-    // the disclosure beside the label never shows them at all.
+    ["http://localhost:5173/x", ["http://", "", "localhost:5173", "/x"]],
+    // Credentials are their own piece, never part of the host. They are chosen
+    // by whoever wrote the href and decide nothing about where it goes, so the
+    // renderer mutes them with the scheme and the disclosure beside the label
+    // leaves them out entirely.
     [
       "https://neil:hunter2@finalpoint.co/x",
-      ["https://", "neil:hunter2@finalpoint.co", "/x"],
+      ["https://", "neil:hunter2@", "finalpoint.co", "/x"],
+    ],
+    // The one that matters: a username shaped like the host the reader was
+    // expecting. Split off, `evil.test` is the only thing said at full
+    // strength; folded into the authority it opened on `github.com`.
+    [
+      "https://github.com@evil.test/x",
+      ["https://", "github.com@", "evil.test", "/x"],
     ],
   ])("splits %j", (href, expected) => {
-    const { authority, scheme, tail } = parts(href);
+    const { authority, credentials, scheme, tail } = parts(href);
 
-    expect([scheme, authority, tail]).toEqual(expected);
+    expect([scheme, credentials, authority, tail]).toEqual(expected);
   });
 
   // A label can carry lookalike glyphs and bidi controls. What the parser

@@ -237,6 +237,26 @@ describe("An inline link in a browser", () => {
     });
   });
 
+  // A username shaped like a host is the whole of how a link lies about where
+  // it goes, and the tooltip is the surface a suspicious reader opens. The host
+  // is the only run said at full strength, so a glance lands on `evil.test`
+  // however trustworthy the name in front of the `@` is.
+  it("says a host at full strength and the credentials in front of it muted", async () => {
+    await renderReply(
+      "Sign in on [the dashboard](https://github.com@evil.test/x).",
+    );
+
+    await hoverLink((element) => {
+      const atFullStrength = [...element.childNodes]
+        .filter((node) => node.nodeType === Node.TEXT_NODE)
+        .map((node) => node.textContent)
+        .join("");
+
+      expect(element.textContent).toBe("https://github.com@evil.test/x");
+      expect(atFullStrength).toBe("evil.test");
+    });
+  });
+
   // A URL is one unbreakable token, so a tooltip allowed to break only between
   // words is one that a long URL runs straight out the side of.
   it("keeps a URL longer than the tooltip inside it", async () => {

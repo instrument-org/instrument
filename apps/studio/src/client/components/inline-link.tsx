@@ -122,20 +122,27 @@ export function InlineLink({
  *
  * Read in one pass by the same order a reader checks it in: the scheme, then
  * the host that decides where the click lands, then the path it asks that host
- * for. Only the middle one is at full strength, which is what lets a glance
- * answer the question without reading the rest -- and it is the same string the
- * origin beside the label would have shown, so the two never disagree.
+ * for. Only the host is at full strength, which is what lets a glance answer
+ * the question without reading the rest -- and it is the same string the origin
+ * beside the label would have shown, so the two never disagree.
+ *
+ * Credentials are muted along with the scheme rather than drawn as part of the
+ * host, because they are chosen by whoever wrote the href and decide nothing
+ * about where it goes. `https://github.com@evil.test/x` is the whole reason:
+ * one bright run reads as a destination beginning with a name the reader
+ * trusts, and dimming the `github.com@` leaves `evil.test` as the only thing
+ * the glance lands on.
  *
  * Broken anywhere rather than between words. A URL is a single unbreakable
  * token, so a line that may only break at a space is a line that runs out past
  * the tooltip's own edge.
  */
 function LinkDestination({ url }: { url: URL }) {
-  const { authority, scheme, tail } = destinationParts(url);
+  const { authority, credentials, scheme, tail } = destinationParts(url);
 
   return (
     <p className="break-all" data-slot="link-destination">
-      <span className="opacity-60">{scheme}</span>
+      <span className="opacity-60">{`${scheme}${credentials}`}</span>
       {authority}
       <span className="opacity-60">{tail}</span>
     </p>

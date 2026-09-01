@@ -6,7 +6,6 @@ import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 
 const MODEL_TAGS: Record<string, AIGatewayModel.ModelTag[]> = {
   "claude-sonnet-5": ["default"],
-  "grok-build-0.1": ["coding", "recommended"],
 };
 
 // Models that we normally wouldn't set as default, but we for the author
@@ -32,9 +31,27 @@ const NON_CODING_MODALITY =
   /-(?:audio|image|imagine|live|transcribe|tts|video|vision|voice)(?:[-.]|$)/;
 
 /**
- * Tags one model from its id alone. A rule that has to compare a model against
- * the rest of its provider's list lives in `demoteVariantsOfListedModels`,
- * which is what takes `recommended` off a Pro or Fast variant.
+ * A weight count spelled into the id, in billions or trillions and with the
+ * active count of a sparse model beside it: `qwen3.8-27b`,
+ * `qwen3.8-2.4t-a95b`, `llama-3.3-70b-instruct`.
+ *
+ * An author who publishes weights publishes several sizes of one release, and
+ * which size to run is a judgment about the machine serving it rather than
+ * about the model. So these stay in the picker and out of the recommendations,
+ * where the hosted build of the same release already speaks for the line.
+ */
+const NAMES_A_WEIGHT_COUNT = /(?:^|-)a?\d+(?:\.\d+)?[bt](?:[-:]|$)/;
+
+/**
+ * Tags one model from its id alone, which is as far as a single model can be
+ * judged: whether this app can drive a coding turn with it, and whether its
+ * release is recent enough to be worth recommending at all.
+ *
+ * Which release of a line is the current one is a question about the rest of
+ * the list, so it is answered where the list is whole:
+ * `demoteVariantsOfListedModels` takes `recommended` off a Pro or Fast variant
+ * of something already listed, and `demoteSupersededModels` takes it off a
+ * release its author has replaced.
  */
 export function addHeuristicTags(
   model: AIGatewayModel.Type,
@@ -42,7 +59,10 @@ export function addHeuristicTags(
 ): AIGatewayModel.Type {
   const { author, canonicalId } = model;
   const staticTags = MODEL_TAGS[canonicalId] ?? [];
-  const dynamicTags = getDynamicTags(canonicalId);
+  const namesAWeightCount = NAMES_A_WEIGHT_COUNT.test(canonicalId);
+  const dynamicTags = getDynamicTags(canonicalId).filter(
+    (tag) => !(namesAWeightCount && tag === "recommended"),
+  );
 
   let tags = [...model.tags, ...dynamicTags, ...staticTags];
 
@@ -97,8 +117,9 @@ function getDynamicTags(
     return matchesVersionFloor(canonicalId, "gpt-", 5) ? ["coding"] : [];
   }
 
-  // Anthropic's lineup is Fable 5, Opus 5, Sonnet 5, and Haiku 4.5; every other
-  // Claude is one Anthropic itself files under legacy.
+  // Anthropic's lineup is Fable 5, Opus 5, and Sonnet 5; every other Claude is
+  // one Anthropic itself files under legacy. Haiku sits a generation back at
+  // 4.5, so it clears the floor only once a Haiku 5 ships.
   if (
     canonicalId.startsWith("claude-sonnet-") ||
     canonicalId.startsWith("claude-haiku-") ||
@@ -107,7 +128,7 @@ function getDynamicTags(
   ) {
     if (
       matchesVersionFloor(canonicalId, "claude-sonnet-", 5) ||
-      matchesVersionFloor(canonicalId, "claude-haiku-", 4.5) ||
+      matchesVersionFloor(canonicalId, "claude-haiku-", 5) ||
       matchesVersionFloor(canonicalId, "claude-opus-", 5) ||
       matchesVersionFloor(canonicalId, "claude-fable-", 5)
     ) {
@@ -116,13 +137,8 @@ function getDynamicTags(
     return ["coding"];
   }
 
-  // Gemini's Pro line stops at 3.1 while Flash has run on to 3.7, so the floor
-  // has to sit below the newest release or the only Pro on offer drops out.
-  if (matchesVersionFloor(canonicalId, "gemini-", 3.1)) {
-    return ["coding", "recommended"];
-  }
   if (matchesVersionFloor(canonicalId, "gemini-", 3)) {
-    return ["coding"];
+    return ["coding", "recommended"];
   }
 
   if (matchesVersionFloor(canonicalId, "grok-", 4.5)) {

@@ -445,9 +445,6 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
       <aside className="flex w-72 shrink-0 flex-col border-l bg-muted/20">
         <div className="border-b px-3 py-2">
           <h2 className="text-sm font-medium">{scenario.name}</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {scenario.about}
-          </p>
         </div>
 
         {replays && (

@@ -16,11 +16,17 @@
  * unless paths are given. Explicit paths may live outside the repository.
  * `--check` writes nothing and exits non-zero when a file is stale.
  */
-import { globSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, globSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../../..");
 const GLOBALS = "apps/studio/src/client/styles/globals.css";
+// `visual-explanation` is a gitignored symlink to a skill kept outside the
+// repository, so a clone, a worktree, or CI has no such path. It is skipped
+// where it is absent rather than named as an error, since a checkout without
+// it is the normal case and the wireframe template beside it still needs
+// syncing. A path given on the command line is never skipped: naming one is
+// asking for that file, so a typo has to say so.
 const TEMPLATES = [
   ".agents/skills/product-wireframe/template.html",
   ".agents/skills/visual-explanation/template.html",
@@ -201,7 +207,10 @@ const explicit = args.filter((arg) => !arg.startsWith("--"));
 const targets =
   explicit.length > 0
     ? explicit
-    : [...TEMPLATES, ...globSync(WIREFRAMES, { cwd: REPO_ROOT })];
+    : [
+        ...TEMPLATES.filter((file) => existsSync(path.join(REPO_ROOT, file))),
+        ...globSync(WIREFRAMES, { cwd: REPO_ROOT }),
+      ];
 
 const block = buildThemeBlock(
   readFileSync(path.join(REPO_ROOT, GLOBALS), "utf8"),

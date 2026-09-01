@@ -79,7 +79,7 @@ node .agents/skills/product-wireframe/scripts/sync-theme.ts          # rewrite t
 node .agents/skills/product-wireframe/scripts/sync-theme.ts --check  # fail if stale
 ```
 
-It reads `globals.css`, resolves the `var()` indirection to literal values, and rewrites whatever sits between the `/* sync:start */` and `/* sync:end */` markers in this template, the sibling visual-explanation template, and every `docs/plans/active/wireframes-*.html`. Run it after touching the ramps, and leave the markers alone.
+It reads `globals.css`, resolves the `var()` indirection to literal values, and rewrites whatever sits between the `/* sync:start */` and `/* sync:end */` markers in this template and every `docs/plans/active/wireframes-*.html`. It does the same to the sibling visual-explanation template where that skill is present, which it is not in a plain checkout: it lives outside the repository behind a gitignored symlink. Run it after touching the ramps, and leave the markers alone.
 
 ## The two rules that matter
 

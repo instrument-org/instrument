@@ -457,6 +457,10 @@ jobs:
               ]
             }
 
+      # Two links, deliberately. The version links to the tag page, which 404s
+      # until the draft is published but is the permanent address afterwards.
+      # The nudge's draft link is an `untagged-` editing URL that only works
+      # until someone publishes, at which point the tag link takes over.
       - name: Notify Slack with release notes nudge
         if: ${{ !contains(github.ref_name, '-beta') && !contains(github.ref_name, '-alpha') }}
         uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
@@ -471,7 +475,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "Instrument *${{ github.ref_name }}* is now available."
+                    "text": "Instrument *<https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}|${{ github.ref_name }}>* is now available."
                   }
                 },
                 {

@@ -34,14 +34,38 @@ export interface OzoneChoice {
   platform: OzonePlatform;
 }
 
-export type OzonePlatform = (typeof OZONE_PLATFORMS)[number];
-
 /** What to put on the command line, and what the process ends up talking. */
 export interface OzoneDecision {
   /** The switch to append, or `null` when the command line already named one. */
   append: DisplayProtocol | null;
   /** The platform in force, which a command-line value can make anything. */
   platform: string;
+}
+
+export type OzonePlatform = (typeof OZONE_PLATFORMS)[number];
+
+/**
+ * What to give `--ozone-platform`, given what the command line already holds.
+ *
+ * The browser process reads its own `--ozone-platform` before this file runs,
+ * and appending a different one only reaches the processes it spawns. The
+ * browser then talks one protocol while its renderers are told another, and the
+ * window maps and never presents a frame: a full-screen blank surface that
+ * moves, closes, and logs nothing wrong. So a value already on the command line
+ * decides, whatever it says and whatever the session or the environment
+ * variable asked for.
+ */
+export function decideOzonePlatform(
+  requested: OzonePlatform,
+  commandLine: string | undefined,
+  waylandDisplay: string | undefined = process.env.WAYLAND_DISPLAY,
+  sessionType: string | undefined = process.env.XDG_SESSION_TYPE,
+): OzoneDecision {
+  if (commandLine) {
+    return { append: null, platform: commandLine };
+  }
+  const platform = ozonePlatformSwitch(requested, waylandDisplay, sessionType);
+  return { append: platform, platform };
 }
 
 /**
@@ -80,30 +104,6 @@ export function ozonePlatformSwitch(
     return waylandDisplay || sessionType === "wayland" ? "wayland" : "x11";
   }
   return platform;
-}
-
-/**
- * What to give `--ozone-platform`, given what the command line already holds.
- *
- * The browser process reads its own `--ozone-platform` before this file runs,
- * and appending a different one only reaches the processes it spawns. The
- * browser then talks one protocol while its renderers are told another, and the
- * window maps and never presents a frame: a full-screen blank surface that
- * moves, closes, and logs nothing wrong. So a value already on the command line
- * decides, whatever it says and whatever the session or the environment
- * variable asked for.
- */
-export function decideOzonePlatform(
-  requested: OzonePlatform,
-  commandLine: string | undefined,
-  waylandDisplay: string | undefined = process.env.WAYLAND_DISPLAY,
-  sessionType: string | undefined = process.env.XDG_SESSION_TYPE,
-): OzoneDecision {
-  if (commandLine) {
-    return { append: null, platform: commandLine };
-  }
-  const platform = ozonePlatformSwitch(requested, waylandDisplay, sessionType);
-  return { append: platform, platform };
 }
 
 export function resolveOzonePlatform(

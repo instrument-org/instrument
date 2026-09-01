@@ -1,14 +1,18 @@
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { AccountInfo } from "@/client/components/account-info";
+import {
+  BlockToolbarButton,
+  blockToolbarButtonClassName,
+  wrapLinesClassName,
+} from "@/client/components/code-block";
 import { CopyButton } from "@/client/components/copy-button";
 import { ExternalLink } from "@/client/components/external-link";
 import { ThemeToggle } from "@/client/components/theme-toggle";
-import { Button, buttonVariants } from "@/client/components/ui/button";
+import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/client/components/ui/dialog";
@@ -29,7 +33,7 @@ import {
 import { ZoomStepper } from "@/client/components/zoom-controls";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
-import { isLinux } from "@/client/lib/utils";
+import { cn, isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   APP_NAME,
@@ -37,6 +41,8 @@ import {
   BUG_REPORT_URL,
   MANUAL_DOWNLOAD_URL,
 } from "@instrument-org/shared";
+import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft";
+import { ArrowsHorizontalIcon } from "@phosphor-icons/react/ArrowsHorizontal";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -425,6 +431,9 @@ const MAX_VIEWED_LINES = 4000;
 
 function DiagnosticLog() {
   const [viewerOpen, setViewerOpen] = useState(false);
+  // Wrapped by default: the first thing anyone does here is read, and a stack
+  // trace that runs off the right edge has to be scrolled to before it can be.
+  const [wrapLines, setWrapLines] = useState(true);
 
   const logQuery = useQuery({
     ...rpcClient.utils.readDiagnosticLog.queryOptions(),
@@ -467,7 +476,7 @@ function DiagnosticLog() {
           <p className="text-xs text-muted-foreground">
             {APP_NAME} keeps a private, local-only record of what it did while
             running. Send this log to {APP_NAME} Support when you report a
-            problem. It can name files and tasks you worked on, so read it
+            problem. It can include the names of files and tasks you worked on, so read it
             before you share it.
           </p>
         </div>
@@ -499,34 +508,40 @@ function DiagnosticLog() {
           overflow instead.
         */}
         <DialogContent
+          aria-describedby={undefined}
           className="grid-rows-[auto_minmax(0,1fr)] overflow-y-hidden"
           maxHeight="44rem"
           maxWidth="60rem"
         >
           <DialogHeader>
             <DialogTitle>Diagnostic log</DialogTitle>
-            <DialogDescription>
-              {logQuery.data?.truncated
-                ? "The most recent part of the log. A saved copy holds all of it."
-                : "Everything the app has recorded this session."}
-            </DialogDescription>
           </DialogHeader>
           {/*
-            The controls sit over the pane rather than inside the scroller, so
-            they stay put while it scrolls. The text is padded away from them
-            rather than running underneath.
+            `min-w-0` is what keeps a log inside the dialog. A grid item refuses
+            to shrink under its own content by default, and a stack trace is one
+            unbreakable path per line, so without it the pane grows to the widest
+            line and carries the dialog out past the window with it. Zero lets
+            the pane be narrower than its text, which is what gives `overflow`
+            something to scroll.
+
+            The controls sit over the pane rather than inside the scroller so
+            they stay put while it moves, in the same idiom code blocks and
+            diagrams use for the same job.
           */}
-          <div className="relative min-h-0">
+          <div className="relative min-h-0 min-w-0">
             <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+              <BlockToolbarButton
+                icon={wrapLines ? ArrowElbowDownLeftIcon : ArrowsHorizontalIcon}
+                label="Wrap lines"
+                onClick={() => {
+                  setWrapLines(!wrapLines);
+                }}
+                pressed={wrapLines}
+              />
               <CopyButton
-                // Built from the same variants as the button beside it, so the
-                // pair cannot drift apart in size or hover treatment.
-                className={buttonVariants({
-                  size: "icon-sm",
-                  variant: "ghost",
-                })}
+                className={blockToolbarButtonClassName}
                 disabled={!logQuery.data}
-                iconSize={14}
+                iconSize={12}
                 label="Copy log"
                 onCopy={async () => {
                   await navigator.clipboard.writeText(
@@ -535,20 +550,28 @@ function DiagnosticLog() {
                 }}
                 tooltip="Copy log"
               />
-              <DownloadLogButton
-                disabled={saveLogMutation.isPending || !logQuery.data}
-                onDownload={() => {
+              <BlockToolbarButton
+                icon={DownloadSimpleIcon}
+                label="Download log"
+                onClick={() => {
                   saveLogMutation.mutate();
                 }}
               />
             </div>
-            <div className="h-full overflow-auto rounded-md border border-border bg-muted/40 p-3">
+            <div
+              className={cn(
+                "h-full overflow-auto rounded-md border border-border bg-muted/40 p-3",
+                wrapLines && wrapLinesClassName,
+              )}
+            >
               {logQuery.isPending ? (
                 <p className="text-xs text-muted-foreground">
                   Reading the log...
                 </p>
               ) : logQuery.data ? (
-                <pre className="pr-20 font-mono text-xs leading-5 whitespace-pre-wrap">
+                // No whitespace class of its own: `pre` already does not wrap,
+                // so the toggle above adds wrapping rather than fighting it.
+                <pre className="pr-24 font-mono text-xs leading-5">
                   {toLogLines(logQuery.data.text).map((line, index) => (
                     <div
                       className={LOG_LEVEL_CLASS[line.level]}

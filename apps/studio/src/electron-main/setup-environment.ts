@@ -7,6 +7,10 @@ import path from "node:path";
 
 import { initializeElectronLogging, logger } from "./lib/electron-logger";
 import {
+  LAUNCH_OVERRIDES_FILENAME,
+  readLaunchOverrides,
+} from "./lib/launch-overrides";
+import {
   OZONE_PLATFORMS,
   ozonePlatformSwitch,
   resolveOzonePlatform,
@@ -69,11 +73,36 @@ initializeElectronLogging();
 
 const passwordStore = setupDBusEnvironment();
 
+// Read before any switch is set, because everything it carries has to be
+// applied before Chromium starts. It exists for the user who cannot reach the
+// environment: the app is launched from a desktop entry, a dock, or a
+// compositor keybind, none of which run a shell to export a variable in.
+const launchOverrides = readLaunchOverrides(app.getPath("userData"));
+for (const problem of launchOverrides.problems) {
+  logger.warn(`Ignoring part of ${LAUNCH_OVERRIDES_FILENAME}: ${problem}`);
+}
+
+// Not gated on Linux: a driver bad enough to need this exists on every
+// platform, and the file is the only way to say so before the window that
+// would have shown a setting fails to draw.
+if (launchOverrides.overrides.disableHardwareAcceleration) {
+  app.disableHardwareAcceleration();
+  logger.info(`Hardware acceleration disabled by ${LAUNCH_OVERRIDES_FILENAME}`);
+}
+
 if (platform.isLinux) {
-  const ozone = resolveOzonePlatform(process.env.INSTRUMENT_OZONE_PLATFORM);
+  // The variable outranks the file, so a one-off launch can still answer for
+  // itself on a machine whose file says otherwise.
+  const requestedOzone =
+    process.env.INSTRUMENT_OZONE_PLATFORM ||
+    launchOverrides.overrides.ozonePlatform;
+  const ozoneSource = process.env.INSTRUMENT_OZONE_PLATFORM
+    ? "INSTRUMENT_OZONE_PLATFORM"
+    : LAUNCH_OVERRIDES_FILENAME;
+  const ozone = resolveOzonePlatform(requestedOzone);
   if (ozone.ignored) {
     logger.warn(
-      `Ignoring INSTRUMENT_OZONE_PLATFORM=${ozone.ignored}; expected one of ${OZONE_PLATFORMS.join(", ")}`,
+      `Ignoring ozone platform ${ozone.ignored} from ${ozoneSource}; expected one of ${OZONE_PLATFORMS.join(", ")}`,
     );
   }
   app.commandLine.appendSwitch(

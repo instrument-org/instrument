@@ -19,24 +19,18 @@ import {
 } from "./ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
-/** The table-relative top of a row. */
-const rowTop = (row: Element | null) =>
-  row instanceof HTMLTableRowElement ? row.offsetTop : undefined;
-
-/** The table-relative middle of a row. */
-const rowCenter = (row: Element | null) => {
-  if (!(row instanceof HTMLTableRowElement)) {
-    return;
-  }
-  const block = row.closest(".markdown-table-row");
-  if (!block) {
-    return row.offsetTop + row.offsetHeight / 2;
-  }
-  const rowBounds = row.getBoundingClientRect();
-  return (
-    rowBounds.top - block.getBoundingClientRect().top + rowBounds.height / 2
-  );
-};
+/**
+ * The block-relative top of the table, or of a row in it.
+ *
+ * `offsetTop` rather than a pair of bounding rects, which is what the controls
+ * need: the value is written straight back as a `top`, and under the app's own
+ * `zoom` a rect is in on-screen pixels while `top` is read as layout ones. The
+ * table sits at the block's origin -- the frame has no box of its own to offset
+ * it -- so a row measured against the table lands in the same coordinates the
+ * block positions from.
+ */
+const offsetTop = (element: Element | null) =>
+  element instanceof HTMLElement ? element.offsetTop : undefined;
 
 // How long the row control reports a copy for.
 const COPIED_MS = 2000;
@@ -44,9 +38,7 @@ const COPIED_MS = 2000;
 // Between a control and the table's edge when the control stands beside it.
 // Only the room check spends it here: the offset itself is carried on the
 // control's own box (see `data-outside` in globals.css), so the gap is part of
-// the control and a pointer crossing it never leaves the row -- a sample
-// hit-testing to the transcript would fire the row's `mouseleave` and hide the
-// row copy before it could be reached.
+// the control rather than a strip of transcript between the two.
 const CONTROL_GAP = 8;
 
 /**
@@ -103,8 +95,11 @@ const copy = (rows: string[][], format?: TableCopyFormat) => {
  * `scroll-fade-y` uses holds its last value when a scroller stops being
  * scrollable -- which here is every time the browser pane closes.
  *
- * The controls stand beside the table wherever the transcript is wide enough
- * to hold them there, and fall back onto its trailing edge where it is not.
+ * Copy and open stand above the table's top edge, where a header row is
+ * content like any other and there is nothing for them to cover. The row copy
+ * stands beside the table wherever the transcript is wide enough to hold it
+ * there, and rides the row's own top edge where it is not, which is the band of
+ * cell padding between one row's text and the next.
  *
  * Nothing in the table is pinned while the rest of it scrolls. Holding the
  * first column still reads well until the first column is wide, and then it is
@@ -141,28 +136,44 @@ export const MarkdownTable = ({
   const element = () => frameRef.current?.querySelector("table") ?? null;
 
   /**
-   * Puts a control beside the table where the transcript has room for it, and
-   * back on top of it where it does not.
+   * The trailing end of what the frame can show, and the room left beside it.
    *
-   * Both controls answer to the toolbar's width rather than their own, so a
-   * pane wide enough for one and not the other never splits them across the
-   * table's edge.
+   * A table that scrolls is cut off at the frame; one narrower than the frame
+   * ends where its own content does, which is what the room is measured from.
+   * `clientWidth` rather than the frame's box, so a scrollbar does not put a
+   * control under one.
    */
-  const placeControl = (control: HTMLElement, frame: HTMLElement) => {
-    const width = toolbarRef.current?.offsetWidth ?? 0;
+  const trailing = (frame: HTMLElement) => {
     const table = element();
     const scrollable = frame.scrollWidth - frame.clientWidth > 1;
     const tableEnd = table
       ? table.offsetLeft - frame.offsetLeft + table.offsetWidth
       : frame.clientWidth;
-    const visibleEdge = scrollable
+    const visible = scrollable
       ? frame.clientWidth
       : Math.min(frame.clientWidth, tableEnd);
-    const outside =
-      width > 0 && frame.clientWidth - visibleEdge >= width + CONTROL_GAP;
-    const edge = frame.offsetLeft + visibleEdge;
-    setFlag(control, "data-outside", outside);
-    setStyle(control, "left", `${outside ? edge : edge - 4}px`);
+    return {
+      edge: frame.offsetLeft + visible,
+      room: frame.clientWidth - visible,
+    };
+  };
+
+  /**
+   * Puts the row copy beside the table where the transcript has room for it,
+   * and back over the table's trailing edge where it does not.
+   *
+   * Measured from the control itself rather than the toolbar, which no longer
+   * shares an edge with it. The button inside is what is measured, not the
+   * chip: the chip carries the gap as padding when it stands outside, so
+   * measuring it would widen the check by the very gap being checked for.
+   */
+  const placeRowCopy = (chip: HTMLElement, frame: HTMLElement) => {
+    const { edge, room } = trailing(frame);
+    const button = chip.querySelector(".markdown-table-control");
+    const width = button instanceof HTMLElement ? button.offsetWidth : 0;
+    const outside = width > 0 && room >= width + CONTROL_GAP;
+    setFlag(chip, "data-outside", outside);
+    setStyle(chip, "left", `${outside ? edge : edge - 4}px`);
   };
 
   // An attribute rather than state: a scroll handler that re-renders every
@@ -177,18 +188,14 @@ export const MarkdownTable = ({
     setFlag(frame, "data-scroll-start", frame.scrollLeft > 1);
     setFlag(frame, "data-scroll-end", behind > 1);
 
-    // Two pixels above the table's top edge, at the trailing end of what is
-    // visible. Unlike row-copy, this toolbar belongs to the whole table rather
-    // than to the header text, so it carries no cell-content inset.
-    // `clientWidth` rather than the frame's box, so a scrollbar does not push
-    // it under one; the controls are translated back by their own size, so
-    // neither has to be measured.
+    // Standing on the table's top edge, flush with the trailing end of what is
+    // visible. It is lifted clear of the table by its own height in CSS, so
+    // neither the toolbar nor the room beside it has to be measured: above the
+    // header there is nothing for it to cover and nowhere else for it to go.
     const toolbar = toolbarRef.current;
-    const header = frame.querySelector("thead tr");
     if (toolbar) {
-      const top = rowTop(header) ?? frame.offsetTop;
-      setStyle(toolbar, "top", `${top - 2}px`);
-      placeControl(toolbar, frame);
+      setStyle(toolbar, "top", `${offsetTop(element()) ?? 0}px`);
+      setStyle(toolbar, "left", `${trailing(frame).edge}px`);
     }
   };
 
@@ -265,10 +272,12 @@ export const MarkdownTable = ({
    * otherwise re-render the whole table, and during a stream that is every row
    * of every table on screen.
    *
-   * A pointer already on the control is left alone, which together with it
-   * riding the row's own edge is what makes it reachable: anywhere else,
-   * reaching for it leaves the row that put it there, and the row takes it
-   * away again before the click lands.
+   * Only a row moves it. A pointer that is inside the block but on no row --
+   * the gutter beside the table, where the control stands whenever there is
+   * room for it, or the header above -- leaves it where it is, which is what
+   * makes it reachable: the control sits at the top of its row, so reaching for
+   * it from the middle of one crosses ground that belongs to no row at all.
+   * Leaving the block is what takes it away, and that is `mouseleave`'s to say.
    */
   const trackRow = (event: React.MouseEvent<HTMLDivElement>) => {
     const chip = rowCopyRef.current;
@@ -281,15 +290,14 @@ export const MarkdownTable = ({
     }
     const row = event.target.closest("tbody tr");
     if (!(row instanceof HTMLTableRowElement)) {
-      delete chip.dataset.visible;
       return;
     }
     if (chip.dataset.row !== String(row.rowIndex)) {
       clearCopied(chip);
     }
     chip.dataset.row = String(row.rowIndex);
-    setStyle(chip, "top", `${rowCenter(row) ?? 0}px`);
-    placeControl(chip, frame);
+    setStyle(chip, "top", `${offsetTop(row) ?? 0}px`);
+    placeRowCopy(chip, frame);
     chip.dataset.visible = "";
   };
 
@@ -408,8 +416,8 @@ export const MarkdownTable = ({
                 aria-label="Copy row"
                 className="markdown-table-control"
               >
-                <CopyIcon className="markdown-table-idle" size={12} />
-                <CheckIcon className="markdown-table-copied" size={12} />
+                <CopyIcon className="markdown-table-idle" size={10} />
+                <CheckIcon className="markdown-table-copied" size={10} />
               </DropdownMenuTrigger>
             </TooltipTrigger>
             <TooltipContent>Copy row</TooltipContent>

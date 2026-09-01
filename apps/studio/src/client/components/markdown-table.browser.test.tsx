@@ -59,12 +59,12 @@ async function renderWideTranscript(table?: ReactNode) {
 /**
  * Reaching the row copy when it stands beside the table.
  *
- * The control sits past the table's edge in a wide transcript, and the way it
- * stays reachable is that the gap between edge and control belongs to the
- * control itself. Whether it does is a question about hit-testing: which
- * element a pointer sample in that gap lands on, and so whether crossing it
- * fires the row's `mouseleave` and hides the control mid-reach. jsdom has no
- * hit-testing, so this lives here.
+ * The control sits past the table's edge in a wide transcript, and at the top
+ * of its row rather than the middle, so the reach for it leaves the row on both
+ * axes. What keeps it there is that only a row moves it: ground inside the
+ * block that belongs to no row leaves it where it is. Whether it does is a
+ * question about hit-testing, which element a pointer sample in that gap lands
+ * on, and jsdom has none, so this lives here.
  */
 
 test("the row copy survives the pointer crossing the gap to reach it", async () => {
@@ -76,9 +76,10 @@ test("the row copy survives the pointer crossing the gap to reach it", async () 
   // for this test to say.
   expect(chip.dataset.outside).toBe("");
 
-  // One pointer sample in the gap, which is what a pointer moving at
-  // deliberate speed delivers on its way to the control. A jump that clears
-  // the gap between two samples never fires `mouseleave` and proves nothing.
+  // One pointer sample in the gap, level with the middle of the row and so
+  // below the control itself, which is what a pointer moving at deliberate
+  // speed delivers on its way up to it. A jump that clears the gap between two
+  // samples never lands there at all and proves nothing.
   const cell = page.getByText("North").element().getBoundingClientRect();
   const table = frame.querySelector("table");
   if (!table) {

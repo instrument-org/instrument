@@ -3,40 +3,22 @@ import { describe, expect, it } from "vitest";
 import { parseLaunchOverrides } from "./launch-overrides";
 
 describe("parseLaunchOverrides", () => {
-  it("reads both settings", () => {
+  it("reads the setting", () => {
     expect(
       parseLaunchOverrides(
-        JSON.stringify({
-          "disable-hardware-acceleration": true,
-          "ozone-platform": "x11",
-        }),
+        JSON.stringify({ "disable-hardware-acceleration": true }),
       ),
     ).toEqual({
-      overrides: { disableHardwareAcceleration: true, ozonePlatform: "x11" },
+      overrides: { disableHardwareAcceleration: true },
       problems: [],
     });
   });
 
   it("treats an empty object as no overrides", () => {
     expect(parseLaunchOverrides("{}")).toEqual({
-      overrides: {
-        disableHardwareAcceleration: false,
-        ozonePlatform: undefined,
-      },
+      overrides: { disableHardwareAcceleration: false },
       problems: [],
     });
-  });
-
-  // The platform name is passed through rather than checked here, so that the
-  // file and the environment variable are validated by the same function and
-  // cannot come to different conclusions about the same string.
-  it("passes an unknown platform name through to be validated later", () => {
-    const { overrides, problems } = parseLaunchOverrides(
-      JSON.stringify({ "ozone-platform": "nonsense" }),
-    );
-
-    expect(overrides.ozonePlatform).toBe("nonsense");
-    expect(problems).toEqual([]);
   });
 
   // A file the app cannot read is a file the user typed by hand and got wrong.
@@ -49,10 +31,7 @@ describe("parseLaunchOverrides", () => {
   ])("starts anyway when the file is $name", ({ contents }) => {
     const { overrides, problems } = parseLaunchOverrides(contents);
 
-    expect(overrides).toEqual({
-      disableHardwareAcceleration: false,
-      ozonePlatform: undefined,
-    });
+    expect(overrides).toEqual({ disableHardwareAcceleration: false });
     expect(problems).toMatchInlineSnapshot(`
       [
         "launch-overrides.json is not valid JSON",
@@ -63,7 +42,7 @@ describe("parseLaunchOverrides", () => {
   it.each([
     { contents: "[]", name: "an array" },
     { contents: "null", name: "null" },
-    { contents: '"x11"', name: "a bare string" },
+    { contents: '"true"', name: "a bare string" },
   ])("rejects $name as the whole file", ({ contents }) => {
     expect(parseLaunchOverrides(contents).problems).toMatchInlineSnapshot(`
       [
@@ -72,18 +51,17 @@ describe("parseLaunchOverrides", () => {
     `);
   });
 
-  // One key of the wrong type must not discard the other, because the two are
-  // set for unrelated reasons and a user fixing graphics should not silently
-  // lose the display protocol they set last month.
-  it("keeps the usable key and reports the other", () => {
+  // Reported rather than coerced, because a user who wrote "yes" meant to turn
+  // this on and silently leaving it off would look like the file did nothing.
+  it.each([
+    { name: "a string", value: "yes" },
+    { name: "a number", value: 1 },
+    { name: "null", value: null },
+  ])("reports $name where a boolean belongs", ({ value }) => {
     const { overrides, problems } = parseLaunchOverrides(
-      JSON.stringify({
-        "disable-hardware-acceleration": "yes",
-        "ozone-platform": "wayland",
-      }),
+      JSON.stringify({ "disable-hardware-acceleration": value }),
     );
 
-    expect(overrides.ozonePlatform).toBe("wayland");
     expect(overrides.disableHardwareAcceleration).toBe(false);
     expect(problems).toMatchInlineSnapshot(`
       [
@@ -92,28 +70,17 @@ describe("parseLaunchOverrides", () => {
     `);
   });
 
-  it("reports every unusable key", () => {
-    expect(
-      parseLaunchOverrides(
-        JSON.stringify({
-          "disable-hardware-acceleration": 1,
-          "ozone-platform": false,
-        }),
-      ).problems,
-    ).toMatchInlineSnapshot(`
-      [
-        "ozone-platform must be a string",
-        "disable-hardware-acceleration must be true or false",
-      ]
-    `);
-  });
-
+  // Room for a second setting later without a file written for that future
+  // version being rejected wholesale by this one.
   it("ignores keys it does not know", () => {
     const { overrides, problems } = parseLaunchOverrides(
-      JSON.stringify({ "ozone-platform": "x11", somethingElse: 42 }),
+      JSON.stringify({
+        "disable-hardware-acceleration": true,
+        somethingElse: 42,
+      }),
     );
 
-    expect(overrides.ozonePlatform).toBe("x11");
+    expect(overrides.disableHardwareAcceleration).toBe(true);
     expect(problems).toEqual([]);
   });
 });

@@ -82,27 +82,24 @@ for (const problem of launchOverrides.problems) {
   logger.warn(`Ignoring part of ${LAUNCH_OVERRIDES_FILENAME}: ${problem}`);
 }
 
-// Not gated on Linux: a driver bad enough to need this exists on every
-// platform, and the file is the only way to say so before the window that
-// would have shown a setting fails to draw.
+// Logged on every launch, present or not, because the path is the whole point:
+// the file is reachable only by someone who knows where it is, and the log is
+// what a user sends when they are already stuck. Not gated on Linux either, as
+// a driver bad enough to need this exists on every platform.
 if (launchOverrides.overrides.disableHardwareAcceleration) {
   app.disableHardwareAcceleration();
-  logger.info(`Hardware acceleration disabled by ${LAUNCH_OVERRIDES_FILENAME}`);
+  logger.info(`Hardware acceleration disabled by ${launchOverrides.filePath}`);
+} else {
+  logger.info(
+    `Hardware acceleration on; disable it with {"disable-hardware-acceleration": true} in ${launchOverrides.filePath}`,
+  );
 }
 
 if (platform.isLinux) {
-  // The variable outranks the file, so a one-off launch can still answer for
-  // itself on a machine whose file says otherwise.
-  const requestedOzone =
-    process.env.INSTRUMENT_OZONE_PLATFORM ||
-    launchOverrides.overrides.ozonePlatform;
-  const ozoneSource = process.env.INSTRUMENT_OZONE_PLATFORM
-    ? "INSTRUMENT_OZONE_PLATFORM"
-    : LAUNCH_OVERRIDES_FILENAME;
-  const ozone = resolveOzonePlatform(requestedOzone);
+  const ozone = resolveOzonePlatform(process.env.INSTRUMENT_OZONE_PLATFORM);
   if (ozone.ignored) {
     logger.warn(
-      `Ignoring ozone platform ${ozone.ignored} from ${ozoneSource}; expected one of ${OZONE_PLATFORMS.join(", ")}`,
+      `Ignoring INSTRUMENT_OZONE_PLATFORM=${ozone.ignored}; expected one of ${OZONE_PLATFORMS.join(", ")}`,
     );
   }
   app.commandLine.appendSwitch(

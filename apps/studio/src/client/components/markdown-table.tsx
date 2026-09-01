@@ -95,11 +95,12 @@ const copy = (rows: string[][], format?: TableCopyFormat) => {
  * `scroll-fade-y` uses holds its last value when a scroller stops being
  * scrollable -- which here is every time the browser pane closes.
  *
- * Copy and open stand above the table's top edge, where a header row is
- * content like any other and there is nothing for them to cover. The row copy
- * stands beside the table wherever the transcript is wide enough to hold it
- * there, and rides the row's own top edge where it is not, which is the band of
- * cell padding between one row's text and the next.
+ * Both controls stand beside the table wherever the transcript is wide enough
+ * to hold them there. Where it is not, they fall back differently, because they
+ * belong to different things: copy and open lift above the header, which is
+ * content like any other and the one row a reader needs to keep the columns
+ * straight, and the row copy drops onto its own row's top edge, into the band
+ * of cell padding between that row's text and the one above it.
  *
  * Nothing in the table is pinned while the rest of it scrolls. Holding the
  * first column still reads well until the first column is wide, and then it is
@@ -159,13 +160,29 @@ export const MarkdownTable = ({
   };
 
   /**
+   * Puts the toolbar beside the table where the transcript has room for it,
+   * and above the header where it does not.
+   *
+   * Beside is the better of the two and the reason the room is checked at all:
+   * a control that belongs to the whole table reads best on the table's own top
+   * corner. Above the header is for the table that has taken the whole pane,
+   * where the only alternative is standing on a column name.
+   */
+  const placeToolbar = (toolbar: HTMLElement, frame: HTMLElement) => {
+    const { edge, room } = trailing(frame);
+    setFlag(toolbar, "data-outside", room >= toolbar.offsetWidth + CONTROL_GAP);
+    setStyle(toolbar, "top", `${offsetTop(element()) ?? 0}px`);
+    setStyle(toolbar, "left", `${edge}px`);
+  };
+
+  /**
    * Puts the row copy beside the table where the transcript has room for it,
    * and back over the table's trailing edge where it does not.
    *
-   * Measured from the control itself rather than the toolbar, which no longer
-   * shares an edge with it. The button inside is what is measured, not the
-   * chip: the chip carries the gap as padding when it stands outside, so
-   * measuring it would widen the check by the very gap being checked for.
+   * The button inside is what is measured, not the chip: the chip carries the
+   * gap as padding when it stands outside, so measuring it would widen the
+   * check by the very gap being checked for. The toolbar's own gap is a margin
+   * instead, which is why it can be measured as it is.
    */
   const placeRowCopy = (chip: HTMLElement, frame: HTMLElement) => {
     const { edge, room } = trailing(frame);
@@ -188,14 +205,11 @@ export const MarkdownTable = ({
     setFlag(frame, "data-scroll-start", frame.scrollLeft > 1);
     setFlag(frame, "data-scroll-end", behind > 1);
 
-    // Standing on the table's top edge, flush with the trailing end of what is
-    // visible. It is lifted clear of the table by its own height in CSS, so
-    // neither the toolbar nor the room beside it has to be measured: above the
-    // header there is nothing for it to cover and nowhere else for it to go.
+    // Both placements hang off the table's top edge at the trailing end of what
+    // is visible, and which one it takes is CSS's from there.
     const toolbar = toolbarRef.current;
     if (toolbar) {
-      setStyle(toolbar, "top", `${offsetTop(element()) ?? 0}px`);
-      setStyle(toolbar, "left", `${trailing(frame).edge}px`);
+      placeToolbar(toolbar, frame);
     }
   };
 

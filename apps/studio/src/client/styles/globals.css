@@ -1166,17 +1166,16 @@ a.cursor-pointer {
   opacity: 1;
 }
 
-/* Copy and expand, standing on the table's top edge rather than on the header
-   row. A header row is content like any other -- it is the one row whose text a
-   reader needs to keep the columns straight -- and the block's own top margin
-   is room enough to clear it. Outside the scroller, because the frame clips
-   vertically to keep a stray scrollbar off it.
+/* Copy and expand, hung off the table's top corner at the trailing end. Where
+   the transcript has room beside the table they stand in it, level with the top
+   of the header row; where it has none they lift above the header instead,
+   into the block's own top margin, rather than stand on the one row whose text
+   a reader needs to keep the columns straight. Outside the scroller, because
+   the frame clips vertically to keep a stray scrollbar off it.
 
-   Lifted by its own height, so nothing about the toolbar has to be measured.
-   The air below it is padding rather than margin, which keeps it part of the
-   toolbar's own box: the strip between the table and the controls is then still
-   a descendant of the block, and a pointer crossing it never leaves the hover
-   that put them there. */
+   Lifted by their own height, so only the width has to be measured. The air
+   under them is padding, which keeps it inside the toolbar's box and off the
+   header below. */
 .markdown-table-toolbar {
   position: absolute;
   z-index: 3;
@@ -1186,6 +1185,16 @@ a.cursor-pointer {
   transform: translate(-100%, -100%);
   opacity: 0;
   transition: opacity 100ms;
+}
+
+/* Beside the table: past its trailing edge by `CONTROL_GAP`, which is margin
+   here rather than padding so it is not counted by the room check that put it
+   there. Two pixels up, which is where a control reads as sitting on the
+   table's corner rather than inside it. */
+.markdown-table-toolbar[data-outside] {
+  margin-inline-start: 8px;
+  padding-bottom: 0;
+  transform: translateY(-2px);
 }
 
 /* Focus as well as hover, so tabbing through never lands on an invisible
@@ -1207,7 +1216,7 @@ a.cursor-pointer {
    otherwise be widened by the very gap being checked for -- see
    `placeRowCopy`. */
 .markdown-table-row-copy[data-outside] {
-  transform: translateY(-50%);
+  transform: translateY(2px);
   padding-inline-start: 8px;
 }
 
@@ -1253,8 +1262,9 @@ a.cursor-pointer {
    mid-stream would otherwise re-render every row of itself to answer a pointer
    move.
  
-   It straddles the row's top edge at the trailing end, which is the one band a
-   table has that carries no text: two rows' cell padding, back to back. The
+   It sits under the row's top edge at the trailing end, clear of the rule
+   above it and inside the row it belongs to: the band there is two rows' cell
+   padding back to back, the one part of a table that carries no text. The
    middle of a row was the same idea when a row was one line tall, and stopped
    being it once the cells started wrapping. What keeps it reachable from the
    middle of a tall row is `trackRow`, which only ever moves it for another
@@ -1262,7 +1272,7 @@ a.cursor-pointer {
 .markdown-table-row-copy {
   position: absolute;
   z-index: 2;
-  transform: translate(-100%, -50%);
+  transform: translate(-100%, 2px);
   opacity: 0;
   pointer-events: none;
 }

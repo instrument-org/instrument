@@ -4,13 +4,6 @@ import { createScopedLogger } from "./electron-logger";
 
 const log = createScopedLogger("GpuStatus");
 
-interface GpuDevice {
-  /** The one Chromium is drawing with, where it named one. */
-  active: boolean;
-  deviceId: null | number;
-  vendor: string;
-}
-
 /**
  * Whether Chromium is drawing on the GPU, and on which one.
  *
@@ -39,6 +32,13 @@ export interface GpuStatus {
    * `llvmpipe` when nothing is accelerated at all.
    */
   renderer: null | string;
+}
+
+interface GpuDevice {
+  /** The one Chromium is drawing with, where it named one. */
+  active: boolean;
+  deviceId: null | number;
+  vendor: string;
 }
 
 /**
@@ -125,31 +125,6 @@ export async function logGpuStatus(app: Electron.App): Promise<void> {
 }
 
 /**
- * Ask Electron, and answer with what it said.
- *
- * Only ever called after the app is ready, because `getGPUInfo` resolves off
- * the GPU process and there is none before that. The `complete` dictionary is
- * the one that waits for the GPU process to finish reporting, so the answer is
- * the steady state rather than whatever initialization had reached.
- */
-async function readGpuStatus(app: Electron.App): Promise<GpuStatus> {
-  // There is not always a GPU process to answer, and `getGPUInfo` rejects when
-  // there is none. Drawing in software is the case that puts the app in that
-  // state, and it is also the case someone most wants an answer for, so a
-  // rejection costs the device list rather than the whole report: the feature
-  // status below is synchronous, needs no GPU process, and is the half that
-  // says drawing is in software.
-  const info = await app.getGPUInfo("complete").catch(() => {});
-  // Electron types the feature status as a struct of the keys it knew about
-  // when the typings were written, and this reads it as the open map Chromium
-  // actually sends, so a feature added upstream still reaches the log.
-  const features = Object.fromEntries(
-    Object.entries(app.getGPUFeatureStatus()),
-  );
-  return summarizeGpuStatus(features, info);
-}
-
-/**
  * Fold Chromium's two reports into the shape above.
  *
  * Separate from the call so it can be exercised against the dictionaries real
@@ -200,4 +175,29 @@ function describeVendor(vendorId: number | undefined): string {
     return "unknown";
   }
   return VENDORS.get(vendorId) ?? `0x${vendorId.toString(16)}`;
+}
+
+/**
+ * Ask Electron, and answer with what it said.
+ *
+ * Only ever called after the app is ready, because `getGPUInfo` resolves off
+ * the GPU process and there is none before that. The `complete` dictionary is
+ * the one that waits for the GPU process to finish reporting, so the answer is
+ * the steady state rather than whatever initialization had reached.
+ */
+async function readGpuStatus(app: Electron.App): Promise<GpuStatus> {
+  // There is not always a GPU process to answer, and `getGPUInfo` rejects when
+  // there is none. Drawing in software is the case that puts the app in that
+  // state, and it is also the case someone most wants an answer for, so a
+  // rejection costs the device list rather than the whole report: the feature
+  // status below is synchronous, needs no GPU process, and is the half that
+  // says drawing is in software.
+  const info = await app.getGPUInfo("complete").catch(() => ({}));
+  // Electron types the feature status as a struct of the keys it knew about
+  // when the typings were written, and this reads it as the open map Chromium
+  // actually sends, so a feature added upstream still reaches the log.
+  const features = Object.fromEntries(
+    Object.entries(app.getGPUFeatureStatus()),
+  );
+  return summarizeGpuStatus(features, info);
 }

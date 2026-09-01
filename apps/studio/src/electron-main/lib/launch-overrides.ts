@@ -1,6 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
 
+export interface LaunchOverridesResult {
+  overrides: LaunchOverrides;
+  /**
+   * What the file held and the app could not use. Collected rather than thrown
+   * so one bad key does not discard the others, and reported so a user editing
+   * this by hand is told when it did nothing.
+   */
+  problems: string[];
+}
+
 /**
  * Settings that have to be applied before Chromium starts, from a file rather
  * than the environment.
@@ -29,16 +39,6 @@ interface LaunchOverrides {
    * platform name and the environment variable and the file cannot disagree.
    */
   ozonePlatform: string | undefined;
-}
-
-export interface LaunchOverridesResult {
-  overrides: LaunchOverrides;
-  /**
-   * What the file held and the app could not use. Collected rather than thrown
-   * so one bad key does not discard the others, and reported so a user editing
-   * this by hand is told when it did nothing.
-   */
-  problems: string[];
 }
 
 /** Sits in `userData` so it survives updates and is per-installation. */

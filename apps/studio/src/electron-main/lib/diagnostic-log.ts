@@ -32,20 +32,6 @@ export interface SaveLogResult {
 }
 
 /**
- * The log this build is actually writing.
- *
- * Development leaves the file transport off and writes the dev log instead, so
- * naming `main.log` unconditionally points at a file that never exists there.
- * That makes the one environment the feature is built in the one environment it
- * cannot be tried in, which is how it ships broken.
- */
-function getActiveLogFilePath(): string | undefined {
-  return [getDevLogFilePath(), getMainLogFilePath()].find(
-    (candidate) => candidate !== undefined && fs.existsSync(candidate),
-  );
-}
-
-/**
  * Read the end of the log, so someone can see what they are about to send.
  *
  * Returns nothing rather than throwing when there is no log yet, which is an
@@ -122,4 +108,18 @@ export async function saveLogCopy(
     log.warn(new Error("Could not save a copy of the log", { cause: error }));
     return { status: "failed" };
   }
+}
+
+/**
+ * The log this build is actually writing.
+ *
+ * Development leaves the file transport off and writes the dev log instead, so
+ * naming `main.log` unconditionally points at a file that never exists there.
+ * That makes the one environment the feature is built in the one environment it
+ * cannot be tried in, which is how it ships broken.
+ */
+function getActiveLogFilePath(): string | undefined {
+  return [getDevLogFilePath(), getMainLogFilePath()].find(
+    (candidate) => candidate !== undefined && fs.existsSync(candidate),
+  );
 }

@@ -27,6 +27,4 @@ The distinction that matters most: **architecture is corrected, decisions and ch
 
 ## Not tracked here
 
-`visual-explanations/` is gitignored. Generated HTML explainers land there for local reading and are deliberately not versioned, so the directory is empty in a fresh clone.
-
 Documentation for the Platform API, the authenticated service Studio calls through `src/electron-main/platform-api/`, belongs in that service's own repository rather than here. Describe this side of the seam freely: the client interface, what the app does with a response, and what a failure has to look like to the user. Leave the endpoint's design, provider choices, pricing, and billing to the side that owns them, so those details have one home and cannot drift into a second description that nobody updates.

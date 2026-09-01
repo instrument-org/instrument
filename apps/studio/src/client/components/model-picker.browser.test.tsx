@@ -14,10 +14,10 @@ import { ModelPicker } from "./model-picker";
 
 // What the picker offers has to be legible from the accessibility tree, since
 // that tree is both what a screen reader announces and what an agent driving
-// the app reads. On Auto the model list is deliberately folded away, and a fold
-// that leaves nothing behind is indistinguishable from a picker that has one
-// model in it -- which is what an agent driving Studio concluded, before
-// working around the UI entirely.
+// the app reads. Every model it can reach is in that tree whatever is
+// selected, Auto included: a picker that keeps them behind something reads as
+// a picker with one model in it, which is what an agent driving Studio once
+// concluded before working around the UI entirely.
 
 const params = {
   provider: "anthropic" as const,
@@ -170,25 +170,8 @@ async function openPicker(selectedModel: AIGatewayModel.Type) {
 }
 
 describe("ModelPicker in a browser", () => {
-  it("says how many models the fold is holding while Auto is selected", async () => {
+  it("names every model it offers while Auto is selected", async () => {
     const tree = await openPicker(autoModel);
-
-    expect(await tree()).toMatchInlineSnapshot(`
-      "- text: Search models Auto
-      - switch "Auto Selects the best model for your task" [checked]
-      - text: Selects the best model for your task
-      - combobox "Search models" [expanded]
-      - listbox "Suggestions"
-      - button "Browse 3 models""
-    `);
-  });
-
-  it("opens the list from the folded state without a search", async () => {
-    const tree = await openPicker(autoModel);
-
-    await userEvent.click(
-      page.getByRole("button", { name: "Browse 3 models" }),
-    );
 
     expect(await tree()).toMatchInlineSnapshot(`
       "- text: Search models Auto

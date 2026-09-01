@@ -107,7 +107,6 @@ export function ModelPicker({
 }: ModelPickerProps) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isBrowsing, setIsBrowsing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
@@ -177,7 +176,6 @@ export function ModelPicker({
   const closePopover = () => {
     setOpen(false);
     setSearchQuery("");
-    setIsBrowsing(false);
     onClose?.();
   };
 
@@ -189,14 +187,6 @@ export function ModelPicker({
     false;
 
   const isAutoMode = selectedModel?.providerId === OUR_MODELS.text.id;
-
-  // On Auto the list stays folded away, because the choice in front of the user
-  // is whether to leave Auto at all rather than which of a hundred models to
-  // take. Folded is not the same as absent, though: the row below says how many
-  // are behind it and opens them, so the picker never presents itself as a
-  // control with one option in it. That is what it looked like to a screen
-  // reader and to an agent driving the app, both of which read the same tree.
-  const hideModelList = isAutoMode && !searchQuery && !isBrowsing;
 
   // A selection outlives the list it came from, so a model the list no longer
   // resolves still gets named and flagged rather than silently reading as an
@@ -317,7 +307,7 @@ export function ModelPicker({
               }}
               selectedName={selectedName}
             />
-            {autoModel && !hideModelList && <hr className="border-t" />}
+            {autoModel && <hr className="border-t" />}
             {hasModels && (
               <CommandInput
                 autoFocus
@@ -334,11 +324,6 @@ export function ModelPicker({
               />
             )}
             {/*
-              Only the model list folds away on Auto. The errors and the
-              no-provider prompt below used to fold with it, because the whole
-              list was hidden at once: a provider that failed to load said so
-              everywhere except in the one state most people sit in.
-
               `cmdk` caps this at 300px and scrolls it, which would be a second
               scroll inside the panel's own.
             */}
@@ -363,7 +348,7 @@ export function ModelPicker({
                   <CommandItem disabled>Failed to load models</CommandItem>
                 </CommandGroup>
               )}
-              {hasModels && !hideModelList && (
+              {hasModels && (
                 <ModelGroups
                   groupedModels={filteredGroupedModels}
                   onAddProvider={() => {
@@ -392,14 +377,6 @@ export function ModelPicker({
               )}
             </CommandList>
           </div>
-          {hasModels && hideModelList && (
-            <BrowseModelsRow
-              count={modelsWithoutAuto.length}
-              onBrowse={() => {
-                setIsBrowsing(true);
-              }}
-            />
-          )}
         </Command>
       </PopoverContent>
     </Popover>
@@ -489,37 +466,6 @@ function AutoModeSwitch({
         Selects the best model for your task
       </span>
     </Label>
-  );
-}
-
-/**
- * What stands in for the folded list on Auto.
- *
- * The count is the point of it. "Search models..." above says a search is
- * possible and says nothing about whether searching would find anything, which
- * is the reading that made an empty-looking picker look like a picker with one
- * model in it. A named button carrying the number is the same fact stated where
- * every reader of this UI can reach it: on screen, in the accessibility tree,
- * and in the DOM a script walks.
- */
-function BrowseModelsRow({
-  count,
-  onBrowse,
-}: {
-  count: number;
-  onBrowse: () => void;
-}) {
-  return (
-    <div className="border-t p-1">
-      <Button
-        className="h-8 w-full justify-center text-xs font-normal text-muted-foreground"
-        onClick={onBrowse}
-        size="sm"
-        variant="ghost"
-      >
-        Browse {count} {count === 1 ? "model" : "models"}
-      </Button>
-    </div>
   );
 }
 

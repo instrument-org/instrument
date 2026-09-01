@@ -417,29 +417,6 @@ const LOG_LEVEL_CLASS: Record<LogLevel, string> = {
  */
 const MAX_VIEWED_LINES = 4000;
 
-/**
- * Split the log into lines tagged by severity.
- *
- * Severity is the only thing worth coloring here. The two formats this reads
- * are the packaged build's `[level]` line and development's JSON per line, so
- * both spellings are matched rather than one parser being chosen for a shape
- * that varies by build.
- */
-function toLogLines(text: string): { level: LogLevel; text: string }[] {
-  return text
-    .split("\n")
-    .slice(-MAX_VIEWED_LINES)
-    .map((line) => {
-      if (/\[error]|"level"\s*:\s*"error"/i.test(line)) {
-        return { level: "error" as const, text: line };
-      }
-      if (/\[warn]|"level"\s*:\s*"warn"/i.test(line)) {
-        return { level: "warn" as const, text: line };
-      }
-      return { level: "plain" as const, text: line };
-    });
-}
-
 function DiagnosticLog() {
   const [viewerOpen, setViewerOpen] = useState(false);
 
@@ -545,7 +522,6 @@ function DiagnosticLog() {
                     // Lines repeat and carry no id, so position is the only
                     // thing telling them apart. The list is rebuilt whole
                     // whenever the text changes, so nothing reorders under it.
-                    // eslint-disable-next-line @eslint-react/no-array-index-key
                     key={index}
                   >
                     {line.text}
@@ -655,6 +631,29 @@ function Notifications() {
       </Card>
     </SettingsSection>
   );
+}
+
+/**
+ * Split the log into lines tagged by severity.
+ *
+ * Severity is the only thing worth coloring here. The two formats this reads
+ * are the packaged build's `[level]` line and development's JSON per line, so
+ * both spellings are matched rather than one parser being chosen for a shape
+ * that varies by build.
+ */
+function toLogLines(text: string): { level: LogLevel; text: string }[] {
+  return text
+    .split("\n")
+    .slice(-MAX_VIEWED_LINES)
+    .map((line) => {
+      if (/\[error\]|"level"\s*:\s*"error"/i.test(line)) {
+        return { level: "error" as const, text: line };
+      }
+      if (/\[warn\]|"level"\s*:\s*"warn"/i.test(line)) {
+        return { level: "warn" as const, text: line };
+      }
+      return { level: "plain" as const, text: line };
+    });
 }
 
 function UsageMetrics() {

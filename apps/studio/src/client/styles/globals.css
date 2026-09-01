@@ -428,6 +428,35 @@ body {
     + :not(:is(h1, h2, h3, h4, h5, h6)) {
     margin-top: 0;
   }
+
+  /* Session Markdown uses the app's interface face and compact type scale,
+     while documents rendered with `prose-custom` retain the editorial heading
+     defaults below. Keep the variant here instead of overriding half of those
+     defaults with `!important` modifiers inside the component. */
+  .prose.prose-custom.prose-session :is(h1, h2, h3, h4, h5, h6) {
+    font-family: var(--font-sans);
+    line-height: 1.375;
+  }
+
+  .prose.prose-custom.prose-session h1 {
+    font-size: 1.25rem;
+  }
+
+  .prose.prose-custom.prose-session h2 {
+    font-size: 1.125rem;
+  }
+
+  .prose.prose-custom.prose-session h3 {
+    font-size: 1rem;
+  }
+
+  .prose.prose-custom.prose-session h4 {
+    font-size: 0.875rem;
+  }
+
+  .prose.prose-custom.prose-session :is(h5, h6) {
+    font-size: 0.75rem;
+  }
 }
 
 @utility prose-custom {
@@ -477,28 +506,27 @@ body {
     margin-bottom: 1.25em;
   }
 
-  /* Markdown often uses a bold-only paragraph as a lightweight section label.
-     Give that pattern heading-like rhythm without changing its semantics: it
-     separates from the section above, then binds tightly to the paragraph,
-     list, or other block it introduces. */
-  p:has(> strong:only-child):has(+ *) {
+  /* Markdown marks an exactly bold-only paragraph as a lightweight section
+     label. Limit this rhythm to top-level blocks: the same shape inside a list
+     or blockquote belongs to that container's own flow. */
+  > p.markdown-section-label:has(+ *) {
     margin-top: 2em;
     margin-bottom: 0.5em;
     text-wrap: balance;
   }
 
-  p:has(> strong:only-child):first-child {
+  > p.markdown-section-label:first-child {
     margin-top: 0;
   }
 
   /* A completed list already has strong block rhythm. Use one line of leading
      before the next section label so the sections separate without opening a
      conspicuous hole between them. */
-  :is(ul, ol) + p:has(> strong:only-child) {
+  > :is(ul, ol) + p.markdown-section-label {
     margin-top: 1.5em;
   }
 
-  p:has(> strong:only-child) + :not(:is(h1, h2, h3, h4, h5, h6)) {
+  > p.markdown-section-label + :not(:is(h1, h2, h3, h4, h5, h6)) {
     margin-top: 0;
   }
 

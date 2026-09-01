@@ -22,6 +22,9 @@ const LONG_DRAFT = Array.from(
   (_, line) => `line ${line} of a draft long enough to need scrolling`,
 ).join("\n");
 
+// One token with nowhere to wrap, the shape a pasted link arrives in.
+const LONG_URL = `https://example.com/${"a".repeat(400)}`;
+
 // The 48px square an attached file renders as, and the 40px button the composer
 // sends with, without the icons and image loading either one really carries.
 const CHIP_SIZE = 48;
@@ -137,6 +140,17 @@ describe("ComposerFrame in a browser", () => {
       expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);
     },
   );
+
+  // A pasted link is one word the width of a paragraph. Nothing about the box
+  // may widen to fit it: the frame's own track, the scroller inside it, and the
+  // text itself all stop at the width the composer was given.
+  it("keeps a long unbreakable draft inside its width", async () => {
+    const { frame, scroller } = await renderFrame({ draft: LONG_URL });
+
+    expect(frame.getBoundingClientRect().width).toBeLessThanOrEqual(480);
+    expect(frame.scrollWidth).toBeLessThanOrEqual(frame.clientWidth);
+    expect(scroller.scrollWidth).toBeLessThanOrEqual(scroller.clientWidth);
+  });
 
   // Attachments give last: shrinking them while the editor still has room to
   // scroll would clip a chip nobody asked to hide.

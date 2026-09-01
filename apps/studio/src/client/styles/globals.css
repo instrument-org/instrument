@@ -1054,15 +1054,14 @@ a.cursor-pointer {
    utilities layer, which outranks anything in `components` whatever its
    specificity, so a table rule that lives there loses `width` to
    `.prose :where(table)` and the block silently stops sizing itself. */
-/* A Markdown table is the one block in a message that cannot be made
-   narrower without being made unreadable: squeezed into the text measure, a
-   six-column comparison gives each column about seventy pixels and stacks
-   every value, which reads worse than not showing it. Its scroll frame spans
-   the transcript, while a leading spacer keeps the table aligned with prose
-   at rest. Scrolling spends that spacer first, letting later columns use the
-   room before the prose too. Only what still does not fit after that scrolls
-   inside the block rather than under the whole conversation, which is what a
-   bare `<table>` did.
+/* A Markdown table is the one block in a message with a width of its own: the
+   text measure is a reading rule for prose, and a six-column comparison held
+   to it gives each column about seventy pixels and stacks every value. So the
+   block spans the transcript, and a leading spacer keeps the table aligned
+   with the prose at rest. Scrolling spends that spacer first, letting later
+   columns use the room before the prose too, and what still does not fit
+   scrolls inside the block rather than under the whole conversation, which is
+   what a bare `<table>` did.
  */
 .markdown-table-row {
   position: relative;
@@ -1113,12 +1112,22 @@ a.cursor-pointer {
   flex: 0 0 var(--table-bleed);
 }
 
+/* Its own width, and no more of one than it has content for. A table narrower
+   than the measure stops where its values stop, rather than being stretched
+   across the column with a hand's width of empty cell between figures that are
+   meant to be read against each other.
+
+   The cap is the room the frame can show without being scrolled: the measure
+   plus the slack past its trailing edge, the leading gutter being the spacer's
+   until it is scrolled away. Up to there the table is laid out at its own
+   width; past it the cells wrap, which is what keeps one long column from
+   taking the whole viewport and pushing every other column out of sight.
+   Scrolling is what is left when even the wrapped table does not fit, which is
+   a table with too many columns rather than one with too much text. */
 .markdown-table-frame > table {
   flex: 0 0 auto;
   width: max-content;
-  /* The frame includes both gutters, so subtract them to preserve the old
-     behavior where a narrow table still fills the prose measure. */
-  min-width: calc(100% - 2 * var(--table-bleed));
+  max-width: calc(100% - var(--table-bleed));
   margin: 0;
 }
 

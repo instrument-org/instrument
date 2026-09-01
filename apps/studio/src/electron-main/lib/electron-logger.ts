@@ -19,9 +19,17 @@ const ENABLE_CONSOLE_LOGGING =
 // than days.
 const MAX_LOG_FILE_BYTES = 8 * 1024 * 1024;
 
-log.transports.file.resolvePathFn = () => {
+/**
+ * Where the packaged build writes its log.
+ *
+ * Named rather than inlined into `resolvePathFn` so the Help menu can reveal
+ * the same file the transport writes to, with one rule for where that is.
+ */
+export function getMainLogFilePath() {
   return path.join(app.getPath("userData"), "logs", "main.log");
-};
+}
+
+log.transports.file.resolvePathFn = getMainLogFilePath;
 
 log.transports.file.level = IS_DEV ? false : "info";
 log.transports.file.maxSize = MAX_LOG_FILE_BYTES;

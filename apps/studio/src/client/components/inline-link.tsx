@@ -12,6 +12,7 @@ import { type ReactNode, useState } from "react";
 
 import { EmailLink } from "./email-link";
 import { ExternalLink } from "./external-link";
+import { FAVICON_SURFACE_CLASS_NAME } from "./favicon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 /**
@@ -332,7 +333,8 @@ function SiteIcon({ className, href }: { className?: string; href: string }) {
       // wins where prose was not applied in the first place -- which is to say,
       // everywhere the margin was already zero.
       className={cn(
-        "my-0! size-3 shrink-0 rounded-xs bg-background align-middle",
+        "my-0! size-3 shrink-0 rounded-xs align-middle",
+        FAVICON_SURFACE_CLASS_NAME,
         arrival.className,
         className,
       )}

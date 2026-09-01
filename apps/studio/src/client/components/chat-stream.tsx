@@ -79,10 +79,12 @@ const PLANNING_ROW_ID = "planning";
 // rows; see `hasProseBoundaryAbove` for why it can only be read that way.
 const PROSE_GAP = "mt-4";
 
-// The same 16px, as padding, for a run of steps opening under a paragraph. The
-// group box's own -4px margin is what holds its steps on the rhythm, so a
-// margin here would be resolved against it rather than added to it.
-const PROSE_GAP_IN_GROUP = "pt-4";
+// 12px, as padding, for a run of steps opening under a paragraph. With the 8px
+// turn gap this leaves a 20px boundary: enough to distinguish action from
+// prose without letting a single tool row drift away from the sentence that
+// introduced it. The group box's own -4px margin is what holds its steps on
+// the rhythm, so a margin here would be resolved against it rather than added.
+const PROSE_GAP_IN_GROUP = "pt-3";
 
 // The box a whole turn is drawn in, and the box a message the reader sent is
 // drawn in. `gap-2` is the transcript's own rhythm, restated inside the box so
@@ -973,7 +975,10 @@ function readTurnOpenings({
 // What opens an assistant turn, wherever the turn is opening from.
 function TurnWordmark() {
   return (
-    <div className="flex justify-start">
+    // The wordmark owns the extra 10px below it so prose and tool rows begin on
+    // the same visual rhythm. Putting it on either row would make the spacing
+    // depend on which kind of content happens to open the turn.
+    <div className="turn-wordmark flex justify-start pb-2.5">
       <Wordmark className="mt-5 mb-2 h-5.5 text-black/30 dark:text-white/30" />
     </div>
   );

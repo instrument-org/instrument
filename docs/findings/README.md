@@ -82,6 +82,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Character budgets are a token proxy](character-budgets-are-a-token-proxy.md) — and moving to tokens buys less than it looks like | open question |
 | [Prompt cache provider affinity and breakpoints](prompt-cache-provider-affinity-and-breakpoints.md) | open |
 | [ChatGPT citation markers in model output](chatgpt-citation-markers-in-model-output.md) — the fix costs more than the bug | known, not fixed |
+| [Reasoning effort at the provider default](reasoning-effort-at-the-provider-default.md) — what the level we never set spends, costs, and delays | measured 2026-09-01 |
 
 ### Build, test, and development
 

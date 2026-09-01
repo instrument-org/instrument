@@ -38,6 +38,7 @@ import { timeBootStep } from "./lib/boot-timing";
 import { createWorkspaceActor } from "./lib/create-workspace-actor";
 import { registerFileDragHandler } from "./lib/file-drag";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
+import { logGpuStatus } from "./lib/gpu-status";
 import { handleBootFailure } from "./lib/handle-boot-failure";
 import { registerCrashDiagnostics } from "./lib/register-crash-diagnostics";
 import { registerTelemetry } from "./lib/register-telemetry";
@@ -223,6 +224,11 @@ async function bootstrapPrimaryInstance() {
   setTimeout(() => {
     void warmCommonFileOpenTargets();
   }, 1500);
+
+  // Nothing waits on this. It resolves once the GPU process has finished
+  // reporting, which is the only point at which the answer is worth writing
+  // down, and it is written for a support conversation rather than for the app.
+  void logGpuStatus(app);
 
   void startAuthCallbackServer();
 

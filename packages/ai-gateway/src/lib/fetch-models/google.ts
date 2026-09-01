@@ -41,6 +41,13 @@ type MinimalProviderConfig = Pick<
 // grows past it.
 const GOOGLE_MODELS_PAGE_SIZE = 1000;
 
+// Pages to follow before giving up on the list. A hundred thousand models is
+// not a catalog, so reaching this means the endpoint is not paginating: a
+// `baseURL` is user-settable here, and one that answers with a constant
+// `nextPageToken` would otherwise loop for as long as the app runs, a
+// fetch timeout at a time, growing the array it has already collected.
+const GOOGLE_MODELS_MAX_PAGES = 100;
+
 export function fetchAndParseGoogleModels(
   config: AIGatewayProviderConfig.Type,
 ) {
@@ -118,13 +125,13 @@ function fetchAllGoogleModels(config: MinimalProviderConfig) {
     const allModels = [];
     let pageToken: string | undefined;
 
-    do {
+    for (let page = 0; page < GOOGLE_MODELS_MAX_PAGES; page++) {
       const data = yield* await fetchGoogleModels(config, {
         pageSize: GOOGLE_MODELS_PAGE_SIZE,
         pageToken,
       });
 
-      const page = yield* Result.try(
+      const parsed = yield* Result.try(
         () => GoogleModelsResponseSchema.parse(data),
         (error) =>
           new TypedError.Parse(
@@ -133,9 +140,15 @@ function fetchAllGoogleModels(config: MinimalProviderConfig) {
           ),
       );
 
-      allModels.push(...page.models);
-      pageToken = page.nextPageToken;
-    } while (pageToken);
+      allModels.push(...parsed.models);
+
+      // A token that has not moved is the same page again, so following it
+      // asks for the models already collected for the rest of the session.
+      if (!parsed.nextPageToken || parsed.nextPageToken === pageToken) {
+        break;
+      }
+      pageToken = parsed.nextPageToken;
+    }
 
     return Result.ok(allModels);
   });

@@ -73,6 +73,38 @@ describe("fetchAndParseGoogleModels", () => {
     expect(requestedUrls[1]?.searchParams.get("pageToken")).toBe("page-2");
   });
 
+  // A `baseURL` is user-settable on this provider, so the loop cannot assume
+  // the endpoint paginates. A token that never moves is the same page forever.
+  it("stops on a nextPageToken that has not moved", async () => {
+    // A fresh Response per call, since a body can only be read once.
+    vi.mocked(fetch).mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            models: [googleModel("models/gemini-2.5-pro")],
+            nextPageToken: "stuck",
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const result = await fetchAndParseGoogleModels(googleConfig);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    // Counted in models rather than in requests: a repeated token means a
+    // repeated URL, which `fetchJson` serves from its cache, so `fetch` is
+    // called twice however many times the loop goes round. One model per pass,
+    // and two passes is the first token followed once and the page it reaches
+    // answering with the same one.
+    expect(result.value).toHaveLength(2);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("returns a single page when there is no nextPageToken", async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(

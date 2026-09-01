@@ -19,7 +19,7 @@ Name it `wireframes-<topic>.html`.
 
 Four constants sit at the top of the script:
 
-- `VERSION` drives the tab title and a generated favicon badge. Bump it when you revise. Several of these are usually open at once and they are otherwise indistinguishable. The badge is a green square; visual explanations use a dark one, so the two kinds separate in a row of tabs.
+- `VERSION` drives the tab title and a generated favicon badge. Bump it when you revise. Several of these are usually open at once and they are otherwise indistinguishable.
 - `SUBTITLE` is a short topic label under the title, and doubles as the file's one-line description when a set is indexed. A phrase rather than a sentence.
 - `W` and `H` are the default frame size. Individual states can override with `w` and `h`.
 
@@ -79,7 +79,7 @@ node .agents/skills/product-wireframe/scripts/sync-theme.ts          # rewrite t
 node .agents/skills/product-wireframe/scripts/sync-theme.ts --check  # fail if stale
 ```
 
-It reads `globals.css`, resolves the `var()` indirection to literal values, and rewrites whatever sits between the `/* sync:start */` and `/* sync:end */` markers in this template and every `docs/plans/active/wireframes-*.html`. It does the same to the sibling visual-explanation template where that skill is present, which it is not in a plain checkout: it lives outside the repository behind a gitignored symlink. Run it after touching the ramps, and leave the markers alone.
+It reads `globals.css`, resolves the `var()` indirection to literal values, and rewrites whatever sits between the `/* sync:start */` and `/* sync:end */` markers in this template and every `docs/plans/active/wireframes-*.html`. Run it after touching the ramps, and leave the markers alone.
 
 ## The two rules that matter
 
@@ -122,7 +122,7 @@ node .agents/skills/product-wireframe/scripts/build-index.ts                    
 node .agents/skills/product-wireframe/scripts/build-index.ts a.html b.html      # exactly these, in this order
 ```
 
-It writes `docs/plans/active/wireframes-index.html`, which the same gitignore rule covers. Titles come from each file's `h1`, the one-line description from its `SUBTITLE` (or, for an explanation, the first sentence of its opening paragraph), and the frame count from the states array, so an unattended run is already legible.
+It writes `docs/plans/active/wireframes-index.html`, which the same gitignore rule covers. Titles come from each file's `h1`, the one-line description from its `SUBTITLE`, and the frame count from the states array, so an unattended run is already legible.
 
 Write `docs/plans/active/wireframes-index.txt` when the set wants curating. It is the order, and the only way to get headings or better descriptions:
 

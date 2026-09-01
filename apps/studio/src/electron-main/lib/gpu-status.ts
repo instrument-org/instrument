@@ -4,7 +4,7 @@ import { createScopedLogger } from "./electron-logger";
 
 const log = createScopedLogger("GpuStatus");
 
-export interface GpuDevice {
+interface GpuDevice {
   /** The one Chromium is drawing with, where it named one. */
   active: boolean;
   deviceId: null | number;
@@ -132,7 +132,7 @@ export async function logGpuStatus(app: Electron.App): Promise<void> {
  * the one that waits for the GPU process to finish reporting, so the answer is
  * the steady state rather than whatever initialization had reached.
  */
-export async function readGpuStatus(app: Electron.App): Promise<GpuStatus> {
+async function readGpuStatus(app: Electron.App): Promise<GpuStatus> {
   // There is not always a GPU process to answer, and `getGPUInfo` rejects when
   // there is none. Drawing in software is the case that puts the app in that
   // state, and it is also the case someone most wants an answer for, so a

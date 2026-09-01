@@ -17,7 +17,7 @@ import path from "node:path";
  * launcher, so a user who fixed their machine once does not find it broken
  * again after the next release.
  */
-export interface LaunchOverrides {
+interface LaunchOverrides {
   /**
    * Draw without the GPU. The way out for a machine whose driver leaves the
    * app blank, corrupted, or repainting far slower than software would.

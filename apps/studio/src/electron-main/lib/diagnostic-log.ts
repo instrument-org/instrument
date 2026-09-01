@@ -39,7 +39,7 @@ export interface SaveLogResult {
  * That makes the one environment the feature is built in the one environment it
  * cannot be tried in, which is how it ships broken.
  */
-export function getActiveLogFilePath(): string | undefined {
+function getActiveLogFilePath(): string | undefined {
   return [getDevLogFilePath(), getMainLogFilePath()].find(
     (candidate) => candidate !== undefined && fs.existsSync(candidate),
   );

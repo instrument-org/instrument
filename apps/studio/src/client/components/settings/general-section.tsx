@@ -399,6 +399,47 @@ const NOTIFICATION_MODES = [
  * same window. Reading first is the other half: what is in here is worth
  * looking at before sending it to anyone.
  */
+type LogLevel = "error" | "plain" | "warn";
+
+const LOG_LEVEL_CLASS: Record<LogLevel, string> = {
+  error: "text-destructive",
+  plain: "",
+  warn: "text-warning-700 dark:text-warning-300",
+};
+
+/**
+ * The most lines the viewer will draw.
+ *
+ * One element per line is what makes a level readable at a glance, and it is
+ * also what puts a ceiling on how many lines can be drawn before scrolling
+ * costs more than it is worth. The cap sits above what the byte cap on the
+ * read can usually produce, so it only bites on a log of unusually short lines.
+ */
+const MAX_VIEWED_LINES = 4000;
+
+/**
+ * Split the log into lines tagged by severity.
+ *
+ * Severity is the only thing worth coloring here. The two formats this reads
+ * are the packaged build's `[level]` line and development's JSON per line, so
+ * both spellings are matched rather than one parser being chosen for a shape
+ * that varies by build.
+ */
+function toLogLines(text: string): { level: LogLevel; text: string }[] {
+  return text
+    .split("\n")
+    .slice(-MAX_VIEWED_LINES)
+    .map((line) => {
+      if (/\[error]|"level"\s*:\s*"error"/i.test(line)) {
+        return { level: "error" as const, text: line };
+      }
+      if (/\[warn]|"level"\s*:\s*"warn"/i.test(line)) {
+        return { level: "warn" as const, text: line };
+      }
+      return { level: "plain" as const, text: line };
+    });
+}
+
 function DiagnosticLog() {
   const [viewerOpen, setViewerOpen] = useState(false);
 
@@ -413,12 +454,23 @@ function DiagnosticLog() {
         toast.error("Couldn't save the log");
       },
       onSuccess: ({ status }) => {
-        if (status === "saved") {
-          toast.success("Saved a copy of the log");
-        } else if (status === "failed") {
-          toast.error("Couldn't save the log");
-        } else if (status === "no-log") {
-          toast.error("There's no log to save yet");
+        switch (status) {
+          case "failed": {
+            toast.error("Couldn't save the log");
+
+            break;
+          }
+          case "no-log": {
+            toast.error("There's no log to save yet");
+
+            break;
+          }
+          case "saved": {
+            toast.success("Saved a copy of the log");
+
+            break;
+          }
+          // No default
         }
       },
     }),
@@ -460,7 +512,18 @@ function DiagnosticLog() {
       </div>
 
       <Dialog onOpenChange={setViewerOpen} open={viewerOpen}>
-        <DialogContent maxHeight="44rem" maxWidth="60rem">
+        {/*
+          The log scrolls, not the dialog. `DialogContent` scrolls itself by
+          default, which for a pane of thousands of lines moves the title out of
+          view and leaves nothing to orient against. Naming the rows lets the
+          second one shrink below its content so the pane inside it can take the
+          overflow instead.
+        */}
+        <DialogContent
+          className="grid-rows-[auto_minmax(0,1fr)] overflow-y-hidden"
+          maxHeight="44rem"
+          maxWidth="60rem"
+        >
           <DialogHeader>
             <DialogTitle>Diagnostic log</DialogTitle>
             <DialogDescription>
@@ -469,14 +532,25 @@ function DiagnosticLog() {
                 : "Everything the app has recorded this session."}
             </DialogDescription>
           </DialogHeader>
-          <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border bg-muted/40 p-3">
+          <div className="min-h-0 overflow-auto rounded-md border border-border bg-muted/40 p-3">
             {logQuery.isPending ? (
               <p className="text-xs text-muted-foreground">
                 Reading the log...
               </p>
             ) : logQuery.data ? (
               <pre className="font-mono text-xs leading-5 whitespace-pre-wrap">
-                {logQuery.data.text}
+                {toLogLines(logQuery.data.text).map((line, index) => (
+                  <div
+                    className={LOG_LEVEL_CLASS[line.level]}
+                    // Lines repeat and carry no id, so position is the only
+                    // thing telling them apart. The list is rebuilt whole
+                    // whenever the text changes, so nothing reorders under it.
+                    // eslint-disable-next-line @eslint-react/no-array-index-key
+                    key={index}
+                  >
+                    {line.text}
+                  </div>
+                ))}
               </pre>
             ) : (
               <p className="text-xs text-muted-foreground">

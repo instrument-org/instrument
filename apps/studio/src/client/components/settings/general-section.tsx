@@ -25,6 +25,7 @@ import {
   MANUAL_DOWNLOAD_URL,
 } from "@instrument-org/shared";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
+import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { type ReactNode } from "react";
@@ -58,6 +59,7 @@ export function GeneralSection() {
       <About />
       <SettingsSection title="Advanced">
         <UsageMetrics />
+        <DiagnosticLog />
       </SettingsSection>
     </div>
   );
@@ -467,6 +469,54 @@ function Notifications() {
         </div>
       </Card>
     </SettingsSection>
+  );
+}
+
+/**
+ * Where someone is sent when they are asked for their log.
+ *
+ * In Advanced because most people never need it, and out of the developer-only
+ * tab because the people who need it are not developers: the whole point is a
+ * support conversation that can say "open settings and send me this" to anyone.
+ */
+function DiagnosticLog() {
+  const showLogFileMutation = useMutation(
+    rpcClient.utils.showLogFile.mutationOptions({
+      onError: () => {
+        toast.error("Couldn't open the log file");
+      },
+      onSuccess: ({ shown }) => {
+        if (!shown) {
+          toast.error("Couldn't find the log file");
+        }
+      },
+    }),
+  );
+
+  return (
+    <Card className="p-4">
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <div className="text-sm font-medium">Diagnostic log</div>
+          <p className="text-xs text-muted-foreground">
+            {APP_NAME} keeps a record of what it did while running. Send it
+            along when you report a problem. It can name files and tasks you
+            worked on, so read it over first.
+          </p>
+        </div>
+        <Button
+          disabled={showLogFileMutation.isPending}
+          onClick={() => {
+            showLogFileMutation.mutate();
+          }}
+          size="sm"
+          variant="outline"
+        >
+          Show log file
+          <FolderOpenIcon className="size-3.5" />
+        </Button>
+      </div>
+    </Card>
   );
 }
 

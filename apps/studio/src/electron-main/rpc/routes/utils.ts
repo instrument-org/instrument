@@ -11,6 +11,7 @@ import {
   getFileOpenCandidates,
   getFileOpenTarget,
 } from "@/electron-main/lib/file-open-target";
+import { revealMainLogFile } from "@/electron-main/lib/electron-logger";
 import { GpuStatusSchema, readGpuStatus } from "@/electron-main/lib/gpu-status";
 import { openExternal } from "@/electron-main/lib/open-external";
 import {
@@ -584,6 +585,19 @@ const gpuStatus = base
   .output(GpuStatusSchema)
   .handler(() => readGpuStatus(app));
 
+/**
+ * Show the log file in the file manager, so someone asked for their log can
+ * find it without being taught a path first.
+ *
+ * Answers whether anything opened rather than returning nothing. The caller is
+ * a button any user can press, and a button that silently does nothing is the
+ * one outcome worth reporting.
+ */
+const showLogFile = base
+  .input(z.void())
+  .output(z.object({ shown: z.boolean() }))
+  .handler(async () => ({ shown: await revealMainLogFile() }));
+
 const clearExceptions = base.input(z.void()).handler(() => {
   clearServerExceptions();
 });
@@ -825,6 +839,7 @@ export const utils = {
   prepareTaskFileDrag,
   showFileInFolder,
   showFolderPicker,
+  showLogFile,
   showProjectInFolder,
   showTaskFileInFolder,
   syncZoom,

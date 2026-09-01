@@ -1,9 +1,8 @@
-import { getMainLogFilePath } from "@/electron-main/lib/electron-logger";
 import { openExternal } from "@/electron-main/lib/open-external";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { APP_URL, BUG_REPORT_URL, SUPPORT_URL } from "@instrument-org/shared";
-import { app, type MenuItemConstructorOptions, shell } from "electron";
+import { app, type MenuItemConstructorOptions } from "electron";
 
 import { shortcutMenuItem } from "./shortcuts";
 
@@ -117,21 +116,6 @@ export function createHelpMenu({
           void openExternal(BUG_REPORT_URL);
         },
         label: "Report a Bug",
-      },
-      { type: "separator" as const },
-      {
-        // Revealed rather than opened, because the reason to want it is a
-        // request to send it somewhere. Separated from the three items above
-        // for the same reason they are grouped: those leave for a browser and
-        // this one does not.
-        //
-        // The file is written from boot in any packaged build, so it is there
-        // by the time this menu can be opened. In development the file
-        // transport is off and this reveals nothing.
-        click: () => {
-          shell.showItemInFolder(getMainLogFilePath());
-        },
-        label: "Show Log File",
       },
     ],
   };

@@ -1,8 +1,9 @@
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { AccountInfo } from "@/client/components/account-info";
+import { CopyButton } from "@/client/components/copy-button";
 import { ExternalLink } from "@/client/components/external-link";
 import { ThemeToggle } from "@/client/components/theme-toggle";
-import { Button } from "@/client/components/ui/button";
+import { Button, buttonVariants } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import {
   Dialog,
@@ -20,6 +21,11 @@ import {
   SelectTrigger,
 } from "@/client/components/ui/select";
 import { Switch } from "@/client/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
 import { ZoomStepper } from "@/client/components/zoom-controls";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
@@ -443,7 +449,7 @@ function DiagnosticLog() {
             break;
           }
           case "saved": {
-            toast.success("Saved a copy of the log");
+            toast.success("Saved the log");
 
             break;
           }
@@ -459,9 +465,10 @@ function DiagnosticLog() {
         <div className="space-y-1">
           <div className="text-sm font-medium">Diagnostic log</div>
           <p className="text-xs text-muted-foreground">
-            {APP_NAME} keeps a record of what it did while running. Save a copy
-            to send along when you report a problem. It can name files and tasks
-            you worked on, so read it before you share it.
+            {APP_NAME} keeps a private, local-only record of what it did while
+            running. Send this log to {APP_NAME} Support when you report a
+            problem. It can name files and tasks you worked on, so read it
+            before you share it.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -474,17 +481,12 @@ function DiagnosticLog() {
           >
             View log
           </Button>
-          <Button
+          <DownloadLogButton
             disabled={saveLogMutation.isPending}
-            onClick={() => {
+            onDownload={() => {
               saveLogMutation.mutate();
             }}
-            size="sm"
-            variant="outline"
-          >
-            Save a copy
-            <DownloadSimpleIcon className="size-3.5" />
-          </Button>
+          />
         </div>
       </div>
 
@@ -509,34 +511,98 @@ function DiagnosticLog() {
                 : "Everything the app has recorded this session."}
             </DialogDescription>
           </DialogHeader>
-          <div className="min-h-0 overflow-auto rounded-md border border-border bg-muted/40 p-3">
-            {logQuery.isPending ? (
-              <p className="text-xs text-muted-foreground">
-                Reading the log...
-              </p>
-            ) : logQuery.data ? (
-              <pre className="font-mono text-xs leading-5 whitespace-pre-wrap">
-                {toLogLines(logQuery.data.text).map((line, index) => (
-                  <div
-                    className={LOG_LEVEL_CLASS[line.level]}
-                    // Lines repeat and carry no id, so position is the only
-                    // thing telling them apart. The list is rebuilt whole
-                    // whenever the text changes, so nothing reorders under it.
-                    key={index}
-                  >
-                    {line.text}
-                  </div>
-                ))}
-              </pre>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                There&rsquo;s no log yet. It fills up as you use the app.
-              </p>
-            )}
+          {/*
+            The controls sit over the pane rather than inside the scroller, so
+            they stay put while it scrolls. The text is padded away from them
+            rather than running underneath.
+          */}
+          <div className="relative min-h-0">
+            <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+              <CopyButton
+                // Built from the same variants as the button beside it, so the
+                // pair cannot drift apart in size or hover treatment.
+                className={buttonVariants({
+                  size: "icon-sm",
+                  variant: "ghost",
+                })}
+                disabled={!logQuery.data}
+                iconSize={14}
+                label="Copy log"
+                onCopy={async () => {
+                  await navigator.clipboard.writeText(
+                    logQuery.data?.text ?? "",
+                  );
+                }}
+                tooltip="Copy log"
+              />
+              <DownloadLogButton
+                disabled={saveLogMutation.isPending || !logQuery.data}
+                onDownload={() => {
+                  saveLogMutation.mutate();
+                }}
+              />
+            </div>
+            <div className="h-full overflow-auto rounded-md border border-border bg-muted/40 p-3">
+              {logQuery.isPending ? (
+                <p className="text-xs text-muted-foreground">
+                  Reading the log...
+                </p>
+              ) : logQuery.data ? (
+                <pre className="pr-20 font-mono text-xs leading-5 whitespace-pre-wrap">
+                  {toLogLines(logQuery.data.text).map((line, index) => (
+                    <div
+                      className={LOG_LEVEL_CLASS[line.level]}
+                      // Lines repeat and carry no id, so position is the only
+                      // thing telling them apart. The list is rebuilt whole
+                      // whenever the text changes, so nothing reorders under it.
+                      key={index}
+                    >
+                      {line.text}
+                    </div>
+                  ))}
+                </pre>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  There&rsquo;s no log yet. It fills up as you use the app.
+                </p>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
     </Card>
+  );
+}
+
+/**
+ * Icon only, in both the card and the viewer.
+ *
+ * The action needs no label: a download glyph says it, and the words for it
+ * ("save a copy", "export") each read as something slightly different from what
+ * happens. The tooltip carries the name for anyone who wants one.
+ */
+function DownloadLogButton({
+  disabled,
+  onDownload,
+}: {
+  disabled: boolean;
+  onDownload: () => void;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          aria-label="Download log"
+          disabled={disabled}
+          onClick={onDownload}
+          size="icon-sm"
+          variant="ghost"
+        >
+          <DownloadSimpleIcon />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Download log</TooltipContent>
+    </Tooltip>
   );
 }
 

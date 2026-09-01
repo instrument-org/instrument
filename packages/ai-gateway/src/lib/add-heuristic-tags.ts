@@ -105,10 +105,6 @@ export function addHeuristicTags(
     tags = [...tags.filter((tag) => tag !== "recommended"), "legacy"];
   }
 
-  if (canonicalId.startsWith("o-") && config.type === "openai") {
-    tags.push("legacy");
-  }
-
   if (
     (config.type === "openai" || config.type === "openai-compatible") &&
     canonicalId.endsWith("-codex")
@@ -175,6 +171,12 @@ function getFloorTags(
 }
 
 function isLegacy(canonicalId: AIGatewayModel.CanonicalId): boolean {
+  // OpenAI's reasoning line, retired into GPT-5. The ids run `o1`, `o3-mini`,
+  // `o4-mini-high`, with no dash between the letter and the number.
+  if (/^o\d/.test(canonicalId)) {
+    return true;
+  }
+
   if (canonicalId.startsWith("claude-3")) {
     return true;
   }

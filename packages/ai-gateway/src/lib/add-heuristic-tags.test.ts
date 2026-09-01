@@ -71,6 +71,12 @@ describe("addHeuristicTags", () => {
     { expected: ["coding", "recommended"], modelId: "gpt-6" },
     { expected: ["coding", "recommended"], modelId: "gpt-10" },
     { expected: [], modelId: "gpt-oss-120b" },
+    // OpenAI's reasoning line, retired. Legacy whichever provider serves it,
+    // and `mockConfig` is OpenRouter.
+    { expected: ["legacy"], modelId: "o1" },
+    { expected: ["legacy"], modelId: "o3-mini" },
+    { expected: ["legacy"], modelId: "o4-mini-high" },
+    { expected: [], modelId: "olmo-3-32b" },
     { expected: ["legacy"], modelId: "claude-3-opus" },
     { expected: ["legacy"], modelId: "claude-3-sonnet" },
     { expected: ["legacy"], modelId: "claude-3.5-haiku" },
@@ -246,24 +252,6 @@ describe("addHeuristicTags", () => {
       expect(result.tags).toContain("coding");
     },
   );
-
-  it("should mark o- models as legacy for OpenAI provider", () => {
-    const openaiConfig: AIGatewayProviderConfig.Type = {
-      apiKey: "NOT_NEEDED",
-      cacheIdentifier: "openai",
-      id: AIProviderConfigIdSchema.parse("openai"),
-      type: "openai",
-    };
-    const model = createMockModel("openai/o-1");
-    const result = addHeuristicTags(model, openaiConfig);
-    expect(result.tags).toContain("legacy");
-  });
-
-  it("should not mark o- models as legacy for non-OpenAI providers", () => {
-    const model = createMockModel("openai/o-1");
-    const result = addHeuristicTags(model, mockConfig);
-    expect(result.tags).not.toContain("legacy");
-  });
 
   it("should return default, recommended, and coding tags for instrument author", () => {
     const model = createMockModel(OUR_MODELS.text.id);

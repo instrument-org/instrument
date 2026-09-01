@@ -4,12 +4,12 @@ import { createScopedLogger } from "./electron-logger";
 
 const log = createScopedLogger("GpuStatus");
 
-const GpuDeviceSchema = z.object({
+export interface GpuDevice {
   /** The one Chromium is drawing with, where it named one. */
-  active: z.boolean(),
-  deviceId: z.number().nullable(),
-  vendor: z.string(),
-});
+  active: boolean;
+  deviceId: null | number;
+  vendor: string;
+}
 
 /**
  * Whether Chromium is drawing on the GPU, and on which one.
@@ -17,8 +17,8 @@ const GpuDeviceSchema = z.object({
  * A user reporting that the app ignores their graphics card is reporting
  * something the app has never been able to answer: nothing here sets a GPU
  * switch, so the choice is Chromium's, and Chromium keeps it to itself. The
- * two calls behind this module are the only account of it, and neither reaches
- * anywhere a support conversation can read without this.
+ * two calls behind this module are the only account of it, and the log line
+ * they produce is the only place it reaches.
  *
  * It matters most on a machine with more than one GPU, where the question is
  * not whether drawing is accelerated but which card is doing it. A laptop with
@@ -26,24 +26,20 @@ const GpuDeviceSchema = z.object({
  * and look, from inside the app, exactly like a machine that only has the slow
  * one.
  */
-export const GpuStatusSchema = z.object({
+export interface GpuStatus {
   /** False when Chromium fell back to drawing in software. */
-  accelerated: z.boolean(),
+  accelerated: boolean;
   /** Every GPU Chromium enumerated, in the order it reported them. */
-  devices: z.array(GpuDeviceSchema),
-  /** The statuses {@link GpuStatusSchema.accelerated} is read from. */
-  features: z.record(z.string(), z.string()),
+  devices: GpuDevice[];
+  /** The statuses {@link GpuStatus.accelerated} is read from. */
+  features: Record<string, string>;
   /**
    * The driver's own name for what it is drawing with. The one field that
    * names a card in terms its owner would recognize, and the one that says
    * `llvmpipe` when nothing is accelerated at all.
    */
-  renderer: z.string().nullable(),
-});
-
-export type GpuDevice = z.output<typeof GpuDeviceSchema>;
-
-export type GpuStatus = z.output<typeof GpuStatusSchema>;
+  renderer: null | string;
+}
 
 /**
  * Chromium prefixes every accelerated outcome with `enabled` and every fallback

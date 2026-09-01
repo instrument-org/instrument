@@ -12,7 +12,6 @@ import {
   getFileOpenCandidates,
   getFileOpenTarget,
 } from "@/electron-main/lib/file-open-target";
-import { GpuStatusSchema, readGpuStatus } from "@/electron-main/lib/gpu-status";
 import { openExternal } from "@/electron-main/lib/open-external";
 import {
   effectiveDisplayProtocol,
@@ -575,17 +574,6 @@ const displayProtocol = base
   });
 
 /**
- * Which GPU the app is drawing on, and whether it is drawing on one at all.
- *
- * Asked rather than pushed: it is a property of the machine, and the reason to
- * want it is a report that the app is ignoring a graphics card, which arrives
- * long after the boot that would have logged it.
- */
-const gpuStatus = base
-  .output(GpuStatusSchema)
-  .handler(() => readGpuStatus(app));
-
-/**
  * The end of the log, so someone can read what they are about to send.
  *
  * Null rather than an error when there is no log yet, which is ordinary on a
@@ -613,7 +601,9 @@ const readDiagnosticLog = base
  */
 const saveDiagnosticLog = base
   .input(z.void())
-  .output(z.object({ status: z.enum(["canceled", "failed", "no-log", "saved"]) }))
+  .output(
+    z.object({ status: z.enum(["canceled", "failed", "no-log", "saved"]) }),
+  )
   .handler(() => saveLogCopy(getMainWindow() ?? undefined));
 
 const clearExceptions = base.input(z.void()).handler(() => {
@@ -846,7 +836,6 @@ export const utils = {
   getSupportedEditors,
   getTaskFileOpenCandidates,
   getTaskFileOpenTarget,
-  gpuStatus,
   live,
   minimizeWindow,
   openExternalLink,

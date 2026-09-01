@@ -69,11 +69,16 @@ describe("readLogTail", () => {
   // Every one of these is an ordinary state on a build whose log has not been
   // written yet, and none of them may throw: the caller is a button.
   it.each([
-    { name: "a path that does not exist", setup: () => "/nowhere/at/all.log" },
-    { name: "no path at all", setup: () => undefined },
-    { name: "a directory", setup: () => directory },
-  ])("answers with nothing for $name", ({ setup }) => {
-    expect(readLogTail(setup())).toBeUndefined();
+    { logPath: "/nowhere/at/all.log", name: "a path that does not exist" },
+    { logPath: directory, name: "a directory rather than a file" },
+  ])("answers with nothing for $name", ({ logPath }) => {
+    expect(readLogTail(logPath)).toBeUndefined();
+  });
+
+  // No argument is how the app calls it on a build with no log at all, since
+  // the path it defaults to is the one that could not be found.
+  it("answers with nothing when there is no log to read", () => {
+    expect(readLogTail(undefined)).toBeUndefined();
   });
 
   it("reads an empty file as empty rather than missing", () => {

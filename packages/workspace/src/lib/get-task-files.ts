@@ -184,6 +184,16 @@ export async function getTaskFileIndex(
       for (const entry of entries) {
         signal?.throwIfAborted();
 
+        // Ahead of everything else because it is the one test that costs
+        // nothing and it is the one that discards whole trees. A task that
+        // split a video into per-frame links, or that installed a pnpm store,
+        // carries hundreds of thousands of these beside a few hundred real
+        // files, and each one would otherwise be normalized, parsed, and run
+        // through the ignore matcher on its way to being dropped here anyway.
+        if (entry.isSymbolicLink()) {
+          continue;
+        }
+
         const relativePath = normalizePath(
           relativeDir ? `${relativeDir}/${entry.name}` : entry.name,
         );
@@ -208,18 +218,12 @@ export async function getTaskFileIndex(
           continue;
         }
 
-        const absolutePath = absolutePathJoin(dir, relativePath);
-
-        if (entry.isSymbolicLink()) {
-          continue;
-        }
-
         if (entry.isDirectory()) {
           await walk(relativePath);
           continue;
         }
 
-        const stats = await statEntry(absolutePath);
+        const stats = await statEntry(absolutePathJoin(dir, relativePath));
         if (!stats || !stats.isFile()) {
           continue;
         }

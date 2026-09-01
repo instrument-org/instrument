@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  decideOzonePlatform,
   effectiveDisplayProtocol,
   OZONE_PLATFORMS,
   ozonePlatformSwitch,
@@ -94,6 +95,48 @@ describe("ozonePlatformSwitch", () => {
   it("passes a pinned platform through, session or not", () => {
     expect(ozonePlatformSwitch("x11", "wayland-0", "wayland")).toBe("x11");
     expect(ozonePlatformSwitch("wayland", UNSET, "x11")).toBe("wayland");
+  });
+});
+
+describe("decideOzonePlatform", () => {
+  it("names the session's platform when the command line holds none", () => {
+    expect(decideOzonePlatform("auto", undefined, "wayland-0", UNSET)).toEqual({
+      append: "wayland",
+      platform: "wayland",
+    });
+    expect(decideOzonePlatform("auto", UNSET, UNSET, UNSET)).toEqual({
+      append: "x11",
+      platform: "x11",
+    });
+  });
+
+  // The failure this exists for. Appending over an argv switch reaches the
+  // child processes and not the browser process, which read its own before any
+  // of this ran: on a Wayland desktop launched with --ozone-platform=x11 the
+  // browser registers an X11 window while its renderers are told wayland, and
+  // the window covers the screen without ever painting.
+  it.each(["x11", "wayland"] as const)(
+    "appends nothing when the command line already says %s",
+    (commandLine) => {
+      expect(
+        decideOzonePlatform("auto", commandLine, "wayland-0", "wayland"),
+      ).toEqual({ append: null, platform: commandLine });
+    },
+  );
+
+  it("lets the command line outrank a pinned platform", () => {
+    expect(
+      decideOzonePlatform("wayland", "x11", "wayland-0", "wayland"),
+    ).toEqual({ append: null, platform: "x11" });
+  });
+
+  // Even a value Chromium will reject: the browser process is already dead or
+  // dying on it, and appending a good one only adds the split above.
+  it("leaves a value it cannot read alone rather than appending over it", () => {
+    expect(decideOzonePlatform("auto", "gbm", "wayland-0", "wayland")).toEqual({
+      append: null,
+      platform: "gbm",
+    });
   });
 });
 

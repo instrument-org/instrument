@@ -12,7 +12,8 @@ import { providerOptionsForModel } from "./ai-sdk-provider-options";
 function bodyCapture() {
   const seen: { body?: Record<string, unknown> } = {};
   const fetch = (_url: RequestInfo | URL, init?: RequestInit) => {
-    seen.body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    const rawBody = init?.body instanceof ArrayBuffer ? new TextDecoder().decode(init.body) : (init?.body as string);
+    seen.body = JSON.parse(rawBody) as Record<string, unknown>;
     return Promise.reject(new Error("captured"));
   };
   return { fetch, seen };

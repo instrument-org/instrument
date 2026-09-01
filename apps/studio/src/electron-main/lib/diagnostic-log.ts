@@ -19,17 +19,17 @@ const log = createScopedLogger("DiagnosticLog");
 const TAIL_BYTES = 256 * 1024;
 
 export interface LogTail {
-  /** Bytes in the whole file, so the reader knows a saved copy holds more. */
-  totalBytes: number;
   /** The end of the file, or all of it when it is shorter than the cap. */
   text: string;
+  /** Bytes in the whole file, so the reader knows a saved copy holds more. */
+  totalBytes: number;
   /** True when {@link text} is only the end of a longer file. */
   truncated: boolean;
 }
 
-export type SaveLogResult = {
+export interface SaveLogResult {
   status: "canceled" | "failed" | "no-log" | "saved";
-};
+}
 
 /**
  * The log this build is actually writing.
@@ -51,8 +51,9 @@ export function getActiveLogFilePath(): string | undefined {
  * Returns nothing rather than throwing when there is no log yet, which is an
  * ordinary state on a build whose first line has not landed.
  */
-export function readLogTail(): LogTail | undefined {
-  const filePath = getActiveLogFilePath();
+export function readLogTail(
+  filePath: string | undefined = getActiveLogFilePath(),
+): LogTail | undefined {
   if (!filePath) {
     return undefined;
   }

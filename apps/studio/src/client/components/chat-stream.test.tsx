@@ -698,7 +698,7 @@ describe("ChatStream and the wordmark over a turn", () => {
       assistantMessage([prose("Revenue grew in the north.")]),
     ]);
 
-    expect(wordmark(container)).not.toBeNull();
+    expect(wordmark(container)?.parentElement?.className).toContain("pb-2.5");
   });
 
   // Planning is the opening of a turn and nothing else. Once the turn has drawn
@@ -717,8 +717,8 @@ describe("ChatStream and the wordmark over a turn", () => {
   });
 });
 
-// 24px where a paragraph meets a run of steps, against the 8px the rest of the
-// transcript sits on: 16px of it here, on top of the container's own gap. It
+// 20px where a paragraph meets a run of steps, against the 8px the rest of the
+// transcript sits on: 12px of it here, on top of the container's own gap. It
 // hangs off the lower of the two rows so that nothing already drawn changes
 // height when the agent takes its next step.
 describe("ChatStream and the space around what the agent said", () => {
@@ -751,7 +751,7 @@ describe("ChatStream and the space around what the agent said", () => {
       ]),
     ]);
 
-    expect(runBox("Read 2 files")?.className).toContain("pt-4");
+    expect(runBox("Read 2 files")?.className).toContain("pt-3");
   });
 
   it("leaves one phase against the next on the transcript's own rhythm", () => {
@@ -765,10 +765,10 @@ describe("ChatStream and the space around what the agent said", () => {
       ]),
     ]);
 
-    expect(runBox("Charting them")?.className).not.toContain("pt-4");
+    expect(runBox("Charting them")?.className).not.toContain("pt-3");
   });
 
-  it("leaves the run that opens a turn alone, which the wordmark spaces", () => {
+  it("uses the wordmark's space when a run opens directly beneath it", () => {
     renderMessages([
       userMessage("Read every quarter."),
       assistantMessage([
@@ -777,7 +777,15 @@ describe("ChatStream and the space around what the agent said", () => {
       ]),
     ]);
 
-    expect(runBox("Reading each quarter")?.className).not.toContain("pt-4");
+    const openingRun = runBox("Reading each quarter");
+    expect(openingRun?.className).not.toContain("pt-3");
+    expect(openingRun?.previousElementSibling?.className).toContain(
+      "turn-wordmark",
+    );
+    expect(openingRun?.previousElementSibling?.className).toContain("pb-2.5");
+    expect(openingRun?.parentElement?.className).not.toContain(
+      "turn-wordmark+.transcript-run",
+    );
   });
 });
 

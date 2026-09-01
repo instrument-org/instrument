@@ -31,6 +31,22 @@ const part = (results: unknown) =>
     type: "tool-web_search",
   }) as unknown as Parameters<typeof ToolWebSearch>[0]["part"];
 
+// The call the runtime is working on: the query is written and the backend has
+// been asked, with nothing back from it yet.
+const runningPart = () =>
+  ({
+    input: { query: "anything" },
+    metadata: {
+      id: StoreId.newPartId(),
+      messageId: StoreId.newMessageId(),
+      sessionId: StoreId.newSessionId(),
+      startedAt: new Date(),
+    },
+    state: "input-available",
+    toolCallId: "call-1",
+    type: "tool-web_search",
+  }) as unknown as Parameters<typeof ToolWebSearch>[0]["part"];
+
 // Every `<img>` on the card, favicons included, which is why the assertions
 // name the sources that must be absent rather than demanding an empty page.
 function imageSources(results: unknown): (null | string)[] {
@@ -88,5 +104,34 @@ describe("ToolWebSearch images", () => {
     );
     expect(container.textContent).not.toContain("raw.githubusercontent.com");
     expect(container.textContent).not.toContain("x.localhost");
+  });
+});
+
+// The search backend serving our own models returns everything at once, so a
+// card the reader opens while the call runs is empty for as long as the search
+// takes -- and an empty card that says the search came back with nothing is
+// reporting a result the search has not reached.
+describe("ToolWebSearch before results arrive", () => {
+  it("says the results are still coming while the call runs", () => {
+    const { container } = renderWithProviders(
+      <ToolCallSessionProvider isRunning isStreaming>
+        <ToolWebSearch onRetry={vi.fn()} part={runningPart()} />
+      </ToolCallSessionProvider>,
+    );
+
+    expect(container.textContent).toContain("have not arrived yet");
+  });
+
+  it("says the search came back empty once it has", () => {
+    const { container } = renderWithProviders(
+      <ToolCallSessionProvider isRunning={false} isStreaming={false}>
+        <ToolWebSearch
+          onRetry={vi.fn()}
+          part={part({ kind: "excerpts", sources: [] })}
+        />
+      </ToolCallSessionProvider>,
+    );
+
+    expect(container.textContent).toContain("returned nothing");
   });
 });

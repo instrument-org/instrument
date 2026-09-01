@@ -175,11 +175,13 @@ function distanceFromEnd() {
 function Harness({
   isAgentRunning = true,
   steps,
+  viewportHeight = VIEWPORT_HEIGHT,
   zoom = 1,
 }: {
   /** One value per step where a turn ends partway through the run. */
   isAgentRunning?: boolean | boolean[];
   steps: unknown[][];
+  viewportHeight?: number;
   /** The app's own zoom, which the whole main window is drawn under. */
   zoom?: number;
 }) {
@@ -206,7 +208,7 @@ function Harness({
         defaultScrollPosition="end"
       >
         <MessageScroller>
-          <MessageScrollerViewport style={{ height: VIEWPORT_HEIGHT }}>
+          <MessageScrollerViewport style={{ height: viewportHeight }}>
             <MessageScrollerContent className="gap-2 p-4">
               <Transcript
                 isAgentRunning={isRunning}
@@ -538,7 +540,15 @@ test("leaves an idle transcript where it is when a folded run is opened", async 
     message("assistant", "It kept growing."),
   ];
 
-  await renderInBrowser(<Harness isAgentRunning={false} steps={[messages]} />);
+  const viewportHeight = 360;
+
+  await renderInBrowser(
+    <Harness
+      isAgentRunning={false}
+      steps={[messages]}
+      viewportHeight={viewportHeight}
+    />,
+  );
   await settle();
 
   const head = [...document.querySelectorAll("*")].find(
@@ -556,7 +566,7 @@ test("leaves an idle transcript where it is when a folded run is opened", async 
   const closedRowCount = rowCount();
   const closedStepCount = stepRowCount();
   expect(closed).toBeGreaterThan(0);
-  expect(closed).toBeLessThan(VIEWPORT_HEIGHT);
+  expect(closed).toBeLessThan(viewportHeight);
 
   (head as HTMLElement).click();
   await settle();

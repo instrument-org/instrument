@@ -32,12 +32,18 @@ const OTHER_MODEL_URI = AIGatewayModelURI.Schema.parse(
 );
 
 // The fetcher is mocked, so only `uri` matters to the resolution under test,
-// plus a `canonicalId` for the variant rule the fetch path runs on the way past.
+// plus a `canonicalId` and `tags` for the variant and supersession rules the
+// fetch path runs on the way past.
 const FETCHED = [
-  { canonicalId: "claude", name: "claude", uri: MODEL_URI },
+  { canonicalId: "claude", name: "claude", tags: [], uri: MODEL_URI },
 ] as unknown as AIGatewayModel.Type[];
 const CACHED = [
-  { canonicalId: "claude-cached", name: "claude-cached", uri: MODEL_URI },
+  {
+    canonicalId: "claude-cached",
+    name: "claude-cached",
+    tags: [],
+    uri: MODEL_URI,
+  },
 ] as unknown as AIGatewayModel.Type[];
 
 function createMemoryCache(seed?: AIGatewayModel.Type[]): ModelCache {
@@ -87,7 +93,7 @@ describe("fetchModel", () => {
   it("fetches when the cache holds other models but not this one", async () => {
     fetchAndParseAnthropicModels.mockResolvedValue([
       ...FETCHED,
-      { canonicalId: "other", name: "other", uri: OTHER_MODEL_URI },
+      { canonicalId: "other", name: "other", tags: [], uri: OTHER_MODEL_URI },
     ]);
 
     const result = await fetchModel({

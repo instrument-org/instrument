@@ -12,13 +12,14 @@ const { fetchAndParseAnthropicModels } = vi.hoisted(() => ({
 
 vi.mock("./fetch-models/anthropic", () => ({ fetchAndParseAnthropicModels }));
 
-// The fetcher is mocked, so only `canonicalId` matters, and only because the
-// variant rule reads it on the way through to the cache.
+// The fetcher is mocked, so only `canonicalId` and `tags` matter, and only
+// because the variant and supersession rules read them on the way through to
+// the cache.
 const MODELS = [
-  { canonicalId: "claude", name: "claude" },
+  { canonicalId: "claude", name: "claude", tags: [] },
 ] as unknown as AIGatewayModel.Type[];
 const CACHED = [
-  { canonicalId: "claude-cached", name: "claude-cached" },
+  { canonicalId: "claude-cached", name: "claude-cached", tags: [] },
 ] as unknown as AIGatewayModel.Type[];
 
 const config: AIGatewayProviderConfig.Type = {

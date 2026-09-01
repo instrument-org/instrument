@@ -170,7 +170,7 @@ export const ReasoningMessage = memo(function ReasoningMessage({
             >
               <SessionMarkdown
                 className={cn(
-                  "opacity-50 prose-headings:mb-0! [&_:is(h1,h2,h3,h4,h5,h6)+p]:mt-1! [&_p:has(>strong:only-child)]:mb-0! [&_p:has(>strong:only-child)+p]:mt-1!",
+                  "opacity-50 prose-headings:mb-0! [&_:is(h1,h2,h3,h4,h5,h6)+p]:mt-1! [&>p.markdown-section-label]:mb-0! [&>p.markdown-section-label+p]:mt-1!",
                   isLoading && "opacity-100",
                 )}
                 markdown={

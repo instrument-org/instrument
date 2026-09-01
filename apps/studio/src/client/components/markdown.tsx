@@ -306,6 +306,23 @@ const markdownOrderedList: Components["ol"] = ({
   );
 };
 
+// CSS cannot tell an all-bold paragraph from a bold lead-in followed by a text
+// node: `:only-child` only counts element siblings. Mark the exact parsed shape
+// here so prose rhythm never promotes `**Priority:** ordinary text` into a
+// section label.
+const markdownParagraph: Components["p"] = ({ className, node, ...props }) => {
+  const onlyChild = node?.children.length === 1 ? node.children[0] : undefined;
+  const isSectionLabel =
+    onlyChild?.type === "element" && onlyChild.tagName === "strong";
+
+  return (
+    <p
+      {...props}
+      className={cn(className, isSectionLabel && "markdown-section-label")}
+    />
+  );
+};
+
 // Renders a link to a file the agent produced as an interactive chip that opens
 // the file in the artifact panel.
 //
@@ -886,6 +903,7 @@ export const Markdown = memo(
               );
             },
             ol: markdownOrderedList,
+            p: markdownParagraph,
             pre: markdownPre,
             table: MarkdownTable,
           }}

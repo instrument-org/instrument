@@ -465,6 +465,24 @@ describe("Markdown heading anchors", () => {
   });
 });
 
+describe("Markdown section labels", () => {
+  it("marks a paragraph whose entire contents are bold", () => {
+    const { container } = renderMarkdown("**Scope agreed**\n\nNext paragraph.");
+
+    expect(container.querySelector("p")?.className).toBe(
+      "markdown-section-label",
+    );
+  });
+
+  it("does not mark a bold lead-in followed by ordinary text", () => {
+    const { container } = renderMarkdown(
+      "**Priority:** finish the renderer.\n\nNext paragraph.",
+    );
+
+    expect(container.querySelector("p")?.className).toBe("");
+  });
+});
+
 // HTML inside a Markdown document is drawn rather than printed, which is what a
 // collapsible section, a README's sized screenshot, and GitHub's image
 // attachments all depend on. None of that markup is ours -- a model wrote it,

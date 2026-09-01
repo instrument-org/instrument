@@ -779,13 +779,7 @@ describe("ChatStream and the space around what the agent said", () => {
 
     const openingRun = runBox("Reading each quarter");
     expect(openingRun?.className).not.toContain("pt-3");
-    expect(openingRun?.previousElementSibling?.className).toContain(
-      "turn-wordmark",
-    );
     expect(openingRun?.previousElementSibling?.className).toContain("pb-2.5");
-    expect(openingRun?.parentElement?.className).not.toContain(
-      "turn-wordmark+.transcript-run",
-    );
   });
 });
 

@@ -978,7 +978,7 @@ function TurnWordmark() {
     // The wordmark owns the extra 10px below it so prose and tool rows begin on
     // the same visual rhythm. Putting it on either row would make the spacing
     // depend on which kind of content happens to open the turn.
-    <div className="turn-wordmark flex justify-start pb-2.5">
+    <div className="flex justify-start pb-2.5">
       <Wordmark className="mt-5 mb-2 h-5.5 text-black/30 dark:text-white/30" />
     </div>
   );

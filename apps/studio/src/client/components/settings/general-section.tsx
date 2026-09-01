@@ -476,8 +476,8 @@ function DiagnosticLog() {
           <p className="text-xs text-muted-foreground">
             {APP_NAME} keeps a private, local-only record of what it did while
             running. Send this log to {APP_NAME} Support when you report a
-            problem. It can include the names of files and tasks you worked on, so read it
-            before you share it.
+            problem. It can include the names of files and tasks you worked on,
+            so read it before you share it.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

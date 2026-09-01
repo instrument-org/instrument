@@ -48,6 +48,20 @@ async function renderReply(markdown: string) {
 // lookup has answered, which is a later task than the render these await.
 const siteIcon = () => document.querySelector("a img, a svg");
 
+/**
+ * How light a computed color is, to the precision it takes to rank two
+ * surfaces against each other. Written out of the channels rather than read
+ * off a token, so what it reports is what the stylesheet actually resolved.
+ */
+const brightness = (color: string) => {
+  const channels =
+    color
+      .match(/[\d.]+/g)
+      ?.slice(0, 3)
+      .map(Number) ?? [];
+  return channels.reduce((total, channel) => total + channel, 0) / 3;
+};
+
 const chips = () =>
   [...document.querySelectorAll("a, button")].filter(
     (element) => getComputedStyle(element).display === "inline-flex",
@@ -105,6 +119,29 @@ describe("An inline link in a browser", () => {
       expect(paragraph.getBoundingClientRect().height).toBe(lineHeight);
     },
   );
+
+  // A favicon is drawn for the light chrome a browser puts it in, so a great
+  // many of them are dark ink on a transparent background. Left on the page in
+  // dark mode that ink is the page, and the link leads with a gap.
+  it("draws the site icon on a surface lighter than the page in dark mode", async () => {
+    document.documentElement.classList.add("dark");
+    try {
+      await renderReply("Rotation is on [the docs](https://github.com/x).");
+
+      const icon = siteIcon();
+      if (!icon) {
+        throw new Error("the link rendered without a site icon");
+      }
+
+      expect(
+        brightness(getComputedStyle(icon).backgroundColor),
+      ).toBeGreaterThan(
+        brightness(getComputedStyle(document.body).backgroundColor),
+      );
+    } finally {
+      document.documentElement.classList.remove("dark");
+    }
+  });
 
   // The typography styles give every image a margin of over an em, which is
   // right for a picture between two paragraphs and doubles the height of an

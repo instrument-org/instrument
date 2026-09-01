@@ -1,7 +1,7 @@
-@import "@fontsource/work-sans/400.css";
-@import "@fontsource/work-sans/500.css";
-@import "@fontsource/work-sans/600.css";
-@import "@fontsource/work-sans/700.css";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
 @import "@fontsource/roboto-serif/400.css";
 @import "@fontsource/roboto-serif/500.css";
 @import "@fontsource-variable/jetbrains-mono/wght.css";
@@ -63,7 +63,7 @@ body {
    * `text-red-500` or `bg-emerald-200` fail. */
   --color-*: initial;
 
-  --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Roboto Serif", ui-serif, Georgia, serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
   --radius-sm: calc(var(--radius) - 4px);
@@ -419,6 +419,15 @@ body {
   .prose.prose-custom {
     max-width: none;
   }
+
+  /* A heading and its first block form one unit. Scope through both prose
+     classes so this reset beats Typography's generated paragraph, list, and
+     block margins for every heading level and every non-heading successor. */
+  .prose.prose-custom
+    :is(h1, h2, h3, h4, h5, h6)
+    + :not(:is(h1, h2, h3, h4, h5, h6)) {
+    margin-top: 0;
+  }
 }
 
 @utility prose-custom {
@@ -468,6 +477,31 @@ body {
     margin-bottom: 1.25em;
   }
 
+  /* Markdown often uses a bold-only paragraph as a lightweight section label.
+     Give that pattern heading-like rhythm without changing its semantics: it
+     separates from the section above, then binds tightly to the paragraph,
+     list, or other block it introduces. */
+  p:has(> strong:only-child):has(+ *) {
+    margin-top: 2em;
+    margin-bottom: 0.5em;
+    text-wrap: balance;
+  }
+
+  p:has(> strong:only-child):first-child {
+    margin-top: 0;
+  }
+
+  /* A completed list already has strong block rhythm. Use one line of leading
+     before the next section label so the sections separate without opening a
+     conspicuous hole between them. */
+  :is(ul, ol) + p:has(> strong:only-child) {
+    margin-top: 1.5em;
+  }
+
+  p:has(> strong:only-child) + :not(:is(h1, h2, h3, h4, h5, h6)) {
+    margin-top: 0;
+  }
+
   h1,
   h2,
   h3,
@@ -477,7 +511,7 @@ body {
     font-family: var(--font-serif);
     font-weight: 500;
     margin-top: 2em;
-    margin-bottom: 0.75em;
+    margin-bottom: 0.625em;
     text-wrap: balance;
   }
 

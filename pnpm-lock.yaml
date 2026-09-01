@@ -319,12 +319,12 @@ importers:
       '@fontsource-variable/jetbrains-mono':
         specifier: ^5.2.8
         version: 5.2.8
+      '@fontsource/inter':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@fontsource/roboto-serif':
         specifier: ^5.2.9
         version: 5.2.9
-      '@fontsource/work-sans':
-        specifier: ^5.2.8
-        version: 5.2.8
       '@instrument-org/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
@@ -2170,11 +2170,11 @@ packages:
   '@fontsource-variable/jetbrains-mono@5.2.8':
     resolution: {integrity: sha512-WBA9elru6Jdp5df2mES55wuOO0WIrn3kpXnI4+W2ek5u3ZgLS9XS4gmIlcQhiZOWEKl95meYdvK7xI+ETLCq/Q==}
 
+  '@fontsource/inter@5.3.0':
+    resolution: {integrity: sha512-RofMylZmjlJEfELXeNHFWBRcSs75rGU/6bV2S2jfnvv/3rPXPGe0LgUJTklcHZ9lM4OZmAVFhcJPnACfb91A3g==}
+
   '@fontsource/roboto-serif@5.2.9':
     resolution: {integrity: sha512-Pv8AmbOwquqcvr0NXBZIViHrhmMdEDSAqZSsggFYPMw+qpBZZ4wj3ylf5G09GB0WPlaG5Ttq+BAS0zRBlOImpw==}
-
-  '@fontsource/work-sans@5.2.8':
-    resolution: {integrity: sha512-6LaHjVVgts+rnrcqvEkP2+iUB/jw1oDSYsGO0+TltAhnWki9Hnf/UGpgMQh2jcm0GEH8VqCPnq4PpmHLFzxXtQ==}
 
   '@hono/node-server@2.0.11':
     resolution: {integrity: sha512-bjD221KPLoJTWUwso1J6fGKiTXEUFedG/s0visavY4zakFPkeGURMRNly+FhBHs7T8Dz4qHaZIMX9ZoJHSJtKA==}
@@ -11548,9 +11548,9 @@ snapshots:
 
   '@fontsource-variable/jetbrains-mono@5.2.8': {}
 
-  '@fontsource/roboto-serif@5.2.9': {}
+  '@fontsource/inter@5.3.0': {}
 
-  '@fontsource/work-sans@5.2.8': {}
+  '@fontsource/roboto-serif@5.2.9': {}
 
   '@hono/node-server@2.0.11(hono@4.12.32)':
     dependencies:

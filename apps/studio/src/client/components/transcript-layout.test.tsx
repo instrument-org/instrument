@@ -54,10 +54,10 @@ type Turns = { role: "assistant" | "user"; specs: Spec[] }[];
  */
 function assistantPartVisibility(spec: Spec) {
   const part = onlyPart(spec);
-  const read = (isLiveMessage: boolean) =>
+  const read = (isLivePart: boolean) =>
     isVisibleAssistantPart({
       isDeveloperMode: false,
-      isLiveMessage,
+      isLivePart,
       // What the stream passes for anything that is not a tool call.
       isStreaming: false,
       part,

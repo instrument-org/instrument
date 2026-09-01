@@ -91,6 +91,20 @@ function assistantMessage(
 }
 
 /**
+ * A reasoning block that opened and never wrote anything under it, which is
+ * what a provider that holds its end event until the step finishes leaves
+ * behind while the step runs. It draws no row of its own at any point.
+ */
+function blankThinking() {
+  return {
+    metadata: metadata(),
+    state: "streaming",
+    text: "",
+    type: "reasoning",
+  };
+}
+
+/**
  * The transcript as one element, so a case that is about state surviving can
  * hand the same tree a later set of messages.
  */
@@ -1058,5 +1072,24 @@ describe("ChatStream and the calls waiting behind the one running", () => {
 
     fireEvent.click(screen.getByText("Reading each quarter"));
     expect(screen.getByText("Reading the third quarter")).toBeDefined();
+  });
+});
+
+// Whether the run is still writing into a part is asked by the layout, which
+// decides that a row exists, and by the renderer, which decides what it draws.
+// Asked two different ways, the layout counted a blank reasoning row the
+// renderer drew nothing for; that row became the group's stand-in, and with the
+// group's every other row folded behind it there was nothing left to draw.
+//
+// The block's own row is covered either side of the run in
+// `chat-stream-render-part.test.tsx`; what only shows here is what happens to
+// everything folded behind it.
+describe("ChatStream and a reasoning block that never wrote anything", () => {
+  it("keeps the steps beside it on screen while the run is going", () => {
+    renderParts([blankThinking(), read({ explanation: "Reading Q1" })], {
+      isAgentRunning: true,
+    });
+
+    expect(screen.getByText("Reading Q1")).toBeTruthy();
   });
 });

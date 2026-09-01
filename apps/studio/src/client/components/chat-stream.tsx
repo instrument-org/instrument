@@ -40,6 +40,7 @@ import {
   groupCanExpand,
   groupStandInRowId,
   isActiveToolPart,
+  isPartBeingWritten,
   isVisibleAssistantPart,
   planRow,
   type TranscriptGroup as TranscriptGroupData,
@@ -95,18 +96,19 @@ const TURN_BOX = "group/assistant-turn flex flex-col gap-2";
 const SENT_BOX = "flex flex-col gap-2";
 
 interface AssistantMessageCheck {
-  isDeveloperMode: boolean;
   /**
-   * Whether the agent is still writing into this message, which is the tail of
-   * a running transcript and nothing else. A part carries a start with no end
-   * long after the run that wrote it died, so what it is worth on screen can
-   * only be read against the session.
+   * The session, which is the only thing that can say whether a part is still
+   * being written into: one carries a start with no end long after the run that
+   * wrote it died. Handed on to `isPartBeingWritten` rather than folded into a
+   * flag here, so this check and the transcript layout ask it the same way.
    */
-  isLiveMessage: boolean;
+  isAgentRunning: boolean;
+  isDeveloperMode: boolean;
   isToolStreaming: (
     part: SessionMessagePart.ToolPart,
     message: SessionMessage.WithParts,
   ) => boolean;
+  lastMessageId: StoreId.Message | undefined;
   message: SessionMessage.AssistantWithParts;
 }
 
@@ -242,10 +244,10 @@ export function ChatStream({
   const lastAssistantMessageHasVisibleParts =
     lastAssistantMessage !== undefined &&
     hasVisibleAssistantParts({
+      isAgentRunning,
       isDeveloperMode,
-      isLiveMessage:
-        isAgentRunning && lastMessageId === lastAssistantMessage.id,
       isToolStreaming,
+      lastMessageId,
       message: lastAssistantMessage,
     });
 
@@ -753,9 +755,10 @@ export function ChatStream({
 // can see. An abort does not: it draws nothing outside developer mode, and a
 // turn stopped before it started is one the user is looking away from already.
 function assistantMessageHasContent({
+  isAgentRunning,
   isDeveloperMode,
-  isLiveMessage,
   isToolStreaming,
+  lastMessageId,
   message,
 }: AssistantMessageCheck) {
   const error = message.metadata.error;
@@ -763,9 +766,10 @@ function assistantMessageHasContent({
     return true;
   }
   return hasVisibleAssistantParts({
+    isAgentRunning,
     isDeveloperMode,
-    isLiveMessage,
     isToolStreaming,
+    lastMessageId,
     message,
   });
 }
@@ -882,15 +886,21 @@ function collectGroups({
  * a settled group keeps its rows and shows one of them. This is about the parts.
  */
 function hasVisibleAssistantParts({
+  isAgentRunning,
   isDeveloperMode,
-  isLiveMessage,
   isToolStreaming,
+  lastMessageId,
   message,
 }: AssistantMessageCheck) {
-  return message.parts.some((part) =>
+  return message.parts.some((part, partIndex) =>
     isVisibleAssistantPart({
       isDeveloperMode,
-      isLiveMessage,
+      isLivePart: isPartBeingWritten({
+        isAgentRunning,
+        lastMessageId,
+        message,
+        partIndex,
+      }),
       isStreaming: isToolPart(part) ? isToolStreaming(part, message) : false,
       part,
     }),
@@ -918,8 +928,7 @@ function readTurnOpenings({
   isDeveloperMode,
   isToolStreaming,
   regularMessages,
-}: Omit<AssistantMessageCheck, "isLiveMessage" | "message"> & {
-  isAgentRunning: boolean;
+}: Omit<AssistantMessageCheck, "lastMessageId" | "message"> & {
   regularMessages: SessionMessage.WithParts[];
 }) {
   const lastMessageId = regularMessages.at(-1)?.id;
@@ -943,9 +952,10 @@ function readTurnOpenings({
     }
     openedBy ??= message;
     hasContent ||= assistantMessageHasContent({
+      isAgentRunning,
       isDeveloperMode,
-      isLiveMessage: isAgentRunning && message.id === lastMessageId,
       isToolStreaming,
+      lastMessageId,
       message,
     });
   }

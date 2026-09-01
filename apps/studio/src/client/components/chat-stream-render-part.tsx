@@ -15,6 +15,7 @@ import {
 } from "./message-part/tool-call-utils";
 import { ReasoningMessage } from "./reasoning-message";
 import { isReasoningPartVisible } from "./reasoning-utils";
+import { isPartBeingWritten } from "./transcript-layout";
 import { UnknownPart } from "./unknown-part";
 import { UserMessage } from "./user-message";
 
@@ -139,11 +140,13 @@ export function renderChatPart({
     // the model has moved on, whatever the part's own state says: a provider can
     // hold a reasoning block's end event until the step finishes, and a row that
     // counts up next to a running tool call reads as two things happening at
-    // once.
-    const isLive =
-      ctx.isAgentRunning &&
-      ctx.lastMessageId === message.id &&
-      partIndex === message.parts.length - 1;
+    // once. The same call decides whether the layout has a row here at all.
+    const isLive = isPartBeingWritten({
+      isAgentRunning: ctx.isAgentRunning,
+      lastMessageId: ctx.lastMessageId,
+      message,
+      partIndex,
+    });
     if (!isReasoningPartVisible({ isLive, part })) {
       return null;
     }

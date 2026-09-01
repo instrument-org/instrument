@@ -71,11 +71,13 @@ export function SkillMention({
       <TooltipTrigger asChild>{link}</TooltipTrigger>
       <TooltipContent className="max-w-xs">
         <p className="font-medium">{summary.title}</p>
-        <p className="mt-0.5 font-mono text-background/70">
+        <p className="mt-0.5 font-mono text-popover-foreground/70">
           {skillMentionLabel(summary.id)}
         </p>
         {summary.description ? (
-          <p className="mt-0.5 text-background/70">{summary.description}</p>
+          <p className="mt-0.5 text-popover-foreground/70">
+            {summary.description}
+          </p>
         ) : null}
       </TooltipContent>
     </Tooltip>

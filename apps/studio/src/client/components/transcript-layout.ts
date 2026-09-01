@@ -417,6 +417,39 @@ export function isActiveToolPart(part: SessionMessagePart.ToolPart) {
   );
 }
 
+/**
+ * Whether the run is still writing into this part: the last part of the last
+ * message, while the agent is running.
+ *
+ * The rule lives in one place because the layout and the row renderer both ask
+ * it and have to agree. Each half of it is load-bearing. The session, because a
+ * part carries a start with no end long after the run that wrote it died. The
+ * position, because anything after a part means the model has moved on,
+ * whatever that part's own state says.
+ *
+ * Asking it two different ways is what took a running turn off the screen: the
+ * layout counted a blank reasoning row that the renderer drew nothing for, that
+ * row became the group's stand-in, and a group whose every other row was folded
+ * behind it had nothing left to draw at all.
+ */
+export function isPartBeingWritten({
+  isAgentRunning,
+  lastMessageId,
+  message,
+  partIndex,
+}: {
+  isAgentRunning: boolean;
+  lastMessageId: string | undefined;
+  message: SessionMessage.WithParts;
+  partIndex: number;
+}) {
+  return (
+    isAgentRunning &&
+    message.id === lastMessageId &&
+    partIndex === message.parts.length - 1
+  );
+}
+
 export function isVisibleAssistantPart({
   isDeveloperMode,
   isLivePart,
@@ -528,39 +561,6 @@ function isPartLive({
     return isStreaming && isToolPartRunning(part);
   }
   return isLivePart && part.type === "reasoning" && part.state === "streaming";
-}
-
-/**
- * Whether the run is still writing into this part: the last part of the last
- * message, while the agent is running.
- *
- * The rule lives in one place because the layout and the row renderer both ask
- * it and have to agree. Each half of it is load-bearing. The session, because a
- * part carries a start with no end long after the run that wrote it died. The
- * position, because anything after a part means the model has moved on,
- * whatever that part's own state says.
- *
- * Asking it two different ways is what took a running turn off the screen: the
- * layout counted a blank reasoning row that the renderer drew nothing for, that
- * row became the group's stand-in, and a group whose every other row was folded
- * behind it had nothing left to draw at all.
- */
-export function isPartBeingWritten({
-  isAgentRunning,
-  lastMessageId,
-  message,
-  partIndex,
-}: {
-  isAgentRunning: boolean;
-  lastMessageId: string | undefined;
-  message: SessionMessage.WithParts;
-  partIndex: number;
-}) {
-  return (
-    isAgentRunning &&
-    message.id === lastMessageId &&
-    partIndex === message.parts.length - 1
-  );
 }
 
 // Whether these two rows sit either side of the line between what the agent

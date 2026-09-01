@@ -169,7 +169,7 @@ const escapeHtml = (text: string) =>
 const CSS = `
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
-body{font-family:"Work Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   background:#171412;color:#fafaf9;display:grid;grid-template-columns:300px 1fr;
   height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased}
 body.solo{grid-template-columns:0 1fr}

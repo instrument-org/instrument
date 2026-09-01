@@ -24,7 +24,7 @@ export const AssistantMessage = memo(function AssistantMessage({
       <SessionMarkdown
         assetBaseUrl={assetBaseUrl}
         assetVersion={part.metadata.id}
-        className="w-full"
+        className="w-full text-[15px]/[1.5]"
         isStreaming={part.state === "streaming"}
         markdown={messageText}
         taskId={taskId}

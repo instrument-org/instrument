@@ -426,8 +426,17 @@
         const inner = (avail - GAP * (columns - 1)) / columns - PAD;
         rack.style.setProperty("--cols", columns);
         for (const frame of rack.querySelectorAll(".frame")) {
-          const s = Math.min(inner / Number(frame.dataset.w), SLOT_H / Number(frame.dataset.h), 1);
-          frame.style.setProperty("--s", Math.max(0.05, s));
+          // Grid mode shares one row height across the tile, so a tall
+          // frame is capped by SLOT_H to keep the row even. One column has
+          // no row to keep even, so the frame scales by width alone, up to
+          // full width, and the slot shrinks to match instead of centering
+          // it in a row height sized for the grid.
+          const s = single
+            ? Math.min(inner / Number(frame.dataset.w), 1)
+            : Math.min(inner / Number(frame.dataset.w), SLOT_H / Number(frame.dataset.h), 1);
+          const clamped = Math.max(0.05, s);
+          frame.style.setProperty("--s", clamped);
+          frame.closest(".slot").style.setProperty("--slot-h", `${single ? Number(frame.dataset.h) * clamped : SLOT_H}px`);
         }
       };
 

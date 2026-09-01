@@ -68,6 +68,11 @@ declare namespace NodeJS {
       WIN_TIMESTAMP_URL: string | undefined;
       XDG_CURRENT_DESKTOP: string | undefined;
       XDG_DATA_DIRS: string | undefined;
+      /**
+       * Set by the session manager. The second Wayland signal, for a launch
+       * context that carries it while dropping `WAYLAND_DISPLAY`.
+       */
+      XDG_SESSION_TYPE: string | undefined;
     };
   }
 }

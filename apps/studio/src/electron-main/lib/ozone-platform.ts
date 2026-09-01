@@ -9,9 +9,15 @@
  * browser-process-initiated drag does not cross the XWayland bridge that a GTK
  * app's does (see docs/findings/drag-out-does-not-cross-xwayland.md).
  *
- * `WAYLAND_DISPLAY` is the signal that a session is Wayland, and the switch is
- * set from it on every launch, so the platform the process runs on is always
- * one the app named and logged.
+ * `WAYLAND_DISPLAY` and `XDG_SESSION_TYPE` are the signals that a session is
+ * Wayland, and the switch is set from them on every launch, so the platform the
+ * process runs on is always one the app named and logged. Either one is enough,
+ * because a launch context can carry one and not the other: a desktop entry and
+ * an updater relaunch inherit whatever their launcher held, and losing
+ * `WAYLAND_DISPLAY` alone is sufficient to put a Wayland session back on
+ * XWayland, which is where the window can map and never present a frame.
+ * Naming Wayland without `WAYLAND_DISPLAY` costs nothing: Chromium falls back
+ * to the default socket name, which is the one a session of that type has.
  *
  * `INSTRUMENT_OZONE_PLATFORM` overrides the choice, and `x11` is the way back
  * for anyone a Wayland problem finds. Passing `--ozone-platform` on the command
@@ -42,13 +48,14 @@ export function effectiveDisplayProtocol(
   platform: OzonePlatform,
   waylandDisplay: string | undefined = process.env.WAYLAND_DISPLAY,
   appliedSwitch?: string,
+  sessionType: string | undefined = process.env.XDG_SESSION_TYPE,
 ): DisplayProtocol {
   // A switch that survived outranks the session, because it is not a guess: a
-  // run carrying `x11` is talking X11 whatever `WAYLAND_DISPLAY` says.
+  // run carrying `x11` is talking X11 whatever the session signals say.
   if (appliedSwitch === "wayland" || appliedSwitch === "x11") {
     return appliedSwitch;
   }
-  return ozonePlatformSwitch(platform, waylandDisplay);
+  return ozonePlatformSwitch(platform, waylandDisplay, sessionType);
 }
 
 /**
@@ -59,9 +66,10 @@ export function effectiveDisplayProtocol(
 export function ozonePlatformSwitch(
   platform: OzonePlatform,
   waylandDisplay: string | undefined = process.env.WAYLAND_DISPLAY,
+  sessionType: string | undefined = process.env.XDG_SESSION_TYPE,
 ): DisplayProtocol {
   if (platform === "auto") {
-    return waylandDisplay ? "wayland" : "x11";
+    return waylandDisplay || sessionType === "wayland" ? "wayland" : "x11";
   }
   return platform;
 }

@@ -1114,10 +1114,10 @@ a.cursor-pointer {
   flex: 0 0 var(--table-bleed);
 }
 
-/* Its own width, and no more of one than it has content for. A table narrower
-   than the measure stops where its values stop, rather than being stretched
-   across the column with a hand's width of empty cell between figures that are
-   meant to be read against each other.
+/* Floored at the prose measure, so a table of two short columns fills the
+   column it grew out of rather than ending partway across it. The frame spans
+   both gutters, which is what the floor subtracts to arrive back at the
+   measure.
 
    The cap is the room the frame can show without being scrolled: the measure
    plus the slack past its trailing edge, the leading gutter being the spacer's
@@ -1129,6 +1129,7 @@ a.cursor-pointer {
 .markdown-table-frame > table {
   flex: 0 0 auto;
   width: max-content;
+  min-width: calc(100% - 2 * var(--table-bleed));
   max-width: calc(100% - var(--table-bleed));
   margin: 0;
 }

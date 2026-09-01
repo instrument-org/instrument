@@ -112,15 +112,15 @@ test("the row copy survives the pointer crossing the gap to reach it", async () 
  * What a table does with the room it is given, which is a question only a
  * layout engine answers: jsdom reports every width as zero.
  *
- * Both ends of it matter. Held to the measure, a table of short values is
- * stretched apart until the figures being compared are a hand's width from
- * each other. Left at its own width, one carrying a column of sentences grows
- * until reaching the second column means scrolling for it.
+ * Both ends of it matter. A table of short values fills the measure rather than
+ * stopping partway across the column it sits in. One carrying a column of
+ * sentences stops at the room the frame can show, rather than growing until
+ * reaching the second column means scrolling for it.
  */
-test("a table narrower than the measure keeps its own width", async () => {
+test("a table narrower than the measure fills it", async () => {
   const { element } = await renderWideTranscript();
 
-  expect(element.offsetWidth).toBeLessThan(MEASURE);
+  expect(element.offsetWidth).toBe(MEASURE);
 });
 
 test("a table wider than the room wraps into it rather than scrolling", async () => {

@@ -1,6 +1,7 @@
 import {
   type AIGatewayModel,
   fetchAISDKModel,
+  providerOptionsForModel,
 } from "@instrument-org/ai-gateway";
 import { shortenHomePath } from "@instrument-org/shared";
 import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
@@ -70,6 +71,14 @@ export function generateTitleFromUserMessage({
         maxOutputTokens: TASK_NAME_MAX_OUTPUT_TOKENS,
         model: aiSDKModel,
         prompt: userMessage,
+        // Eight words off the top of a message the user already wrote is not
+        // work worth deliberating over, and the model the level comes from was
+        // picked for the task rather than for this. Asking for less also keeps
+        // thinking from spending a budget the title has to share.
+        providerOptions: providerOptionsForModel(aiSDKModel, {
+          effort: "low",
+          reasoning: model.reasoning,
+        }),
         system: buildSystemPrompt(projectName),
       });
 

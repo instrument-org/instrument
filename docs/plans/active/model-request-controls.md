@@ -1,6 +1,6 @@
 # Model request controls
 
-Status: **proposed**. Nothing built. The picker chooses a model and nothing else; every turn runs at whatever the provider defaults to.
+Status: **phases 1 and 3 built**. A caller can name a level and it reaches the provider; nothing in the interface names one yet, so every agent turn still runs at whatever the provider defaults to. The one caller asking for anything is title generation, at low. Phase 2 is what a direct provider key is still waiting on, and phase 4 has not started.
 
 ## Problem
 
@@ -75,11 +75,11 @@ Per-model is the least state and the most surprising: a level chosen for one tas
 
 ## Phases
 
-**Phase 1: carry the metadata.** Add a reasoning capability to `AIGatewayModel.Schema` in [model.ts](../../../packages/ai-gateway/src/schemas/model.ts), optional in the same way and for the same reason `contextLength` is: absent means unknown, and unknown means do not guess. Map it in `map-openrouter-shaped-model.ts` from the upstream `reasoning` object. Nothing renders yet. This phase is cheap and independently useful, since it also tells us which models think whether we ask or not.
+**Phase 1: carry the metadata.** Built. `AIGatewayModel.ReasoningSchema` in [model.ts](../../../packages/ai-gateway/src/schemas/model.ts) carries the levels a model names, its default, and whether it thinks whether or not we ask, optional in the same way and for the same reason `contextLength` is: absent means unknown, and unknown means do not guess. `map-openrouter-shaped-model.ts` fills it from the upstream `reasoning` object. Nothing renders it.
 
 **Phase 2: the fallback table.** A vendor-keyed table of effort vocabularies for the direct providers, resolved only when the model carries no reasoning capability of its own. Same shape as the context window fallback, including saying so in the UI.
 
-**Phase 3: the request path.** Extend `providerOptionsForModel` to take the chosen level along with the model, and translate it per provider: `reasoning.effort` for OpenRouter, `effort` for Anthropic, `reasoning.mode` for OpenAI. This is testable without any UI, which is the point of doing it before phase 4.
+**Phase 3: the request path.** Built. [reasoning-effort.ts](../../../packages/ai-gateway/src/lib/reasoning-effort.ts) holds one ladder and a table of five providers, each with our rungs in its own words and the `providerOptions` shape its SDK reads: `reasoning.effort` for OpenRouter, `effort` for Anthropic, `reasoningEffort` for OpenAI and xAI, `thinkingConfig.thinkingLevel` for Google. Resolution only steps down, filters against the levels the model itself lists, and never asks a mandatory model for none. `providerOptionsForModel` merges the result into whatever else that model needed. A level is sent only where we have evidence the model takes one, which is a catalog capability or an OpenRouter-shaped endpoint, where an unsupported parameter is dropped upstream rather than rejected. That evidence is what phase 2 supplies for the rest.
 
 **Phase 4: the control.** Render it in the picker, once the decision above about where the level lives is made. A segmented control over the model's own levels, absent entirely for a model with none.
 

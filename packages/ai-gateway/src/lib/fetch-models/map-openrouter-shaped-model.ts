@@ -17,6 +17,12 @@ interface OpenRouterShapedModel {
   id: string;
   instrument?: { restricted?: AIGatewayModel.Restriction };
   name: string;
+  reasoning?: null | {
+    default_effort?: null | string;
+    default_enabled?: boolean | null;
+    mandatory?: boolean | null;
+    supported_efforts?: null | string[];
+  };
   supported_parameters?: null | string[];
 }
 
@@ -62,6 +68,14 @@ export function mapOpenRouterShapedModel({
       params,
       providerId,
       providerName: config.displayName ?? metadata.name,
+      reasoning: model.reasoning
+        ? {
+            defaultEffort: model.reasoning.default_effort ?? undefined,
+            efforts: model.reasoning.supported_efforts ?? [],
+            enabledByDefault: model.reasoning.default_enabled ?? false,
+            mandatory: model.reasoning.mandatory ?? false,
+          }
+        : undefined,
       restricted: model.instrument?.restricted,
       tags,
       uri: AIGatewayModelURI.fromModel({ author, canonicalId, params }),

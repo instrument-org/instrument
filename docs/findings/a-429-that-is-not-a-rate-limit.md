@@ -23,9 +23,9 @@ Single cold requests, three to four seconds apart, from one machine. "Ours" is t
 | The retail host, `robots.txt` | 200 | — | — |
 | Two other large retailers | 200 | 200 | 200 |
 
-**It is not a rate limit.** No `Retry-After`, `robots.txt` serving while every HTML page refuses, and one request being enough. Nothing about pacing is being measured on this path.
+**It is not a rate limit.** No `Retry-After` on any refusal across either session, a first request refused as readily as a later one, and a vendor string in the body that names bot detection rather than a quota. Nothing about pacing is being measured on this path. This is the one conclusion in the section that rests on the aggregate rather than on any cell of the table.
 
-**Header realism does not change the verdict.** The "our requests look synthetic" hypothesis is not supported here, which is worth recording because it is the obvious next thing to try.
+**Header realism does not reliably change the verdict.** Three samples a column cannot establish that, and the section below explains why. What the aggregate across both sessions supports is only the weaker claim: browser-shaped headers do not make a scripted client pass, and the "our requests look synthetic" fix is not one. Worth recording because it is the obvious thing to reach for.
 
 ### Read that table as samples, not as a verdict
 
@@ -35,14 +35,18 @@ So the columns above are not really being compared. Three samples of a process t
 
 What the aggregate does support: no scripted HTTP client gets through reliably, a real browser was refused too, and nothing here identifies which layer decides. That is weaker than either session first wrote and it is the part that has held. The [companion finding](task-browser-self-report.md) carries the same conclusion from the browser side.
 
-**Header realism only chooses which refusal you get.** Isolating one variable at a time: the `Sec-Fetch-*` and `sec-ch-ua*` headers make no difference at all, and the `Accept` header alone decides the body.
+**Header realism does decide the shape of the refusal**, and this is the one relation here that replicated. The `Sec-Fetch-*` and `sec-ch-ua*` headers make no difference; the `Accept` header alone selects the body, the same way in three runs spread over hours:
 
 | `Accept` | Content type | Body |
 | --- | --- | --- |
 | `text/markdown;q=1.0, ...` (ours) | `application/json` | `{"message":"Too Many Requests (CDN PX)"}` |
 | `text/html,application/xhtml+xml,...` | `text/html` | 6,033 bytes rendering to `Access to this page has been denied` |
 
-Both name the block, and the 40-byte one names the vendor doing it. So there was never a header change worth making: the body was always informative, and we were throwing it away. An earlier draft of this finding recommended reordering `Accept` for legibility, which would also have cost the markdown-first negotiation that doc sites benefit from. The isolation run retired the recommendation.
+Both name the block, and the 40-byte one names the vendor doing it.
+
+Why this survives when three mechanism claims did not: it repeated on every run rather than once, and it is ordinary content negotiation rather than a scoring decision -- a server choosing a representation by `Accept` is deterministic in a way a bot verdict is not. Note also what it is *not* a claim about. It says nothing about whether a request is refused, only about what the refusal is written in, which is why it survives a host that answers the same request two different ways.
+
+So there was never a header change worth making: the body was always informative, and we were throwing it away. An earlier draft of this finding recommended reordering `Accept` for legibility, which would also have cost the markdown-first negotiation that doc sites benefit from. The isolation run retired the recommendation.
 
 ## What changed
 

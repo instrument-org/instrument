@@ -556,11 +556,13 @@ async function failureMessage(response: Response): Promise<string> {
       ? undefined
       : `It asks you to retry after ${retryAfter}.`,
     // A refusal naming no retry window is not a window that closes. Say so,
-    // because waiting is what the status code invites and is the one response
-    // that cannot work. Naming the disclosure here too, since the failure that
-    // goes unmentioned in the reply is the one that costs the user most.
+    // because waiting is what the status code invites. A host refusing this way
+    // was measured answering the same request differently seconds apart, so one
+    // more try is honest and a loop is not -- and the loop is the failure this
+    // message exists to stop. Naming the disclosure here too, since the failure
+    // that goes unmentioned in the reply is the one that costs the user most.
     refused && retryAfter === null
-      ? `There is no Retry-After header, so this is more likely a block on automated requests than a limit that lifts: fetching this host again, later or through a script, will probably be refused the same way. Open the URL in the browser instead, and if it shows a human check, ask the user to complete it there. If you carry on without this page, say so in your reply rather than leaving the gap unmentioned.`
+      ? `There is no Retry-After header, so this is more likely a block on automated requests than a limit that lifts. Such a host refuses the great majority of requests whatever the client or the headers, and answers inconsistently rather than predictably: one more attempt is reasonable, a third is not, and changing HTTP client or copying a browser's headers does not help. If you need this page, open it in the browser and ask the user to clear any human check it shows. If you carry on without it, say so in your reply rather than leaving the gap unmentioned.`
       : undefined,
   ]
     .filter((sentence) => sentence !== undefined)

@@ -227,7 +227,7 @@ describe("WebFetch failures", () => {
         }),
       ),
     ).toMatchInlineSnapshot(
-      `"Request failed with status 429. The site said: {"message":"Too Many Requests (CDN PX)"} There is no Retry-After header, so this is more likely a block on automated requests than a limit that lifts: fetching this host again, later or through a script, will probably be refused the same way. Open the URL in the browser instead, and if it shows a human check, ask the user to complete it there. If you carry on without this page, say so in your reply rather than leaving the gap unmentioned."`,
+      `"Request failed with status 429. The site said: {"message":"Too Many Requests (CDN PX)"} There is no Retry-After header, so this is more likely a block on automated requests than a limit that lifts. Such a host refuses the great majority of requests whatever the client or the headers, and answers inconsistently rather than predictably: one more attempt is reasonable, a third is not, and changing HTTP client or copying a browser's headers does not help. If you need this page, open it in the browser and ask the user to clear any human check it shows. If you carry on without it, say so in your reply rather than leaving the gap unmentioned."`,
     );
   });
 

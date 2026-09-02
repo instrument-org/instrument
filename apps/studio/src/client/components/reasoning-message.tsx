@@ -30,7 +30,10 @@ const COUNT_UP_AFTER_MS = 3000;
 // tall and every gap is spent out of that. A section label is corrected on both
 // sides for that reason -- the 2em `prose-custom` opens above one is a section
 // break in a written answer and a line of the whole budget here.
-const REASONING_PROSE =
+//
+// Exported so the typography debug page draws the panel's own styling rather
+// than a copy of it that can drift.
+export const REASONING_PROSE =
   "opacity-50 prose-headings:mb-0! [&_:is(h1,h2,h3,h4,h5,h6)+p]:mt-1! [&>p.markdown-section-label]:mt-4! [&>p.markdown-section-label]:mb-0! [&>p.markdown-section-label+p]:mt-1!";
 
 interface ReasoningMessageProps {

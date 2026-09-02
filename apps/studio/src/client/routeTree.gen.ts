@@ -33,6 +33,7 @@ import { Route as AppAuthenticatedSubscribeRouteImport } from './routes/_app/_au
 import { Route as AppTasksIdIndexRouteImport } from './routes/_app/tasks/$id/index'
 import { Route as AppProjectsIdIndexRouteImport } from './routes/_app/projects/$id/index'
 import { Route as AppDebugComponentsIndexRouteImport } from './routes/_app/debug/components/index'
+import { Route as AppDebugComponentsTypographyRouteImport } from './routes/_app/debug/components/typography'
 import { Route as AppDebugComponentsTranscriptRouteImport } from './routes/_app/debug/components/transcript'
 import { Route as AppDebugComponentsSpinnerRouteImport } from './routes/_app/debug/components/spinner'
 import { Route as AppDebugComponentsProviderIconsRouteImport } from './routes/_app/debug/components/provider-icons'
@@ -167,6 +168,12 @@ const AppDebugComponentsIndexRoute = AppDebugComponentsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppDebugComponentsRoute,
 } as any)
+const AppDebugComponentsTypographyRoute =
+  AppDebugComponentsTypographyRouteImport.update({
+    id: '/typography',
+    path: '/typography',
+    getParentRoute: () => AppDebugComponentsRoute,
+  } as any)
 const AppDebugComponentsTranscriptRoute =
   AppDebugComponentsTranscriptRouteImport.update({
     id: '/transcript',
@@ -281,6 +288,7 @@ export interface FileRoutesByFullPath {
   '/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/debug/components/transcript': typeof AppDebugComponentsTranscriptRoute
+  '/debug/components/typography': typeof AppDebugComponentsTypographyRoute
   '/debug/components/': typeof AppDebugComponentsIndexRoute
   '/projects/$id/': typeof AppProjectsIdIndexRoute
   '/tasks/$id/': typeof AppTasksIdIndexRoute
@@ -314,6 +322,7 @@ export interface FileRoutesByTo {
   '/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/debug/components/transcript': typeof AppDebugComponentsTranscriptRoute
+  '/debug/components/typography': typeof AppDebugComponentsTypographyRoute
   '/debug/components': typeof AppDebugComponentsIndexRoute
   '/projects/$id': typeof AppProjectsIdIndexRoute
   '/tasks/$id': typeof AppTasksIdIndexRoute
@@ -355,6 +364,7 @@ export interface FileRoutesById {
   '/_app/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
   '/_app/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/_app/debug/components/transcript': typeof AppDebugComponentsTranscriptRoute
+  '/_app/debug/components/typography': typeof AppDebugComponentsTypographyRoute
   '/_app/debug/components/': typeof AppDebugComponentsIndexRoute
   '/_app/projects/$id/': typeof AppProjectsIdIndexRoute
   '/_app/tasks/$id/': typeof AppTasksIdIndexRoute
@@ -395,6 +405,7 @@ export interface FileRouteTypes {
     | '/debug/components/provider-icons'
     | '/debug/components/spinner'
     | '/debug/components/transcript'
+    | '/debug/components/typography'
     | '/debug/components/'
     | '/projects/$id/'
     | '/tasks/$id/'
@@ -428,6 +439,7 @@ export interface FileRouteTypes {
     | '/debug/components/provider-icons'
     | '/debug/components/spinner'
     | '/debug/components/transcript'
+    | '/debug/components/typography'
     | '/debug/components'
     | '/projects/$id'
     | '/tasks/$id'
@@ -468,6 +480,7 @@ export interface FileRouteTypes {
     | '/_app/debug/components/provider-icons'
     | '/_app/debug/components/spinner'
     | '/_app/debug/components/transcript'
+    | '/_app/debug/components/typography'
     | '/_app/debug/components/'
     | '/_app/projects/$id/'
     | '/_app/tasks/$id/'
@@ -654,6 +667,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugComponentsIndexRouteImport
       parentRoute: typeof AppDebugComponentsRoute
     }
+    '/_app/debug/components/typography': {
+      id: '/_app/debug/components/typography'
+      path: '/typography'
+      fullPath: '/debug/components/typography'
+      preLoaderRoute: typeof AppDebugComponentsTypographyRouteImport
+      parentRoute: typeof AppDebugComponentsRoute
+    }
     '/_app/debug/components/transcript': {
       id: '/_app/debug/components/transcript'
       path: '/transcript'
@@ -804,6 +824,7 @@ interface AppDebugComponentsRouteChildren {
   AppDebugComponentsProviderIconsRoute: typeof AppDebugComponentsProviderIconsRoute
   AppDebugComponentsSpinnerRoute: typeof AppDebugComponentsSpinnerRoute
   AppDebugComponentsTranscriptRoute: typeof AppDebugComponentsTranscriptRoute
+  AppDebugComponentsTypographyRoute: typeof AppDebugComponentsTypographyRoute
   AppDebugComponentsIndexRoute: typeof AppDebugComponentsIndexRoute
 }
 
@@ -817,6 +838,7 @@ const AppDebugComponentsRouteChildren: AppDebugComponentsRouteChildren = {
   AppDebugComponentsProviderIconsRoute: AppDebugComponentsProviderIconsRoute,
   AppDebugComponentsSpinnerRoute: AppDebugComponentsSpinnerRoute,
   AppDebugComponentsTranscriptRoute: AppDebugComponentsTranscriptRoute,
+  AppDebugComponentsTypographyRoute: AppDebugComponentsTypographyRoute,
   AppDebugComponentsIndexRoute: AppDebugComponentsIndexRoute,
 }
 

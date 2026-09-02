@@ -504,6 +504,33 @@ const REAL_TURN: Act[] = [
 ];
 
 /**
+ * The section-label shapes, as a model would actually write them.
+ *
+ * The last paragraph is the one that has to stay ordinary: a bold lead-in with
+ * text after it is not a section, and marking it as one is what the parsed-shape
+ * check in `markdown.tsx` exists to prevent.
+ */
+const SECTION_LABELS = [
+  "A paragraph before the first label, long enough to wrap onto a second line so the space above the label is read against a full measure rather than a short one.",
+  "**Scope agreed**",
+  "The block under a label sits tight against it, which is the pairing the rhythm is for: the label belongs to what follows rather than to what came before.",
+  "- Pull the account-level export\n- Split North by cohort\n- Re-run the chart script",
+  "**After a list**",
+  "A completed list already reads as a block, so this boundary is set a step tighter than the one above it.",
+  "**Priority:** an ordinary sentence that opens with a bold lead-in, which is not a section label.",
+].join("\n\n");
+
+/** The same shapes as a thought, where the panel is 176px tall. */
+const SECTION_LABELS_REASONING = [
+  "**Reading the quarters**",
+  "Four files, one per quarter, and the chart script that draws from them.",
+  "**What looks wrong**",
+  "Every chart is drawn from January data, so the filename is being interpolated once and cached.",
+  "**What to check next**",
+  "Whether the decks already issued were drawn from the same cached path.",
+].join("\n\n");
+
+/**
  * The transcripts worth watching, and the ones worth holding still.
  *
  * One of them is a whole turn end to end, and it is the one to reach for:
@@ -938,6 +965,53 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
     script: [
       user("Write it up, and use a table and a numbered list."),
       prose(AWKWARD_SHAPES, 120),
+    ],
+  },
+  {
+    // Prose and steps alternating with nothing else in the way, so the two
+    // boundaries land close enough together to be read against each other: a
+    // paragraph under a run carries `mt-4` and a run under a paragraph carries
+    // `pt-3`, both on top of the transcript's own 8px.
+    id: "prose-step-boundaries",
+    name: "Prose against steps, both directions",
+    script: [
+      user("Read the quarters and tell me what you find as you go."),
+      prose("I will read the four quarterly files first.", 0),
+      read({ explanation: "Reading the first quarter", filePath: "q1.csv" }),
+      prose(
+        "The first quarter is intact. Checking whether the others agree with it.",
+        0,
+      ),
+      read({ explanation: "Reading the second quarter", filePath: "q2.csv" }),
+      prose("The second quarter is intact as well.", 0),
+      read({ explanation: "Reading the third quarter", filePath: "q3.csv" }),
+      prose(
+        "The third is where it stops agreeing, so the chart script is worth a look.",
+        0,
+      ),
+      ran({
+        command: "node scripts/chart.mjs --check",
+        explanation: "Checking the chart script",
+      }),
+      prose("Every chart is drawn from January data.", 0),
+    ],
+  },
+  {
+    // The label rhythm on all three surfaces it reaches: an assistant turn,
+    // where the 2em is the design; a thought, whose own overrides correct only
+    // the space below a label; and a loaded skill, which is a document rendered
+    // through the same prose.
+    id: "section-labels",
+    name: "Section labels, prose and reasoning",
+    script: [
+      user("Work through the quarters and think out loud."),
+      reasoning(SECTION_LABELS_REASONING),
+      prose(SECTION_LABELS, 0),
+      loadedSkill({
+        content: `# charts\n\n${SECTION_LABELS}`,
+        explanation: "Loading the charting skill",
+        name: "charts",
+      }),
     ],
   },
   {

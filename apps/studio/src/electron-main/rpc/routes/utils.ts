@@ -6,6 +6,7 @@ import type {
 
 import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
+import { readLogTail, saveLogCopy } from "@/electron-main/lib/diagnostic-log";
 import { prepareFileDrag } from "@/electron-main/lib/file-drag";
 import {
   getFileOpenCandidates,
@@ -572,6 +573,39 @@ const displayProtocol = base
     );
   });
 
+/**
+ * The end of the log, so someone can read what they are about to send.
+ *
+ * Null rather than an error when there is no log yet, which is ordinary on a
+ * build whose first line has not landed.
+ */
+const readDiagnosticLog = base
+  .input(z.void())
+  .output(
+    z
+      .object({
+        text: z.string(),
+        totalBytes: z.number(),
+        truncated: z.boolean(),
+      })
+      .nullable(),
+  )
+  .handler(() => readLogTail() ?? null);
+
+/**
+ * Write a copy of the log wherever the user chooses.
+ *
+ * The alternative was opening the app's own data directory, which holds the
+ * databases and settings the app runs on. That is not a folder to send anyone
+ * hunting through, so nothing here exposes it.
+ */
+const saveDiagnosticLog = base
+  .input(z.void())
+  .output(
+    z.object({ status: z.enum(["canceled", "failed", "no-log", "saved"]) }),
+  )
+  .handler(() => saveLogCopy(getMainWindow() ?? undefined));
+
 const clearExceptions = base.input(z.void()).handler(() => {
   clearServerExceptions();
 });
@@ -810,6 +844,8 @@ export const utils = {
   openTaskFileWith,
   openTaskIn,
   prepareTaskFileDrag,
+  readDiagnosticLog,
+  saveDiagnosticLog,
   showFileInFolder,
   showFolderPicker,
   showProjectInFolder,

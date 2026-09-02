@@ -1,9 +1,21 @@
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { AccountInfo } from "@/client/components/account-info";
+import {
+  BlockToolbarButton,
+  blockToolbarButtonClassName,
+  wrapLinesClassName,
+} from "@/client/components/code-block";
+import { CopyButton } from "@/client/components/copy-button";
 import { ExternalLink } from "@/client/components/external-link";
 import { ThemeToggle } from "@/client/components/theme-toggle";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/client/components/ui/dialog";
 import { Label } from "@/client/components/ui/label";
 import { Progress } from "@/client/components/ui/progress";
 import {
@@ -13,10 +25,15 @@ import {
   SelectTrigger,
 } from "@/client/components/ui/select";
 import { Switch } from "@/client/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
 import { ZoomStepper } from "@/client/components/zoom-controls";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
-import { isLinux } from "@/client/lib/utils";
+import { cn, isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   APP_NAME,
@@ -24,10 +41,13 @@ import {
   BUG_REPORT_URL,
   MANUAL_DOWNLOAD_URL,
 } from "@instrument-org/shared";
+import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft";
+import { ArrowsHorizontalIcon } from "@phosphor-icons/react/ArrowsHorizontal";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
+import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
 function SettingsSection({
@@ -58,6 +78,7 @@ export function GeneralSection() {
       <About />
       <SettingsSection title="Advanced">
         <UsageMetrics />
+        <DiagnosticLog />
       </SettingsSection>
     </div>
   );
@@ -377,6 +398,237 @@ const NOTIFICATION_MODES = [
   { menuLabel: "Never", triggerLabel: "Never", value: "never" },
 ] as const;
 
+/**
+ * Where someone is sent when they are asked for their log.
+ *
+ * In Advanced because most people never need it, and out of the developer-only
+ * tab because the people who need it are not developers: the whole point is a
+ * support conversation that can say "open settings and send me this" to anyone.
+ *
+ * Reading it and saving a copy, rather than a path into the app's own data
+ * directory. That directory holds the databases and settings the app runs on,
+ * and pointing someone at it to hunt for one file puts everything else in the
+ * same window. Reading first is the other half: what is in here is worth
+ * looking at before sending it to anyone.
+ */
+type LogLevel = "error" | "plain" | "warn";
+
+const LOG_LEVEL_CLASS: Record<LogLevel, string> = {
+  error: "text-destructive",
+  plain: "",
+  warn: "text-warning-700 dark:text-warning-300",
+};
+
+/**
+ * The most lines the viewer will draw.
+ *
+ * One element per line is what makes a level readable at a glance, and it is
+ * also what puts a ceiling on how many lines can be drawn before scrolling
+ * costs more than it is worth. The cap sits above what the byte cap on the
+ * read can usually produce, so it only bites on a log of unusually short lines.
+ */
+const MAX_VIEWED_LINES = 4000;
+
+function DiagnosticLog() {
+  const [viewerOpen, setViewerOpen] = useState(false);
+  // Wrapped by default: the first thing anyone does here is read, and a stack
+  // trace that runs off the right edge has to be scrolled to before it can be.
+  const [wrapLines, setWrapLines] = useState(true);
+
+  const logQuery = useQuery({
+    ...rpcClient.utils.readDiagnosticLog.queryOptions(),
+    enabled: viewerOpen,
+  });
+
+  const saveLogMutation = useMutation(
+    rpcClient.utils.saveDiagnosticLog.mutationOptions({
+      onError: () => {
+        toast.error("Couldn't save the log");
+      },
+      onSuccess: ({ status }) => {
+        switch (status) {
+          case "failed": {
+            toast.error("Couldn't save the log");
+
+            break;
+          }
+          case "no-log": {
+            toast.error("There's no log to save yet");
+
+            break;
+          }
+          case "saved": {
+            toast.success("Saved the log");
+
+            break;
+          }
+          // No default
+        }
+      },
+    }),
+  );
+
+  return (
+    <Card className="p-4">
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <div className="text-sm font-medium">Diagnostic log</div>
+          <p className="text-xs text-muted-foreground">
+            {APP_NAME} keeps a private, local-only record of what it did while
+            running. Send this log to {APP_NAME} Support when you report a
+            problem. It can include the names of files and tasks you worked on,
+            so read it before you share it.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={() => {
+              setViewerOpen(true);
+            }}
+            size="sm"
+            variant="outline"
+          >
+            View log
+          </Button>
+          <DownloadLogButton
+            disabled={saveLogMutation.isPending}
+            onDownload={() => {
+              saveLogMutation.mutate();
+            }}
+          />
+        </div>
+      </div>
+
+      <Dialog onOpenChange={setViewerOpen} open={viewerOpen}>
+        {/*
+          The log scrolls, not the dialog. `DialogContent` scrolls itself by
+          default, which for a pane of thousands of lines moves the title out of
+          view and leaves nothing to orient against. Naming the rows lets the
+          second one shrink below its content so the pane inside it can take the
+          overflow instead.
+        */}
+        <DialogContent
+          aria-describedby={undefined}
+          className="grid-rows-[auto_minmax(0,1fr)] overflow-y-hidden"
+          maxHeight="44rem"
+          maxWidth="60rem"
+        >
+          <DialogHeader>
+            <DialogTitle>Diagnostic log</DialogTitle>
+          </DialogHeader>
+          {/*
+            `min-w-0` is what keeps a log inside the dialog. A grid item refuses
+            to shrink under its own content by default, and a stack trace is one
+            unbreakable path per line, so without it the pane grows to the widest
+            line and carries the dialog out past the window with it. Zero lets
+            the pane be narrower than its text, which is what gives `overflow`
+            something to scroll.
+
+            The controls sit over the pane rather than inside the scroller so
+            they stay put while it moves, in the same idiom code blocks and
+            diagrams use for the same job.
+          */}
+          <div className="relative min-h-0 min-w-0">
+            <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+              <BlockToolbarButton
+                icon={wrapLines ? ArrowElbowDownLeftIcon : ArrowsHorizontalIcon}
+                label="Wrap lines"
+                onClick={() => {
+                  setWrapLines(!wrapLines);
+                }}
+                pressed={wrapLines}
+              />
+              <CopyButton
+                className={blockToolbarButtonClassName}
+                disabled={!logQuery.data}
+                iconSize={12}
+                label="Copy log"
+                onCopy={async () => {
+                  await navigator.clipboard.writeText(
+                    logQuery.data?.text ?? "",
+                  );
+                }}
+                tooltip="Copy log"
+              />
+              <BlockToolbarButton
+                icon={DownloadSimpleIcon}
+                label="Download log"
+                onClick={() => {
+                  saveLogMutation.mutate();
+                }}
+              />
+            </div>
+            <div
+              className={cn(
+                "h-full overflow-auto rounded-md border border-border bg-muted/40 p-3",
+                wrapLines && wrapLinesClassName,
+              )}
+            >
+              {logQuery.isPending ? (
+                <p className="text-xs text-muted-foreground">
+                  Reading the log...
+                </p>
+              ) : logQuery.data ? (
+                // No whitespace class of its own: `pre` already does not wrap,
+                // so the toggle above adds wrapping rather than fighting it.
+                <pre className="pr-24 font-mono text-xs leading-5">
+                  {toLogLines(logQuery.data.text).map((line, index) => (
+                    <div
+                      className={LOG_LEVEL_CLASS[line.level]}
+                      // Lines repeat and carry no id, so position is the only
+                      // thing telling them apart. The list is rebuilt whole
+                      // whenever the text changes, so nothing reorders under it.
+                      key={index}
+                    >
+                      {line.text}
+                    </div>
+                  ))}
+                </pre>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  There&rsquo;s no log yet. It fills up as you use the app.
+                </p>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
+/**
+ * Icon only, in both the card and the viewer.
+ *
+ * The action needs no label: a download glyph says it, and the words for it
+ * ("save a copy", "export") each read as something slightly different from what
+ * happens. The tooltip carries the name for anyone who wants one.
+ */
+function DownloadLogButton({
+  disabled,
+  onDownload,
+}: {
+  disabled: boolean;
+  onDownload: () => void;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          aria-label="Download log"
+          disabled={disabled}
+          onClick={onDownload}
+          size="icon-sm"
+          variant="ghost"
+        >
+          <DownloadSimpleIcon />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Download log</TooltipContent>
+    </Tooltip>
+  );
+}
+
 function Notifications() {
   const { data: preferences } = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
@@ -468,6 +720,29 @@ function Notifications() {
       </Card>
     </SettingsSection>
   );
+}
+
+/**
+ * Split the log into lines tagged by severity.
+ *
+ * Severity is the only thing worth coloring here. The two formats this reads
+ * are the packaged build's `[level]` line and development's JSON per line, so
+ * both spellings are matched rather than one parser being chosen for a shape
+ * that varies by build.
+ */
+function toLogLines(text: string): { level: LogLevel; text: string }[] {
+  return text
+    .split("\n")
+    .slice(-MAX_VIEWED_LINES)
+    .map((line) => {
+      if (/\[error\]|"level"\s*:\s*"error"/i.test(line)) {
+        return { level: "error" as const, text: line };
+      }
+      if (/\[warn\]|"level"\s*:\s*"warn"/i.test(line)) {
+        return { level: "warn" as const, text: line };
+      }
+      return { level: "plain" as const, text: line };
+    });
 }
 
 function UsageMetrics() {

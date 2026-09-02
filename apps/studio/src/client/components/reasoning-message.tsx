@@ -25,6 +25,17 @@ import {
 // ordinary ones never put a number on screen at all.
 const COUNT_UP_AFTER_MS = 3000;
 
+// The compact rhythm a thought is drawn on: headings and section labels give up
+// the space they take in a transcript, because the panel they are in is 176px
+// tall and every gap is spent out of that. A section label is corrected on both
+// sides for that reason -- the 2em `prose-custom` opens above one is a section
+// break in a written answer and a line of the whole budget here.
+//
+// Exported so the typography debug page draws the panel's own styling rather
+// than a copy of it that can drift.
+export const REASONING_PROSE =
+  "opacity-50 prose-headings:mb-0! [&_:is(h1,h2,h3,h4,h5,h6)+p]:mt-1! [&>p.markdown-section-label]:mt-4! [&>p.markdown-section-label]:mb-0! [&>p.markdown-section-label+p]:mt-1!";
+
 interface ReasoningMessageProps {
   createdAt: Date;
   endedAt?: Date;
@@ -75,6 +86,7 @@ export const ReasoningMessage = memo(function ReasoningMessage({
     if (!isLoading) {
       return;
     }
+    // oxlint-disable-next-line react/set-state-in-effect
     setNow(Date.now());
     const interval = setInterval(() => {
       setNow(Date.now());
@@ -168,10 +180,7 @@ export const ReasoningMessage = memo(function ReasoningMessage({
               }}
             >
               <SessionMarkdown
-                className={cn(
-                  "opacity-50 prose-headings:mb-0! [&_:is(h1,h2,h3,h4,h5,h6)+p]:mt-1! [&_p:has(>strong:only-child)]:mb-0! [&_p:has(>strong:only-child)+p]:mt-1!",
-                  isLoading && "opacity-100",
-                )}
+                className={cn(REASONING_PROSE, isLoading && "opacity-100")}
                 markdown={
                   isLoading
                     ? displayText

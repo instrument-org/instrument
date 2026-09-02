@@ -2,6 +2,7 @@ import {
   type ImageSourceKind,
   MARKDOWN_IMAGE_KINDS,
   UNTRUSTED_FILE_IMAGE_KINDS,
+  UNTRUSTED_TASK_FILE_IMAGE_KINDS,
 } from "@/client/lib/image-policy";
 import { renderWithProviders } from "@/tests/render";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
@@ -464,6 +465,24 @@ describe("Markdown heading anchors", () => {
   });
 });
 
+describe("Markdown section labels", () => {
+  it("marks a paragraph whose entire contents are bold", () => {
+    const { container } = renderMarkdown("**Scope agreed**\n\nNext paragraph.");
+
+    expect(container.querySelector("p")?.className).toBe(
+      "markdown-section-label",
+    );
+  });
+
+  it("does not mark a bold lead-in followed by ordinary text", () => {
+    const { container } = renderMarkdown(
+      "**Priority:** finish the renderer.\n\nNext paragraph.",
+    );
+
+    expect(container.querySelector("p")?.className).toBe("");
+  });
+});
+
 // HTML inside a Markdown document is drawn rather than printed, which is what a
 // collapsible section, a README's sized screenshot, and GitHub's image
 // attachments all depend on. None of that markup is ours -- a model wrote it,
@@ -739,6 +758,136 @@ describe("Markdown image sources", () => {
     // src that can name any host at all.
     expect(imageSources("![a](//tracker.test/pixel.png)", imageKinds)).toEqual(
       [],
+    );
+  });
+});
+
+/**
+ * Where a relative image source in a `.md` file lands.
+ *
+ * A file sits in a directory, so its images mean what a browser would mean by
+ * them: resolved against the document's own URL rather than joined from the
+ * task root. The exact URL is the assertion, because a chart beside a report in
+ * `output/` is precisely the case a join from the root gets wrong while still
+ * producing a URL that looks right.
+ */
+function taskFileImageSources(markdown: string, documentUrl: string): string[] {
+  const { container } = renderWithProviders(
+    <Markdown
+      documentUrl={documentUrl}
+      imageKinds={UNTRUSTED_TASK_FILE_IMAGE_KINDS}
+      markdown={markdown}
+    />,
+  );
+  return [...container.querySelectorAll("img")]
+    .map((image) => image.getAttribute("src"))
+    .filter((src) => src !== null);
+}
+
+// A report the agent wrote at the top of the task, and one it wrote in the
+// folder it put its output in. The second is what tells the two joins apart.
+const ROOT_DOCUMENT_URL = `${ASSET_BASE}/report.md`;
+const NESTED_DOCUMENT_URL = `${ASSET_BASE}/output/report.md`;
+
+describe("Markdown images in a task's own file", () => {
+  it.each([
+    ["a bare name", "chart.png", `${ASSET_BASE}/chart.png`],
+    ["an explicit ./", "./chart.png", `${ASSET_BASE}/chart.png`],
+    ["a subfolder", "figures/chart.png", `${ASSET_BASE}/figures/chart.png`],
+    ["the task root", "/output/chart.png", `${ASSET_BASE}/output/chart.png`],
+  ])("resolves %s beside a file at the task root", (_case, src, resolved) => {
+    expect(taskFileImageSources(`![a](${src})`, ROOT_DOCUMENT_URL)).toEqual([
+      resolved,
+    ]);
+  });
+
+  it.each([
+    ["a bare name", "chart.png", `${ASSET_BASE}/output/chart.png`],
+    ["an explicit ./", "./chart.png", `${ASSET_BASE}/output/chart.png`],
+    [
+      "a bare subfolder",
+      "charts/plot.png",
+      `${ASSET_BASE}/output/charts/plot.png`,
+    ],
+    [
+      "an explicit ./ subfolder",
+      "./charts/plot.png",
+      `${ASSET_BASE}/output/charts/plot.png`,
+    ],
+    [
+      "a climb to a sibling",
+      "../figures/chart.png",
+      `${ASSET_BASE}/figures/chart.png`,
+    ],
+    ["the task root", "/chart.png", `${ASSET_BASE}/chart.png`],
+  ])("resolves %s beside a file in a subfolder", (_case, src, resolved) => {
+    expect(taskFileImageSources(`![a](${src})`, NESTED_DOCUMENT_URL)).toEqual([
+      resolved,
+    ]);
+  });
+
+  // A climb runs out at the origin's own root rather than walking past it, so
+  // the deepest `../` chain a file can carry still names a file in the task.
+  it("cannot climb out of the task", () => {
+    expect(
+      taskFileImageSources(
+        "![a](../../../../etc/passwd.png)",
+        NESTED_DOCUMENT_URL,
+      ),
+    ).toEqual([`${ASSET_BASE}/etc/passwd.png`]);
+  });
+
+  // A source spelled with backslashes is the one that does not resolve to the
+  // path it looks like: the URL parser reads a leading backslash as the start
+  // of an authority, so `\evil.test/p.png` against an http base is that host.
+  // Two things keep it on the file's own origin -- the pipeline percent-encodes
+  // the backslash before it is resolved, and the resolved origin is compared
+  // against the document's -- and the assertion is on the outcome, which is
+  // what has to hold whichever of them is doing the work.
+  it.each([
+    [
+      "a leading backslash",
+      "\\evil.test/p.png",
+      `${ASSET_BASE}/output/%5Cevil.test/p.png`,
+    ],
+    [
+      "a backslash after a slash",
+      "/\\evil.test/p.png",
+      `${ASSET_BASE}/%5Cevil.test/p.png`,
+    ],
+  ])("keeps %s on the file's own origin", (_case, src, resolved) => {
+    expect(taskFileImageSources(`![a](${src})`, NESTED_DOCUMENT_URL)).toEqual([
+      resolved,
+    ]);
+  });
+
+  // The file is still prose someone else may have written, and an absolute
+  // source in it is a host of that author's choosing. Over the asset origin's
+  // loopback host that is every port on this machine, which resolves to the
+  // same shape a relative path does and is not the same question.
+  it.each([
+    ["a loopback service", "http://x.localhost:11434/probe", /x\.localhost/],
+    [
+      "a remote host",
+      "https://raw.githubusercontent.com/o/r/main/p.png",
+      /raw\.githubusercontent\.com/,
+    ],
+  ])("draws nothing for %s named in the file", (_case, src, host) => {
+    expect(taskFileImageSources(`![a](${src})`, NESTED_DOCUMENT_URL)).toEqual(
+      [],
+    );
+    // Offered as a click out to the system browser, and fetched by nothing
+    // here: the chip names the host and opening it is the reader's own act.
+    expect(screen.getByRole("button", { name: host })).toBeTruthy();
+  });
+
+  // A message sits in no directory, so its relative sources keep joining from
+  // the task root -- the paths the rest of the app names a file by.
+  it("joins a message's relative source from the task root", () => {
+    const { container } = renderMarkdown("![a](./output/chart.png)");
+
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(
+      `${ASSET_BASE}/output/chart.png`,
     );
   });
 });

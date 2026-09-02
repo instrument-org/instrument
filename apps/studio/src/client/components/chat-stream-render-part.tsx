@@ -15,6 +15,7 @@ import {
 } from "./message-part/tool-call-utils";
 import { ReasoningMessage } from "./reasoning-message";
 import { isReasoningPartVisible } from "./reasoning-utils";
+import { isPartBeingWritten } from "./transcript-layout";
 import { UnknownPart } from "./unknown-part";
 import { UserMessage } from "./user-message";
 
@@ -135,23 +136,25 @@ export function renderChatPart({
   }
 
   if (part.type === "reasoning") {
-    if (!isReasoningPartVisible(part)) {
+    // Whether the run is still writing into this block. Anything after it means
+    // the model has moved on, whatever the part's own state says: a provider can
+    // hold a reasoning block's end event until the step finishes, and a row that
+    // counts up next to a running tool call reads as two things happening at
+    // once. The same call decides whether the layout has a row here at all.
+    const isLive = isPartBeingWritten({
+      isAgentRunning: ctx.isAgentRunning,
+      lastMessageId: ctx.lastMessageId,
+      message,
+      partIndex,
+    });
+    if (!isReasoningPartVisible({ isLive, part })) {
       return null;
     }
     return (
       <ReasoningMessage
         createdAt={part.metadata.createdAt}
         endedAt={part.metadata.endedAt}
-        // Anything after it means the model has moved on, whatever the part's
-        // own state says: a provider can hold a reasoning block's end event
-        // until the step finishes, and a row that counts up next to a running
-        // tool call reads as two things happening at once.
-        isLoading={
-          ctx.isAgentRunning &&
-          ctx.lastMessageId === message.id &&
-          partIndex === message.parts.length - 1 &&
-          part.state === "streaming"
-        }
+        isLoading={isLive && part.state === "streaming"}
         isStandIn={isStandIn}
         key={part.metadata.id}
         rowId={part.metadata.id}

@@ -7,8 +7,12 @@ import path from "node:path";
 
 import { initializeElectronLogging, logger } from "./lib/electron-logger";
 import {
+  LAUNCH_OVERRIDES_FILENAME,
+  readLaunchOverrides,
+} from "./lib/launch-overrides";
+import {
+  decideOzonePlatform,
   OZONE_PLATFORMS,
-  ozonePlatformSwitch,
   resolveOzonePlatform,
 } from "./lib/ozone-platform";
 import { setupDBusEnvironment } from "./lib/setup-dbus-env";
@@ -69,6 +73,28 @@ initializeElectronLogging();
 
 const passwordStore = setupDBusEnvironment();
 
+// Read before any switch is set, because everything it carries has to be
+// applied before Chromium starts. It exists for the user who cannot reach the
+// environment: the app is launched from a desktop entry, a dock, or a
+// compositor keybind, none of which run a shell to export a variable in.
+const launchOverrides = readLaunchOverrides(app.getPath("userData"));
+for (const problem of launchOverrides.problems) {
+  logger.warn(`Ignoring part of ${LAUNCH_OVERRIDES_FILENAME}: ${problem}`);
+}
+
+// Logged on every launch, present or not, because the path is the whole point:
+// the file is reachable only by someone who knows where it is, and the log is
+// what a user sends when they are already stuck. Not gated on Linux either, as
+// a driver bad enough to need this exists on every platform.
+if (launchOverrides.overrides.disableHardwareAcceleration) {
+  app.disableHardwareAcceleration();
+  logger.info(`Hardware acceleration disabled by ${launchOverrides.filePath}`);
+} else {
+  logger.info(
+    `Hardware acceleration on; disable it with {"disable-hardware-acceleration": true} in ${launchOverrides.filePath}`,
+  );
+}
+
 if (platform.isLinux) {
   const ozone = resolveOzonePlatform(process.env.INSTRUMENT_OZONE_PLATFORM);
   if (ozone.ignored) {
@@ -76,17 +102,23 @@ if (platform.isLinux) {
       `Ignoring INSTRUMENT_OZONE_PLATFORM=${ozone.ignored}; expected one of ${OZONE_PLATFORMS.join(", ")}`,
     );
   }
-  app.commandLine.appendSwitch(
-    "ozone-platform",
-    ozonePlatformSwitch(ozone.platform),
+  // Read before appending, because a value already there is the one the browser
+  // process took and the only one its window will honor.
+  const decision = decideOzonePlatform(
+    ozone.platform,
+    app.commandLine.getSwitchValue("ozone-platform") || undefined,
   );
-  // The switch after the fact, not the request, because the two can disagree:
-  // a `--ozone-platform` already on argv is not always removable from here, and
-  // an app logging `auto` while talking X11 is a run nobody can diagnose.
-  const appliedOzoneSwitch =
-    app.commandLine.getSwitchValue("ozone-platform") || "none";
+  if (decision.append === null) {
+    logger.warn(
+      `--ozone-platform=${decision.platform} on the command line decides the display protocol, so neither the session nor INSTRUMENT_OZONE_PLATFORM is consulted. Drop it and set INSTRUMENT_OZONE_PLATFORM instead; a launcher that adds this switch can leave the window blank.`,
+    );
+  } else {
+    app.commandLine.appendSwitch("ozone-platform", decision.append);
+  }
+  // The switch, not the request, because the two can disagree and an app
+  // logging `auto` while talking X11 is a run nobody can diagnose.
   logger.info(
-    `Using ozone platform: ${ozone.platform} (switch: ${appliedOzoneSwitch})`,
+    `Using ozone platform: ${ozone.platform} (switch: ${decision.platform})`,
   );
 
   // Allow CDP Input.dispatchMouseEvent on occluded web contents (e.g.

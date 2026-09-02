@@ -9,6 +9,7 @@ export const SessionMarkdown = ({
   assetBaseUrl,
   assetVersion,
   className,
+  documentUrl,
   hideImages,
   imageKinds,
   isStreaming,
@@ -19,6 +20,7 @@ export const SessionMarkdown = ({
   assetBaseUrl?: string;
   assetVersion?: string;
   className?: string;
+  documentUrl?: string;
   hideImages?: boolean;
   imageKinds?: readonly ImageSourceKind[];
   isStreaming?: boolean;
@@ -29,7 +31,7 @@ export const SessionMarkdown = ({
   return (
     <div
       className={cn(
-        "prose prose-custom font-sans text-sm/relaxed wrap-break-word dark:prose-invert prose-headings:font-sans! prose-headings:leading-snug! prose-h1:text-xl! prose-h2:text-lg! prose-h3:text-base! prose-h4:text-sm! prose-h5:text-xs! prose-h6:text-xs! prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm",
+        "prose-session prose prose-custom font-sans text-sm/relaxed wrap-break-word dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm",
         className,
       )}
       ref={ref}
@@ -37,6 +39,7 @@ export const SessionMarkdown = ({
       <Markdown
         assetBaseUrl={assetBaseUrl}
         assetVersion={assetVersion}
+        documentUrl={documentUrl}
         hideImages={hideImages}
         imageKinds={imageKinds}
         isStreaming={isStreaming}

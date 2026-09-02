@@ -83,7 +83,7 @@ const AWKWARD_SHAPES = [
   "## The shapes that move while they arrive",
   "A table is the worst of them, because the column widths are computed from content that has not all landed yet:",
   "| Region | Change | Driver |\n| --- | --- | --- |\n| North | +11% | Volume, not price |\n| South | 0% | Flat for four quarters |\n| East | -6% | One account churned |\n| West | +2% | Too small to read |",
-  "A wide one cannot be made to fit a column that prose is comfortable in, so it starts at the prose's left edge, then uses the full transcript as it scrolls:",
+  "A wide one takes the room the transcript has past the prose and wraps into it, so the columns settle at a different width than the ones above:",
   "| Product | Pack price | Approx. per can | Caffeine | Calories and sugar | Takeaway |\n| --- | ---: | ---: | ---: | --- | --- |\n| Sparkling Ice +Caffeine Variety Pack | $15.11 / 12 | $1.26 | 70 mg | ~5 calories, zero sugar | Best value |\n| PHOCUS Caffeinated Sparkling Water | $25.99 / 12 | $2.17 | 75 mg | Zero calories, zero sugar | Closest nutritional alternative |\n| JUNO Energy Sparkling Drink | $32.99 / 12 | $2.75 | 125 mg | Sugar-free | More caffeine, substantially pricier |\n| ARDOR Energy Sparkling Water | $35.99 / 12 | $3.00 | 100 mg | Zero calories, zero sugar | More than double the per-can price |",
   "An ordered list is the other one. The gutter is sized to the widest marker it will have to draw, so the tenth item moves every item above it:",
   "1. Pull the account-level export.\n2. Split North by cohort.\n3. Check the renewal dates against the contract table.\n4. Re-run the chart script.\n5. Reissue the three decks drawn from January data.\n6. Confirm the currency formatter is out of the render path.\n7. Diff the corrected charts against the originals.\n8. Ask whether the reissue needs a note attached.\n9. File the attribution question.\n10. Close the loop on the February churn.",
@@ -175,6 +175,32 @@ export const summarize = async (source: string, destination: string) => {
   return totals.size;
 };
 \`\`\``,
+].join("\n\n");
+
+/**
+ * Tables at the three widths that are laid out differently.
+ *
+ * A table is the one block with a width of its own, and the whole of the
+ * question is what it does with the room it is given. Narrow, it stops where
+ * its values stop. Past the measure it grows into the slack the transcript has
+ * beside the prose, and past that its cells wrap rather than the table growing
+ * until reaching the second column means scrolling for it. Wider still -- which
+ * is columns rather than text, since wrapping is what answers text -- it
+ * scrolls inside the block.
+ *
+ * The wrapping case is the one worth holding still: laid out at its own width,
+ * a column of sentences takes the entire viewport and pushes every figure
+ * beside it off the side, which is a table nobody can read anything off.
+ */
+const TABLES = [
+  "## Where the shortlist landed",
+  "A narrow table stops where its values do, rather than stretching four columns across the measure with a hand's width of empty cell between figures meant to be read against each other:",
+  "| Round | Sites | Dropped |\n| ---: | ---: | ---: |\n| First | 24 | 11 |\n| Second | 13 | 9 |\n| Final | 4 | 0 |",
+  "A column of sentences is what breaks a table. This one wraps into the room the transcript has, because at its own width the first column alone would be wider than the pane and the money would be somewhere off to the right:",
+  "| Finalist | Why it made the list | Adjusted for budget |\n| --- | --- | ---: |\n| Harborview Commons | The only site where the whole program fits on a single floor, which is what the ground-floor teams asked for and what nobody else offers without splitting them across a stairwell. | $1.9M over |\n| Rail Yard Block C | Cheapest per square foot of anything still standing, and the landlord takes on the seismic work if the lease runs ten years rather than five. | $240K under |\n| Old Fisher Building | Closest to transit, and the only one that needs no work at all before people can sit in it, which is worth a year of rent by itself. | $610K over |\n| The Annex | Half the space of the rest, so it only works if the program is cut down; it is here because it is the one the budget already covers. | $1.1M under |",
+  "Columns are the other way a table runs out of room, and the one wrapping cannot answer: there is nothing to wrap in a figure. This one starts at the prose's left edge, uses the full transcript as it scrolls, and keeps that scrolling inside itself:",
+  "| Site | Jan | Feb | Mar | Apr | May | Jun | Jul | Aug | Sep | Oct | Nov | Dec | Year |\n| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n| Harborview Commons | $258,000 | $258,000 | $261,000 | $261,000 | $261,000 | $264,000 | $264,000 | $264,000 | $268,000 | $268,000 | $268,000 | $271,000 | $3,166,000 |\n| Rail Yard Block C | $183,000 | $183,000 | $183,000 | $186,000 | $186,000 | $186,000 | $189,000 | $189,000 | $189,000 | $192,000 | $192,000 | $192,000 | $2,250,000 |\n| Old Fisher Building | $281,000 | $281,000 | $284,000 | $284,000 | $284,000 | $284,000 | $288,000 | $288,000 | $288,000 | $291,000 | $291,000 | $291,000 | $3,435,000 |\n| The Annex | $131,000 | $131,000 | $131,000 | $133,000 | $133,000 | $133,000 | $135,000 | $135,000 | $135,000 | $137,000 | $137,000 | $137,000 | $1,608,000 |",
+  "One closing paragraph, so the last thing on screen is prose rather than a block that sized itself.",
 ].join("\n\n");
 
 /**
@@ -478,6 +504,33 @@ const REAL_TURN: Act[] = [
 ];
 
 /**
+ * The section-label shapes, as a model would actually write them.
+ *
+ * The last paragraph is the one that has to stay ordinary: a bold lead-in with
+ * text after it is not a section, and marking it as one is what the parsed-shape
+ * check in `markdown.tsx` exists to prevent.
+ */
+const SECTION_LABELS = [
+  "A paragraph before the first label, long enough to wrap onto a second line so the space above the label is read against a full measure rather than a short one.",
+  "**Scope agreed**",
+  "The block under a label sits tight against it, which is the pairing the rhythm is for: the label belongs to what follows rather than to what came before.",
+  "- Pull the account-level export\n- Split North by cohort\n- Re-run the chart script",
+  "**After a list**",
+  "A completed list already reads as a block, so this boundary is set a step tighter than the one above it.",
+  "**Priority:** an ordinary sentence that opens with a bold lead-in, which is not a section label.",
+].join("\n\n");
+
+/** The same shapes as a thought, where the panel is 176px tall. */
+const SECTION_LABELS_REASONING = [
+  "**Reading the quarters**",
+  "Four files, one per quarter, and the chart script that draws from them.",
+  "**What looks wrong**",
+  "Every chart is drawn from January data, so the filename is being interpolated once and cached.",
+  "**What to check next**",
+  "Whether the decks already issued were drawn from the same cached path.",
+].join("\n\n");
+
+/**
  * The transcripts worth watching, and the ones worth holding still.
  *
  * One of them is a whole turn end to end, and it is the one to reach for:
@@ -488,17 +541,13 @@ const REAL_TURN: Act[] = [
  */
 export const scenarios: Scenario[] = [
   {
-    about:
-      "A whole turn as they really come: it opens by saying what it is about to do, then named phases and unannounced runs alternating, reasoning, failures, commentary between them, and a written answer at the end. Long enough to scroll.",
     id: "a-real-turn",
-    name: "A real turn",
+    name: "A whole turn, end to end",
     script: REAL_TURN,
   },
   {
-    about:
-      "The same turn, replayed after an earlier one has already filled the screen. The transcript only follows its own end when there is an end to follow: on a fresh task nothing overflows, so nothing moves, and the jumping that shows up in a real session cannot happen here at all. This is the one to replay with the bottom edge marker on.",
     id: "a-real-turn-scrolled",
-    name: "A real turn, already scrolled",
+    name: "A whole turn, on a screen already full",
     script: [
       user("Summarize the quarterly reports for me."),
       // Landing whole rather than a few words at a time, which is what history
@@ -510,10 +559,8 @@ export const scenarios: Scenario[] = [
     ],
   },
   {
-    about:
-      "One call to every tool the agent has, each with the output it really returns. Turn replay on to see all of them pass through the states a call goes through -- input still arriving, running, done -- and stop on any frame to hold one of those states still.",
     id: "every-tool",
-    name: "Every tool",
+    name: "Every tool, working",
     script: [
       user("Try everything you can do, and tell me how it went."),
       activity("Working through the tools"),
@@ -589,10 +636,8 @@ export const scenarios: Scenario[] = [
     ],
   },
   {
-    about:
-      "The same tools, all of them failing. Most of these are the tool itself breaking, which draws as a failed row; the image and search calls instead come back saying nothing is configured to do the work, which is a different row and easy to get wrong.",
     id: "every-tool-fails",
-    name: "Every tool fails",
+    name: "Every tool, failing",
     script: [
       user("Try everything you can do."),
       activity("Working through the tools"),
@@ -668,10 +713,8 @@ export const scenarios: Scenario[] = [
     ],
   },
   {
-    about:
-      "Every tool again with the explanation left off, which a model does more often than it should. The row has nothing of its own to say, so it falls back to naming the tool -- and the heading over a run of them has to be earned from the calls themselves.",
     id: "unexplained",
-    name: "Calls with nothing said about them",
+    name: "Every tool, unexplained",
     script: [
       user("Just do it, no commentary."),
       chose({
@@ -708,8 +751,6 @@ export const scenarios: Scenario[] = [
     ],
   },
   {
-    about:
-      "What a terminal actually sends back: a long passing run, a failing one with stack traces, a multi-line script with its own indentation, and a command the sandbox refused outright.",
     id: "bash",
     name: "Bash output",
     script: [
@@ -807,10 +848,8 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
     ],
   },
   {
-    about:
-      "One response asking for four calls at once. They all arrive queued and drain one at a time, which is the only place a queued call and a running one are different things.",
     id: "queue",
-    name: "A batch draining",
+    name: "A batch of calls draining",
     script: [
       user("Read all four quarters."),
       activity("Reading each quarter"),
@@ -824,8 +863,6 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
     ],
   },
   {
-    about:
-      "Several parts in one assistant message rather than one per step, which is the other shape a provider can send.",
     id: "one-message",
     name: "One message, many parts",
     script: [
@@ -844,10 +881,8 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
     ],
   },
   {
-    about:
-      "Shapes no well-behaved transcript reaches: a heading the model left blank, two headings in a row, calls before any heading at all, and a step that produced nothing for the turn's chrome to attach itself to.",
     id: "edge-cases",
-    name: "Edge cases",
+    name: "Malformed headings and empty steps",
     script: [
       user("Have a look at the folder."),
       // A step the model opened and closed with nothing in it. The turn's
@@ -878,8 +913,6 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
     ],
   },
   {
-    about:
-      "Stopped part-way. The last call never finishes, so nothing on screen is running even though the rows still say they started.",
     id: "stopped",
     name: "Stopped mid-run",
     script: [
@@ -892,8 +925,6 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
     ],
   },
   {
-    about:
-      "A run that hit the unattended step cap. The workspace writes itself a message saying so, which draws nothing at all: the prompt to pick the run back up is the whole of what the reader sees. Turn developer mode on to see the note the model is given on resume.",
     id: "max-steps",
     name: "Stopped at the step cap",
     script: [
@@ -916,10 +947,8 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
     ],
   },
   {
-    about:
-      "A written answer arriving a few words at a time, over enough frames to watch the text itself rather than the transcript around it. Nothing else happens in it: replay it to judge how prose, headings and lists read while they are still growing.",
     id: "a-long-answer",
-    name: "A long answer arriving",
+    name: "A long answer, arriving",
     script: [
       user(
         "Go through the quarterly reports and write up what actually moved.",
@@ -931,25 +960,66 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
     ],
   },
   {
-    about:
-      "Tables, ordered lists, code, quotes, links and text with no spaces in it, all arriving a few words at a time. The companion to the long answer: that one is for whether ordinary prose reads well, this one is for the constructs that move, restructure or refuse to animate while they arrive. The second table is the one that cannot fit: watch it start at the measure's left edge, use the full transcript as it scrolls, and keep that scrolling inside itself rather than under the whole conversation.",
     id: "awkward-shapes",
-    name: "Shapes that arrive badly",
+    name: "Markdown that moves as it arrives",
     script: [
       user("Write it up, and use a table and a numbered list."),
       prose(AWKWARD_SHAPES, 120),
     ],
   },
   {
-    about:
-      "Diagrams, arriving slowly enough to catch a fence half written. A diagram is laid out from measured text, follows the app theme, and has to survive a column narrower than it is; the last two fences never become diagrams at all and have to stay code blocks rather than flickering between the two.",
+    // Prose and steps alternating with nothing else in the way, so the two
+    // boundaries land close enough together to be read against each other: a
+    // paragraph under a run carries `mt-4` and a run under a paragraph carries
+    // `pt-3`, both on top of the transcript's own 8px.
+    id: "prose-step-boundaries",
+    name: "Prose against steps, both directions",
+    script: [
+      user("Read the quarters and tell me what you find as you go."),
+      prose("I will read the four quarterly files first.", 0),
+      read({ explanation: "Reading the first quarter", filePath: "q1.csv" }),
+      prose(
+        "The first quarter is intact. Checking whether the others agree with it.",
+        0,
+      ),
+      read({ explanation: "Reading the second quarter", filePath: "q2.csv" }),
+      prose("The second quarter is intact as well.", 0),
+      read({ explanation: "Reading the third quarter", filePath: "q3.csv" }),
+      prose(
+        "The third is where it stops agreeing, so the chart script is worth a look.",
+        0,
+      ),
+      ran({
+        command: "node scripts/chart.mjs --check",
+        explanation: "Checking the chart script",
+      }),
+      prose("Every chart is drawn from January data.", 0),
+    ],
+  },
+  {
+    // The label rhythm on all three surfaces it reaches: an assistant turn,
+    // where the 2em is the design; a thought, whose own overrides correct only
+    // the space below a label; and a loaded skill, which is a document rendered
+    // through the same prose.
+    id: "section-labels",
+    name: "Section labels, prose and reasoning",
+    script: [
+      user("Work through the quarters and think out loud."),
+      reasoning(SECTION_LABELS_REASONING),
+      prose(SECTION_LABELS, 0),
+      loadedSkill({
+        content: `# charts\n\n${SECTION_LABELS}`,
+        explanation: "Loading the charting skill",
+        name: "charts",
+      }),
+    ],
+  },
+  {
     id: "diagrams",
-    name: "Diagrams arriving",
+    name: "Mermaid diagrams",
     script: [user("Draw me some diagrams."), prose(DIAGRAMS, 90)],
   },
   {
-    about:
-      "Fences, in the shapes that decide how a block is drawn: one with no language, one naming the file it holds, one wider than the column, and one long enough to hold itself back. Replay it to judge the controls a block carries -- wrapping, the filename it is labeled with, and how much of a long block is worth showing before the reader asks for the rest.",
     id: "code-blocks",
     name: "Code blocks",
     script: [
@@ -958,8 +1028,11 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
     ],
   },
   {
-    about:
-      "Every kind of link either side of the conversation can carry, on one screen. Every link to a page takes one shape, whatever its label: the site's icon, the label, and the origin it leads to unless the label already says. Only an address and a task file are chips, since neither opens a page. The same reading runs over what the person typed, so a link they pasted reads the way the reply's links do. Replay it to judge which links earned a cue and which were left alone, and to check that no icon is left behind at the end of a line.",
+    id: "tables",
+    name: "Tables, narrow to wide",
+    script: [user("Put the shortlist in a table."), prose(TABLES, 40)],
+  },
+  {
     id: "links",
     name: "Links of every kind",
     script: [
@@ -973,10 +1046,8 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
     ],
   },
   {
-    about:
-      "The controls an opened call carries, which are the ones a fenced code block carries: wrap, copy, and how much is worth showing before the reader asks for the rest. Open every call. Each is a case those controls have to answer -- output wider than the column, output longer than the card, one line that is both, a command that is a script, a file card where copy sits on the body it takes and opening the file stays in the header beside its name, and a call whose body is empty, which says so rather than opening onto nothing.",
     id: "card-controls",
-    name: "Card controls",
+    name: "Tool card controls",
     script: [
       user("Run the checks, then show me what you changed."),
       activity("Running the checks"),
@@ -1062,10 +1133,8 @@ done`,
     ],
   },
   {
-    about:
-      "No tools at all: several turns of plain question and answer, with one user message long enough that it has to collapse itself. The plainest transcript there is, which is the one every spacing rule has to look right in first.",
     id: "conversation",
-    name: "Just a conversation",
+    name: "A conversation with no tools",
     script: [
       user("What is React?"),
       prose(
@@ -1092,10 +1161,8 @@ done`,
     ],
   },
   {
-    about:
-      "What the user sent along with their message. The first has every kind of file the grid draws, across every folder it sorts by; the second is a pair of folders from the user's own disk, which stack above the files rather than in with them.",
     id: "attachments",
-    name: "Attachments",
+    name: "Attachments on a message",
     script: [
       user(
         "Here is a full attachment grid: every type it draws, and folders.",
@@ -1177,10 +1244,8 @@ done`,
     ],
   },
   {
-    about:
-      "Every `data-*` part a message can carry, on the message it rides on in a real session. Most of them draw nothing until developer mode is on, which is the point: turn it on and off here to see what a reader is and is not being told.",
     id: "data-parts",
-    name: "Data parts",
+    name: "Data parts, hidden and shown",
     script: [
       context(
         "system",
@@ -1270,10 +1335,8 @@ done`,
     ],
   },
   {
-    about:
-      "Turns that ended in an error rather than an answer. Only the last one is opened and offered a way forward; the ones above it stay collapsed, which is what a transcript of a bad afternoon looks like.",
     id: "errors",
-    name: "Errors, one after another",
+    name: "Errors, one turn after another",
     script: [
       user("Help me write a function to parse JSON."),
       sameStep(
@@ -1311,8 +1374,6 @@ done`,
     ],
   },
   {
-    about:
-      "The account is out of credits, which is our own gateway talking rather than a provider. The card that draws is not the generic error one: it is the offer to top up, and it only appears for the turn that just failed.",
     id: "out-of-credits",
     name: "Out of credits",
     script: [
@@ -1330,8 +1391,6 @@ done`,
     ],
   },
   {
-    about:
-      "The model the task is pinned to is one the account cannot use. Model not allowed, not found, and never named at all all land here, and the way out of every one of them is the same: switch to Auto.",
     id: "model-unavailable",
     name: "Model unavailable",
     script: [
@@ -1348,10 +1407,8 @@ done`,
     ],
   },
   {
-    about:
-      "Errors the reader is deliberately not shown: one the user caused by stopping the agent, and one that has since been answered by a later turn. Both are still in the transcript, and developer mode is what brings them back.",
     id: "hidden-errors",
-    name: "Errors that stay hidden",
+    name: "Errors hidden from the reader",
     script: [
       user("Can you help me analyze this code?"),
       fail(

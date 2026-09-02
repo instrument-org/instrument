@@ -1,15 +1,14 @@
 /**
- * Build one local page that plays a set of wireframes and visual explanations,
- * for walking someone through them or recording a video of them.
+ * Build one local page that plays a set of wireframes, for walking someone
+ * through them or recording a video of them.
  *
  *   node .agents/skills/product-wireframe/scripts/build-index.ts
  *   node .agents/skills/product-wireframe/scripts/build-index.ts a.html b.html
  *   node .agents/skills/product-wireframe/scripts/build-index.ts --out /tmp/x.html
  *
- * With no paths it takes every docs/plans/active/wireframes-*.html and every
- * docs/visual-explanations/*.html, in name order. Paths given on the command
- * line are used exactly, in the order given. A manifest overrides both; see
- * below.
+ * With no paths it takes every docs/plans/active/wireframes-*.html, in name
+ * order. Paths given on the command line are used exactly, in the order given,
+ * and may name a file anywhere. A manifest overrides both; see below.
  *
  * Every document is inlined into the output and swapped into one iframe with
  * `srcdoc`, which is not an optimization. Chrome refuses to load a sibling
@@ -26,7 +25,6 @@ import path from "node:path";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../../..");
 const FLOWS = "docs/plans/active";
-const NOTES = "docs/visual-explanations";
 const OUT = `${FLOWS}/wireframes-index.html`;
 
 /**
@@ -71,8 +69,8 @@ const readTitle = (html: string, file: string) => {
 };
 
 /**
- * A wireframe names its topic in SUBTITLE. An explanation has no equivalent, so
- * take the first sentence of its opening paragraph, which is the thesis.
+ * A wireframe names its topic in SUBTITLE. A page passed by path may have no
+ * such constant, so fall back to the first sentence of its opening paragraph.
  */
 const readNote = (html: string) => {
   const subtitle = /const SUBTITLE = "([^"]*)"/.exec(html)?.[1];
@@ -109,9 +107,9 @@ const readFrames = (html: string) => {
 
 // ---- choosing the set ------------------------------------------------------
 
-/** Manifest entries name a file, not a path, so the two directories both work. */
+/** Manifest entries may name a bare file, which is looked for beside the plans. */
 const locate = (name: string) => {
-  for (const candidate of [name, `${FLOWS}/${name}`, `${NOTES}/${name}`]) {
+  for (const candidate of [name, `${FLOWS}/${name}`]) {
     if (existsSync(path.join(REPO_ROOT, candidate))) return candidate;
   }
   throw new Error(`build-index: no such artifact: ${name}`);
@@ -153,10 +151,7 @@ const describe = (file: string): Entry => {
 const chooseSet = (paths: string[]): Entry[] => {
   if (paths.length > 0) return paths.map((p) => describe(locate(p)));
   if (existsSync(path.join(REPO_ROOT, MANIFEST))) return fromManifest();
-  return [
-    ...globSync(`${FLOWS}/wireframes-*.html`, { cwd: REPO_ROOT }),
-    ...globSync(`${NOTES}/*.html`, { cwd: REPO_ROOT }),
-  ]
+  return globSync(`${FLOWS}/wireframes-*.html`, { cwd: REPO_ROOT })
     .filter((file) => file !== OUT)
     .sort()
     .map(describe);
@@ -174,7 +169,7 @@ const escapeHtml = (text: string) =>
 const CSS = `
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
-body{font-family:"Work Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   background:#171412;color:#fafaf9;display:grid;grid-template-columns:300px 1fr;
   height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased}
 body.solo{grid-template-columns:0 1fr}
@@ -288,7 +283,7 @@ const build = (entries: Entry[], out: string) => {
 <title>${escapeHtml(heading)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23171412'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%230e7869' stroke-width='2.5'/%3E%3C/svg%3E">
 <style>${CSS}</style>
 </head>

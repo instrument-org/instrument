@@ -125,6 +125,15 @@ function MessageScrollerProvider(
 // stop at all. Clicking still focuses it, so the arrow keys scroll it as soon
 // as a reader is in it; the ring that would otherwise follow that click is
 // what `outline-none` drops.
+//
+// Both axes are declared, because leaving one out does not mean what it reads
+// like: an axis left `visible` beside an `auto` one computes to `auto` itself.
+// A transcript is a column, and anything in it that is genuinely wider than the
+// column -- a table, a code block -- carries its own horizontal scroller, so
+// the pane has nothing to offer sideways. Left implicit, a stray pixel of
+// overflow buys a horizontal scrollbar across the foot of the conversation,
+// which is invisible where scrollbars are overlays and a permanent grey band
+// where they are not.
 function MessageScrollerViewport({
   className,
   tabIndex = -1,
@@ -133,7 +142,7 @@ function MessageScrollerViewport({
   return (
     <MessageScrollerPrimitive.Viewport
       className={cn(
-        "size-full min-h-0 min-w-0 scrollbar-thin scrollbar-color overflow-y-auto overscroll-contain outline-none",
+        "size-full min-h-0 min-w-0 scrollbar-thin scrollbar-color overflow-x-hidden overflow-y-auto overscroll-contain outline-none",
         className,
       )}
       data-slot="message-scroller-viewport"

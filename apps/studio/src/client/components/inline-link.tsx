@@ -1,6 +1,7 @@
 import { useImageArrival } from "@/client/hooks/use-image-arrival";
 import { getFaviconUrl } from "@/client/lib/favicon-url";
 import {
+  destinationParts,
   mailtoAddress,
   originToDisclose,
   webUrl,
@@ -11,6 +12,8 @@ import { type ReactNode, useState } from "react";
 
 import { EmailLink } from "./email-link";
 import { ExternalLink } from "./external-link";
+import { FAVICON_SURFACE_CLASS_NAME } from "./favicon";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 /**
  * A chip drawn inside a sentence: a small icon, then a short label naming what
@@ -116,6 +119,38 @@ export function InlineLink({
 }
 
 /**
+ * The URL a link leads to, whole.
+ *
+ * Read in one pass by the same order a reader checks it in: the scheme, then
+ * the host that decides where the click lands, then the path it asks that host
+ * for. Only the host is at full strength, which is what lets a glance answer
+ * the question without reading the rest -- and it is the same string the origin
+ * beside the label would have shown, so the two never disagree.
+ *
+ * Credentials are muted along with the scheme rather than drawn as part of the
+ * host, because they are chosen by whoever wrote the href and decide nothing
+ * about where it goes. `https://github.com@evil.test/x` is the whole reason:
+ * one bright run reads as a destination beginning with a name the reader
+ * trusts, and dimming the `github.com@` leaves `evil.test` as the only thing
+ * the glance lands on.
+ *
+ * Broken anywhere rather than between words. A URL is a single unbreakable
+ * token, so a line that may only break at a space is a line that runs out past
+ * the tooltip's own edge.
+ */
+function LinkDestination({ url }: { url: URL }) {
+  const { authority, credentials, scheme, tail } = destinationParts(url);
+
+  return (
+    <p className="break-all" data-slot="link-destination">
+      <span className="opacity-60">{`${scheme}${credentials}`}</span>
+      {authority}
+      <span className="opacity-60">{tail}</span>
+    </p>
+  );
+}
+
+/**
  * A link to an address, as a chip naming who the mail is for.
  *
  * A chip rather than a disclosed origin because an address is already the whole
@@ -156,12 +191,19 @@ function MailLink({
  * The whole thing is one anchor, so a click anywhere on it opens the same URL,
  * and the label is wrapped in `bdi` so a right-to-left one cannot reorder
  * itself around what sits beside it.
+ *
+ * Hovering it gives up the rest: the full URL, path and query included, which
+ * is what a browser puts in the status bar of a window this app does not have.
+ * A tooltip is where it goes instead, and the delay in front of one is what
+ * makes that bearable -- a pointer crossing a paragraph of links passes over
+ * them rather than pausing on one, and only the pause is a question.
  */
 function WebLink({
   children,
   className,
   href,
   label,
+  title,
   ...props
 }: React.ComponentProps<"a"> & {
   href: string;
@@ -171,11 +213,15 @@ function WebLink({
   const url = webUrl(href);
   const origin = url ? originToDisclose(label, url) : null;
 
-  return (
+  const anchor = (
     <ExternalLink
       {...props}
       className={cn(INLINE_LINK_CLASS_NAME, className)}
       href={href}
+      // A Markdown title is the same hover, drawn by the OS a beat later. The
+      // tooltip below says it instead, so the attribute stays only on the links
+      // that get no tooltip; left on the rest, the two arrive stacked.
+      title={url ? undefined : title}
     >
       {/* An image is an atomic inline, and the boundary between one and the
           text after it is an ordinary place to wrap, which left the icon
@@ -204,6 +250,23 @@ function WebLink({
         >{` (${origin})`}</span>
       )}
     </ExternalLink>
+  );
+
+  // Everything else that reaches here -- a relative href, a scheme this does
+  // not recognize -- names no page, and repeating an href that is already the
+  // label is not a destination anyone was missing.
+  if (!url) {
+    return anchor;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{anchor}</TooltipTrigger>
+      <TooltipContent maxWidth="24rem">
+        {title && <p className="mb-1">{title}</p>}
+        <LinkDestination url={url} />
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -270,7 +333,8 @@ function SiteIcon({ className, href }: { className?: string; href: string }) {
       // wins where prose was not applied in the first place -- which is to say,
       // everywhere the margin was already zero.
       className={cn(
-        "my-0! size-3 shrink-0 rounded-xs bg-background align-middle",
+        "my-0! size-3 shrink-0 rounded-xs align-middle",
+        FAVICON_SURFACE_CLASS_NAME,
         arrival.className,
         className,
       )}

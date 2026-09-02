@@ -60,6 +60,27 @@ export namespace AIGatewayModel {
   });
   export type Restriction = z.output<typeof RestrictionSchema>;
 
+  /**
+   * What the model does about thinking, when the provider says anything at all.
+   *
+   * `efforts` holds the provider's own words rather than ours, and stays an
+   * open string list because there is no vocabulary to write down: across the
+   * models that name their levels there are more than twenty distinct sets,
+   * from `high,medium,low` to a model whose only level is `high`. An enum would
+   * be wrong for most of them the day it was written.
+   *
+   * `mandatory` means the model thinks whether or not we ask, so a level of
+   * none is not reachable. `enabledByDefault` is the weaker form: it thinks
+   * unless told otherwise.
+   */
+  export const ReasoningSchema = z.object({
+    defaultEffort: z.string().optional(),
+    efforts: z.array(z.string()),
+    enabledByDefault: z.boolean(),
+    mandatory: z.boolean(),
+  });
+  export type Reasoning = z.output<typeof ReasoningSchema>;
+
   export const Schema = z.object({
     author: z.string(),
     canonicalId: AIGatewayModelURI.CanonicalIdSchema,
@@ -80,6 +101,11 @@ export namespace AIGatewayModel {
     params: AIGatewayModelURI.ParamsSchema,
     providerId: ProviderIdSchema,
     providerName: z.string(),
+    /**
+     * Optional for the reason `contextLength` is: only OpenRouter-shaped
+     * responses carry it, and absent means unknown rather than none.
+     */
+    reasoning: ReasoningSchema.optional(),
     restricted: RestrictionSchema.optional(),
     tags: ModelTagsSchema,
     uri: AIGatewayModelURI.Schema,

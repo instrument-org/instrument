@@ -38,7 +38,8 @@ vi.mock("@/client/rpc/client", () => ({
 const TASK_ID = TaskIdSchema.parse("a-task");
 
 // A `.md` that arrived in the task folder: one image of every kind the agent's
-// own markdown would be allowed to fetch, plus the embedded one that stays.
+// own markdown would be allowed to fetch, plus the embedded one that stays and
+// the chart the file wrote beside itself.
 const MARKDOWN_FILE = [
   "# Notes",
   "![embedded](data:image/png;base64,QUJD)",
@@ -76,21 +77,27 @@ afterEach(() => {
 // cloned repo, an attachment, agent output -- and an `<img>` naming a host is
 // fetched the moment the preview renders, with no click in between.
 describe("FileViewer markdown preview", () => {
-  it("draws only the file's embedded images", async () => {
+  // The file's own chart is the one thing here that is not a request of the
+  // author's choosing: the path names no origin, so resolved against the
+  // document it lands where the file itself was read from. It sits in
+  // `output/`, so a join from the task root would have drawn the wrong URL.
+  it("draws the file's own images and nothing it names a host for", async () => {
     const { container } = renderMarkdownFile();
     await screen.findByText("Notes");
 
     const sources = [...container.querySelectorAll("img")].map((image) =>
       image.getAttribute("src"),
     );
-    expect(sources).toEqual(["data:image/png;base64,QUJD"]);
+    expect(sources).toEqual([
+      "data:image/png;base64,QUJD",
+      "http://assets.a-task.localhost:1234/output/chart.png",
+    ]);
   });
 
-  // A rejected source stands as a chip naming its host. A chip with a web
-  // source is a button out to the system browser, the same trust a link in
-  // the same document gets; a path names nothing a browser could be handed,
-  // so that chip is not a button at all.
-  it("offers a web image as a click out to the browser, and a path as none", async () => {
+  // A rejected source stands as a chip naming its host, and a chip with a web
+  // source is a button out to the system browser -- the same trust a link in
+  // the same document gets.
+  it("offers a web image as a click out to the browser", async () => {
     renderMarkdownFile();
     await screen.findByText("Notes");
 
@@ -98,8 +105,7 @@ describe("FileViewer markdown preview", () => {
       screen.getByRole("button", { name: /raw\.githubusercontent\.com/ }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: /x\.localhost/ })).toBeTruthy();
-    expect(screen.getByText("./chart.png")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /chart\.png/ })).toBeNull();
+    expect(screen.queryByText("./chart.png")).toBeNull();
   });
 
   // The click leaves the app rather than fetching in it: the URL goes to the
@@ -120,6 +126,9 @@ describe("FileViewer markdown preview", () => {
     const sources = [...container.querySelectorAll("img")].map((image) =>
       image.getAttribute("src"),
     );
-    expect(sources).toEqual(["data:image/png;base64,QUJD"]);
+    expect(sources).toEqual([
+      "data:image/png;base64,QUJD",
+      "http://assets.a-task.localhost:1234/output/chart.png",
+    ]);
   });
 });

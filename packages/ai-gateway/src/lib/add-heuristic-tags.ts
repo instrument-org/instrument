@@ -6,7 +6,6 @@ import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 
 const MODEL_TAGS: Record<string, AIGatewayModel.ModelTag[]> = {
   "claude-sonnet-5": ["default"],
-  "grok-build-0.1": ["coding", "recommended"],
 };
 
 // Models that we normally wouldn't set as default, but we for the author
@@ -32,9 +31,65 @@ const NON_CODING_MODALITY =
   /-(?:audio|image|imagine|live|transcribe|tts|video|vision|voice)(?:[-.]|$)/;
 
 /**
- * Tags one model from its id alone. A rule that has to compare a model against
- * the rest of its provider's list lives in `demoteVariantsOfListedModels`,
- * which is what takes `recommended` off a Pro or Fast variant.
+ * A weight count spelled into the id, in billions or trillions and with the
+ * active count of a sparse model beside it: `qwen3.8-27b`,
+ * `qwen3.8-2.4t-a95b`, `llama-3.3-70b-instruct`.
+ *
+ * An author who publishes weights publishes several sizes of one release, and
+ * which size to run is a judgment about the machine serving it rather than
+ * about the model. So these stay in the picker and out of the recommendations,
+ * where the hosted build of the same release already speaks for the line.
+ */
+const NAMES_A_WEIGHT_COUNT = /(?:^|-)a?\d+(?:\.\d+)?[bt](?:[-:]|$)/;
+
+/**
+ * The generation each family is shipping now, which is what a model has to
+ * reach to be put forward at all.
+ *
+ * Not which release of a family is the current one: `demoteSupersededModels`
+ * reads that off the provider's list. So a floor moves when a whole lineup
+ * moves, which is why Anthropic's four tiers sit at one number and Haiku, a
+ * generation back at 4.5, clears it again when a Haiku 5 ships.
+ */
+const RECOMMENDED_FLOORS: [prefix: string, floor: number][] = [
+  ["claude-fable-", 5],
+  ["claude-haiku-", 5],
+  ["claude-opus-", 5],
+  ["claude-sonnet-", 5],
+  ["deepseek-v", 4],
+  ["gemini-", 3],
+  ["glm-", 5.2],
+  ["gpt-", 5.5],
+  ["grok-", 4.5],
+  ["kimi-k", 2.6],
+  ["minimax-m", 3],
+  // Qwen folded its coder line into the numbered releases, so the floor reads
+  // the release rather than a `-coder` suffix that no longer ships.
+  ["qwen", 3.7],
+];
+
+/**
+ * Lines this app can drive a coding turn with whatever version they name, which
+ * is how an alias carrying no release at all (`claude-opus-latest`) stays
+ * usable instead of reading as a model we cannot run.
+ */
+const CODING_PREFIXES = [
+  "claude-fable-",
+  "claude-haiku-",
+  "claude-opus-",
+  "claude-sonnet-",
+];
+
+/**
+ * Tags one model from its id alone, which is as far as a single model can be
+ * judged: whether this app can drive a coding turn with it, and whether its
+ * release is recent enough to be worth recommending at all.
+ *
+ * Which release of a line is the current one is a question about the rest of
+ * the list, so it is answered where the list is whole:
+ * `demoteVariantsOfListedModels` takes `recommended` off a Pro or Fast variant
+ * of something already listed, and `demoteSupersededModels` takes it off a
+ * release its author has replaced.
  */
 export function addHeuristicTags(
   model: AIGatewayModel.Type,
@@ -48,10 +103,6 @@ export function addHeuristicTags(
 
   if (isLegacy(canonicalId)) {
     tags = [...tags.filter((tag) => tag !== "recommended"), "legacy"];
-  }
-
-  if (canonicalId.startsWith("o-") && config.type === "openai") {
-    tags.push("legacy");
   }
 
   if (
@@ -86,75 +137,46 @@ function getDynamicTags(
     return [];
   }
 
-  if (canonicalId.startsWith("gpt-")) {
-    if (canonicalId.includes("nano")) {
-      return ["coding"];
-    }
+  const tags = getFloorTags(canonicalId);
 
-    if (matchesVersionFloor(canonicalId, "gpt-", 5.5)) {
-      return ["coding", "recommended"];
-    }
-    return matchesVersionFloor(canonicalId, "gpt-", 5) ? ["coding"] : [];
+  return NAMES_A_WEIGHT_COUNT.test(canonicalId)
+    ? tags.filter((tag) => tag !== "recommended")
+    : tags;
+}
+
+function getFloorTags(
+  canonicalId: AIGatewayModel.CanonicalId,
+): AIGatewayModel.ModelTag[] {
+  // Nano is a step under the smallest tier worth putting forward, and it stays
+  // usable at whatever version it carries.
+  if (canonicalId.startsWith("gpt-") && canonicalId.includes("nano")) {
+    return ["coding"];
   }
 
-  // Anthropic's lineup is Fable 5, Opus 5, Sonnet 5, and Haiku 4.5; every other
-  // Claude is one Anthropic itself files under legacy.
   if (
-    canonicalId.startsWith("claude-sonnet-") ||
-    canonicalId.startsWith("claude-haiku-") ||
-    canonicalId.startsWith("claude-opus-") ||
-    canonicalId.startsWith("claude-fable-")
+    RECOMMENDED_FLOORS.some(([prefix, floor]) =>
+      matchesVersionFloor(canonicalId, prefix, floor),
+    )
   ) {
-    if (
-      matchesVersionFloor(canonicalId, "claude-sonnet-", 5) ||
-      matchesVersionFloor(canonicalId, "claude-haiku-", 4.5) ||
-      matchesVersionFloor(canonicalId, "claude-opus-", 5) ||
-      matchesVersionFloor(canonicalId, "claude-fable-", 5)
-    ) {
-      return ["coding", "recommended"];
-    }
+    return ["coding", "recommended"];
+  }
+
+  if (CODING_PREFIXES.some((prefix) => canonicalId.startsWith(prefix))) {
     return ["coding"];
   }
 
-  // Gemini's Pro line stops at 3.1 while Flash has run on to 3.7, so the floor
-  // has to sit below the newest release or the only Pro on offer drops out.
-  if (matchesVersionFloor(canonicalId, "gemini-", 3.1)) {
-    return ["coding", "recommended"];
-  }
-  if (matchesVersionFloor(canonicalId, "gemini-", 3)) {
-    return ["coding"];
-  }
-
-  if (matchesVersionFloor(canonicalId, "grok-", 4.5)) {
-    return ["coding", "recommended"];
-  }
-
-  if (matchesVersionFloor(canonicalId, "glm-", 5.2)) {
-    return ["coding", "recommended"];
-  }
-
-  if (matchesVersionFloor(canonicalId, "kimi-k", 2.6)) {
-    return ["coding", "recommended"];
-  }
-
-  if (matchesVersionFloor(canonicalId, "minimax-m", 3)) {
-    return ["coding", "recommended"];
-  }
-
-  // Qwen folded its coder line into the numbered releases, so the floor reads
-  // the release rather than a `-coder` suffix that no longer ships.
-  if (matchesVersionFloor(canonicalId, "qwen", 3.7)) {
-    return ["coding", "recommended"];
-  }
-
-  if (matchesVersionFloor(canonicalId, "deepseek-v", 4)) {
-    return ["coding", "recommended"];
-  }
-
-  return [];
+  // GPT can drive a coding turn from 5 up, half a release below the floor at
+  // which it is worth putting forward.
+  return matchesVersionFloor(canonicalId, "gpt-", 5) ? ["coding"] : [];
 }
 
 function isLegacy(canonicalId: AIGatewayModel.CanonicalId): boolean {
+  // OpenAI's reasoning line, retired into GPT-5. The ids run `o1`, `o3-mini`,
+  // `o4-mini-high`, with no dash between the letter and the number.
+  if (/^o\d/.test(canonicalId)) {
+    return true;
+  }
+
   if (canonicalId.startsWith("claude-3")) {
     return true;
   }

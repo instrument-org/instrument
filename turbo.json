@@ -42,7 +42,8 @@
         "WAYLAND_DISPLAY",
         "WIN_CERT_PATH",
         "WIN_GCP_KMS_KEY_VERSION",
-        "WIN_TIMESTAMP_URL"
+        "WIN_TIMESTAMP_URL",
+        "XDG_SESSION_TYPE"
       ],
       "outputs": ["dist/**", "out/**"]
     },

@@ -40,6 +40,7 @@ import {
   groupCanExpand,
   groupStandInRowId,
   isActiveToolPart,
+  isPartBeingWritten,
   isVisibleAssistantPart,
   planRow,
   type TranscriptGroup as TranscriptGroupData,
@@ -52,10 +53,13 @@ import { Button } from "./ui/button";
 import { MessageScrollerItem } from "./ui/message-scroller";
 import { Wordmark } from "./wordmark";
 
-// How far the rows a group holds sit inside its head line: one step in, enough
-// that the indent reads at a glance without pushing the run away from the
-// margin the rest of the transcript is set against.
-const GROUP_INDENT = "pl-6";
+// How far the rows a group holds sit inside its head line: the room a working
+// heading's live indicator takes, which is the dot's 20px slot and the row's 8px
+// gap less the 2px the heading is nudged by to sit the dot right. So while a
+// phase runs, its steps begin exactly where its own title begins -- an icon
+// under the first letter of the heading rather than two pixels off it. Once the
+// heading settles and the dot goes, the same 26px is what reads as the indent.
+const GROUP_INDENT = "pl-6.5";
 
 // The wordmark's row key, for the one case where it is not a message's own
 // chrome but a row in the turn that has not started yet.
@@ -65,20 +69,26 @@ const TURN_WORDMARK_ID = "turn-wordmark";
 // empty assistant messages arrive before the first visible part.
 const PLANNING_ROW_ID = "planning";
 
-// What the agent said, held apart from what it did. 24px between a paragraph
-// and a run of steps rather than the 8px the transcript puts between rows, so
-// two things that look alike -- one line of text, the same size, the same
-// leading -- read as the different kinds of thing they are. Runs of steps stay
-// 8px from each other: the boundary is prose, not every group edge.
+// What the agent said, held apart from what it did. 24px above a paragraph
+// written under a run of steps rather than the 8px the transcript puts between
+// rows, so two things that look alike -- one line of text, the same size, the
+// same leading -- read as the different kinds of thing they are. Runs of steps
+// stay 8px from each other: the boundary is prose, not every group edge.
 //
 // 16px on top of the 8px already there, and always on the lower of the two
 // rows; see `hasProseBoundaryAbove` for why it can only be read that way.
+//
+// The boundary is not symmetric. A run opening under a paragraph is that
+// sentence's own consequence and is held closer to it; `PROSE_GAP_IN_GROUP` is
+// where that side is set.
 const PROSE_GAP = "mt-4";
 
-// The same 16px, as padding, for a run of steps opening under a paragraph. The
-// group box's own -4px margin is what holds its steps on the rhythm, so a
-// margin here would be resolved against it rather than added to it.
-const PROSE_GAP_IN_GROUP = "pt-4";
+// 12px, as padding, for a run of steps opening under a paragraph. With the 8px
+// turn gap this leaves a 20px boundary: enough to distinguish action from
+// prose without letting a single tool row drift away from the sentence that
+// introduced it. The group box's own -4px margin is what holds its steps on
+// the rhythm, so a margin here would be resolved against it rather than added.
+const PROSE_GAP_IN_GROUP = "pt-3";
 
 // The box a whole turn is drawn in, and the box a message the reader sent is
 // drawn in. `gap-2` is the transcript's own rhythm, restated inside the box so
@@ -92,11 +102,19 @@ const TURN_BOX = "group/assistant-turn flex flex-col gap-2";
 const SENT_BOX = "flex flex-col gap-2";
 
 interface AssistantMessageCheck {
+  /**
+   * The session, which is the only thing that can say whether a part is still
+   * being written into: one carries a start with no end long after the run that
+   * wrote it died. Handed on to `isPartBeingWritten` rather than folded into a
+   * flag here, so this check and the transcript layout ask it the same way.
+   */
+  isAgentRunning: boolean;
   isDeveloperMode: boolean;
   isToolStreaming: (
     part: SessionMessagePart.ToolPart,
     message: SessionMessage.WithParts,
   ) => boolean;
+  lastMessageId: StoreId.Message | undefined;
   message: SessionMessage.AssistantWithParts;
 }
 
@@ -170,12 +188,41 @@ export function ChatStream({
     ReadonlySet<StoreId.Part>
   >(() => new Set());
 
-  const toggleGroup = (groupId: StoreId.Part) => {
+  const toggleGroup = (group: TranscriptGroupData) => {
     releaseAutoScroll();
+    const isOpening = !expandedGroupIds.has(group.id);
     setExpandedGroupIds((current) => {
       const next = new Set(current);
-      if (!next.delete(groupId)) {
-        next.add(groupId);
+      if (!next.delete(group.id)) {
+        next.add(group.id);
+      }
+      return next;
+    });
+
+    // A run the agent never named is headed by a copy of one of its own steps,
+    // so the click that opened it was a click on that step. Opening the run
+    // alone answers with the row the reader just clicked, shut, somewhere among
+    // its neighbors; opening the step too is what they asked for. Shutting takes
+    // both back, since the head line is the only thing left to shut the run
+    // with.
+    //
+    // A named phase is headed by its own title instead, and a click there asks
+    // for the phase's steps rather than any one of them. Its copy is an ordinary
+    // row that already opens itself and the phase around it; see
+    // `setRowExpanded`.
+    const headRowId =
+      group.headingRowId === undefined
+        ? groupStandInRowId({ group, isExpanded: !isOpening })
+        : undefined;
+    if (headRowId === undefined) {
+      return;
+    }
+    setExpandedRowIds((current) => {
+      const next = new Set(current);
+      if (isOpening) {
+        next.add(headRowId);
+      } else {
+        next.delete(headRowId);
       }
       return next;
     });
@@ -203,8 +250,10 @@ export function ChatStream({
   const lastAssistantMessageHasVisibleParts =
     lastAssistantMessage !== undefined &&
     hasVisibleAssistantParts({
+      isAgentRunning,
       isDeveloperMode,
       isToolStreaming,
+      lastMessageId,
       message: lastAssistantMessage,
     });
 
@@ -712,8 +761,10 @@ export function ChatStream({
 // can see. An abort does not: it draws nothing outside developer mode, and a
 // turn stopped before it started is one the user is looking away from already.
 function assistantMessageHasContent({
+  isAgentRunning,
   isDeveloperMode,
   isToolStreaming,
+  lastMessageId,
   message,
 }: AssistantMessageCheck) {
   const error = message.metadata.error;
@@ -721,8 +772,10 @@ function assistantMessageHasContent({
     return true;
   }
   return hasVisibleAssistantParts({
+    isAgentRunning,
     isDeveloperMode,
     isToolStreaming,
+    lastMessageId,
     message,
   });
 }
@@ -766,7 +819,7 @@ function collectGroups({
 }: {
   groups: Map<StoreId.Part, TranscriptGroupData>;
   isGroupExpanded: (group: TranscriptGroupData | undefined) => boolean;
-  onToggle: (groupId: StoreId.Part) => void;
+  onToggle: (group: TranscriptGroupData) => void;
   renderStandIn: (group: TranscriptGroupData) => React.ReactNode;
   rows: MessageRow[];
 }): React.ReactNode[] {
@@ -817,7 +870,7 @@ function collectGroups({
         isExpanded={isGroupExpanded(group)}
         key={`group-${group.id}-${run.rows[0]?.id ?? ""}`}
         onToggle={() => {
-          onToggle(group.id);
+          onToggle(group);
         }}
       >
         {heading !== undefined && (
@@ -839,13 +892,21 @@ function collectGroups({
  * a settled group keeps its rows and shows one of them. This is about the parts.
  */
 function hasVisibleAssistantParts({
+  isAgentRunning,
   isDeveloperMode,
   isToolStreaming,
+  lastMessageId,
   message,
 }: AssistantMessageCheck) {
-  return message.parts.some((part) =>
+  return message.parts.some((part, partIndex) =>
     isVisibleAssistantPart({
       isDeveloperMode,
+      isLivePart: isPartBeingWritten({
+        isAgentRunning,
+        lastMessageId,
+        message,
+        partIndex,
+      }),
       isStreaming: isToolPart(part) ? isToolStreaming(part, message) : false,
       part,
     }),
@@ -873,10 +934,10 @@ function readTurnOpenings({
   isDeveloperMode,
   isToolStreaming,
   regularMessages,
-}: Omit<AssistantMessageCheck, "message"> & {
-  isAgentRunning: boolean;
+}: Omit<AssistantMessageCheck, "lastMessageId" | "message"> & {
   regularMessages: SessionMessage.WithParts[];
 }) {
+  const lastMessageId = regularMessages.at(-1)?.id;
   const wordmarkMessageIds = new Set<StoreId.Message>();
   let openedBy: SessionMessage.WithParts | undefined;
   let hasContent = false;
@@ -897,8 +958,10 @@ function readTurnOpenings({
     }
     openedBy ??= message;
     hasContent ||= assistantMessageHasContent({
+      isAgentRunning,
       isDeveloperMode,
       isToolStreaming,
+      lastMessageId,
       message,
     });
   }
@@ -916,7 +979,10 @@ function readTurnOpenings({
 // What opens an assistant turn, wherever the turn is opening from.
 function TurnWordmark() {
   return (
-    <div className="flex justify-start">
+    // The wordmark owns the extra 10px below it so prose and tool rows begin on
+    // the same visual rhythm. Putting it on either row would make the spacing
+    // depend on which kind of content happens to open the turn.
+    <div className="flex justify-start pb-2.5">
       <Wordmark className="mt-5 mb-2 h-5.5 text-black/30 dark:text-white/30" />
     </div>
   );

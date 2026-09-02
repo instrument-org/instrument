@@ -31,6 +31,11 @@ vi.mock("@/client/components/theme-provider", () => ({
   }),
 }));
 
+// What `GROUP_INDENT` puts on a row drawn inside a group. Matched as a class
+// token rather than written `.pl-6.5`, which a selector parser reads as two
+// classes and finds nothing.
+const INDENTED = '[class~="pl-6.5"]';
+
 const sessionId = StoreId.newSessionId();
 const messageId = StoreId.newMessageId();
 
@@ -82,6 +87,20 @@ function assistantMessage(
     metadata: { createdAt: new Date(0), sessionId, ...extraMetadata },
     parts,
     role: "assistant",
+  };
+}
+
+/**
+ * A reasoning block that opened and never wrote anything under it, which is
+ * what a provider that holds its end event until the step finishes leaves
+ * behind while the step runs. It draws no row of its own at any point.
+ */
+function blankThinking() {
+  return {
+    metadata: metadata(),
+    state: "streaming",
+    text: "",
+    type: "reasoning",
   };
 }
 
@@ -356,6 +375,17 @@ describe("ChatStream groups the agent named", () => {
     expect(screen.getByText("Reading the second quarter")).toBeDefined();
   });
 
+  // Its head line is the phase's own title rather than a copy of a step, so a
+  // click there asks for the phase's steps and not any one of their outputs.
+  it("leaves every step shut when the heading is what was clicked", () => {
+    renderTranscript();
+
+    fireEvent.click(screen.getByText("Reading each quarter"));
+
+    expect(isRowOpen("Reading the first quarter")).toBe(false);
+    expect(isRowOpen("Reading the second quarter")).toBe(false);
+  });
+
   // A heading that is still taking rows is what says the agent is working, and
   // it says it in the same shimmer any in-flight row uses.
   it("says it is working through the heading", () => {
@@ -382,7 +412,7 @@ describe("ChatStream groups the agent named", () => {
     // folded group holds still as the agent works down the transcript.
     const [inFlight] = screen.getAllByText("Reading the second quarter");
     expect(screen.getAllByText("Reading the second quarter")).toHaveLength(1);
-    expect(inFlight?.closest(".pl-6")).not.toBeNull();
+    expect(inFlight?.closest(INDENTED)).not.toBeNull();
     expect(screen.queryByText("Reading the first quarter")).toBeNull();
   });
 });
@@ -432,6 +462,56 @@ describe("ChatStream groups the agent never named", () => {
 
     // Once heading the group, once where it falls in the run.
     expect(screen.getAllByText("Reading the third quarter")).toHaveLength(2);
+  });
+
+  // The run's head line is a copy of one of its own steps, so the click that
+  // opens the run landed on that step; see `toggleGroup`. Nothing is in flight
+  // here, which is what leaves the head line on the last step the run finished.
+  const betweenSteps = () => [
+    assistantMessage([read({ explanation: "Reading the first quarter" })]),
+    assistantMessage([read({ explanation: "Reading the second quarter" })]),
+    assistantMessage([read({ explanation: "Reading the third quarter" })]),
+  ];
+
+  it("opens the step its head line copies, not only the run behind it", () => {
+    renderMessages(betweenSteps(), { isAgentRunning: true });
+
+    clickRow("Reading the third quarter");
+
+    expect(screen.getByText("Reading the first quarter")).toBeDefined();
+    expect(isRowOpen("Reading the third quarter")).toBe(true);
+    // That one and no other: the rest of the run comes up shut, the way it
+    // would have if the reader had opened the run from anywhere else.
+    expect(isRowOpen("Reading the first quarter")).toBe(false);
+  });
+
+  it("shuts that step again along with the run, and leaves it shut", () => {
+    const messages = betweenSteps();
+    const { rerender } = renderMessages(messages, { isAgentRunning: true });
+
+    clickRow("Reading the third quarter");
+    clickRow("Reading the third quarter");
+
+    expect(screen.queryByText("Reading the first quarter")).toBeNull();
+
+    // The agent takes another step, which is what the run is headed by now.
+    // Opening it again answers with that step alone: what the reader shut is
+    // still shut behind it rather than coming back with it.
+    rerender(
+      chatStream(
+        [
+          ...messages,
+          assistantMessage([
+            read({ explanation: "Reading the fourth quarter" }),
+          ]),
+        ],
+        { isAgentRunning: true },
+      ),
+    );
+    clickRow("Reading the fourth quarter");
+
+    expect(isRowOpen("Reading the fourth quarter")).toBe(true);
+    expect(isRowOpen("Reading the third quarter")).toBe(false);
   });
 
   it("names the finished run from what it turned out to contain", () => {
@@ -498,7 +578,7 @@ describe("ChatStream groups that span messages", () => {
 
     const note = screen.getByText("These are older than I expected.");
     expect(note).toBeDefined();
-    expect(note.closest(".pl-6")).toBeNull();
+    expect(note.closest(INDENTED)).toBeNull();
   });
 
   // Everything the agent said stays said. Phases open and close above and below
@@ -514,10 +594,10 @@ describe("ChatStream groups that span messages", () => {
     ]);
 
     expect(
-      screen.getByText("These are older than I expected.").closest(".pl-6"),
+      screen.getByText("These are older than I expected.").closest(INDENTED),
     ).toBeNull();
     expect(
-      screen.getByText("Revenue grew in the north.").closest(".pl-6"),
+      screen.getByText("Revenue grew in the north.").closest(INDENTED),
     ).toBeNull();
   });
 
@@ -637,10 +717,11 @@ describe("ChatStream and the wordmark over a turn", () => {
   });
 });
 
-// 24px where a paragraph meets a run of steps, against the 8px the rest of the
-// transcript sits on: 16px of it here, on top of the container's own gap. It
-// hangs off the lower of the two rows so that nothing already drawn changes
-// height when the agent takes its next step.
+// The boundary between what the agent said and what it did, which is not the
+// same size in both directions: 24px above a paragraph written under a run,
+// 20px above a run opening under a paragraph, against the 8px the rest of the
+// transcript sits on. Either way it hangs off the lower of the two rows so that
+// nothing already drawn changes height when the agent takes its next step.
 describe("ChatStream and the space around what the agent said", () => {
   const runBox = (text: string) => screen.getByText(text).closest(".-my-1");
 
@@ -671,7 +752,7 @@ describe("ChatStream and the space around what the agent said", () => {
       ]),
     ]);
 
-    expect(runBox("Read 2 files")?.className).toContain("pt-4");
+    expect(runBox("Read 2 files")?.className).toContain("pt-3");
   });
 
   it("leaves one phase against the next on the transcript's own rhythm", () => {
@@ -685,10 +766,10 @@ describe("ChatStream and the space around what the agent said", () => {
       ]),
     ]);
 
-    expect(runBox("Charting them")?.className).not.toContain("pt-4");
+    expect(runBox("Charting them")?.className).not.toContain("pt-3");
   });
 
-  it("leaves the run that opens a turn alone, which the wordmark spaces", () => {
+  it("uses the wordmark's space when a run opens directly beneath it", () => {
     renderMessages([
       userMessage("Read every quarter."),
       assistantMessage([
@@ -697,7 +778,9 @@ describe("ChatStream and the space around what the agent said", () => {
       ]),
     ]);
 
-    expect(runBox("Reading each quarter")?.className).not.toContain("pt-4");
+    const openingRun = runBox("Reading each quarter");
+    expect(openingRun?.className).not.toContain("pt-3");
+    expect(openingRun?.previousElementSibling?.className).toContain("pb-2.5");
   });
 });
 
@@ -992,5 +1075,24 @@ describe("ChatStream and the calls waiting behind the one running", () => {
 
     fireEvent.click(screen.getByText("Reading each quarter"));
     expect(screen.getByText("Reading the third quarter")).toBeDefined();
+  });
+});
+
+// Whether the run is still writing into a part is asked by the layout, which
+// decides that a row exists, and by the renderer, which decides what it draws.
+// Asked two different ways, the layout counted a blank reasoning row the
+// renderer drew nothing for; that row became the group's stand-in, and with the
+// group's every other row folded behind it there was nothing left to draw.
+//
+// The block's own row is covered either side of the run in
+// `chat-stream-render-part.test.tsx`; what only shows here is what happens to
+// everything folded behind it.
+describe("ChatStream and a reasoning block that never wrote anything", () => {
+  it("keeps the steps beside it on screen while the run is going", () => {
+    renderParts([blankThinking(), read({ explanation: "Reading Q1" })], {
+      isAgentRunning: true,
+    });
+
+    expect(screen.getByText("Reading Q1")).toBeTruthy();
   });
 });

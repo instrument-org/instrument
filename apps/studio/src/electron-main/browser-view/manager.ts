@@ -24,7 +24,10 @@ import {
 import fs from "node:fs";
 import { noop } from "radashi";
 
-import { applyStandardUserAgent } from "../lib/user-agent";
+import {
+  applyChromeBrandedMetadata,
+  applyStandardUserAgent,
+} from "../lib/user-agent";
 import { attachDevHooks, notifyDebugChange } from "./dev-hooks";
 import { type DeviceEmulation, setDeviceEmulation } from "./device-emulation";
 import { sendCommand } from "./dispatch-command";
@@ -146,6 +149,10 @@ export function createBrowserViewManager(): BrowserViewManager {
     }
     const { targetId } = entry;
     wc.debugger.attach("1.3");
+    // Pairs with the guest session's Chrome-branded client hints: the headers
+    // and navigator.userAgentData have to name the same browser, and this is
+    // the only side that needs the debugger.
+    applyChromeBrandedMetadata(wc);
 
     wc.debugger.on("message", (_event, method, params: unknown) => {
       const current = entries.get(targetId);
@@ -691,7 +698,9 @@ function sessionForEntry(entry: BrowserEntry) {
   guestSession.setPermissionCheckHandler(() => false);
   // Normalize the guest's User-Agent to a standard Chrome UA (and matching
   // client hints) so third-party services treat it like an ordinary browser.
-  applyStandardUserAgent(guestSession);
+  // Branded as Chrome because the guest's pages get the matching metadata over
+  // CDP; see applyChromeBrandedMetadata.
+  applyStandardUserAgent(guestSession, { chromeBranded: true });
   return guestSession;
 }
 

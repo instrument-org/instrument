@@ -174,10 +174,13 @@ export function imageUnavailable({
 }
 
 export function loadedSkill({
+  content,
   explanation,
   name,
   streamedName,
 }: {
+  /** The document itself, for a case that is about how a skill is drawn. */
+  content?: string;
   explanation?: string;
   name: string;
   /** Half a name, for the row drawn before the skill is known. */
@@ -187,7 +190,8 @@ export function loadedSkill({
     input: { explanation, name },
     output: {
       alreadyLoaded: false,
-      content: `# ${name}\n\nWhat this skill is for and how to use it.`,
+      content:
+        content ?? `# ${name}\n\nWhat this skill is for and how to use it.`,
       contentTruncated: false,
       directory: `skills/${name}`,
       files: [`skills/${name}/SKILL.md`],

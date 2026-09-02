@@ -22,7 +22,9 @@ export function TaskUsageSummary({
     <div className="flex min-w-0 items-center gap-2 text-[10px] text-dev-700/60 dark:text-dev-300/60">
       {data ? (
         <UsageStatsTooltip
+          aria-label={onClick ? "View transcript" : undefined}
           messageCount={data.messageCount}
+          onClick={onClick}
           stats={{
             activeDuration: data.activeMs,
             generationDuration: data.msToFinish,
@@ -36,7 +38,6 @@ export function TaskUsageSummary({
           <UsageSummaryText
             className="min-w-0 truncate text-[10px] hover:text-dev-700 dark:hover:text-dev-300"
             messageCount={data.messageCount}
-            onClick={onClick}
             totalTokens={data.totalTokens}
           />
         </UsageStatsTooltip>

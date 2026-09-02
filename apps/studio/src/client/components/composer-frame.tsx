@@ -83,7 +83,12 @@ export function ComposerFrame({
         )}
       </AnimatePresence>
 
-      <div className="row-start-2 flex min-h-0 flex-col">{children}</div>
+      {/* `min-w-0`: a grid item is floored at the width of its own content,
+          and a pasted link is one word as wide as a paragraph. Without this the
+          row grows to fit it and the draft paints out past the box. */}
+      <div className="row-start-2 flex min-h-0 min-w-0 flex-col">
+        {children}
+      </div>
 
       <div
         className="row-start-3 flex items-end justify-between gap-2 pt-2"

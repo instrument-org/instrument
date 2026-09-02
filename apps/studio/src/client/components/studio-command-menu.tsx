@@ -214,9 +214,12 @@ export function StudioCommandMenu() {
         label: page.label,
         to: page.to,
       })),
+      // Named for the page they open, the way the component and onboarding
+      // pages are: flattened into one list, "Code blocks" alone says nothing
+      // about where it lands.
       ...scenarios.map((scenario) => ({
         key: `scenario:${scenario.id}`,
-        label: scenario.name,
+        label: `Transcript: ${scenario.name}`,
         search: { scenario: scenario.id },
         to: "/debug/components/transcript",
       })),

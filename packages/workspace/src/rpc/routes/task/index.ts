@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { branchTask } from "../../../lib/branch-task";
 import { changedMessageBatches } from "../../../lib/changed-message-batches";
+import { changedTaskBatches } from "../../../lib/changed-task-batches";
 import { createSession } from "../../../lib/create-session";
 import { defaultTaskName } from "../../../lib/default-task-name";
 import { exportTaskZip } from "../../../lib/export-task-zip";
@@ -14,6 +15,7 @@ import { generateTitleFromUserMessage } from "../../../lib/generate-title-from-u
 import { getTask, getTasks } from "../../../lib/get-tasks";
 import { importTask as importTaskLib } from "../../../lib/import-task";
 import { initializeTask } from "../../../lib/initialize-task";
+import { LiveTasksSnapshot } from "../../../lib/live-tasks-snapshot";
 import { newMessage } from "../../../lib/new-message";
 import { newTaskId } from "../../../lib/new-task-id";
 import { pathExists } from "../../../lib/path-exists";
@@ -692,13 +694,55 @@ const live = {
     .input(ListInputSchema)
     .output(eventIterator(TasksWithTotalSchema))
     .handler(async function* ({ context, input, signal }) {
-      yield call(list, input, { context, signal });
+      // Subscribing before the initial scan means no change can land
+      // unobserved between the two; an event for a task the scan already
+      // covered only costs a redundant re-read of that one task.
+      const batches = changedTaskBatches(signal);
 
-      const taskUpdates = publisher.subscribe("task.updated", { signal });
-      const taskRemoved = publisher.subscribe("task.removed", { signal });
+      try {
+        // The snapshot is per subscription rather than shared: the sidebar and
+        // the task list ask for their own sort and limit over the same set, so
+        // sharing would save one scan at boot and still have to order per
+        // subscriber. The scan per event is what this removes.
+        const initial = await getTasks(context.workspaceConfig);
+        const snapshot = new LiveTasksSnapshot(initial.tasks);
+        yield snapshot.list(input);
 
-      for await (const _ of mergeGenerators([taskUpdates, taskRemoved])) {
-        yield call(list, input, { context, signal });
+        // Each batch re-reads only the tasks it names and splices them into the
+        // snapshot, so the work an event costs is proportional to the change
+        // rather than to the size of the workspace. An id the snapshot does not
+        // hold is a task that has just been created, and is added by the same
+        // read. Every yield is the complete list this subscriber asked for.
+        for await (const batch of batches) {
+          for (const taskId of batch.removed) {
+            snapshot.remove(taskId);
+          }
+
+          let rescan = false;
+          for (const taskId of batch.updated) {
+            const taskResult = await getTask(taskId, context.workspaceConfig);
+            if (taskResult.isOk()) {
+              snapshot.upsert(taskResult.value);
+            } else {
+              // A single-task read that fails answers nothing about the task:
+              // its folder may be gone, or its record may be mid-write. The
+              // scan answers both, since a task it does not find is a task that
+              // is no longer in the list.
+              rescan = true;
+            }
+          }
+
+          if (rescan) {
+            const rescanned = await getTasks(context.workspaceConfig);
+            snapshot.reset(rescanned.tasks);
+          }
+
+          yield snapshot.list(input);
+        }
+      } finally {
+        // for await only closes the iterator once the loop has been entered;
+        // this also unsubscribes when the initial scan throws.
+        await batches.return();
       }
     }),
 };

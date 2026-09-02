@@ -77,6 +77,11 @@ export const componentPages = [
     to: "/debug/components/spinner",
   },
   {
+    id: "typography",
+    label: "Typography",
+    to: "/debug/components/typography",
+  },
+  {
     id: "colors",
     label: "Colors",
     to: "/debug/components/colors",

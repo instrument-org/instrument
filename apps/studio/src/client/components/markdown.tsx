@@ -38,8 +38,9 @@ import { useHashLinkScroll } from "../hooks/use-hash-link-scroll";
 import { useOpenExternalLink } from "../hooks/use-open-external-link";
 import { getAssetUrl } from "../lib/get-asset-url";
 import {
+  classifyImageSource,
   type ImageSourceKind,
-  isImageSourceAllowed,
+  isImageKindAllowed,
   MARKDOWN_IMAGE_KINDS,
 } from "../lib/image-policy";
 import {
@@ -76,6 +77,16 @@ interface MarkdownProps {
   // Which bytes this text's file references are about; see
   // `MarkdownTaskContext`.
   assetVersion?: string;
+  /**
+   * This markdown's own asset URL, when it is a file in the task rather than a
+   * message.
+   *
+   * A file sits in a directory, so a relative image source in it means what a
+   * browser would mean by it: `./chart.png` beside `output/report.md` is the
+   * chart in `output/`. A message sits in no directory, so it passes nothing
+   * here and its relative sources join from the task root instead.
+   */
+  documentUrl?: string;
   // Drops the images the allow-list rejects instead of standing a chip in for
   // them. For markdown scraped from a page rather than authored for us: such a
   // page carries logos, badges, and tracker pixels by the dozen, the prose is
@@ -292,6 +303,23 @@ const markdownOrderedList: Components["ol"] = ({
     >
       {children}
     </ol>
+  );
+};
+
+// CSS cannot tell an all-bold paragraph from a bold lead-in followed by a text
+// node: `:only-child` only counts element siblings. Mark the exact parsed shape
+// here so prose rhythm never promotes `**Priority:** ordinary text` into a
+// section label.
+const markdownParagraph: Components["p"] = ({ className, node, ...props }) => {
+  const onlyChild = node?.children.length === 1 ? node.children[0] : undefined;
+  const isSectionLabel =
+    onlyChild?.type === "element" && onlyChild.tagName === "strong";
+
+  return (
+    <p
+      {...props}
+      className={cn(className, isSectionLabel && "markdown-section-label")}
+    />
   );
 };
 
@@ -631,28 +659,72 @@ const MarkdownImage = ({
 const isAbsoluteImageSrc = (src: string) =>
   /^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//");
 
-const resolveImageSrc = (
-  src: string | undefined,
-  assetBaseUrl: string | undefined,
-  assetVersion: string | undefined,
+// A relative source resolved against the document it sits in, held to that
+// document's origin.
+//
+// Resolution cannot leave the origin on its own, and the check is there for the
+// spellings that are not the path they look like: the URL parser reads a
+// leading backslash as the start of an authority, so `\evil.test/p.png` against
+// an http base is that host. Comparing the origin that comes out covers every
+// such spelling at once, where a list of them would have to stay complete.
+const resolveAgainstDocument = (
+  src: string,
+  documentUrl: string,
 ): string | undefined => {
-  if (!src) {
-    return src;
+  try {
+    const base = new URL(documentUrl);
+    const resolved = new URL(src, base);
+    return resolved.origin === base.origin ? resolved.href : undefined;
+  } catch {
+    return undefined;
   }
-  // Leave real URLs (http/https/data/blob) and protocol-relative srcs for the
-  // allow-list to judge; only resolve task-relative paths against the asset
-  // origin. This covers bare `output/x.png` in addition to `./`/`../`.
-  if (isAbsoluteImageSrc(src)) {
-    return src;
+};
+
+/**
+ * Where an `![](...)` source points, and which kind the allow-list judges it
+ * as.
+ *
+ * A source naming an origin is left as it is for the allow-list to read: an
+ * http, https, data, or blob URL, and a protocol-relative one. Everything else
+ * is a path inside the task, resolved either against the document this markdown
+ * is (`documentUrl`, the browser's own semantics for a relative URL) or from
+ * the task root, which is where a message's file references start. Both cover
+ * a bare `output/x.png` as well as `./` and `../`.
+ *
+ * The kind of a source the document resolved is read before it is resolved,
+ * because the URL that comes out cannot say what went in. A path joined to the
+ * document's own origin reaches only what the reader already opened the file
+ * from; an origin the document named itself reaches whatever host its author
+ * picked, which over the asset origin's loopback host is every port on this
+ * machine. In a file someone else wrote those are different questions, and they
+ * resolve to the same shape.
+ */
+const resolveImageSource = (
+  src: string | undefined,
+  {
+    assetBaseUrl,
+    assetVersion,
+    documentUrl,
+  }: Pick<MarkdownProps, "assetBaseUrl" | "assetVersion" | "documentUrl">,
+): { kind: ImageSourceKind; src: string | undefined } => {
+  if (!src || isAbsoluteImageSrc(src)) {
+    return { kind: classifyImageSource(src), src };
+  }
+  if (documentUrl) {
+    const resolved = resolveAgainstDocument(src, documentUrl);
+    return resolved
+      ? { kind: "task-relative", src: resolved }
+      : { kind: "rejected", src };
   }
   if (!assetBaseUrl) {
-    return src;
+    return { kind: classifyImageSource(src), src };
   }
-  return getAssetUrl({
+  const resolved = getAssetUrl({
     assetBase: assetBaseUrl,
     filePath: src,
     version: assetVersion,
   });
+  return { kind: classifyImageSource(resolved), src: resolved };
 };
 
 /**
@@ -672,6 +744,7 @@ export const Markdown = memo(
   ({
     assetBaseUrl,
     assetVersion,
+    documentUrl,
     hideImages,
     imageKinds = MARKDOWN_IMAGE_KINDS,
     isStreaming,
@@ -800,17 +873,22 @@ export const Markdown = memo(
               src,
               ...props
             }) => {
-              const resolvedSrc = resolveImageSrc(
-                src,
+              const image = resolveImageSource(src, {
                 assetBaseUrl,
                 assetVersion,
-              );
-              if (!isImageSourceAllowed(resolvedSrc, imageKinds)) {
+                documentUrl,
+              });
+              if (!isImageKindAllowed(image.kind, imageKinds)) {
                 return hideImages ? null : (
-                  <BlockedImage alt={alt} src={resolvedSrc} />
+                  <BlockedImage alt={alt} src={image.src} />
                 );
               }
-              const filePath = taskFilePathFromImageSrc(src);
+              // A document's source is written against the directory the
+              // document is in, so it names no path the rest of the app could
+              // resolve; only a message's is a task-root path.
+              const filePath = documentUrl
+                ? undefined
+                : taskFilePathFromImageSrc(src);
               return (
                 <MarkdownImage
                   {...props}
@@ -820,11 +898,12 @@ export const Markdown = memo(
                   onClick={(event) => {
                     handleImageClick(event, filePath);
                   }}
-                  src={resolvedSrc}
+                  src={image.src}
                 />
               );
             },
             ol: markdownOrderedList,
+            p: markdownParagraph,
             pre: markdownPre,
             table: MarkdownTable,
           }}

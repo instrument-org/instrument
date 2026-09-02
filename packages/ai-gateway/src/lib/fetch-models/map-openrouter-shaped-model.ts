@@ -17,6 +17,12 @@ interface OpenRouterShapedModel {
   id: string;
   instrument?: { restricted?: AIGatewayModel.Restriction };
   name: string;
+  reasoning?: null | {
+    default_effort?: null | string;
+    default_enabled?: boolean | null;
+    mandatory?: boolean | null;
+    supported_efforts?: null | string[];
+  };
   supported_parameters?: null | string[];
 }
 
@@ -46,11 +52,15 @@ export function mapOpenRouterShapedModel({
   }
 
   const params = { provider: config.type, providerConfigId: config.id };
+  // OpenRouter writes the author into the name ("Anthropic: Claude Sonnet 5"),
+  // and not on every entry. The space after the colon has to come off with it,
+  // or the names carrying one sort as a block ahead of the names that do not
+  // and a family ends up split across the list.
   const colonIndex = model.name.indexOf(":");
-  const modelName =
-    colonIndex === -1
-      ? model.name || generateModelName(canonicalId)
-      : model.name.slice(colonIndex + 1);
+  const named = (
+    colonIndex === -1 ? model.name : model.name.slice(colonIndex + 1)
+  ).trim();
+  const modelName = named || generateModelName(canonicalId);
 
   return addHeuristicTags(
     {
@@ -62,6 +72,14 @@ export function mapOpenRouterShapedModel({
       params,
       providerId,
       providerName: config.displayName ?? metadata.name,
+      reasoning: model.reasoning
+        ? {
+            defaultEffort: model.reasoning.default_effort ?? undefined,
+            efforts: model.reasoning.supported_efforts ?? [],
+            enabledByDefault: model.reasoning.default_enabled ?? false,
+            mandatory: model.reasoning.mandatory ?? false,
+          }
+        : undefined,
       restricted: model.instrument?.restricted,
       tags,
       uri: AIGatewayModelURI.fromModel({ author, canonicalId, params }),

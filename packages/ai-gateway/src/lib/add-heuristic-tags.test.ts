@@ -71,6 +71,12 @@ describe("addHeuristicTags", () => {
     { expected: ["coding", "recommended"], modelId: "gpt-6" },
     { expected: ["coding", "recommended"], modelId: "gpt-10" },
     { expected: [], modelId: "gpt-oss-120b" },
+    // OpenAI's reasoning line, retired. Legacy whichever provider serves it,
+    // and `mockConfig` is OpenRouter.
+    { expected: ["legacy"], modelId: "o1" },
+    { expected: ["legacy"], modelId: "o3-mini" },
+    { expected: ["legacy"], modelId: "o4-mini-high" },
+    { expected: [], modelId: "olmo-3-32b" },
     { expected: ["legacy"], modelId: "claude-3-opus" },
     { expected: ["legacy"], modelId: "claude-3-sonnet" },
     { expected: ["legacy"], modelId: "claude-3.5-haiku" },
@@ -85,7 +91,9 @@ describe("addHeuristicTags", () => {
     { expected: ["coding", "recommended"], modelId: "claude-sonnet-6" },
     { expected: ["coding", "legacy"], modelId: "claude-haiku-4" },
     { expected: ["coding", "legacy"], modelId: "claude-haiku-4.2" },
-    { expected: ["coding", "recommended"], modelId: "claude-haiku-4.5" },
+    // Haiku is a generation behind the Claude 5 lineup, so it stays pickable
+    // without being put forward.
+    { expected: ["coding"], modelId: "claude-haiku-4.5" },
     { expected: ["coding", "recommended"], modelId: "claude-haiku-5" },
     { expected: ["coding", "legacy"], modelId: "claude-opus-4.6" },
     { expected: ["coding", "legacy"], modelId: "claude-opus-4.7" },
@@ -97,9 +105,9 @@ describe("addHeuristicTags", () => {
     { expected: ["legacy"], modelId: "gemini-2-flash" },
     { expected: ["legacy"], modelId: "gemini-2.5-pro" },
     { expected: ["legacy"], modelId: "gemini-2.5-flash" },
-    { expected: ["coding"], modelId: "gemini-3" },
-    { expected: ["coding"], modelId: "gemini-3-pro" },
-    { expected: ["coding"], modelId: "gemini-3-flash-preview" },
+    { expected: ["coding", "recommended"], modelId: "gemini-3" },
+    { expected: ["coding", "recommended"], modelId: "gemini-3-pro" },
+    { expected: ["coding", "recommended"], modelId: "gemini-3-flash-preview" },
     { expected: [], modelId: "gemini-3-pro-image" },
     { expected: ["coding", "recommended"], modelId: "gemini-3.1-pro-preview" },
     { expected: ["coding", "recommended"], modelId: "gemini-3.1-flash-lite" },
@@ -114,7 +122,9 @@ describe("addHeuristicTags", () => {
     { expected: ["coding", "recommended"], modelId: "grok-4.5" },
     { expected: ["coding", "recommended"], modelId: "grok-4.6" },
     { expected: ["coding", "recommended"], modelId: "grok-5" },
-    { expected: ["coding", "recommended"], modelId: "grok-build-0.1" },
+    // Grok Build is its own line at 0.1 while Grok is at 4.6, and it is old
+    // enough that nothing should put it forward.
+    { expected: [], modelId: "grok-build-0.1" },
     { expected: [], modelId: "grok-imagine-image-2.0" },
     { expected: [], modelId: "glm-4.7" },
     { expected: [], modelId: "glm-4.1v-9b-thinking" },
@@ -138,7 +148,11 @@ describe("addHeuristicTags", () => {
     { expected: [], modelId: "qwen3.6-plus" },
     { expected: ["coding", "recommended"], modelId: "qwen3.7-max" },
     { expected: ["coding", "recommended"], modelId: "qwen3.8-max" },
-    { expected: ["coding", "recommended"], modelId: "qwen3.8-2.4t-a95b" },
+    // An id spelling out its weights is one size of a published release, so
+    // it keeps `coding` and loses the recommendation.
+    { expected: ["coding"], modelId: "qwen3.8-2.4t-a95b" },
+    { expected: ["coding"], modelId: "qwen3.8-27b" },
+    { expected: ["coding"], modelId: "qwen3.8-235b-a22b" },
     { expected: [], modelId: "deepseek-v3.2" },
     { expected: ["coding", "recommended"], modelId: "deepseek-v4-pro" },
     {
@@ -238,24 +252,6 @@ describe("addHeuristicTags", () => {
       expect(result.tags).toContain("coding");
     },
   );
-
-  it("should mark o- models as legacy for OpenAI provider", () => {
-    const openaiConfig: AIGatewayProviderConfig.Type = {
-      apiKey: "NOT_NEEDED",
-      cacheIdentifier: "openai",
-      id: AIProviderConfigIdSchema.parse("openai"),
-      type: "openai",
-    };
-    const model = createMockModel("openai/o-1");
-    const result = addHeuristicTags(model, openaiConfig);
-    expect(result.tags).toContain("legacy");
-  });
-
-  it("should not mark o- models as legacy for non-OpenAI providers", () => {
-    const model = createMockModel("openai/o-1");
-    const result = addHeuristicTags(model, mockConfig);
-    expect(result.tags).not.toContain("legacy");
-  });
 
   it("should return default, recommended, and coding tags for instrument author", () => {
     const model = createMockModel(OUR_MODELS.text.id);

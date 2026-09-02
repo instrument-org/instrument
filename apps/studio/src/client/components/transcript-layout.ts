@@ -202,13 +202,18 @@ export function buildTranscriptLayout({
   };
 
   for (const message of regularMessages) {
-    const isLiveMessage = isAgentRunning && message.id === lastMessageId;
     inAssistantMessage = message.role === "assistant";
     if (message.role === "user") {
       settle();
     }
 
-    for (const part of message.parts) {
+    for (const [partIndex, part] of message.parts.entries()) {
+      const isLivePart = isPartBeingWritten({
+        isAgentRunning,
+        lastMessageId,
+        message,
+        partIndex,
+      });
       if (part.type === "source-document" || part.type === "source-url") {
         if (seenSourceIds.has(part.sourceId)) {
           continue;
@@ -242,7 +247,14 @@ export function buildTranscriptLayout({
       const isStreaming = isToolPart(part)
         ? isToolStreaming(part, message)
         : false;
-      if (!isRenderableInlinePart({ isDeveloperMode, isStreaming, part })) {
+      if (
+        !isRenderableInlinePart({
+          isDeveloperMode,
+          isLivePart,
+          isStreaming,
+          part,
+        })
+      ) {
         continue;
       }
 
@@ -297,7 +309,7 @@ export function buildTranscriptLayout({
       markLive({
         group: open,
         id,
-        isLive: isPartLive({ isLiveMessage, isStreaming, part }),
+        isLive: isPartLive({ isLivePart, isStreaming, part }),
       });
     }
   }
@@ -405,12 +417,47 @@ export function isActiveToolPart(part: SessionMessagePart.ToolPart) {
   );
 }
 
+/**
+ * Whether the run is still writing into this part: the last part of the last
+ * message, while the agent is running.
+ *
+ * The rule lives in one place because the layout and the row renderer both ask
+ * it and have to agree. Each half of it is load-bearing. The session, because a
+ * part carries a start with no end long after the run that wrote it died. The
+ * position, because anything after a part means the model has moved on,
+ * whatever that part's own state says.
+ *
+ * Asking it two different ways is what took a running turn off the screen: the
+ * layout counted a blank reasoning row that the renderer drew nothing for, that
+ * row became the group's stand-in, and a group whose every other row was folded
+ * behind it had nothing left to draw at all.
+ */
+export function isPartBeingWritten({
+  isAgentRunning,
+  lastMessageId,
+  message,
+  partIndex,
+}: {
+  isAgentRunning: boolean;
+  lastMessageId: string | undefined;
+  message: SessionMessage.WithParts;
+  partIndex: number;
+}) {
+  return (
+    isAgentRunning &&
+    message.id === lastMessageId &&
+    partIndex === message.parts.length - 1
+  );
+}
+
 export function isVisibleAssistantPart({
   isDeveloperMode,
+  isLivePart,
   isStreaming,
   part,
 }: {
   isDeveloperMode: boolean;
+  isLivePart: boolean;
   isStreaming: boolean;
   part: SessionMessagePart.Type;
 }) {
@@ -423,7 +470,7 @@ export function isVisibleAssistantPart({
   }
 
   if (part.type === "reasoning") {
-    return isReasoningPartVisible(part);
+    return isReasoningPartVisible({ isLive: isLivePart, part });
   }
 
   if (isDataPart(part)) {
@@ -502,20 +549,18 @@ function groupFoldsRows(group: TranscriptGroup): boolean {
 // tool call keeps its start with no end, and a reasoning part keeps its
 // streaming state, long after the run that wrote them died.
 function isPartLive({
-  isLiveMessage,
+  isLivePart,
   isStreaming,
   part,
 }: {
-  isLiveMessage: boolean;
+  isLivePart: boolean;
   isStreaming: boolean;
   part: SessionMessagePart.Type;
 }) {
   if (isToolPart(part)) {
     return isStreaming && isToolPartRunning(part);
   }
-  return (
-    isLiveMessage && part.type === "reasoning" && part.state === "streaming"
-  );
+  return isLivePart && part.type === "reasoning" && part.state === "streaming";
 }
 
 // Whether these two rows sit either side of the line between what the agent
@@ -532,10 +577,12 @@ function isProseBoundary(above: TranscriptRow, below: TranscriptRow): boolean {
 // the same source `renderChatPart` uses, so the two stay consistent.
 function isRenderableInlinePart({
   isDeveloperMode,
+  isLivePart,
   isStreaming,
   part,
 }: {
   isDeveloperMode: boolean;
+  isLivePart: boolean;
   isStreaming: boolean;
   part: SessionMessagePart.Type;
 }) {
@@ -571,8 +618,9 @@ function isRenderableInlinePart({
     return isToolCallVisible({ isDeveloperMode, isStreaming, part });
   }
 
-  // Only reasoning parts remain; visibility depends on their content.
-  return isReasoningPartVisible(part);
+  // Only reasoning parts remain; visibility depends on their content and on
+  // whether the run that opened them is still writing into them.
+  return isReasoningPartVisible({ isLive: isLivePart, part });
 }
 
 function markLive({

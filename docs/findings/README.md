@@ -15,6 +15,8 @@ Grouped by area; status is the short form of each file's own line.
 | [Agent prompt surface](agent-prompt-surface-review.md) — what we measured across the system prompt and tool descriptions | open items |
 | [Agent tool surface](agent-tool-surface-review.md) — gaps against three reference harnesses | partly overtaken |
 | [Tool errors that invite repair loops](tool-errors-that-invite-repair-loops.md) — an error message is an instruction, and models follow it | guidance |
+| [A 429 that is not a rate limit](a-429-that-is-not-a-rate-limit.md) — the deny page `web_fetch` threw away, and why a throttle would not have helped | fixed |
+| [The search backend returns more than we forwarded](search-result-fields-we-discard.md) — the lead image and site icon we dropped, and the freshness we cannot buy | fixed, with trade-offs recorded |
 | [Splitting media out of tool results](multipart-tool-results-and-the-split.md) — why the rewrite exists, what it costs, how a provider gets cleared | partly retired |
 | [Browsing never opens the pane](browsing-never-opens-the-pane.md) — the page the user asked to see stayed invisible | resolved |
 | [Local transcription engine](local-transcription-engine.md) — engine comparison, deliberately unresolved | open, unmeasured |
@@ -44,6 +46,8 @@ Grouped by area; status is the short form of each file's own line.
 | [Full-page screenshots are not supported](in-app-browser-full-page-screenshots.md) | open, workaround in place |
 | [HTML artifacts: in-iframe navigation](html-artifact-iframe-navigation.md) | open, minimal reset shipped |
 | [WebMCP readiness](webmcp-agent-browser-readiness.md) — calling a third-party site's own tools; probed, blocked on Electron 44 | open, not implemented |
+| [The client hints are ours, not Chromium's](browser-client-hints-are-ours-not-chromium-s.md) — Electron emits none, so the header identity is entirely what we write | brand mismatch fixed |
+| [What the task browser reports about itself](task-browser-self-report.md) — every difference from a real Chrome, measured side by side; identity and languages fixed, and the 429 that prompted it refuses client shape rather than counting requests | partly fixed |
 
 ### Renderer and layout
 
@@ -81,6 +85,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Character budgets are a token proxy](character-budgets-are-a-token-proxy.md) — and moving to tokens buys less than it looks like | open question |
 | [Prompt cache provider affinity and breakpoints](prompt-cache-provider-affinity-and-breakpoints.md) | open |
 | [ChatGPT citation markers in model output](chatgpt-citation-markers-in-model-output.md) — the fix costs more than the bug | known, not fixed |
+| [Reasoning effort at the provider default](reasoning-effort-at-the-provider-default.md) — what the level we never set spends, costs, and delays | measured 2026-09-01 |
 
 ### Build, test, and development
 

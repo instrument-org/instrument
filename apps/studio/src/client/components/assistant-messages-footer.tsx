@@ -1,4 +1,3 @@
-import { type AIProviderType } from "@instrument-org/shared";
 import {
   getUsageSummaryFromMessages,
   type SessionMessage,
@@ -19,7 +18,6 @@ import {
 } from "../lib/models-answered";
 import { MESSAGE_FOOTER_ICON_SIZE, SHARED } from "../lib/styles";
 import { cn } from "../lib/utils";
-import { AIProviderIcon } from "./ai-provider-icon";
 import { CopyButton } from "./copy-button";
 import { Favicon } from "./favicon";
 import { ModelChip } from "./model-chip";
@@ -387,7 +385,6 @@ function extractUniqueUrls(
  * which carries the id of the model that actually answered.
  */
 function getModelInfoRows(usage: ModelUsage): {
-  glyph?: AIProviderType;
   label: string;
   value: string;
 }[] {
@@ -400,7 +397,6 @@ function getModelInfoRows(usage: ModelUsage): {
         // GPT-5.6 Luna". The router's own name rather than the word Auto, so a
         // router we have never heard of needs no case of its own.
         served.map((model, index) => ({
-          ...(index === 0 && { glyph: requested.params.provider }),
           label: index === 0 ? `${requested.name.trim()} chose:` : "",
           value: modelName(model),
         }))
@@ -472,22 +468,17 @@ function substitutedBy(usage: ModelUsage): string | undefined {
 }
 
 function TooltipRow({
-  glyph,
   label,
   tabular,
   value,
 }: {
-  glyph?: AIProviderType;
   label: string;
   tabular?: boolean;
   value: string;
 }) {
   return (
     <div className="flex items-baseline justify-between gap-6">
-      <span className="flex items-center gap-1.5 opacity-80">
-        {glyph && <AIProviderIcon className="size-3.5 shrink-0" type={glyph} />}
-        <span>{label}</span>
-      </span>
+      <span className="opacity-80">{label}</span>
       <span className={cn("font-medium", { "tabular-nums": tabular })}>
         {value}
       </span>

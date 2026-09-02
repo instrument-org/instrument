@@ -16,7 +16,7 @@ import {
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
 import { type FileType, getFileType } from "@/client/lib/get-file-type";
-import { UNTRUSTED_FILE_IMAGE_KINDS } from "@/client/lib/image-policy";
+import { UNTRUSTED_TASK_FILE_IMAGE_KINDS } from "@/client/lib/image-policy";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type TaskId } from "@instrument-org/workspace/client";
@@ -172,16 +172,18 @@ function MarkdownPreview({ url }: { url: string }) {
     return <FileTextError error={error} />;
   }
 
-  // Embedded bytes and nothing else, the notebook viewer's answer to the same
-  // question: a `.md` in the task folder is a file someone else may have
-  // written -- a cloned repo, an attachment, agent output -- and an `<img>`
-  // naming a host is a request the moment the preview renders. A rejected
-  // source stands as an inline chip naming what it points at, and one on the
-  // remote allowlist is loadable from the chip on a click.
+  // The file's own pictures and nothing else: a `.md` in the task folder is a
+  // file someone else may have written -- a cloned repo, an attachment, agent
+  // output -- and an `<img>` naming a host is a request the moment the preview
+  // renders. A relative source names no host, so it is resolved against this
+  // document's own URL and can only land where the file itself was read from.
+  // A rejected source stands as an inline chip naming what it points at, and
+  // one on the remote allowlist is loadable from the chip on a click.
   return (
     <SessionMarkdown
       className="p-8"
-      imageKinds={UNTRUSTED_FILE_IMAGE_KINDS}
+      documentUrl={url}
+      imageKinds={UNTRUSTED_TASK_FILE_IMAGE_KINDS}
       markdown={data ?? ""}
     />
   );

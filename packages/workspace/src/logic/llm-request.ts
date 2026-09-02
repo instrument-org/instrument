@@ -71,16 +71,19 @@ export const llmRequestLogic = fromPromise<
         }
         return result.value;
       }),
-    savePart: (part: Parameters<typeof Store.savePart>[0]) =>
-      Store.savePart(part, input.taskId, { signal }).then((result) => {
-        if (result.isErr()) {
-          getWorkspaceConfig().captureException(result.error, {
-            scopes: ["workspace", "llm-request"],
-          });
-          return;
-        }
-        return result.value;
-      }),
+    // Resolves true when the store took the write, which is what the coalesced
+    // delta bookkeeping needs to know before it forgets the characters it just
+    // handed over.
+    savePart: async (part: Parameters<typeof Store.savePart>[0]) => {
+      const result = await Store.savePart(part, input.taskId, { signal });
+      if (result.isErr()) {
+        getWorkspaceConfig().captureException(result.error, {
+          scopes: ["workspace", "llm-request"],
+        });
+        return false;
+      }
+      return true;
+    },
   };
 
   // Bookkeeping for coalesced delta saves, keyed by part id. `save` persists
@@ -93,7 +96,7 @@ export const llmRequestLogic = fromPromise<
     string,
     {
       lastSavedAtMs?: number;
-      save: () => PromiseLike<unknown>;
+      save: () => PromiseLike<boolean>;
       unsavedChars: number;
     }
   >();
@@ -103,11 +106,12 @@ export const llmRequestLogic = fromPromise<
   // DELTA_SAVE_MAX_UNSAVED_CHARS has built up since its last save. The
   // part-end handlers save the complete part unconditionally and drop the
   // entry; the flush in getCurrentParts covers parts that never get an end
-  // event before parts are read back.
+  // event before parts are read back. A write the store does not take leaves
+  // its characters unsaved, so the next delta or the flush writes them again.
   const savePartCoalesced = async (
     partId: string,
     deltaLength: number,
-    save: () => PromiseLike<unknown>,
+    save: () => PromiseLike<boolean>,
   ) => {
     let entry = pendingDeltaSaves.get(partId);
     if (!entry) {
@@ -124,9 +128,10 @@ export const llmRequestLogic = fromPromise<
     ) {
       return;
     }
-    entry.lastSavedAtMs = nowMs;
-    entry.unsavedChars = 0;
-    await save();
+    if (await save()) {
+      entry.lastSavedAtMs = nowMs;
+      entry.unsavedChars = 0;
+    }
   };
 
   const captureEvent = getWorkspaceConfig().captureEvent;
@@ -709,10 +714,11 @@ export const llmRequestLogic = fromPromise<
               async () => {
                 // Runs from the flush as well as from a delta, so the call
                 // may have completed or errored in the meantime; that part
-                // was already saved in its final state and must stay.
+                // was already saved in its final state and must stay, so
+                // there is nothing left for a retry to write.
                 const streamingCall = toolCalls[part.id];
                 if (streamingCall?.state !== "input-streaming") {
-                  return;
+                  return true;
                 }
                 const { value: partialArgs } = await parsePartialJson(
                   toolCallInputText[part.id] ?? "",
@@ -722,7 +728,7 @@ export const llmRequestLogic = fromPromise<
                   input: partialArgs as never,
                 };
                 toolCalls[part.id] = updatedPart;
-                await scopedStore.savePart(updatedPart);
+                return scopedStore.savePart(updatedPart);
               },
             );
           }

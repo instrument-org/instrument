@@ -49,7 +49,7 @@ export function BrowserChip({ info }: { info: BrowserInfo }) {
   return (
     <ToolChip className="max-w-[12rem]">
       <Favicon
-        className="size-3.5 border border-muted bg-background"
+        className="size-3.5 border border-muted"
         url={`https://${topDomain}`}
       />
       <span className="truncate text-xs font-medium text-foreground/50">

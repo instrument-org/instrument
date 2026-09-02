@@ -1,46 +1,46 @@
 import { renderInBrowser } from "@/tests/render-browser";
+import { type ReactNode } from "react";
 import { expect, test } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { MarkdownTable } from "./markdown-table";
 
-/**
- * Reaching the row copy when it stands beside the table.
- *
- * The control sits past the table's edge in a wide transcript, and the way it
- * stays reachable is that the gap between edge and control belongs to the
- * control itself. Whether it does is a question about hit-testing: which
- * element a pointer sample in that gap lands on, and so whether crossing it
- * fires the row's `mouseleave` and hides the control mid-reach. jsdom has no
- * hit-testing, so this lives here.
- */
+// The pane the cases are measured in: a text column with room either side of
+// it, the way a wide transcript has. The block spans the whole of it, so the
+// room past the column is what a table may grow into before it has to wrap.
+const TRANSCRIPT = 880;
+const MEASURE = 480;
 
 /** A transcript with room beside the text column, the way a wide pane has. */
-async function renderWideTranscript() {
+async function renderWideTranscript(table?: ReactNode) {
   await renderInBrowser(
     <div
       className="[--transcript-room:880px]"
       data-transcript
-      style={{ width: 880 }}
+      style={{ width: TRANSCRIPT }}
     >
-      <div style={{ marginInline: "auto", width: 480 }}>
+      <div style={{ marginInline: "auto", width: MEASURE }}>
         <MarkdownTable>
-          <thead>
-            <tr>
-              <th>Region</th>
-              <th>Revenue</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>North</td>
-              <td>1200</td>
-            </tr>
-            <tr>
-              <td>South</td>
-              <td>800</td>
-            </tr>
-          </tbody>
+          {table ?? (
+            <>
+              <thead>
+                <tr>
+                  <th>Region</th>
+                  <th>Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>North</td>
+                  <td>1200</td>
+                </tr>
+                <tr>
+                  <td>South</td>
+                  <td>800</td>
+                </tr>
+              </tbody>
+            </>
+          )}
         </MarkdownTable>
       </div>
     </div>,
@@ -49,11 +49,23 @@ async function renderWideTranscript() {
   const chip = document.querySelector<HTMLElement>(".markdown-table-row-copy");
   const frame = document.querySelector<HTMLElement>(".markdown-table-frame");
   const row = document.querySelector<HTMLElement>(".markdown-table-row");
-  if (!chip || !frame || !row) {
+  const element = frame?.querySelector("table");
+  if (!chip || !element || !frame || !row) {
     throw new Error("the table block did not render");
   }
-  return { chip, frame, row };
+  return { chip, element, frame, row };
 }
+
+/**
+ * Reaching the row copy when it stands beside the table.
+ *
+ * The control sits past the table's edge in a wide transcript, and at the top
+ * of its row rather than the middle, so the reach for it leaves the row on both
+ * axes. What keeps it there is that only a row moves it: ground inside the
+ * block that belongs to no row leaves it where it is. Whether it does is a
+ * question about hit-testing, which element a pointer sample in that gap lands
+ * on, and jsdom has none, so this lives here.
+ */
 
 test("the row copy survives the pointer crossing the gap to reach it", async () => {
   const { chip, frame, row } = await renderWideTranscript();
@@ -64,9 +76,10 @@ test("the row copy survives the pointer crossing the gap to reach it", async () 
   // for this test to say.
   expect(chip.dataset.outside).toBe("");
 
-  // One pointer sample in the gap, which is what a pointer moving at
-  // deliberate speed delivers on its way to the control. A jump that clears
-  // the gap between two samples never fires `mouseleave` and proves nothing.
+  // One pointer sample in the gap, level with the middle of the row and so
+  // below the control itself, which is what a pointer moving at deliberate
+  // speed delivers on its way up to it. A jump that clears the gap between two
+  // samples never lands there at all and proves nothing.
   const cell = page.getByText("North").element().getBoundingClientRect();
   const table = frame.querySelector("table");
   if (!table) {
@@ -93,4 +106,46 @@ test("the row copy survives the pointer crossing the gap to reach it", async () 
   await expect
     .element(page.getByRole("menuitem", { name: "Copy row" }))
     .toBeVisible();
+});
+
+/**
+ * What a table does with the room it is given, which is a question only a
+ * layout engine answers: jsdom reports every width as zero.
+ *
+ * Both ends of it matter. A table of short values fills the measure rather than
+ * stopping partway across the column it sits in. One carrying a column of
+ * sentences stops at the room the frame can show, rather than growing until
+ * reaching the second column means scrolling for it.
+ */
+test("a table narrower than the measure fills it", async () => {
+  const { element } = await renderWideTranscript();
+
+  expect(element.offsetWidth).toBe(MEASURE);
+});
+
+test("a table wider than the room wraps into it rather than scrolling", async () => {
+  const sentence =
+    "The only site where the whole program fits on a single floor, which is what the ground-floor teams asked for.";
+  const { element, frame } = await renderWideTranscript(
+    <tbody>
+      <tr>
+        <td>Harborview Commons</td>
+        <td>{sentence}</td>
+        <td>$1.9M over</td>
+      </tr>
+      <tr>
+        <td>The Annex</td>
+        <td>{sentence}</td>
+        <td>$1.1M under</td>
+      </tr>
+    </tbody>,
+  );
+
+  // The measure plus the slack past its trailing edge. The leading gutter is
+  // the spacer's until it is scrolled away, so it is not room the table has.
+  const lead = document.querySelector<HTMLElement>(".markdown-table-lead");
+  expect(element.offsetWidth).toBe(
+    frame.clientWidth - (lead?.offsetWidth ?? 0),
+  );
+  expect(frame.scrollWidth).toBeLessThanOrEqual(frame.clientWidth + 1);
 });

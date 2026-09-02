@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap"
       rel="stylesheet"
     />
     <link
@@ -31,7 +31,7 @@
          in SKILL.md rather than editing by hand. */
       @theme {
         /* sync:start */
-        --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+        --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
         --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
 
         --radius: 0.5rem;
@@ -340,7 +340,7 @@
        *  most recognizable detail in the transcript, so keep it. */
       const bubble = (text) => `
         <div class="flex justify-end">
-          <div class="inline-block max-w-[80%] rounded-tl-xl rounded-tr-sm rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-2.5 shadow-sm">
+          <div class="inline-block max-w-[80%] rounded-tl-xl rounded-tr-sm rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-3 shadow-sm">
             <span class="text-sm">${text}</span>
           </div>
         </div>`;
@@ -426,8 +426,17 @@
         const inner = (avail - GAP * (columns - 1)) / columns - PAD;
         rack.style.setProperty("--cols", columns);
         for (const frame of rack.querySelectorAll(".frame")) {
-          const s = Math.min(inner / Number(frame.dataset.w), SLOT_H / Number(frame.dataset.h), 1);
-          frame.style.setProperty("--s", Math.max(0.05, s));
+          // Grid mode shares one row height across the tile, so a tall
+          // frame is capped by SLOT_H to keep the row even. One column has
+          // no row to keep even, so the frame scales by width alone, up to
+          // full width, and the slot shrinks to match instead of centering
+          // it in a row height sized for the grid.
+          const s = single
+            ? Math.min(inner / Number(frame.dataset.w), 1)
+            : Math.min(inner / Number(frame.dataset.w), SLOT_H / Number(frame.dataset.h), 1);
+          const clamped = Math.max(0.05, s);
+          frame.style.setProperty("--s", clamped);
+          frame.closest(".slot").style.setProperty("--slot-h", `${single ? Number(frame.dataset.h) * clamped : SLOT_H}px`);
         }
       };
 

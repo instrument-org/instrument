@@ -24,6 +24,10 @@ export {
   getProviderMetadata,
 } from "./lib/providers/metadata";
 export type { ImageGenerationProviderType } from "./lib/providers/metadata";
+export {
+  REASONING_EFFORTS,
+  type ReasoningEffort,
+} from "./lib/reasoning-effort";
 export * from "./lib/select-provider-configs";
 export * from "./lib/stream-image";
 export { verifyAPIKey } from "./lib/verify-api-key";

@@ -5,7 +5,7 @@ import { cn } from "@/client/lib/utils";
 import { type SessionMessage } from "@instrument-org/workspace/client";
 import { ChatCircleTextIcon } from "@phosphor-icons/react/ChatCircleText";
 import { CoinsIcon } from "@phosphor-icons/react/Coins";
-import { type ReactNode } from "react";
+import { type ComponentProps, type ReactNode } from "react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
@@ -23,9 +23,11 @@ interface UsageStats extends SessionMessage.Usage {
 
 export function UsageStatsTooltip({
   children,
+  className,
   messageCount,
   stats,
-}: {
+  ...trigger
+}: ComponentProps<"button"> & {
   children: ReactNode;
   messageCount?: number;
   stats: UsageStats;
@@ -84,7 +86,13 @@ export function UsageStatsTooltip({
 
   return (
     <Tooltip>
-      <TooltipTrigger className="flex min-w-0">{children}</TooltipTrigger>
+      {/* The counts inside are text, and this trigger is the row's only
+          control: a button nested in a button is neither valid markup nor
+          reliably operable, so whatever the counts do when pressed is wired
+          here. */}
+      <TooltipTrigger className={cn("flex min-w-0", className)} {...trigger}>
+        {children}
+      </TooltipTrigger>
       <TooltipContent align="start" className="p-3 text-xs" side="top">
         <div className="space-y-2">
           {messageCount !== undefined && (
@@ -115,16 +123,14 @@ export function UsageStatsTooltip({
 export function UsageSummaryText({
   className,
   messageCount,
-  onClick,
   totalTokens,
 }: {
   className?: string;
   messageCount: number;
-  onClick?: () => void;
   totalTokens: number;
 }) {
-  const counts = (
-    <>
+  return (
+    <span className={cn("inline-flex items-center gap-2 truncate", className)}>
       <span className="inline-flex shrink-0 items-center gap-1">
         <ChatCircleTextIcon className="size-3 shrink-0" weight="fill" />
         <span className="tabular-nums">{formatNumber(messageCount)}</span>
@@ -135,31 +141,6 @@ export function UsageSummaryText({
           <span className="tabular-nums">{formatNumber(totalTokens)}</span>
         </span>
       )}
-    </>
-  );
-
-  // Two counts to read, and sometimes something to press. Only the second is a
-  // control, so only the second is rendered as one -- as a `span` it took a
-  // click that no keyboard could reach and announced nothing to say it was
-  // there at all.
-  if (!onClick) {
-    return (
-      <span
-        className={cn("inline-flex items-center gap-2 truncate", className)}
-      >
-        {counts}
-      </span>
-    );
-  }
-
-  return (
-    <button
-      aria-label="View transcript"
-      className={cn("inline-flex items-center gap-2 truncate", className)}
-      onClick={onClick}
-      type="button"
-    >
-      {counts}
-    </button>
+    </span>
   );
 }

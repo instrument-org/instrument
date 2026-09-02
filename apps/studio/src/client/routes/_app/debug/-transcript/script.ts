@@ -37,8 +37,6 @@ export type Act =
 export type DataPart = Omit<SessionMessagePart.DataPart, "metadata">;
 
 export interface Scenario {
-  /** What the case is for, shown under the picker. */
-  about: string;
   id: string;
   name: string;
   script: Act[];

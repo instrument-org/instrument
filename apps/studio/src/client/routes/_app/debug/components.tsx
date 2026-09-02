@@ -95,6 +95,11 @@ function RouteComponent() {
                                 <SidebarMenuSubItem key={scenario.id}>
                                   <SidebarMenuSubButton
                                     asChild
+                                    // Wrapped rather than truncated. A
+                                    // scenario is picked by reading its name,
+                                    // and the ends are where several of them
+                                    // differ from each other.
+                                    className="h-auto py-1 [&>span:last-child]:whitespace-normal"
                                     isActive={
                                       isTranscriptRoute &&
                                       scenario.id === activeScenarioId

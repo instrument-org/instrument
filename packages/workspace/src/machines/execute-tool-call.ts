@@ -3,6 +3,7 @@ import { assign, fromPromise, log, setup } from "xstate";
 
 import { type AgentName } from "../agents/types";
 import { getCurrentDate } from "../lib/get-current-date";
+import { isToolPart } from "../lib/is-tool-part";
 import { runToolCall } from "../lib/run-tool-call";
 import { type SpawnAgentFunction } from "../lib/spawn-agent";
 import { Store } from "../lib/store";
@@ -17,6 +18,12 @@ type CancellationReason = "manual" | "timeout" | "unknown";
  * Writes the terminal record for a tool call that will never produce its own
  * output: `output-error` with copy naming why it stopped. Shared by the cancel
  * path here and the agent machine's finishing sweep over dangling parts.
+ *
+ * A call that produced a real output before this lands keeps it. `updatePart`
+ * re-reads the part and hands the updater what the store holds now, which is
+ * the only place the two writers can be ordered: a tool finishing as the user
+ * stops, or as the sweep scans, would otherwise have its result replaced by an
+ * account of the stop. Returning `current` unchanged skips the write entirely.
  */
 export async function saveStoppedToolCallPart(
   input: {
@@ -32,8 +39,18 @@ export async function saveStoppedToolCallPart(
       partId: input.part.metadata.id,
       sessionId: input.part.metadata.sessionId,
     },
-    (current) =>
-      ({
+    (current) => {
+      if (
+        !isToolPart(current) ||
+        (current.state !== "input-available" &&
+          current.state !== "input-streaming")
+      ) {
+        return current;
+      }
+      // The part union is discriminated by tool type as well as by state, so
+      // a spread that moves only the state does not land on a member of it;
+      // the fields written here are the ones an errored call carries.
+      return {
         ...current,
         errorText: `This action was stopped${input.reason === "timeout" ? " because it took too long" : input.reason === "manual" ? " by you" : ""}.`,
         metadata: {
@@ -41,7 +58,8 @@ export async function saveStoppedToolCallPart(
           endedAt: getCurrentDate(),
         },
         state: "output-error",
-      }) as SessionMessagePart.Type,
+      } as SessionMessagePart.Type;
+    },
     input.taskId,
     { signal },
   );

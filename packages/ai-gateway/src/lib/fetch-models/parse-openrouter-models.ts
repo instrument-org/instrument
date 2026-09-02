@@ -24,6 +24,14 @@ const OpenRouterModelSchema = z.object({
     .object({ restricted: AIGatewayModel.RestrictionSchema.optional() })
     .optional(),
   name: z.string(),
+  reasoning: z
+    .object({
+      default_effort: z.string().nullish(),
+      default_enabled: z.boolean().nullish(),
+      mandatory: z.boolean().nullish(),
+      supported_efforts: z.array(z.string()).nullish(),
+    })
+    .nullish(),
   supported_parameters: z.array(z.string()).nullish(),
 });
 

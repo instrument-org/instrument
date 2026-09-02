@@ -409,6 +409,29 @@ const FOCUSED_TEXT = `(() => {
   return "value" in el ? el.value : el.innerText;
 })()`;
 
+/**
+ * The punctuation keys, as the `code` and virtual key code a US layout puts
+ * them at. Held with a modifier a punctuation key carries no text, so without
+ * these it arrives as a character and nothing else, and an accelerator reading
+ * the key code never sees one: the press lands, the app does nothing, and the
+ * command reports success. `Settings...` is `CmdOrCtrl+,`, and on a packaged
+ * build the menu is the only way in, so this table is the difference between
+ * reaching that dialog and not.
+ */
+const PUNCTUATION_KEYS = {
+  "'": { code: "Quote", keyCode: 222 },
+  ",": { code: "Comma", keyCode: 188 },
+  "-": { code: "Minus", keyCode: 189 },
+  ".": { code: "Period", keyCode: 190 },
+  "/": { code: "Slash", keyCode: 191 },
+  ";": { code: "Semicolon", keyCode: 186 },
+  "=": { code: "Equal", keyCode: 187 },
+  "[": { code: "BracketLeft", keyCode: 219 },
+  "\\": { code: "Backslash", keyCode: 220 },
+  "]": { code: "BracketRight", keyCode: 221 },
+  "`": { code: "Backquote", keyCode: 192 },
+};
+
 const KEYS = {
   ArrowDown: { code: "ArrowDown", key: "ArrowDown", keyCode: 40 },
   ArrowLeft: { code: "ArrowLeft", key: "ArrowLeft", keyCode: 37 },
@@ -762,8 +785,9 @@ const preview = (text) => {
  * A shortcut carrying a modifier needs its virtual key code: `key` plus a
  * modifier bitmask alone reaches a document-level listener but is ignored by
  * anything reading the accelerator, so the press silently does nothing. Those
- * codes are only filled in where the mapping is unambiguous -- the named keys
- * and the alphanumerics -- because a wrong one is worse than an absent one.
+ * codes are only filled in where the mapping is unambiguous -- the named keys,
+ * the alphanumerics, and the punctuation a US layout places -- because a wrong
+ * one is worse than an absent one.
  */
 function keyDescriptor(combination) {
   const parts = String(combination).split("+");
@@ -790,6 +814,7 @@ function keyDescriptor(combination) {
       code: /[a-z]/i.test(name) ? `Key${name.toUpperCase()}` : `Digit${name}`,
       keyCode: name.toUpperCase().codePointAt(0),
     }),
+    ...PUNCTUATION_KEYS[name],
     ...(name.length === 1 && { text: name }),
   };
 

@@ -12,7 +12,7 @@
  *   node .agents/skills/product-wireframe/scripts/sync-theme.ts --check
  *   node .agents/skills/product-wireframe/scripts/sync-theme.ts path/to/one.html
  *
- * Targets both skill templates plus every docs/plans/active/wireframes-*.html
+ * Targets this skill's template plus every docs/plans/active/wireframes-*.html
  * unless paths are given. Explicit paths may live outside the repository.
  * `--check` writes nothing and exits non-zero when a file is stale.
  */
@@ -21,10 +21,7 @@ import path from "node:path";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../../..");
 const GLOBALS = "apps/studio/src/client/styles/globals.css";
-const TEMPLATES = [
-  ".agents/skills/product-wireframe/template.html",
-  ".agents/skills/visual-explanation/template.html",
-];
+const TEMPLATES = [".agents/skills/product-wireframe/template.html"];
 const WIREFRAMES = "docs/plans/active/wireframes-*.html";
 
 const START = "/* sync:start */";

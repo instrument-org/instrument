@@ -6,9 +6,11 @@ import {
 
 import { UNTRUSTED_FILE_IMAGE_KINDS } from "../../lib/image-policy";
 import { getToolLabel } from "../../lib/tool-display";
-import { Favicon } from "../favicon";
+import { cn } from "../../lib/utils";
+import { Favicon, FAVICON_SURFACE_CLASS_NAME } from "../favicon";
 import { SessionMarkdown } from "../session-markdown";
 import { SourceLink } from "../source-link";
+import { isActiveToolPart } from "../transcript-layout";
 import { useToolCallSession } from "./tool-call-session";
 import { ToolCapabilityFailure } from "./tool-capability-failure";
 import {
@@ -63,8 +65,20 @@ export function ToolWebSearch({
     (results.sources.length > 0 ||
       (results.kind === "summary" && results.text.trim().length > 0));
 
+  // A search that has not come back is not a search that came back empty. The
+  // backend serving our own models returns its results in one piece rather than
+  // streaming them, so a card opened while the call runs has nothing in it for
+  // the whole of the search, and that is the reading the reader is given.
   if (!failureOutput && !hasSearchContent) {
-    return <ToolCardEmpty message="The search returned nothing." />;
+    return (
+      <ToolCardEmpty
+        message={
+          isActiveToolPart(part)
+            ? "The results have not arrived yet."
+            : "The search returned nothing."
+        }
+      />
+    );
   }
 
   const label = failureOutput
@@ -168,13 +182,25 @@ export function WebSearchChip({ part }: { part: SessionMessagePart.ToolPart }) {
 
   return (
     <ToolChip className="gap-0 px-1">
-      {uniqueUrls.map((url, index) => (
-        <Favicon
-          className="-ml-0.5 size-3.5 border border-muted bg-background first:ml-0"
-          key={index}
-          url={url}
-        />
-      ))}
+      {/* One light surface under the whole run rather than one per icon: a
+          favicon needs a light background to be seen in either theme, and five
+          of them carrying their own read as a chain of interlocking discs
+          instead of as the one thing this chip is. So the row is the pill and
+          each icon gives up the surface it would otherwise bring. */}
+      <span
+        className={cn(
+          "flex items-center gap-0.5 rounded-full px-0.5 py-px",
+          FAVICON_SURFACE_CLASS_NAME,
+        )}
+      >
+        {uniqueUrls.map((url, index) => (
+          <Favicon
+            className="size-3.5 border-0 bg-transparent ring-0"
+            key={index}
+            url={url}
+          />
+        ))}
+      </span>
     </ToolChip>
   );
 }

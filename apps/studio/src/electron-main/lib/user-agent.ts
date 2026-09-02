@@ -66,12 +66,15 @@ const LOOPBACK_HOST = /^(?:\[::1\]|127(?:\.\d{1,3}){3}|localhost)$/;
 // Requires an attached debugger, so this is the half of the pair that the app's
 // own session cannot have, and it must run before the first real navigation.
 //
-// Only the two fields we mean to set are sent: `platform` and `acceptLanguage`
-// are left off so Blink keeps its own, since overriding navigator.platform or
-// navigator.languages is not what this is for. The override lives on the page
-// target for as long as the debugger stays attached, so one call per guest is
-// enough -- but it does not reach out-of-process subframes, which keep
-// reporting the engine's own brands.
+// `acceptLanguage` rides along because it is the only thing that moves
+// navigator.languages: session.setUserAgent's own accept-language argument
+// reaches the header and stops there, so setting one without the other leaves
+// the page listing languages its requests do not ask for. `platform` is left off
+// so Blink keeps its own navigator.platform, which is already right.
+//
+// The override lives on the page target for as long as the debugger stays
+// attached, so one call per guest is enough -- but it does not reach
+// out-of-process subframes, which keep reporting the engine's own brands.
 export function applyChromeBrandedMetadata(wc: WebContents): void {
   const userAgent = normalizeUserAgent(wc.getUserAgent());
   const metadata = userAgentMetadata({
@@ -85,6 +88,7 @@ export function applyChromeBrandedMetadata(wc: WebContents): void {
   }
   wc.debugger
     .sendCommand("Emulation.setUserAgentOverride", {
+      acceptLanguage: preferredEmulatedLanguages(),
       userAgent,
       userAgentMetadata: metadata,
     })
@@ -307,7 +311,7 @@ export function userAgentMetadata({
 // Build a quality-weighted `Accept-Language` from an ordered preference list:
 // the first language keeps q=1, each subsequent one drops 0.1 (floored at 0.1).
 export function weightedAcceptLanguage(languages: string[]): string {
-  return languages
+  return withBaseLanguages(languages)
     .map((language, index) =>
       index === 0
         ? language
@@ -316,15 +320,47 @@ export function weightedAcceptLanguage(languages: string[]): string {
     .join(",");
 }
 
+// Follow each region-qualified tag with its bare base, which is what Chrome
+// sends and, because Blink derives navigator.languages from this same string,
+// what the page then reports. A system set to en-US gives `en-US,en;q=0.9` and
+// `["en-US", "en"]`; sending the region alone leaves a one-entry languages list
+// no ordinary install produces. Order is preserved and repeats are dropped, so a
+// list already naming a base keeps its own position for it.
+export function withBaseLanguages(languages: string[]): string[] {
+  const expanded: string[] = [];
+  for (const language of languages) {
+    const base = language.split("-")[0];
+    for (const tag of base == null || base === language
+      ? [language]
+      : [language, base]) {
+      if (!expanded.includes(tag)) {
+        expanded.push(tag);
+      }
+    }
+  }
+  return expanded;
+}
+
 function cycle(pool: string[], index: number): string {
   return pool[index % pool.length] ?? "";
 }
 
 function preferredAcceptLanguage(): string {
+  return weightedAcceptLanguage(preferredLanguages());
+}
+
+// The same list the header carries, without quality weights. CDP splits this
+// string on commas and hands the pieces to navigator.languages verbatim, so a
+// weighted one puts the literal tag "en;q=0.9" in the page -- not a language any
+// browser reports. Chrome makes the same distinction: weights on the header,
+// bare tags in the page.
+function preferredEmulatedLanguages(): string {
+  return withBaseLanguages(preferredLanguages()).join(",");
+}
+
+function preferredLanguages(): string[] {
   const languages = app.getPreferredSystemLanguages();
-  return weightedAcceptLanguage(
-    languages.length > 0 ? languages : [app.getLocale()],
-  );
+  return languages.length > 0 ? languages : [app.getLocale()];
 }
 
 // Chromium's own shuffle: a scatter, so entry i lands at order[i] rather than

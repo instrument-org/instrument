@@ -9,6 +9,7 @@ import {
   standardUserAgentHeaders,
   userAgentMetadata,
   weightedAcceptLanguage,
+  withBaseLanguages,
 } from "./user-agent";
 
 const ELECTRON_UA =
@@ -303,6 +304,43 @@ describe("weightedAcceptLanguage", () => {
     expect(weightedAcceptLanguage(langs)).toMatchInlineSnapshot(
       `"a,b;q=0.9,c;q=0.8,d;q=0.7,e;q=0.6,f;q=0.5,g;q=0.4,h;q=0.3,i;q=0.2,j;q=0.1,k;q=0.1,l;q=0.1"`,
     );
+  });
+
+  // A real Chrome on a machine set to en-US sends exactly this, and reports
+  // ["en-US", "en"] from navigator.languages as a result. A lone region tag is
+  // the shape no ordinary install produces.
+  it("follows a lone region tag with its base, the way Chrome does", () => {
+    expect(weightedAcceptLanguage(["en-US"])).toMatchInlineSnapshot(
+      `"en-US,en;q=0.9"`,
+    );
+  });
+
+  it("expands every region tag in a longer preference list", () => {
+    expect(weightedAcceptLanguage(["en-GB", "fr-FR"])).toMatchInlineSnapshot(
+      `"en-GB,en;q=0.9,fr-FR;q=0.8,fr;q=0.7"`,
+    );
+  });
+});
+
+describe("withBaseLanguages", () => {
+  it("leaves a list that already names its bases untouched", () => {
+    expect(withBaseLanguages(["en-US", "en", "fr"])).toEqual([
+      "en-US",
+      "en",
+      "fr",
+    ]);
+  });
+
+  it("keeps the caller's own position for a base named later", () => {
+    expect(withBaseLanguages(["fr-CA", "en", "fr"])).toEqual([
+      "fr-CA",
+      "fr",
+      "en",
+    ]);
+  });
+
+  it("adds nothing for tags that carry no region", () => {
+    expect(withBaseLanguages(["en", "fr"])).toEqual(["en", "fr"]);
   });
 });
 

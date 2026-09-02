@@ -1,6 +1,6 @@
 # What the task browser reports about itself
 
-**Status:** current. Measured 2026-09-01 on Electron 42.3.3 (Chromium 148.0.7778.218), macOS 26.6.2 arm64, against a live `<webview>` guest. The identity mismatch it found has since been corrected in the guest; everything else below is a reading rather than a fix. One earlier reading in this file was wrong and is corrected in place, with the reason it was wrong. The block that prompted it turned out to be a rate limit — see [what the block actually correlates with](#what-the-block-actually-correlates-with).
+**Status:** current. Measured 2026-09-01 on Electron 42.3.3 (Chromium 148.0.7778.218), macOS 26.6.2 arm64, against a live `<webview>` guest. The identity and language mismatches it found are corrected in the guest; the rest is a reading rather than a fix. Two earlier readings in this file were wrong and are corrected in place, with the reason each was wrong -- both because a control was skipped, which is the failure mode this subject invites. The block that prompted it turned out to be a rate limit — see [what the block actually correlates with](#what-the-block-actually-correlates-with).
 
 A user reported that a large retail site refused the task browser, serving a hold-to-confirm human check from an iframe that, once it fired, covered the whole origin rather than the page that tripped it. Running that down meant establishing what the guest actually says about itself, because several of those statements turn out to be false — not shaded, but values a browser cannot truthfully report. This records which ones, and what each is worth. The header and client-hint half of the same question is [browser-client-hints-are-ours-not-chromium-s](browser-client-hints-are-ours-not-chromium-s.md).
 
@@ -15,23 +15,27 @@ node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs run \
 
 Public conformance suites are the other half of the reading, since they exercise the same surface from page script and print a per-check result. Pointing the guest at one is an ordinary navigation, and the result is a page you can read back.
 
-## Where the guest misreports itself
+## Where the guest differs from a real Chrome
 
-Four values are ones a real Chrome does not produce. Two of them are not merely unusual: they are arithmetically impossible, and a page reading them learns something untrue about the machine it is running on. They are ordered by how cheaply a page can notice.
+Every claim here is a diff against a real Google Chrome run on the same machine, because the alternative is asserting from the specification and being wrong. Two of the four entries this section first carried did not survive that comparison, and one of them was stated here as fact for a day.
 
-**`window.chrome` is a hollow object, and absent entirely inside an iframe.** It exists, so a shallow `"chrome" in window` passes, but it has no keys at all: `runtime`, `app`, `csi`, `loadTimes`, `webstore`, `connect`, and `sendMessage` are all undefined. Inside a same-origin iframe, `window.chrome` is `undefined` outright. This is the only outright failure the guest records on a public suite, and iframes are where embedded third-party script usually runs.
+**`window.chrome` is a hollow object, and absent entirely inside an iframe.** It exists, so a shallow `"chrome" in window` passes, but it has no keys at all. Real Chrome carries `loadTimes`, `csi`, and `app`; the guest carries none of them, and where real Chrome reports `object` for a child frame's `chrome`, the guest reports `undefined`. These are installed by Chrome-only renderer code that Electron does not ship, so there is no native lever and no override we are willing to write. This one is a genuine, unfixable-in-place difference.
 
-**`navigator.deviceMemory` reports 32.** The Device Memory specification rounds to a power of two and clamps the upper bound at 8, and Chrome implements that clamp, so 32 is a number no real Chrome emits on any hardware. The value is also the machine's true RAM, which is precisely what the clamp exists to withhold — so this is a privacy leak before it is anything else. Reproduced independently by a second Electron app on the same machine, so it is Electron-wide rather than anything Studio does.
+**`screen.colorDepth` reports 30 where a real Chrome on the same display reports 24.** Chrome appears to report 24 regardless of the panel; Electron passes the display's real depth through. No CDP command or Electron API covers it. Small, and left alone.
 
-**Window geometry is impossible.** The guest reports `outerWidth` 1202 against `innerWidth` 1280 — an outer window narrower than the viewport inside it, which cannot happen. The guest reports the host Studio window's bounds while its own layout viewport follows the guest element, so the two disagree by whatever the panel is currently sized to. Any page doing responsive layout arithmetic off those two numbers is working from a contradiction.
+**Window geometry is contradictory.** The guest reports `outerWidth` 1202 against `innerWidth` 1280 — an outer window narrower than the viewport inside it. The guest reports the host Studio window's bounds while its own layout viewport follows the guest element, so the two disagree by whatever the panel is sized to. Not verified against a headed Chrome, because a headless one reports zeros and is not a fair comparison, but the pair is impossible on its own terms.
 
-**The brands said Chromium while the UA string said Chrome.** This was the only entry in the list a conformance suite actually flagged, and it is now [corrected](#correcting-the-identity), so a guest reports Google Chrome on both surfaces. The rest of this section still stands.
+### Retracted
 
-Two more are weak on their own: `navigator.languages` holds a single entry where Chrome normally carries a fallback as well, and `screen.colorDepth` reports 30 where 24 is near-universal.
+**`navigator.deviceMemory` reporting 32 is not a defect.** This section previously called it a value no real Chrome emits, citing the specification's clamp at 8, and used the machine's true RAM showing through as a privacy argument. A real Chrome on the same machine reports 32 as well. The specification claim was never measured, and the entry was wrong.
+
+### Fixed
+
+**The brands, and the language list.** Both were real, both are corrected below, and both were fixed by making the reported value true rather than by concealing it.
 
 ## What is accurate
 
-Worth recording so the same ground is not re-covered. `navigator.webdriver` is `false` with no own descriptor, so the `AutomationControlled` blink feature is not in play and there is nothing to disable — we pass no `--enable-automation` and no `--remote-debugging-port`. The plugin and mime-type lists match a stock Chrome. Proprietary codecs are present. Permissions and `Notification.permission` agree. A Worker sees the same identity the page does. Every function on `Navigator.prototype` still serializes as `[native code]`, which is the payoff of having declined to overwrite these values from page script.
+Worth recording so the same ground is not re-covered. `navigator.webdriver` is `false` with no own descriptor, so the `AutomationControlled` blink feature is not in play and there is nothing to disable -- we pass no `--enable-automation` and no `--remote-debugging-port`. The plugin count and mime-type list match a real Chrome exactly, as does `navigator.deviceMemory`. Proprietary codecs are present. Permissions and `Notification.permission` agree with each other. A Worker sees the same identity the page does. Every function on `Navigator.prototype` still serializes as `[native code]`, which is the payoff of having declined to overwrite any of this from page script.
 
 ## `Runtime.enable` is not observable, on this Chromium
 
@@ -57,11 +61,34 @@ Two details decided the shape of the change.
 
 The override lives on the page target for as long as the debugger stays attached, so one call per guest is enough. It does not reach out-of-process subframes, which keep reporting the engine's own brands.
 
-## What the suites say now
+## The language list, and why the first attempt was wrong
 
-Every check on the leak suite is green, including the identity one. On the stricter fingerprinting suite the two verdicts that matter are `0% headless` and `0% stealth` — the second being the direct payoff of having refused page-side overwriting, since a browser carrying the usual stealth patches scores high there.
+The same comparison showed `navigator.languages` holding one entry where a real Chrome on the same machine holds two: a system set to `en-US` gives Chrome `["en-US", "en"]` and an `Accept-Language` of `en-US,en;q=0.9`. A lone region tag is a shape no ordinary install produces.
 
-That suite also gives a soft "38% like headless" heuristic, which is worth reading only because it is easy to over-react to. It is six of sixteen checks, and four of them are web platform APIs Electron does not ship at all. A fifth is our own doing: the guest denies every permission request, because there is no browser chrome in which to show a prompt, so `Notification.permission` reads `denied` where an untouched Chrome reads `default`. That is a deliberate safety decision and it should stay; it is recorded here so the next reading does not treat it as a defect to chase.
+The first fix expanded the list where the header is built, which moved the header and nothing else: Electron's `session.setUserAgent` takes an accept-language argument, but it reaches the header and stops there. That turned one oddity into a genuine contradiction -- a page listing languages its own requests did not ask for. It is only a fix once `Emulation.setUserAgentOverride` carries the list too, which is the same override the brands already ride on.
+
+That override wants the list unweighted. CDP splits the string on commas and hands the pieces to `navigator.languages` verbatim, so passing the header's own value puts the literal tag `en;q=0.9` in the page. Chrome makes the same distinction and so do we now: weights on the header, bare tags in the page.
+
+Verified end to end against an echo service: the page reports `["en-US", "en"]`, the request carries `Accept-Language: en-US,en;q=0.9`, and `sec-ch-ua` names the same three brands in the same order the page does.
+
+## Are we as close as Electron allows
+
+Yes, on everything measured, with three known exceptions and one deliberate choice. This is the standing answer to "can we do better", so it should be re-run rather than trusted after an Electron upgrade.
+
+The leak suite returns green on every check. The stricter fingerprinting suite returns `0% headless` and `0% stealth`; the second matters more than it looks, because a browser carrying the usual page-side patches scores high there and we score zero. That is the same property stated three ways: nothing here is a disguise, so nothing reads as one.
+
+Its soft "38% like headless" heuristic is six of sixteen checks, and it is worth reading only so nobody re-opens it:
+
+| Contributor | Ours to fix |
+| --- | --- |
+| `noWebShare`, `noContentIndex`, `noContactsManager`, `noDownlinkMax` | No -- web platform APIs Electron does not ship |
+| `hasKnownBgColor` | No |
+| `notificationIsDenied` | Yes, and deliberately not fixed |
+
+The last is our own doing: the guest denies every permission request, because there is no browser chrome in which to show a prompt, so `Notification.permission` reads `denied` where an untouched Chrome reads `default`. Granting permissions to look ordinary would be trading a real safety property for a cosmetic one. It stays.
+
+Of the differences that remain, `window.chrome` and `screen.colorDepth` have no native lever and would need page-side writing we will not do. The window geometry is the one that is ours rather than Electron's, and no lever has been found for it yet -- that is the place to look next if this question is reopened.
+
 
 ## What the block actually correlates with
 

@@ -531,12 +531,14 @@ async function failureBody(response: Response): Promise<string | undefined> {
  *
  * The reason lives in the body, and the status line alone is often actively
  * misleading. A blocked retailer answers a first cold request -- no prior
- * traffic, nothing to rate-limit -- with 429 and either
- * `{"message":"Too Many Requests (CDN PX)"}` or a page reading `Access to this
- * page has been denied`, chosen by content negotiation alone. Both name a bot
- * block. `Request failed with status 429 Too Many Requests.` names a queue to
- * wait in, and a model given that spends the rest of the task pacing its way
- * around a wall that pacing does not move.
+ * traffic, nothing to rate-limit -- with 429 and a body naming a bot vendor:
+ * a small JSON one for a JSON-ish `Accept`, the multi-kilobyte deny page for a
+ * browser `Accept`, chosen by content negotiation. Neither the size nor the
+ * contents are stable between observations, which is the argument for passing
+ * the body through rather than trying to recognize it. `Request failed with
+ * status 429 Too Many Requests.` names a queue to wait in, and a model given
+ * that spends the rest of the task pacing its way around a wall that pacing
+ * does not move.
  */
 async function failureMessage(response: Response): Promise<string> {
   const retryAfter = response.headers.get("retry-after");

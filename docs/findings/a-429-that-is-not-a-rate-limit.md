@@ -39,14 +39,14 @@ What the aggregate does support: no scripted HTTP client gets through reliably, 
 
 | `Accept` | Content type | Body |
 | --- | --- | --- |
-| `text/markdown;q=1.0, ...` (ours) | `application/json` | `{"message":"Too Many Requests (CDN PX)"}` |
-| `text/html,application/xhtml+xml,...` | `text/html` | 6,033 bytes rendering to `Access to this page has been denied` |
+| A JSON-ish `Accept`, including our markdown-first one | `application/json` | small, structured, naming the bot vendor |
+| A browser `Accept` | `text/html` | the multi-kilobyte deny page |
 
-Both name the block, and the 40-byte one names the vendor doing it.
+The relation is what replicated; the bodies themselves are not constants. This session saw the JSON variant at 40 bytes reading `{"message":"Too Many Requests (CDN PX)"}`; a second session on a different client stack saw it at 677 bytes carrying a vendor bootstrap payload (`appId`, `jsClientSrc`) and no message at all. Same negotiation, different contents, which is why the sizes and the exact strings are kept out of the claim. Naming one of them as *the* body would be the same over-reading that killed the four mechanisms above, just in a much narrower place.
 
-Why this survives when three mechanism claims did not: it repeated on every run rather than once, and it is ordinary content negotiation rather than a scoring decision -- a server choosing a representation by `Accept` is deterministic in a way a bot verdict is not. Note also what it is *not* a claim about. It says nothing about whether a request is refused, only about what the refusal is written in, which is why it survives a host that answers the same request two different ways.
+Why this survives when three mechanism claims did not: it repeated on every run rather than once, it reproduced from a second session on a different client stack hours later, and it is ordinary content negotiation rather than a scoring decision -- a server choosing a representation by `Accept` is deterministic in a way a bot verdict is not. Note also what it is *not* a claim about. It says nothing about whether a request is refused, only about what the refusal is written in, which is why it survives a host that answers the same request two different ways.
 
-So there was never a header change worth making: the body was always informative, and we were throwing it away. An earlier draft of this finding recommended reordering `Accept` for legibility, which would also have cost the markdown-first negotiation that doc sites benefit from. The isolation run retired the recommendation.
+So there was never a header change worth making: the body was always informative, and we were throwing it away. That the JSON variant's contents vary between observations is an argument for surfacing the body rather than summarizing it, since there is nothing stable enough to summarize in advance. An earlier draft of this finding recommended reordering `Accept` for legibility, which would also have cost the markdown-first negotiation that doc sites benefit from. The isolation run retired the recommendation.
 
 ## What changed
 

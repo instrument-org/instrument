@@ -278,6 +278,26 @@ export const WebSearch = setupTool({
 });
 
 /**
+ * How many of one search's results must carry a line before its later copies
+ * are treated as page furniture rather than as content.
+ *
+ * A `site:`-scoped search returns six renderings of one template, so the same
+ * nav items, buttons and cross-sell blocks arrive six times and are charged for
+ * six times. Measured over a real session's eleven searches, dropping the
+ * repeats recovers 13.4% of retrieved characters at a threshold of two,
+ * 9.9% at three and 6.9% at four; on the worst single search, all
+ * single-domain, it is 39/37/36%, and on the diverse searches in the same
+ * session it is under 1% at every threshold.
+ *
+ * Three is where the rule stops needing judgement. Two pages sharing a line is
+ * ordinary -- a quoted price, a shared headline, a spec both list -- and
+ * dropping one of those loses evidence to save a tenth of a percent. Three
+ * independent pages carrying a byte-identical line is a template, and the
+ * threshold buys three quarters of what the greediest one would.
+ */
+const SHARED_LINE_SOURCES = 3;
+
+/**
  * Share the text budget across whatever this search returned.
  *
  * Excerpts compete with each other so that one long first result cannot erase
@@ -288,7 +308,7 @@ export const WebSearch = setupTool({
 function budgetSearchText(results: BudgetedSearch) {
   const texts =
     results.kind === "excerpts"
-      ? results.sources.map((source) => source.text)
+      ? dropSharedChrome(results.sources.map((source) => source.text))
       : [results.text];
   const lengths = texts.map((text) => text.length);
   const originalCharacters = lengths.reduce(
@@ -322,6 +342,48 @@ function budgetSearchText(results: BudgetedSearch) {
     retainedCharacters,
     texts: shortened,
   };
+}
+
+/**
+ * Drop lines that repeat across this search's results, after their first.
+ *
+ * Runs before the budget rather than after, so the characters it reclaims are
+ * redistributed to the text that survives instead of simply being cut later.
+ */
+function dropSharedChrome(texts: readonly string[]): string[] {
+  if (texts.length < SHARED_LINE_SOURCES) {
+    return [...texts];
+  }
+
+  const sourcesPerLine = new Map<string, number>();
+  for (const text of texts) {
+    // Per source, not per occurrence: a line ten times down one page is that
+    // page's own repetition and is not evidence of a shared template.
+    for (const line of new Set(splitLines(text))) {
+      sourcesPerLine.set(line, (sourcesPerLine.get(line) ?? 0) + 1);
+    }
+  }
+
+  const seen = new Set<string>();
+  return texts.map((text) =>
+    text
+      .split("\n")
+      .filter((line) => {
+        const key = line.trim();
+        if (
+          key === "" ||
+          (sourcesPerLine.get(key) ?? 0) < SHARED_LINE_SOURCES
+        ) {
+          return true;
+        }
+        if (seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      })
+      .join("\n"),
+  );
 }
 
 function formatExcerpts(
@@ -376,4 +438,11 @@ function reportBudget({
     retained_characters: budgeted.retainedCharacters,
     tool_name: TOOL_NAMES.webSearch,
   });
+}
+
+function splitLines(text: string): string[] {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
 }

@@ -114,6 +114,32 @@ describe("WebSearch model output", () => {
     expect(rendered).toContain("### 2. Plain\n\nA page with no images.");
   });
 
+  it("charges once for a line three results share, and keeps the rest", () => {
+    const page = (unique: string) =>
+      `Skip to Main Content\nAdd to Cart\n${unique}\nSee Details`;
+    const rendered = renderExcerpts([
+      { text: page("A chaise for 212 dollars."), url: "https://s.test/1" },
+      { text: page("A table for 830 dollars."), url: "https://s.test/2" },
+      { text: page("An umbrella for 249 dollars."), url: "https://s.test/3" },
+    ]);
+
+    expect(rendered.split("Skip to Main Content")).toHaveLength(2);
+    expect(rendered.split("Add to Cart")).toHaveLength(2);
+    for (const price of ["212 dollars", "830 dollars", "249 dollars"]) {
+      expect(rendered).toContain(price);
+    }
+  });
+
+  it("leaves a line two results share alone", () => {
+    const rendered = renderExcerpts([
+      { text: "Shared headline\nFirst body.", url: "https://s.test/1" },
+      { text: "Shared headline\nSecond body.", url: "https://s.test/2" },
+    ]);
+
+    // Two pages agreeing is ordinary; dropping one copy would lose evidence.
+    expect(rendered.split("Shared headline")).toHaveLength(3);
+  });
+
   it("numbers each excerpt under its own source", () => {
     expect(
       stableNonce(

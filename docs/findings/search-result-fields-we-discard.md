@@ -63,6 +63,8 @@ It is concentrated rather than spread: the `site:`-scoped searches give up 37% a
 
 Three sources is where the rule stops needing judgment. Two pages sharing a line is ordinary — a quoted price, a shared headline, a spec both list — and dropping one of those loses evidence to save a tenth of a percent. Three independent pages carrying a byte-identical line is a template. The dedupe runs before the fair-share budget, so what it reclaims is redistributed to the text that survives rather than being cut later.
 
+It says so when it fires, for the same reason the shortening note exists: a result the model reads as the whole of what its page said is worse than one it knows to follow up on. One sentence per search rather than a marker per line — a marker where each dropped line stood would cost more than the line did, and would break up the text the removal is meant to make readable.
+
 ## What to take from it
 
 - **Read the whole response before designing around what you forward.** The fields that closed this failure were present, free, and had been arriving for as long as the endpoint has existed.

@@ -1,8 +1,8 @@
 # What the task browser reports about itself
 
-**Status:** current. Measured 2026-09-01 on Electron 42.3.3 (Chromium 148.0.7778.218), macOS 26.6.2 arm64, against a live `<webview>` guest. The identity and language mismatches it found are corrected in the guest; the rest is a reading rather than a fix. Two earlier readings in this file were wrong and are corrected in place, with the reason each was wrong -- both because a control was skipped, which is the failure mode this subject invites. The block that prompted it turned out to be a rate limit — see [what the block actually correlates with](#what-the-block-actually-correlates-with).
+**Status:** current. Measured 2026-09-01 on Electron 42.3.3 (Chromium 148.0.7778.218), macOS 26.6.2 arm64, against a live `<webview>` guest. The identity and language mismatches it found are corrected in the guest; the rest is a reading rather than a fix. Three earlier readings in this file were wrong and are corrected in place, each with the reason: every one of them came of skipping a control, which is the failure mode this subject invites.
 
-A user reported that a large retail site refused the task browser, serving a hold-to-confirm human check from an iframe that, once it fired, covered the whole origin rather than the page that tripped it. Running that down meant establishing what the guest actually says about itself, because several of those statements turn out to be false — not shaded, but values a browser cannot truthfully report. This records which ones, and what each is worth. The header and client-hint half of the same question is [browser-client-hints-are-ours-not-chromium-s](browser-client-hints-are-ours-not-chromium-s.md).
+A user reported that a large retail site refused the task browser, serving a hold-to-confirm human check from an iframe that, once it fired, covered the whole origin rather than the page that tripped it. Running that down meant establishing what the guest actually says about itself, and comparing every answer against a real Chrome on the same machine rather than against what a specification says it should be. This records where the two differ, what each difference is worth, and which of them turned out not to be differences at all. The header and client-hint half of the same question is [browser-client-hints-are-ours-not-chromium-s](browser-client-hints-are-ours-not-chromium-s.md).
 
 ## How to take the reading again
 
@@ -17,13 +17,13 @@ Public conformance suites are the other half of the reading, since they exercise
 
 ## Where the guest differs from a real Chrome
 
-Every claim here is a diff against a real Google Chrome run on the same machine, because the alternative is asserting from the specification and being wrong. Two of the four entries this section first carried did not survive that comparison, and one of them was stated here as fact for a day.
+Every claim here is a diff against a real Google Chrome run on the same machine, because the alternative is asserting from the specification and being wrong. Of the four entries this section first carried, one was retracted outright and two have since been fixed, leaving the three below.
 
 **`window.chrome` is a hollow object, and absent entirely inside an iframe.** It exists, so a shallow `"chrome" in window` passes, but it has no keys at all. Real Chrome carries `loadTimes`, `csi`, and `app`; the guest carries none of them, and where real Chrome reports `object` for a child frame's `chrome`, the guest reports `undefined`. These are installed by Chrome-only renderer code that Electron does not ship, so there is no native lever and no override we are willing to write. This one is a genuine, unfixable-in-place difference.
 
 **`screen.colorDepth` reports 30 where a real Chrome on the same display reports 24.** Chrome appears to report 24 regardless of the panel; Electron passes the display's real depth through. No CDP command or Electron API covers it. Small, and left alone.
 
-**Window geometry is contradictory.** The guest reports `outerWidth` 1202 against `innerWidth` 1280 — an outer window narrower than the viewport inside it. The guest reports the host Studio window's bounds while its own layout viewport follows the guest element, so the two disagree by whatever the panel is sized to. Not verified against a headed Chrome, because a headless one reports zeros and is not a fair comparison, but the pair is impossible on its own terms.
+**Window geometry is contradictory.** The guest reports `outerWidth` 1202 against `innerWidth` 1280 -- an outer window narrower than the viewport inside it. The guest reports the host Studio window's bounds while its own layout viewport follows the guest element, so the two disagree by whatever the panel is sized to. Not verified against a headed Chrome, because a headless one reports zeros and is not a fair comparison, but the pair is impossible on its own terms.
 
 ### Retracted
 
@@ -41,7 +41,7 @@ Worth recording so the same ground is not re-covered. `navigator.webdriver` is `
 
 The finding above carried this as the loudest open item, on the reasoning that the CLI enables the CDP `Runtime` domain on every attached page and child target. Measured, it does not show up.
 
-The published technique for detecting it puts a non-configurable `stack` getter on an `Error`, passes the error to `console.debug`, and counts getter accesses on a later tick — the client serializes the object out of band to build the console payload, and that read is the tell. Run against a throwaway Electron main process across four conditions, the getter is never touched: no debugger attached, `Runtime.enable` sent, `Runtime.disable` sent after it, and with a listener actively consuming events. That last run recorded four `Runtime.consoleAPICalled` events, so the domain was genuinely enabled and delivering while the getter stayed untouched.
+The published technique for detecting it puts a non-configurable `stack` getter on an `Error`, passes the error to `console.debug`, and counts getter accesses on a later tick -- the client serializes the object out of band to build the console payload, and that read is the tell. Run against a throwaway Electron main process across four conditions, the getter is never touched: no debugger attached, `Runtime.enable` sent, `Runtime.disable` sent after it, and with a listener actively consuming events. That last run recorded four `Runtime.consoleAPICalled` events, so the domain was genuinely enabled and delivering while the getter stayed untouched.
 
 A hosted conformance suite pointed at a real task browser guest agrees, reporting no leak for that check. Treat it as closed in Chromium 148 rather than as something we carry.
 
@@ -89,7 +89,6 @@ The last is our own doing: the guest denies every permission request, because th
 
 Of the differences that remain, `window.chrome` and `screen.colorDepth` have no native lever and would need page-side writing we will not do. The window geometry is the one that is ours rather than Electron's, and no lever has been found for it yet -- that is the place to look next if this question is reopened.
 
-
 ## What the 429 actually meant
 
 Not volume. This section said the opposite for a day, and the correction is worth keeping because the wrong reading was reached the same way both other errors in this file were.
@@ -109,7 +108,6 @@ This says nothing about what happened to the browser itself, which is a separate
 
 Two things follow for the agent's own guidance. Reaching past the browser to a scripted client when a site pushes back is worse than useless, because the scripted client is exactly the shape being refused -- that rule is now better supported than when it was written on the volume theory. Pacing a run of same-origin pages remains ordinary courtesy, but it should not be sold as the fix for a block, because here it was not the cause.
 
-
 ## Where the input path is still worth fixing
 
 On firmer ground than any of this, because it is a read of the code rather than an inference: the CLI's `fill` focuses an element with a script call, sets `value` to empty, and dispatches a `new Event('input')` before inserting text. That event carries `isTrusted` false, so a page is told a user typed when none did. Printable characters then go through `Input.insertText` rather than key events, so no `keydown`, `keypress`, or `keyup` is produced at all.
@@ -118,4 +116,4 @@ The same mechanism has a plain correctness cost: setting `value` directly update
 
 ## What not to do
 
-The reflex fix for every value above is to overwrite it from page script, and the harnesses surveyed all take it — rewriting `deviceMemory`, `screen`, `outerHeight`, and `window.chrome`, then patching `Function.prototype.toString` to conceal the rewrites. Declining that is why `[native code]` is still true here, and it is worth keeping: a browser that lies about its own internals is not a better representative of the user than one that reports an odd number honestly. Where a value can be corrected at the source — through CDP's user-agent metadata, through a window's real bounds, through what Electron reports — correcting it makes the report true, and that is a fix worth making. Where the only available change is a page-side fiction, leave it.
+The reflex fix for every value above is to overwrite it from page script, and the harnesses surveyed all take it -- rewriting `deviceMemory`, `screen`, `outerHeight`, and `window.chrome`, then patching `Function.prototype.toString` to conceal the rewrites. Declining that is why `[native code]` is still true here, and it is worth keeping: a browser that lies about its own internals is not a better representative of the user than one that reports an odd number honestly. Where a value can be corrected at the source -- through CDP's user-agent metadata, through a window's real bounds, through what Electron reports -- correcting it makes the report true, and that is a fix worth making. Where the only available change is a page-side fiction, leave it.

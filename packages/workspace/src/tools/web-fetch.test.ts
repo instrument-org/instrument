@@ -282,7 +282,11 @@ describe("WebFetch page cache", () => {
 
   async function fetchTwice(
     response: () => Response,
-    second: { format?: "html" | "markdown"; maxCharacters?: number } = {},
+    second: {
+      format?: "html" | "markdown";
+      maxAgeSeconds?: number;
+      maxCharacters?: number;
+    } = {},
   ) {
     mockFs({ [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} } });
     const fetchSpy = vi.fn(response);
@@ -341,6 +345,38 @@ describe("WebFetch page cache", () => {
     // The first call asked for markdown; a cached body is not stuck with it.
     expect(second.text).toBe("<p>The article body.</p>");
     expect(second.format).toBe("html");
+  });
+
+  it("requires a real request when the caller will not accept a cached age", async () => {
+    const { fetchSpy, second } = await fetchTwice(
+      () =>
+        new Response("<p>The article body.</p>", {
+          headers: { "Content-Type": "text/html" },
+        }),
+      { maxAgeSeconds: 0 },
+    );
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    if (second.state !== "success") {
+      throw new Error("Expected the second fetch to succeed");
+    }
+    expect(second.cachedAgeMs).toBeUndefined();
+  });
+
+  it("still serves a cached page inside the age the caller allows", async () => {
+    const { fetchSpy, second } = await fetchTwice(
+      () =>
+        new Response("<p>The article body.</p>", {
+          headers: { "Content-Type": "text/html" },
+        }),
+      { maxAgeSeconds: 60 },
+    );
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    if (second.state !== "success") {
+      throw new Error("Expected the cached fetch to succeed");
+    }
+    expect(second.cachedAgeMs).toBeGreaterThanOrEqual(0);
   });
 
   it("never holds a refusal, which the user may be about to clear", async () => {

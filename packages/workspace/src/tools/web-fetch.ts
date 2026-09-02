@@ -13,7 +13,11 @@ import { isPrivateHostname } from "../lib/private-address";
 import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
 import { SKILL_NAMES } from "../lib/skill-names";
 import { taskDir } from "../lib/task-dir-utils";
-import { cachePage, readCachedPage } from "../lib/web-fetch-cache";
+import {
+  CACHE_TTL_SECONDS,
+  cachePage,
+  readCachedPage,
+} from "../lib/web-fetch-cache";
 import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
@@ -53,6 +57,7 @@ const BOUNDARY_LABEL = "WEB_FETCH_CONTENT";
 
 const INPUT_PARAMS = {
   format: "format",
+  maxAgeSeconds: "maxAgeSeconds",
   maxCharacters: "maxCharacters",
   timeout: "timeout",
   url: "url",
@@ -64,6 +69,15 @@ export const WebFetch = setupTool({
       description:
         "Return format for HTML pages: 'markdown' (default, readable) or 'html' (raw). Ignored for non-HTML content.",
     }),
+    [INPUT_PARAMS.maxAgeSeconds]: z
+      .number()
+      .int()
+      .min(0)
+      .max(CACHE_TTL_SECONDS)
+      .optional()
+      .meta({
+        description: `How old a already-fetched copy of this URL may be, in seconds. A page fetched in the last ${CACHE_TTL_SECONDS} seconds is served from memory without asking the site again, and the result says how old it was. Pass 0 to require a real request, or a smaller number to accept only a newer copy. Worth setting only for something that actually moves -- a status or build page, a feed, a page you just changed yourself. Reading a page twice in one task does not need it.`,
+      }),
     [INPUT_PARAMS.maxCharacters]: z
       .number()
       .int()
@@ -132,6 +146,7 @@ export const WebFetch = setupTool({
     try {
       const result = await fetchTextual({
         format,
+        maxAgeSeconds: input.maxAgeSeconds,
         maxCharacters: input.maxCharacters ?? DEFAULT_TEXT_CHARACTERS,
         signal: AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]),
         url,
@@ -220,7 +235,7 @@ export const WebFetch = setupTool({
     const cacheNote =
       output.cachedAgeMs === undefined
         ? ""
-        : `\n\nNote: served from a local cache of a fetch made ${ms(output.cachedAgeMs, { long: true })} ago, not requested again.`;
+        : `\n\nNote: served from a local cache of a fetch made ${ms(output.cachedAgeMs, { long: true })} ago, not requested again. Set ${INPUT_PARAMS.maxAgeSeconds} on another fetch if this page needs to be newer than that.`;
     return {
       type: "text",
       value: `${renderWebContent({ content: output.text, nonceSeed: toolCallId, url: output.url })}${truncationNote}${cacheNote}`,
@@ -259,17 +274,24 @@ function convert(content: string, mime: string, format: FetchFormat): string {
 
 async function fetchTextual({
   format,
+  maxAgeSeconds,
   maxCharacters,
   signal,
   url,
 }: {
   format: FetchFormat;
+  maxAgeSeconds: number | undefined;
   maxCharacters: number;
   signal: AbortSignal;
   url: string;
 }): Promise<FetchTextualResult> {
   const cached = readCachedPage(url);
-  if (cached) {
+  // An unset limit accepts whatever survived the cache's own window. A limit of
+  // zero can never be satisfied, which is the way to insist on a real request.
+  if (
+    cached &&
+    (maxAgeSeconds === undefined || cached.ageMs < maxAgeSeconds * 1000)
+  ) {
     return renderBody({
       cachedAgeMs: cached.ageMs,
       contentType: cached.contentType,

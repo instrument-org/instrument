@@ -1024,6 +1024,9 @@ importers:
       just-bash:
         specifier: ^3.4.1
         version: 3.4.1
+      lru-cache:
+        specifier: ^11.5.2
+        version: 11.5.2
       mime-types:
         specifier: ^3.0.2
         version: 3.0.2

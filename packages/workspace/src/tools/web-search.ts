@@ -289,7 +289,7 @@ export const WebSearch = setupTool({
  * single-domain, it is 39/37/36%, and on the diverse searches in the same
  * session it is under 1% at every threshold.
  *
- * Three is where the rule stops needing judgement. Two pages sharing a line is
+ * Three is where the rule stops needing judgment. Two pages sharing a line is
  * ordinary -- a quoted price, a shared headline, a spec both list -- and
  * dropping one of those loses evidence to save a tenth of a percent. Three
  * independent pages carrying a byte-identical line is a template, and the

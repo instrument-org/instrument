@@ -15,6 +15,8 @@ Grouped by area; status is the short form of each file's own line.
 | [Agent prompt surface](agent-prompt-surface-review.md) — what we measured across the system prompt and tool descriptions | open items |
 | [Agent tool surface](agent-tool-surface-review.md) — gaps against three reference harnesses | partly overtaken |
 | [Tool errors that invite repair loops](tool-errors-that-invite-repair-loops.md) — an error message is an instruction, and models follow it | guidance |
+| [A 429 that is not a rate limit](a-429-that-is-not-a-rate-limit.md) — the deny page `web_fetch` threw away, and why a throttle would not have helped | fixed |
+| [The search backend returns more than we forwarded](search-result-fields-we-discard.md) — the lead image and site icon we dropped, and the freshness we cannot buy | fixed, with trade-offs recorded |
 | [Splitting media out of tool results](multipart-tool-results-and-the-split.md) — why the rewrite exists, what it costs, how a provider gets cleared | partly retired |
 | [Browsing never opens the pane](browsing-never-opens-the-pane.md) — the page the user asked to see stayed invisible | resolved |
 | [Local transcription engine](local-transcription-engine.md) — engine comparison, deliberately unresolved | open, unmeasured |

@@ -7,6 +7,7 @@ import {
   secChUaBrands,
   secChUaHeader,
   standardUserAgentHeaders,
+  userAgentMetadata,
   weightedAcceptLanguage,
 } from "./user-agent";
 
@@ -14,6 +15,11 @@ const ELECTRON_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Studio/1.3.1 Chrome/128.0.0.0 Electron/32.0.1 " +
   "Safari/537.36";
+
+// The normalized UA this Electron produces, full version left intact.
+const CHROME_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+  "(KHTML, like Gecko) Chrome/148.0.7778.218 Safari/537.36";
 
 describe("normalizeUserAgent", () => {
   it("removes the app-name and Electron tokens, keeping the rest truthful", () => {
@@ -101,6 +107,140 @@ describe("secChUaBrands", () => {
         },
       ]
     `);
+  });
+
+  // Ground truth, and the reason the permutation is reproduced rather than
+  // guessed: a real Google Chrome 152 on macOS reports exactly this list and
+  // order. Getting the order wrong is not cosmetic -- it is the page and the
+  // header describing two different browsers again.
+  it("matches a real Chrome build's own three-brand list and order", () => {
+    expect(secChUaBrands(152, { chromeBranded: true })).toMatchInlineSnapshot(`
+      [
+        {
+          "brand": "Chromium",
+          "version": "152",
+        },
+        {
+          "brand": "Not?A_Brand",
+          "version": "24",
+        },
+        {
+          "brand": "Google Chrome",
+          "version": "152",
+        },
+      ]
+    `);
+  });
+
+  it("scatters the three-brand list differently for another major", () => {
+    expect(secChUaBrands(148, { chromeBranded: true })).toMatchInlineSnapshot(`
+      [
+        {
+          "brand": "Chromium",
+          "version": "148",
+        },
+        {
+          "brand": "Google Chrome",
+          "version": "148",
+        },
+        {
+          "brand": "Not/A)Brand",
+          "version": "99",
+        },
+      ]
+    `);
+  });
+
+  it("keeps the same GREASE entry whether or not the build is branded", () => {
+    const unbranded = secChUaBrands(148).find(({ brand }) =>
+      brand.startsWith("Not"),
+    );
+    const branded = secChUaBrands(148, { chromeBranded: true }).find(
+      ({ brand }) => brand.startsWith("Not"),
+    );
+    expect(branded).toEqual(unbranded);
+  });
+});
+
+describe("userAgentMetadata", () => {
+  // Every field is pinned because an omitted one comes back empty from
+  // getHighEntropyValues rather than falling back to what Blink would say, and
+  // an empty high-entropy answer is its own inconsistency.
+  it("reproduces what Blink derives, with the branded list", () => {
+    expect(
+      userAgentMetadata({
+        arch: "arm64",
+        platform: "darwin",
+        systemVersion: "26.6.2",
+        userAgent: CHROME_UA,
+      }),
+    ).toMatchInlineSnapshot(`
+      {
+        "architecture": "arm",
+        "bitness": "64",
+        "brands": [
+          {
+            "brand": "Chromium",
+            "version": "148",
+          },
+          {
+            "brand": "Google Chrome",
+            "version": "148",
+          },
+          {
+            "brand": "Not/A)Brand",
+            "version": "99",
+          },
+        ],
+        "fullVersion": "148.0.7778.218",
+        "fullVersionList": [
+          {
+            "brand": "Chromium",
+            "version": "148.0.7778.218",
+          },
+          {
+            "brand": "Google Chrome",
+            "version": "148.0.7778.218",
+          },
+          {
+            "brand": "Not/A)Brand",
+            "version": "99.0.0.0",
+          },
+        ],
+        "mobile": false,
+        "model": "",
+        "platform": "macOS",
+        "platformVersion": "26.6.2",
+        "wow64": false,
+      }
+    `);
+  });
+
+  it("maps an Intel host to the architecture Chrome reports there", () => {
+    expect(
+      userAgentMetadata({
+        arch: "x64",
+        platform: "win32",
+        systemVersion: "10.0.22631",
+        userAgent: CHROME_UA,
+      }),
+    ).toMatchObject({
+      architecture: "x86",
+      bitness: "64",
+      platform: "Windows",
+      platformVersion: "10.0.22631",
+    });
+  });
+
+  it("returns null when the UA carries no version to derive from", () => {
+    expect(
+      userAgentMetadata({
+        arch: "arm64",
+        platform: "darwin",
+        systemVersion: "26.6.2",
+        userAgent: "Mozilla/5.0 Safari/537.36",
+      }),
+    ).toBeNull();
   });
 });
 

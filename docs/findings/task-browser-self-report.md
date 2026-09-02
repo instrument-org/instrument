@@ -1,6 +1,6 @@
 # What the task browser reports about itself
 
-**Status:** current. Measured 2026-09-01 on Electron 42.3.3 (Chromium 148.0.7778.218), macOS 26.6.2 arm64, against a live `<webview>` guest. Everything below is a reading, not a fix; nothing here has been changed. One earlier reading in this file was wrong and is corrected in place, with the reason it was wrong. The block that prompted it turned out to be a rate limit — see [what the block actually correlates with](#what-the-block-actually-correlates-with).
+**Status:** current. Measured 2026-09-01 on Electron 42.3.3 (Chromium 148.0.7778.218), macOS 26.6.2 arm64, against a live `<webview>` guest. The identity mismatch it found has since been corrected in the guest; everything else below is a reading rather than a fix. One earlier reading in this file was wrong and is corrected in place, with the reason it was wrong. The block that prompted it turned out to be a rate limit — see [what the block actually correlates with](#what-the-block-actually-correlates-with).
 
 A user reported that a large retail site refused the task browser, serving a hold-to-confirm human check from an iframe that, once it fired, covered the whole origin rather than the page that tripped it. Running that down meant establishing what the guest actually says about itself, because several of those statements turn out to be false — not shaded, but values a browser cannot truthfully report. This records which ones, and what each is worth. The header and client-hint half of the same question is [browser-client-hints-are-ours-not-chromium-s](browser-client-hints-are-ours-not-chromium-s.md).
 
@@ -25,7 +25,7 @@ Four values are ones a real Chrome does not produce. Two of them are not merely 
 
 **Window geometry is impossible.** The guest reports `outerWidth` 1202 against `innerWidth` 1280 — an outer window narrower than the viewport inside it, which cannot happen. The guest reports the host Studio window's bounds while its own layout viewport follows the guest element, so the two disagree by whatever the panel is currently sized to. Any page doing responsive layout arithmetic off those two numbers is working from a contradiction.
 
-**The brands say Chromium while the UA string says Chrome.** `navigator.userAgentData.brands` is `Not/A)Brand` plus `Chromium`, with no Google Chrome entry, against a UA string of `Chrome/148.0.7778.218`. The two surfaces are internally consistent, which is what the client-hints work fixed, but they describe a build the app is not. Of everything in this list this is the only one a conformance suite actually flags, and it has a native correction; see [the one check that does fail](#the-one-check-that-does-fail).
+**The brands said Chromium while the UA string said Chrome.** This was the only entry in the list a conformance suite actually flagged, and it is now [corrected](#correcting-the-identity), so a guest reports Google Chrome on both surfaces. The rest of this section still stands.
 
 Two more are weak on their own: `navigator.languages` holds a single entry where Chrome normally carries a fallback as well, and `screen.colorDepth` reports 30 where 24 is near-universal.
 
@@ -43,13 +43,25 @@ A hosted conformance suite pointed at a real task browser guest agrees, reportin
 
 An earlier reading here claimed the opposite. It used a regex with an overridden `toString` instead of an error's `stack` getter, and `console.debug` invokes `toString` on a regex whether or not any client is attached, so it reported a positive in every condition including the control. The lesson is cheap to restate: a detection probe is worth nothing until its negative control has been run.
 
-## The one check that does fail
+## Correcting the identity
 
-Of the checks that suite runs, exactly one comes back red, and it is the identity pair: `navigator.userAgentData` carries `Chromium` with no Google Chrome brand, which the suite flags directly as the signature of a non-branded build.
+The one red a conformance suite returned was the identity pair: `navigator.userAgentData` carried `Chromium` and no Google Chrome brand, which it flags directly as the signature of a non-branded build. The header had already been made to agree with the page by the client-hints work, so both surfaces were coherent and both were describing a build the app is not.
 
-This is the surface the client-hints work deliberately settled on. It removed the Google Chrome brand from the header so the header would stop contradicting the page, and the page has never carried it. The result is coherent, and wrong in the same direction on both sides.
+Correcting it needs both halves to move together, and the page half is the one that looked impossible. It is not: CDP's `Emulation.setUserAgentOverride` takes a `userAgentMetadata`, and Blink then serves `navigator.userAgentData` from it. The properties stay native, no descriptor or function source is disturbed, and nothing is written into the page. Guests get it at debugger attach; the app's own session does not, because no debugger is attached there and a header claiming what its page denies is the mismatch this is all about.
 
-There is a way to correct it that does not require writing from page script, which is the constraint that made this look unfixable: CDP's `Network.setUserAgentOverride` accepts a full `userAgentMetadata`, and Blink then serves `navigator.userAgentData` from it. The value is native, so no descriptor or function source is disturbed, and the header generator already produces the matching brand list. That is the shape of the fix if we take it.
+Two details decided the shape of the change.
+
+**The brand order is derived, not chosen.** Chromium builds the list in a fixed order and scatters it with `shuffled[order[i]] = list[i]`, picking the permutation by `major % count`. Getting that wrong puts the right brands in an order no real build produces, which is the same contradiction pointed sideways. The permutation table is reproduced from the engine's own source and pinned in a test against a real Google Chrome: major 152 takes `{1, 0, 2}` and reports Chromium, GREASE, Google Chrome, which is exactly what the generator produces.
+
+**Every high-entropy field has to be sent.** An omitted field comes back empty from `getHighEntropyValues()` rather than falling back to what Blink would have said, so a partial override trades one inconsistency for a louder one. All of them are derivable in the main process without asking the page: `process.getSystemVersion()` equals the `platformVersion` Blink reports, and `process.arch` gives the architecture and bitness.
+
+The override lives on the page target for as long as the debugger stays attached, so one call per guest is enough. It does not reach out-of-process subframes, which keep reporting the engine's own brands.
+
+## What the suites say now
+
+Every check on the leak suite is green, including the identity one. On the stricter fingerprinting suite the two verdicts that matter are `0% headless` and `0% stealth` — the second being the direct payoff of having refused page-side overwriting, since a browser carrying the usual stealth patches scores high there.
+
+That suite also gives a soft "38% like headless" heuristic, which is worth reading only because it is easy to over-react to. It is six of sixteen checks, and four of them are web platform APIs Electron does not ship at all. A fifth is our own doing: the guest denies every permission request, because there is no browser chrome in which to show a prompt, so `Notification.permission` reads `denied` where an untouched Chrome reads `default`. That is a deliberate safety decision and it should stay; it is recorded here so the next reading does not treat it as a defect to chase.
 
 ## What the block actually correlates with
 

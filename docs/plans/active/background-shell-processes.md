@@ -1,6 +1,6 @@
 # Background shell processes
 
-Status: **active.** The workspace half works end to end and is covered by tests, the agent is told what it left running, and the user sees it in the task header and on the call that started it. No subagent tool yet. What remains is in [What the user and the agent are told](#what-the-user-and-the-agent-are-told), and [one integration](#integrating-with-mains-split-of-stdout-and-stderr) is owed to `main`.
+Status: **active.** The workspace half works end to end and is covered by tests, the agent is told what it left running, and the user sees it in the task header and on the call that started it. No subagent tool yet, and the live log a promoted command writes is not shown in the card. What remains is in [What the user and the agent are told](#what-the-user-and-the-agent-are-told).
 
 ## Problem
 

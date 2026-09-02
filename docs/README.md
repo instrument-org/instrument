@@ -25,6 +25,12 @@ The distinction that matters most: **architecture is corrected, decisions and ch
 - Link code paths so a doc stays tied to the source, and fix the links when files move. Nothing in `docs/` should point at a path that no longer exists.
 - Leave out anything tied to one machine, person, or moment: local paths, sibling checkout names, branch names, in-flight PR state.
 
+## Naming third parties, and describing our own browser
+
+Do not name a third-party site, service, or vendor when recording how our software behaved against it. Name the class instead — a large retail site, a request-metering service, a public conformance suite. A named company turns an engineering note into a claim about that company, is read as a live claim long after the behavior changed, and goes stale the moment either side ships. The mechanism is the part that transfers to the next case, and it survives the anonymizing intact. The same rule already covers products we drew ideas from: describe the design, not whose it is.
+
+Describe work on the task browser as making it accurate, because that is what we are willing to build. The browser acts for the user, and it should report itself and its situation truthfully; the defects worth writing down are the ones where it does not — a value no real browser emits, a geometry that cannot exist, an identity that contradicts itself across two surfaces. Correcting those at the source makes the report true, and that is the whole of the goal. We do not overwrite these values from page script to make the browser claim to be something else, so a document reaching for the vocabulary of stealth, evasion, or defeating a check has drifted from the work and should be rewritten before it is committed.
+
 ## Not tracked here
 
 Documentation for the Platform API, the authenticated service Studio calls through `src/electron-main/platform-api/`, belongs in that service's own repository rather than here. Describe this side of the seam freely: the client interface, what the app does with a response, and what a failure has to look like to the user. Leave the endpoint's design, provider choices, pricing, and billing to the side that owns them, so those details have one home and cannot drift into a second description that nobody updates.

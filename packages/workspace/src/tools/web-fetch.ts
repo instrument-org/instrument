@@ -10,6 +10,7 @@ import { TASK_FOLDER_NAMES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
 import { boundaryContainmentNote, boundContent } from "../lib/content-boundary";
 import { isPrivateHostname } from "../lib/private-address";
+import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
 import { SKILL_NAMES } from "../lib/skill-names";
 import { taskDir } from "../lib/task-dir-utils";
 import { RelativePathSchema } from "../schemas/paths";
@@ -433,9 +434,12 @@ async function failureBody(response: Response): Promise<string | undefined> {
   if (text === "") {
     return undefined;
   }
-  return text.length > MAX_ERROR_BODY_CHARACTERS
-    ? `${text.slice(0, MAX_ERROR_BODY_CHARACTERS)}...`
-    : text;
+  // No spill file for this one, unlike the success path: a spill exists so the
+  // model can go and get the rest of a page it wants, and nobody wants the rest
+  // of a deny page. Writing one per failed fetch would leave a file in the task
+  // folder for every 404.
+  const kept = truncateWithoutSplitting(text, MAX_ERROR_BODY_CHARACTERS);
+  return kept.length === text.length ? text : `${kept}...`;
 }
 
 /**

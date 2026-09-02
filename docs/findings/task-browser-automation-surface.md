@@ -1,6 +1,6 @@
 # What the task browser tells a site about itself
 
-**Status:** current. Measured 2026-09-01 on Electron 42.3.3 (Chromium 148.0.7778.218), macOS 26.6.2 arm64, against a live `<webview>` guest. Everything below is a reading, not a fix; nothing here has been changed.
+**Status:** current. Measured 2026-09-01 on Electron 42.3.3 (Chromium 148.0.7778.218), macOS 26.6.2 arm64, against a live `<webview>` guest. Everything below is a reading, not a fix; nothing here has been changed. The reported block itself turned out to be paced rather than fingerprinted — see [what the block actually correlates with](#what-the-block-actually-correlates-with).
 
 A user reported that Wayfair blocks the task browser. That site runs a "Press & Hold" interstitial with a reference id, served from an iframe, and once it fires it covers the whole origin rather than the page that tripped it. This records what the guest actually exposes, which of it is anomalous, and what the anomalies are worth. The header and client-hint half of the same question is [browser-client-hints-are-ours-not-chromium-s](browser-client-hints-are-ours-not-chromium-s.md); that work shipped before this block was reported and did not prevent it.
 
@@ -43,11 +43,13 @@ Independent corroboration that this is the signal that matters most: Patchright,
 
 ## What the block actually correlates with
 
-Small sample, stated as such. A direct navigation to the search endpoint succeeded and returned real content. The very next navigation in the same session, to the site root, was denied. In the reported session the block likewise arrived several page loads in rather than on the first.
+Volume, on the evidence available. In the session where the block was first reported, the sequence is unambiguous: a shell loop opened eight of the site's product pages back to back through the browser, each with a `networkidle` wait, and hit the tool timeout partway through. The agent then fetched the same eight URLs with a scripted HTTP client, and every one came back **HTTP 429 Too Many Requests** — a rate-limit code, not an identity refusal, and returned for all eight within three seconds, so the limit was already in force before that pass began. The next browser navigation after that was the interstitial.
 
-That shape points at the sensor rather than at any single interaction: it collects on a page load, posts, scores, and the block lands on a later request. It does not support blaming the input path, and the two runs that were blocked and the run that succeeded all carried the same fingerprint. What it does mean is that the score persists — the workspace browser profile keeps cookies for the whole task, so a task that has been scored stays scored.
+The model diagnosed it correctly in the moment, and then made it worse. Its own note reads that the pages were rate-limiting the browser when opened repeatedly, and its response was to reach past the browser to the scripted client — which drops the cookies and session the earlier requests carried, presents an obviously non-browser client, and adds eight more requests to the count that caused the limit.
 
-This is correlation across a handful of trials. Nothing here identifies which signal the vendor keys on, and the section above is a list of candidates, not a cause.
+The shape is consistent elsewhere. A second reported session ran a burst of repeated navigations before its block. A deliberate reproduction here loaded one page cleanly, with real content returned, and was denied on the very next request.
+
+So the proximate trigger is request pacing, not the fingerprint. What cannot be separated from outside is whether the threshold sits lower for a client the site already distrusts, and nothing here identifies a signal the vendor keys on. The anomalies above are worth what they are worth on their own terms; there is no evidence that fixing them clears this site, and a pacing change is both cheaper and better supported.
 
 ## Where the input path is still worth fixing
 

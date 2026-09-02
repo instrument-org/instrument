@@ -57,6 +57,12 @@ Both readings hold, because they describe different clients:
 
 The guidance splits with them. On the browser path, pacing is a lever and the interstitial is clearable by the user. On the HTTP path there is no lever: the site will not serve this class of client at all, and every retry, delay, and header change is spent for nothing. Same status code, different meaning, and the tool now says which one it is looking at.
 
+## What a page cache does and does not cover
+
+A five-minute page cache landed alongside this, on the separate observation that the same URL gets requested more than once for reasons unrelated to the page changing — overlapping parallel calls, a retry, returning to a source, or two tasks researching the same thing. This session made six overlapping requests inside 1.3 seconds and came back to the same URLs about two and four minutes later.
+
+It does nothing for a block. **Only successful bodies are held**, deliberately: a refusal can be cleared by the user completing a challenge, and a cached one would outlast the fix and keep reporting a wall that is no longer there. The cache is a cost and latency measure, not a mitigation for anything in this finding.
+
 ## What was deliberately not built
 
 **A throttle.** It was the first thing that looked obvious. One cold request 429s, so no pacing would have changed this session. A small per-host concurrency cap is still defensible as politeness and for hosts that really do rate-limit, but it has to be argued for on those grounds rather than on this one.

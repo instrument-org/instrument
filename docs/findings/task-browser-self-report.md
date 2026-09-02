@@ -1,6 +1,6 @@
 # What the task browser reports about itself
 
-**Status:** current. Measured 2026-09-01 on Electron 42.3.3 (Chromium 148.0.7778.218), macOS 26.6.2 arm64, against a live `<webview>` guest. Everything below is a reading, not a fix; nothing here has been changed. The block that prompted it turned out to be a rate limit — see [what the block actually correlates with](#what-the-block-actually-correlates-with).
+**Status:** current. Measured 2026-09-01 on Electron 42.3.3 (Chromium 148.0.7778.218), macOS 26.6.2 arm64, against a live `<webview>` guest. Everything below is a reading, not a fix; nothing here has been changed. One earlier reading in this file was wrong and is corrected in place, with the reason it was wrong. The block that prompted it turned out to be a rate limit — see [what the block actually correlates with](#what-the-block-actually-correlates-with).
 
 A user reported that a large retail site refused the task browser, serving a hold-to-confirm human check from an iframe that, once it fired, covered the whole origin rather than the page that tripped it. Running that down meant establishing what the guest actually says about itself, because several of those statements turn out to be false — not shaded, but values a browser cannot truthfully report. This records which ones, and what each is worth. The header and client-hint half of the same question is [browser-client-hints-are-ours-not-chromium-s](browser-client-hints-are-ours-not-chromium-s.md).
 
@@ -25,7 +25,7 @@ Four values are ones a real Chrome does not produce. Two of them are not merely 
 
 **Window geometry is impossible.** The guest reports `outerWidth` 1202 against `innerWidth` 1280 — an outer window narrower than the viewport inside it, which cannot happen. The guest reports the host Studio window's bounds while its own layout viewport follows the guest element, so the two disagree by whatever the panel is currently sized to. Any page doing responsive layout arithmetic off those two numbers is working from a contradiction.
 
-**The brands say Chromium while the UA string says Chrome.** `navigator.userAgentData.brands` is `Not/A)Brand` plus `Chromium`, with no Google Chrome entry, against a UA string of `Chrome/148.0.7778.218`. The two surfaces are internally consistent, which is what the client-hints work fixed, but they describe a build the app is not.
+**The brands say Chromium while the UA string says Chrome.** `navigator.userAgentData.brands` is `Not/A)Brand` plus `Chromium`, with no Google Chrome entry, against a UA string of `Chrome/148.0.7778.218`. The two surfaces are internally consistent, which is what the client-hints work fixed, but they describe a build the app is not. Of everything in this list this is the only one a conformance suite actually flags, and it has a native correction; see [the one check that does fail](#the-one-check-that-does-fail).
 
 Two more are weak on their own: `navigator.languages` holds a single entry where Chrome normally carries a fallback as well, and `screen.colorDepth` reports 30 where 24 is near-universal.
 
@@ -33,13 +33,23 @@ Two more are weak on their own: `navigator.languages` holds a single entry where
 
 Worth recording so the same ground is not re-covered. `navigator.webdriver` is `false` with no own descriptor, so the `AutomationControlled` blink feature is not in play and there is nothing to disable — we pass no `--enable-automation` and no `--remote-debugging-port`. The plugin and mime-type lists match a stock Chrome. Proprietary codecs are present. Permissions and `Notification.permission` agree. A Worker sees the same identity the page does. Every function on `Navigator.prototype` still serializes as `[native code]`, which is the payoff of having declined to overwrite these values from page script.
 
-## `Runtime.enable` is observable from the page
+## `Runtime.enable` is not observable, on this Chromium
 
-The finding above listed this as open. It is now measured rather than reasoned about: a four-line probe in page script — give a regex a `toString` that sets a flag, pass it to `console.debug` — trips in the guest. The debugger is attached for the guest's entire life (`ensureDebuggerAttached` runs at target creation), so a page can tell it is being instrumented while the *user* browses the panel by hand, not only while the agent drives. That is worth knowing on its own terms: the user's ordinary browsing carries a marker they did not ask for.
+The finding above carried this as the loudest open item, on the reasoning that the CLI enables the CDP `Runtime` domain on every attached page and child target. Measured, it does not show up.
 
-Caveat on the measurement: no no-CDP control was run, so what is established is that the probe trips with our stack as shipped, not the counterfactual.
+The published technique for detecting it puts a non-configurable `stack` getter on an `Error`, passes the error to `console.debug`, and counts getter accesses on a later tick — the client serializes the object out of band to build the console payload, and that read is the tell. Run against a throwaway Electron main process across four conditions, the getter is never touched: no debugger attached, `Runtime.enable` sent, `Runtime.disable` sent after it, and with a listener actively consuming events. That last run recorded four `Runtime.consoleAPICalled` events, so the domain was genuinely enabled and delivering while the getter stayed untouched.
 
-A hardened fork of a mainstream browser-automation library, maintained specifically so its instrumentation does not alter the page, treats removing this as the single largest change it carries, and executes script in isolated execution contexts instead. Our copy of the underlying CLI still calls `Runtime.enable` at three sites, ships as prebuilt per-platform binaries, and so cannot be changed locally.
+A hosted conformance suite pointed at a real task browser guest agrees, reporting no leak for that check. Treat it as closed in Chromium 148 rather than as something we carry.
+
+An earlier reading here claimed the opposite. It used a regex with an overridden `toString` instead of an error's `stack` getter, and `console.debug` invokes `toString` on a regex whether or not any client is attached, so it reported a positive in every condition including the control. The lesson is cheap to restate: a detection probe is worth nothing until its negative control has been run.
+
+## The one check that does fail
+
+Of the checks that suite runs, exactly one comes back red, and it is the identity pair: `navigator.userAgentData` carries `Chromium` with no Google Chrome brand, which the suite flags directly as the signature of a non-branded build.
+
+This is the surface the client-hints work deliberately settled on. It removed the Google Chrome brand from the header so the header would stop contradicting the page, and the page has never carried it. The result is coherent, and wrong in the same direction on both sides.
+
+There is a way to correct it that does not require writing from page script, which is the constraint that made this look unfixable: CDP's `Network.setUserAgentOverride` accepts a full `userAgentMetadata`, and Blink then serves `navigator.userAgentData` from it. The value is native, so no descriptor or function source is disturbed, and the header generator already produces the matching brand list. That is the shape of the fix if we take it.
 
 ## What the block actually correlates with
 

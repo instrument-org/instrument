@@ -167,6 +167,16 @@ const probe = () => {
 // guest when the pool holds more than one; the first mounted guest is the
 // default. Open a page in the guest first -- an `about:blank` guest reports
 // little.
+//
+// This reads values; it does not judge them. For a scored second opinion, point
+// the guest at a hosted conformance suite and read the page back:
+//
+//   agent-browser open https://bot-detector.rebrowser.net/
+//
+// Note that a probe for an automation leak is worthless until its negative
+// control has been run. An earlier version of this file reported a false
+// positive for the CDP `Runtime.enable` leak because `console.debug` invokes
+// `toString` on a regex with or without a client attached.
 export default async (app, args) => {
   const taskId = args?.taskId ?? "";
   const result = await app.eval(`(async () => {

@@ -60,3 +60,13 @@ agent-reference.local.json
 # outlive the conversation that produced it.
 /docs/plans/**/wireframes-*.html
 /docs/plans/**/wireframes-index.txt
+
+# What an agent leaves at the checkout root while checking its own work: a
+# capture from `studio-drive shot`, whose file argument is resolved against the
+# working directory, and a task zip it exported or was handed to read. Named
+# for whatever was being looked at, and a capture can hold a real task title or
+# a real filename, so neither is something to offer up in a diff. A screenshot
+# that belongs to the record goes under `docs/changes/<date>/images/`.
+/*.png
+/*.zip
+/shots/

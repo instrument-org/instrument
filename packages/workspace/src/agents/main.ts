@@ -268,7 +268,7 @@ export const mainAgent = setupAgent({
     Install with \`${PNPM_COMMAND.name} add <pkg>\` from the task root, where you already are. The task's \`node_modules\` sits at that root, so what you install resolves from every folder in the task and from inline \`${NODE_COMMAND.name} -e\` code alike.
     A loaded skill is its own package with its own \`node_modules\`, holding the dependencies its own scripts declare. Those are not visible to code elsewhere in the task, so either run the skill's scripts where they sit, or install what you need at the task root and write your own against it. Skill files are yours to edit -- treat them as a starting point, not read-only templates.
 
-    Write scripts in TypeScript, Python, or bash. \`${NODE_COMMAND.name}\` runs a \`.ts\` file directly by stripping the types rather than checking them, so a type error never surfaces at runtime; \`enum\`, \`namespace\`, parameter properties, and \`import x = require()\` are not supported, a relative import needs its file extension (\`./lib/util.ts\`), and a type-only import has to say so (\`import { type Item } from "./lib.ts"\`) or the import fails at runtime.
+    Write scripts in TypeScript, Python, or bash.
 
     # File Changes
     - There is no automatic version history for task files.

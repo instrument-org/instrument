@@ -72,7 +72,7 @@ const KNOWN_OPTIONS = {
 } as const;
 
 export const NODE_COMMAND = {
-  description: `Run a TypeScript or JavaScript file. Types are stripped, not checked, so a .ts file runs directly; \`enum\`, \`namespace\`, parameter properties, and \`import x = require()\` are not supported, a relative import needs its file extension (\`./lib/util.ts\`), and a type-only import has to say so (\`import { type Item } from "./lib.ts"\`) or it fails at runtime. The task root holds the task's node_modules, so anything installed there resolves from any depth and from -e code alike; a loaded skill's own dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd, quoted "${MOUNT.task}/..." strings are bridged; ${MOUNT.attachedFolders} paths are not available.`,
+  description: `Run a TypeScript or JavaScript file. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd, quoted "${MOUNT.task}/..." strings are bridged; ${MOUNT.attachedFolders} paths are not available.`,
   name: "node",
 } as const;
 

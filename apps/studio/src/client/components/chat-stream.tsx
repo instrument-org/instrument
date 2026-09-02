@@ -69,14 +69,18 @@ const TURN_WORDMARK_ID = "turn-wordmark";
 // empty assistant messages arrive before the first visible part.
 const PLANNING_ROW_ID = "planning";
 
-// What the agent said, held apart from what it did. 24px between a paragraph
-// and a run of steps rather than the 8px the transcript puts between rows, so
-// two things that look alike -- one line of text, the same size, the same
-// leading -- read as the different kinds of thing they are. Runs of steps stay
-// 8px from each other: the boundary is prose, not every group edge.
+// What the agent said, held apart from what it did. 24px above a paragraph
+// written under a run of steps rather than the 8px the transcript puts between
+// rows, so two things that look alike -- one line of text, the same size, the
+// same leading -- read as the different kinds of thing they are. Runs of steps
+// stay 8px from each other: the boundary is prose, not every group edge.
 //
 // 16px on top of the 8px already there, and always on the lower of the two
 // rows; see `hasProseBoundaryAbove` for why it can only be read that way.
+//
+// The boundary is not symmetric. A run opening under a paragraph is that
+// sentence's own consequence and is held closer to it; `PROSE_GAP_IN_GROUP` is
+// where that side is set.
 const PROSE_GAP = "mt-4";
 
 // 12px, as padding, for a run of steps opening under a paragraph. With the 8px

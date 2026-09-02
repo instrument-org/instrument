@@ -46,6 +46,10 @@ The relation is what replicated; the bodies themselves are not constants. This s
 
 Why this survives when three mechanism claims did not: it repeated on every run rather than once, it reproduced from a second session on a different client stack hours later, and it is ordinary content negotiation rather than a scoring decision -- a server choosing a representation by `Accept` is deterministic in a way a bot verdict is not. Note also what it is *not* a claim about. It says nothing about whether a request is refused, only about what the refusal is written in, which is why it survives a host that answers the same request two different ways.
 
+That narrower question was then tested rather than left open, and the door is closed: twelve requests alternating the two `Accept` values within one run, flipping which went first on each pair so neither time nor order could carry it, came out one success in six against zero in six. A difference of one request. `Accept` does not move whether you are served, and the four-row pattern that suggested it might was noise that looked exactly as convincing as the four withdrawn mechanisms did. It is recorded in [the companion finding](task-browser-self-report.md) so the next reader does not reach for it.
+
+That run is also the only properly controlled comparison either session managed all day -- twelve paired requests, four minutes -- and it settled a question that several rounds of confident prose could not.
+
 So there was never a header change worth making: the body was always informative, and we were throwing it away. That the JSON variant's contents vary between observations is an argument for surfacing the body rather than summarizing it, since there is nothing stable enough to summarize in advance. An earlier draft of this finding recommended reordering `Accept` for legibility, which would also have cost the markdown-first negotiation that doc sites benefit from. The isolation run retired the recommendation.
 
 ## What changed

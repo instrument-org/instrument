@@ -717,10 +717,11 @@ describe("ChatStream and the wordmark over a turn", () => {
   });
 });
 
-// 20px where a paragraph meets a run of steps, against the 8px the rest of the
-// transcript sits on: 12px of it here, on top of the container's own gap. It
-// hangs off the lower of the two rows so that nothing already drawn changes
-// height when the agent takes its next step.
+// The boundary between what the agent said and what it did, which is not the
+// same size in both directions: 24px above a paragraph written under a run,
+// 20px above a run opening under a paragraph, against the 8px the rest of the
+// transcript sits on. Either way it hangs off the lower of the two rows so that
+// nothing already drawn changes height when the agent takes its next step.
 describe("ChatStream and the space around what the agent said", () => {
   const runBox = (text: string) => screen.getByText(text).closest(".-my-1");
 

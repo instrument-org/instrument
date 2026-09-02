@@ -147,14 +147,12 @@ describe("BashTool", () => {
           commands: ["yes"],
           durationMs: 30,
           output: longOutput,
-          spillFilePath: RelativePathSchema.parse(
-            "work/.tool-output/part-123.log",
-          ),
+          spillFilePath: RelativePathSchema.parse(".tool-output/part-123.log"),
         },
         toolCallId: "1",
       });
       const value = (result as { value: string }).value;
-      expect(value).toContain("work/.tool-output/part-123.log");
+      expect(value).toContain(".tool-output/part-123.log");
     });
 
     it("does not truncate output that fits within limits", () => {
@@ -185,7 +183,7 @@ describe("BashTool", () => {
           command: "node work/server.js",
           durationMs: 1002,
           exitCode: undefined,
-          logFilePath: RelativePathSchema.parse("work/.tool-output/bg_1.log"),
+          logFilePath: RelativePathSchema.parse(".tool-output/bg_1.log"),
           output: "listening on 3000\n",
           processId: "bg_1",
         },
@@ -202,7 +200,7 @@ describe("BashTool", () => {
         listening on 3000
 
         <instrument-system-note>
-        bg_1 is still running. Follow it with \`fg bg_1\`, which prints what it has written since your last read and exits with its exit code once it finishes, and stop it with \`kill bg_1\`. \`jobs\` lists everything still running. Its bounded process log is at work/.tool-output/bg_1.log.
+        bg_1 is still running. Follow it with \`fg bg_1\`, which prints what it has written since your last read and exits with its exit code once it finishes, and stop it with \`kill bg_1\`. \`jobs\` lists everything still running. Its bounded process log is at .tool-output/bg_1.log.
         Do not start a second copy of a process that is already running. A process you leave running stays running after your turn ends, so kill anything the user does not need -- but leave a server running if they still want to reach it.
         </instrument-system-note>",
         }
@@ -217,7 +215,7 @@ describe("BashTool", () => {
           command: "node work/quiet.js",
           durationMs: 1001,
           exitCode: undefined,
-          logFilePath: RelativePathSchema.parse("work/.tool-output/bg_2.log"),
+          logFilePath: RelativePathSchema.parse(".tool-output/bg_2.log"),
           processId: "bg_2",
         },
         toolCallId: "1",
@@ -231,7 +229,7 @@ describe("BashTool", () => {
         No output yet.
 
         <instrument-system-note>
-        bg_2 is still running. Follow it with \`fg bg_2\`, which prints what it has written since your last read and exits with its exit code once it finishes, and stop it with \`kill bg_2\`. \`jobs\` lists everything still running. Its bounded process log is at work/.tool-output/bg_2.log.
+        bg_2 is still running. Follow it with \`fg bg_2\`, which prints what it has written since your last read and exits with its exit code once it finishes, and stop it with \`kill bg_2\`. \`jobs\` lists everything still running. Its bounded process log is at .tool-output/bg_2.log.
         Do not start a second copy of a process that is already running. A process you leave running stays running after your turn ends, so kill anything the user does not need -- but leave a server running if they still want to reach it.
         </instrument-system-note>",
         }
@@ -246,7 +244,7 @@ describe("BashTool", () => {
           command: "node work/flood.js",
           durationMs: 1000,
           exitCode: undefined,
-          logFilePath: RelativePathSchema.parse("work/.tool-output/bg_3.log"),
+          logFilePath: RelativePathSchema.parse(".tool-output/bg_3.log"),
           omittedBytes: 77_000,
           output: "tail line\n",
           processId: "bg_3",

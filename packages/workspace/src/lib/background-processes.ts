@@ -654,7 +654,6 @@ function allocateId(taskId: TaskId): string {
   if (next === undefined) {
     const outputDir = absolutePathJoin(
       taskDir(taskId),
-      TASK_FOLDER_NAMES.work,
       TASK_FOLDER_NAMES.toolOutput,
     );
     let highest = 0;
@@ -790,11 +789,7 @@ function openLogFile({ id, taskId }: { id: string; taskId: TaskId }):
     } {
   try {
     const logFilePath = RelativePathSchema.parse(
-      path.posix.join(
-        TASK_FOLDER_NAMES.work,
-        TASK_FOLDER_NAMES.toolOutput,
-        `${id}.log`,
-      ),
+      path.posix.join(TASK_FOLDER_NAMES.toolOutput, `${id}.log`),
     );
     const logFileAbsolutePath = absolutePathJoin(taskDir(taskId), logFilePath);
     fs.mkdirSync(path.dirname(logFileAbsolutePath), { recursive: true });

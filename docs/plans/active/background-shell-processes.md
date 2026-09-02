@@ -74,7 +74,7 @@ Every accumulation point is bounded, because each one holds output for a process
 - The pending buffer holds 256 KB. Past that the oldest chunks are dropped and counted, and the read reports how many bytes went.
 - A single read retains 512 KB of head plus 512 KB of tail, so a long `waitMs` on a chatty process cannot accumulate without limit.
 - The shim's own collector retains 2 MB of head plus 2 MB of tail, forwards a partial line past 1 MB rather than waiting for a newline that may never come, and awaits each sink write so the native stream receives backpressure.
-- `work/.tool-output/<id>.log` is written incrementally from promotion onward and retains up to 16 MB. The log ends with an omitted-byte marker after reaching that quota. Ids are never reused, so a log a persisted tool result names is never overwritten, and pruning a finished record leaves its log in place.
+- `.tool-output/<id>.log` is written incrementally from promotion onward and retains up to 16 MB. The log ends with an omitted-byte marker after reaching that quota. Ids are never reused, so a log a persisted tool result names is never overwritten, and pruning a finished record leaves its log in place.
 
 What the log does **not** contain: output the pending buffer dropped *before* promotion, since the file does not exist until then. The tool result says so rather than pointing at the log.
 
@@ -106,7 +106,7 @@ tick 2
 bg_1 is still running. Follow it with `fg bg_1`, which prints what it has written
 since your last read and exits with its exit code once it finishes, and stop it with
 `kill bg_1`. `jobs` lists everything still running. Its bounded process log is at
-work/.tool-output/bg_1.log.
+.tool-output/bg_1.log.
 Do not start a second copy of a process that is already running. A process you
 leave running stays running after your turn ends, so kill anything the user does
 not need -- but leave a server running if they still want to reach it.
@@ -150,7 +150,7 @@ What the transcripts show, beyond the pass marks:
 - **A small `yieldMs` is how every model deliberately starts a long-lived process.** That is the affordance the parameter was supposed to carry, and it is reached for without prompting.
 - **Composition is used unprompted**: `kill bg_1 && sleep 1 && jobs` to stop and confirm in one call, `jobs --json; wc -l work/worker.log` to combine a listing with a count. `--json` was found without being pointed at.
 - **The process tree is understood.** One model annotated its kill as stopping "the active process group and its Node children" -- the part of `kill` that was least likely to be visible.
-- **Reading the log file competes with `fg`, and should.** Asked for the latest output of a running process, half the models read `work/.tool-output/bg_N.log` rather than calling `fg`. The log is advertised in the same note, holds everything rather than only what arrived since the last read, and consumes nothing. `fg` is not the only right answer here and the cases do not require it.
+- **Reading the log file competes with `fg`, and should.** Asked for the latest output of a running process, half the models read `.tool-output/bg_N.log` rather than calling `fg`. The log is advertised in the same note, holds everything rather than only what arrived since the last read, and consumes nothing. `fg` is not the only right answer here and the cases do not require it.
 - **A model will raise `yieldMs` when it can see the duration.** Told to run a command with a visible `45000` in it, one model set `yieldMs: 60000` and held the call open rather than backgrounding. That is the better answer, and it is why the wait case asks for the process id first.
 
 The one defect these found is fixed: `fg` defaulted to a ten-minute block, so a wait inside an ordinary call outlived its own window and got the call promoted -- the agent asked to look at `bg_1` and was handed `bg_2`, blocked on `bg_1`, answering nothing. The enclosing call's remaining window is the ceiling now. An assertion guards it.
@@ -232,7 +232,7 @@ promoted, because any call may outlive its window. So a foreground command's
 native-binary output now comes back through the shim collector's 2 MB head plus
 2 MB tail rather than through execa's buffer. Past that the middle is dropped and
 replaced with an omitted-byte marker, and that is what lands in the
-`work/.tool-output/<partId>.log` spill file. The notice points at the file
+`.tool-output/<partId>.log` spill file. The notice points at the file
 without calling it complete, and the file marks where it was cut, so nothing
 claims more than it has -- but a command whose output exceeds 4 MB cannot be
 read back in full.

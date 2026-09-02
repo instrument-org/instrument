@@ -276,14 +276,9 @@ describe("background processes", () => {
     // way a permission or layout problem on the real disk would.
     const toolOutput = absolutePathJoin(
       taskDir(owner.taskId),
-      `${TASK_FOLDER_NAMES.work}/${TASK_FOLDER_NAMES.toolOutput}`,
+      TASK_FOLDER_NAMES.toolOutput,
     );
-    await fs.mkdir(
-      absolutePathJoin(taskDir(owner.taskId), TASK_FOLDER_NAMES.work),
-      {
-        recursive: true,
-      },
-    );
+    await fs.mkdir(taskDir(owner.taskId), { recursive: true });
     await fs.writeFile(toolOutput, "not a directory", "utf8");
 
     const controllable = controllableRun();
@@ -722,7 +717,6 @@ describe("background processes", () => {
     // task is in right after the app restarts.
     const outputDir = absolutePathJoin(
       taskDir(owner.taskId),
-      TASK_FOLDER_NAMES.work,
       TASK_FOLDER_NAMES.toolOutput,
     );
     await fs.mkdir(outputDir, { recursive: true });

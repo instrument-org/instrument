@@ -64,7 +64,7 @@ tools/bash.ts ──────────────────────
         ▼
 lib/background-processes.ts ───────── the registry: ids, records, caps, reads, kills
         │   ├── background-output-buffer.ts   256 KB of pending output per process
-        │   ├── bounded-log-writer.ts         16 MB log at work/.tool-output/bg_N.log
+        │   ├── bounded-log-writer.ts         16 MB log at .tool-output/bg_N.log
         │   ├── bounded-text.ts               head+tail bound on one read
         │   └── chunk-window.ts               eviction shared by the two buffers
         ▼
@@ -104,7 +104,7 @@ The registry is keyed by **session**, not task ([`recordsBySession`](../../packa
 |---|---|---|
 | Running per task | 8 | Refusing the ninth names the eight that are live |
 | Pending output per process | 256 KB | Held in memory between reads |
-| Process log | 16 MB | On disk at `work/.tool-output/bg_N.log` |
+| Process log | 16 MB | On disk at `.tool-output/bg_N.log` |
 | One `fg` wait | the call's remaining `yieldMs`, 10 min ceiling | A wait that outlived its call would promote the call itself, answering with a second id instead of output. An explicit `--timeout` can only lower it |
 | `yieldMs` | 250 ms – 10 min, default 30 s | Tool-call timeout is `yieldMs + 30 s` so promotion always wins |
 | Kill escalation | SIGTERM → 1 s → SIGKILL → 4 s | Then `uncertain` |

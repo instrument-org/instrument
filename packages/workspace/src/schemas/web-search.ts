@@ -9,6 +9,10 @@ const WebSearchRequestSchema = z.object({
 // engines without a client release.
 const WebSearchResultSchema = z.object({
   author: z.string().optional(),
+  // The site icon and the page's lead image. Optional because a server that
+  // predates them omits both, and because not every page has either.
+  favicon: z.string().optional(),
+  image: z.string().optional(),
   publishedDate: z.string().optional(),
   // The part of the page that answers the query, as markdown.
   text: z.string(),

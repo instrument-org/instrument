@@ -19,6 +19,8 @@ const ResultsSchema = z.discriminatedUnion("kind", [
     sources: z.array(
       z.object({
         author: z.string().optional(),
+        favicon: z.string().optional(),
+        image: z.string().optional(),
         publishedDate: z.string().optional(),
         text: z.string(),
         title: z.string().optional(),

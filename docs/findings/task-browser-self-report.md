@@ -95,22 +95,22 @@ Not volume, not the headers, and not the client stack, though this section has c
 
 In the session where the block was first reported, a shell loop opened eight of the site's product pages back to back, the agent then fetched the same eight URLs with a scripted HTTP client, and all eight returned **HTTP 429 Too Many Requests**. Reading 429 as its name and the burst as its cause is the obvious inference and it is wrong.
 
-Nor is it stable enough to attribute to anything. That is the finding, and it took two wrong mechanisms to reach.
-
-The same request, twice, five seconds apart, from one client and one address:
+The reason no mechanism survived is that the host does not answer the same request the same way twice. Two identical requests, same client, same headers, same address, five seconds apart:
 
 | Attempt | Result |
 | --- | --- |
 | Browser header set | **200**, 1.5 MB |
 | Browser header set, identical, 5s later | **429** |
 
-So no single pair taken on this host means anything, and every mechanism this section previously offered was built on one. The first attributed the refusal to request volume. The second, after measuring one client with headers against one client without, attributed it to headers. A third would have attributed it to the client stack, on the strength of `curl` being refused in the same minute Python was served -- until the same Python was refused too.
+Every mechanism this section previously offered was built on a single pair like that one. The first attributed the refusal to request volume. The second, after measuring one client with headers against one without, attributed it to headers. The third attributed it to the client stack, on the strength of `curl` being refused in the same minute Python was served -- which held only until the same Python was refused too, on the same interpreter, minutes later.
 
-What the aggregate does support, and all it supports: across two sessions, roughly thirty single cold requests spanning Node `undici`, `curl` over HTTP/1.1 and HTTP/2, two Python interpreters with different TLS libraries, and a real browser, with and without a full browser header set, on three path classes. No scripted client got through with any consistency, and a real browser was refused as well. Which layer decides is not established, and the occasional 200 says the answer is probabilistic rather than a property of the client.
+Two sessions investigated this in parallel and could not reproduce each other, which is what finally made the variance visible. Neither could get the other's result: no header set ever got `curl` or Node through from either session, and the occasional Python success did not reproduce at all from the second session, on either of the machine's interpreters. That rules out a TLS-library split, since the two interpreters ship different ones, and proxy configuration and sandboxing were both checked and ruled out as well. What is left is time, which is the variable neither session controlled.
 
-The address's own state also moves over hours, on top of that per-request variation, so results taken far apart are not comparable either.
+The aggregate is all that can be claimed: roughly thirty single cold requests across two sessions, spanning Node `undici`, `curl` over HTTP/1.1 and HTTP/2, two Python interpreters with different TLS libraries, and a real browser, with and without a full browser header set, on three path classes. No scripted client got through with any consistency, and a real browser was refused as well. Which layer decides is not established.
 
-What survives for the agent's own guidance is unchanged and does not depend on the mechanism: reaching past the browser to a scripted client when a site pushes back does not work, and `429` here is the refusal the vendor had to hand rather than a statement about a count. What the agent's escalation did was not exhaust a budget.
+Do not read the occasional 200 as a route worth finding. There is no HTTP stack to go hunting for here that would make fetching this kind of host work, and the row that once suggested otherwise was a window that closed rather than a property of the client.
+
+What survives for the agent's own guidance does not depend on the mechanism, which is why it has outlasted three of them: reaching past the browser to a scripted client when a site pushes back does not work, and `429` here is the refusal the vendor had to hand rather than a statement about a count. What the agent's escalation did was not exhaust a budget.
 
 This says nothing about what happened to the browser itself, which is a separate refusal served as an interstitial. A deliberate reproduction loaded one page cleanly and was refused on the very next request, which no reading here explains.
 

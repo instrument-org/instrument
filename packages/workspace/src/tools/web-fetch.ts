@@ -13,6 +13,7 @@ import { isPrivateHostname } from "../lib/private-address";
 import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
 import { SKILL_NAMES } from "../lib/skill-names";
 import { taskDir } from "../lib/task-dir-utils";
+import { cachePage, readCachedPage } from "../lib/web-fetch-cache";
 import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
@@ -88,6 +89,9 @@ export const WebFetch = setupTool({
   name: "web_fetch",
   outputSchema: z.discriminatedUnion("state", [
     z.object({
+      // Set only when the body came from the local page cache. Persisted so a
+      // replayed turn says the same thing the live one did.
+      cachedAgeMs: z.number().optional(),
       contentType: z.string(),
       format: z.enum(FETCH_FORMATS),
       spillFilePath: RelativePathSchema.optional(),
@@ -160,6 +164,7 @@ export const WebFetch = setupTool({
 
       return result.ok
         ? ok({
+            cachedAgeMs: result.cachedAgeMs,
             contentType: result.contentType,
             format: result.appliedFormat,
             spillFilePath,
@@ -209,9 +214,16 @@ export const WebFetch = setupTool({
     const truncationNote = output.truncated
       ? `\n\nNote: the page was cut off after ${output.text.length} characters.${recovery === "" ? "" : ` ${recovery}`}`
       : "";
+    // A reused body that arrives looking like a fresh request is a quiet
+    // substitution, and this tool exists to answer questions about what is true
+    // now. Saying the age lets a model discount one it thinks is too old.
+    const cacheNote =
+      output.cachedAgeMs === undefined
+        ? ""
+        : `\n\nNote: served from a local cache of a fetch made ${ms(output.cachedAgeMs, { long: true })} ago, not requested again.`;
     return {
       type: "text",
-      value: `${renderWebContent({ content: output.text, nonceSeed: toolCallId, url: output.url })}${truncationNote}`,
+      value: `${renderWebContent({ content: output.text, nonceSeed: toolCallId, url: output.url })}${truncationNote}${cacheNote}`,
     };
   },
 });
@@ -219,6 +231,7 @@ export const WebFetch = setupTool({
 type FetchTextualResult =
   | {
       appliedFormat: FetchFormat;
+      cachedAgeMs?: number;
       contentType: string;
       finalUrl: string;
       ok: true;
@@ -255,6 +268,18 @@ async function fetchTextual({
   signal: AbortSignal;
   url: string;
 }): Promise<FetchTextualResult> {
+  const cached = readCachedPage(url);
+  if (cached) {
+    return renderBody({
+      cachedAgeMs: cached.ageMs,
+      contentType: cached.contentType,
+      decoded: cached.body,
+      finalUrl: cached.finalUrl,
+      format,
+      maxCharacters,
+    });
+  }
+
   let fetched = await guardedFetch({
     headers: requestHeaders(BROWSER_USER_AGENT),
     signal,
@@ -299,19 +324,16 @@ async function fetchTextual({
     return body;
   }
 
-  const converted = convert(body.text, mime, format);
-  const truncated = converted.length > maxCharacters;
-  return {
-    // Non-HTML content is returned as-is, so report it as raw rather than the
-    // requested markdown; HTML keeps the caller's requested format.
-    appliedFormat: isHtmlMime(mime) ? format : "html",
+  const finalUrl = response.url || url;
+  cachePage({ body: body.text, contentType, finalUrl, url });
+
+  return renderBody({
     contentType,
-    finalUrl: response.url || url,
-    ok: true,
-    spillText: truncated ? converted : undefined,
-    text: truncated ? converted.slice(0, maxCharacters) : converted,
-    truncated,
-  };
+    decoded: body.text,
+    finalUrl,
+    format,
+    maxCharacters,
+  });
 }
 
 // Follows redirects manually so every hop's host is validated against private,
@@ -356,6 +378,46 @@ async function guardedFetch({
     return { ok: true, response };
   }
   return { error: "Too many redirects.", ok: false };
+}
+
+/**
+ * Turn a decoded body into what the caller asked for.
+ *
+ * Shared by the network and cache paths so a reused page is converted and cut
+ * to the parameters of the call reading it, not of the call that stored it: the
+ * cache holds one body per URL, and a later fetch asking for raw HTML or a
+ * bigger prefix is served from it rather than missing.
+ */
+function renderBody({
+  cachedAgeMs,
+  contentType,
+  decoded,
+  finalUrl,
+  format,
+  maxCharacters,
+}: {
+  cachedAgeMs?: number;
+  contentType: string;
+  decoded: string;
+  finalUrl: string;
+  format: FetchFormat;
+  maxCharacters: number;
+}): FetchTextualResult {
+  const mime = mimeType(contentType);
+  const converted = convert(decoded, mime, format);
+  const truncated = converted.length > maxCharacters;
+  return {
+    // Non-HTML content is returned as-is, so report it as raw rather than the
+    // requested markdown; HTML keeps the caller's requested format.
+    appliedFormat: isHtmlMime(mime) ? format : "html",
+    cachedAgeMs,
+    contentType,
+    finalUrl,
+    ok: true,
+    spillText: truncated ? converted : undefined,
+    text: truncated ? converted.slice(0, maxCharacters) : converted,
+    truncated,
+  };
 }
 
 function renderWebContent({

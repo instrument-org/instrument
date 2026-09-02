@@ -2,6 +2,7 @@ import mockFs from "mock-fs";
 import fs from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { clearCachedPages } from "../lib/web-fetch-cache";
 import { RelativePathSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
@@ -53,6 +54,7 @@ function render({
 
 describe("WebFetch model output", () => {
   afterEach(() => {
+    clearCachedPages();
     mockFs.restore();
     vi.unstubAllGlobals();
   });
@@ -186,6 +188,7 @@ describe("WebFetch model output", () => {
 
 describe("WebFetch failures", () => {
   afterEach(() => {
+    clearCachedPages();
     mockFs.restore();
     vi.unstubAllGlobals();
   });
@@ -267,5 +270,89 @@ describe("WebFetch failures", () => {
     expect(message).toBe(
       "Request failed with status 500 Internal Server Error.",
     );
+  });
+});
+
+describe("WebFetch page cache", () => {
+  afterEach(() => {
+    clearCachedPages();
+    mockFs.restore();
+    vi.unstubAllGlobals();
+  });
+
+  async function fetchTwice(
+    response: () => Response,
+    second: { format?: "html" | "markdown"; maxCharacters?: number } = {},
+  ) {
+    mockFs({ [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} } });
+    const fetchSpy = vi.fn(response);
+    vi.stubGlobal("fetch", fetchSpy);
+    const run = async (input: Record<string, unknown>) => {
+      const result = await runTool(WebFetch, {
+        agentName: "main",
+        input: { url: "https://93.184.216.34/article", ...input },
+        model,
+        partId: StoreId.newPartId(),
+        signal: AbortSignal.timeout(10_000),
+        spawnAgent: vi.fn(),
+        taskId,
+        taskState: {},
+      });
+      return result._unsafeUnwrap();
+    };
+    return { fetchSpy, first: await run({}), second: await run(second) };
+  }
+
+  it("serves a repeated URL without asking the site again", async () => {
+    const { fetchSpy, second } = await fetchTwice(
+      () =>
+        new Response("<p>The article body.</p>", {
+          headers: { "Content-Type": "text/html" },
+        }),
+    );
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    if (second.state !== "success") {
+      throw new Error("Expected the cached fetch to succeed");
+    }
+    expect(second.text).toContain("The article body.");
+    expect(second.cachedAgeMs).toBeGreaterThanOrEqual(0);
+    expect(
+      WebFetch.toModelOutput({
+        input: { url: "https://93.184.216.34/article" },
+        output: second,
+        toolCallId: "test",
+      }).value,
+    ).toContain("served from a local cache");
+  });
+
+  it("re-renders the held body for the second call's own parameters", async () => {
+    const { second } = await fetchTwice(
+      () =>
+        new Response("<p>The article body.</p>", {
+          headers: { "Content-Type": "text/html" },
+        }),
+      { format: "html" },
+    );
+
+    if (second.state !== "success") {
+      throw new Error("Expected the cached fetch to succeed");
+    }
+    // The first call asked for markdown; a cached body is not stuck with it.
+    expect(second.text).toBe("<p>The article body.</p>");
+    expect(second.format).toBe("html");
+  });
+
+  it("never holds a refusal, which the user may be about to clear", async () => {
+    const { fetchSpy, second } = await fetchTwice(
+      () =>
+        new Response("Access to this page has been denied", {
+          headers: { "Content-Type": "text/html" },
+          status: 429,
+        }),
+    );
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(second.state).toBe("failure");
   });
 });

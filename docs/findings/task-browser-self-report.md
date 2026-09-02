@@ -91,37 +91,30 @@ Of the differences that remain, `window.chrome` and `screen.colorDepth` have no 
 
 ## What the 429 actually meant
 
-Not volume, and not the headers either, though this section has said each of those in turn. The corrections are kept because the route to both wrong readings is the same one every other error in this file took.
+Not volume, not the headers, and not the client stack, though this section has confidently said each of those in turn. The corrections are kept because the pattern is the point: every one of them was a mechanism inferred from a single clean-looking measurement on a host that does not answer the same question the same way twice.
 
 In the session where the block was first reported, a shell loop opened eight of the site's product pages back to back, the agent then fetched the same eight URLs with a scripted HTTP client, and all eight returned **HTTP 429 Too Many Requests**. Reading 429 as its name and the burst as its cause is the obvious inference and it is wrong.
 
-Measured directly, one request at a time. The first pass looked like headers were the whole story, and that reading was too shallow. Taken at one moment, from one address, same URL, byte-identical browser headers wherever a full header set is named:
+Nor is it stable enough to attribute to anything. That is the finding, and it took two wrong mechanisms to reach.
 
-| Client | Headers | Result |
-| --- | --- | --- |
-| Python `urllib` | `User-Agent: Mozilla/5.0` only | **429** |
-| Python `urllib` | full browser set | **200**, 1.5 MB |
-| `curl`, HTTP/2 | full browser set | **429** |
-| `curl`, HTTP/1.1 | full browser set | **429** |
-| Node `undici` | full browser set | **429** |
+The same request, twice, five seconds apart, from one client and one address:
 
-Two gates, not one. The refusal happens below the headers first: `curl` and Node are turned away carrying exactly the headers that get Python through, on either HTTP version, so what is being read is the shape of the connection itself rather than anything in the request. Only for a client that clears that gate do the headers decide anything, which is the Python pair.
+| Attempt | Result |
+| --- | --- |
+| Browser header set | **200**, 1.5 MB |
+| Browser header set, identical, 5s later | **429** |
 
-This is why one A/B is not enough here, and why the first version of this table was mislabelled. It compared two header sets inside a single client stack and generalized the result to scripted clients as a class. A parallel investigation reached the opposite conclusion from `curl` and Node alone, where no header set ever produced a 200. Both readings are correct inside their own stack and wrong as a general claim.
+So no single pair taken on this host means anything, and every mechanism this section previously offered was built on one. The first attributed the refusal to request volume. The second, after measuring one client with headers against one client without, attributed it to headers. A third would have attributed it to the client stack, on the strength of `curl` being refused in the same minute Python was served -- until the same Python was refused too.
 
-The address's own state also moves over hours, so pairs taken far apart are not comparable at all. Every row above was taken within one run, alternating, with the order reversed between trials.
+What the aggregate does support, and all it supports: across two sessions, roughly thirty single cold requests spanning Node `undici`, `curl` over HTTP/1.1 and HTTP/2, two Python interpreters with different TLS libraries, and a real browser, with and without a full browser header set, on three path classes. No scripted client got through with any consistency, and a real browser was refused as well. Which layer decides is not established, and the occasional 200 says the answer is probabilistic rather than a property of the client.
 
-**The Python row did not reproduce from a second session on the same machine, minutes later.** Running that same pair — same URL, byte-identical browser headers, four requests with the order reversed between trials — returned 429 for every one, on both of this machine's Pythons: the system 3.9.6 against LibreSSL 2.8.3, and Homebrew's 3.14.3 against OpenSSL 3.6.3. So it is not a LibreSSL-versus-OpenSSL split. Checked and excluded in the same pass: no proxy variables set, and no change with the caller's sandbox disabled. A real Chromium pointed at the same URL a few minutes earlier had also been refused, with the interstitial rather than a status.
+The address's own state also moves over hours, on top of that per-request variation, so results taken far apart are not comparable either.
 
-That is roughly twenty single cold requests from the second session across `undici`, `curl` over HTTP/1.1 and HTTP/2, both Pythons and a real browser, with browser headers and without, over `pdp`, `sb0` and `sb2` paths, with no 200 among them.
-
-So take the table as two sessions' readings rather than as a settled matrix. What both agree on is the part the guidance rests on: no header set makes `curl` or Node pass. What is unresolved is whether Python clears a gate the other stacks do not, or whether row 2 caught a window that had closed by the time anyone looked again — the two sessions could not be made to reproduce each other, and the variable neither controlled is time. **Do not go looking for an HTTP stack that gets `web_fetch` through on the strength of that row**, because the session that went looking did not find one.
-
-What survives all of it: a scripted HTTP client is refused on shape, the shape that matters is deeper than its headers, and the status code is the refusal the vendor had to hand rather than a statement about a count. What the agent's escalation did was not exhaust a budget; it presented a client shape that is refused on sight, from an address the browser was also using.
+What survives for the agent's own guidance is unchanged and does not depend on the mechanism: reaching past the browser to a scripted client when a site pushes back does not work, and `429` here is the refusal the vendor had to hand rather than a statement about a count. What the agent's escalation did was not exhaust a budget.
 
 This says nothing about what happened to the browser itself, which is a separate refusal served as an interstitial. A deliberate reproduction loaded one page cleanly and was refused on the very next request, which no reading here explains.
 
-Two things follow for the agent's own guidance. Reaching past the browser to a scripted client when a site pushes back is worse than useless, because the scripted client is exactly the shape being refused -- that rule is now better supported than when it was written on the volume theory. Pacing a run of same-origin pages remains ordinary courtesy, but it should not be sold as the fix for a block, because here it was not the cause.
+Pacing a run of same-origin pages remains ordinary courtesy, but it should not be sold as the fix for a block, because here it was not the cause.
 
 ## Where the input path is still worth fixing
 

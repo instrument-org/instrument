@@ -1,8 +1,8 @@
 # A 429 that is not a rate limit
 
-**Status:** fixed. `web_fetch` now reads a failed response's body and says what a refusal without a `Retry-After` most likely is. The durable parts are the measurement, which overturned the obvious diagnosis, and the reconciliation with [what the task browser reports about itself](task-browser-self-report.md), which reads the same site from the browser path and finds a different trigger. Measured 2026-09-02.
+**Status:** fixed. `web_fetch` now reads a failed response's body and says what a refusal without a `Retry-After` most likely is. The durable part is the methodology: the host answers the same request differently seconds apart, so the single-sample comparisons two sessions each built a mechanism on were both unsound, and only the aggregate survives. Companion reading from the browser side is [what the task browser reports about itself](task-browser-self-report.md). Measured 2026-09-02.
 
-A large retail site returns **HTTP 429 to a single cold request** from any scripted HTTP client. No prior traffic, nothing to rate-limit, no `Retry-After`. `web_fetch` cancelled the body and reported `Request failed with status 429 Too Many Requests.`, so the model read a rate limit, did what a rate limit calls for, and could not succeed.
+A large retail site refuses most requests from any scripted HTTP client, including the first one, with **HTTP 429** and no `Retry-After`. No prior traffic, nothing to rate-limit. `web_fetch` cancelled the body and reported `Request failed with status 429 Too Many Requests.`, so the model read a rate limit, did what a rate limit calls for, and could not succeed.
 
 ## What happened
 
@@ -27,6 +27,14 @@ Single cold requests, three to four seconds apart, from one machine. "Ours" is t
 
 **Header realism does not change the verdict.** The "our requests look synthetic" hypothesis is not supported here, which is worth recording because it is the obvious next thing to try.
 
+### Read that table as samples, not as a verdict
+
+Every cell above is one request, and the host does not answer the same request the same way twice. A parallel session, on the same machine and the same Python binary that had returned 429 for this one, fired two identical requests five seconds apart and got **200 with 1.5 MB, then 429**. Across both sessions the aggregate is roughly thirty-five single cold requests spanning `undici`, `curl` over HTTP/1.1 and HTTP/2, two Pythons against different TLS libraries, and a real browser; the great majority were refused, a handful were not, and no client or header set predicts which.
+
+So the columns above are not really being compared. Three samples of a process that refuses most of the time will agree three times whatever the headers do, which is how a comparison that controlled the client, the URL, the path class and the moment still could not support the conclusion drawn from it. Both sessions investigating this reached a mechanism claim from single-sample A/B, and both claims were wrong: one that volume decided it, one that headers did.
+
+What the aggregate does support: no scripted HTTP client gets through reliably, a real browser was refused too, and nothing here identifies which layer decides. That is weaker than either session first wrote and it is the part that has held. The [companion finding](task-browser-self-report.md) carries the same conclusion from the browser side.
+
 **Header realism only chooses which refusal you get.** Isolating one variable at a time: the `Sec-Fetch-*` and `sec-ch-ua*` headers make no difference at all, and the `Accept` header alone decides the body.
 
 | `Accept` | Content type | Body |
@@ -38,24 +46,27 @@ Both name the block, and the 40-byte one names the vendor doing it. So there was
 
 ## What changed
 
-`fetchTextual` now reads a bounded slice of a failed response instead of cancelling it, flattens it to one line through the markdown converter, and includes it. A `Retry-After` is passed on when the site sends one. A 403 or 429 that sends none is described as more likely a block than a limit, pointed at the browser, and asked to be disclosed:
+`fetchTextual` now reads a bounded slice of a failed response instead of cancelling it, flattens it to one line through the markdown converter, and includes it. A `Retry-After` is passed on when the site sends one. A 403 or 429 that sends none is described as more likely a block than a limit, given a retry budget, and asked to be disclosed:
 
-> There is no Retry-After header, so this is more likely a block on automated requests than a limit that lifts: fetching this host again, later or through a script, will probably be refused the same way. Open the URL in the browser instead, and if it shows a human check, ask the user to complete it there. If you carry on without this page, say so in your reply rather than leaving the gap unmentioned.
+> There is no Retry-After header, so this is more likely a block on automated requests than a limit that lifts. Such a host refuses the great majority of requests whatever the client or the headers, and answers inconsistently rather than predictably: one more attempt is reasonable, a third is not, and changing HTTP client or copying a browser's headers does not help. If you need this page, open it in the browser and ask the user to clear any human check it shows. If you carry on without it, say so in your reply rather than leaving the gap unmentioned.
+
+The retry budget is deliberate and was not in the first version, which said a retry would probably be refused the same way. Once the host was measured answering identically-shaped requests differently seconds apart, forbidding the retry outright became a claim the evidence does not carry -- while a loop is still the failure this message exists to stop, so the sentence bounds it at one rather than blessing it.
 
 That last sentence is doing separate work. Every disclosure in the originating session came from the user noticing first — the failed verification, the placeholder images, and the block itself all went unmentioned — and the failure site is the one place a reminder is cheap and lands at the moment it applies.
 
 The body cap is 64 KB read and 400 characters kept, well under the success path, so a site that answers a refusal with a full marketing shell cannot spend a fetch's budget on it.
 
-## Reconciling with the browser-path reading
+## Three mechanism claims, none of which survived
 
-[task-browser-self-report.md](task-browser-self-report.md) concludes that the block correlates with volume, on browser-path evidence: a loop of eight navigations, then the interstitial, and a deliberate reproduction that loaded one page cleanly before being refused on the next.
+Worth keeping as a list, because the subject produced a wrong answer from two independent investigations and the answers were confidently different each time.
 
-Both readings hold, because they describe different clients:
+1. **Volume.** Read from the originating session, where a burst of navigations preceded eight 429s. Retracted: a single cold request with nothing before it is refused too.
+2. **Header shape.** Read from a browser-headers-versus-bare-UA pair inside one client stack. Retracted: `curl` and `undici` are refused carrying byte-identical browser headers.
+3. **Client stack, two gates.** Read from Python succeeding where `curl` and `undici` failed. Retracted: the same Python binary, same headers, five seconds apart, returned 200 then 429.
 
-- **Through the task browser** — real Chromium, real cookies, a session that accumulates — a first page loads and volume trips the refusal.
-- **Through any scripted HTTP client** — `web_fetch`, `urllib`, `node:fetch` — the first request is refused, cold, whatever the headers.
+Each was a real comparison, carefully controlled on every variable its author thought of, and each fell to the one nobody controlled -- that a single sample of this host is a coin weighted against you rather than a reading.
 
-The guidance splits with them. On the browser path, pacing is a lever and the interstitial is clearable by the user. On the HTTP path there is no lever: the site will not serve this class of client at all, and every retry, delay, and header change is spent for nothing. Same status code, different meaning, and the tool now says which one it is looking at.
+What is left is a statement about frequency rather than mechanism, and it is enough for the guidance either path needs. No scripted HTTP client gets through reliably. A real browser is also refused, separately, with an interstitial the user can clear. Reaching past the browser to a scripted client is not an escape, because that client is refused more often than the browser is, and pacing is courtesy rather than a cure.
 
 ## What a page cache does and does not cover
 
@@ -74,6 +85,7 @@ It does nothing for a block. **Only successful bodies are held**, deliberately: 
 - **A status code is not a diagnosis.** 429 without `Retry-After`, with a body naming a bot vendor, is a block. Say which, and say that waiting will not help, because waiting is what the code invites.
 - **The body is where the reason lives.** Cancelling it to release the connection saved nothing and cost the only evidence in the response.
 - **Check the cheap counter-hypothesis first.** One request against `robots.txt` and one against a page took a minute and overturned the diagnosis the fix would have been built on.
+- **Establish that the measurement repeats before comparing anything with it.** Two sessions each ran a controlled A/B here, each drew a mechanism from it, and each was wrong, because neither had checked that one arm returns the same answer twice. Repeat one cell before building a table out of it: against a defended host it costs two requests and it is the difference between a finding and a coin flip.
 
 ## Unrelated, found in the same file
 

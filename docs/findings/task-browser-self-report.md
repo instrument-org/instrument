@@ -112,6 +112,8 @@ Do not read the occasional 200 as a route worth finding. There is no HTTP stack 
 
 What survives for the agent's own guidance does not depend on the mechanism, which is why it has outlasted three of them: reaching past the browser to a scripted client when a site pushes back does not work, and `429` here is the refusal the vendor had to hand rather than a statement about a count. What the agent's escalation did was not exhaust a budget.
 
+The converse is worth stating too, because both this file and the agent's guidance point at the browser as the remedy. A real browser was refused by this host minutes either side of a scripted client being served. Staying in the browser is the better bet and not a guarantee, so the honest end of that path is telling the user the site is refusing, not working down a list of clients.
+
 This says nothing about what happened to the browser itself, which is a separate refusal served as an interstitial. A deliberate reproduction loaded one page cleanly and was refused on the very next request, which no reading here explains.
 
 Pacing a run of same-origin pages remains ordinary courtesy, but it should not be sold as the fix for a block, because here it was not the cause.

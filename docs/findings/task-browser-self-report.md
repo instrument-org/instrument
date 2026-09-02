@@ -111,6 +111,12 @@ This is why one A/B is not enough here, and why the first version of this table 
 
 The address's own state also moves over hours, so pairs taken far apart are not comparable at all. Every row above was taken within one run, alternating, with the order reversed between trials.
 
+**The Python row did not reproduce from a second session on the same machine, minutes later.** Running that same pair — same URL, byte-identical browser headers, four requests with the order reversed between trials — returned 429 for every one, on both of this machine's Pythons: the system 3.9.6 against LibreSSL 2.8.3, and Homebrew's 3.14.3 against OpenSSL 3.6.3. So it is not a LibreSSL-versus-OpenSSL split. Checked and excluded in the same pass: no proxy variables set, and no change with the caller's sandbox disabled. A real Chromium pointed at the same URL a few minutes earlier had also been refused, with the interstitial rather than a status.
+
+That is roughly twenty single cold requests from the second session across `undici`, `curl` over HTTP/1.1 and HTTP/2, both Pythons and a real browser, with browser headers and without, over `pdp`, `sb0` and `sb2` paths, with no 200 among them.
+
+So take the table as two sessions' readings rather than as a settled matrix. What both agree on is the part the guidance rests on: no header set makes `curl` or Node pass. What is unresolved is whether Python clears a gate the other stacks do not, or whether row 2 caught a window that had closed by the time anyone looked again — the two sessions could not be made to reproduce each other, and the variable neither controlled is time. **Do not go looking for an HTTP stack that gets `web_fetch` through on the strength of that row**, because the session that went looking did not find one.
+
 What survives all of it: a scripted HTTP client is refused on shape, the shape that matters is deeper than its headers, and the status code is the refusal the vendor had to hand rather than a statement about a count. What the agent's escalation did was not exhaust a budget; it presented a client shape that is refused on sight, from an address the browser was also using.
 
 This says nothing about what happened to the browser itself, which is a separate refusal served as an interstitial. A deliberate reproduction loaded one page cleanly and was refused on the very next request, which no reading here explains.

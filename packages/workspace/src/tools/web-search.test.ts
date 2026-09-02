@@ -128,6 +128,18 @@ describe("WebSearch model output", () => {
     for (const price of ["212 dollars", "830 dollars", "249 dollars"]) {
       expect(rendered).toContain(price);
     }
+    // Six copies of three shared lines, minus the one kept for each.
+    expect(rendered).toContain("6 lines that appeared in three or more");
+  });
+
+  it("says nothing about boilerplate when none was dropped", () => {
+    const rendered = renderExcerpts([
+      { text: "First body.", url: "https://s.test/1" },
+      { text: "Second body.", url: "https://s.test/2" },
+      { text: "Third body.", url: "https://s.test/3" },
+    ]);
+
+    expect(rendered).not.toContain("page furniture");
   });
 
   it("leaves a line two results share alone", () => {

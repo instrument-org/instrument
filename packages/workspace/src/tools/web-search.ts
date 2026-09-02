@@ -66,6 +66,19 @@ const SHORTENING_NOTE =
   "Some retrieved text below was shortened so that one search cannot fill the context window. Each shortened passage says so at the point it was cut, and the source list is complete: fetch a source's URL with web_fetch when you need more of that page than is shown here.";
 
 /**
+ * Says that boilerplate was removed, since the alternative is a result that
+ * reads as the whole of what its page had to say.
+ *
+ * Unlike the shortening note there is no per-line marker to pair this with: a
+ * marker where each dropped line stood would cost more than the line did and
+ * would break up the text it is meant to make readable. One sentence for the
+ * search, and only when something was actually dropped.
+ */
+function boilerplateNote(lines: number): string {
+  return `${lines} ${lines === 1 ? "line that appeared" : "lines that appeared"} in three or more of these results -- site navigation, buttons, and other repeated page furniture -- ${lines === 1 ? "is" : "are"} shown under the first result carrying ${lines === 1 ? "it" : "them"} and omitted from the rest. Nothing unique to a page was removed; fetch a source's URL with web_fetch to see one whole.`;
+}
+
+/**
  * A query naming nothing to search for.
  *
  * Observed in a real session: a model batching parallel calls sent a literal
@@ -254,7 +267,15 @@ export const WebSearch = setupTool({
     // Titles and URLs are the results describing themselves, so the source list
     // stays inside the boundary with the text it came from.
     const { block, nonce } = boundContent({
-      content: `${budgeted.clipped ? `${SHORTENING_NOTE}\n\n` : ""}${body}${sourcesText}`,
+      content: `${[
+        budgeted.clipped ? SHORTENING_NOTE : undefined,
+        budgeted.droppedLines > 0
+          ? boilerplateNote(budgeted.droppedLines)
+          : undefined,
+      ]
+        .filter((note) => note !== undefined)
+        .map((note) => `${note}\n\n`)
+        .join("")}${body}${sourcesText}`,
       label: BOUNDARY_LABEL,
       nonceSeed: toolCallId,
     });
@@ -306,10 +327,10 @@ const SHARED_LINE_SOURCES = 3;
  * the model reads as complete is worse than one it knows to follow up on.
  */
 function budgetSearchText(results: BudgetedSearch) {
-  const texts =
+  const { droppedLines, texts } =
     results.kind === "excerpts"
-      ? dropSharedChrome(results.sources.map((source) => source.text))
-      : [results.text];
+      ? dropSharedBoilerplate(results.sources.map((source) => source.text))
+      : { droppedLines: 0, texts: [results.text] };
   const lengths = texts.map((text) => text.length);
   const originalCharacters = lengths.reduce(
     (total, length) => total + length,
@@ -319,6 +340,7 @@ function budgetSearchText(results: BudgetedSearch) {
   if (originalCharacters <= SEARCH_TEXT_BUDGET) {
     return {
       clipped: false,
+      droppedLines,
       originalCharacters,
       retainedCharacters: originalCharacters,
       texts,
@@ -338,6 +360,7 @@ function budgetSearchText(results: BudgetedSearch) {
 
   return {
     clipped: true,
+    droppedLines,
     originalCharacters,
     retainedCharacters,
     texts: shortened,
@@ -350,9 +373,12 @@ function budgetSearchText(results: BudgetedSearch) {
  * Runs before the budget rather than after, so the characters it reclaims are
  * redistributed to the text that survives instead of simply being cut later.
  */
-function dropSharedChrome(texts: readonly string[]): string[] {
+function dropSharedBoilerplate(texts: readonly string[]): {
+  droppedLines: number;
+  texts: string[];
+} {
   if (texts.length < SHARED_LINE_SOURCES) {
-    return [...texts];
+    return { droppedLines: 0, texts: [...texts] };
   }
 
   const sourcesPerLine = new Map<string, number>();
@@ -365,7 +391,8 @@ function dropSharedChrome(texts: readonly string[]): string[] {
   }
 
   const seen = new Set<string>();
-  return texts.map((text) =>
+  let droppedLines = 0;
+  const kept = texts.map((text) =>
     text
       .split("\n")
       .filter((line) => {
@@ -377,6 +404,7 @@ function dropSharedChrome(texts: readonly string[]): string[] {
           return true;
         }
         if (seen.has(key)) {
+          droppedLines++;
           return false;
         }
         seen.add(key);
@@ -384,6 +412,8 @@ function dropSharedChrome(texts: readonly string[]): string[] {
       })
       .join("\n"),
   );
+
+  return { droppedLines, texts: kept };
 }
 
 function formatExcerpts(

@@ -73,6 +73,23 @@ describe("demoteSupersededModels", () => {
     `);
   });
 
+  it("leaves a family alone when one line takes a point release", () => {
+    expect(
+      stillRecommended([
+        createModel("anthropic/claude-fable-5.1"),
+        createModel("anthropic/claude-opus-5"),
+        createModel("anthropic/claude-sonnet-5"),
+        createModel("anthropic/claude-haiku-4.5"),
+      ]),
+    ).toMatchInlineSnapshot(`
+      [
+        "claude-fable-5.1",
+        "claude-opus-5",
+        "claude-sonnet-5",
+      ]
+    `);
+  });
+
   it("reads a tier spelled after the version the same way", () => {
     expect(
       stillRecommended([

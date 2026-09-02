@@ -90,15 +90,25 @@ The last is our own doing: the guest denies every permission request, because th
 Of the differences that remain, `window.chrome` and `screen.colorDepth` have no native lever and would need page-side writing we will not do. The window geometry is the one that is ours rather than Electron's, and no lever has been found for it yet -- that is the place to look next if this question is reopened.
 
 
-## What the block actually correlates with
+## What the 429 actually meant
 
-Volume, on the evidence available, and not any of the above. In the session where the block was first reported, the sequence is unambiguous: a shell loop opened eight of the site's product pages back to back through the browser, each with a `networkidle` wait, and hit the tool timeout partway through. The agent then fetched the same eight URLs with a scripted HTTP client, and every one came back **HTTP 429 Too Many Requests** — a rate-limit code, not a refusal of identity, and returned for all eight within three seconds, so the limit was already in force before that pass began. The next browser navigation after that was the interstitial.
+Not volume. This section said the opposite for a day, and the correction is worth keeping because the wrong reading was reached the same way both other errors in this file were.
 
-The model diagnosed it correctly in the moment and then made it worse. Its own note reads that the pages were rate-limiting the browser when opened repeatedly, and its response was to reach past the browser to a scripted client — which drops the cookies and session the earlier requests carried, presents an obviously non-browser client, and adds eight more requests to the count that caused the limit.
+In the session where the block was first reported, a shell loop opened eight of the site's product pages back to back, the agent then fetched the same eight URLs with a scripted HTTP client, and all eight returned **HTTP 429 Too Many Requests**. Reading 429 as its name and the burst as its cause is the obvious inference and it is wrong.
 
-The shape is consistent elsewhere. A second reported session ran a burst of repeated navigations before its block. A deliberate reproduction loaded one page cleanly, with real content returned, and was refused on the very next request.
+Measured directly, one request at a time, with nothing before it:
 
-So the proximate trigger is request pacing. Whether a site's threshold sits lower for a client whose self-report is inconsistent cannot be established from outside, and nothing here identifies what any particular site weighs. The misreports above are worth correcting because they are wrong, not because correcting them is known to unblock anything.
+| Single cold request | Result |
+| --- | --- |
+| `User-Agent: Mozilla/5.0`, no other headers | **HTTP 429** |
+| Full browser-shaped header set, same URL, same moment | **HTTP 200**, 1.5 MB of real content |
+
+So the site answers a request that does not look like a browser with 429 regardless of how many preceded it. The status code is the refusal it had to hand, not a statement about a count. What the agent's escalation did was not exhaust a budget; it presented a client shape that is refused on sight, and it did so from an address the browser was also using.
+
+This says nothing about what happened to the browser itself, which is a separate refusal served as an interstitial. A deliberate reproduction loaded one page cleanly and was refused on the very next request, which no reading here explains.
+
+Two things follow for the agent's own guidance. Reaching past the browser to a scripted client when a site pushes back is worse than useless, because the scripted client is exactly the shape being refused -- that rule is now better supported than when it was written on the volume theory. Pacing a run of same-origin pages remains ordinary courtesy, but it should not be sold as the fix for a block, because here it was not the cause.
+
 
 ## Where the input path is still worth fixing
 

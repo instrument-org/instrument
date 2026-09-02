@@ -183,3 +183,89 @@ describe("WebFetch model output", () => {
     expect(spill).toContain("--- END_WEB_FETCH_CONTENT nonce=");
   });
 });
+
+describe("WebFetch failures", () => {
+  afterEach(() => {
+    mockFs.restore();
+    vi.unstubAllGlobals();
+  });
+
+  async function fetchFailing(response: Response): Promise<string> {
+    mockFs({ [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} } });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => response),
+    );
+    const result = await runTool(WebFetch, {
+      agentName: "main",
+      input: { url: "https://93.184.216.34/article" },
+      model,
+      partId: StoreId.newPartId(),
+      signal: AbortSignal.timeout(10_000),
+      spawnAgent: vi.fn(),
+      taskId,
+      taskState: {},
+    });
+    const output = result._unsafeUnwrap();
+    if (output.state !== "failure") {
+      throw new Error("Expected a failed fetch");
+    }
+    return output.errorMessage;
+  }
+
+  // Verbatim from a real block, down to the missing reason phrase: the edges
+  // that serve these speak HTTP/2, which carries no reason phrase at all.
+  it("quotes what a refusing site said, and rules out waiting for it", async () => {
+    expect(
+      await fetchFailing(
+        new Response('{"message":"Too Many Requests (CDN PX)"}', {
+          headers: { "Content-Type": "application/json" },
+          status: 429,
+        }),
+      ),
+    ).toMatchInlineSnapshot(
+      `"Request failed with status 429. The site said: {"message":"Too Many Requests (CDN PX)"} There is no Retry-After header, so this is more likely a block on automated requests than a limit that lifts: fetching this host again, later or through a script, will probably be refused the same way. Open the URL in the browser instead, and if it shows a human check, ask the user to complete it there. If you carry on without this page, say so in your reply rather than leaving the gap unmentioned."`,
+    );
+  });
+
+  it("passes on a retry window when the site names one", async () => {
+    const message = await fetchFailing(
+      new Response("slow down", {
+        headers: { "Content-Type": "text/plain", "Retry-After": "120" },
+        status: 429,
+        statusText: "Too Many Requests",
+      }),
+    );
+    expect(message).toContain("status 429 Too Many Requests.");
+    expect(message).toContain("retry after 120");
+    // The block guidance is for a refusal with no window, not for this.
+    expect(message).not.toContain("block on automated requests");
+  });
+
+  it("reads the message out of an HTML error page", async () => {
+    const message = await fetchFailing(
+      new Response(
+        "<html><body><h1>Access to this page has been denied</h1></body></html>",
+        {
+          headers: { "Content-Type": "text/html" },
+          status: 403,
+          statusText: "Forbidden",
+        },
+      ),
+    );
+    expect(message).toContain("Access to this page has been denied");
+  });
+
+  it("says only what it knows when the body is not text", async () => {
+    const message = await fetchFailing(
+      new Response(new Uint8Array([0, 1, 2]), {
+        headers: { "Content-Type": "image/png" },
+        status: 500,
+        statusText: "Internal Server Error",
+      }),
+    );
+    expect(message).toBe(
+      "Request failed with status 500 Internal Server Error.",
+    );
+  });
+});

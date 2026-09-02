@@ -28,6 +28,12 @@ const MAX_TEXT_CHARACTERS = 50_000;
 // same step, added roughly 12,000 tokens to the next request. The rest of the
 // page is still on disk and still one parameter away.
 const DEFAULT_TEXT_CHARACTERS = 20_000;
+// An error response is read rather than discarded, but it is not a page: cap it
+// well below the success path so a site that answers a refusal with a full
+// marketing shell cannot spend a fetch's budget on it. The message a deny page
+// carries is its first line; past a paragraph the rest is markup and trace ids.
+const MAX_ERROR_BODY_BYTES = 64 * 1024;
+const MAX_ERROR_BODY_CHARACTERS = 400;
 const DEFAULT_TIMEOUT_SECONDS = 30;
 const MAX_TIMEOUT_SECONDS = 120;
 const MAX_REDIRECTS = 5;
@@ -273,12 +279,7 @@ async function fetchTextual({
 
   const response = fetched.response;
   if (!response.ok) {
-    // Release the connection instead of leaving the body to linger until GC.
-    void response.body?.cancel();
-    return {
-      error: `Request failed with status ${response.status} ${response.statusText}.`,
-      ok: false,
-    };
+    return { error: await failureMessage(response), ok: false };
   }
 
   const contentType = response.headers.get("content-type") ?? "";
@@ -406,6 +407,76 @@ function decodeBytes(bytes: Uint8Array, charset: string | undefined): string {
     }
   }
   return new TextDecoder().decode(bytes);
+}
+
+/** The readable part of a failed response, flattened to one bounded line. */
+async function failureBody(response: Response): Promise<string | undefined> {
+  const contentType = response.headers.get("content-type") ?? "";
+  const mime = mimeType(contentType);
+  if (!isTextualMime(mime)) {
+    void response.body?.cancel();
+    return undefined;
+  }
+  const body = await readBoundedText(
+    response,
+    MAX_ERROR_BODY_BYTES,
+    charsetFrom(contentType),
+  );
+  if (!body.ok) {
+    return undefined;
+  }
+  // Always via markdown, whatever the caller asked for: nobody wants a deny
+  // page's raw markup, and the sentence that matters survives the conversion.
+  const text = convert(body.text, mime, "markdown")
+    .replaceAll(/\s+/g, " ")
+    .trim();
+  if (text === "") {
+    return undefined;
+  }
+  return text.length > MAX_ERROR_BODY_CHARACTERS
+    ? `${text.slice(0, MAX_ERROR_BODY_CHARACTERS)}...`
+    : text;
+}
+
+/**
+ * Describe a non-2xx response, including whatever the site put in the body.
+ *
+ * The reason lives in the body, and the status line alone is often actively
+ * misleading. A blocked retailer answers a first cold request -- no prior
+ * traffic, nothing to rate-limit -- with 429 and either
+ * `{"message":"Too Many Requests (CDN PX)"}` or a page reading `Access to this
+ * page has been denied`, chosen by content negotiation alone. Both name a bot
+ * block. `Request failed with status 429 Too Many Requests.` names a queue to
+ * wait in, and a model given that spends the rest of the task pacing its way
+ * around a wall that pacing does not move.
+ */
+async function failureMessage(response: Response): Promise<string> {
+  const retryAfter = response.headers.get("retry-after");
+  const said = await failureBody(response);
+  const refused = response.status === 403 || response.status === 429;
+
+  // HTTP/2 carries no reason phrase, so the status text is routinely empty.
+  const status =
+    response.statusText === ""
+      ? `${response.status}`
+      : `${response.status} ${response.statusText}`;
+
+  return [
+    `Request failed with status ${status}.`,
+    said === undefined ? undefined : `The site said: ${said}`,
+    retryAfter === null
+      ? undefined
+      : `It asks you to retry after ${retryAfter}.`,
+    // A refusal naming no retry window is not a window that closes. Say so,
+    // because waiting is what the status code invites and is the one response
+    // that cannot work. Naming the disclosure here too, since the failure that
+    // goes unmentioned in the reply is the one that costs the user most.
+    refused && retryAfter === null
+      ? `There is no Retry-After header, so this is more likely a block on automated requests than a limit that lifts: fetching this host again, later or through a script, will probably be refused the same way. Open the URL in the browser instead, and if it shows a human check, ask the user to complete it there. If you carry on without this page, say so in your reply rather than leaving the gap unmentioned.`
+      : undefined,
+  ]
+    .filter((sentence) => sentence !== undefined)
+    .join(" ");
 }
 
 function isHtmlMime(mime: string): boolean {

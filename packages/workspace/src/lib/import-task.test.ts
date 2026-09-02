@@ -24,7 +24,7 @@ describe("importTask", () => {
       { data: `{"name":"Legacy Task"}`, filename: ".instrument/settings.json" },
       { data: "db-bytes", filename: ".instrument/sessions.db" },
       { data: `{"showTutorial":true}`, filename: ".instrument/state.json" },
-      { data: `{"name":"task"}`, filename: "package.json" },
+      { data: `{"name":"task"}`, filename: "work/package.json" },
       {
         data: "sqlite",
         filename: "work/tmp/agent-browser-profile-abc/Cookies",
@@ -47,11 +47,13 @@ describe("importTask", () => {
     ) as Record<string, unknown>;
     expect(settings.state).toEqual({ showTutorial: true });
 
-    // Root package entries move into work/.
-    expect(
-      fs.readFileSync(path.join(taskDir, "work", "package.json"), "utf8"),
-    ).toBe(`{"name":"task"}`);
-    expect(fs.existsSync(path.join(taskDir, "package.json"))).toBe(false);
+    // A package under work/ folds up to the task root.
+    expect(fs.readFileSync(path.join(taskDir, "package.json"), "utf8")).toBe(
+      `{"name":"task"}`,
+    );
+    expect(fs.existsSync(path.join(taskDir, "work", "package.json"))).toBe(
+      false,
+    );
 
     // A browser profile clone restored from the zip is deleted outright.
     expect(

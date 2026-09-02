@@ -50,6 +50,7 @@ function createWorkspaceActor(rootDir = "/tmp/workspace") {
       modelCache: noopModelCache,
       nodeExecEnv: {},
       pnpmBinPath: "/tmp/pnpm",
+      preparedSkillsDir: "/tmp/prepared-skills",
       registryDir: MOCK_WORKSPACE_DIRS.registry,
       rootDir,
       shimClientDir: "dev-server",

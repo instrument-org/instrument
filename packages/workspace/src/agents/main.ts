@@ -21,9 +21,8 @@ import { isToolPart } from "../lib/is-tool-part";
 import { pathExists } from "../lib/path-exists";
 import { normalizeProjectInstructions } from "../lib/project-instructions";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
+import { NODE_COMMAND } from "../lib/shell-commands/node";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
-import { TS_COMMAND } from "../lib/shell-commands/ts";
-import { TSC_COMMAND } from "../lib/shell-commands/tsc";
 import { Store } from "../lib/store";
 import { taskDir } from "../lib/task-dir-utils";
 import { getTaskState } from "../lib/task-record";
@@ -193,8 +192,8 @@ export const mainAgent = setupAgent({
 
     # Task Folder
     The task folder is your isolated workspace; users may also edit its files directly.
-    Everything lives in one of these top-level folders:
-    - \`${F.work}/\` -- your project: a pnpm monorepo where you run code, install dependencies, and load skills. Put everything that isn't a finished deliverable or a user input here -- source, scripts, scratch, and intermediate files. Hidden from the user.
+    The task root is a single package: its \`package.json\` and \`node_modules\` are there, so a dependency you install resolves from anywhere inside the task, at any depth. Its top-level folders are:
+    - \`${F.work}/\` -- source, scripts, scratch, and intermediate files: anything that isn't a finished deliverable or a user input. Hidden from the user.
     - \`${F.attachments}/\` -- the user's inputs: uploads, plus files copied in from attached folders. Read from here.
     - \`${F.output}/\` -- finished deliverables. Write final results here.
     - \`${F.downloads}/\` -- files you download (e.g. via the browser) land here. Move one to \`${F.output}/\` when it's a finished deliverable.
@@ -264,12 +263,12 @@ export const mainAgent = setupAgent({
     Writing sources into a file does not show them to the user: the files fence renders a preview, not a bibliography. A reply that summarizes a deliverable is still a reply making claims, so it carries the same links again, for the facts it states itself. Handing over a well-sourced file and an unsourced summary of it is the most common way to leave the user with nothing to check.
 
     # Scripts and Running Code
-    A script is itself a working file: save it in \`${F.work}/\`, read inputs from \`${F.attachments}/\`, and write deliverables to \`${F.output}/\` -- only its finished output belongs there. Run it by its full path from the task root, e.g. \`${TS_COMMAND.name} ${F.work}/${F.skills}/<skill-name>/scripts/run.ts ${F.attachments}/in.csv --output ${F.output}/out.csv\`. Do NOT \`cd\` into a script's folder to run it: a script resolves its dependencies from its own folder either way, and running from inside it is the most common cause of "file not found" errors, because \`${F.attachments}/\` and \`${F.output}/\` are no longer where your relative paths point. Reach task files by their path from the task root rather than climbing back up with \`../\` chains.
+    A script is itself a working file: save it in \`${F.work}/\`, read inputs from \`${F.attachments}/\`, and write deliverables to \`${F.output}/\` -- only its finished output belongs there. Run it by its full path from the task root, e.g. \`${NODE_COMMAND.name} ${F.work}/convert.ts ${F.attachments}/in.csv --output ${F.output}/out.csv\`. Do NOT \`cd\` into a script's folder to run it: it resolves the task's dependencies wherever it sits, and running from inside it is the most common cause of "file not found" errors, because \`${F.attachments}/\` and \`${F.output}/\` are no longer where your relative paths point. Reach task files by their path from the task root rather than climbing back up with \`../\` chains.
 
-    \`${F.work}/\` is the pnpm monorepo, and only package-manager commands need its directory: \`cd ${F.work} && ${PNPM_COMMAND.name} install\`, or \`cd ${F.work}/${F.skills}/<source>/<skill-name> && ${PNPM_COMMAND.name} add <pkg>\` for one skill.
-    \`${F.work}/\` and each skill folder are separate workspace packages with isolated \`node_modules\`; deps installed in one are not visible to another, so a script that needs a skill's dependencies must live in that skill's folder. Skill files are yours to edit -- treat them as a starting point, not read-only templates.
+    Install with \`${PNPM_COMMAND.name} add <pkg>\` from the task root, where you already are. The task's \`node_modules\` sits at that root, so what you install resolves from every folder in the task and from inline \`${NODE_COMMAND.name} -e\` code alike.
+    A loaded skill is its own package with its own \`node_modules\`, holding the dependencies its own scripts declare. Those are not visible to code elsewhere in the task, so either run the skill's scripts where they sit, or install what you need at the task root and write your own against it. Skill files are yours to edit -- treat them as a starting point, not read-only templates.
 
-    Write scripts in TypeScript, Python, or bash. When risk or complexity warrants it, check TypeScript with \`${TSC_COMMAND.name} --noEmit\`, or \`cd ${F.work}/${F.skills}/<skill-name> && ${TSC_COMMAND.name} --noEmit\` for files inside a skill folder.
+    Write scripts in TypeScript, Python, or bash.
 
     # File Changes
     - There is no automatic version history for task files.

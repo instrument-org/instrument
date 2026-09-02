@@ -252,6 +252,7 @@ export async function runEvals(
       pnpmBinPath: await execa({ reject: false })`which pnpm`.then(
         (result) => result.stdout.trim() || "pnpm",
       ),
+      preparedSkillsDir: path.join(workspaceRootDir, "prepared-skills"),
       registryDir,
       rootDir: workspaceRootDir,
       shimClientDir: "dev-server",

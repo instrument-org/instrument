@@ -8,7 +8,6 @@ import { filterShellOutput } from "../filter-shell-output";
 import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
-import { TS_COMMAND } from "./ts";
 import {
   bridgeFlagValuePath,
   bridgeInlineCodePaths,
@@ -73,7 +72,7 @@ const KNOWN_OPTIONS = {
 } as const;
 
 export const NODE_COMMAND = {
-  description: `Run a JavaScript file with Node.js. In -e code: relative paths resolve from cwd, quoted "${MOUNT.task}/..." strings are bridged; ${MOUNT.attachedFolders} paths are not available.`,
+  description: `Run a TypeScript or JavaScript file. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd, quoted "${MOUNT.task}/..." strings are bridged; ${MOUNT.attachedFolders} paths are not available.`,
   name: "node",
 } as const;
 
@@ -85,7 +84,7 @@ export function createNodeCommand(taskId: TaskId) {
     if (args.length === 0 && !stdinProgram) {
       return {
         exitCode: 1,
-        stderr: `${NODE_COMMAND.name} command requires a file argument or -e <code>. Prefer \`${TS_COMMAND.name}\` for TypeScript files.`,
+        stderr: `${NODE_COMMAND.name} command requires a file argument or -e <code>.`,
         stdout: "",
       };
     }

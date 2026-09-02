@@ -141,6 +141,10 @@ export function createWorkspaceActor({
         ELECTRON_RUN_AS_NODE: "1",
       },
       pnpmBinPath: getPNPMBinPath(),
+      // Beside the app-managed `bin` and `uv`, and outside the workspace: the
+      // set is prepared per machine, so several workspaces or a workspace the
+      // user moves all source from one copy of it.
+      preparedSkillsDir: path.join(app.getPath("userData"), "skills"),
       registryDir: app.isPackaged
         ? path.join(process.resourcesPath, REGISTRY_DIR_NAME)
         : UNPACKAGED_REGISTRY_DIR,

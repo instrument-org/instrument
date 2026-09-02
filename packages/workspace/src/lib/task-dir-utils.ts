@@ -62,20 +62,21 @@ export function getTaskPrivateDir(dir: TaskDir): AbsolutePath {
 
 // Subprocess temp dir. TMPDIR/TEMP/TMP point real interpreters here so
 // tempfile, os.tmpdir(), and mktemp land inside the task instead of the host
-// temp dir. A plain name under work/ so the agent uses it readily and the user
-// can browse leftover temp data like the rest of work/.
+// temp dir.
 export function getTaskTmpDir(dir: TaskDir): AbsolutePath {
-  return absolutePathJoin(getTaskWorkDir(dir), TASK_FOLDER_NAMES.tmp);
+  return absolutePathJoin(dir, TASK_FOLDER_NAMES.tmp);
 }
 
-// The runnable package and all agent working files live under work/.
+// Scratch: source, scripts, and intermediate files the agent writes. Holds no
+// package of its own, so what lands here resolves the task's dependencies by
+// walking up to the root like anything else in the task.
 export function getTaskWorkDir(dir: TaskDir): AbsolutePath {
   return absolutePathJoin(dir, TASK_FOLDER_NAMES.work);
 }
 
 export function isRunnable(dir: TaskDir): Promise<boolean> {
   return fs
-    .access(path.join(getTaskWorkDir(dir), "package.json"))
+    .access(path.join(dir, "package.json"))
     .then(() => true)
     .catch(() => false);
 }

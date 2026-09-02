@@ -415,23 +415,6 @@ describe("LoadSkill", () => {
     ).resolves.toContain("# claude-review");
   });
 
-  it("adds nested skill packages to an older task workspace", async () => {
-    const workDir = path.join(dir, TASK_FOLDER_NAMES.work);
-    const workspaceFile = path.join(workDir, "pnpm-workspace.yaml");
-    await fs.mkdir(workDir, { recursive: true });
-    await fs.writeFile(workspaceFile, "packages:\n  - skills/*\n");
-    await createSkill({ name: "my-skill" });
-
-    await runTool(LoadSkill, {
-      ...baseExecuteArgs(),
-      input: { explanation: "loading", name: "my-skill" },
-    });
-
-    await expect(fs.readFile(workspaceFile, "utf8")).resolves.toBe(
-      "packages:\n  - skills/*\n  - skills/*/*\n",
-    );
-  });
-
   it("loads a skill again without overwriting the agent's edits", async () => {
     await createSkill({
       extraFiles: { "scripts/run.ts": "original" },
@@ -1026,7 +1009,7 @@ describe("LoadSkill", () => {
 
       This skill declares Node.js dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then run \`cd work/skills/claude/third-party && pnpm install\` yourself if you trust it.
 
-      This skill declares Python dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then install its locked dependencies into \`work/.venv\` yourself if you trust it."
+      This skill declares Python dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then install its locked dependencies into the task's \`.venv\` yourself if you trust it."
     `);
   });
 

@@ -111,7 +111,7 @@ app.all("/*", async (c, next) => {
   // the task have to be listed, or an agent-authored page linking to one gets
   // the path resolved inside the task folder and a 404 that looks like a missing
   // file rather than an unserved mount.
-  const virtualPath = [MOUNT.attachedFolders, MOUNT.project].some(
+  const virtualPath = [MOUNT.attachedFolders, MOUNT.project, MOUNT.skills].some(
     (root) => assetPath === root || assetPath.startsWith(`${root}/`),
   )
     ? assetPath

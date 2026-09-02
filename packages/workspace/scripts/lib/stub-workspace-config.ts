@@ -43,6 +43,9 @@ export function createStubWorkspaceConfig({
     modelCache: noopModelCache,
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
+    preparedSkillsDir: AbsolutePathSchema.parse(
+      path.join(absoluteRootDir, "prepared-skills"),
+    ),
     projectsDir: AbsolutePathSchema.parse(
       path.join(absoluteRootDir, "projects"),
     ),

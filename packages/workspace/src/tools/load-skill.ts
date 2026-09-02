@@ -11,8 +11,8 @@ import { executeError } from "../lib/execute-error";
 import { installPythonSkill } from "../lib/install-python-skill";
 import { normalizedPathJoin } from "../lib/normalize-path";
 import { runPnpmCommand } from "../lib/run-pnpm";
+import { NODE_COMMAND } from "../lib/shell-commands/node";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
-import { TS_COMMAND } from "../lib/shell-commands/ts";
 import { renderSkillCatalog } from "../lib/skill-catalog";
 import {
   getSkillProvenance,
@@ -29,7 +29,7 @@ import {
   SKILL_CONTENT_LIMIT,
   truncateSkillContent,
 } from "../lib/skills";
-import { getTaskWorkDir, taskDir } from "../lib/task-dir-utils";
+import { taskDir } from "../lib/task-dir-utils";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { MOUNT } from "../mount-points";
 import { BaseInputSchema } from "./base";
@@ -180,7 +180,7 @@ export const LoadSkill = setupTool({
       if (provenance.installDependencies) {
         const { exitCode, stderr, stdout } = await runPnpmCommand({
           args: ["install"],
-          cwd: getTaskWorkDir(taskDir(taskId)),
+          cwd: taskDir(taskId),
           signal,
           taskId,
         });
@@ -271,8 +271,8 @@ export const LoadSkill = setupTool({
     if (output.files.length > 0) {
       const fileSectionText = [
         `The skill files below are copied into your task and are yours to edit.`,
-        `For an operation a script already covers, read it and run it with \`${TS_COMMAND.name}\` (TypeScript) or \`python\` (Python) rather than rewriting it.`,
-        `Run a script by its full path from the task root (e.g. \`${TS_COMMAND.name} ${skillRoot}/scripts/<script>.ts ${TASK_FOLDER_NAMES.attachments}/in --output ${TASK_FOLDER_NAMES.output}/out\` or \`python ${skillRoot}/scripts/<script>.py ${TASK_FOLDER_NAMES.attachments}/in --output ${TASK_FOLDER_NAMES.output}/out\`); do NOT \`cd\` into the skill folder to run it, or \`${TASK_FOLDER_NAMES.attachments}/\` and \`${TASK_FOLDER_NAMES.output}/\` won't be where your relative paths point.`,
+        `For an operation a script already covers, read it and run it with \`${NODE_COMMAND.name}\` (TypeScript) or \`python\` (Python) rather than rewriting it.`,
+        `Run a script by its full path from the task root (e.g. \`${NODE_COMMAND.name} ${skillRoot}/scripts/<script>.ts ${TASK_FOLDER_NAMES.attachments}/in --output ${TASK_FOLDER_NAMES.output}/out\` or \`python ${skillRoot}/scripts/<script>.py ${TASK_FOLDER_NAMES.attachments}/in --output ${TASK_FOLDER_NAMES.output}/out\`); do NOT \`cd\` into the skill folder to run it, or \`${TASK_FOLDER_NAMES.attachments}/\` and \`${TASK_FOLDER_NAMES.output}/\` won't be where your relative paths point.`,
         `For work the scripts don't cover -- especially content, layout, or anything generative -- write your own code against the skill's preinstalled libraries (see its recipes) instead of bending a script's flags to fit.`,
       ].join(" ");
 
@@ -306,7 +306,7 @@ export const LoadSkill = setupTool({
           const installHint =
             installResult.runtime === "node"
               ? `run \`cd ${skillRoot} && ${PNPM_COMMAND.name} install\``
-              : `install its locked dependencies into \`${TASK_FOLDER_NAMES.work}/.venv\``;
+              : "install its locked dependencies into the task's `.venv`";
           return [
             `This skill declares ${installResult.runtime === "node" ? "Node.js" : "Python"} dependencies, but ${APP_NAME} did not install them because the skill comes from a third-party skills folder on this machine.`,
             `Review the skill first, then ${installHint} yourself if you trust it.`,
@@ -327,12 +327,12 @@ export const LoadSkill = setupTool({
 
         return installResult.runtime === "node"
           ? [
-              `\`${PNPM_COMMAND.name} install\` was run in \`${TASK_FOLDER_NAMES.work}/\`.`,
+              `\`${PNPM_COMMAND.name} install\` was run for this task.`,
               `The skill's Node.js dependencies are ready to use.`,
               `Do not run \`${PNPM_COMMAND.name} add\` for packages this skill already provides.`,
             ].join(" ")
           : [
-              `The skill's locked Python dependencies were installed in \`${TASK_FOLDER_NAMES.work}/.venv\`.`,
+              `The skill's locked Python dependencies were installed in the task's \`.venv\`.`,
               `Run its Python scripts with \`python\`; do not install packages the skill already provides.`,
             ].join(" ");
       });

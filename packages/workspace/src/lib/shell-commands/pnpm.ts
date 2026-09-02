@@ -6,11 +6,10 @@ import {
 } from "just-bash";
 import { dedent } from "radashi";
 
-import { TASK_FOLDER_NAMES } from "../../constants";
+import { MOUNT } from "../../mount-points";
 import { type TaskId } from "../../schemas/task-id";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
 import { systemNote } from "../system-note";
-import { createTsCommand, TS_COMMAND } from "./ts";
 import { resolveCommandContext, subprocessStdin } from "./utils";
 
 export const PNPM_COMMAND = {
@@ -82,20 +81,8 @@ export function createNpxCommand(taskId: TaskId) {
 }
 
 export function createPnpmCommand(taskId: TaskId) {
-  const tsCommand = createTsCommand(taskId);
-
   return defineCommand(PNPM_COMMAND.name, async (args, ctx) => {
     const subcommand = args[0];
-    const secondArg = args[1];
-
-    // Forward `pnpm exec tsx ...` or `pnpm tsx ...`
-    // to the ts command so path sandboxing and provider env are applied correctly.
-    if (subcommand === "exec" && secondArg === TS_COMMAND.name) {
-      return tsCommand.execute(args.slice(2), ctx);
-    }
-    if (subcommand === TS_COMMAND.name) {
-      return tsCommand.execute(args.slice(1), ctx);
-    }
 
     if (subcommand === "exec") {
       // `pnpm exec` normally resolves its command off PATH too, which would run
@@ -183,9 +170,10 @@ export function createPnpmCommand(taskId: TaskId) {
     // runs in the right place regardless of where the task is mounted.
     const { taskCwd: cwd } = resolveCommandContext(taskId, ctx);
 
-    // The runnable workspace lives in `work/`; there is no manifest at the task
-    // root. Fail fast with guidance instead of pnpm's opaque
-    // ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND when run from the wrong directory.
+    // The manifest is at the task root, which is also where the agent starts,
+    // so reaching this means it ran the command from somewhere else. Fail fast
+    // with guidance instead of pnpm's opaque
+    // ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND.
     const isInformational =
       !subcommand || subcommand.startsWith("-") || subcommand === "help";
     const hasManifest =
@@ -195,8 +183,8 @@ export function createPnpmCommand(taskId: TaskId) {
       return {
         exitCode: 1,
         stderr: dedent`
-          No package manifest found here. Your project lives in \`${TASK_FOLDER_NAMES.work}/\`.
-          Run package commands from there, e.g. \`cd ${TASK_FOLDER_NAMES.work} && ${PNPM_COMMAND.name} ${filteredArgs.join(" ")}\`.
+          No package manifest found here. Your package is the task root (\`${MOUNT.task}\`), which is also where you start.
+          Run package commands from there, e.g. \`cd ${MOUNT.task} && ${PNPM_COMMAND.name} ${filteredArgs.join(" ")}\`.
         `,
         stdout: "",
       };

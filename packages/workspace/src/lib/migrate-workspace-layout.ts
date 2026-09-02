@@ -13,6 +13,7 @@ import {
 } from "../constants";
 import { ProjectIdSchema } from "../schemas/project-id";
 import { foldTaskStateFile } from "./fold-task-state-file";
+import { foldTaskWorkDir } from "./fold-task-work-dir";
 import { writeJsonFileSync } from "./write-json-file-sync";
 
 // Legacy on-disk names this migration renames to their current equivalents.
@@ -25,20 +26,6 @@ const LEGACY_ATTACHMENT_DIR_NAMES = ["user-provided", "agent-retrieved"];
 // `.state` is intentionally not migrated: the task db stores direct path
 // references to screenshots/bash-output under `.state/`, so moving the files
 // would orphan them. It stays in place, still ignored by the file index.
-
-// Root entries moved wholesale (rename) into `work/`. Anything absent is skipped.
-const WORK_ENTRY_NAMES = [
-  "package.json",
-  "pnpm-lock.yaml",
-  "pnpm-workspace.yaml",
-  "tsconfig.json",
-  "AGENTS.md",
-  TASK_FOLDER_NAMES.skills,
-  "src",
-  "scripts",
-  "tmp",
-  "node_modules",
-];
 
 // SQLite keeps sidecar files next to the db; they must travel with it. Empty
 // suffix is the db file itself. Harmless if a given sidecar is absent.
@@ -55,7 +42,7 @@ const LEGACY_PROJECTS_MIGRATED_MARKER_NAME = ".legacy-projects-migrated";
 // code that leaves them in the current shape: initializeTask writes it, and
 // importTask runs normalizeTask on the one task it extracts. A task folder
 // hand-copied into tasks/ stays as copied until the next version bump.
-const WORKSPACE_LAYOUT_VERSION = 1;
+const WORKSPACE_LAYOUT_VERSION = 2;
 const WORKSPACE_LAYOUT_VERSION_MARKER_NAME = ".layout-version";
 
 // Cloned Chrome profiles left in a task's temp dir from when agent-browser
@@ -133,11 +120,13 @@ export function normalizeTask(taskFolder: string): number {
   foldTaskStateFile(taskFolder);
   // After the fold, so the stamp is written to the file that survives it.
   stampTaskTimestamps(taskFolder);
-  normalizeTaskWorkLayout(taskFolder);
   normalizeTaskAttachments(taskFolder);
-  // After the work/ move, so a pre-work-layout task's clones are found at
-  // their current path rather than the root one they were written to.
-  return removeBrowserProfileClones(taskFolder);
+  // Before the work/ fold, so a clone is found at the path the build that
+  // wrote it used rather than the one the fold is about to move it to.
+  const removedBrowserProfileCloneCount =
+    removeBrowserProfileClones(taskFolder);
+  foldTaskWorkDir(taskFolder);
+  return removedBrowserProfileCloneCount;
 }
 
 // A real project has a ProjectId (prj_<ULID>) in its settings; structurally
@@ -313,15 +302,6 @@ function normalizeTaskSettingsFile(taskFolder: string) {
   }
 }
 
-// Moves the runnable package and agent working dirs from the task root into
-// work/. No-ops for tasks already in the current layout (no such root entries).
-function normalizeTaskWorkLayout(taskFolder: string) {
-  const workDir = path.join(taskFolder, TASK_FOLDER_NAMES.work);
-  for (const name of WORK_ENTRY_NAMES) {
-    moveIfMissingTarget(path.join(taskFolder, name), path.join(workDir, name));
-  }
-}
-
 // What the list saw before the stamps existed: the session database's
 // timestamps, falling back to the task folder's for a task that never opened
 // one.
@@ -347,13 +327,11 @@ function observedTaskTimestamps(taskFolder: string) {
 }
 
 // Deletes any cloned Chrome profile sitting in the task's temp dir. See
-// BROWSER_PROFILE_CLONE_PREFIX.
+// BROWSER_PROFILE_CLONE_PREFIX. The path is spelled out rather than built from
+// the current folder names: a clone can only exist where the build that made
+// one wrote it, and the temp dir has moved since.
 function removeBrowserProfileClones(taskFolder: string) {
-  const tmpDir = path.join(
-    taskFolder,
-    TASK_FOLDER_NAMES.work,
-    TASK_FOLDER_NAMES.tmp,
-  );
+  const tmpDir = path.join(taskFolder, "work", "tmp");
   if (!fs.existsSync(tmpDir)) {
     return 0;
   }

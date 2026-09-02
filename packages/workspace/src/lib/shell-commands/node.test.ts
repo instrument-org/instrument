@@ -38,7 +38,7 @@ describe("nodeCommand", () => {
     expect(result).toMatchInlineSnapshot(`
       {
         "exitCode": 1,
-        "stderr": "node command requires a file argument or -e <code>. Prefer \`tsx\` for TypeScript files.",
+        "stderr": "node command requires a file argument or -e <code>.",
         "stdout": "",
       }
     `);

@@ -6,10 +6,16 @@ minimumReleaseAgeExclude: []
 
 allowBuilds:
   sharp: true
-dlxCacheMaxAge: 259200 # 180 days in minutes, extended for pnpm dlx jiti
+dlxCacheMaxAge: 259200 # 180 days in minutes, so npx/pnpx stay warm across tasks
+# The task root is both the workspace root and the only package anyone installs
+# into, so pnpm's "did you mean to add to the root?" guard has nothing to guard.
+# Without this, every `pnpm add` in a task fails until it is retried with `-w`.
+ignoreWorkspaceRootCheck: true
+# Loaded skills are copied in as their own packages so their declared
+# dependencies install into the skill's own folder rather than the task's.
 packages:
-  - skills/*
-  - skills/*/*
+  - work/skills/*
+  - work/skills/*/*
 # Unapproved build scripts are skipped with a warning instead of failing the
 # install, so a package the agent adds mid-task cannot dead-end it. The bash
 # tool turns that warning into instructions for extending allowBuilds.

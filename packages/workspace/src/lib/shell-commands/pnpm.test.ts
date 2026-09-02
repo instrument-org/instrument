@@ -38,7 +38,7 @@ describe("createPnpmCommand", () => {
     });
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Your project lives in `work/`");
+    expect(result.stderr).toContain("Your package is the task root");
   });
 
   it("strips global flags from the manifest guard suggestion", async () => {
@@ -48,7 +48,7 @@ describe("createPnpmCommand", () => {
     });
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("`cd work && pnpm add lodash`");
+    expect(result.stderr).toContain("`cd /task && pnpm add lodash`");
   });
 
   // `dev` and `start` were refused while the runtime was the only thing allowed
@@ -215,31 +215,6 @@ describe("createPnpmCommand", () => {
     `);
   });
 
-  it.each([
-    { args: ["tsx", "-e", "console.log(1)"], form: "pnpm tsx -e ..." },
-    {
-      args: ["exec", "tsx", "-e", "console.log(1)"],
-      form: "pnpm exec tsx -e ...",
-    },
-  ])("forwards $form to the ts command", async ({ args }) => {
-    const { execaNodeForTask } = await import("../execa-node-for-task");
-    vi.mocked(execaNodeForTask).mockResolvedValueOnce({
-      exitCode: 0,
-      stdout: "1",
-    });
-
-    const result = await command.execute(args, mockCtx);
-
-    expect(result.exitCode).toBe(0);
-    expect(vi.mocked(execaNodeForTask)).toHaveBeenCalledWith(
-      taskId,
-      getWorkspaceConfig().pnpmBinPath,
-      expect.arrayContaining(["dlx", "jiti@2.6.1"]),
-      expect.any(Object),
-      expect.any(String),
-    );
-  });
-
   it("aliases npx registered commands to the bash command registry", async () => {
     const exec = vi.fn().mockResolvedValue({
       exitCode: 0,
@@ -249,11 +224,11 @@ describe("createPnpmCommand", () => {
 
     const npxCommand = createNpxCommand(taskId);
     const result = await npxCommand.execute(
-      ["-y", "tsx", "-e", "console.log(1)"],
+      ["-y", "node", "-e", "console.log(1)"],
       {
         ...mockCtx,
         exec,
-        getRegisteredCommands: () => ["pnpm", "npx", "pnpx", "pnx", "tsx"],
+        getRegisteredCommands: () => ["pnpm", "npx", "pnpx", "pnx", "node"],
       },
     );
 
@@ -262,7 +237,7 @@ describe("createPnpmCommand", () => {
       stderr: "",
       stdout: "1\n",
     });
-    expect(exec).toHaveBeenCalledWith("tsx", {
+    expect(exec).toHaveBeenCalledWith("node", {
       args: ["-e", "console.log(1)"],
       cwd: "/",
       signal: undefined,

@@ -119,7 +119,7 @@ describe("WriteFile - path policy", () => {
       ...makeExecuteArgs({
         content: "---\ndescription: Brief\n---\n\nBody.\n",
         explanation: "test",
-        filePath: "/skills/brief/SKILL.md",
+        filePath: "/skills/workspace/brief/SKILL.md",
       }),
       sessionId,
     });

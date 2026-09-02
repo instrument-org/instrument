@@ -155,11 +155,7 @@ export const WebFetch = setupTool({
       let spillFilePath: undefined | z.output<typeof RelativePathSchema>;
       if (result.ok && result.spillText !== undefined) {
         spillFilePath = RelativePathSchema.parse(
-          path.posix.join(
-            TASK_FOLDER_NAMES.work,
-            TASK_FOLDER_NAMES.toolOutput,
-            `${partId}.txt`,
-          ),
+          path.posix.join(TASK_FOLDER_NAMES.toolOutput, `${partId}.txt`),
         );
         const absoluteSpillPath = absolutePathJoin(
           taskDir(taskId),

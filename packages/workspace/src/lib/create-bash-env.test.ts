@@ -9,7 +9,7 @@ describe("createBashDescription", () => {
 
       IMPORTANT: Folders the user attaches appear as mounts under \`/mnt/\`, each read-only or read-and-write; the attached-folders list in your context says which. A write into a read-only one fails with EROFS. A write into a read-and-write one lands on the user's real files immediately, so treat \`rm\` there as permanent. \`rg\` searches mount paths directly, but the interpreter hatches (python, node, ffmpeg, pnpm) cannot resolve one: copy the file into the task first (e.g. \`cp '/mnt/<folder>/file' attachments/\`), work on the copy, and \`mv\` the result back if it belongs in the folder.
 
-      IMPORTANT: Python is available via the specialized \`python\`/\`python3\`/\`pip\`/\`uv\` commands below (backed by a per-task virtualenv in work/.venv), TypeScript/JavaScript via \`tsx\`, and package management via \`pnpm\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside script code run by these commands, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`/task/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`/mnt/...\` never is (copy attached files into the task first) and paths inside script FILES on disk are never translated.
+      IMPORTANT: Python is available via the specialized \`python\`/\`python3\`/\`pip\`/\`uv\` commands below (backed by a per-task virtualenv at the task root), TypeScript/JavaScript via \`node\`, and package management via \`pnpm\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside script code run by these commands, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`/task/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`/mnt/...\` never is (copy attached files into the task first) and paths inside script FILES on disk are never translated.
 
       IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`/task\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`/task\`, the \`/mnt\` mounts, and \`/skills\` exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files, or \`mktemp\` to name one. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
@@ -17,9 +17,9 @@ describe("createBashDescription", () => {
       A command goes to the background by outliving \`yieldMs\`, NOT by \`&\` (\`&\`, \`nohup\` and \`disown\` are unsupported). A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`jobs\`, \`fg\` and \`kill\` manage it from there. Start a server or watcher with a small \`yieldMs\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
       Those three are ordinary commands, so they compose: \`fg bg_1 | rg -i error\` filters before you pay for the output, \`fg bg_1 && pnpm test\` runs only on success, and \`kill bg_1 bg_2; jobs\` cleans up and confirms in one call.
       A background process is stopped once it has run for 2 hours, whatever it is doing. \`jobs\` reports that as \`stopped (2h cap)\` rather than as a failure or a kill; start it again if the work still needs it.
-      Only output written by real binaries (\`pnpm\`, \`tsx\`, \`python\`, \`uv\`, \`ffmpeg\`, ...) streams while a process runs; a long shell pipeline of builtins reports its output only when it finishes.
+      Only output written by real binaries (\`pnpm\`, \`node\`, \`python\`, \`uv\`, \`ffmpeg\`, ...) streams while a process runs; a long shell pipeline of builtins reports its output only when it finishes.
 
-      IMPORTANT: \`curl\`/\`wget\` refuse private and loopback addresses, so they cannot reach a server you started, and they fail with a bare exit 7 and no message. Make that request from a real process instead: a \`tsx\` or \`python\` script fetching \`http://127.0.0.1:<port>/\`. Pick an explicit port when you start the server so you know which one to call.
+      IMPORTANT: \`curl\`/\`wget\` refuse private and loopback addresses, so they cannot reach a server you started, and they fail with a bare exit 7 and no message. Make that request from a real process instead: a \`node\` or \`python\` script fetching \`http://127.0.0.1:<port>/\`. Pick an explicit port when you start the server so you know which one to call.
 
       Prefer specialized tools over shell equivalents:
         - Use the \`read_file\` tool instead of \`cat\`/\`head\`/\`tail\`.
@@ -36,7 +36,7 @@ describe("createBashDescription", () => {
 
       Available commands (this is the complete set of unix builtins; if a command is not listed here it is NOT available, so use one of these or a specialized command below instead of assuming): alias, awk, base64, basename, bash, cat, chmod, clear, column, comm, cp, cut, date, diff, dirname, du, echo, egrep, env, expand, expr, false, fgrep, file, find, fold, grep, gunzip, gzip, head, help, history, hostname, html-to-markdown, join, ln, ls, md5sum, mkdir, mv, nl, od, paste, printenv, printf, pwd, readlink, rev, rm, rmdir, sed, seq, sh, sha1sum, sha256sum, sleep, sort, split, stat, strings, tac, tail, tar, tee, time, timeout, touch, tr, tree, true, unalias, unexpand, uniq, wc, whoami, xargs, zcat
 
-      IMPORTANT: Specialized commands below (e.g. ffmpeg, ffprobe) are invoked by bare name only -- never by an absolute path. \`which\`/\`command -v\`/\`type\` may report a path like /usr/bin/ffmpeg, but that path does NOT exist; ignore it. These binaries are also on PATH inside tsx/node scripts, so a script may shell out to \`ffmpeg\`/\`ffprobe\` directly.
+      IMPORTANT: Specialized commands below (e.g. ffmpeg, ffprobe) are invoked by bare name only -- never by an absolute path. \`which\`/\`command -v\`/\`type\` may report a path like /usr/bin/ffmpeg, but that path does NOT exist; ignore it. These binaries are also on PATH inside node scripts, so a script may shell out to \`ffmpeg\`/\`ffprobe\` directly.
 
       Specialized commands:
         jq - Parse and manipulate JSON
@@ -58,14 +58,13 @@ describe("createBashDescription", () => {
         ffmpeg - Process audio and video files using FFmpeg.
         ffprobe - Probe and inspect audio and video files using FFprobe.
         git - Clone and fetch public repositories over http(s), inspect history, branch, and commit locally. No credentials are configured, so private repositories, pushing, and ssh:// remotes are unavailable. Pass commit messages with -m or -F; there is no editor. A large clone that outlives the call keeps running in the background rather than failing, and leaves a partial directory to delete if it is stopped.
-        mktemp - Create a uniquely named scratch file (or -d directory) under work/ and print its path.
+        mktemp - Create a uniquely named scratch file (or -d directory) in the task's temp dir and print its path.
+        node - Run a TypeScript or JavaScript file. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd, quoted "/task/..." strings are bridged; /mnt paths are not available.
         pnpm - CLI tool for managing JavaScript packages. Global installs (--global / -g) are not supported; packages must be installed locally.
         pnx - Alias for pnpm dlx.
-        tsx - Execute a TypeScript or JavaScript file. In -e code: relative paths resolve from cwd, quoted "/task/..." strings are bridged; /mnt paths are not available.
-        tsc - TypeScript compiler for type-checking. Do not pass individual file paths -- this bypasses tsconfig.json and skips the local config.
-        uv - Python package and environment manager. Also provides \`python\`, \`python3\`, and \`pip\`, backed by a per-task virtualenv in work/.venv. The very first Python use fetches a managed interpreter (one-time); later uses are fast.
-        python - Run Python via the per-task virtualenv (work/.venv). Shares packages installed with \`pip\`. Use the \`pip\` command to install packages: \`python -m pip\` is not available.
-        pip - Install Python packages into the per-task virtualenv (work/.venv) via uv. Use like pip, e.g. \`pip install <package>\`.
+        uv - Python package and environment manager. Also provides \`python\`, \`python3\`, and \`pip\`, backed by a per-task virtualenv in .venv. The very first Python use fetches a managed interpreter (one-time); later uses are fast.
+        python - Run Python via the per-task virtualenv (.venv). Shares packages installed with \`pip\`. Use the \`pip\` command to install packages: \`python -m pip\` is not available.
+        pip - Install Python packages into the per-task virtualenv (.venv) via uv. Use like pip, e.g. \`pip install <package>\`.
         validate-skill - Check a skill written under \`/skills/\` and report what is wrong with it.
       Errors are what the runtime already acts on: a skill that is never discovered, or one \`load_skill\` refuses. Warnings are authoring rules and context budgets.
       Run it after writing or editing a skill -- a skill with broken frontmatter fails silently, by simply never appearing anywhere.
@@ -107,6 +106,6 @@ describe("createBashDescription", () => {
   it("notes Python availability via specialized commands", () => {
     const description = createBashDescription();
     expect(description).toContain("Python is available");
-    expect(description).toContain("work/.venv");
+    expect(description).toContain("per-task virtualenv at the task root");
   });
 });

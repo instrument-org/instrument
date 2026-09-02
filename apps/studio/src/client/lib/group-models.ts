@@ -38,11 +38,6 @@ export function groupAndFilterModels({
     Boolean(model.restricted),
   );
 
-  const [defaultRecommended, nonDefaultRecommended] = fork(
-    availableRecommended,
-    (model) => model.tags.includes("default"),
-  );
-
   const [newModels, notNewModels] = fork(notRecommended, (model) =>
     model.tags.includes("new"),
   );
@@ -53,10 +48,7 @@ export function groupAndFilterModels({
 
   /* eslint-disable perfectionist/sort-objects */
   const result: GroupedModels = {
-    Recommended: prioritizeOurModels([
-      ...defaultRecommended,
-      ...nonDefaultRecommended,
-    ]),
+    Recommended: prioritizeOurModels(availableRecommended),
     "Requires a paid plan": prioritizeOurModels(restricted),
     New: prioritizeOurModels(newModels),
     Other: prioritizeOurModels(notLegacy),

@@ -193,10 +193,15 @@
       dialog.viewer .frame {
         cursor: default;
       }
-      /* Actual-size mode pans here. `flex:none` or the frame shrinks to the
-         stage instead of overflowing it, and there is nothing to pan. Centering
-         an overflowing child is `margin:auto` inside a flex parent, not
-         `justify-content`, which puts the top and left edges out of reach. */
+      /* Opening the dialog focuses something, and whatever it focuses is ringed.
+         The stage takes it, where there is nothing to outline, rather than the
+         first button in the control row. */
+      #stage:focus {
+        outline: none;
+      }
+      /* The frame is centered in the stage rather than stretched across it:
+         `flex:none` so the stage does not resize it, `margin:auto` because
+         that is what centers a child inside a flex parent. */
       #stage > * {
         flex: none;
         margin: auto;
@@ -252,14 +257,14 @@
     </main>
 
     <dialog class="viewer">
-      <div id="stage" class="flex min-h-0 flex-1 p-4"></div>
+      <div id="stage" autofocus tabindex="-1" class="flex min-h-0 flex-1 p-4"></div>
       <div class="shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <p
           id="viewer-caption"
           class="mx-auto max-h-[30vh] max-w-3xl overflow-y-auto text-center text-sm leading-5 text-white"
         ></p>
         <div id="viewer-controls" class="mx-auto mt-3 grid max-w-3xl grid-cols-3 items-center">
-          <button id="viewer-fit" class="vbtn justify-self-start"></button>
+          <span></span>
           <div class="flex items-center gap-2 justify-self-center">
             <button data-step="-1" title="Previous frame" class="vbtn"><i class="ph ph-caret-left"></i></button>
             <span id="viewer-counter" class="min-w-12 text-center font-mono text-xs text-white/70"></span>
@@ -279,7 +284,7 @@
       // captions align across the grid even when frames mix aspect ratios.
       // Keep this close to what most frames in the file actually measure —
       // too tall and short frames float in a lot of dead padding.
-      const SLOT_H = 200;
+      const SLOT_H = 220;
 
       // ---- Studio kit ------------------------------------------------------
       // Pieces of the real app, so a frame is the thing you are proposing rather
@@ -475,44 +480,24 @@
       // off the bottom of the screen.
       //
       // Everything here is reachable by tap as well as by key: prev/next
-      // buttons, a horizontal swipe, an explicit close, and a fit/actual-size
-      // toggle, because a 1280px frame fitted to a phone is unreadable and
-      // there is no hover or Escape key to fall back on.
+      // buttons, a horizontal swipe and an explicit close, because on a phone
+      // there is no hover and no Escape key to fall back on.
       const viewer = document.querySelector("dialog.viewer");
       const stage = document.querySelector("#stage");
       const viewerCaption = document.querySelector("#viewer-caption");
       const viewerCounter = document.querySelector("#viewer-counter");
-      const fitButton = document.querySelector("#viewer-fit");
       let openIndex = -1;
-      let fit = true;
 
-      /** Fits the enlarged frame to the stage, or pins it to true size and lets
-       *  the stage pan. */
+      /** Fits the enlarged frame to the stage. Nothing overflows, so a
+       *  horizontal drag across it is unambiguously a swipe. */
       const fitFrame = () => {
         const frame = stage.firstElementChild;
         if (!frame) return;
-        // Fitted, nothing overflows, so the stage does not scroll and a
-        // horizontal drag is unambiguously a swipe. At true size it pans, and
-        // the drag belongs to the browser. Pinch stays available in both.
-        stage.style.overflow = fit ? "hidden" : "auto";
-        stage.style.touchAction = fit ? "pan-y pinch-zoom" : "pan-x pan-y pinch-zoom";
-        if (!fit) return frame.style.setProperty("--s", 1);
         const s = Math.min(
           (stage.clientWidth - 32) / Number(frame.dataset.w),
           (stage.clientHeight - 32) / Number(frame.dataset.h),
         );
         frame.style.setProperty("--s", Math.max(0.05, s));
-      };
-
-      /** Lands in the middle of the drawing rather than its top-left corner,
-       *  which on a window-sized frame is an empty stretch of sidebar. Fitted,
-       *  nothing overflows and this is a no-op. */
-      const recenter = () =>
-        stage.scrollTo((stage.scrollWidth - stage.clientWidth) / 2, (stage.scrollHeight - stage.clientHeight) / 2);
-
-      const paintFit = () => {
-        fitButton.innerHTML = `<i class="ph ${fit ? "ph-arrows-out" : "ph-arrows-in"}"></i>`;
-        fitButton.title = fit ? "Actual size" : "Fit to screen";
       };
 
       /** Enlarges the frame at `index`, caption below it. Also how ←/→, the
@@ -526,17 +511,9 @@
         stage.replaceChildren(tile.cloneNode(true));
         viewerCaption.innerHTML = `<span class="mr-1.5 rounded bg-white/15 px-1.5 py-0.5 font-mono text-[10px] text-white/80">${index + 1}</span><span class="font-medium">${state.title}.</span> <span class="text-white/80">${state.note}</span>`;
         viewerCounter.textContent = `${index + 1} / ${states.length}`;
-        if (!viewer.open) {
-          // Every open starts fitted, whatever the last one was left at. Done
-          // here rather than on the dialog's close event, which does not fire
-          // everywhere these files have to render.
-          fit = true;
-          paintFit();
-          viewer.showModal();
-        }
+        if (!viewer.open) viewer.showModal();
         // The dialog is open and laid out by now, so the stage measures true.
         fitFrame();
-        recenter();
       };
 
       const step = (delta) => showFrame((openIndex + delta + states.length) % states.length);
@@ -551,16 +528,12 @@
         const button = event.target.closest("button");
         if (!button) return;
         if (button.dataset.step) return step(Number(button.dataset.step));
-        if (button.id === "viewer-close") return viewer.close();
-        fit = !fit;
-        paintFit();
-        fitFrame();
-        recenter();
+        if (button.id === "viewer-close") viewer.close();
       });
 
       // A tap in the space around the frame dismisses; a horizontal drag moves
       // to the next frame. The flag stops the click that ends a swipe from also
-      // closing the dialog. Swipe is off at actual size, where a drag is a pan.
+      // closing the dialog.
       let swipeX = 0;
       let swipeY = 0;
       let swiped = false;
@@ -573,7 +546,7 @@
 
       stage.addEventListener("pointerup", (event) => {
         const dx = event.clientX - swipeX;
-        if (!fit || states.length < 2) return;
+        if (states.length < 2) return;
         if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(event.clientY - swipeY) * 1.5) return;
         swiped = true;
         step(dx < 0 ? 1 : -1);
@@ -598,7 +571,6 @@
       }).observe(stage);
 
       for (const button of document.querySelectorAll("[data-step]")) button.disabled = states.length < 2;
-      paintFit();
 
       // ---- tab identity ----------------------------------------------------
       const heading = document.querySelector("h1").textContent.trim();

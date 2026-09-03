@@ -1,24 +1,27 @@
 import { Button } from "@/client/components/ui/button";
-import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { type TaskId } from "@instrument-org/workspace/client";
-import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
-import { StopIcon } from "@phosphor-icons/react/Stop";
-import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { useNow } from "../../hooks/use-now";
+import { useStopBackgroundProcess } from "../../hooks/use-stop-background-process";
 import {
   type RunningBackgroundProcess,
   useTaskBackgroundProcesses,
 } from "../../hooks/use-task-background-processes";
+import { formatElapsed } from "../../lib/format-elapsed";
 import { cn } from "../../lib/utils";
+import { PlanningDotIcon } from "../icons/planning-dot";
+import { BashCommandSection } from "../message-part/bash-command-section";
+import { RunRowChevron } from "../run-row-chevron";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { StopProcessButton } from "./stop-process-button";
 
 /** Seconds are on screen, so anything slower shows a number that is not true. */
 const ELAPSED_TICK_MS = 1000;
+
+/** Enough to hold a long one-liner without the popover becoming a scroller. */
+const COMMAND_COLLAPSED_HEIGHT = 96;
 
 /**
  * What the agent started and left running in this task.
@@ -55,7 +58,7 @@ export function TaskBackgroundProcesses({ taskId }: { taskId: TaskId }) {
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="max-h-[min(420px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] w-88 overflow-y-auto p-0"
+        className="max-h-[min(480px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] w-100 overflow-y-auto p-0"
       >
         <RunningList running={running} taskId={taskId} />
       </PopoverContent>
@@ -63,25 +66,17 @@ export function TaskBackgroundProcesses({ taskId }: { taskId: TaskId }) {
   );
 }
 
-function formatElapsed(startedAt: Date, now: number): string {
-  const seconds = Math.max(0, Math.round((now - startedAt.getTime()) / 1000));
-  if (seconds < 60) {
-    return `${seconds}s`;
-  }
-  const minutes = Math.round(seconds / 60);
-  return minutes < 60
-    ? `${minutes}m`
-    : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-}
-
 /**
- * One process, named the way the agent named the call that started it.
+ * One process, laid out as a transcript row: the live dot, what the agent said
+ * it was doing, and a chevron onto the command underneath.
  *
- * The command is behind a disclosure rather than on the row: the agent already
- * wrote a human-readable label for what it was doing, and a row that leads with
- * `node -e "const http=require('http')..."` makes the reader parse a program to
- * learn they are looking at a web server. The command is still the ground truth
- * about what is running, so it is one click away rather than gone.
+ * The agent already writes a readable label for every call it makes, so the row
+ * leads with that rather than with `node -e "const http=require('http')..."`,
+ * which makes the reader parse a program to learn they are looking at a web
+ * server. The command is the ground truth about what is running, so it is one
+ * click away rather than gone -- and it is drawn the way the transcript draws a
+ * command, prompt and syntax highlighting and the section's own copy and wrap
+ * controls, because it is the same thing shown somewhere else.
  */
 function ProcessRow({
   disabled,
@@ -101,39 +96,42 @@ function ProcessRow({
   const label = process.explanation ?? process.command;
 
   return (
-    <li className="p-3">
-      <div className="flex items-center gap-2">
+    <li className={cn("group/run-row", expanded && "bg-muted/40")}>
+      <div className="flex items-center gap-2 px-3 py-2">
         <button
           aria-expanded={expanded}
-          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
           onClick={() => {
             setExpanded((open) => !open);
           }}
           type="button"
         >
-          <CaretRightIcon
-            className={cn(
-              "size-3 shrink-0 text-muted-foreground transition-transform",
-              expanded && "rotate-90",
-            )}
-          />
-          <span className="truncate text-[13px]" title={label}>
+          <PlanningDotIcon />
+          <span className="min-w-0 truncate text-sm" title={label}>
             {label}
           </span>
+          <RunRowChevron isOpen={expanded} />
         </button>
         <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
           {formatElapsed(process.startedAt, now)}
         </span>
-        <StopButton
+        {/* Quiet until the row is under the pointer, the way the transcript's
+            own per-row actions are: at rest the row is reporting, and three
+            controls competing on one line is what made it hard to read. */}
+        <StopProcessButton
+          className="opacity-0 transition-opacity group-focus-within/run-row:opacity-100 group-hover/run-row:opacity-100"
           disabled={disabled}
           label="Stop this process"
           onClick={onStop}
         />
       </div>
       {expanded && (
-        <pre className="mt-2 max-h-40 overflow-auto rounded-md bg-muted p-2 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
-          {process.command}
-        </pre>
+        <div className="border-t border-border">
+          <BashCommandSection
+            collapsedHeight={COMMAND_COLLAPSED_HEIGHT}
+            command={process.command}
+          />
+        </div>
       )}
     </li>
   );
@@ -152,46 +150,32 @@ function RunningList({
   taskId: TaskId;
 }) {
   const now = useNow(ELAPSED_TICK_MS);
-
-  const { isPending: isStopping, mutate: stop } = useMutation(
-    rpcClient.workspace.task.backgroundProcesses.stop.mutationOptions({
-      onError: (error) => {
-        toast.error("Couldn't stop it", { description: error.message });
-      },
-    }),
-  );
-  const { isPending: isStoppingAll, mutate: stopAll } = useMutation(
-    rpcClient.workspace.task.backgroundProcesses.stopAll.mutationOptions({
-      onError: (error) => {
-        toast.error("Couldn't stop them", { description: error.message });
-      },
-    }),
-  );
-  const busy = isStopping || isStoppingAll;
+  const { busy, stop, stopAll } = useStopBackgroundProcess(taskId);
 
   return (
     <>
-      <div className="flex items-start gap-2 border-b border-border p-3">
+      <div className="flex items-center gap-2 border-b border-border bg-muted px-4 py-3">
         <div className="min-w-0 flex-1">
           <div className="text-[13px] font-medium">Still running</div>
-          {/* The one fact the rest of the popover cannot show: these can end
-              without anybody pressing anything, so a server that disappears on
-              its own is otherwise indistinguishable from a bug. Everything the
-              row already says -- what it is, how long, how to stop it -- is
-              left to the row. */}
+          {/* The one fact the rows cannot show: these can end without anybody
+              pressing anything, so a server that disappears on its own is
+              otherwise indistinguishable from a bug. */}
           <p className="mt-0.5 text-xs text-muted-foreground">
             They stop when you quit {APP_NAME}, or after two hours.
           </p>
         </div>
-        {running.length > 1 && (
-          <StopButton
-            disabled={busy}
-            label={`Stop all ${running.length} processes`}
-            onClick={() => {
-              stopAll({ id: taskId });
-            }}
-          />
-        )}
+        {/* Worded rather than an icon, and always here: it is the one control
+            in the popover that acts on everything, and a reader deciding
+            whether to press that wants to have read it rather than hovered it. */}
+        <Button
+          className="shrink-0"
+          disabled={busy}
+          onClick={stopAll}
+          size="xs"
+          variant="outline"
+        >
+          Stop all
+        </Button>
       </div>
       <ul className="divide-y divide-border">
         {running.map((process) => (
@@ -200,47 +184,12 @@ function RunningList({
             key={process.id}
             now={now}
             onStop={() => {
-              stop({ id: taskId, processId: process.id });
+              stop(process.id);
             }}
             process={process}
           />
         ))}
       </ul>
     </>
-  );
-}
-
-/**
- * An icon rather than the word, because these sit at the end of a row that is
- * already carrying a name and a duration, and a second run of text there reads
- * as more to consider rather than as something to press. The tooltip says what
- * pressing it does, which the icon alone cannot distinguish between stopping
- * one and stopping every one.
- */
-function StopButton({
-  disabled,
-  label,
-  onClick,
-}: {
-  disabled: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          aria-label={label}
-          className="shrink-0"
-          disabled={disabled}
-          onClick={onClick}
-          size="icon-sm"
-          variant="ghost"
-        >
-          <StopIcon weight="fill" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
   );
 }

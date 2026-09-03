@@ -15,6 +15,8 @@
  * Header/metadata always go to stderr so stdout stays clean for agent use.
  */
 
+import "./lib/dev-node-env";
+
 import "dotenv/config";
 
 import "./lib/define-globals-apply";

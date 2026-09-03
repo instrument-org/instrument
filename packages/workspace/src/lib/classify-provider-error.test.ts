@@ -319,3 +319,56 @@ describe("classifyProviderError", () => {
     expect(classifyProviderError(error)).toEqual(expected);
   });
 });
+
+/**
+ * Rebuild what undici raises for a socket that closed: the reason lives on the
+ * `cause`, as a name and a code rather than in a sentence anyone parses.
+ */
+function socketError(message: string, code: string) {
+  const error = new Error(message);
+  error.name = "SocketError";
+  return Object.assign(error, { code });
+}
+
+// Nothing here is a provider verdict. The connection failed, so the request
+// never reached anything that could have answered it, and what arrives is
+// whatever the runtime raised on the way down.
+describe("classifyProviderError, on a connection that failed", () => {
+  const transportCases: { error: unknown; name: string }[] = [
+    {
+      // Recorded in production: a model stream that died part-way through.
+      // undici reports it as a bare `TypeError`, and every frame in the stack
+      // belongs to undici, so the cause is the only thing that says what broke.
+      error: new TypeError("terminated", {
+        cause: socketError("other side closed", "UND_ERR_SOCKET"),
+      }),
+      name: "a stream the far side closed",
+    },
+    {
+      error: new TypeError("fetch failed", {
+        cause: Object.assign(
+          new Error("connect ECONNREFUSED 127.0.0.1:11434"),
+          { code: "ECONNREFUSED" },
+        ),
+      }),
+      name: "a local provider that is not running",
+    },
+  ];
+
+  it.each(transportCases)("retries after $name", ({ error }) => {
+    expect(classifyProviderError(error)).toEqual({
+      evidence: "transport",
+      kind: "transient",
+    });
+  });
+
+  // The check is the shape of the failure, not the class. A `TypeError` we
+  // threw ourselves is a bug, and retrying it would only hide it.
+  it("leaves a TypeError from our own code alone", () => {
+    expect(
+      classifyProviderError(
+        new TypeError("Cannot read properties of undefined"),
+      ),
+    ).toEqual({ evidence: "none", kind: "unknown" });
+  });
+});

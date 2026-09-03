@@ -1,6 +1,7 @@
 import { cn } from "../../lib/utils";
 import { PlanningDotSlot } from "../planning-dot-slot";
 import { RunRowChevron } from "../run-row-chevron";
+import { RunningBadge } from "../task/running-badge";
 import { TRANSCRIPT_ROW, useTranscriptGroup } from "./transcript-group";
 
 /**
@@ -32,27 +33,27 @@ export function GroupHeading({
   // has nothing to disclose and stays a plain row.
   const canExpand = group?.canExpand ?? false;
   const isExpanded = group?.isExpanded ?? false;
-  // Either the agent is working here, or something it started here is still
-  // running. Both mean the same thing to a reader -- this phase is not finished
-  // with -- and a folded group has no other way to say the second one.
-  const isLive = isRunning || (group?.hasRunningProcess ?? false);
+  // A folded group hides the call that started something, so the heading
+  // carries the badge on its behalf. Not the agent's working indicator: the
+  // phase is finished, and only what it left behind is not.
+  const runningCount = group?.runningProcessCount ?? 0;
 
   return (
     <button
       className={cn(
         TRANSCRIPT_ROW,
         "cursor-default text-left",
-        isLive && "-ml-0.5",
+        isRunning && "-ml-0.5",
       )}
       disabled={!canExpand}
       onClick={group?.toggle}
       type="button"
     >
-      <PlanningDotSlot isRunning={isLive} />
+      <PlanningDotSlot isRunning={isRunning} />
       <span
         className={cn(
           "min-w-0 truncate text-sm",
-          isLive
+          isRunning
             ? "brand-shiny-text"
             : cn(
                 "text-muted-foreground",
@@ -65,6 +66,7 @@ export function GroupHeading({
       >
         {title}
       </span>
+      {runningCount > 0 && <RunningBadge count={runningCount} />}
       {canExpand && <RunRowChevron isOpen={isExpanded} />}
     </button>
   );

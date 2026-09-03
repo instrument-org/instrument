@@ -5,14 +5,6 @@ import { cn } from "../../lib/utils";
 interface TranscriptGroupValue {
   /** There is something behind the head line, so the chevron is worth drawing. */
   canExpand: boolean;
-  /**
-   * A command started inside this group is still running, and the group is
-   * folded over the row that says so. The heading takes the live indicator on
-   * its behalf: a server left running is the same promise to the reader as the
-   * agent working, and a fold that hides it turns "still up" into something you
-   * would only find by expanding a settled phase.
-   */
-  hasRunningProcess: boolean;
   isExpanded: boolean;
   /**
    * This row is the group's head line: the one thing on screen when the group
@@ -21,6 +13,13 @@ interface TranscriptGroupValue {
    * there is one thing moving per group.
    */
   isHead: boolean;
+  /**
+   * How many commands started inside this group are still running. The heading
+   * shows the badge for them: a fold hides the row that would carry it, which
+   * turns "the server is still up" into something you only find by expanding a
+   * phase that looks finished.
+   */
+  runningProcessCount: number;
   toggle: () => void;
 }
 
@@ -81,25 +80,25 @@ export function TranscriptGroup({
   canExpand,
   children,
   className,
-  hasRunningProcess = false,
   isExpanded,
   onToggle,
+  runningProcessCount = 0,
 }: {
   canExpand: boolean;
   children: ReactNode;
   /** Spacing the box takes from what sits above it; see `PROSE_GAP_IN_GROUP`. */
   className?: string;
-  hasRunningProcess?: boolean;
   isExpanded: boolean;
   onToggle: () => void;
+  runningProcessCount?: number;
 }) {
   return (
     <TranscriptGroupContext.Provider
       value={{
         canExpand,
-        hasRunningProcess,
         isExpanded,
         isHead: false,
+        runningProcessCount,
         toggle: onToggle,
       }}
     >

@@ -18,6 +18,7 @@ import {
 import { cn } from "../../lib/utils";
 import { PlanningDotIcon } from "../icons/planning-dot";
 import { RunRowChevron } from "../run-row-chevron";
+import { RunningBadge } from "../task/running-badge";
 import { useRowExpansion } from "../transcript-expansion";
 import { transcriptRowAttributes } from "../transcript-row-position";
 import {
@@ -67,14 +68,13 @@ export function ToolCallSummary({
   // calls included. A second row moving under the head line would read as two
   // things happening at once, and a call waiting its turn is not work in
   // progress worth announcing: what it is waiting on is already saying so.
-  // A command that outlived its call is the same promise to the reader as the
-  // agent working: something is happening and the row is where it is happening.
-  // It takes the same indicator rather than a second one, and it is not held to
-  // the one-row rule, because several commands genuinely do run at once and the
-  // turn that started them is over.
-  const showsLiveIndicator =
-    (isRunning && (group === null || group.isHead)) ||
-    backgroundProcess !== undefined;
+  //
+  // A command that outlived its call is deliberately not this. The call itself
+  // finished, and giving it the agent's own dot and shimmer said the opposite:
+  // a row reading "Checking the localhost server status" as though the check
+  // were still going, when what is still going is the server. That fact gets
+  // the badge at the end of the row instead.
+  const showsLiveIndicator = isRunning && (group === null || group.isHead);
 
   const toolName = getToolNameByType(part.type);
   const browserInfo = getBrowserInfo(part);
@@ -165,6 +165,11 @@ export function ToolCallSummary({
       <WebSearchChip part={part} />
       <SourceImagesChip assetBaseUrl={assetBaseUrl} part={part} />
       <FileChip part={part} />
+      {/* Last of the chips, so the row reads as what the call did and then as
+          what it left behind. The same badge the task header shows, because it
+          is the same fact -- and opening the row from here is how the reader
+          gets to the command that is still running. */}
+      {backgroundProcess && <RunningBadge count={1} />}
 
       <RunRowChevron
         isOpen={groupHead === null ? isExpanded : groupHead.isExpanded}

@@ -90,20 +90,13 @@ export function ToolBash({ part }: { part: BashPart }) {
 
   const hasExitError = hasOutput && isFailedBashExitCode(part.output.exitCode);
   const isFailed = isError || hasExitError;
-  // A command that outlived its yield window kept running after the call
-  // returned, so the past tense would be a claim the output cannot support: what
-  // is shown is the first few seconds of something still going. It carries no
-  // exit code either, so nothing else on the card distinguishes it from a
-  // command that finished and printed exactly this.
-  //
-  // Read live rather than from `processId`, which is written once and never
-  // cleared: the same card is scrolled back to after the process has ended and
-  // after a restart took the whole registry with it, and it has to stop
-  // claiming then.
-  const label =
-    isStreaming || backgroundProcess
-      ? getToolStreamingLabel("bash")
-      : getToolLabel("bash");
+  // The call, not what it started. A promoted command's call is over -- it
+  // returned a process id and stopped -- so the streaming label here said the
+  // agent was still running a command when it had moved on. What is still going
+  // is said beside it, in its own words.
+  const label = isStreaming
+    ? getToolStreamingLabel("bash")
+    : getToolLabel("bash");
 
   return (
     <ToolCard>
@@ -112,19 +105,20 @@ export function ToolBash({ part }: { part: BashPart }) {
           strip added under the output to carry it read as a second card stuck
           to the bottom of the first. The control that ends it sits with it,
           because the place you learn a server is still up is the place you
-          want to be able to take it down. */}
-      <ToolCardHeader className="flex items-center justify-between gap-2">
-        <p className="min-w-0 truncate text-xs font-medium text-muted-foreground">
+          want to be able to take it down.
+      
+          Read live rather than from `processId`, which a part records once and
+          never clears: the same card is scrolled back to after the process has
+          ended and after a restart took the whole registry with it. */}
+      <ToolCardHeader className="flex items-center gap-2">
+        <p className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">
           {label}
-          {backgroundProcess && (
-            <>
-              {" · "}
-              <span className="tabular-nums">
-                {formatElapsed(backgroundProcess.startedAt, now)}
-              </span>
-            </>
-          )}
         </p>
+        {backgroundProcess && (
+          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+            {formatElapsed(backgroundProcess.startedAt, now)}
+          </span>
+        )}
         {backgroundProcess && (
           <StopProcessButton
             className="-my-1"

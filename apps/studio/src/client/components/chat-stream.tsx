@@ -364,13 +364,13 @@ export function ChatStream({
   }
 
   /**
-   * Whether a command started inside this group is still running. Read from the
+   * How many commands started inside this group are still running. Read from the
    * live registry rather than from `processId` alone, which a part records once
    * and never clears: a settled phase from this morning would otherwise still
    * be claiming its server was up.
    */
-  const groupHasRunningProcess = (group: TranscriptGroupData): boolean =>
-    group.toolCalls.some((call) => {
+  const groupRunningProcessCount = (group: TranscriptGroupData): number =>
+    group.toolCalls.filter((call) => {
       const part = partsById.get(call.rowId)?.part;
       return (
         part?.type === "tool-bash" &&
@@ -378,7 +378,7 @@ export function ChatStream({
         part.output.processId !== undefined &&
         runningProcessIds.has(part.output.processId)
       );
-    });
+    }).length;
 
   const renderStandIn = (group: TranscriptGroupData): React.ReactNode => {
     const rowId = groupStandInRowId({
@@ -528,7 +528,7 @@ export function ChatStream({
       }
 
       const messageElements = collectGroups({
-        groupHasRunningProcess,
+        groupRunningProcessCount,
         groups: layout.groups,
         isGroupExpanded,
         onToggle: toggleGroup,
@@ -838,14 +838,14 @@ function AwaitingFirstRow() {
 // side of a boundary. A folded group draws in the slice it opened in and nowhere
 // else, which is what keeps it still while the agent works past it.
 function collectGroups({
-  groupHasRunningProcess,
+  groupRunningProcessCount,
   groups,
   isGroupExpanded,
   onToggle,
   renderStandIn,
   rows,
 }: {
-  groupHasRunningProcess: (group: TranscriptGroupData) => boolean;
+  groupRunningProcessCount: (group: TranscriptGroupData) => number;
   groups: Map<StoreId.Part, TranscriptGroupData>;
   isGroupExpanded: (group: TranscriptGroupData | undefined) => boolean;
   onToggle: (group: TranscriptGroupData) => void;
@@ -896,12 +896,12 @@ function collectGroups({
         className={cn(
           openingRow?.hasProseBoundaryAbove === true && PROSE_GAP_IN_GROUP,
         )}
-        hasRunningProcess={groupHasRunningProcess(group)}
         isExpanded={isGroupExpanded(group)}
         key={`group-${group.id}-${run.rows[0]?.id ?? ""}`}
         onToggle={() => {
           onToggle(group);
         }}
+        runningProcessCount={groupRunningProcessCount(group)}
       >
         {heading !== undefined && (
           <GroupHeading key="heading" title={heading} />

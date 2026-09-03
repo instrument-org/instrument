@@ -2,12 +2,23 @@ import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { type TaskId } from "@instrument-org/workspace/client";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { StopIcon } from "@phosphor-icons/react/Stop";
 import { useMutation } from "@tanstack/react-query";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { useNow } from "../../hooks/use-now";
-import { useTaskBackgroundProcesses } from "../../hooks/use-task-background-processes";
+import {
+  type RunningBackgroundProcess,
+  useTaskBackgroundProcesses,
+} from "../../hooks/use-task-background-processes";
+import { cn } from "../../lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+
+/** Seconds are on screen, so anything slower shows a number that is not true. */
+const ELAPSED_TICK_MS = 1000;
 
 /**
  * What the agent started and left running in this task.
@@ -17,29 +28,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
  * one that is reporting rather than offering.
  */
 export function TaskBackgroundProcesses({ taskId }: { taskId: TaskId }) {
-  const now = useNow();
-
   const running = useTaskBackgroundProcesses(taskId);
-
-  const { isPending: isStopping, mutate: stop } = useMutation(
-    rpcClient.workspace.task.backgroundProcesses.stop.mutationOptions({
-      onError: (error) => {
-        toast.error("Couldn't stop it", { description: error.message });
-      },
-    }),
-  );
-  const { isPending: isStoppingAll, mutate: stopAll } = useMutation(
-    rpcClient.workspace.task.backgroundProcesses.stopAll.mutationOptions({
-      onError: (error) => {
-        toast.error("Couldn't stop them", { description: error.message });
-      },
-    }),
-  );
 
   if (running.length === 0) {
     return null;
   }
-  const busy = isStopping || isStoppingAll;
 
   return (
     <Popover>
@@ -64,62 +57,7 @@ export function TaskBackgroundProcesses({ taskId }: { taskId: TaskId }) {
         align="start"
         className="max-h-[min(420px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] w-88 overflow-y-auto p-0"
       >
-        <div className="flex items-start gap-2 border-b border-border p-3">
-          <div className="min-w-0 flex-1">
-            <div className="text-[13px] font-medium">Still running</div>
-            {/* The explanation the header pill has no room for. Says who
-                started them and what ends them, because neither is obvious to
-                someone who only asked for a website. The two hours is named
-                rather than left out: it is the one of the three that happens
-                without anybody doing anything, so a server that disappears on
-                its own is otherwise indistinguishable from a bug. */}
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Started while working on this task. They keep running until you
-              stop them, you quit {APP_NAME}, or two hours pass.
-            </p>
-          </div>
-          {running.length > 1 && (
-            <Button
-              className="shrink-0"
-              disabled={busy}
-              onClick={() => {
-                stopAll({ id: taskId });
-              }}
-              size="sm"
-              variant="ghost"
-            >
-              Stop all
-            </Button>
-          )}
-        </div>
-        <ul className="divide-y divide-border">
-          {running.map((process) => (
-            <li className="flex items-center gap-2 p-3" key={process.id}>
-              <div className="min-w-0 flex-1">
-                <div
-                  className="truncate font-mono text-xs"
-                  title={process.command}
-                >
-                  {process.command}
-                </div>
-                <div className="mt-0.5 text-xs text-muted-foreground">
-                  Running for {formatElapsed(process.startedAt, now)}
-                </div>
-              </div>
-              <Button
-                className="shrink-0"
-                disabled={busy}
-                onClick={() => {
-                  stop({ id: taskId, processId: process.id });
-                }}
-                size="sm"
-                variant="ghost"
-              >
-                Stop
-              </Button>
-            </li>
-          ))}
-        </ul>
+        <RunningList running={running} taskId={taskId} />
       </PopoverContent>
     </Popover>
   );
@@ -134,4 +72,175 @@ function formatElapsed(startedAt: Date, now: number): string {
   return minutes < 60
     ? `${minutes}m`
     : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+/**
+ * One process, named the way the agent named the call that started it.
+ *
+ * The command is behind a disclosure rather than on the row: the agent already
+ * wrote a human-readable label for what it was doing, and a row that leads with
+ * `node -e "const http=require('http')..."` makes the reader parse a program to
+ * learn they are looking at a web server. The command is still the ground truth
+ * about what is running, so it is one click away rather than gone.
+ */
+function ProcessRow({
+  disabled,
+  now,
+  onStop,
+  process,
+}: {
+  disabled: boolean;
+  now: number;
+  onStop: () => void;
+  process: RunningBackgroundProcess;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  // Falls back to the command, which is worse to read but never absent: the
+  // model is told to write an explanation and mostly does, and a row with no
+  // name at all would be the one case where the user learns nothing.
+  const label = process.explanation ?? process.command;
+
+  return (
+    <li className="p-3">
+      <div className="flex items-center gap-2">
+        <button
+          aria-expanded={expanded}
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+          onClick={() => {
+            setExpanded((open) => !open);
+          }}
+          type="button"
+        >
+          <CaretRightIcon
+            className={cn(
+              "size-3 shrink-0 text-muted-foreground transition-transform",
+              expanded && "rotate-90",
+            )}
+          />
+          <span className="truncate text-[13px]" title={label}>
+            {label}
+          </span>
+        </button>
+        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+          {formatElapsed(process.startedAt, now)}
+        </span>
+        <StopButton
+          disabled={disabled}
+          label="Stop this process"
+          onClick={onStop}
+        />
+      </div>
+      {expanded && (
+        <pre className="mt-2 max-h-40 overflow-auto rounded-md bg-muted p-2 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
+          {process.command}
+        </pre>
+      )}
+    </li>
+  );
+}
+
+/**
+ * Split from the trigger so its clock only ticks while the popover is open. The
+ * pill shows no duration, and a second-resolution timer behind a closed popover
+ * would re-render the task header once a second for nothing.
+ */
+function RunningList({
+  running,
+  taskId,
+}: {
+  running: RunningBackgroundProcess[];
+  taskId: TaskId;
+}) {
+  const now = useNow(ELAPSED_TICK_MS);
+
+  const { isPending: isStopping, mutate: stop } = useMutation(
+    rpcClient.workspace.task.backgroundProcesses.stop.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't stop it", { description: error.message });
+      },
+    }),
+  );
+  const { isPending: isStoppingAll, mutate: stopAll } = useMutation(
+    rpcClient.workspace.task.backgroundProcesses.stopAll.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't stop them", { description: error.message });
+      },
+    }),
+  );
+  const busy = isStopping || isStoppingAll;
+
+  return (
+    <>
+      <div className="flex items-start gap-2 border-b border-border p-3">
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] font-medium">Still running</div>
+          {/* The one fact the rest of the popover cannot show: these can end
+              without anybody pressing anything, so a server that disappears on
+              its own is otherwise indistinguishable from a bug. Everything the
+              row already says -- what it is, how long, how to stop it -- is
+              left to the row. */}
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            They stop when you quit {APP_NAME}, or after two hours.
+          </p>
+        </div>
+        {running.length > 1 && (
+          <StopButton
+            disabled={busy}
+            label={`Stop all ${running.length} processes`}
+            onClick={() => {
+              stopAll({ id: taskId });
+            }}
+          />
+        )}
+      </div>
+      <ul className="divide-y divide-border">
+        {running.map((process) => (
+          <ProcessRow
+            disabled={busy}
+            key={process.id}
+            now={now}
+            onStop={() => {
+              stop({ id: taskId, processId: process.id });
+            }}
+            process={process}
+          />
+        ))}
+      </ul>
+    </>
+  );
+}
+
+/**
+ * An icon rather than the word, because these sit at the end of a row that is
+ * already carrying a name and a duration, and a second run of text there reads
+ * as more to consider rather than as something to press. The tooltip says what
+ * pressing it does, which the icon alone cannot distinguish between stopping
+ * one and stopping every one.
+ */
+function StopButton({
+  disabled,
+  label,
+  onClick,
+}: {
+  disabled: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          aria-label={label}
+          className="shrink-0"
+          disabled={disabled}
+          onClick={onClick}
+          size="icon-sm"
+          variant="ghost"
+        >
+          <StopIcon weight="fill" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
 }

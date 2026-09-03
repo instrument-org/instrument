@@ -6,6 +6,8 @@ import { useEffect } from "react";
 /** One entry of what a task has running, as the list route reports it. */
 export interface RunningBackgroundProcess {
   command: string;
+  /** The agent's own label for the call that started it, when it wrote one. */
+  explanation?: string;
   id: string;
   startedAt: Date;
 }

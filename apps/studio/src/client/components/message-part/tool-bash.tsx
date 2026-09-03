@@ -24,6 +24,9 @@ type BashPart = Extract<SessionMessagePart.ToolPart, { type: "tool-bash" }>;
 
 const MAX_BASH_COMMAND_CHIPS = 3;
 
+/** Matches the header popover, which is the other place this duration appears. */
+const ELAPSED_TICK_MS = 1000;
+
 export function BashCommandChip({ commands }: { commands: string[] }) {
   if (commands.length === 0) {
     return null;
@@ -64,7 +67,7 @@ export function BrowserChip({ info }: { info: BrowserInfo }) {
 
 export function ToolBash({ part }: { part: BashPart }) {
   const { backgroundProcess, isStreaming } = useToolCallSession();
-  const now = useNow();
+  const now = useNow(ELAPSED_TICK_MS);
   const command = part.input?.command ?? "";
   const hasOutput = part.state === "output-available";
   const isError = part.state === "output-error";

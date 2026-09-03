@@ -4,7 +4,10 @@ import path from "node:path";
 import { setTimeout as setTimeoutPromise } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { killSessionBackgroundProcesses } from "../lib/background-processes";
+import {
+  killSessionBackgroundProcesses,
+  listTaskBackgroundProcesses,
+} from "../lib/background-processes";
 import { taskDir } from "../lib/task-dir-utils";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
@@ -92,6 +95,37 @@ describe("bash background processes, end to end", () => {
 
     const killed = await kill(processId);
     expect(killed.output).toContain(`Stopped ${processId}`);
+  }, 30_000);
+
+  // The whole path the header list reads: the model's own `explanation` on the
+  // tool call, through promotion, onto what the task reports as running. Proved
+  // here rather than at `startBackgroundRun`, because every earlier link -- the
+  // tool passing its input through, the schema keeping an optional field -- is
+  // exactly where it would go missing.
+  it("reports a promoted process under the explanation its call gave", async () => {
+    await fs.writeFile(
+      path.join(taskDirPath, "work", "serve.js"),
+      "setInterval(() => {}, 1000);\n",
+      "utf8",
+    );
+
+    const started = await runTool(
+      BashTool,
+      toolOptions({
+        command: "node work/serve.js",
+        explanation: "Starting the Node static server",
+        yieldMs: 400,
+      }),
+    );
+    const processId = started._unsafeUnwrap().processId ?? "";
+    expect(processId).not.toBe("");
+
+    const listed = listTaskBackgroundProcesses(taskId).find(
+      (process) => process.id === processId,
+    );
+    expect(listed?.explanation).toBe("Starting the Node static server");
+
+    await kill(processId);
   }, 30_000);
 
   it("captures output a killed process writes while shutting down", async () => {

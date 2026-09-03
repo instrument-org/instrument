@@ -15,6 +15,7 @@
  * finding. Whether "Charting the monthly growth" is the right boundary for the
  * six calls beneath it is a judgment no assertion makes for you.
  */
+import "../scripts/lib/test-node-env";
 import "../scripts/lib/define-globals-apply";
 
 import fs from "node:fs/promises";

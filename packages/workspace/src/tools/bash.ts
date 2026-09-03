@@ -151,6 +151,7 @@ export const BashTool = setupTool({
     const handle = startBackgroundRun({
       callerSignal: signal,
       command: input.command,
+      explanation: input.explanation,
       run: async ({ signal: runSignal }) => {
         try {
           const result = await bash.exec(input.command, { signal: runSignal });

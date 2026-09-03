@@ -11,6 +11,7 @@ import {
   killBackgroundProcess,
   killSessionBackgroundProcesses,
   listBackgroundProcesses,
+  listTaskBackgroundProcesses,
   MAX_RUNNING_BACKGROUND_PROCESSES,
   promoteBackgroundProcess,
   readBackgroundProcess,
@@ -104,12 +105,13 @@ function makeOwner(name: string) {
 function promote(
   owner: ReturnType<typeof makeOwner>,
   command: string,
-  options?: { settleOnAbort?: boolean },
+  options?: { explanation?: string; settleOnAbort?: boolean },
 ) {
   const controllable = controllableRun(options);
   const handle = startBackgroundRun({
     callerSignal: new AbortController().signal,
     command,
+    explanation: options?.explanation,
     run: controllable.run,
     taskId: owner.taskId,
   });
@@ -301,6 +303,28 @@ describe("background processes", () => {
     // The caller still holds the run, so it is stoppable.
     handle.abort();
     expect(controllable.aborted).toBe(true);
+  });
+
+  // The agent writes one for every call; a surface with a single line to spend
+  // on a process says this rather than making the reader parse the command.
+  it("carries the starting call's explanation onto the process", () => {
+    const owner = makeOwner("explained");
+    const { info } = promote(owner, "node work/server.js", {
+      explanation: "Starting the Node static server",
+    });
+
+    expect(info.explanation).toBe("Starting the Node static server");
+    expect(listTaskBackgroundProcesses(owner.taskId)[0]?.explanation).toBe(
+      "Starting the Node static server",
+    );
+  });
+
+  // Optional in the schema, so a model that skips it must not break the record.
+  it("leaves the explanation unset when the call had none", () => {
+    const owner = makeOwner("unexplained");
+    const { info } = promote(owner, "node work/server.js");
+
+    expect(info.explanation).toBeUndefined();
   });
 
   it("reports nothing for an unknown id", async () => {

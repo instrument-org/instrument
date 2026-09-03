@@ -65,6 +65,13 @@ export interface BackgroundProcessInfo {
   durationMs: number;
   /** Absent while running, and for a process killed before it reported one. */
   exitCode?: number;
+  /**
+   * The agent's own one-line label for the call that started this, kept so a
+   * surface with room for one line can say what a process is rather than
+   * showing the command and leaving the reader to work it out. Absent when the
+   * model omitted it, which it is free to do.
+   */
+  explanation?: string;
   id: string;
   /** Task-relative; holds output up to the per-process disk quota. */
   logFilePath: RelativePath;
@@ -104,6 +111,7 @@ export interface BackgroundRunHandle {
    * call just handed off.
    */
   detachCaller: () => void;
+  readonly explanation?: string;
   /**
    * Whether any live subprocess output reached the sink.
    *
@@ -125,6 +133,7 @@ interface BackgroundProcessRecord {
   command: string;
   endedAt?: Date;
   exitCode?: number;
+  explanation?: string;
   handle: BackgroundRunHandle;
   id: string;
   /**
@@ -402,6 +411,9 @@ export function promoteBackgroundProcess({
   const record: BackgroundProcessRecord = {
     buffer: handle.buffer,
     command: handle.command,
+    ...(handle.explanation === undefined
+      ? {}
+      : { explanation: handle.explanation }),
     handle,
     id,
     // Resolves on error too: a log we could not write is still not going to
@@ -524,12 +536,15 @@ export async function readBackgroundProcess({
 export function startBackgroundRun({
   callerSignal,
   command,
+  explanation,
   run,
   taskId,
 }: {
   /** Cancels the run until it is promoted; typically the tool call's signal. */
   callerSignal: AbortSignal;
   command: string;
+  /** The calling tool's `explanation`, carried onto the record if it promotes. */
+  explanation?: string;
   run: (options: { signal: AbortSignal }) => Promise<{
     exitCode: number;
     output: string;
@@ -610,6 +625,7 @@ export function startBackgroundRun({
     detachCaller: () => {
       callerSignal.removeEventListener("abort", abort);
     },
+    explanation,
     hasStreamedOutput: () => streamedAnything,
     matchesStreamedOutput: (output) => {
       if (!streamedAnything) {
@@ -895,6 +911,9 @@ function toInfo(record: BackgroundProcessRecord): BackgroundProcessInfo {
       (record.endedAt ?? getCurrentDate()).getTime() -
       record.startedAt.getTime(),
     ...(record.exitCode === undefined ? {} : { exitCode: record.exitCode }),
+    ...(record.explanation === undefined
+      ? {}
+      : { explanation: record.explanation }),
     id: record.id,
     logFilePath: record.logFilePath,
     logOmittedBytes: record.logWriter.omittedBytes,

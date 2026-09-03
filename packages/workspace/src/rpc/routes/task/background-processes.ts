@@ -11,6 +11,8 @@ import { publisher } from "../../publisher";
 
 const RunningProcessSchema = z.object({
   command: z.string(),
+  /** The agent's label for the call that started it; absent when it wrote none. */
+  explanation: z.string().optional(),
   id: z.string(),
   startedAt: z.date(),
 });
@@ -29,6 +31,7 @@ const list = base
       .filter((process) => process.status === "running")
       .map((process) => ({
         command: process.command,
+        explanation: process.explanation,
         id: process.id,
         startedAt: process.startedAt,
       })),

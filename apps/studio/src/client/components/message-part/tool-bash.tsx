@@ -1,11 +1,14 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
-import ms from "ms";
 
 import { useNow } from "../../hooks/use-now";
-import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
+import { useStopBackgroundProcess } from "../../hooks/use-stop-background-process";
+import { useTaskSession } from "../../hooks/use-task-session";
+import { formatElapsed } from "../../lib/format-elapsed";
 import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
 import { Favicon } from "../favicon";
+import { StopProcessButton } from "../task/stop-process-button";
+import { BashCommandSection } from "./bash-command-section";
 import { isFailedBashExitCode } from "./bash-exit-status";
 import { useToolCallSession } from "./tool-call-session";
 import {
@@ -24,7 +27,7 @@ type BashPart = Extract<SessionMessagePart.ToolPart, { type: "tool-bash" }>;
 
 const MAX_BASH_COMMAND_CHIPS = 3;
 
-/** Matches the header popover, which is the other place this duration appears. */
+/** Matches the task header's list, the other place this duration appears. */
 const ELAPSED_TICK_MS = 1000;
 
 export function BashCommandChip({ commands }: { commands: string[] }) {
@@ -68,14 +71,11 @@ export function BrowserChip({ info }: { info: BrowserInfo }) {
 export function ToolBash({ part }: { part: BashPart }) {
   const { backgroundProcess, isStreaming } = useToolCallSession();
   const now = useNow(ELAPSED_TICK_MS);
+  const { taskId } = useTaskSession();
+  const { busy, stop } = useStopBackgroundProcess(taskId);
   const command = part.input?.command ?? "";
   const hasOutput = part.state === "output-available";
   const isError = part.state === "output-error";
-
-  const { highlightedHtml } = useSyntaxHighlighting({
-    code: command || undefined,
-    language: "shellscript",
-  });
 
   if (!part.input) {
     return <ToolCardEmpty message="The command has not arrived yet." />;
@@ -107,32 +107,42 @@ export function ToolBash({ part }: { part: BashPart }) {
 
   return (
     <ToolCard>
-      <ToolCardHeader>
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      {/* The running state belongs on the header line the card already has: it
+          is a fact about this call, the same kind of thing the label is, and a
+          strip added under the output to carry it read as a second card stuck
+          to the bottom of the first. The control that ends it sits with it,
+          because the place you learn a server is still up is the place you
+          want to be able to take it down. */}
+      <ToolCardHeader className="flex items-center justify-between gap-2">
+        <p className="min-w-0 truncate text-xs font-medium text-muted-foreground">
+          {label}
+          {backgroundProcess && (
+            <>
+              {" · "}
+              <span className="tabular-nums">
+                {formatElapsed(backgroundProcess.startedAt, now)}
+              </span>
+            </>
+          )}
+        </p>
+        {backgroundProcess && (
+          <StopProcessButton
+            className="-my-1"
+            disabled={busy}
+            label="Stop this process"
+            onClick={() => {
+              stop(backgroundProcess.id);
+            }}
+          />
+        )}
       </ToolCardHeader>
 
-      <ToolCardSection
+      <BashCommandSection
         borderBottom={hasOutput || isError}
         collapsedHeight={128}
-        copyText={isStreaming ? undefined : command}
-        wrappable
-      >
-        <div className="flex font-mono text-sm leading-relaxed">
-          <span className="mr-2 shrink-0 text-muted-foreground select-none">
-            $
-          </span>
-          {/* A `<pre>` either way, highlighted or not, because that is what the
-              section's wrap toggle reaches for. */}
-          {highlightedHtml ? (
-            <div
-              className="min-w-0 [&_.shiki]:bg-transparent"
-              dangerouslySetInnerHTML={{ __html: highlightedHtml.join("\n") }}
-            />
-          ) : (
-            <pre className="min-w-0">{command}</pre>
-          )}
-        </div>
-      </ToolCardSection>
+        command={command}
+        copyable={!isStreaming}
+      />
 
       {(hasOutput || isError) && (
         <ToolCardSection
@@ -162,28 +172,6 @@ export function ToolBash({ part }: { part: BashPart }) {
           )}
         </ToolCardSection>
       )}
-
-      {backgroundProcess && (
-        // The one place with room to say the duration in words, and to point at
-        // the only control that can end it. The row's indicator says that it is
-        // still going; this says for how long, and what to do about it.
-        <div className="border-t border-border px-4 py-3">
-          <p className="text-xs text-muted-foreground">
-            Running for {formatRunningFor(backgroundProcess.startedAt, now)}.
-            Stop it from the task header.
-          </p>
-        </div>
-      )}
     </ToolCard>
   );
-}
-
-/**
- * The same words `fg` reports to the agent, so the two surfaces describing one
- * process agree. Floored at a second because `ms` renders anything shorter in
- * milliseconds, which reads as a measurement rather than as how long something
- * has been going.
- */
-function formatRunningFor(startedAt: Date, now: number) {
-  return ms(Math.max(1000, now - startedAt.getTime()), { long: true });
 }

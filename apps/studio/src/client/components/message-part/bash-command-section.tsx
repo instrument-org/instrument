@@ -13,9 +13,18 @@ import { ToolCardSection } from "./tool-card";
 export function BashCommandPreview({
   className,
   command,
+  singleLine = false,
 }: {
   className?: string;
   command: string;
+  /**
+   * Clamp to one line, ending in an ellipsis.
+   *
+   * For the places that are showing which command this is rather than the
+   * command itself: a `node -e` one-liner is hundreds of characters, and left
+   * to run it takes the surface it is on with it.
+   */
+  singleLine?: boolean;
 }) {
   const { highlightedHtml } = useSyntaxHighlighting({
     code: command || undefined,
@@ -29,11 +38,15 @@ export function BashCommandPreview({
           section's wrap toggle reaches for. */}
       {highlightedHtml ? (
         <div
-          className="min-w-0 [&_.shiki]:bg-transparent"
+          className={cn(
+            "min-w-0 [&_.shiki]:bg-transparent",
+            singleLine &&
+              "overflow-hidden [&_.line]:block [&_.line]:truncate [&_pre]:overflow-hidden",
+          )}
           dangerouslySetInnerHTML={{ __html: highlightedHtml.join("\n") }}
         />
       ) : (
-        <pre className="min-w-0">{command}</pre>
+        <pre className={cn("min-w-0", singleLine && "truncate")}>{command}</pre>
       )}
     </div>
   );

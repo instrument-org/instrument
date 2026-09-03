@@ -165,12 +165,6 @@ export function ToolCallSummary({
       <WebSearchChip part={part} />
       <SourceImagesChip assetBaseUrl={assetBaseUrl} part={part} />
       <FileChip part={part} />
-      {/* Last of the chips, so the row reads as what the call did and then as
-          what it left behind. The same badge the task header shows, because it
-          is the same fact -- and opening the row from here is how the reader
-          gets to the command that is still running. */}
-      {backgroundProcess && <RunningBadge count={1} />}
-
       <RunRowChevron
         isOpen={groupHead === null ? isExpanded : groupHead.isExpanded}
       />
@@ -183,14 +177,38 @@ export function ToolCallSummary({
   if (groupHead !== null) {
     return (
       <Collapsible onOpenChange={groupHead.toggle} open={groupHead.isExpanded}>
-        <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
+        <div className="flex min-w-0 items-center gap-2">
+          <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
+          {backgroundProcess && (
+            <RunningBadgeButton
+              onOpen={() => {
+                if (!groupHead.isExpanded) {
+                  groupHead.toggle();
+                }
+              }}
+            />
+          )}
+        </div>
       </Collapsible>
     );
   }
 
   return (
     <Collapsible onOpenChange={setIsExpanded} open={isExpanded}>
-      <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
+      {/* The badge sits beside the row rather than inside it, so it is its own
+          click target: the row's click toggles the call open and shut, and this
+          one only ever opens it -- it is the reader following the badge to the
+          command that is still running, not toggling a disclosure. */}
+      <div className="flex min-w-0 items-center gap-2">
+        <CollapsibleTrigger asChild>{trigger}</CollapsibleTrigger>
+        {backgroundProcess && (
+          <RunningBadgeButton
+            onOpen={() => {
+              setIsExpanded(true);
+            }}
+          />
+        )}
+      </div>
       <CollapsibleContent animated className="pb-2">
         {children}
       </CollapsibleContent>
@@ -230,4 +248,18 @@ function getBrowserInfo(part: SessionMessagePart.ToolPart): BrowserInfo | null {
     .map(([domain]) => domain);
 
   return { domains };
+}
+
+/** The badge as a way in: it opens the call, and never closes it. */
+function RunningBadgeButton({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      aria-label="Show the command that is still running"
+      className="shrink-0 rounded-full"
+      onClick={onOpen}
+      type="button"
+    >
+      <RunningBadge count={1} />
+    </button>
+  );
 }

@@ -11,7 +11,6 @@ import {
 import { formatElapsed } from "../../lib/format-elapsed";
 import { BashCommandPreview } from "../message-part/bash-command-section";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { RunningBadge } from "./running-badge";
 import { StopProcessButton } from "./stop-process-button";
 
@@ -54,17 +53,15 @@ export function TaskBackgroundProcesses({ taskId }: { taskId: TaskId }) {
 }
 
 /**
- * One process: what the agent said it was doing, how long ago, and the control
- * that ends it.
+ * One process: what the agent called it, the command behind that, how long it
+ * has been going, and the control that ends it.
  *
- * Flat on purpose. This list answers "what is still up, and do I want it up",
- * which is three facts and one action -- so it holds three facts and one
- * action. An earlier pass gave each row a disclosure onto its command, which
- * put an expander, a timer and a stop button on one line and then opened onto a
- * region with its own show-more; the command is the transcript's to show, and
- * the call that started it is one click away through the badge on its row.
- * Hovering the name still brings the command up, for the moment it settles
- * which of two servers this is.
+ * Both lines, always. The name is what makes the list readable, and the command
+ * is what settles which of two servers this is -- putting the second behind a
+ * disclosure meant a popover with expansion states, and putting it behind a
+ * hover meant hunting for it inside a surface that is itself a hover away. It
+ * is clamped to one line because a `node -e` one-liner would otherwise take the
+ * popover with it.
  */
 function ProcessRow({
   disabled,
@@ -77,25 +74,24 @@ function ProcessRow({
   onStop: () => void;
   process: RunningBackgroundProcess;
 }) {
-  // Falls back to the command, which is worse to read but never absent: the
-  // model is told to write an explanation and mostly does, and a row with no
-  // name at all would be the one case where the user learns nothing.
-  const label = process.explanation ?? process.command;
-
   return (
-    <li className="flex items-center gap-2 px-3 py-2">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-100">
-          <BashCommandPreview
-            className="text-xs whitespace-pre-wrap"
-            command={process.command}
-          />
-        </TooltipContent>
-      </Tooltip>
-      <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+    <li className="flex items-start gap-2 px-3 py-2">
+      <div className="min-w-0 flex-1">
+        {/* Absent when the model skipped it, which it is free to do. The
+            command below is then the only name there is, and it is already
+            there rather than needing to be fetched out from behind something. */}
+        {process.explanation && (
+          <div className="truncate text-sm" title={process.explanation}>
+            {process.explanation}
+          </div>
+        )}
+        <BashCommandPreview
+          className="text-xs text-muted-foreground"
+          command={process.command}
+          singleLine
+        />
+      </div>
+      <span className="shrink-0 py-0.5 text-xs text-muted-foreground tabular-nums">
         {formatElapsed(process.startedAt, now)}
       </span>
       <StopProcessButton

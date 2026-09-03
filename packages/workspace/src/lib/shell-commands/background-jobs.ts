@@ -163,6 +163,12 @@ function describeStatus(process: BackgroundProcessInfo) {
   if (process.status === "expired") {
     return `stopped (${ms(MAX_RUNNING_AGE_MS)} cap)`;
   }
+  // No code for a kill. The number a killed process carries is the interpreter's
+  // abort code rather than anything the command chose, so printing it invites
+  // the reader to diagnose an exit that never happened.
+  if (process.status === "killed") {
+    return "killed";
+  }
   return process.exitCode === undefined
     ? process.status
     : `${process.status} (${process.exitCode})`;

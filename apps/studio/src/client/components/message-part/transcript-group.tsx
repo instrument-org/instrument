@@ -5,6 +5,14 @@ import { cn } from "../../lib/utils";
 interface TranscriptGroupValue {
   /** There is something behind the head line, so the chevron is worth drawing. */
   canExpand: boolean;
+  /**
+   * A command started inside this group is still running, and the group is
+   * folded over the row that says so. The heading takes the live indicator on
+   * its behalf: a server left running is the same promise to the reader as the
+   * agent working, and a fold that hides it turns "still up" into something you
+   * would only find by expanding a settled phase.
+   */
+  hasRunningProcess: boolean;
   isExpanded: boolean;
   /**
    * This row is the group's head line: the one thing on screen when the group
@@ -73,6 +81,7 @@ export function TranscriptGroup({
   canExpand,
   children,
   className,
+  hasRunningProcess = false,
   isExpanded,
   onToggle,
 }: {
@@ -80,12 +89,19 @@ export function TranscriptGroup({
   children: ReactNode;
   /** Spacing the box takes from what sits above it; see `PROSE_GAP_IN_GROUP`. */
   className?: string;
+  hasRunningProcess?: boolean;
   isExpanded: boolean;
   onToggle: () => void;
 }) {
   return (
     <TranscriptGroupContext.Provider
-      value={{ canExpand, isExpanded, isHead: false, toggle: onToggle }}
+      value={{
+        canExpand,
+        hasRunningProcess,
+        isExpanded,
+        isHead: false,
+        toggle: onToggle,
+      }}
     >
       <div className={cn(STEP_RUN, className)}>{children}</div>
     </TranscriptGroupContext.Provider>

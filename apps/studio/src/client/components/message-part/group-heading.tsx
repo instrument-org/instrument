@@ -32,23 +32,27 @@ export function GroupHeading({
   // has nothing to disclose and stays a plain row.
   const canExpand = group?.canExpand ?? false;
   const isExpanded = group?.isExpanded ?? false;
+  // Either the agent is working here, or something it started here is still
+  // running. Both mean the same thing to a reader -- this phase is not finished
+  // with -- and a folded group has no other way to say the second one.
+  const isLive = isRunning || (group?.hasRunningProcess ?? false);
 
   return (
     <button
       className={cn(
         TRANSCRIPT_ROW,
         "cursor-default text-left",
-        isRunning && "-ml-0.5",
+        isLive && "-ml-0.5",
       )}
       disabled={!canExpand}
       onClick={group?.toggle}
       type="button"
     >
-      <PlanningDotSlot isRunning={isRunning} />
+      <PlanningDotSlot isRunning={isLive} />
       <span
         className={cn(
           "min-w-0 truncate text-sm",
-          isRunning
+          isLive
             ? "brand-shiny-text"
             : cn(
                 "text-muted-foreground",

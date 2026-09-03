@@ -10,6 +10,7 @@ import {
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useState } from "react";
 
+import { useTaskBackgroundProcesses } from "../hooks/use-task-background-processes";
 import { getAssetBaseUrl } from "../lib/asset-base-url";
 import { cn } from "../lib/utils";
 import { AssistantMessagesFooter } from "./assistant-messages-footer";
@@ -337,6 +338,14 @@ export function ChatStream({
     task,
   };
 
+  // Ids of everything this task still has running, so a folded group can say
+  // that one of the commands behind it has outlived the turn that started it.
+  // The same query the task header reads, so a transcript full of promoted
+  // calls costs no extra request.
+  const runningProcessIds = new Set(
+    useTaskBackgroundProcesses(task.id).map((process) => process.id),
+  );
+
   // A group's head line copies the step the agent is on, which lives in some
   // later message than the one the group opens in. Rendering it means reaching
   // for a part by id rather than by where the loop below has got to.
@@ -353,6 +362,23 @@ export function ChatStream({
       partsById.set(part.metadata.id, { message, part, partIndex });
     }
   }
+
+  /**
+   * Whether a command started inside this group is still running. Read from the
+   * live registry rather than from `processId` alone, which a part records once
+   * and never clears: a settled phase from this morning would otherwise still
+   * be claiming its server was up.
+   */
+  const groupHasRunningProcess = (group: TranscriptGroupData): boolean =>
+    group.toolCalls.some((call) => {
+      const part = partsById.get(call.rowId)?.part;
+      return (
+        part?.type === "tool-bash" &&
+        part.state === "output-available" &&
+        part.output.processId !== undefined &&
+        runningProcessIds.has(part.output.processId)
+      );
+    });
 
   const renderStandIn = (group: TranscriptGroupData): React.ReactNode => {
     const rowId = groupStandInRowId({
@@ -502,6 +528,7 @@ export function ChatStream({
       }
 
       const messageElements = collectGroups({
+        groupHasRunningProcess,
         groups: layout.groups,
         isGroupExpanded,
         onToggle: toggleGroup,
@@ -811,12 +838,14 @@ function AwaitingFirstRow() {
 // side of a boundary. A folded group draws in the slice it opened in and nowhere
 // else, which is what keeps it still while the agent works past it.
 function collectGroups({
+  groupHasRunningProcess,
   groups,
   isGroupExpanded,
   onToggle,
   renderStandIn,
   rows,
 }: {
+  groupHasRunningProcess: (group: TranscriptGroupData) => boolean;
   groups: Map<StoreId.Part, TranscriptGroupData>;
   isGroupExpanded: (group: TranscriptGroupData | undefined) => boolean;
   onToggle: (group: TranscriptGroupData) => void;
@@ -867,6 +896,7 @@ function collectGroups({
         className={cn(
           openingRow?.hasProseBoundaryAbove === true && PROSE_GAP_IN_GROUP,
         )}
+        hasRunningProcess={groupHasRunningProcess(group)}
         isExpanded={isGroupExpanded(group)}
         key={`group-${group.id}-${run.rows[0]?.id ?? ""}`}
         onToggle={() => {

@@ -339,6 +339,16 @@ jobs:
           if [ -n "$PREV_TAG" ]; then
             REGISTRY_PREV=$(git rev-parse "${PREV_TAG}:registry" 2>/dev/null || true)
           fi
+          # The previous tag names a skills commit that may no longer be
+          # reachable: rebasing a branch there orphans what an older tag pinned,
+          # and a fresh clone never fetches it. That is a missing paragraph in
+          # the notes, not a reason to fail a release whose builds all passed,
+          # so drop the range rather than letting `git log` abort the step.
+          if [ -n "$REGISTRY_PREV" ] &&
+            ! git -C registry cat-file -e "${REGISTRY_PREV}^{commit}" 2>/dev/null; then
+            echo "Previous registry pin $REGISTRY_PREV is unreachable; skipping the skills changelog."
+            REGISTRY_PREV=""
+          fi
           if [ -n "$REGISTRY_PREV" ] && [ -n "$REGISTRY_CURRENT" ] && [ "$REGISTRY_PREV" != "$REGISTRY_CURRENT" ]; then
             REGISTRY_COMMITS=$(
               git -C registry log "$REGISTRY_PREV..$REGISTRY_CURRENT" \

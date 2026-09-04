@@ -43,7 +43,7 @@ Tap or click a frame and it opens over the page. This is machinery, but it decid
 
 **The caption is laid out first and the frame is fitted into what is left.** A long caption shrinks the drawing rather than sliding off the bottom of the screen, at any window height, including a landscape phone. Past 30vh the caption scrolls inside itself instead of eating the whole view. Nothing about this is a reason to write a long caption: the drawing pays for every line, and on a phone it pays quickly.
 
-**Everything is reachable by tap, not only by key.** A control row sits along the bottom edge, in thumb reach rather than in a corner: previous, the frame number, next, close. A horizontal swipe across the frame moves between frames too. The arrow keys and Escape still work, so nothing is lost on a desktop.
+**Everything is reachable by tap, not only by key.** A control row sits along the bottom edge, in thumb reach rather than in a corner: previous, the frame number, next, close. A horizontal swipe across the frame moves between frames too. The arrow keys and Escape still work, so nothing is lost on a desktop. Right from the grid, with nothing open, enlarges the first frame, so someone can walk the whole set from the keyboard without reaching for the pointer to start.
 
 Below two columns the grid drops to one and the grid/one-per-row toggle hides itself, since at that width the two modes draw the same thing.
 

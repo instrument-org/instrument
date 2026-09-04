@@ -558,7 +558,17 @@
       });
 
       document.addEventListener("keydown", (event) => {
-        if (!viewer.open || (event.key !== "ArrowRight" && event.key !== "ArrowLeft")) return;
+        if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+        // From the rack, right opens the set at its first frame, so browsing
+        // starts from the keyboard as well as from a click. Nothing sits behind
+        // that frame, so left has nothing to do there, and a caret in a field
+        // keeps its own arrow keys.
+        if (!viewer.open) {
+          if (event.key === "ArrowLeft") return;
+          if (event.target?.closest?.("input, textarea, select, [contenteditable]")) return;
+          event.preventDefault();
+          return showFrame(0);
+        }
         event.preventDefault();
         step(event.key === "ArrowRight" ? 1 : -1);
       });

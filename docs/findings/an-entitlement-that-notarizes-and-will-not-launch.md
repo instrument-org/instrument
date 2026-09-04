@@ -46,6 +46,16 @@ Its helper processes carry none of them. Ours carried the entitlement on **every
 
 Steps 1 and 2 need a person with portal access, which is why this could not be repaired in place once found.
 
+Done, and shipped in `v1.6.14-beta.3`. The profile is committed at `apps/studio/build/Instrument_Developer_ID.provisionprofile` -- it holds public certificates, the team id, and the granted entitlements, and no private key, so it is not a secret. `keychain-access-groups` needed no capability enabled on the App ID: the portal lists none, and every profile carries `<TEAM>.*` for it regardless, which the entitlement's own group falls under.
+
+## The part that will go stale
+
+A profile grants a fixed set, and the binary may claim no more than that set. So the moment a team-scoped entitlement is added -- push notifications, app groups, associated domains, sign in with Apple -- the committed profile is out of date, and the build signs, notarizes, and will not launch, exactly as before. Regenerate the profile in the portal and re-commit it in the same change that adds the entitlement.
+
+Hardened-runtime entitlements (`com.apple.security.cs.*`) are not in this class. They are self-granted, need no profile, and are safe to add on their own.
+
+The release gate turns all of this from a shipped outage into a failed build, but it does not remove the step.
+
 ## Why nothing caught it, and what does now
 
 The smoke test gates publishing and could not have caught this. It is a separate job from the signed build, with no signing credentials, so `pnpm turbo run smoke-test` packages its own copy — and an unsigned app carries no entitlements at all, so there is nothing for the system to refuse. Publishing was gated on a green run against a different binary from the one that shipped.

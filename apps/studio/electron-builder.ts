@@ -170,7 +170,14 @@ const config: Configuration = {
   },
   mac: {
     category: "public.app-category.developer-tools",
-    entitlementsInherit: "build/entitlements.mac.plist",
+    // Split deliberately. The app's own entitlements carry what the
+    // provisioning profile grants; the helpers get the hardened-runtime keys
+    // and nothing else. Naming only entitlementsInherit once left both
+    // pointing here by default, which put an app-scoped entitlement on all
+    // four helpers and produced a build that signed, notarized, and could not
+    // launch -- docs/findings/an-entitlement-that-notarizes-and-will-not-launch.md.
+    entitlements: "build/entitlements.mac.plist",
+    entitlementsInherit: "build/entitlements.mac.inherit.plist",
     extendInfo: {
       // Must match the Icon Composer bundle name (build/icon.icon).
       CFBundleIconName: "icon",
@@ -184,6 +191,9 @@ const config: Configuration = {
     icon: "icon.icon",
     // eslint-disable-next-line turbo/no-undeclared-env-vars
     notarize: process.env.APPLE_NOTARIZATION_ENABLED === "true",
+    // Grants the team-scoped entitlements in entitlements.mac.plist. Without
+    // it the system refuses them and the app is killed on exec.
+    provisioningProfile: "build/Instrument_Developer_ID.provisionprofile",
     publish: {
       ...publishConfig,
       channel:

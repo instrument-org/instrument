@@ -10,5 +10,20 @@
     <true/>
     <key>com.apple.security.cs.disable-library-validation</key>
     <true/>
+    <!-- Everything below is granted by build/Instrument_Developer_ID.provisionprofile
+         and has to match it exactly: the profile grants keychain-access-groups
+         "Y83DK4YU3N.*", which covers the group below. Claiming more than the
+         profile grants fails the same way as having no profile, and the
+         failure is an app that will not launch rather than a build error.
+         These keys belong to the app alone; entitlements.mac.inherit.plist is
+         what the helpers get. -->
+    <key>com.apple.application-identifier</key>
+    <string>Y83DK4YU3N.com.finalpoint.instrument</string>
+    <key>com.apple.developer.team-identifier</key>
+    <string>Y83DK4YU3N</string>
+    <key>keychain-access-groups</key>
+    <array>
+      <string>Y83DK4YU3N.com.finalpoint.instrument.webauthn</string>
+    </array>
   </dict>
 </plist>

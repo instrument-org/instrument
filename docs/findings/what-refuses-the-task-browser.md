@@ -25,7 +25,9 @@ Both halves move together or neither does. The header is ours to write, because 
 2. **The user's own Chrome**, via `agent-browser --profile`. A real Chrome with the user's real profile, where there is nothing to detect and passkeys work.
 3. Nothing below that. Reaching past the browser to a scripted HTTP client is not a third rung; it is measurably worse, per the 429 row.
 
-The standing gap is that the agent under-uses rung 2. It has the flag and the prompt describes it, but on a refusal it stops and asks the user to sign in rather than offering to switch. That is a prompt-and-skill problem, not an identity one, and the skill's own interstitial guidance currently steers the other way.
+**Rung 2 is behind the `external_browser` feature flag, and the flag is off by default.** For a user who has not turned it on, the ladder has one rung, and the agent is told so: the targeting guidance renders a different branch that names no other browser. So a session where the agent does not offer to switch is ambiguous evidence, and reading the session context for which branch rendered is the first thing to check before concluding anything about the agent's judgment.
+
+With the flag on, the standing risk is that the agent under-uses rung 2: it stops at asking the user to clear the block rather than offering to switch. Three surfaces told it to stop there -- the skill's interstitial recovery, the skill's authenticated-work recipe, and the deny-page text `web_fetch` returns on a blocked host, which is the loudest because the model reads it with the refusal in hand. All three now name the second move; whether that changes behavior is unmeasured, because the only rung that could measure it has no browser.
 
 ## The register
 

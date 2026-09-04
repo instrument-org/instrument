@@ -48,6 +48,7 @@ import {
   watchThemePreferenceAndApply,
 } from "./lib/theme-utils";
 import { applyStandardUserAgent } from "./lib/user-agent";
+import { configurePlatformAuthenticator } from "./lib/web-authn";
 import { initializeRPC } from "./rpc/initialize";
 let appUpdater: AppUpdaterHandle | undefined;
 
@@ -143,10 +144,15 @@ async function bootstrapPrimaryInstance() {
     }
   }
 
-  // Present a standard Chrome User-Agent + consistent client hints for the
-  // app's own remote requests (user avatars, embedded remote images), for
-  // compatibility with services that respond differently to the Electron UA.
+  // Present the identity of an ordinary Chromium-derived browser, with matching
+  // client hints, for the app's own remote requests (user avatars, embedded
+  // remote images), for compatibility with services that respond differently to
+  // the Electron UA.
   applyStandardUserAgent(session.defaultSession);
+
+  // Let a site's passkey prompt reach an authenticator, in the task browser and
+  // here. Nothing services one until this runs.
+  configurePlatformAuthenticator();
 
   session.defaultSession.setPermissionRequestHandler(
     (_webContents, permission, callback) => {

@@ -1,5 +1,5 @@
 import { APP_BUNDLE_ID } from "@instrument-org/shared";
-import { app } from "electron";
+import { app, dialog, type Session } from "electron";
 
 import { createScopedLogger } from "./electron-logger";
 
@@ -57,4 +57,51 @@ export function configurePlatformAuthenticator(): void {
     // one.
     log.warn("Could not enable the platform authenticator", error);
   }
+}
+
+/**
+ * Let the user choose which passkey to sign in with.
+ *
+ * Electron raises this only when `navigator.credentials.get()` finds more than
+ * one discoverable credential for the site, and it will not proceed without an
+ * answer: with no listener the request is cancelled and the page is told
+ * `NotAllowedError`, which a site reports as a failed sign-in rather than as a
+ * missing picker. So this is required rather than a refinement, and it has to
+ * call back exactly once on every path.
+ *
+ * A native dialog, because the guest has no browser chrome to draw a picker in
+ * and the accounts are the user's to pick between, not ours. Cancelling calls
+ * back with nothing, which is how the API spells "the user declined".
+ */
+export function selectWebAuthnAccountOnRequest(ses: Session): void {
+  ses.on("select-webauthn-account", (_event, details, callback) => {
+    const { accounts } = details;
+    // Label by what the site stored, falling back through to a truncated
+    // credential id, so an account with no name is still distinguishable from
+    // the one beside it.
+    const labels = accounts.map(
+      (account, index) =>
+        account.displayName ??
+        account.name ??
+        `Passkey ${String(index + 1)} (${account.credentialId.slice(0, 8)})`,
+    );
+    let selected: number | undefined;
+    try {
+      selected = dialog.showMessageBoxSync({
+        buttons: [...labels, "Cancel"],
+        cancelId: labels.length,
+        defaultId: 0,
+        message: `Choose a passkey for ${details.relyingPartyId}`,
+        type: "question",
+      });
+    } catch (error) {
+      log.warn("Could not ask which passkey to use", error);
+    } finally {
+      const chosen =
+        selected != null && selected < accounts.length
+          ? accounts[selected]?.credentialId
+          : undefined;
+      callback(chosen);
+    }
+  });
 }

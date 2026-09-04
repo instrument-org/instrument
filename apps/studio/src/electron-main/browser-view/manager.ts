@@ -28,6 +28,7 @@ import {
   applyProductBrandedMetadata,
   applyStandardUserAgent,
 } from "../lib/user-agent";
+import { selectWebAuthnAccountOnRequest } from "../lib/web-authn";
 import { attachDevHooks, notifyDebugChange } from "./dev-hooks";
 import { type DeviceEmulation, setDeviceEmulation } from "./device-emulation";
 import { sendCommand } from "./dispatch-command";
@@ -701,6 +702,9 @@ function sessionForEntry(entry: BrowserEntry) {
   // like one. Branded with the app's own name because the guest's pages get the
   // matching metadata over CDP; see applyProductBrandedMetadata.
   applyStandardUserAgent(guestSession, { productBranded: true });
+  // Required, not optional: a passkey sign-in that finds more than one
+  // credential is cancelled outright when nothing answers this.
+  selectWebAuthnAccountOnRequest(guestSession);
   return guestSession;
 }
 

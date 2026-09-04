@@ -74,6 +74,12 @@ export function configurePlatformAuthenticator(): void {
  * back with nothing, which is how the API spells "the user declined".
  */
 export function selectWebAuthnAccountOnRequest(ses: Session): void {
+  // Re-callable, like the setters beside it in sessionForEntry: the workspace's
+  // one browser profile means session.fromPath hands back the same Session on
+  // every guest attach, and `on` alone would leave a second picker on it that
+  // opens its own dialog and answers a request already answered. This module is
+  // the event's only listener, so clearing it drops nothing else.
+  ses.removeAllListeners("select-webauthn-account");
   ses.on("select-webauthn-account", (_event, details, callback) => {
     const { accounts } = details;
     // Label by what the site stored, falling back through to a truncated

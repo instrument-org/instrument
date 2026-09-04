@@ -90,6 +90,16 @@ Committed cases live in `packages/workspace/evals/cases/`; add one when a
 behavior is worth guarding permanently. Details in
 `packages/workspace/AGENTS.md`.
 
+**There is no task browser at this rung, or at rung 2.** The managed browser
+lives in the Electron app, so outside it `agent-browser open` fails at the
+socket (`CDP WebSocket connect failed: Connection refused`) and an eval run
+reaches the model with a browser that cannot navigate. A model handed that
+either reports the tool as broken or quietly substitutes `web_search` and
+`web_fetch`, which reads as a behavior result and is not one. So a change to
+how the agent uses the browser -- the skill, the targeting guidance, anything
+that only shows up once a page is open -- has no rung below 4. Check the tool
+sequence for a real `open` before believing a browser eval either way.
+
 ## Rung 4: the running app
 
 ```bash

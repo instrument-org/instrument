@@ -1,6 +1,6 @@
 # Browser identity: the client hints are ours, not Chromium's
 
-**Status:** current. The brand mismatch is fixed; the remaining gaps below are open. Measured 2026-08-31 on Electron 42.3.3 (Chromium 148.0.7778.218), macOS 26.6.2 arm64.
+**Status:** current, with one section overtaken. The brand mismatch is fixed; the remaining gaps below are open. The Google Chrome brand this file asked for evidence about has since been removed, and the UA it treats as unchanged has changed — see [a-bare-chrome-identity-is-what-google-refuses](a-bare-chrome-identity-is-what-google-refuses.md). Measured 2026-08-31 on Electron 42.3.3 (Chromium 148.0.7778.218), macOS 26.6.2 arm64.
 
 ## What was measured
 
@@ -31,7 +31,7 @@ Which requests get hints at all is the same question asked about the transport. 
 
 **High-entropy hints are absent rather than wrong.** A site that negotiates `Accept-CH: sec-ch-ua-full-version-list` gets nothing back, where a real Chrome answers. Supplying them means tracking `Accept-CH` per origin, because sending high-entropy hints unprompted is itself unusual. Absence is a weaker signal than contradiction, so this was left alone.
 
-**The compatibility case for the Google Chrome brand was never captured.** The comment in `user-agent.ts` cites avatar and asset rate limiting and inconsistent sign-in handling as the reason the session is normalized at all, but that motivation belongs to the UA string, which is unchanged. Whether any site keyed on the brand specifically is unknown. If one turns up, capture the response difference here before adding the brand back, because adding it back reopens the mismatch this finding is about.
+**The compatibility case for the Google Chrome brand was never captured** — and when one finally was, it argued the other way. Google's sign-in refuses the bare-Chrome UA this file treats as the fixed point, whatever the brand list says, and accepts any UA carrying a product token. So the brand is now the app's own, beside Chromium, which is what every Chromium-derived browser reports. The measurement is in [a-bare-chrome-identity-is-what-google-refuses](a-bare-chrome-identity-is-what-google-refuses.md); the reasoning above about generating the list rather than writing one is unaffected, because the generator is the same and only its third entry changed.
 
 **`Runtime.enable` is unrelated, and turned out not to matter.** `agent-browser` enables the CDP `Runtime` domain on every attached page and child target, which this finding once called a louder signal than any header. Measured since, the published detection for it does not fire on Chromium 148, with the domain demonstrably enabled and delivering events. Do not spend on it without re-measuring first. That reading, and the one check that does fail, are in [task-browser-self-report](task-browser-self-report.md).
 

@@ -46,12 +46,12 @@ Its helper processes carry none of them. Ours carried the entitlement on **every
 
 Steps 1 and 2 need a person with portal access, which is why this could not be repaired in place once found.
 
-## What to check before shipping an entitlement again
+## Why nothing caught it, and what does now
 
-The release pipeline cannot catch this, and neither can the packaged-app smoke test as it stands, because both ran clean on a build that could not start. The cheap check is to launch the built app from the command line on the machine that built it and read the error, before tagging:
+The smoke test gates publishing and could not have caught this. It is a separate job from the signed build, with no signing credentials, so `pnpm turbo run smoke-test` packages its own copy — and an unsigned app carries no entitlements at all, so there is nothing for the system to refuse. Publishing was gated on a green run against a different binary from the one that shipped.
 
-```bash
-open -a /path/to/Instrument.app
-```
+The launch method was not the problem. Measured against the two real builds, the kernel enforces this on a direct `exec` as well: running `Contents/MacOS/<app>` under `ELECTRON_RUN_AS_NODE` exits 0 on the good build and is **SIGKILLed** on the broken one, with no output. Only the reporting differs — `open` says "Launchd job spawn failed", a direct exec says nothing at all.
 
-A launch that fails this way says so immediately and says nothing useful anywhere else.
+That pair is what `apps/studio/scripts/verify-packaged-app.ts` uses, run from the release job right after signing and notarization. It needs no display, finishes in under a second, and still crosses the check that fails. It is verified both ways against the two builds this finding is about.
+
+What remains open is the general version: the smoke test still exercises an unsigned build it packages itself, so anything else that depends on signing, notarization, or entitlements is outside what a green smoke run means.

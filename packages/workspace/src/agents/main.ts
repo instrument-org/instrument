@@ -71,6 +71,7 @@ function browserTargetingGuidance() {
   return [
     `- Bare commands drive the managed task browser the user watches in the app, and that is where research, local app testing, docs lookup, and any file you produced belong. Targeting flags drive a browser outside the app instead: \`--profile\` for the user's existing Chrome logins, \`--cdp\` or \`--auto-connect\` for a Chromium already running with remote debugging, \`--provider\` and \`--device\` for a cloud or iOS browser. Reach for one when the task needs the user's logins, when a site blocks the task browser (bot detection, CAPTCHA, login friction), or when the user names a specific browser, profile, device, or provider.`,
     `- Targeting applies to a single invocation, so repeat the flag on every command of an external flow; a bare follow-up silently lands back on the task browser. Switching browsers changes which signed-in identity you act as, so say you are switching rather than doing it silently, ask before working inside the user's own logged-in browser, and re-verify signed-in state afterward instead of assuming the previous session carried over.`,
+    `- Treat a refusal as a fork rather than an ending. When the task browser is blocked, challenged, or cannot finish a sign-in, say what refused you and offer the browser that could, in the same reply. Leaving the user at the block while another browser was available is the failure to avoid.`,
   ].join("\n");
 }
 

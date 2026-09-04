@@ -83,6 +83,8 @@ It reads `globals.css`, resolves the `var()` indirection to literal values, and 
 
 **Show a sequence, not a screen.** One column per state: resting, the moment of interaction, the result. A single screen shows what something looks like; a sequence shows what happens, which is what a plan needs to argue. Some subjects want a different axis (three kinds of data rather than three moments) and that is fine, as long as the columns are doing comparative work.
 
+**Show the click, mark the new.** In a sequence the reader has to see what was clicked to get from one frame to the next and what changed because of it, and neither may look like part of the design. The kit's `cursor` puts the pointer on the thing being clicked; `ann("click")` inside any `relative` element rings it in dashed orange with a CLICK tag, and `ann("new", "new")` rings what appeared or changed in dashed violet with a NEW tag. `noted`, `clickable`, and `fresh` wrap a block the same way: a row, a card, a page section, a sidebar entry. The colors are ones the product never uses, so they read as commentary on the frame. Put the click on the frame where it happens and let the next frame be the result; when the clicked thing survives into the result, a card in the chat, put the click there instead. One click per frame. Never a green row, a highlighted tile, or a check mark standing in for either: those look like the product, and they are not.
+
 **Bars for prose, real copy only where the idea lives.** Every piece of text is a decision the reader has to evaluate. Grey bars for message bodies and anything incidental; real, final-quality copy for the labels, warnings, and buttons that carry the proposal. All lorem reads as unfinished; all real text buries the point.
 
 Corollaries:

@@ -27,7 +27,9 @@ Both halves move together or neither does. The header is ours to write, because 
 
 **Rung 2 is behind the `external_browser` feature flag, and the flag is off by default.** For a user who has not turned it on, the ladder has one rung, and the agent is told so: the targeting guidance renders a different branch that names no other browser. So a session where the agent does not offer to switch is ambiguous evidence, and reading the session context for which branch rendered is the first thing to check before concluding anything about the agent's judgment.
 
-With the flag on, the standing risk is that the agent under-uses rung 2: it stops at asking the user to clear the block rather than offering to switch. Three surfaces told it to stop there -- the skill's interstitial recovery, the skill's authenticated-work recipe, and the deny-page text `web_fetch` returns on a blocked host, which is the loudest because the model reads it with the refusal in hand. All three now name the second move; whether that changes behavior is unmeasured, because the only rung that could measure it has no browser.
+With the flag on, the agent used to under-use rung 2: it stopped at asking the user to clear the block rather than offering to switch. Four surfaces told it to stop there -- the skill's interstitial recovery, the skill's authenticated-work recipe, the deny-page text `web_fetch` returns on a blocked host, and the targeting guidance itself.
+
+All four now name the second move, and one detail decided whether that changed anything. Stating the fork abstractly -- "offer the browser that could" -- did not move the model at all: driven against the retail host in the running app, it reported the block and closed on asking the user to clear it, without ever checking what other targets existed. Naming `--profile` and saying the offer comes unasked moved it in one attempt: it probed the available profiles and offered both routes. Same task, same model, same host, one wording change between them. An affordance the model has to go and confirm before mentioning is one it will not mention.
 
 ## The register
 

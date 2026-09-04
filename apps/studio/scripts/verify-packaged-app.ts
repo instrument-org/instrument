@@ -84,19 +84,22 @@ function resolveApp(explicit: string | undefined): string {
   );
 }
 
-// Info.plist names the executable, which is not always the bundle name.
+// The single executable in Contents/MacOS, rather than a name: the product
+// name varies by build flavor, and Info.plist is binary in a packaged app, so
+// reading it would mean shelling out for something the directory answers.
 function resolveBinary(appPath: string): string {
-  const plist = path.join(appPath, "Contents", "Info.plist");
-  const read = spawnSync(
-    "plutil",
-    ["-extract", "CFBundleExecutable", "raw", "-o", "-", plist],
-    { encoding: "utf8" },
-  );
-  const name = read.stdout.trim();
-  if (read.status !== 0 || name.length === 0) {
-    throw new Error(`Could not read CFBundleExecutable from ${plist}`);
+  const macos = path.join(appPath, "Contents", "MacOS");
+  const entries = fs.existsSync(macos) ? fs.readdirSync(macos) : [];
+  const [binary, ...rest] = entries;
+  if (binary == null) {
+    throw new Error(`No executable in ${macos}`);
   }
-  return path.join(appPath, "Contents", "MacOS", name);
+  if (rest.length > 0) {
+    throw new Error(
+      `Expected one executable in ${macos}, found ${entries.join(", ")}`,
+    );
+  }
+  return path.join(macos, binary);
 }
 
 main();

@@ -26,7 +26,7 @@ Worth separating from the file case, which was not broken in the same way: both 
 
 The eval measures a pane that is closed, where the user at least sees nothing. An open pane on a stale tab is the worse form, and it is what a real session produced: an earlier turn had shown an HTML mockup, the agent then drove the browser through a live page for the rest of the session, and the pane went on displaying the mockup. The reply described the live page. The user was looking at the artifact they had already rejected.
 
-Two things kept the agent from noticing. The browser is never in `pane.tabs` — [openTabs](../../packages/workspace/src/schemas/task-pane.ts) filters it out and the renderer draws it as a fixed first tab — so the turn's pane-tabs context part structurally cannot mention it, and it reports tabs rather than the selection. What the agent was told instead was that the mockup was already open and there was "no need to re-show any of these".
+Two things kept the agent from noticing. The browser is never in `pane.tabs` — [openTabs](../../packages/workspace/src/schemas/task-pane.ts) filters it out and the renderer draws it as a fixed first tab — so the turn's pane-tabs context part at the time structurally could not mention it, and it reported tabs rather than the selection. What the agent was told instead was that the mockup was already open and there was "no need to re-show any of these".
 
 This is why the fix cannot be "open the pane when the browser navigates". The pane was already open.
 

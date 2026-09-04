@@ -138,6 +138,14 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           ARCH: ${{ matrix.arch }}
 
+      # The smoke test builds its own unsigned copy, so it cannot see an
+      # entitlement being refused: unsigned apps carry none. This runs the
+      # artifact that actually ships, after it is signed and notarized, because
+      # a build can pass both and still be killed on exec.
+      - if: matrix.os == 'macos' && env.SKIP_INTEL_MACOS != 'true'
+        name: Verify the signed app starts
+        run: pnpm --filter @instrument-org/studio run verify-packaged-app
+
       - if: matrix.os == 'macos' && env.SKIP_INTEL_MACOS != 'true'
         name: Cleanup Signing
         run: |

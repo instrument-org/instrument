@@ -10,15 +10,5 @@
     <true/>
     <key>com.apple.security.cs.disable-library-validation</key>
     <true/>
-    <!-- Where the Touch ID platform authenticator stores WebAuthn credentials.
-         Must equal WEBAUTHN_KEYCHAIN_ACCESS_GROUP in
-         src/electron-main/lib/web-authn.ts, which a test asserts. The team
-         prefix is written out because codesign takes this plist literally: the
-         $(AppIdentifierPrefix) form is expanded by Xcode's build system, which
-         is not in this path. -->
-    <key>keychain-access-groups</key>
-    <array>
-      <string>Y83DK4YU3N.com.finalpoint.instrument.webauthn</string>
-    </array>
   </dict>
 </plist>

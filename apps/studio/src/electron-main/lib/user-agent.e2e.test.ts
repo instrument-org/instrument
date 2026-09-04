@@ -46,8 +46,17 @@ function electronExecutable(): string {
 const HARNESS = `
 import { app, BrowserWindow, session } from "electron";
 import http from "node:http";
-import { applyStandardUserAgent } from "./user-agent.mjs";
+import {
+  applyProductBrandedMetadata,
+  applyStandardUserAgent,
+} from "./user-agent.mjs";
 
+// Name the app the way the real bootstrap does. An Electron left with its
+// default name omits the product token entirely, and that token is what the
+// identity now rests on, so an unnamed harness would test a shape we do not
+// ship.
+app.setName("Instrument");
+const productBranded = process.argv.includes("--product-branded");
 const captured = {};
 const server = http.createServer((req, res) => {
   Object.assign(captured, req.headers);
@@ -69,12 +78,18 @@ async function main() {
   await app.whenReady();
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address();
-  const guestSession = session.fromPartition("user-agent-e2e-check");
-  applyStandardUserAgent(guestSession);
+  const guestSession = session.fromPartition(
+    productBranded ? "user-agent-e2e-branded" : "user-agent-e2e-check",
+  );
+  applyStandardUserAgent(guestSession, { productBranded });
   const win = new BrowserWindow({
     show: false,
     webPreferences: { session: guestSession },
   });
+  if (productBranded) {
+    win.webContents.debugger.attach("1.3");
+    applyProductBrandedMetadata(win.webContents);
+  }
   await win.loadURL(\`http://127.0.0.1:\${port}/\`);
   const page = await win.webContents.executeJavaScript(PAGE_IDENTITY, true);
   process.stdout.write(
@@ -102,7 +117,7 @@ interface HarnessResult {
   };
 }
 
-function runHarness(): HarnessResult {
+function runHarness({ productBranded = false } = {}): HarnessResult {
   const source = fs.readFileSync(
     path.join(import.meta.dirname, "user-agent.ts"),
     "utf8",
@@ -118,7 +133,10 @@ function runHarness(): HarnessResult {
 
     const childEnv: Env = { ...env };
     delete childEnv.ELECTRON_RUN_AS_NODE;
-    const stdout = execFileSync(electronExecutable(), [harnessPath], {
+    const args = productBranded
+      ? [harnessPath, "--product-branded"]
+      : [harnessPath];
+    const stdout = execFileSync(electronExecutable(), args, {
       encoding: "utf8",
       env: childEnv,
       timeout: 60_000,
@@ -145,14 +163,15 @@ const expectedPlatformHint =
       : '"Linux"';
 
 describe.runIf(ENABLED)("applyStandardUserAgent against real Electron", () => {
-  it("serves a standard Chrome UA and consistent client hints", () => {
+  it("serves the shape a Chromium-derived browser ships, with consistent hints", () => {
     const { headers, page } = runHarness();
     const userAgent = headers["user-agent"] ?? "";
 
-    // No extra product tokens survive -- this is exactly what regressed once.
+    // The framework token goes, the app's own token stays, and the Chrome
+    // version is reduced the way every shipping Chromium browser reduces it. A
+    // UA with no product token is the shape Google's sign-in refuses.
     expect(userAgent).not.toMatch(/Electron\//);
-    expect(userAgent).not.toMatch(/Instrument/);
-    expect(userAgent).toMatch(/ Chrome\/\d+/);
+    expect(userAgent).toMatch(/ Instrument\/\S+ Chrome\/\d+\.0\.0\.0 /);
     expect(userAgent).toMatch(/ Safari\/537\.36$/);
 
     const major = / Chrome\/(\d+)\./.exec(userAgent)?.[1] ?? "";
@@ -170,5 +189,19 @@ describe.runIf(ENABLED)("applyStandardUserAgent against real Electron", () => {
     expect(headers["sec-ch-ua-platform"]).toBe(`"${page.platform}"`);
     expect(headers["sec-ch-ua-mobile"]).toBe(page.mobile ? "?1" : "?0");
     expect(headers["accept-language"]).toContain(page.languages[0] ?? "");
+  }, 90_000);
+
+  // The guest session's configuration: the app names itself in the brand list
+  // too, which only holds together because the page-side metadata moves with it.
+  it("names the app on both surfaces for a product-branded session", () => {
+    const { headers, page } = runHarness({ productBranded: true });
+    const major =
+      / Chrome\/(\d+)\./.exec(headers["user-agent"] ?? "")?.[1] ?? "";
+
+    expect(headers["sec-ch-ua"]).toContain(`"Chromium";v="${major}"`);
+    expect(headers["sec-ch-ua"]).toMatch(/"Instrument";v="\d+"/);
+    expect(headers["sec-ch-ua"]).toBe(page.brands);
+    expect(headers["user-agent"]).toBe(page.userAgent);
+    expect(page.languages.length).toBeGreaterThan(0);
   }, 90_000);
 });

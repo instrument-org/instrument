@@ -33,11 +33,25 @@ The standing gap is that the agent under-uses rung 2. It has the flag and the pr
 | --- | --- | --- | --- |
 | Google consumer sign-in: "This browser or app may not be secure" | A UA with no product token, claiming to be stock Chrome from a runtime that fails Chrome's checks. Not embedded-browser detection, and not the client hints | Yes | **Fixed.** [Detail](a-bare-chrome-identity-is-what-google-refuses.md) |
 | Google passkey challenge (`signin/challenge/pk`) | Electron ships the WebAuthn transport but none of Chrome's WebAuthn UI, so neither the cross-device QR sheet nor a platform authenticator is available | Partly — see Passkeys | **Open.** Password or "Try another way" is the route through |
-| Press-and-hold interstitial on a large retail host | Unidentified. It fires within a few page views, so it is not volume; a real browser on the same machine is unaffected; and it covers the origin rather than the page that tripped it | Unknown | **Open, undiagnosed.** The vendor has never been identified — see Open questions |
+| Press-and-hold interstitial on a large retail host | Two bot vendors stacked: PerimeterX/HUMAN, whose signature challenge this is, and DataDome. It fires within a few page views, so it is not volume; a real browser on the same machine is unaffected; and it covers the origin rather than the page that tripped it | One lever, below | **Open, vendors identified.** See The two-vendor host |
 | 429s from that same host to scripted clients | Not a rate limit, not a header set, not the client stack. Roughly thirty controlled requests across five client stacks established only that the host answers inconsistently — a real browser was refused minutes either side of a scripted client being served | No | **Closed as not ours.** [Detail](a-429-that-is-not-a-rate-limit.md) |
 | Cloudflare, Akamai, DataDome managed challenges | Unmeasured against this browser at all | Unknown | **Unmeasured** |
 
 Two rows are easy to conflate and should not be. The 429s and the press-and-hold come from the same host, and the 429 investigation closed the *scripted client* question without touching the *browser* one: the interstitial is a separate refusal, served to the browser, and nothing in that finding explains it.
+
+## The two-vendor host
+
+The retail host in the register runs PerimeterX/HUMAN and DataDome at the same time, which is worth recording because it bounds what is worth attempting there.
+
+PerimeterX is served first-party, from a subdomain of the site rather than the vendor's own, alongside the vendor origins and its `_px3` / `_pxvid` cookies; DataDome ships its own tag beside it. Both combine device fingerprinting with behavioral telemetry, so a refusal there is not one signal to find and correct — it is a score, and a browser can lose it on inputs we have no lever over.
+
+Two of our known gaps are the plausible contributors, and they are not equally ours.
+
+**The fingerprint half is not ours.** `window.chrome` is a hollow object here and absent inside an iframe, which is exactly the kind of cheap, high-confidence check a fingerprint vendor keys on, and there is no native lever for it in Electron. Nothing about the identity work above touches it: the host refused this browser when its User-Agent was byte-identical to Chrome's, which is the clearest evidence available that the User-Agent was never what it read.
+
+**The behavioral half is ours, and is worth fixing on its own merits.** The CLI's `fill` sets an element's `value` directly and dispatches a synthetic `input` event, so the page is told a user typed when the event carries `isTrusted: false`; printable characters then go through `Input.insertText`, which produces no `keydown`, `keypress`, or `keyup` at all. That is a behavioral profile no human produces. It also has a plain correctness cost that stands whatever the vendors do: setting `value` directly updates React's value tracker, so a controlled input swallows the change and re-renders its old value, and text lands appended rather than replacing.
+
+So the honest expectation for this host is that fixing the input path is worth doing and may not be enough, because the fingerprint half stays broken and there are two independent vendors scoring. Do not spend against it as though one correction will clear it.
 
 ## What Electron cannot give us
 
@@ -67,6 +81,6 @@ Three tiers, one of them close.
 
 ## Open questions worth measuring
 
-- **Which vendor serves the press-and-hold challenge.** One `agent-browser network requests` on the challenge page names it from the script origins, and the answer decides whether anything is fixable: a behavioral vendor and a fingerprint vendor call for different work, and today we are guessing which one we fail.
+- **Whether the input path is what the two-vendor host reads.** It is the one lever we hold there, it has an independent correctness bug, and nothing has measured whether fixing it changes the outcome.
 - **Whether the product token costs anything.** A crude allowlist keyed on major-browser UA strings would reject it. The risk is real and unmeasured; the counter-argument is that such a list rejects Edge and Opera too. The identity harness in [a-bare-chrome-identity-is-what-google-refuses](a-bare-chrome-identity-is-what-google-refuses.md) A/Bs it against any origin.
 - **Whether rung 2 clears what rung 1 cannot**, on the hosts in the register. Assumed throughout, demonstrated nowhere.

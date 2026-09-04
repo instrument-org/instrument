@@ -35,6 +35,7 @@ Grouped by area; status is the short form of each file's own line.
 
 | Finding | Status |
 | --- | --- |
+| [An entitlement that signs, notarizes, and will not launch](an-entitlement-that-notarizes-and-will-not-launch.md) — team-scoped entitlements need an embedded provisioning profile; every gate passes and launchd still refuses | resolved |
 | [What refuses the task browser](what-refuses-the-task-browser.md) — the standing register: identity, escalation ladder, and where each known refusal stands | standing |
 | [Orphaned agent-browser daemons](agent-browser-orphaned-daemons.md) — fingerprint mismatch plus an upstream shutdown deadlock | partly fixed |
 | [`download` never restores download behavior](agent-browser-download-behavior-not-reset.md) | open upstream, contained |

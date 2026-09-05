@@ -37,22 +37,84 @@ const REFRESH_MS = ms("2 seconds");
 /** How many recent screens the sidebar lists. */
 const RECENTS_SHOWN = 8;
 
-/** What a row draws in its icon slot. */
-type RowIcon = ComponentType<{ className?: string }>;
-
 /**
  * The places in the product, the way the wireframes list them. Home,
  * Discover, and Apps are fixtures for now: a screen each, empty but for a
  * line saying what will live there, so the sidebar can be felt whole.
  */
-const PLACES: { icon: RowIcon; label: string; to: string }[] = [
-  { icon: HouseIcon, label: "Home", to: "/orchestrator/home" },
-  { icon: CompassIcon, label: "Discover", to: "/orchestrator/discover" },
-  { icon: BooksIcon, label: "Library", to: "/orchestrator/library" },
-  { icon: GlobeIcon, label: "Browser", to: "/orchestrator/browser" },
-  { icon: LaptopIcon, label: "This Mac", to: "/orchestrator/computer" },
-  { icon: AppWindowIcon, label: "Apps", to: "/orchestrator/apps" },
-  { icon: ListChecksIcon, label: "Tasks", to: "/orchestrator/tasks" },
+interface Place {
+  icon: RowIcon;
+  /** Whether the location is this place; the same screen can be two places. */
+  isAt: (location: {
+    pathname: string;
+    search: Record<string, unknown>;
+  }) => boolean;
+  label: string;
+  open: (navigate: ReturnType<typeof useNavigate>) => void;
+}
+
+/** What a row draws in its icon slot. */
+type RowIcon = ComponentType<{ className?: string }>;
+
+const atPath = (to: string) => (location: { pathname: string }) =>
+  location.pathname === to || location.pathname.startsWith(`${to}/`);
+
+const PLACES: Place[] = [
+  {
+    icon: HouseIcon,
+    isAt: atPath("/orchestrator/home"),
+    label: "Home",
+    open: (navigate) => void navigate({ to: "/orchestrator/home" }),
+  },
+  {
+    icon: CompassIcon,
+    isAt: atPath("/orchestrator/discover"),
+    label: "Discover",
+    open: (navigate) => void navigate({ to: "/orchestrator/discover" }),
+  },
+  {
+    icon: BooksIcon,
+    isAt: (location) =>
+      location.pathname === "/orchestrator/computer" &&
+      location.search.root === "instrument",
+    label: "Library",
+    open: (navigate) =>
+      void navigate({
+        search: { path: "", root: "instrument" },
+        to: "/orchestrator/computer",
+      }),
+  },
+  {
+    icon: GlobeIcon,
+    isAt: atPath("/orchestrator/browser"),
+    label: "Browser",
+    open: (navigate) =>
+      void navigate({ search: {}, to: "/orchestrator/browser" }),
+  },
+  {
+    icon: LaptopIcon,
+    isAt: (location) =>
+      location.pathname === "/orchestrator/computer" &&
+      location.search.root !== "instrument",
+    label: "This Mac",
+    open: (navigate) =>
+      void navigate({
+        search: { path: "", root: "~" },
+        to: "/orchestrator/computer",
+      }),
+  },
+  {
+    icon: AppWindowIcon,
+    isAt: atPath("/orchestrator/apps"),
+    label: "Apps",
+    open: (navigate) => void navigate({ to: "/orchestrator/apps" }),
+  },
+  {
+    icon: ListChecksIcon,
+    isAt: atPath("/orchestrator/tasks"),
+    label: "Tasks",
+    open: (navigate) => void navigate({ to: "/orchestrator/tasks" }),
+  },
 ];
 
 /**
@@ -97,6 +159,11 @@ export function OrchestratorSidebar({ className }: { className?: string }) {
       refetchInterval: REFRESH_MS,
     }),
   );
+  const here = {
+    pathname: location.pathname,
+    search: location.search as Record<string, unknown>,
+  };
+  const isAtPlace = PLACES.some((place) => place.isAt(here));
   const workingCount =
     status.data?.filter((entry) =>
       entry.sessionActors.some((actor) => actor.tags.includes("agent.alive")),
@@ -110,14 +177,11 @@ export function OrchestratorSidebar({ className }: { className?: string }) {
             {PLACES.map((place) => (
               <Item
                 icon={place.icon}
-                isActive={
-                  location.pathname === place.to ||
-                  location.pathname.startsWith(`${place.to}/`)
-                }
-                key={place.to}
+                isActive={place.isAt(here)}
+                key={place.label}
                 label={place.label}
                 onClick={() => {
-                  void navigate({ to: place.to });
+                  place.open(navigate);
                 }}
                 trailing={
                   place.label === "Tasks" && workingCount > 0 ? (
@@ -154,7 +218,8 @@ export function OrchestratorSidebar({ className }: { className?: string }) {
             {recents.slice(0, RECENTS_SHOWN).map((recent) => (
               <Item
                 icon={RECENT_ICONS[recent.kind]}
-                isActive={location.href === recent.href}
+                // A recent that is also a place lights the place, not itself.
+                isActive={!isAtPlace && location.href === recent.href}
                 key={recent.href}
                 label={recent.title}
                 onClick={() => {

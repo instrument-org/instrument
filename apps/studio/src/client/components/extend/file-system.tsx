@@ -58,6 +58,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { FileThumbnail } from "@/client/components/extend/file-thumbnail";
 import {
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Calendar,
   FileArchiveIcon,
@@ -4113,7 +4114,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
             </div>
           </InlineScrollArea2>
         ) : renderTrailing ? (
-          <div className="min-w-72 flex-1 contain-inline-size">
+          <div className="min-w-52 flex-1 contain-inline-size">
             {renderTrailing(columnPaths[columnPaths.length - 1] ?? "")}
           </div>
         ) : null}
@@ -4260,7 +4261,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                   <span className="min-w-0 flex-1 truncate">{entry.name}</span>
                   {entry.kind === "folder" &&
                   folderHasChildren(index, entry) ? (
-                    <ArrowRight
+                    <ChevronRight
                       className={cn(
                         "size-3.5 shrink-0",
                         !isSelected && "text-muted-foreground/60",
@@ -4715,7 +4716,7 @@ function InlineScrollArea2({
         {...resolvedViewportProps}
         ref={composedViewportRef}
         className={cn(
-          "h-full rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "h-full rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-ring [&>div]:h-full",
           scrollFade &&
             "mask-t-from-[calc(100%-min(var(--fade-size),var(--scroll-area-overflow-y-start)))] mask-r-from-[calc(100%-min(var(--fade-size),var(--scroll-area-overflow-x-end)))] mask-b-from-[calc(100%-min(var(--fade-size),var(--scroll-area-overflow-y-end)))] mask-l-from-[calc(100%-min(var(--fade-size),var(--scroll-area-overflow-x-start)))] [--fade-size:1.5rem]",
           scrollbarGutter && orientation !== "vertical" && "pb-3.5",

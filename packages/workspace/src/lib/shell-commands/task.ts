@@ -526,7 +526,7 @@ async function runNew(
   await recordTaskActivity(taskId);
 
   return ok(
-    `Created ${taskId} ("${name}"). It is running now.\nYou will be told when it finishes; do not poll it or wait on it. Reply to the user if you have not yet.\n`,
+    `Created ${taskId} ("${name}"). It is running now.\nYou will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`,
   );
 }
 

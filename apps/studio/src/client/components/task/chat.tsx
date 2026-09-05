@@ -29,6 +29,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import {
   type ComponentProps,
+  type ReactNode,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -69,6 +70,7 @@ const TRANSCRIPT_PREVIOUS_TURN_PEEK = 40;
 
 export function TaskChat({
   alwaysSubmittable = false,
+  composerLead,
   isReplayActive = false,
   navigateOnSend = true,
   onCancelReplay,
@@ -87,6 +89,8 @@ export function TaskChat({
    * arrives mid-turn and runs it the moment the turn ends.
    */
   alwaysSubmittable?: boolean;
+  /** Drawn just above the composer: what is going on behind the conversation. */
+  composerLead?: ReactNode;
   isReplayActive?: boolean;
   /**
    * Whether a successful send moves the route to the task page with the
@@ -540,6 +544,7 @@ export function TaskChat({
         {/* isolate: keep the tutorial card's -z-10 background and the prompt
             input's z-10 contained to the composer. */}
         <div className="isolate mx-auto w-full max-w-3xl px-3 pb-3">
+          {composerLead}
           <QueuedPrompts onRemove={remove} prompts={queue} />
           {showTutorial === undefined ? (
             promptInput

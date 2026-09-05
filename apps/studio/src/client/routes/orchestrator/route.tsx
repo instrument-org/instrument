@@ -1,5 +1,7 @@
 import {
-  clampChatWidth,
+  CHAT_WIDTH_DEFAULT,
+  CHAT_WIDTH_MAX,
+  CHAT_WIDTH_MIN,
   computerViewAtom,
   orchestratorChatOpenAtom,
   orchestratorChatWidthAtom,
@@ -19,21 +21,29 @@ import {
   type OrchestratorWindow,
 } from "@/client/components/orchestrator/context";
 import { OrchestratorSidebar } from "@/client/components/orchestrator/sidebar";
-import { StudioSidebarRail } from "@/client/components/studio-sidebar-rail";
+import {
+  type RailBounds,
+  StudioSidebarRail,
+} from "@/client/components/studio-sidebar-rail";
 import { TaskChat } from "@/client/components/task/chat";
 import { Toaster } from "@/client/components/ui/sonner";
 import { Spinner } from "@/client/components/ui/spinner";
+import { InstrumentGlyph } from "@/client/components/wordmark";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { type TaskId } from "@instrument-org/workspace/client";
+import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
+import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import {
   createFileRoute,
   Outlet,
+  useCanGoBack,
   useNavigate,
+  useRouter,
   useRouterState,
 } from "@tanstack/react-router";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
@@ -43,133 +53,150 @@ import { type ReactNode, useEffect, useState } from "react";
 /** How often the orchestrator's tasks and their status are re-read. */
 const REFRESH_MS = ms("2 seconds");
 
+/** How long a screen has to stay up before Recent counts it. */
+const RECENT_DWELL_MS = ms("2 seconds");
+
+const CHAT_BOUNDS: RailBounds = {
+  collapse: 240,
+  initial: CHAT_WIDTH_DEFAULT,
+  max: CHAT_WIDTH_MAX,
+  min: CHAT_WIDTH_MIN,
+};
+
 export const Route = createFileRoute("/orchestrator")({
   component: OrchestratorLayout,
   head: () => ({ meta: [{ title: APP_NAME }] }),
 });
 
 /**
- * The conversation down the right, dragged wider or narrower by its left
- * edge, and gone when the mark in the corner is off.
+ * What is going on behind the conversation, just above the composer: the
+ * tasks at work, named by what each is doing this moment rather than by task,
+ * so a reply that handed the work off does not read as the end of it.
  */
-function ChatRail({
-  children,
-  isOpen,
+function ActivityStrip({
+  running,
 }: {
-  children: ReactNode;
-  isOpen: boolean;
+  running: { step?: string; taskId: string; title: string }[];
 }) {
-  const [width, setWidth] = useAtom(orchestratorChatWidthAtom);
-  if (!isOpen) {
+  if (running.length === 0) {
     return null;
   }
+  const latest = running.find((entry) => entry.step) ?? running[0];
+  const doing = latest?.step ?? latest?.title;
   return (
-    <aside
-      className="relative flex shrink-0 flex-col border-l border-border pt-10"
-      style={{ width }}
+    <div className="mb-2 flex items-center gap-2 px-1 text-xs text-muted-foreground">
+      <Spinner className="size-3 shrink-0" />
+      <span className="truncate">
+        {running.length > 1 ? `${running.length} things in progress · ` : ""}
+        {doing}
+      </span>
+    </div>
+  );
+}
+
+function ChromeButton({
+  children,
+  disabled,
+  label,
+  onClick,
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      aria-label={label}
+      className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
+      disabled={disabled}
+      onClick={onClick}
+      type="button"
     >
-      <div
-        aria-label="Resize Instrument"
-        aria-orientation="vertical"
-        className="absolute inset-y-0 left-0 z-20 w-2 -translate-x-1/2 cursor-col-resize select-none hover:bg-foreground/10"
-        onPointerDown={(event) => {
-          const startX = event.clientX;
-          const startWidth = width;
-          const target = event.currentTarget;
-          target.setPointerCapture(event.pointerId);
-          const move = (moveEvent: PointerEvent) => {
-            setWidth(clampChatWidth(startWidth - (moveEvent.clientX - startX)));
-          };
-          const up = () => {
-            target.removeEventListener("pointermove", move);
-            target.removeEventListener("pointerup", up);
-          };
-          target.addEventListener("pointermove", move);
-          target.addEventListener("pointerup", up);
-        }}
-        role="separator"
-      />
       {children}
-    </aside>
+    </button>
   );
 }
 
 /**
- * The window's chrome: no title bar, a strip along the top that drags the
- * window, the sidebar toggle at the left of it past the traffic lights, and
- * the Instrument mark at the right of it.
+ * The window's chrome. It drags by its top-left corner only, so the rest of
+ * the top edge is the screens' to use; past the traffic lights sit the
+ * sidebar toggle and back and forward; and when the conversation is away,
+ * the mark floats in the bottom right corner to bring it back.
  */
 function Frame({
   children,
+  isBusy,
   isChatOpen,
   isSidebarOpen,
-  isThinking,
-  onToggleChat,
+  onOpenChat,
   onToggleSidebar,
 }: {
   children: ReactNode;
+  isBusy: boolean;
   isChatOpen: boolean;
   isSidebarOpen: boolean;
-  isThinking: boolean;
-  onToggleChat: () => void;
+  onOpenChat: () => void;
   onToggleSidebar: () => void;
 }) {
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
   return (
     <div className="relative flex h-screen bg-background">
-      <div className="absolute inset-x-0 top-0 z-10 h-10 [-webkit-app-region:drag]" />
-      <button
-        aria-label={isSidebarOpen ? "Hide sidebar" : "Show sidebar"}
-        className="absolute top-2 left-20 z-20 rounded-md p-1 text-muted-foreground [-webkit-app-region:no-drag] hover:bg-foreground/5 hover:text-foreground"
-        onClick={onToggleSidebar}
-        type="button"
-      >
-        <SidebarSimpleIcon className="size-4" />
-      </button>
-      <button
-        aria-label={isChatOpen ? "Hide Instrument" : "Show Instrument"}
-        className={cn(
-          "absolute top-2 right-3 z-20 flex size-6 items-center justify-center rounded-full [-webkit-app-region:no-drag]",
-          isChatOpen
-            ? "bg-foreground text-background"
-            : "bg-foreground/10 text-foreground hover:bg-foreground/20",
-        )}
-        onClick={onToggleChat}
-        type="button"
-      >
-        {isThinking ? (
-          <Spinner className="size-3.5" />
-        ) : (
-          <InstrumentMark className="size-3.5" />
-        )}
-      </button>
+      <div className="absolute top-0 left-0 z-10 h-10 w-60 [-webkit-app-region:drag]" />
+      <div className="absolute top-2 left-20 z-20 flex items-center gap-0.5 [-webkit-app-region:no-drag]">
+        <ChromeButton
+          label={isSidebarOpen ? "Hide sidebar" : "Show sidebar"}
+          onClick={onToggleSidebar}
+        >
+          <SidebarSimpleIcon className="size-4" />
+        </ChromeButton>
+        <ChromeButton
+          disabled={!canGoBack}
+          label="Back"
+          onClick={() => {
+            router.history.back();
+          }}
+        >
+          <ArrowLeftIcon className="size-4" />
+        </ChromeButton>
+        <ChromeButton
+          label="Forward"
+          onClick={() => {
+            router.history.forward();
+          }}
+        >
+          <ArrowRightIcon className="size-4" />
+        </ChromeButton>
+      </div>
       {children}
+      {isChatOpen ? null : (
+        <button
+          aria-label="Show Instrument"
+          className="fixed right-4 bottom-4 z-30 flex size-11 items-center justify-center rounded-full bg-foreground text-background shadow-lg hover:scale-105"
+          onClick={onOpenChat}
+          type="button"
+        >
+          {isBusy ? (
+            <Spinner className="size-5" />
+          ) : (
+            <InstrumentGlyph className="size-5" />
+          )}
+        </button>
+      )}
       <Toaster position="top-center" />
     </div>
   );
 }
 
-/** The mark: two bars, as the wordmark's icon draws them. */
-function InstrumentMark({ className }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden
-      className={className}
-      fill="currentColor"
-      viewBox="0 0 16 16"
-    >
-      <rect height="3" rx="1.5" width="12" x="2" y="4" />
-      <rect height="3" rx="1.5" width="8" x="6" y="9" />
-    </svg>
-  );
-}
-
 /**
  * The window: the places in the product down the left, the screen that is up
- * in the middle, the conversation down the right. No title bar: each column
- * starts at the top of the window and leaves room for the traffic lights,
- * and the Instrument mark in the top right corner opens and closes the
- * conversation. The browser is mounted here rather than by its screen, so
- * the page it holds survives the user leaving for a folder and coming back.
+ * in the middle, the conversation down the right. No title bar: the window
+ * drags by its top-left corner, past the traffic lights sit the sidebar
+ * toggle and back and forward, and the conversation is a rail like the
+ * sidebar, with the Instrument mark floating in the corner when it is away.
+ * The browser is mounted here rather than by its screen, so the page it
+ * holds survives the user leaving for a folder and coming back.
  */
 function OrchestratorLayout() {
   const ensure = useQuery(
@@ -197,10 +224,15 @@ function OrchestratorLayout() {
       refetchInterval: REFRESH_MS,
     }),
   );
-  const childIds = children.data?.map((child) => child.id) ?? [];
   const status = useQuery(
     rpcClient.workspace.task.agentStatus.byIds.queryOptions({
-      input: ids ? { ids: [ids.taskId, ...childIds] } : skipToken,
+      input: ids ? { ids: [ids.taskId] } : skipToken,
+      refetchInterval: REFRESH_MS,
+    }),
+  );
+  const activity = useQuery(
+    rpcClient.workspace.orchestrator.activity.queryOptions({
+      input: ids ? { id: ids.taskId } : skipToken,
       refetchInterval: REFRESH_MS,
     }),
   );
@@ -213,6 +245,7 @@ function OrchestratorLayout() {
     select: (routerState) => routerState.location,
   });
   const isBrowserScreen = location.pathname === "/orchestrator/browser";
+  useHistoryShortcuts();
 
   // The browser hands its handle over once mounted; state rather than a ref,
   // since the send handler below and the screens read it.
@@ -223,14 +256,12 @@ function OrchestratorLayout() {
     ),
   });
 
-  const running = new Set<TaskId>(
-    status.data
-      ?.filter((entry) =>
-        entry.sessionActors.some((actor) => actor.tags.includes("agent.alive")),
-      )
-      .map((entry) => entry.taskId) ?? [],
-  );
-  const isThinking = ids !== undefined && running.has(ids.taskId);
+  const isThinking =
+    status.data?.some((entry) =>
+      entry.sessionActors.some((actor) => actor.tags.includes("agent.alive")),
+    ) ?? false;
+  const running = activity.data?.running ?? [];
+  const isBusy = isThinking || running.length > 0;
 
   const screens: null | OrchestratorWindow = ids
     ? {
@@ -242,11 +273,11 @@ function OrchestratorLayout() {
     : null;
 
   const chrome = {
+    isBusy,
     isChatOpen,
     isSidebarOpen,
-    isThinking,
-    onToggleChat: () => {
-      setChatOpen((open) => !open);
+    onOpenChat: () => {
+      setChatOpen(true);
     },
     onToggleSidebar: () => {
       setSidebarOpen((open) => !open);
@@ -266,7 +297,7 @@ function OrchestratorLayout() {
   if (!screens || !task.data || !state.data) {
     return (
       <Frame {...chrome}>
-        <div className="flex h-full items-center justify-center">
+        <div className="flex h-full flex-1 items-center justify-center">
           <Spinner className="size-6" />
         </div>
       </Frame>
@@ -306,31 +337,68 @@ function OrchestratorLayout() {
               <BrowserView onPageChange={recordBrowserPage} ref={setBrowser} />
             </div>
           </main>
-          <ChatRail isOpen={isChatOpen}>
-            <TaskChat
-              alwaysSubmittable
-              navigateOnSend={false}
-              presentation="orchestrator"
-              promptDraft={state.data.promptDraft ?? ""}
-              selectedModelURI={state.data.selectedModelURI ?? defaultModelURI}
-              selectedSessionId={screens.sessionId}
-              sendContext={async () => {
-                const page = isBrowserScreen
-                  ? await browser?.readPage()
-                  : undefined;
-                if (!computerView && !page) {
-                  return;
-                }
-                return {
-                  folder: computerView?.folder ?? "~",
-                  ...(computerView?.mount ? { mount: computerView.mount } : {}),
-                  ...(page ? { page } : {}),
-                  selected: computerView?.selected ?? [],
-                };
-              }}
-              task={task.data}
-            />
-          </ChatRail>
+          <StudioSidebarRail
+            bounds={CHAT_BOUNDS}
+            isOpen={isChatOpen}
+            label="Resize Instrument"
+            onCollapse={() => {
+              setChatOpen(false);
+            }}
+            panelClassName="bg-background"
+            side="right"
+            widthAtom={orchestratorChatWidthAtom}
+          >
+            <div className="flex min-h-0 w-full flex-1 flex-col">
+              <header className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3 text-sm font-medium">
+                <InstrumentGlyph className="size-4" />
+                <span>{APP_NAME}</span>
+                {isBusy ? (
+                  <Spinner className="size-3 text-muted-foreground" />
+                ) : null}
+                <span className="flex-1" />
+                <button
+                  aria-label="Hide Instrument"
+                  className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                  onClick={() => {
+                    setChatOpen(false);
+                  }}
+                  type="button"
+                >
+                  <SidebarSimpleIcon className="size-4 -scale-x-100" />
+                </button>
+              </header>
+              <div className="min-h-0 flex-1">
+                <TaskChat
+                  alwaysSubmittable
+                  composerLead={<ActivityStrip running={running} />}
+                  navigateOnSend={false}
+                  presentation="orchestrator"
+                  promptDraft={state.data.promptDraft ?? ""}
+                  selectedModelURI={
+                    state.data.selectedModelURI ?? defaultModelURI
+                  }
+                  selectedSessionId={screens.sessionId}
+                  sendContext={async () => {
+                    const page = isBrowserScreen
+                      ? await browser?.readPage()
+                      : undefined;
+                    if (!computerView && !page) {
+                      return;
+                    }
+                    return {
+                      folder: computerView?.folder ?? "~",
+                      ...(computerView?.mount
+                        ? { mount: computerView.mount }
+                        : {}),
+                      ...(page ? { page } : {}),
+                      selected: computerView?.selected ?? [],
+                    };
+                  }}
+                  task={task.data}
+                />
+              </div>
+            </div>
+          </StudioSidebarRail>
         </Frame>
       </FileOpenContext>
     </OrchestratorContext>
@@ -360,8 +428,11 @@ function recentFor({
     case "/orchestrator/computer": {
       const path = typeof search.path === "string" ? search.path : "";
       const folder = path.replace(/\/$/, "").split("/").at(-1);
-      // This Mac itself is a place in the sidebar already.
-      return folder ? { href, kind: "folder", title: folder } : undefined;
+      // The roots are places in the sidebar already.
+      if (!folder) {
+        return undefined;
+      }
+      return { href, kind: "folder", title: folder };
     }
     case "/orchestrator/file": {
       const path = typeof search.path === "string" ? search.path : "";
@@ -374,6 +445,42 @@ function recentFor({
       return undefined;
     }
   }
+}
+
+/**
+ * Back and forward as a browser has them: Cmd+[ and Cmd+], and the thumb
+ * buttons on a mouse. The webview swallows its own, so these reach only the
+ * window's own screens.
+ */
+function useHistoryShortcuts() {
+  const router = useRouter();
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.metaKey || event.altKey || event.ctrlKey) {
+        return;
+      }
+      if (event.key === "[") {
+        event.preventDefault();
+        router.history.back();
+      } else if (event.key === "]") {
+        event.preventDefault();
+        router.history.forward();
+      }
+    };
+    const onMouseUp = (event: MouseEvent) => {
+      if (event.button === 3) {
+        router.history.back();
+      } else if (event.button === 4) {
+        router.history.forward();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [router]);
 }
 
 /**
@@ -397,16 +504,7 @@ function useRecordRecents({
     pathname.startsWith("/orchestrator/tasks/") &&
     childTitles.get(pathname.slice("/orchestrator/tasks/".length) as TaskId);
 
-  useEffect(() => {
-    const entry = recentFor({
-      href,
-      pathname,
-      search,
-      taskTitle: taskTitle || undefined,
-    });
-    if (!entry) {
-      return;
-    }
+  const record = (entry: Omit<OrchestratorRecent, "at">) => {
     setRecents((current) => {
       const previous = current.find((recent) => recent.href === entry.href);
       const title =
@@ -417,6 +515,26 @@ function useRecordRecents({
         ...current.filter((recent) => recent.href !== entry.href),
       ].slice(0, RECENTS_MAX);
     });
+  };
+
+  useEffect(() => {
+    const entry = recentFor({
+      href,
+      pathname,
+      search,
+      taskTitle: taskTitle || undefined,
+    });
+    if (!entry) {
+      return;
+    }
+    // A screen counts once the user has stayed on it a moment: clicking down
+    // through folders passes through many that were never the destination.
+    const timer = setTimeout(() => {
+      record(entry);
+    }, RECENT_DWELL_MS);
+    return () => {
+      clearTimeout(timer);
+    };
     // The search object is a new one each render; its address is what matters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [href, pathname, taskTitle, setRecents]);

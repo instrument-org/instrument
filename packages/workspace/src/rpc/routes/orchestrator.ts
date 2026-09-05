@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+import {
+  orchestratorActivity,
+  OrchestratorActivitySchema,
+} from "../../lib/orchestrator/activity";
 import { listChildTasks } from "../../lib/orchestrator/children";
 import { ensureOrchestrator } from "../../lib/orchestrator/ensure";
 import {
@@ -12,6 +16,12 @@ import { StoreId } from "../../schemas/store-id";
 import { TaskSchema } from "../../schemas/task";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { base, toORPCError } from "../base";
+
+/** What the orchestrator's tasks are doing right now. */
+const activity = base
+  .input(z.object({ id: TaskIdSchema }))
+  .output(OrchestratorActivitySchema)
+  .handler(({ input }) => orchestratorActivity(input.id));
 
 /** The tasks an orchestrator created, newest activity first. */
 const children = base
@@ -53,6 +63,7 @@ const listFolder = base
   );
 
 export const orchestrator = {
+  activity,
   children,
   ensure,
   listFolder,

@@ -5,6 +5,9 @@ import { globalIgnores } from "eslint/config";
 
 export default [
   globalIgnores([
+    // Vendored from a component registry; kept as it arrived.
+    "src/client/components/extend/**",
+    "src/client/lib/pdf-thumbnail-utils.ts",
     "**/*.snap",
     "*.local",
     "src/client/routeTree.gen.ts",

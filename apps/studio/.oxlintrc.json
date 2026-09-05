@@ -10,7 +10,9 @@
     "**/out",
     "**/dist",
     "**/bin",
-    "**/coverage"
+    "**/coverage",
+    "**/components/extend",
+    "**/lib/pdf-thumbnail-utils.ts"
   ],
   "jsPlugins": ["oxlint-tailwindcss"],
   "settings": {

@@ -124,8 +124,9 @@ export async function listOrchestratorFolder({
 
   return {
     entries,
-    hostPath:
-      normalized.startsWith(`${MOUNT.tasks}/`) ? undefined : resolved.hostPath,
+    hostPath: normalized.startsWith(`${MOUNT.tasks}/`)
+      ? undefined
+      : resolved.hostPath,
     path: normalized,
     truncated,
   };

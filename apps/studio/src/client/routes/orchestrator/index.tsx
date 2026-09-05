@@ -257,7 +257,10 @@ function OrchestratorRoute() {
             {(
               [
                 ["computer", "Computer"],
-                ["tasks", `Tasks${childIds.length > 0 ? ` (${childIds.length})` : ""}`],
+                [
+                  "tasks",
+                  `Tasks${childIds.length > 0 ? ` (${childIds.length})` : ""}`,
+                ],
               ] as const
             ).map(([id, label]) => (
               <button

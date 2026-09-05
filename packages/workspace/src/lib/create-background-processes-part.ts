@@ -83,9 +83,7 @@ export async function createBackgroundProcessesPart({
       )
       .map(({ command, id }) => ({ command, id }));
     const stillThereIds = new Set(stillThere.map((process) => process.id));
-    const ended = previous.filter(
-      (process) => !stillThereIds.has(process.id),
-    );
+    const ended = previous.filter((process) => !stillThereIds.has(process.id));
 
     // Nothing running and nothing to correct is the common case.
     if (running.length === 0 && ended.length === 0) {

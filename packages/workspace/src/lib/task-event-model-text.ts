@@ -39,5 +39,7 @@ export function taskEventModelNote(
 }
 
 function formatTokens(tokens: number) {
-  return tokens >= 1000 ? `${(tokens / 1000).toFixed(tokens >= 10_000 ? 0 : 1)}K` : String(tokens);
+  return tokens >= 1000
+    ? `${(tokens / 1000).toFixed(tokens >= 10_000 ? 0 : 1)}K`
+    : String(tokens);
 }

@@ -128,7 +128,7 @@ export function FolderView({
           </span>
         ))}
         <span className="flex-1" />
-        {folder !== "/" ? (
+        {folder === "/" ? null : (
           <Button
             onClick={() => {
               void reveal();
@@ -139,7 +139,7 @@ export function FolderView({
             <ArrowSquareOutIcon className="size-4" />
             Show in Finder
           </Button>
-        ) : null}
+        )}
         <Button
           disabled={attach.isPending}
           onClick={() => {
@@ -173,9 +173,7 @@ export function FolderView({
             <thead className="sticky top-0 bg-background text-xs text-muted-foreground">
               <tr className="border-b border-border">
                 <th className="px-3 py-1.5 text-left font-medium">Name</th>
-                <th className="w-40 px-3 py-1.5 text-left font-medium">
-                  Kind
-                </th>
+                <th className="w-40 px-3 py-1.5 text-left font-medium">Kind</th>
                 <th className="w-24 px-3 py-1.5 text-right font-medium">
                   Size
                 </th>

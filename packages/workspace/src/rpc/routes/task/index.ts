@@ -174,7 +174,16 @@ const create = base
     async ({
       context,
       errors,
-      input: { files, folders, intent, kind, modelURI, name, projectId, prompt },
+      input: {
+        files,
+        folders,
+        intent,
+        kind,
+        modelURI,
+        name,
+        projectId,
+        prompt,
+      },
       signal,
     }) => {
       const modelResult = await fetchModel({

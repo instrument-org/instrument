@@ -25,9 +25,10 @@ import fs from "node:fs";
 import { noop } from "radashi";
 
 import {
-  applyChromeBrandedMetadata,
+  applyProductBrandedMetadata,
   applyStandardUserAgent,
 } from "../lib/user-agent";
+import { selectWebAuthnAccountOnRequest } from "../lib/web-authn";
 import { attachDevHooks, notifyDebugChange } from "./dev-hooks";
 import { type DeviceEmulation, setDeviceEmulation } from "./device-emulation";
 import { sendCommand } from "./dispatch-command";
@@ -149,10 +150,10 @@ export function createBrowserViewManager(): BrowserViewManager {
     }
     const { targetId } = entry;
     wc.debugger.attach("1.3");
-    // Pairs with the guest session's Chrome-branded client hints: the headers
+    // Pairs with the guest session's product-branded client hints: the headers
     // and navigator.userAgentData have to name the same browser, and this is
     // the only side that needs the debugger.
-    applyChromeBrandedMetadata(wc);
+    applyProductBrandedMetadata(wc);
 
     wc.debugger.on("message", (_event, method, params: unknown) => {
       const current = entries.get(targetId);
@@ -696,11 +697,14 @@ function sessionForEntry(entry: BrowserEntry) {
     callback(false);
   });
   guestSession.setPermissionCheckHandler(() => false);
-  // Normalize the guest's User-Agent to a standard Chrome UA (and matching
-  // client hints) so third-party services treat it like an ordinary browser.
-  // Branded as Chrome because the guest's pages get the matching metadata over
-  // CDP; see applyChromeBrandedMetadata.
-  applyStandardUserAgent(guestSession, { chromeBranded: true });
+  // Normalize the guest's User-Agent to the shape an ordinary Chromium-derived
+  // browser ships (and matching client hints) so third-party services treat it
+  // like one. Branded with the app's own name because the guest's pages get the
+  // matching metadata over CDP; see applyProductBrandedMetadata.
+  applyStandardUserAgent(guestSession, { productBranded: true });
+  // Required, not optional: a passkey sign-in that finds more than one
+  // credential is cancelled outright when nothing answers this.
+  selectWebAuthnAccountOnRequest(guestSession);
   return guestSession;
 }
 

@@ -1,4 +1,5 @@
 import {
+  isExpectedNetworkError,
   type ProviderErrorEvidence,
   type ProviderErrorKind,
 } from "@instrument-org/shared";
@@ -99,11 +100,18 @@ const NOT_CONTEXT_OVERFLOW_PATTERNS = [/rate limit/i, /too many requests/i];
 /**
  * Say what a provider's rejection was about.
  *
- * Two shapes arrive, and both are provider verdicts. A failed request reaches
+ * Two of the shapes that arrive are provider verdicts. A failed request reaches
  * the SDK as an `APICallError` carrying a status and a body. A request that
  * succeeded and then failed part-way through the stream reaches us as a bare
  * object, because by then the status was already 200; see `readStreamedError`.
  * Both are reduced to the same evidence and weighed the same way.
+ *
+ * The third is not a verdict at all. The connection died, so there is no
+ * status, no body, and nothing a provider wrote: what arrives is whatever the
+ * runtime raises for a socket that closed, most often a bare `TypeError` whose
+ * message is the whole of what it knows. It is named here anyway, because the
+ * question the caller is asking is what should happen next, and the answer is
+ * the one a 5xx gets.
  *
  * `unknown` is a real answer and the common one. It means the caller should do
  * exactly what it did before this module existed.
@@ -122,6 +130,13 @@ export function classifyProviderError(
       // SDK's message is sometimes the status line alone, so both are searched.
       text: [error.message, error.responseBody].filter(Boolean).join("\n"),
     });
+  }
+
+  // Read before the streamed shape below, because a dropped connection can
+  // carry a `code` of its own -- `UND_ERR_SOCKET` -- and would otherwise be
+  // weighed as though a provider had put that code in a response body.
+  if (isExpectedNetworkError(error)) {
+    return { evidence: "transport", kind: "transient" };
   }
 
   const streamed = readStreamedError(error);

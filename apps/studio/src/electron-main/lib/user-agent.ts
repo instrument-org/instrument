@@ -1,34 +1,47 @@
 import { app, type Session, type WebContents } from "electron";
 
-// Present a standard desktop Chrome User-Agent for a session's outbound
-// requests. Some third-party services respond differently to the default
-// Electron User-Agent -- for example rate-limiting avatar/asset loads, or
-// handling sign-in inconsistently -- so we normalize the session to look like an
-// ordinary Chrome install for compatibility. Two steps per session:
+// Present the identity of an ordinary Chromium-derived desktop browser for a
+// session's outbound requests. Electron's own User-Agent departs from what any
+// shipping browser sends in two ways, and some third-party services respond
+// differently to it -- rate-limiting avatar/asset loads, or handling sign-in
+// inconsistently. Two steps per session:
 //
-//   1. session.setUserAgent(ua): remove the Electron and app-name product
-//      tokens from the session's real UA. This updates both the outbound
-//      User-Agent header and the in-page navigator.userAgent.
+//   1. session.setUserAgent(ua): drop the `Electron/<ver>` token, which names
+//      the framework rather than the browser, and reduce the Chrome version to
+//      the `<major>.0.0.0` form Chromium has sent since the Chrome 110 UA
+//      reduction. This updates both the outbound User-Agent header and the
+//      in-page navigator.userAgent.
 //   2. onBeforeSendHeaders: add the sec-ch-ua* client hints, on the requests
 //      Chromium would attach them to. Electron returns a null
 //      ClientHintsControllerDelegate, so its network stack never emits these
 //      headers on its own -- a Chrome-shaped UA that sends no client hints at
 //      all is the anomaly this step removes.
 //
-// The UA is derived by removing tokens from the real UA rather than
-// hand-writing one, so the AppleWebKit/Chrome/Safari tokens and the real
-// Chromium version stay accurate and feature detection keeps working.
+// The UA is derived by editing the real one rather than hand-writing it, so the
+// AppleWebKit/Chrome/Safari tokens and the real Chromium major stay accurate and
+// feature detection keeps working.
 //
-// The brand list obeys one rule: a site reading both surfaces sees one browser.
-// Which browser that is depends on whether the page half can move too. A session
-// with an attached debugger gets Chrome on both, through
-// applyChromeBrandedMetadata; one without keeps the engine's own brands on both,
-// because a header naming a browser the page denies is the contradiction this
-// module exists to prevent. Neither path writes to the page.
+// The identity obeys one rule: it names what this browser is. The app's own
+// product token stays in the UA, which is what makes this a browser that names
+// itself rather than one impersonating Chrome -- and that claim is checkable, so
+// a browser making it has to survive the check. Google's sign-in refuses a UA
+// with no product token for exactly that reason; see
+// docs/findings/a-bare-chrome-identity-is-what-google-refuses.md.
+//
+// The brand list follows the UA. A session whose pages can also move -- one with
+// an attached debugger, through applyProductBrandedMetadata -- names the app
+// alongside Chromium on both surfaces, the way every other Chromium-derived
+// browser does. One without keeps the engine's own brands on both, because a
+// header naming a brand the page denies is the contradiction this module exists
+// to prevent. Neither path writes to the page.
 
 const CHROME_VERSION = /\b(?:Chrome|Chromium)\/(\d+)\./;
 
-const CHROME_FULL_VERSION = /\b(?:Chrome|Chromium)\/(\d+(?:\.\d+)*)/;
+// The app's own product token, which Electron places immediately before
+// `Chrome/`: `<AppName>/<ver>`. Read back out of the UA rather than from
+// app.getName()/getVersion() so the brand list and the UA cannot drift, and so
+// a dev build's suffixed name ("Instrument(Dev)") carries through unchanged.
+const PRODUCT_TOKEN = / (\S[^\s/]*)\/(\S+)(?= Chrome\/)/;
 
 // Chromium derives its brand list from the major version alone: the real brand
 // entries plus a GREASE entry whose punctuation, version, and position in the
@@ -62,9 +75,9 @@ const BRAND_ORDERS: Record<number, number[][]> = {
 // Chromium counts the whole 127.0.0.0/8 range and every `.localhost` name.
 const LOOPBACK_HOST = /^(?:\[::1\]|127(?:\.\d{1,3}){3}|localhost)$/;
 
-// Give a guest's pages the Chrome-branded userAgentData its headers claim.
-// Requires an attached debugger, so this is the half of the pair that the app's
-// own session cannot have, and it must run before the first real navigation.
+// Give a guest's pages the userAgentData its headers claim. Requires an attached
+// debugger, so this is the half of the pair that the app's own session cannot
+// have, and it must run before the first real navigation.
 //
 // `acceptLanguage` rides along because it is the only thing that moves
 // navigator.languages: session.setUserAgent's own accept-language argument
@@ -75,10 +88,11 @@ const LOOPBACK_HOST = /^(?:\[::1\]|127(?:\.\d{1,3}){3}|localhost)$/;
 // The override lives on the page target for as long as the debugger stays
 // attached, so one call per guest is enough -- but it does not reach
 // out-of-process subframes, which keep reporting the engine's own brands.
-export function applyChromeBrandedMetadata(wc: WebContents): void {
+export function applyProductBrandedMetadata(wc: WebContents): void {
   const userAgent = normalizeUserAgent(wc.getUserAgent());
   const metadata = userAgentMetadata({
     arch: process.arch,
+    chromeVersion: process.versions.chrome,
     platform: process.platform,
     systemVersion: process.getSystemVersion(),
     userAgent,
@@ -103,13 +117,13 @@ export function applyChromeBrandedMetadata(wc: WebContents): void {
 // client hints. Re-callable -- setUserAgent and the single onBeforeSendHeaders
 // listener are both overwriting, so re-invoking on a reused session object (e.g.
 // sessionForEntry on every guest attach) just re-applies the same values.
-// `chromeBranded` belongs only to a session whose pages also get the matching
-// metadata through applyChromeBrandedMetadata. The app's own session cannot: no
-// debugger is attached to it, so its page would keep reporting Chromium while
-// its headers claimed otherwise.
+// `productBranded` belongs only to a session whose pages also get the matching
+// metadata through applyProductBrandedMetadata. The app's own session cannot: no
+// debugger is attached to it, so its page would keep reporting Chromium alone
+// while its headers named the app too.
 export function applyStandardUserAgent(
   ses: Session,
-  { chromeBranded = false }: { chromeBranded?: boolean } = {},
+  { productBranded = false }: { productBranded?: boolean } = {},
 ): void {
   const cleanUserAgent = normalizeUserAgent(ses.getUserAgent());
   ses.setUserAgent(cleanUserAgent, preferredAcceptLanguage());
@@ -117,8 +131,8 @@ export function applyStandardUserAgent(
     callback({
       requestHeaders: standardUserAgentHeaders({
         acceptLanguage: preferredAcceptLanguage(),
-        chromeBranded,
         platform: process.platform,
+        productBranded,
         requestHeaders: details.requestHeaders,
         url: details.url,
         userAgent: ses.getUserAgent(),
@@ -144,22 +158,21 @@ export function isPotentiallyTrustworthy(url: string): boolean {
   );
 }
 
-// Electron's default User-Agent is a standard Chrome UA with two extra product
-// tokens:
-//   ...(KHTML, like Gecko) <AppName>/<ver> Chrome/<ver> Electron/<ver> Safari/537.36
-// Remove both extra tokens -- the app-name token sits immediately before
-// `Chrome/`, the Electron token immediately after it -- leaving a standard Chrome
-// UA with the real AppleWebKit/Chrome/Safari tokens and Chromium version intact,
-// so feature detection keeps working.
+// Electron's default User-Agent:
+//   ...(KHTML, like Gecko) <AppName>/<ver> Chrome/<full> Electron/<ver> Safari/537.36
+// Remove the Electron token, which names the framework and not the browser, and
+// reduce `Chrome/<full>` to `<major>.0.0.0` -- the build and patch numbers
+// Chromium froze in the Chrome 110 UA reduction, which no shipping Chromium
+// browser has sent since. What is left is the shape they all ship: a product
+// token, a reduced Chrome version, and the real AppleWebKit/Safari tokens.
 //
-// Removed by position rather than by name because app.getName() doesn't reliably
-// equal the UA's app token -- dev/canary builds suffix it, so the UA carries
-// "Instrument(Dev)" while getName() returns "Instrument", and a name-based
-// removal silently misses it. Idempotent: a standard UA has no `/`-token before
-// `Chrome/` and no Electron token, so both replacements no-op.
+// The app-name token stays, and is the point rather than an oversight.
+//
+// Idempotent: an already-reduced version re-reduces to itself, and a UA with no
+// Electron token no-ops.
 export function normalizeUserAgent(userAgent: string): string {
   return userAgent
-    .replace(/ \S[^\s/]*\/\S+(?= Chrome\/)/, "")
+    .replace(/(\bChrome\/\d+)\.\d+\.\d+\.\d+/, "$1.0.0.0")
     .replace(/ Electron\/\S+/, "");
 }
 
@@ -173,26 +186,45 @@ export function platformHint(platform: NodeJS.Platform): string {
   return '"Linux"';
 }
 
+// The app's brand entry for the client-hint brand list, read out of the UA's
+// product token. Chromium reports a brand's significant version, so the entry
+// takes the token's major and keeps the full one for `fullVersionList`.
+export function productBrand(
+  userAgent: string,
+): null | { brand: string; fullVersion: string; version: string } {
+  const match = PRODUCT_TOKEN.exec(userAgent);
+  const brand = match?.[1];
+  const fullVersion = match?.[2];
+  if (brand == null || fullVersion == null) {
+    return null;
+  }
+  return {
+    brand,
+    fullVersion,
+    version: fullVersion.split(".")[0] ?? fullVersion,
+  };
+}
+
 // The brand list Chromium generates for a given major version, in the order it
 // generates it. `sec-ch-ua` has to serialize whatever the page reports through
 // navigator.userAgentData for the two surfaces to describe the same browser.
 //
-// `chromeBranded` produces the list a Google Chrome build reports, for a session
-// whose page-side metadata we also set (see userAgentMetadata). Without that
-// second half it would name a browser the page denies, which is the mismatch
-// this module exists to prevent -- so the flag travels with the override, never
-// on its own.
+// `product` adds the app's own brand beside Chromium, which is what every
+// Chromium-derived browser does with its own name. It belongs only to a session
+// whose page-side metadata we also set (see userAgentMetadata); without that
+// second half it would name a brand the page denies, which is the mismatch this
+// module exists to prevent -- so it travels with the override, never on its own.
 export function secChUaBrands(
   major: number,
-  { chromeBranded = false }: { chromeBranded?: boolean } = {},
+  { product }: { product?: null | { brand: string; version: string } } = {},
 ): { brand: string; version: string }[] {
   const grease = {
     brand: `Not${cycle(GREASE_CHARS, major)}A${cycle(GREASE_CHARS, major + 1)}Brand`,
     version: cycle(GREASE_VERSIONS, major),
   };
   const generated = [grease, { brand: "Chromium", version: String(major) }];
-  if (chromeBranded) {
-    generated.push({ brand: "Google Chrome", version: String(major) });
+  if (product != null) {
+    generated.push({ brand: product.brand, version: product.version });
   }
   return scatterBrands(generated, major);
 }
@@ -201,7 +233,7 @@ export function secChUaBrands(
 // null when no Chrome/Chromium version is present to derive from.
 export function secChUaHeader(
   userAgent: string,
-  options?: { chromeBranded?: boolean },
+  options?: { product?: null | { brand: string; version: string } },
 ): null | string {
   const major = CHROME_VERSION.exec(userAgent)?.[1];
   return major == null
@@ -216,22 +248,24 @@ export function secChUaHeader(
 // without touching Electron.
 export function standardUserAgentHeaders({
   acceptLanguage,
-  chromeBranded = false,
   platform,
+  productBranded = false,
   requestHeaders,
   url,
   userAgent,
 }: {
   acceptLanguage: string;
-  chromeBranded?: boolean;
   platform: NodeJS.Platform;
+  productBranded?: boolean;
   requestHeaders: Record<string, string>;
   url: string;
   userAgent: string;
 }): Record<string, string> {
   const cleanUserAgent = normalizeUserAgent(userAgent);
   const hinted = isPotentiallyTrustworthy(url);
-  const secChUa = secChUaHeader(cleanUserAgent, { chromeBranded });
+  const secChUa = secChUaHeader(cleanUserAgent, {
+    product: productBranded ? productBrand(cleanUserAgent) : null,
+  });
 
   // Drop any case-variant of the headers we set below so we replace Chromium's
   // own values rather than emitting duplicates, then write the canonical keys.
@@ -272,34 +306,46 @@ export function standardUserAgentHeaders({
 // getHighEntropyValues() call that returns nothing is its own inconsistency.
 // The platform values are Node-derivable: process.getSystemVersion() equals the
 // platformVersion Blink reports, and process.arch gives the rest.
+//
+// `chromeVersion` is process.versions.chrome, not the UA's version, because the
+// UA carries the reduced `<major>.0.0.0` while the high-entropy hints report the
+// real build -- which is the same split a real Chrome makes.
 export function userAgentMetadata({
   arch,
+  chromeVersion,
   platform,
   systemVersion,
   userAgent,
 }: {
   arch: string;
+  chromeVersion: string;
   platform: NodeJS.Platform;
   systemVersion: string;
   userAgent: string;
 }): null | Record<string, unknown> {
   const major = CHROME_VERSION.exec(userAgent)?.[1];
-  const fullVersion = CHROME_FULL_VERSION.exec(userAgent)?.[1];
-  if (major == null || fullVersion == null) {
+  if (major == null) {
     return null;
   }
-  const brands = secChUaBrands(Number(major), { chromeBranded: true });
+  const product = productBrand(userAgent);
+  const brands = secChUaBrands(Number(major), { product });
   return {
     architecture: arch === "arm64" || arch === "arm" ? "arm" : "x86",
     bitness: arch.includes("32") ? "32" : "64",
     brands,
-    fullVersion,
-    // The GREASE entry pads its own version out instead of borrowing the
-    // engine's, which is what Blink reports.
-    fullVersionList: brands.map(({ brand, version }) => ({
-      brand,
-      version: brand.startsWith("Not") ? `${version}.0.0.0` : fullVersion,
-    })),
+    fullVersion: chromeVersion,
+    // Each brand reports its own full version: the app's from its product token,
+    // the GREASE entry's padded out of its own rather than borrowed from the
+    // engine, and Chromium's the real build. This is what Blink reports.
+    fullVersionList: brands.map(({ brand, version }) => {
+      if (brand === product?.brand) {
+        return { brand, version: product.fullVersion };
+      }
+      return {
+        brand,
+        version: brand.startsWith("Not") ? `${version}.0.0.0` : chromeVersion,
+      };
+    }),
     mobile: false,
     model: "",
     platform: platformHint(platform).replaceAll('"', ""),

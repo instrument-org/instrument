@@ -4,6 +4,7 @@ import {
   isPotentiallyTrustworthy,
   normalizeUserAgent,
   platformHint,
+  productBrand,
   secChUaBrands,
   secChUaHeader,
   standardUserAgentHeaders,
@@ -14,39 +15,85 @@ import {
 
 const ELECTRON_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
-  "(KHTML, like Gecko) Studio/1.3.1 Chrome/128.0.0.0 Electron/32.0.1 " +
+  "(KHTML, like Gecko) Studio/1.3.1 Chrome/128.0.6613.120 Electron/32.0.1 " +
   "Safari/537.36";
 
-// The normalized UA this Electron produces, full version left intact.
+// The normalized UA this Electron produces: the app's product token kept, the
+// Electron token dropped, the Chrome version reduced.
 const CHROME_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
-  "(KHTML, like Gecko) Chrome/148.0.7778.218 Safari/537.36";
+  "(KHTML, like Gecko) Instrument/1.6.14 Chrome/148.0.0.0 Safari/537.36";
+
+// What process.versions.chrome reports on the same build. The UA carries the
+// reduced version; the high-entropy hints carry this one.
+const CHROME_BUILD = "148.0.7778.218";
 
 describe("normalizeUserAgent", () => {
-  it("removes the app-name and Electron tokens, keeping the rest truthful", () => {
+  it("drops the Electron token and reduces the Chrome version, keeping the app's", () => {
     expect(normalizeUserAgent(ELECTRON_UA)).toMatchInlineSnapshot(
-      `"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"`,
+      `"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Studio/1.3.1 Chrome/128.0.0.0 Safari/537.36"`,
     );
   });
 
-  it("removes a dev-suffixed app token that would not match app.getName()", () => {
+  it("keeps a dev-suffixed app token, which app.getName() would not match", () => {
     const dev =
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
       "(KHTML, like Gecko) Instrument(Dev)/1.3.1-beta.0 Chrome/148.0.7778.218 " +
       "Electron/40.0.0 Safari/537.36";
     expect(normalizeUserAgent(dev)).toMatchInlineSnapshot(
-      `"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.7778.218 Safari/537.36"`,
+      `"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Instrument(Dev)/1.3.1-beta.0 Chrome/148.0.0.0 Safari/537.36"`,
     );
   });
 
-  it("is idempotent on an already-standard Chrome UA", () => {
-    const clean =
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-      "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
-    expect(normalizeUserAgent(clean)).toBe(clean);
+  it("is idempotent on a UA it has already normalized", () => {
+    expect(normalizeUserAgent(CHROME_UA)).toBe(CHROME_UA);
     expect(normalizeUserAgent(normalizeUserAgent(ELECTRON_UA))).toBe(
       normalizeUserAgent(ELECTRON_UA),
     );
+  });
+
+  // The bare-Chrome shape this used to produce is the one Google's sign-in
+  // refuses: a UA claiming to be Chrome from a runtime that fails Chrome's own
+  // checks. Any honest product token clears it.
+  it("leaves a product token in place, which is what the identity rests on", () => {
+    expect(productBrand(normalizeUserAgent(ELECTRON_UA))).not.toBeNull();
+  });
+});
+
+describe("productBrand", () => {
+  it("reads the app's name and version out of the UA's product token", () => {
+    expect(productBrand(CHROME_UA)).toMatchInlineSnapshot(`
+      {
+        "brand": "Instrument",
+        "fullVersion": "1.6.14",
+        "version": "1",
+      }
+    `);
+  });
+
+  it("takes the significant version for the brand and keeps the full one", () => {
+    expect(
+      productBrand(
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " +
+          "(KHTML, like Gecko) Instrument(Dev)/12.3.4-beta.0 Chrome/148.0.0.0 " +
+          "Safari/537.36",
+      ),
+    ).toMatchInlineSnapshot(`
+      {
+        "brand": "Instrument(Dev)",
+        "fullVersion": "12.3.4-beta.0",
+        "version": "12",
+      }
+    `);
+  });
+
+  it("returns null for a UA carrying no product token", () => {
+    expect(
+      productBrand(
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+          "(KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+      ),
+    ).toBeNull();
   });
 });
 
@@ -115,7 +162,11 @@ describe("secChUaBrands", () => {
   // order. Getting the order wrong is not cosmetic -- it is the page and the
   // header describing two different browsers again.
   it("matches a real Chrome build's own three-brand list and order", () => {
-    expect(secChUaBrands(152, { chromeBranded: true })).toMatchInlineSnapshot(`
+    expect(
+      secChUaBrands(152, {
+        product: { brand: "Google Chrome", version: "152" },
+      }),
+    ).toMatchInlineSnapshot(`
       [
         {
           "brand": "Chromium",
@@ -134,15 +185,17 @@ describe("secChUaBrands", () => {
   });
 
   it("scatters the three-brand list differently for another major", () => {
-    expect(secChUaBrands(148, { chromeBranded: true })).toMatchInlineSnapshot(`
+    expect(
+      secChUaBrands(148, { product: { brand: "Instrument", version: "1" } }),
+    ).toMatchInlineSnapshot(`
       [
         {
           "brand": "Chromium",
           "version": "148",
         },
         {
-          "brand": "Google Chrome",
-          "version": "148",
+          "brand": "Instrument",
+          "version": "1",
         },
         {
           "brand": "Not/A)Brand",
@@ -156,9 +209,9 @@ describe("secChUaBrands", () => {
     const unbranded = secChUaBrands(148).find(({ brand }) =>
       brand.startsWith("Not"),
     );
-    const branded = secChUaBrands(148, { chromeBranded: true }).find(
-      ({ brand }) => brand.startsWith("Not"),
-    );
+    const branded = secChUaBrands(148, {
+      product: { brand: "Instrument", version: "1" },
+    }).find(({ brand }) => brand.startsWith("Not"));
     expect(branded).toEqual(unbranded);
   });
 });
@@ -167,10 +220,11 @@ describe("userAgentMetadata", () => {
   // Every field is pinned because an omitted one comes back empty from
   // getHighEntropyValues rather than falling back to what Blink would say, and
   // an empty high-entropy answer is its own inconsistency.
-  it("reproduces what Blink derives, with the branded list", () => {
+  it("reproduces what Blink derives, naming the app beside Chromium", () => {
     expect(
       userAgentMetadata({
         arch: "arm64",
+        chromeVersion: CHROME_BUILD,
         platform: "darwin",
         systemVersion: "26.6.2",
         userAgent: CHROME_UA,
@@ -185,8 +239,8 @@ describe("userAgentMetadata", () => {
             "version": "148",
           },
           {
-            "brand": "Google Chrome",
-            "version": "148",
+            "brand": "Instrument",
+            "version": "1",
           },
           {
             "brand": "Not/A)Brand",
@@ -200,8 +254,8 @@ describe("userAgentMetadata", () => {
             "version": "148.0.7778.218",
           },
           {
-            "brand": "Google Chrome",
-            "version": "148.0.7778.218",
+            "brand": "Instrument",
+            "version": "1.6.14",
           },
           {
             "brand": "Not/A)Brand",
@@ -221,6 +275,7 @@ describe("userAgentMetadata", () => {
     expect(
       userAgentMetadata({
         arch: "x64",
+        chromeVersion: CHROME_BUILD,
         platform: "win32",
         systemVersion: "10.0.22631",
         userAgent: CHROME_UA,
@@ -237,6 +292,7 @@ describe("userAgentMetadata", () => {
     expect(
       userAgentMetadata({
         arch: "arm64",
+        chromeVersion: CHROME_BUILD,
         platform: "darwin",
         systemVersion: "26.6.2",
         userAgent: "Mozilla/5.0 Safari/537.36",
@@ -360,12 +416,26 @@ describe("standardUserAgentHeaders", () => {
       {
         "Accept": "text/html",
         "Accept-Language": "en-US,en;q=0.9",
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Studio/1.3.1 Chrome/128.0.0.0 Safari/537.36",
         "sec-ch-ua": ""Not;A=Brand";v="24", "Chromium";v="128"",
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": ""macOS"",
       }
     `);
+  });
+
+  it("names the app beside Chromium for a product-branded session", () => {
+    const result = standardUserAgentHeaders({
+      acceptLanguage: "en-US,en;q=0.9",
+      platform: "darwin",
+      productBranded: true,
+      requestHeaders: { "User-Agent": ELECTRON_UA },
+      url: "https://example.com/",
+      userAgent: ELECTRON_UA,
+    });
+    expect(result["sec-ch-ua"]).toMatchInlineSnapshot(
+      `""Chromium";v="128", "Not;A=Brand";v="24", "Studio";v="1""`,
+    );
   });
 
   it("replaces a differently-cased existing header rather than duplicating it", () => {

@@ -1,6 +1,6 @@
 # What the task browser reports about itself
 
-**Status:** current. Measured 2026-09-01 on Electron 42.3.3 (Chromium 148.0.7778.218), macOS 26.6.2 arm64, against a live `<webview>` guest. The identity and language mismatches it found are corrected in the guest; the rest is a reading rather than a fix. Three earlier readings in this file were wrong and are corrected in place, each with the reason: every one of them came of skipping a control, which is the failure mode this subject invites.
+**Status:** current, except that the identity the guest presents has changed since. It names the app rather than Google Chrome, because a UA claiming to be stock Chrome is what Google's sign-in refuses — see [a-bare-chrome-identity-is-what-google-refuses](a-bare-chrome-identity-is-what-google-refuses.md). Everything measured here about the surface behind that name still holds. Measured 2026-09-01 on Electron 42.3.3 (Chromium 148.0.7778.218), macOS 26.6.2 arm64, against a live `<webview>` guest. The identity and language mismatches it found are corrected in the guest; the rest is a reading rather than a fix. Three earlier readings in this file were wrong and are corrected in place, each with the reason: every one of them came of skipping a control, which is the failure mode this subject invites.
 
 A user reported that a large retail site refused the task browser, serving a hold-to-confirm human check from an iframe that, once it fired, covered the whole origin rather than the page that tripped it. Running that down meant establishing what the guest actually says about itself, and comparing every answer against a real Chrome on the same machine rather than against what a specification says it should be. This records where the two differ, what each difference is worth, and which of them turned out not to be differences at all. The header and client-hint half of the same question is [browser-client-hints-are-ours-not-chromium-s](browser-client-hints-are-ours-not-chromium-s.md).
 
@@ -50,6 +50,8 @@ An earlier reading here claimed the opposite. It used a regex with an overridden
 ## Correcting the identity
 
 The one red a conformance suite returned was the identity pair: `navigator.userAgentData` carried `Chromium` and no Google Chrome brand, which it flags directly as the signature of a non-branded build. The header had already been made to agree with the page by the client-hints work, so both surfaces were coherent and both were describing a build the app is not.
+
+That framing took the suite's word for what the right answer was, and the suite was wrong about this app. The brand is the app's own now, beside Chromium — a non-branded build is what this is, and naming Google Chrome instead is the claim Google refuses. What survives is the machinery below, which is agnostic about which third brand it carries: both surfaces still have to move together, the order is still derived, and every high-entropy field is still sent.
 
 Correcting it needs both halves to move together, and the page half is the one that looked impossible. It is not: CDP's `Emulation.setUserAgentOverride` takes a `userAgentMetadata`, and Blink then serves `navigator.userAgentData` from it. The properties stay native, no descriptor or function source is disturbed, and nothing is written into the page. Guests get it at debugger attach; the app's own session does not, because no debugger is attached there and a header claiming what its page denies is the mismatch this is all about.
 
@@ -116,7 +118,7 @@ What survives for the agent's own guidance does not depend on the mechanism, whi
 
 The converse is worth stating too, because both this file and the agent's guidance point at the browser as the remedy. A real browser was refused by this host minutes either side of a scripted client being served. Staying in the browser is the better bet and not a guarantee, so the honest end of that path is telling the user the site is refusing, not working down a list of clients.
 
-This says nothing about what happened to the browser itself, which is a separate refusal served as an interstitial. A deliberate reproduction loaded one page cleanly and was refused on the very next request, which no reading here explains.
+This says nothing about what happened to the browser itself, which is a separate refusal served as an interstitial. A deliberate reproduction loaded one page cleanly and was refused on the very next request, which no reading here explains. Reproduced again since, within three page views and with a real browser on the same machine unaffected, which rules volume out for that refusal as firmly as this section rules it out for these. It has its own row in [what-refuses-the-task-browser](what-refuses-the-task-browser.md); do not read this section as having explained it.
 
 Pacing a run of same-origin pages remains ordinary courtesy, but it should not be sold as the fix for a block, because here it was not the cause.
 

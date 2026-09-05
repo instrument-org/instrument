@@ -1,6 +1,6 @@
 {
   "name": "@instrument-org/studio",
-  "version": "1.6.13",
+  "version": "1.6.14-beta.3",
   "description": "Private AI workspace on your computer",
   "repository": {
     "type": "git",
@@ -52,7 +52,8 @@
     "turbo:check": "turbo run check:types check:lint",
     "turbo:check-and-test": "turbo run check:types check:lint test:ci",
     "turbo:test": "turbo run test test:ci",
-    "uv:download": "node scripts/download-uv.ts"
+    "uv:download": "node scripts/download-uv.ts",
+    "verify-packaged-app": "node scripts/verify-packaged-app.ts"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",

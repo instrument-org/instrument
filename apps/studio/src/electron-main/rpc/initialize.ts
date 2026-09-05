@@ -1,4 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
+import { isExpectedNetworkError } from "@instrument-org/shared";
 import {
   type WorkspaceActorRef,
   type WorkspaceConfig,
@@ -11,7 +12,6 @@ import { EventEmitter } from "node:events";
 import { type BrowserViewManager } from "../browser-view/manager";
 import { captureServerException } from "../lib/capture-server-exception";
 import { type AppUpdaterHandle } from "../lib/create-app-updater";
-import { isExpectedNetworkError } from "../lib/is-network-error";
 import { type InitialRPCContext } from "./context";
 import { createErrorClientInterceptor } from "./error-interceptor";
 import { router } from "./routes";

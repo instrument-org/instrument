@@ -28,17 +28,16 @@ const FLOWS = "docs/plans/active";
 const OUT = `${FLOWS}/wireframes-index.html`;
 
 /**
- * Optional, and the only way to get grouping or hand-written descriptions.
- * One entry per line, `file.html | Title | Description`, with the last two
- * optional. A `# Heading` line starts a group. Blank lines are skipped.
- * Its order is the order of the index.
+ * Optional, and the only way to get grouping or a hand-written title.
+ * One entry per line, `file.html | Title`, with the title optional. A
+ * `# Heading` line starts a group. Blank lines are skipped. Its order is the
+ * order of the index.
  */
 const MANIFEST = `${FLOWS}/wireframes-index.txt`;
 
 interface Entry {
   file: string;
   group?: string;
-  note: string;
   title: string;
 }
 
@@ -69,25 +68,6 @@ const readTitle = (html: string, file: string) => {
 };
 
 /**
- * A wireframe names its topic in SUBTITLE. A page passed by path may have no
- * such constant, so fall back to the first sentence of its opening paragraph.
- */
-const readNote = (html: string) => {
-  const subtitle = /const SUBTITLE = "([^"]*)"/.exec(html)?.[1];
-  if (subtitle !== undefined) return subtitle;
-
-  const header = /<header[^>]*>([\s\S]*?)<\/header>/.exec(html);
-  const paragraph = [
-    ...(header?.[1] ?? "").matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g),
-  ]
-    .map((m) => decode(stripTags(m[1] ?? "")))
-    .find((t) => t.length > 40);
-  const first = paragraph ?? "";
-  const text = /^(.+?[.?!])(?:\s|$)/.exec(first)?.[1] ?? first;
-  return text.length > 130 ? `${text.slice(0, 127)}...` : text;
-};
-
-/**
  * Wireframes only. Counts the state objects rather than trusting a comment.
  * A frame's own data can carry a nested `title:` of its own, so only the
  * shallowest indentation in the array is a state.
@@ -112,7 +92,7 @@ const locate = (name: string) => {
   for (const candidate of [name, `${FLOWS}/${name}`]) {
     if (existsSync(path.join(REPO_ROOT, candidate))) return candidate;
   }
-  throw new Error(`build-index: no such artifact: ${name}`);
+  return undefined;
 };
 
 const fromManifest = (): Entry[] => {
@@ -129,15 +109,17 @@ const fromManifest = (): Entry[] => {
       group = line.slice(1).trim();
       continue;
     }
-    const [name = "", title, note] = line.split("|").map((part) => part.trim());
+    const [name = "", title] = line.split("|").map((part) => part.trim());
     const file = locate(name);
+    // A curated list outlives the files in it, so a name that no longer
+    // resolves costs its own row rather than the whole index. The heading
+    // above it is left standing for whatever follows.
+    if (!file) {
+      console.warn(`build-index: skipping missing artifact: ${name}`);
+      continue;
+    }
     const html = readFileSync(path.join(REPO_ROOT, file), "utf8");
-    entries.push({
-      file,
-      group,
-      note: note || readNote(html),
-      title: title || readTitle(html, file),
-    });
+    entries.push({ file, group, title: title || readTitle(html, file) });
     group = undefined; // a heading applies to the run that follows it
   }
   return entries;
@@ -145,11 +127,18 @@ const fromManifest = (): Entry[] => {
 
 const describe = (file: string): Entry => {
   const html = readFileSync(path.join(REPO_ROOT, file), "utf8");
-  return { file, note: readNote(html), title: readTitle(html, file) };
+  return { file, title: readTitle(html, file) };
 };
 
 const chooseSet = (paths: string[]): Entry[] => {
-  if (paths.length > 0) return paths.map((p) => describe(locate(p)));
+  // A path given on the command line was asked for by name, so a miss there is
+  // a mistake worth stopping on rather than a stale line in a long list.
+  if (paths.length > 0)
+    return paths.map((given) => {
+      const file = locate(given);
+      if (!file) throw new Error(`build-index: no such artifact: ${given}`);
+      return describe(file);
+    });
   if (existsSync(path.join(REPO_ROOT, MANIFEST))) return fromManifest();
   return globSync(`${FLOWS}/wireframes-*.html`, { cwd: REPO_ROOT })
     .filter((file) => file !== OUT)
@@ -180,37 +169,29 @@ body.solo #rail{opacity:0;pointer-events:none}
 #rail p{font-size:12px;line-height:17px;color:#79716b;margin:6px 0 0}
 .group{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#57534e;
   padding:20px 20px 8px;font-weight:600}
-a.item{display:block;padding:9px 20px 10px;text-decoration:none;color:inherit;
-  border-left:2px solid transparent}
-a.item:hover{background:#1c1917}
-a.item.on{background:#221f1d;border-left-color:#0e7869}
-a.item .t{display:flex;align-items:baseline;gap:7px}
-a.item .n{font-size:10px;color:#57534e;font-variant-numeric:tabular-nums;min-width:14px}
-a.item .name{font-size:13px;font-weight:500;line-height:18px}
-a.item.on .name{color:#fff}
-a.item .d{display:block;font-size:11px;line-height:15px;color:#79716b;margin:3px 0 0 21px}
-a.item .f{font-size:10px;color:#57534e;margin-left:auto;white-space:nowrap}
+.item{display:flex;align-items:flex-start;border-left:2px solid transparent}
+.item:hover{background:#1c1917}
+.item.on{background:#221f1d;border-left-color:#0e7869}
+.pick{flex:1;min-width:0;display:flex;align-items:baseline;gap:7px;font:inherit;color:inherit;
+  background:none;border:0;text-align:left;cursor:pointer;padding:9px 4px 10px 20px}
+.pick .n{font-size:10px;color:#57534e;font-variant-numeric:tabular-nums;min-width:14px}
+.pick .name{font-size:13px;font-weight:500;line-height:18px}
+.item.on .name{color:#fff}
+.pick .f{font-size:10px;color:#57534e;margin-left:auto;white-space:nowrap}
+/* Opening the real file is the one thing the pane cannot do, since a frame
+   enlarges into the pane rather than the window. It belongs on the row it
+   opens, not in a bar over the artifact. */
+.open{flex:none;display:grid;place-items:center;width:24px;height:24px;margin:6px 12px 0 0;
+  border-radius:5px;color:#79716b;text-decoration:none;font-size:12px;opacity:.35}
+.item:hover .open{opacity:1}
+.open:hover{background:#44403c;color:#fff}
 #stage{position:relative;background:#fafaf9;overflow:hidden}
 #frame{width:100%;height:100%;border:0;display:block;background:#fafaf9}
-#bar{position:absolute;top:12px;right:12px;z-index:5;display:flex;gap:6px;align-items:center;
-  background:rgba(23,20,18,.86);backdrop-filter:blur(8px);border-radius:9px;padding:5px 6px;
-  opacity:0;transition:opacity .14s ease}
-#stage:hover #bar{opacity:1}
-#bar button,#bar a{font:inherit;font-size:11px;color:#d7d3d0;background:none;border:0;
-  cursor:pointer;padding:4px 8px;border-radius:6px;text-decoration:none;white-space:nowrap}
-#bar button:hover,#bar a:hover{background:#44403c;color:#fff}
-#bar .sep{width:1px;height:14px;background:#44403c}
-#hint{position:absolute;left:12px;bottom:12px;z-index:5;font-size:11px;color:#a9a29d;
-  background:rgba(23,20,18,.86);backdrop-filter:blur(8px);padding:5px 9px;border-radius:8px;
-  opacity:0;transition:opacity .14s ease}
-#stage:hover #hint{opacity:1}
-kbd{font:inherit;font-size:10px;background:#44403c;color:#fafaf9;border-radius:3px;
-  padding:1px 4px;margin:0 1px}
 `;
 
 const JS = `
 const docs = JSON.parse(document.getElementById("docs").textContent);
-const items = [...document.querySelectorAll("a.item")];
+const items = [...document.querySelectorAll(".item")];
 const frame = document.getElementById("frame");
 let at = -1;
 
@@ -219,16 +200,12 @@ function show(i) {
   at = i;
   items.forEach((el, n) => el.classList.toggle("on", n === i));
   frame.srcdoc = docs[items[i].dataset.key];
-  document.getElementById("open").href = items[i].dataset.path;
   document.title = items[i].dataset.name + " \\u00b7 " + document.querySelector("#rail h1").textContent;
   items[i].scrollIntoView({ block: "nearest" });
   history.replaceState(null, "", "#" + items[i].dataset.key);
 }
 
-items.forEach((el, i) => el.addEventListener("click", (e) => { e.preventDefault(); show(i); }));
-document.getElementById("prev").addEventListener("click", () => show(at - 1));
-document.getElementById("next").addEventListener("click", () => show(at + 1));
-document.getElementById("solo").addEventListener("click", () => document.body.classList.toggle("solo"));
+items.forEach((el, i) => el.querySelector(".pick").addEventListener("click", () => show(i)));
 
 addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -259,12 +236,12 @@ const build = (entries: Entry[], out: string) => {
     if (entry.group)
       rail.push(`<div class="group">${escapeHtml(entry.group)}</div>`);
     rail.push(
-      `<a class="item" href="#${key}" data-key="${key}"` +
-        ` data-name="${escapeHtml(entry.title)}" data-path="${escapeHtml(href)}">` +
-        `<span class="t"><span class="n">${i + 1}</span>` +
+      `<div class="item" data-key="${key}" data-name="${escapeHtml(entry.title)}">` +
+        `<button class="pick"><span class="n">${i + 1}</span>` +
         `<span class="name">${escapeHtml(entry.title)}</span>` +
-        `<span class="f">${readFrames(html)}</span></span>` +
-        `<span class="d">${escapeHtml(entry.note)}</span></a>`,
+        `<span class="f">${readFrames(html)}</span></button>` +
+        `<a class="open" href="${escapeHtml(href)}" target="_blank"` +
+        ` title="Open the file itself, for full-size frames">&#8599;</a></div>`,
     );
   }
 
@@ -296,15 +273,7 @@ const build = (entries: Entry[], out: string) => {
   ${rail.join("")}
 </nav>
 <main id="stage">
-  <div id="bar">
-    <button id="prev" title="Previous (&larr;)">&larr;</button>
-    <button id="next" title="Next (&rarr;)">&rarr;</button>
-    <span class="sep"></span>
-    <button id="solo" title="Hide the list (f)">Hide list</button>
-    <a id="open" href="#" target="_blank" title="Open the file itself, for full-size frames">Open file</a>
-  </div>
   <iframe id="frame" title="artifact"></iframe>
-  <div id="hint"><kbd>&larr;</kbd><kbd>&rarr;</kbd> move &nbsp;<kbd>f</kbd> hide list &nbsp;<kbd>1</kbd>&ndash;<kbd>9</kbd> jump</div>
 </main>
 <script id="docs" type="application/json">${blob}</script>
 <script>${JS}</script>

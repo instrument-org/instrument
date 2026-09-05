@@ -1,3 +1,4 @@
+import "../scripts/lib/test-node-env";
 import "../scripts/lib/define-globals-apply";
 
 import path from "node:path";

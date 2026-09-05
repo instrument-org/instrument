@@ -207,3 +207,32 @@ describe("TaskPane.selectedTab", () => {
     expect(TaskPane.selectedTab(TaskPane.EMPTY)).toBeUndefined();
   });
 });
+
+describe("TaskPane.frontTab", () => {
+  const report = TaskPane.fileTab("output/report.pdf");
+  const chart = TaskPane.fileTab("output/chart.png");
+
+  it("is the browser when nothing is stored", () => {
+    expect(TaskPane.frontTab(TaskPane.EMPTY)).toEqual(browser);
+  });
+
+  it("is the selected file", () => {
+    const pane = TaskPane.openTabs(TaskPane.EMPTY, [report, chart]);
+    expect(
+      TaskPane.frontTab(TaskPane.selectTab(pane, TaskPane.tabKey(report))),
+    ).toEqual(report);
+  });
+
+  it("is the browser when it is selected, without storing it", () => {
+    const pane = TaskPane.openTabs(TaskPane.EMPTY, [report, browser]);
+    expect(TaskPane.frontTab(pane)).toEqual(browser);
+    expect(pane.tabs).toEqual([report]);
+  });
+
+  it("falls back to the last file when the selection names nothing open", () => {
+    const pane = TaskPane.openTabs(TaskPane.EMPTY, [report, chart]);
+    expect(
+      TaskPane.frontTab({ ...pane, selected: "file:output/gone.md" }),
+    ).toEqual(chart);
+  });
+});

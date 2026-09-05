@@ -51,7 +51,11 @@ describe("createPaneTabsPart", () => {
     await openTabs("output/report.pdf");
 
     expect(await build()).toMatchObject({
-      data: { tabs: [{ filePath: "output/report.pdf", type: "file" }] },
+      data: {
+        open: true,
+        selected: "file:output/report.pdf",
+        tabs: [{ filePath: "output/report.pdf", type: "file" }],
+      },
       type: "data-paneTabs",
     });
   });
@@ -94,6 +98,65 @@ describe("createPaneTabsPart", () => {
     expect(await build()).toBeUndefined();
   });
 
+  // The tabs are unchanged, but nothing is on screen any more, and the note
+  // the session already has says a file is.
+  it("speaks up when the pane is closed", async () => {
+    await openTabs("a.png");
+    await build();
+
+    await setTaskState(taskDir(taskId), {
+      pane: TaskPane.applyOperation(
+        TaskPane.openTabs(TaskPane.EMPTY, [TaskPane.fileTab("a.png")]),
+        { type: "close" },
+      ),
+    });
+
+    expect(await build()).toMatchObject({
+      data: { open: false, tabs: [{ filePath: "a.png", type: "file" }] },
+      type: "data-paneTabs",
+    });
+    expect(await build()).toBeUndefined();
+  });
+
+  it("speaks up when another tab comes to the front", async () => {
+    await openTabs("a.png", "b.png");
+    await build();
+
+    await setTaskState(taskDir(taskId), {
+      pane: TaskPane.selectTab(
+        TaskPane.openTabs(TaskPane.EMPTY, [
+          TaskPane.fileTab("a.png"),
+          TaskPane.fileTab("b.png"),
+        ]),
+        "file:a.png",
+      ),
+    });
+
+    expect(await build()).toMatchObject({
+      data: { open: true, selected: "file:a.png" },
+      type: "data-paneTabs",
+    });
+  });
+
+  // A closed pane shows none of its tabs, so which one would be in front is
+  // not a fact the agent can see change.
+  it("ignores the selection while the pane is closed", async () => {
+    const closed = TaskPane.applyOperation(
+      TaskPane.openTabs(TaskPane.EMPTY, [
+        TaskPane.fileTab("a.png"),
+        TaskPane.fileTab("b.png"),
+      ]),
+      { type: "close" },
+    );
+    await setTaskState(taskDir(taskId), { pane: closed });
+    await build();
+
+    await setTaskState(taskDir(taskId), {
+      pane: { ...closed, selected: "file:a.png" },
+    });
+    expect(await build()).toBeUndefined();
+  });
+
   // The part naming the open file stays in the session's history and keeps
   // being injected, so silence here would leave the agent believing the file
   // is still on screen for the rest of the session. The empty list is what
@@ -104,7 +167,7 @@ describe("createPaneTabsPart", () => {
 
     await setTaskState(taskDir(taskId), { pane: TaskPane.EMPTY });
     expect(await build()).toMatchObject({
-      data: { tabs: [] },
+      data: { open: false, tabs: [] },
       type: "data-paneTabs",
     });
 

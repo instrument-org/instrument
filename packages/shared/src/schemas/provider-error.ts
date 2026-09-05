@@ -7,12 +7,17 @@ import { z } from "zod";
  * message whenever it likes, so a `prose` verdict is a verdict with a shelf
  * life; a shift in the mix from `structured` toward `prose`, or toward `none`,
  * is the signal that the patterns have started to rot.
+ *
+ * `transport` is the one that cannot rot, because no provider wrote it: it is
+ * the shape the runtime raised when the connection failed, and the request
+ * carrying it never reached anything that could have answered.
  */
 export const ProviderErrorEvidenceSchema = z.enum([
   "none",
   "prose",
   "status",
   "structured",
+  "transport",
 ]);
 export type ProviderErrorEvidence = z.output<
   typeof ProviderErrorEvidenceSchema

@@ -81,7 +81,11 @@ const list = base
         });
       }
 
+      // The cause carries the reason undici collapsed into `fetch failed`, and
+      // is what tells telemetry an unreachable host is the user's network
+      // rather than a bug. Dropping it makes every offline visit a report.
       throw errors.FETCH_ERROR({
+        cause: error,
         message: error instanceof Error ? error.message : "Unknown error",
       });
     }

@@ -91,10 +91,9 @@ export function TaskView({
   // that closes it again. Nothing writes one any more; the filter is for a task
   // whose state was written when something did.
   const fileTabs = pane.tabs.filter((tab) => tab.type !== "browser");
-  const tabs: TaskPane.Tab[] = [{ type: "browser" }, ...fileTabs];
 
-  const selected = TaskPane.selectedTab({ ...pane, tabs });
-  const filePanel = selected?.type === "file" ? selected : undefined;
+  const selected = TaskPane.frontTab(pane);
+  const filePanel = selected.type === "file" ? selected : undefined;
 
   const { data: replayStatus } = useQuery(
     rpcClient.workspace.replay.live.status.experimental_liveOptions({
@@ -200,12 +199,12 @@ export function TaskView({
                   onClose={closeTab}
                   onReorder={reorderTabs}
                   onSelect={selectTab}
-                  selectedKey={selected ? TaskPane.tabKey(selected) : undefined}
+                  selectedKey={TaskPane.tabKey(selected)}
                   taskId={task.id}
                 />
 
                 <div className="min-h-0 flex-1">
-                  {selected?.type === "browser" && selectedSessionId ? (
+                  {selected.type === "browser" && selectedSessionId ? (
                     <TaskBrowserPanel
                       active={browserActive}
                       className={paneContentClassName}

@@ -20,7 +20,7 @@ Name it `wireframes-<topic>.html`.
 Four constants sit at the top of the script:
 
 - `VERSION` drives the tab title and a generated favicon badge. Bump it when you revise. Several of these are usually open at once and they are otherwise indistinguishable.
-- `SUBTITLE` is a short topic label under the title, and doubles as the file's one-line description when a set is indexed. A phrase rather than a sentence.
+- `SUBTITLE` is a short topic label under the title. A phrase rather than a sentence.
 - `W` and `H` are the default frame size. Individual states can override with `w` and `h`.
 
 The tab title comes from the `h1`, so write a real one and leave the `<title>` placeholder alone.
@@ -43,9 +43,7 @@ Tap or click a frame and it opens over the page. This is machinery, but it decid
 
 **The caption is laid out first and the frame is fitted into what is left.** A long caption shrinks the drawing rather than sliding off the bottom of the screen, at any window height, including a landscape phone. Past 30vh the caption scrolls inside itself instead of eating the whole view. Nothing about this is a reason to write a long caption: the drawing pays for every line, and on a phone it pays quickly.
 
-**Everything is reachable by tap, not only by key.** A control row sits along the bottom edge, in thumb reach rather than in a corner: fit/actual size, previous, the frame number, next, close. A horizontal swipe across the frame moves between frames too. The arrow keys and Escape still work, so nothing is lost on a desktop.
-
-**Actual size is the second half of the fit rule.** A 1280px window fitted to a 375px phone is a picture of a layout, not a readable one, so the toggle pins the frame to true size and the view pans, landing in the middle of the drawing. It is the only way a wireframe drawn at true size is any use on a small screen, and it is the reason the true-size rule above does not need an exception for phones.
+**Everything is reachable by tap, not only by key.** A control row sits along the bottom edge, in thumb reach rather than in a corner: previous, the frame number, next, close. A horizontal swipe across the frame moves between frames too. The arrow keys and Escape still work, so nothing is lost on a desktop. Right from the grid, with nothing open, enlarges the first frame, so someone can walk the whole set from the keyboard without reaching for the pointer to start.
 
 Below two columns the grid drops to one and the grid/one-per-row toggle hides itself, since at that width the two modes draw the same thing.
 
@@ -85,6 +83,8 @@ It reads `globals.css`, resolves the `var()` indirection to literal values, and 
 
 **Show a sequence, not a screen.** One column per state: resting, the moment of interaction, the result. A single screen shows what something looks like; a sequence shows what happens, which is what a plan needs to argue. Some subjects want a different axis (three kinds of data rather than three moments) and that is fine, as long as the columns are doing comparative work.
 
+**Show the click, mark the new.** In a sequence the reader has to see what was clicked to get from one frame to the next and what changed because of it, and neither may look like part of the design. The kit's `cursor` puts the pointer on the thing being clicked; `ann("click")` inside any `relative` element rings it in dashed orange with a CLICK tag, and `ann("new", "new")` rings what appeared or changed in dashed violet with a NEW tag. `noted`, `clickable`, and `fresh` wrap a block the same way: a row, a card, a page section, a sidebar entry. The colors are ones the product never uses, so they read as commentary on the frame. Put the click on the frame where it happens and let the next frame be the result; when the clicked thing survives into the result, a card in the chat, put the click there instead. One click per frame. Never a green row, a highlighted tile, or a check mark standing in for either: those look like the product, and they are not.
+
 **Bars for prose, real copy only where the idea lives.** Every piece of text is a decision the reader has to evaluate. Grey bars for message bodies and anything incidental; real, final-quality copy for the labels, warnings, and buttons that carry the proposal. All lorem reads as unfinished; all real text buries the point.
 
 Corollaries:
@@ -122,15 +122,17 @@ node .agents/skills/product-wireframe/scripts/build-index.ts                    
 node .agents/skills/product-wireframe/scripts/build-index.ts a.html b.html      # exactly these, in this order
 ```
 
-It writes `docs/plans/active/wireframes-index.html`, which the same gitignore rule covers. Titles come from each file's `h1`, the one-line description from its `SUBTITLE`, and the frame count from the states array, so an unattended run is already legible.
+It writes `docs/plans/active/wireframes-index.html`, which the same gitignore rule covers. Titles come from each file's `h1` and the frame count from the states array, so an unattended run is already legible. A rail entry is its number, its title and its frame count, and nothing else: the artifact itself is right there, and a sentence describing it only competes with the thing it describes.
 
-Write `docs/plans/active/wireframes-index.txt` when the set wants curating. It is the order, and the only way to get headings or better descriptions:
+Write `docs/plans/active/wireframes-index.txt` when the set wants curating. It is the order, and the only way to get headings or a better title:
 
 ```plaintext
 # Start here
-2026-08-27-the-claim.html | The claim | What the whole proposal rests on
-wireframes-onboarding.html | First run | Launch to a finished artifact without a keystroke
+2026-08-27-the-claim.html | The claim
+wireframes-onboarding.html | First run
 ```
+
+A line naming a file that is gone is skipped with a warning, so a curated list keeps working as the artifacts under it come and go. A path passed on the command line is not: that one was asked for by name.
 
 **Every artifact is inlined into the output, which is not an optimization.** Chrome refuses to load a sibling `file://` document into an iframe, so `src="./wireframes-x.html"` renders blank with no error and it looks like the idea is unworkable. `srcdoc` involves no origin, so it always renders, and each artifact's own scripts run inside it: frames scale to the pane and enlarge-on-click works, bounded by the pane rather than the window. Each rail entry also links to the real file for when a frame needs to open at true size.
 
@@ -143,6 +145,8 @@ Most of these never leave the machine that drew them. Someone opens the file, or
 When one does have to travel, send the file rather than a picture of it. It stays legible at any zoom, revising it means re-sending one file, and anywhere scripts are allowed to run the frames render and the enlarged view still works.
 
 A raster image is the fallback, for somewhere that will not take HTML. Screenshot the file with whatever headless browser is around, and get four things right whichever tool that is:
+
+Rasterizing the page from inside itself is a dead end, and has been tried. The DOM-to-canvas libraries re-measure text rather than photographing it, so captions re-wrap and the picture stops matching the file it came from. A real browser screenshot is the only faithful one.
 
 - Give the page time to compile. Tailwind builds at runtime here, so a screenshot taken on the load event can catch the page unstyled.
 - Render at 2x device scale, or the text is mushy everywhere it gets embedded.

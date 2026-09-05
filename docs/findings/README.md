@@ -35,6 +35,8 @@ Grouped by area; status is the short form of each file's own line.
 
 | Finding | Status |
 | --- | --- |
+| [An entitlement that signs, notarizes, and will not launch](an-entitlement-that-notarizes-and-will-not-launch.md) — team-scoped entitlements need an embedded provisioning profile; every gate passes and launchd still refuses | resolved |
+| [What refuses the task browser](what-refuses-the-task-browser.md) — the standing register: identity, escalation ladder, and where each known refusal stands | standing |
 | [Orphaned agent-browser daemons](agent-browser-orphaned-daemons.md) — fingerprint mismatch plus an upstream shutdown deadlock | partly fixed |
 | [`download` never restores download behavior](agent-browser-download-behavior-not-reset.md) | open upstream, contained |
 | [Snapshot refs die on the idle timeout](agent-browser-ref-map-idle-ttl.md) | fixed |
@@ -46,6 +48,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Full-page screenshots are not supported](in-app-browser-full-page-screenshots.md) | open, workaround in place |
 | [HTML artifacts: in-iframe navigation](html-artifact-iframe-navigation.md) | open, minimal reset shipped |
 | [WebMCP readiness](webmcp-agent-browser-readiness.md) — calling a third-party site's own tools; probed, blocked on Electron 44 | open, not implemented |
+| [A bare Chrome identity is what Google refuses](a-bare-chrome-identity-is-what-google-refuses.md) — the token strip meant to make the browser look ordinary is what got it blocked | fixed |
 | [The client hints are ours, not Chromium's](browser-client-hints-are-ours-not-chromium-s.md) — Electron emits none, so the header identity is entirely what we write | brand mismatch fixed |
 | [What the task browser reports about itself](task-browser-self-report.md) — every difference from a real Chrome, measured side by side; identity and languages fixed, and the 429 that prompted it refuses client shape rather than counting requests | partly fixed |
 

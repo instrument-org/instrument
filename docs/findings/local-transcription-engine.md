@@ -1,10 +1,8 @@
 # Local transcription: engine choice
 
-**Status:** open, unmeasured, nothing acted on. The engine comparison is deliberately left unresolved: the measurement that would settle it has not been run.
+**Status:** the engine comparison is deliberately left unresolved, because the measurement that would settle it has not been run. How the engine is invoked was measured separately and acted on: see [Decode parameters, measured](#decode-parameters-measured).
 
-A user attached a multi-gigabyte podcast MP4, asked for a transcript, and stopped the task after an hour with nothing produced (FP-1245). This records what was measured about the engine underneath that path, and whether the JavaScript implementation it replaced was better.
-
-Nothing here has been acted on. The engine comparison is deliberately left unresolved, because the measurement that would settle it has not been run.
+A user attached a multi-gigabyte podcast MP4, asked for a transcript, and stopped the task after an hour with nothing produced (FP-1245). This records what was measured about the engine underneath that path, whether the JavaScript implementation it replaced was better, and what changing the decode parameters was worth.
 
 ## How much to trust these numbers
 
@@ -63,6 +61,29 @@ The constraint to respect is the prompt cache. This has to sit in the stable reg
 
 The honest framing is that this makes the agent's choice legible rather than making it correct. It is worth doing because it attacks the actual gap, which is that the agent is choosing blind.
 
+## Decode parameters, measured
+
+The engine question above is about which model runs. This is about how it is invoked, which turned out to be where the cheap wins were. Same machine caveat as everything else here, but these are relative comparisons on identical input rather than absolute rates, so they survive the synthetic-audio problem better than the word error rates do.
+
+Three defaults changed in the skill. Each was measured against the one it replaced.
+
+**Voice activity detection, now on.** On a 126s fixture that is 33% speech and 67% silence and noise, roughly a podcast's shape, `large-v3-turbo` went from 15.6s to 7.7s. A 2x saving, and it comes from the non-speech the decoder no longer reads. On 42s of continuous speech it cost 3%, which is the price of the trade. It also stops Whisper inventing text over digital silence: 15 seconds of true silence transcribed as `You` without it and as nothing with it. Room tone did not trigger the hallucination, so the failure is specific to a perfectly silent stretch, which is exactly what an edited recording contains.
+
+**Carryover of previous text, now off.** This is the lever on the repetition behavior the sections above identify as the mechanism behind a run that does not finish. On 15 seconds of deliberately repetitive speech, the shipped default produced 1118 characters of transcript from audio containing about 272 characters of speech, and took 5.6s. With carryover off it produced 244 characters in 4.1s. The over-generation is the loop, and feeding decoded text back as the next window's prompt is what sustains it. On well-behaved audio the change costs nothing measurable: 15.51s against 15.61s on the podcast fixture.
+
+**Vocabulary biasing, now available and not previously exposed.** Whisper spells unfamiliar proper nouns phonetically, and it was the largest error source in otherwise good transcripts. On a 59s clip whose eight domain terms are each spoken twice, `base` went from 3/12 correct to 12/12 and `large-v3-turbo` from 4/12 to 12/12.
+
+That last one has a wrinkle worth recording, because it is not in the library's documentation and it cost a measurement to find. `initial_prompt` and `hotwords` are not interchangeable and neither is sufficient alone:
+
+| Biasing | `base` | `large-v3-turbo` |
+| --- | --- | --- |
+| Neither | 3/12 | 4/12 |
+| `initial_prompt` only | 7/12 | 2/12 |
+| `hotwords` only | 6/12 | 12/12 |
+| Both | 12/12 | 12/12 |
+
+The mechanism is in `faster_whisper/transcribe.py`. `initial_prompt` is appended to `all_tokens` once, and the decode loop sets `prompt_reset_since = len(all_tokens)` after each window when carryover is off, which slices the glossary away along with everything else. `hotwords` is passed into `get_prompt` inside the loop and re-injected every window, but weighs differently across model families. Turning carryover off therefore silently disables `initial_prompt` past the first 30 seconds, so the two changes interact and only setting both biasing inputs is safe. `hotwords` is truncated at half the decoder's max length, around 223 tokens, so a glossary has a ceiling.
+
 ## Where this landed
 
 **The skill guidance shipped.** The input contract, the duration-to-wall-clock table, the calibrate-on-a-sample step, and cross-references between `local-ml`, `ffmpeg`, and `media-download` are in. The table deliberately gives ranges rather than numbers from one machine, and tells the agent to time a 60-second sample and extrapolate, which is the part that works on hardware nobody here has measured.
@@ -71,7 +92,11 @@ The honest framing is that this makes the agent's choice legible rather than mak
 
 **A hosted path is the actual fix, and is planned in the backend repo.** No amount of local guidance helps a machine that cannot do the work in reasonable time, and lower-end hardware is exactly where this fails.
 
+**The decode parameters changed, and the device is no longer hardcoded.** The three above shipped in the skill, along with `--device auto`, which uses CUDA where CTranslate2 can find a card and CPU everywhere else. The device change is written defensively, since a CUDA probe fails on a driver mismatch as readily as on absence and the answer is the CPU either way, but nobody here has hardware to run it on.
+
 ## Open questions
 
-- **Whether faster-whisper should use CUDA when present.** A one-line change to a hardcoded device, and the only case where our current engine has an accelerator available. Untouched because it helps only Windows and Linux machines with NVIDIA cards, which is not where the reports come from.
+- **Whether the CUDA path works.** It is now written rather than hardcoded to the CPU, and it is unvalidated: no machine here has an NVIDIA card. The fallback means the worst case is the behavior we had, so it ships untested on purpose, but the first Windows or Linux user with a card is the test.
+- **Whether the whisper.cpp result was a wrong invocation.** Rerunning it is still the prerequisite for reading anything into the speed column, and there is a specific place to start. Pinning the language and switching to beam search produced byte-identical output, which two different decoding strategies cannot do over 6 minutes of audio unless the flags never reached the decoder. Establish that before re-measuring anything.
 - **What the app has to show when a hosted path exists.** Where the local-versus-remote choice surfaces, and who makes it. That is app-side and unanswered.
+- **Where a glossary comes from in the product.** The skill tells the agent to assemble one from the task's filenames, documents, and the user's own request. Whether the app should also carry durable per-user vocabulary, so recurring names are right the first time on every recording, is a product question nobody has asked yet.

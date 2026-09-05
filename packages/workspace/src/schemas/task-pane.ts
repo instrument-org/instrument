@@ -82,6 +82,25 @@ export namespace TaskPane {
   }
 
   /**
+   * The tab the pane draws in front.
+   *
+   * The browser is a fixed first tab rather than one of the stored ones, so
+   * the list this resolves over is the one the renderer draws: the browser,
+   * then the stored files. `selected` names one of those, or the last stored
+   * file stands in, or the browser does when nothing is stored -- which is
+   * what an open pane with nothing in it shows.
+   */
+  export function frontTab(pane: Type): Tab {
+    const browser: Tab = { type: "browser" };
+    return (
+      selectedTab({
+        ...pane,
+        tabs: [browser, ...pane.tabs.filter((tab) => tab.type !== "browser")],
+      }) ?? browser
+    );
+  }
+
+  /**
    * Append tabs and focus the last one, opening the pane.
    *
    * Already open means focus rather than duplicate, which is what makes `show`

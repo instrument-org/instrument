@@ -193,7 +193,8 @@ export namespace SessionMessageDataPart {
   >;
 
   /**
-   * What the task's pane already has open, at the start of a turn.
+   * What the task's pane is showing, at the start of a turn: whether it is
+   * open, which tab is in front, and which file tabs it holds.
    *
    * Attached per turn rather than written into the session context, which is
    * written once and never rewritten: what is on screen changes several times
@@ -201,6 +202,10 @@ export namespace SessionMessageDataPart {
    * about a pane the user closed long ago.
    */
   const PaneTabsDataPartSchema = z.object({
+    // A part written before the pane's visibility was recorded named tabs the
+    // note called open, so an absent value reads the way that note did.
+    open: z.boolean().default(true),
+    selected: z.string().optional(),
     tabs: z.array(TaskPane.TabSchema),
   });
 

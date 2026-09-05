@@ -138,6 +138,14 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           ARCH: ${{ matrix.arch }}
 
+      # The smoke test builds its own unsigned copy, so it cannot see an
+      # entitlement being refused: unsigned apps carry none. This runs the
+      # artifact that actually ships, after it is signed and notarized, because
+      # a build can pass both and still be killed on exec.
+      - if: matrix.os == 'macos' && env.SKIP_INTEL_MACOS != 'true'
+        name: Verify the signed app starts
+        run: pnpm --filter @instrument-org/studio run verify-packaged-app
+
       - if: matrix.os == 'macos' && env.SKIP_INTEL_MACOS != 'true'
         name: Cleanup Signing
         run: |
@@ -338,6 +346,16 @@ jobs:
           REGISTRY_CURRENT=$(git rev-parse "${{ github.ref_name }}:registry" 2>/dev/null || true)
           if [ -n "$PREV_TAG" ]; then
             REGISTRY_PREV=$(git rev-parse "${PREV_TAG}:registry" 2>/dev/null || true)
+          fi
+          # The previous tag names a skills commit that may no longer be
+          # reachable: rebasing a branch there orphans what an older tag pinned,
+          # and a fresh clone never fetches it. That is a missing paragraph in
+          # the notes, not a reason to fail a release whose builds all passed,
+          # so drop the range rather than letting `git log` abort the step.
+          if [ -n "$REGISTRY_PREV" ] &&
+            ! git -C registry cat-file -e "${REGISTRY_PREV}^{commit}" 2>/dev/null; then
+            echo "Previous registry pin $REGISTRY_PREV is unreachable; skipping the skills changelog."
+            REGISTRY_PREV=""
           fi
           if [ -n "$REGISTRY_PREV" ] && [ -n "$REGISTRY_CURRENT" ] && [ "$REGISTRY_PREV" != "$REGISTRY_CURRENT" ]; then
             REGISTRY_COMMITS=$(

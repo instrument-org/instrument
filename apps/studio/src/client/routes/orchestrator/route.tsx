@@ -29,6 +29,7 @@ import { TaskChat } from "@/client/components/task/chat";
 import { Toaster } from "@/client/components/ui/sonner";
 import { Spinner } from "@/client/components/ui/spinner";
 import { InstrumentGlyph } from "@/client/components/wordmark";
+import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -325,16 +326,29 @@ function OrchestratorLayout() {
               <OrchestratorSidebar className="min-h-0 w-full flex-1" />
             </div>
           </StudioSidebarRail>
-          <main className="relative flex min-w-0 flex-1 flex-col">
+          {/* With the sidebar away, the traffic lights and the window controls sit over the top of the screen, so it starts below them. */}
+          <main
+            className={cn(
+              "relative flex min-w-0 flex-1 flex-col",
+              isSidebarOpen ? undefined : "pt-10",
+            )}
+          >
             <Outlet />
             {/* Hidden rather than unmounted when another screen is up, so the page stays. */}
             <div
               className={cn(
-                "absolute inset-0 bg-background pt-10",
+                "absolute inset-x-0 bottom-0 bg-background",
+                isSidebarOpen ? "top-0" : "top-10",
                 isBrowserScreen ? undefined : "invisible",
               )}
             >
-              <BrowserTabs onPageChange={recordBrowserPage} ref={setBrowser} />
+              {/* The guests are the pool's, drawn over a slot rather than in it, so hiding this box hides nothing of theirs: the panel parks its guest when told the screen is off, the way a task page does when its tab is in the background. */}
+              <ActiveTabProvider isActive={isBrowserScreen}>
+                <BrowserTabs
+                  onPageChange={recordBrowserPage}
+                  ref={setBrowser}
+                />
+              </ActiveTabProvider>
             </div>
           </main>
           <StudioSidebarRail

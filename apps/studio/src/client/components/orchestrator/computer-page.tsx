@@ -236,7 +236,7 @@ export function ComputerPage({ path, root }: { path: string; root: string }) {
   const crumbs = breadcrumbs(currentListing?.path ?? rootPath, places.data);
 
   return (
-    <div className="flex h-full min-h-0 pt-10">
+    <div className="flex h-full min-h-0">
       <nav className="flex w-44 shrink-0 flex-col gap-4 overflow-y-auto border-r border-border px-2 py-2 text-sm">
         <PlaceList
           label="Favorites"

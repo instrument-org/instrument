@@ -98,6 +98,10 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
 export function createTaskCommand(context: TaskCommandContext) {
   return defineCommand(TASK_COMMAND.name, async (args, ctx) => {
     const [subcommand, ...rest] = args;
+    // \`task new --help\` asks about the command; it does not name a task.
+    if (rest.includes("--help") || rest.includes("-h")) {
+      return ok(USAGE);
+    }
     try {
       switch (subcommand) {
         case "--help":

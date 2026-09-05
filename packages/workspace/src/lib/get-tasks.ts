@@ -121,6 +121,8 @@ async function readTask({ dir }: { dir: TaskDir }) {
   const task: Task = {
     ...(await taskTimestamps(dir, settings)),
     id,
+    kind: settings?.kind,
+    parentTaskId: settings?.parentTaskId,
     pinnedAt: settings?.pinnedAt,
     projectId: settings?.projectId,
     title: settings?.name ?? rawFolderName,

@@ -4,6 +4,7 @@ import { call, eventIterator } from "@orpc/server";
 import { parallel } from "radashi";
 import { z } from "zod";
 
+import { agentNameForTask } from "../../../lib/agent-name-for-task";
 import { branchTask } from "../../../lib/branch-task";
 import { changedMessageBatches } from "../../../lib/changed-message-batches";
 import { changedTaskBatches } from "../../../lib/changed-task-batches";
@@ -48,6 +49,7 @@ import { SessionMessageDataPart } from "../../../schemas/session/message-data-pa
 import { StoreId } from "../../../schemas/store-id";
 import { TaskSchema } from "../../../schemas/task";
 import { TaskIdSchema } from "../../../schemas/task-id";
+import { TaskKindSchema } from "../../../schemas/task-kind";
 import { TaskSettingsUpdateSchema } from "../../../schemas/task-settings";
 import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
@@ -153,6 +155,9 @@ const create = base
         )
         .optional(),
       intent: SessionMessageDataPart.IntentDataPartSchema.shape.text.optional(),
+      // An orchestrator is created this way only by the eval harness; the app
+      // opens one through `orchestrator.ensure`.
+      kind: TaskKindSchema.optional(),
       modelURI: AIGatewayModelURI.Schema,
       name: z.string().trim().min(1).optional(),
       projectId: ProjectIdSchema.nullish(),
@@ -169,7 +174,7 @@ const create = base
     async ({
       context,
       errors,
-      input: { files, folders, intent, modelURI, name, projectId, prompt },
+      input: { files, folders, intent, kind, modelURI, name, projectId, prompt },
       signal,
     }) => {
       const modelResult = await fetchModel({
@@ -207,6 +212,7 @@ const create = base
       const result = await initializeTask(
         {
           initialSettings: {
+            kind,
             name: initialTaskName,
             projectId: projectId ?? undefined,
           },
@@ -360,7 +366,7 @@ const create = base
       context.workspaceRef.send({
         type: "createSession",
         value: {
-          agentName: "main",
+          agentName: await agentNameForTask(taskId),
           id: taskId,
           message,
           model,

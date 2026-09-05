@@ -378,11 +378,30 @@ export const sessionMachine = setup({
       },
     },
     addMessage: {
+      actions: [
+        assign({
+          queuedMessages: ({ context, event }) => [
+            ...context.queuedMessages,
+            event.value,
+          ],
+        }),
+        // A running agent hears it at its next point between steps and then
+        // says so, which is what takes it back out of the queue. Until then it
+        // stays queued, so a turn that ends first runs it as a turn of its own.
+        ({ context, event }) => {
+          const agentRef = context.agentRef;
+          if (agentRef?.getSnapshot().status === "active") {
+            agentRef.send({ type: "steer", value: event.value });
+          }
+        },
+      ],
+    },
+    "agent.consumedSteer": {
       actions: assign({
-        queuedMessages: ({ context, event }) => [
-          ...context.queuedMessages,
-          event.value,
-        ],
+        queuedMessages: ({ context, event }) =>
+          context.queuedMessages.filter(
+            (message) => !event.value.messageIds.includes(message.id),
+          ),
       }),
     },
     runTurn: {
@@ -437,7 +456,10 @@ export const sessionMachine = setup({
         ],
       },
 
-      onDone: "Done",
+      // A message that arrived while the agent ran is waiting in the queue, and
+      // a turn that ends by finalizing the session would drop it. The queue
+      // decides whether this is the end: empty, it is.
+      onDone: "ProcessingQueuedMessages",
 
       states: {
         AgentDone: { type: "final" },

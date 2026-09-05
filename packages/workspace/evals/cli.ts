@@ -41,6 +41,7 @@ const { positionals, values } = parseArgs({
     "max-run-tokens": { type: "string" },
     model: { multiple: true, type: "string" },
     name: { type: "string" },
+    orchestrator: { default: false, type: "boolean" },
     prompt: { type: "string" },
     repeat: { default: "1", type: "string" },
     yes: { default: false, short: "y", type: "boolean" },
@@ -115,7 +116,13 @@ const models =
  * committing an eval case for it.
  */
 const adHocEval = values.prompt
-  ? defineEval({ name: values.name ?? "ad-hoc", prompt: values.prompt })
+  ? defineEval({
+      // `--orchestrator` runs the prompt through the agent the user talks to
+      // in the orchestrator window, which delegates to tasks of its own.
+      kind: values.orchestrator ? "orchestrator" : undefined,
+      name: values.name ?? "ad-hoc",
+      prompt: values.prompt,
+    })
   : undefined;
 
 if (subcommand !== "run" && subcommand !== "report" && subcommand !== "list") {

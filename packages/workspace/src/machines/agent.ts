@@ -24,6 +24,7 @@ import { type SpawnAgentFunction } from "../lib/spawn-agent";
 import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { llmRequestLogic } from "../logic/llm-request";
+import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
@@ -35,6 +36,15 @@ import {
 } from "./execute-tool-call";
 
 export type AgentParentEvent =
+  | {
+      /**
+       * Messages the agent took from the session's queue and wrote into the
+       * transcript mid-turn, so the session does not run them again as turns
+       * of their own once this one ends.
+       */
+      type: "agent.consumedSteer";
+      value: { messageIds: StoreId.Message[] };
+    }
   | {
       type: "agent.done";
       value: { error?: unknown };
@@ -59,6 +69,13 @@ type AgentMachineEvent =
   | { type: "executeToolCalls" }
   | { type: "llmRequest.chunkReceived" }
   | { type: "retry" }
+  /**
+   * A message that arrived while this turn runs. Held until the next point
+   * between steps, then written into the transcript so the next request sees
+   * it, the way a person interrupting a colleague is heard at the end of the
+   * sentence rather than the end of the job.
+   */
+  | { type: "steer"; value: SessionMessage.UserWithParts }
   | { type: "stop" }
   | {
       type: "updateInteractiveToolCall";
@@ -255,6 +272,28 @@ export const agentMachine = setup({
       }
     }),
 
+    /**
+     * Writes the messages that arrived mid-turn into the transcript, in the
+     * order they came, and answers with their ids. The request that follows
+     * reads the whole transcript, so nothing else has to carry them.
+     */
+    saveSteeringMessages: fromPromise<
+      StoreId.Message[],
+      { messages: SessionMessage.UserWithParts[]; taskId: TaskId }
+    >(async ({ input, signal }) => {
+      const ids: StoreId.Message[] = [];
+      for (const message of input.messages) {
+        const saved = await Store.saveMessageWithParts(message, input.taskId, {
+          signal,
+        });
+        if (saved.isErr()) {
+          throw new Error(saved.error.message);
+        }
+        ids.push(saved.value.id);
+      }
+      return ids;
+    }),
+
     shouldContinue: fromPromise<
       boolean,
       {
@@ -306,6 +345,8 @@ export const agentMachine = setup({
       retryCount: number;
       sessionId: StoreId.Session;
       spawnAgent: SpawnAgentFunction;
+      /** Messages waiting for the next point between steps; see `steer`. */
+      steeringMessages: SessionMessage.UserWithParts[];
       stepCount: number;
       stopRequested: boolean;
       taskId: TaskId;
@@ -347,6 +388,7 @@ export const agentMachine = setup({
     retryCount: 0,
     sessionId: input.sessionId,
     spawnAgent: input.spawnAgent,
+    steeringMessages: [],
     stepCount: 0,
     stopRequested: false,
     taskId: input.taskId,
@@ -368,6 +410,14 @@ export const agentMachine = setup({
     },
     error: {
       target: ".Finishing",
+    },
+    steer: {
+      actions: assign({
+        steeringMessages: ({ context, event }) => [
+          ...context.steeringMessages,
+          event.value,
+        ],
+      }),
     },
     stop: {
       // Recorded so the finalizing sweep can tell a user stop (parts get the
@@ -707,6 +757,24 @@ export const agentMachine = setup({
       ],
     },
 
+    /**
+     * The point between steps where a message that arrived mid-turn is heard.
+     * Every tool call of the step is done and nothing is pending, so a user
+     * message written here lands after the results it should follow, and the
+     * next request is the first to see it. A message that arrives after this
+     * check is either heard at the next step or, when the turn ends first,
+     * run by the session as a turn of its own.
+     */
+    MaybeSteering: {
+      always: [
+        {
+          guard: ({ context }) => context.steeringMessages.length > 0,
+          target: "SavingSteeringMessages",
+        },
+        { target: "MaybeContinuing" },
+      ],
+    },
+
     MaybeWaitingForPendingToolCalls: {
       always: [
         {
@@ -716,7 +784,7 @@ export const agentMachine = setup({
           target: "WaitingForPendingToolCalls",
         },
         {
-          target: "MaybeContinuing",
+          target: "MaybeSteering",
         },
       ],
     },
@@ -755,12 +823,42 @@ export const agentMachine = setup({
       },
     },
 
+    /**
+     * The saved messages are a new request, so the loop goes straight to the
+     * model rather than asking whether the last reply left anything to do.
+     */
+    SavingSteeringMessages: {
+      invoke: {
+        input: ({ context }) => ({
+          messages: context.steeringMessages,
+          taskId: context.taskId,
+        }),
+        onDone: {
+          actions: [
+            ({ context, event }) => {
+              context.parentRef.send({
+                type: "agent.consumedSteer",
+                value: { messageIds: event.output },
+              });
+            },
+            assign({ steeringMessages: [] }),
+          ],
+          target: "MaybeStartingLLMRequest",
+        },
+        onError: {
+          actions: "assignEventError",
+          target: "Finishing",
+        },
+        src: "saveSteeringMessages",
+      },
+    },
+
     WaitingForPendingToolCalls: {
       always: {
         guard: ({ context }) => {
           return context.pendingToolCalls.length === 0;
         },
-        target: "MaybeContinuing",
+        target: "MaybeSteering",
       },
       entry: ({ context }) => {
         context.parentRef.send({ type: "agent.paused" });

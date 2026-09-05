@@ -29,6 +29,7 @@ import { maxStepsModelNote } from "../../lib/max-steps-model-text";
 import { paneTabsModelNote } from "../../lib/pane-tabs-model-text";
 import { projectChangesModelNote } from "../../lib/project-changes-model-text";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
+import { taskEventModelNote } from "../../lib/task-event-model-text";
 import { TOOL_NAMES } from "../../tools/name";
 import { StoreId } from "../store-id";
 import { SessionMessagePart } from "./message-part";
@@ -491,6 +492,20 @@ export namespace SessionMessage {
         );
         if (intentPart) {
           injectedParts.push({ text: intentPart.data.text, type: "text" });
+        }
+
+        const taskEventPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-taskEvent";
+          } => part.type === "data-taskEvent",
+        );
+        if (taskEventPart) {
+          injectedParts.push({
+            text: taskEventModelNote(taskEventPart.data),
+            type: "text",
+          });
         }
 
         if (pendingMaxStepsNote) {

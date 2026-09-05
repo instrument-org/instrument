@@ -3,6 +3,7 @@ import { eventIterator, type } from "@orpc/server";
 import { sleep } from "radashi";
 import { z } from "zod";
 
+import { agentNameForTask } from "../../lib/agent-name-for-task";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { createSession } from "../../lib/create-session";
 import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
@@ -159,7 +160,7 @@ const create = base
       context.workspaceRef.send({
         type: "addMessage",
         value: {
-          agentName: "main",
+          agentName: await agentNameForTask(taskId),
           id,
           message,
           model,

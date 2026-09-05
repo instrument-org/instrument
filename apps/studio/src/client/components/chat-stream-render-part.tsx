@@ -13,6 +13,7 @@ import {
   isToolCallVisible,
   isToolPartRunning,
 } from "./message-part/tool-call-utils";
+import { ToolReply } from "./message-part/tool-reply";
 import { ReasoningMessage } from "./reasoning-message";
 import { isReasoningPartVisible } from "./reasoning-utils";
 import { isPartBeingWritten } from "./transcript-layout";
@@ -101,6 +102,10 @@ export function renderChatPart({
           ? pathsNamedInMessage(message)
           : undefined,
     });
+  }
+
+  if (part.type === "tool-reply") {
+    return <ToolReply key={part.metadata.id} part={part} />;
   }
 
   if (isToolPart(part)) {

@@ -259,14 +259,16 @@ export function buildTranscriptLayout({
       }
 
       const id = part.metadata.id;
-      const kind: TranscriptRow["kind"] =
-        isToolPart(part) || part.type === "reasoning"
+      // A reply is the orchestrator addressing the user, so it reads as prose
+      // however it was recorded.
+      const isProse = part.type === "text" || part.type === "tool-reply";
+      const kind: TranscriptRow["kind"] = isProse
+        ? "prose"
+        : isToolPart(part) || part.type === "reasoning"
           ? "step"
-          : part.type === "text"
-            ? "prose"
-            : "note";
+          : "note";
 
-      if (part.type === "text") {
+      if (isProse) {
         // Prose ends the phase it lands after, named or not. The agent turning
         // to address the user is the clearest break in a run there is, and a
         // phase carried on across it would go on collecting steps that belong

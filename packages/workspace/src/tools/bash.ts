@@ -13,6 +13,7 @@ import {
 import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
 import { executeError } from "../lib/execute-error";
 import { ignoredBuildsNote } from "../lib/ignored-builds-note";
+import { childTaskMounts } from "../lib/orchestrator/children";
 import {
   FG_COMMAND,
   JOBS_COMMAND,
@@ -129,13 +130,18 @@ export const BashTool = setupTool({
 }).create({
   // Built per call: the command list it renders describes capabilities that a
   // feature flag can turn on and off while the app is running.
-  description: () => createBashDescription(),
-  async execute({ input, partId, sessionId, signal, taskId }) {
+  description: ({ agentName }) =>
+    createBashDescription({ orchestrator: agentName === "instrument" }),
+  async execute({ agentName, input, partId, sessionId, signal, taskId }) {
     const taskState = await getTaskState(taskDir(taskId));
     const yieldMs = clampYieldMs(input.yieldMs);
     const startedAt = performance.now();
     const bash = await createBashEnv({
       attachedFolders: taskState.attachedFolders,
+      orchestrator:
+        agentName === "instrument"
+          ? { childMounts: await childTaskMounts(taskId) }
+          : undefined,
       projectFolderName: await resolveTaskProjectFolder(taskId),
       // `fg` waits inside this call, so what is left of the window is its
       // ceiling. Measured from here rather than from the race below, which only

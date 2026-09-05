@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as OnboardingRouteRouteImport } from './routes/onboarding/route'
 import { Route as AppRouteRouteImport } from './routes/_app/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as OrchestratorIndexRouteImport } from './routes/orchestrator/index'
 import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
 import { Route as OnboardingThemeRouteImport } from './routes/onboarding/theme'
 import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
@@ -61,6 +62,11 @@ const AppRouteRoute = AppRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrchestratorIndexRoute = OrchestratorIndexRouteImport.update({
+  id: '/orchestrator/',
+  path: '/orchestrator/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OnboardingIndexRoute = OnboardingIndexRouteImport.update({
@@ -270,6 +276,7 @@ export interface FileRoutesByFullPath {
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/onboarding/': typeof OnboardingIndexRoute
+  '/orchestrator/': typeof OrchestratorIndexRoute
   '/subscribe': typeof AppAuthenticatedSubscribeRoute
   '/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/debug/components': typeof AppDebugComponentsRouteWithChildren
@@ -306,6 +313,7 @@ export interface FileRoutesByTo {
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/onboarding': typeof OnboardingIndexRoute
+  '/orchestrator': typeof OrchestratorIndexRoute
   '/subscribe': typeof AppAuthenticatedSubscribeRoute
   '/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/debug/errors': typeof AppDebugErrorsRoute
@@ -346,6 +354,7 @@ export interface FileRoutesById {
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/onboarding/': typeof OnboardingIndexRoute
+  '/orchestrator/': typeof OrchestratorIndexRoute
   '/_app/_authenticated/subscribe': typeof AppAuthenticatedSubscribeRoute
   '/_app/debug/browser-views': typeof AppDebugBrowserViewsRoute
   '/_app/debug/components': typeof AppDebugComponentsRouteWithChildren
@@ -387,6 +396,7 @@ export interface FileRouteTypes {
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/onboarding/'
+    | '/orchestrator/'
     | '/subscribe'
     | '/debug/browser-views'
     | '/debug/components'
@@ -423,6 +433,7 @@ export interface FileRouteTypes {
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/onboarding'
+    | '/orchestrator'
     | '/subscribe'
     | '/debug/browser-views'
     | '/debug/errors'
@@ -462,6 +473,7 @@ export interface FileRouteTypes {
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/onboarding/'
+    | '/orchestrator/'
     | '/_app/_authenticated/subscribe'
     | '/_app/debug/browser-views'
     | '/_app/debug/components'
@@ -495,6 +507,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRouteRoute: typeof AppRouteRouteWithChildren
   OnboardingRouteRoute: typeof OnboardingRouteRouteWithChildren
+  OrchestratorIndexRoute: typeof OrchestratorIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -518,6 +531,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orchestrator/': {
+      id: '/orchestrator/'
+      path: '/orchestrator'
+      fullPath: '/orchestrator/'
+      preLoaderRoute: typeof OrchestratorIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/onboarding/': {
@@ -929,6 +949,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRouteRoute: AppRouteRouteWithChildren,
   OnboardingRouteRoute: OnboardingRouteRouteWithChildren,
+  OrchestratorIndexRoute: OrchestratorIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -3,6 +3,7 @@ import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { call } from "@orpc/server";
 import { z } from "zod";
 
+import { agentNameForTask } from "../../lib/agent-name-for-task";
 import { killSessionBackgroundProcesses } from "../../lib/background-processes";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { createSession } from "../../lib/create-session";
@@ -176,7 +177,7 @@ const run = base
     context.workspaceRef.send({
       type: "runTurn",
       value: {
-        agentName: "main",
+        agentName: await agentNameForTask(taskId),
         id,
         model: modelResult.value,
         sessionId,

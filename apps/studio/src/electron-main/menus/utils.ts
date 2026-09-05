@@ -1,6 +1,7 @@
 import { openExternal } from "@/electron-main/lib/open-external";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
+import { openOrchestratorWindow } from "@/electron-main/windows/orchestrator";
 import { APP_URL, BUG_REPORT_URL, SUPPORT_URL } from "@instrument-org/shared";
 import { app, type MenuItemConstructorOptions } from "electron";
 
@@ -38,6 +39,14 @@ export function createDevToolsMenu(): MenuItemConstructorOptions[] {
       label: "🐛 Dev",
       submenu: [
         shortcutMenuItem("reloadApp"),
+        { type: "separator" as const },
+        {
+          accelerator: "CmdOrCtrl+Shift+I",
+          click: () => {
+            openOrchestratorWindow();
+          },
+          label: "Open Instrument 2.0 Window",
+        },
         { type: "separator" as const },
         shortcutMenuItem("themeLight"),
         shortcutMenuItem("themeDark"),

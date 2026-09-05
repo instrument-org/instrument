@@ -64,6 +64,7 @@ import {
 } from "./shell-commands/python";
 import { createRgCommand, RG_COMMAND } from "./shell-commands/rg";
 import { createShowCommand, SHOW_COMMAND } from "./shell-commands/show";
+import { createTaskCommand, TASK_COMMAND } from "./shell-commands/task";
 import { createUvCommand, UV_COMMAND } from "./shell-commands/uv";
 import {
   createValidateSkillCommand,
@@ -71,7 +72,11 @@ import {
 } from "./shell-commands/validate-skill";
 import { createWhichCommand } from "./shell-commands/which";
 import { taskDir } from "./task-dir-utils";
-import { buildBashFs, buildWorkspaceFsLayout } from "./workspace-fs-layout";
+import {
+  buildBashFs,
+  buildWorkspaceFsLayout,
+  type WorkspaceFsMount,
+} from "./workspace-fs-layout";
 
 /** FS reads, HTTP bodies, maxStringLength/maxOutputSize; maxHeredocSize unchanged (64 MiB). */
 const SANDBOX_MAX_BYTES = 256 * 1024 * 1024;
@@ -374,7 +379,9 @@ const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   },
 ];
 
-export function createBashDescription() {
+export function createBashDescription({
+  orchestrator = false,
+}: { orchestrator?: boolean } = {}) {
   const allowedCommandNames = getCommandNames().filter(
     (name) => !BROKEN_COMMANDS.has(name),
   );
@@ -382,6 +389,10 @@ export function createBashDescription() {
   const namedOnly = allowedCommandNames
     .filter((name) => !(name in DESCRIBED_COMMANDS))
     .sort();
+
+  if (orchestrator) {
+    return createOrchestratorBashDescription(namedOnly);
+  }
 
   const described = Object.entries(DESCRIBED_COMMANDS)
     .filter(([name]) => allowedCommandNames.includes(name))
@@ -439,6 +450,7 @@ export function createBashDescription() {
 
 export async function createBashEnv({
   attachedFolders,
+  orchestrator,
   projectFolderName,
   // Defaulted so the callers that never wait -- skill validation, tests, the
   // sandbox script -- do not have to describe a yield window they do not have.
@@ -447,6 +459,12 @@ export async function createBashEnv({
   taskId,
 }: {
   attachedFolders?: Record<string, FolderAttachment.Type>;
+  /**
+   * Present when the task is an orchestrator: its children mount read-only and
+   * its command set shrinks to reading and `task`. See
+   * `createOrchestratorBashDescription`.
+   */
+  orchestrator?: { childMounts: WorkspaceFsMount[] };
   projectFolderName?: string;
   remainingYieldMs?: () => number;
   sessionId: StoreId.Session;
@@ -460,6 +478,7 @@ export async function createBashEnv({
   // it so they agree on virtual<->real mapping.
   const layout = buildWorkspaceFsLayout({
     attachedFolders,
+    extraMounts: orchestrator?.childMounts,
     projectFolderName,
     taskHostRoot: taskDir(taskId),
   });
@@ -467,39 +486,64 @@ export async function createBashEnv({
 
   const allowedCommands = [
     ...getCommandNames(),
-    ...getNetworkCommandNames(),
+    ...(orchestrator ? [] : getNetworkCommandNames()),
   ].filter((name) => !BROKEN_COMMANDS.has(name)) as CommandName[];
+
+  const sessionCommands = SESSION_COMMAND_DEFS.map((cmd) =>
+    cmd.factory({ remainingYieldMs, sessionId }),
+  );
+
+  const customCommands = orchestrator
+    ? [
+        createRgCommand({
+          attachedFolders,
+          extraMounts: orchestrator.childMounts,
+          projectFolderName,
+          taskId,
+        }),
+        createTaskCommand({ orchestratorTaskId: taskId, remainingYieldMs }),
+        ...sessionCommands,
+        createWhichCommand(
+          new Set([
+            RG_COMMAND.name,
+            TASK_COMMAND.name,
+            ...allowedCommands,
+            ...SESSION_COMMAND_DEFS.map((cmd) => cmd.name),
+          ]),
+        ),
+        ...STATIC_STUB_COMMANDS,
+      ]
+    : [
+        createAgentBrowserCommand({
+          sessionId,
+          taskId,
+        }),
+        // Registered after the bundled commands, which is what lets it shadow
+        // just-bash's own `rg`. The built-in is a TypeScript reimplementation;
+        // the real binary is orders of magnitude faster on a large tree and
+        // does not carry its `(?i)` and root-level-glob bugs.
+        createRgCommand({ attachedFolders, projectFolderName, taskId }),
+        createShowCommand({ sessionId, taskId }),
+        ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(taskId)),
+        // After the bundled commands so these shadow just-bash's own `kill`
+        // and `wait`, which act on host pids this sandbox deliberately cannot
+        // name.
+        ...sessionCommands,
+        createWhichCommand(
+          new Set([
+            AGENT_BROWSER_COMMAND.name,
+            SHOW_COMMAND.name,
+            ...allowedCommands,
+            ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.name),
+            ...SESSION_COMMAND_DEFS.map((cmd) => cmd.name),
+          ]),
+        ),
+        ...STATIC_STUB_COMMANDS,
+      ];
 
   const bash = new Bash({
     commands: allowedCommands,
-    customCommands: [
-      createAgentBrowserCommand({
-        sessionId,
-        taskId,
-      }),
-      // Registered after the bundled commands, which is what lets it shadow
-      // just-bash's own `rg`. The built-in is a TypeScript reimplementation;
-      // the real binary is orders of magnitude faster on a large tree and does
-      // not carry its `(?i)` and root-level-glob bugs.
-      createRgCommand({ attachedFolders, projectFolderName, taskId }),
-      createShowCommand({ sessionId, taskId }),
-      ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(taskId)),
-      // After the bundled commands so these shadow just-bash's own `kill` and
-      // `wait`, which act on host pids this sandbox deliberately cannot name.
-      ...SESSION_COMMAND_DEFS.map((cmd) =>
-        cmd.factory({ remainingYieldMs, sessionId }),
-      ),
-      createWhichCommand(
-        new Set([
-          AGENT_BROWSER_COMMAND.name,
-          SHOW_COMMAND.name,
-          ...allowedCommands,
-          ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.name),
-          ...SESSION_COMMAND_DEFS.map((cmd) => cmd.name),
-        ]),
-      ),
-      ...STATIC_STUB_COMMANDS,
-    ],
+    customCommands,
     cwd: MOUNT.task,
     executionLimits: {
       maxOutputSize: SANDBOX_MAX_BYTES,
@@ -532,4 +576,32 @@ export async function createBashEnv({
   bash.registerTransformPlugin(commandOrderPlugin);
 
   return bash;
+}
+
+/**
+ * The orchestrator's shell is for reading and for `task`. It has no network
+ * commands and none of the native hatches (python, node, pnpm, ffmpeg, git),
+ * because it never does the work: a shell that can only read and delegate is
+ * what keeps every turn short, and what keeps the host paths of the user's
+ * folders out of a process that could act on them.
+ */
+function createOrchestratorBashDescription(builtins: string[]) {
+  return dedent`
+    Run a bash command. This shell is for reading and for the \`${TASK_COMMAND.name}\` command. It has no python, node, package manager, browser, or network, on purpose: you never do the work here, tasks do.
+
+    What you can reach:
+    - \`${MOUNT.task}\`: your own scratch folder and working directory. Keep notes here if you want them.
+    - \`${MOUNT.attachedFolders}/<name>\`: folders the user attached to this conversation, read-only or writable as your context says. These are the user's real files.
+    - \`${MOUNT.tasks}/<id>\`: the folder of each task you created, read-only. Its \`work/\` is scratch and its \`output/\` holds deliverables unless you pointed it at a folder under \`${MOUNT.attachedFolders}\`.
+    Not a persistent terminal: every call starts fresh at \`${MOUNT.task}\`. Nothing else exists; writing elsewhere fails.
+
+    Prefer \`rg\` for searching (\`rg -n 'pattern' ${MOUNT.tasks}/<id>\`, \`rg --files ${MOUNT.attachedFolders}/<name>\`) and the \`${TOOL_NAMES.readFile}\` tool for reading a file.
+
+    Available commands (the complete set; anything not listed is NOT available): ${builtins.join(", ")}
+
+    Specialized commands:
+      ${RG_COMMAND.name} - ${RG_COMMAND.description}
+      ${TASK_COMMAND.name} - ${TASK_COMMAND.description}
+      ${JOBS_COMMAND.name}, ${FG_COMMAND.name}, ${KILL_COMMAND.name} - a command that outlives \`yieldMs\` keeps running in the background under an id these manage; you will rarely need them here.
+  `.trim();
 }

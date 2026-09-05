@@ -64,7 +64,9 @@ const SUBMIT_FOLLOW_TIMEOUT_MS = 5000;
 const TRANSCRIPT_PREVIOUS_TURN_PEEK = 40;
 
 export function TaskChat({
+  alwaysSubmittable = false,
   isReplayActive = false,
+  navigateOnSend = true,
   onCancelReplay,
   promptDraft,
   selectedModelURI: initialSelectedModelURI,
@@ -72,7 +74,20 @@ export function TaskChat({
   showTutorial,
   task,
 }: {
+  /**
+   * Send every prompt the moment it is submitted, whether or not a turn is
+   * running, and never hold one in the renderer's queue. The orchestrator's
+   * conversation never takes turns with the user: its session queues what
+   * arrives mid-turn and runs it the moment the turn ends.
+   */
+  alwaysSubmittable?: boolean;
   isReplayActive?: boolean;
+  /**
+   * Whether a successful send moves the route to the task page with the
+   * session it landed in. Off where the chat is not on that route, and the
+   * session was fixed before the first message.
+   */
+  navigateOnSend?: boolean;
   onCancelReplay?: () => void;
   promptDraft: string;
   selectedModelURI?: AIGatewayModelURI.Type;
@@ -298,7 +313,7 @@ export function TaskChat({
       id={id}
       isLoading={createMessage.isPending}
       isStoppable={isAgentAlive}
-      isSubmittable={isQueueEnabled ? true : !isAgentAlive}
+      isSubmittable={alwaysSubmittable || isQueueEnabled || !isAgentAlive}
       modelURI={selectedModelURI}
       onFolderCountChange={setComposerFolderCount}
       onModelChange={setSelectedModelURI}
@@ -332,7 +347,12 @@ export function TaskChat({
         // While a turn is running, buffer the prompt; the queue delivers it
         // when the agent goes idle. A brand-new session (no id yet) always
         // starts immediately.
-        if (isQueueEnabled && isAgentAlive && selectedSessionId) {
+        if (
+          !alwaysSubmittable &&
+          isQueueEnabled &&
+          isAgentAlive &&
+          selectedSessionId
+        ) {
           enqueue({ files, folders, modelURI, prompt });
           return;
         }
@@ -352,6 +372,9 @@ export function TaskChat({
               }
             },
             onSuccess: ({ sessionId }) => {
+              if (!navigateOnSend) {
+                return;
+              }
               void navigate({
                 params: { id },
                 replace: true,
@@ -366,7 +389,7 @@ export function TaskChat({
         );
       }}
       placeholder={
-        isQueueEnabled && isAgentAlive
+        !alwaysSubmittable && isQueueEnabled && isAgentAlive
           ? "Queue a follow-up…"
           : `Talk to ${APP_NAME}`
       }

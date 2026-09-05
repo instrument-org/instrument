@@ -18,7 +18,7 @@ declare global {
       // Hand task files to the OS as a native drag. Absent outside Electron,
       // which is what makes a surface stop offering the drag at all.
       startFileDrag?: (files: { filePath: string; taskId: string }[]) => void;
-      windowType?: "main" | "onboarding";
+      windowType?: "main" | "onboarding" | "orchestrator";
     };
     electron: ElectronAPI;
   }

@@ -261,10 +261,18 @@ export async function buildBashFs(
  */
 export function buildWorkspaceFsLayout({
   attachedFolders,
+  extraMounts = [],
   projectFolderName,
   taskHostRoot,
 }: {
   attachedFolders?: Record<string, FolderAttachment.Type>;
+  /**
+   * Mounts the caller adds beside the attached folders, already resolved: an
+   * orchestrator's read-only view of the tasks it created. They are attached
+   * mounts in every way that matters to the filesystem, so they take the same
+   * masking and containment.
+   */
+  extraMounts?: WorkspaceFsMount[];
   /**
    * Folder under `projects/` holding the task's project, resolved to a host path
    * against this machine's workspace. A name rather than a path because the task
@@ -273,16 +281,19 @@ export function buildWorkspaceFsLayout({
   projectFolderName?: string;
   taskHostRoot: TaskDir;
 }): WorkspaceFsLayout {
-  const attached: WorkspaceFsMount[] = assignAttachedMounts(
-    attachedFolders ?? {},
-  ).map(({ folder, mountPoint }) => ({
-    hostRoot: folder.path,
-    // A folder the user attached is theirs, and an `.instrument` dir in it is
-    // an ordinary directory of theirs rather than one of ours.
-    masksPrivateDir: false,
-    mountPoint,
-    readOnly: effectiveFolderAccess(folder) !== "read-write",
-  }));
+  const attached: WorkspaceFsMount[] = [
+    ...assignAttachedMounts(attachedFolders ?? {}).map(
+      ({ folder, mountPoint }) => ({
+        hostRoot: folder.path,
+        // A folder the user attached is theirs, and an `.instrument` dir in it
+        // is an ordinary directory of theirs rather than one of ours.
+        masksPrivateDir: false,
+        mountPoint,
+        readOnly: effectiveFolderAccess(folder) !== "read-write",
+      }),
+    ),
+    ...extraMounts,
+  ];
 
   return {
     attached,

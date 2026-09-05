@@ -57,4 +57,13 @@ export const MOUNT = {
    * through the layout, so this is the single value to change.
    */
   task: "/task",
+
+  /**
+   * Where an orchestrator sees the tasks it created, one read-only mount per
+   * task at `/tasks/<id>`. Plural, beside the singular `/task` that is the
+   * orchestrator's own scratch, because the two are different things: its own
+   * folder is where it keeps notes, and these are the folders of the work it
+   * delegated, which it reads and never writes.
+   */
+  tasks: "/tasks",
 } as const;

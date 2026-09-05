@@ -16,7 +16,7 @@ import { createActor } from "xstate";
 
 import type { Session } from "../src/schemas/session";
 
-import { workspaceMachine } from "../src/electron";
+import { attachOrchestrator, workspaceMachine } from "../src/electron";
 import { isToolPart } from "../src/lib/is-tool-part";
 import { createProject } from "../src/lib/project";
 import { Store } from "../src/lib/store";
@@ -31,6 +31,7 @@ import { type ProjectId } from "../src/schemas/project-id";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { type StoreId } from "../src/schemas/store-id";
 import { type TaskId } from "../src/schemas/task-id";
+import { type TaskKind } from "../src/schemas/task-kind";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
 import {
@@ -157,6 +158,12 @@ export interface EvalCase {
    * rather than re-derive. Assertions see every session the run produced.
    */
   followUps?: string[];
+  /**
+   * Which agent answers the prompt. An orchestrator delegates to tasks it
+   * creates inside the same workspace, so a run of that kind produces the
+   * orchestrator's transcript plus one per task it made.
+   */
+  kind?: TaskKind;
   name: string;
   /**
    * Run the task inside a project created for it. The only way to exercise the
@@ -266,6 +273,7 @@ export async function runEvals(
     },
   });
 
+  attachOrchestrator(actor);
   actor.start();
 
   const runs = models
@@ -327,6 +335,7 @@ export async function runEvals(
           {
             files: evalCase.files,
             folders: privateFoldersFor(evalCase, index),
+            kind: evalCase.kind,
             modelURI: uri,
             name: evalCase.name,
             projectId,

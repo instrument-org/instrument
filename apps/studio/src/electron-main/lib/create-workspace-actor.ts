@@ -13,6 +13,7 @@ import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
 import { APP_NAME } from "@instrument-org/shared";
 import {
+  attachOrchestrator,
   BACKGROUND_PROCESS_TEARDOWN_MS,
   clearOrphanedProjectRefs,
   closeAllAgentBrowserSessions,
@@ -221,6 +222,7 @@ export function createWorkspaceActor({
       /* eslint-enable no-console */
     },
   });
+  attachOrchestrator(actor);
   actor.start();
 
   const snapshot = actor.getSnapshot();

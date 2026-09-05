@@ -191,6 +191,12 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-skillMentions": {
       return `<data-skillMentions>${part.data.names.join(",")}</data-skillMentions>`;
     }
+    case "data-taskEvent": {
+      const events = part.data.events
+        .map((event) => `${event.taskId}:${event.status}`)
+        .join(",");
+      return `<data-taskEvent>${events}</data-taskEvent>`;
+    }
     case "data-unknown": {
       return `<data-unknown originalType="${part.data.originalType}" />`;
     }

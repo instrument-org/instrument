@@ -25,6 +25,7 @@ import {
 } from "../lib/image-preview";
 import { imageViewSize, PREVIEW_LIMITS } from "../lib/image-view-size";
 import { listFiles } from "../lib/list-files";
+import { childTaskMounts } from "../lib/orchestrator/children";
 import { pathExists } from "../lib/path-exists";
 import {
   canDecodeMedia,
@@ -434,10 +435,12 @@ export const ReadFile = setupTool({
     - Reading an image tells you the size you are shown it at, and, when the file is too large to render whole, the larger dimensions it has on disk.
     - Seeing an image is not the same as reading it: small text, closely spaced lines, and dense chart or table values are unreliable at whole-image scale, and a confident first impression of one is often simply wrong. So when an answer turns on a detail that small -- a chart label, a value in a dense table, which of two lines sits higher, text in a screenshot -- read the image again with ${INPUT_PARAMS.region} set to the corners of the area in question. It comes back cropped from the full-resolution file and magnified, so what was a few pixels becomes legible. Coordinates are pixels in the space the image was shown to you at, which is the first size the read states and is smaller than the file's own dimensions whenever the file is large. Never the file's dimensions, and never pixels in a magnified crop you got back. To narrow further, give a smaller rectangle in those same shown-at coordinates; each response repeats the rectangle it used, so subdivide that. Trust what you read magnified over your first impression of the whole image.
   `,
-  execute: async ({ input, signal, taskId, taskState }) => {
+  execute: async ({ agentName, input, signal, taskId, taskState }) => {
     const region = input.region;
     const layout = buildWorkspaceFsLayout({
       attachedFolders: taskState.attachedFolders,
+      extraMounts:
+        agentName === "instrument" ? await childTaskMounts(taskId) : undefined,
       projectFolderName: await resolveTaskProjectFolder(taskId),
       taskHostRoot: taskDir(taskId),
     });

@@ -17,6 +17,7 @@ import { ModelChangeNote } from "./model-change-note";
 import { ModelContextDebugCard } from "./model-context-debug-card";
 import { ProjectChangesNote } from "./project-changes-note";
 import { SkillChangesCard } from "./skill-changes-card";
+import { TaskEventNote } from "./task-event-note";
 
 type DataPartType = SessionMessagePart.DataPart["type"];
 
@@ -64,6 +65,9 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-projectContext": "hidden",
   "data-skillChanges": "always",
   "data-skillMentions": "dev",
+  // The reason an orchestrator woke, shown so a reply that follows nothing the
+  // user typed has a visible cause.
+  "data-taskEvent": "always",
   "data-unknown": "dev",
 };
 
@@ -227,6 +231,9 @@ export function renderDataPart({
           text={`Skills mentioned: ${part.data.names.join(", ")}`}
         />
       );
+    }
+    case "data-taskEvent": {
+      return <TaskEventNote data={part.data} key={part.metadata.id} />;
     }
     case "data-unknown": {
       // Not a failure the reader can do anything about, so it stays a

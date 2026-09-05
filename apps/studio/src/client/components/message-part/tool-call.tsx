@@ -14,6 +14,7 @@ import { ToolEditFile } from "./tool-edit-file";
 import { ToolGenerateImage } from "./tool-generate-image";
 import { ToolLoadSkill } from "./tool-load-skill";
 import { ToolReadFile } from "./tool-read-file";
+import { ToolReply } from "./tool-reply";
 import { ToolStartActivity } from "./tool-start-activity";
 import { ToolUnavailable } from "./tool-unavailable";
 import { ToolWebFetch } from "./tool-web-fetch";
@@ -148,6 +149,9 @@ function ToolCallBody({
     }
     case "tool-read_file": {
       return <ToolReadFile id={task.id} part={part} />;
+    }
+    case "tool-reply": {
+      return <ToolReply part={part} />;
     }
     case "tool-unavailable": {
       return <ToolUnavailable part={part} />;

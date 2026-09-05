@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 import { ProjectIdSchema } from "./project-id";
+import { TaskIdSchema } from "./task-id";
 import { TaskIndicatorSchema } from "./task-indicator";
+import { TaskKindSchema } from "./task-kind";
 
 // Load-bearing that this stays a plain object schema: it is parsed against the
 // whole task record, whose `state` key it is meant to ignore rather than reject.
@@ -14,6 +16,8 @@ export const TaskSettingsSchema = z.object({
   // the copy happened.
   createdAt: z.coerce.date().optional(),
   createdWithAppVersion: z.string().optional(),
+  // Absent on a task a person created. See TaskKindSchema.
+  kind: TaskKindSchema.optional(),
   // When something happened in this task, as opposed to when a file under it
   // was last written. It orders the task list, and it is recorded rather than
   // observed because the observable timestamps do not mean what the list needs:
@@ -21,6 +25,10 @@ export const TaskSettingsSchema = z.object({
   // on its mtime moves a task to the top for having been read.
   lastActivityAt: z.coerce.date().optional(),
   name: z.string().default("Untitled task"),
+  // The orchestrator that created this task, which is how that orchestrator
+  // lists its own work and how a finished task finds its way back to it.
+  // Absent on a task a person created.
+  parentTaskId: TaskIdSchema.optional(),
   // Presence marks the task as pinned; the timestamp orders the pin list. Lives
   // in the folder so it travels with a rename and can't collide with a reused
   // folder name.

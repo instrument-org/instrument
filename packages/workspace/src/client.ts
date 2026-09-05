@@ -19,6 +19,7 @@ export { normalizeTaskFilePath } from "./lib/normalize-task-file-path";
 export { paneTabsModelNote } from "./lib/pane-tabs-model-text";
 export { projectChangesModelNote } from "./lib/project-changes-model-text";
 export { systemNoteBody } from "./lib/system-note";
+export { taskEventModelNote } from "./lib/task-event-model-text";
 export { isAddressableTaskFilePath } from "./lib/task-file-path";
 export {
   getUsageSummaryFromMessages,

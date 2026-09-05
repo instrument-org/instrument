@@ -1,6 +1,7 @@
 import { type ToolName } from "@instrument-org/workspace/client";
 import { type Icon } from "@phosphor-icons/react";
 import { BookOpenIcon } from "@phosphor-icons/react/BookOpen";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { FlagIcon } from "@phosphor-icons/react/Flag";
@@ -19,6 +20,7 @@ const TOOL_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   generate_image: "Generated image",
   load_skill: "Loaded skill",
   read_file: "Read",
+  reply: "Replied",
   start_activity: "Started working",
   unavailable: "Used unknown tool",
   web_fetch: "Read web page",
@@ -33,6 +35,7 @@ const TOOL_STREAMING_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   generate_image: "Generating an image",
   load_skill: "Loading skill",
   read_file: "Reading file",
+  reply: "Replying",
   start_activity: "Starting work",
   unavailable: "Using unknown tool",
   web_fetch: "Reading web page",
@@ -50,6 +53,7 @@ const TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE: Record<
   generate_image: "Generating",
   load_skill: "Loading skill",
   read_file: "Reading",
+  reply: TOOL_STREAMING_DISPLAY_NAMES.reply,
   start_activity: TOOL_STREAMING_DISPLAY_NAMES.start_activity,
   unavailable: TOOL_STREAMING_DISPLAY_NAMES.unavailable,
   web_fetch: "Reading",
@@ -64,6 +68,7 @@ const TOOL_TRIED_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   generate_image: "Tried to generate image",
   load_skill: "Tried to load skill",
   read_file: "Tried to read file",
+  reply: "Tried to reply",
   start_activity: "Tried to start work",
   unavailable: "Tried unknown tool",
   web_fetch: "Tried to read web page",
@@ -97,6 +102,7 @@ const TOOL_SUMMARY_PHRASES: Record<
     plural: (count) => `read ${count} files`,
     singular: "read a file",
   },
+  reply: { singular: "replied" },
   // Never summarized: it is the heading, not a step under one.
   start_activity: undefined,
   unavailable: { singular: "used an unknown tool" },
@@ -118,6 +124,7 @@ export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
   generate_image: ImageIcon,
   load_skill: BookOpenIcon,
   read_file: EyeIcon,
+  reply: ChatCircleIcon,
   start_activity: FlagIcon,
   unavailable: WrenchIcon,
   web_fetch: GlobeIcon,

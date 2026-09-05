@@ -14,6 +14,7 @@ import {
   privateMountPoint,
   resolveReadOnlyHostPath,
   type WorkspaceFsLayout,
+  type WorkspaceFsMount,
 } from "../workspace-fs-layout";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
@@ -88,10 +89,12 @@ const PRIVATE_DIR_DENY_GLOBS = [
 
 export function createRgCommand({
   attachedFolders,
+  extraMounts,
   projectFolderName,
   taskId,
 }: {
   attachedFolders?: Record<string, FolderAttachment.Type>;
+  extraMounts?: WorkspaceFsMount[];
   projectFolderName?: string;
   taskId: TaskId;
 }) {
@@ -107,6 +110,7 @@ export function createRgCommand({
 
     const layout = buildWorkspaceFsLayout({
       attachedFolders,
+      extraMounts,
       projectFolderName,
       taskHostRoot: taskDir(taskId),
     });

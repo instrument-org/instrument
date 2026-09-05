@@ -3,6 +3,7 @@ import { z } from "zod";
 import { FolderAttachment } from "../folder-attachment";
 import { RelativePathSchema } from "../paths";
 import { ProjectIdSchema } from "../project-id";
+import { TaskIdSchema } from "../task-id";
 import { TaskPane } from "../task-pane";
 
 export namespace SessionMessageDataPart {
@@ -46,6 +47,7 @@ export namespace SessionMessageDataPart {
     "paneTabs",
     "projectChanges",
     "projectContext",
+    "taskEvent",
     "unknown",
   ]);
 
@@ -334,6 +336,35 @@ export namespace SessionMessageDataPart {
   export type MaxStepsDataPart = z.output<typeof MaxStepsDataPartSchema>;
 
   /**
+   * Tasks an orchestrator created that finished a turn since it last heard.
+   *
+   * The one way work comes back to the orchestrator: a child never speaks in
+   * this conversation, so its completion has to arrive as something the
+   * orchestrator reads on a turn of its own. Written on a user message with no
+   * text, which starts that turn, so the model reads it as a note from the
+   * harness rather than as something the user said.
+   *
+   * Event cadence: one part per wake. Several children finishing inside the
+   * same moment are one part naming all of them, never one part for the newest,
+   * because a wake that names only the last finisher loses the rest.
+   */
+  export const TaskEventDataPartSchema = z.object({
+    events: z
+      .array(
+        z.object({
+          status: z.enum(["done", "error"]),
+          /** What the child last said, shortened. Absent when it said nothing. */
+          summary: z.string().optional(),
+          taskId: TaskIdSchema,
+          title: z.string(),
+        }),
+      )
+      .min(1),
+  });
+
+  export type TaskEventDataPart = z.output<typeof TaskEventDataPartSchema>;
+
+  /**
    * The local calendar date a session moved onto, as `yyyy-MM-dd`, written to
    * the first user message sent on a later day than the one the session context
    * records. The session context is a startup snapshot and is never rewritten,
@@ -430,6 +461,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,
     [NameSchema.enum.skillChanges]: SkillChangesDataPartSchema,
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,
+    [NameSchema.enum.taskEvent]: TaskEventDataPartSchema,
     [NameSchema.enum.unknown]: UnknownDataPartSchema,
   });
   export type DataParts = z.output<typeof DataPartsSchema>;

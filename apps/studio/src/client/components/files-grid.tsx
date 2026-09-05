@@ -1,4 +1,5 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { FileOpenContext } from "@/client/components/file-open-context";
 import { useTaskPane, useTaskPaneActions } from "@/client/hooks/use-task-pane";
 import {
   type FileType,
@@ -13,6 +14,7 @@ import { cn } from "@/client/lib/utils";
 import { TASK_FOLDER_NAMES, TaskPane } from "@instrument-org/workspace/client";
 import { useParams } from "@tanstack/react-router";
 import { fork } from "radashi";
+import { useContext } from "react";
 
 import { FilePreviewCard } from "./file-preview-card";
 import { FilePreviewListItem } from "./file-preview-list-item";
@@ -64,7 +66,12 @@ export function FilesGrid({
   const pane = useTaskPane(taskId);
   const { openFiles } = useTaskPaneActions(taskId);
 
+  const openElsewhere = useContext(FileOpenContext);
   const handleFileClick = (file: TaskFileViewerFile) => {
+    if (openElsewhere) {
+      openElsewhere(file.filePath);
+      return;
+    }
     openFiles([file.filePath]);
   };
 

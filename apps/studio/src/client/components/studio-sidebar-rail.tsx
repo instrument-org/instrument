@@ -20,7 +20,7 @@ import {
   motion,
   useMotionValue,
 } from "motion/react";
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 
 /**
  * The resizable sidebar rail. Width is driven imperatively so dragging tracks
@@ -36,9 +36,12 @@ import { useEffect, useRef } from "react";
  * - `panelX`: how far the panel is translated out of its clip.
  */
 export function StudioSidebarRail({
+  children,
   isOpen,
   onCollapse,
 }: {
+  /** What the rail holds; the Studio sidebar unless a window brings its own. */
+  children?: ReactNode;
   isOpen: boolean;
   onCollapse: () => void;
 }) {
@@ -255,7 +258,7 @@ export function StudioSidebarRail({
           className="absolute inset-y-0 left-0 flex h-full flex-col border-r border-border bg-sidebar select-none"
           style={{ width: panelWidth, x: panelX }}
         >
-          <StudioSidebar className="min-h-0 w-full flex-1" />
+          {children ?? <StudioSidebar className="min-h-0 w-full flex-1" />}
         </motion.div>
       </div>
       {isOpen && (

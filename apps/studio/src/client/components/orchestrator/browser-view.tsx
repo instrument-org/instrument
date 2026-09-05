@@ -15,7 +15,14 @@ import {
 } from "react";
 import { z } from "zod";
 
+export interface BrowserPage {
+  title: string;
+  url: string;
+}
+
 export interface BrowserViewHandle {
+  /** Loads an address, or searches for words. */
+  open: (input: string) => void;
   /** Reads the page as it is at that moment; undefined while nothing is open. */
   readPage: () => Promise<PageContext | undefined>;
 }
@@ -74,11 +81,22 @@ const READ_PAGE_WORDS = `({
  * The guest is created once and kept for the life of the view; the tab
  * switching away hides it rather than unmounting it, so the page stays.
  */
-export function BrowserView({ ref }: { ref: Ref<BrowserViewHandle> }) {
+export function BrowserView({
+  onPageChange,
+  ref,
+}: {
+  /** Told the page on screen whenever it changes, and undefined when none is. */
+  onPageChange?: (page: BrowserPage | undefined) => void;
+  ref: Ref<BrowserViewHandle>;
+}) {
   const hostRef = useRef<HTMLDivElement>(null);
   const webviewRef = useRef<null | WebviewElement>(null);
   const addressRef = useRef<HTMLInputElement>(null);
-  const [page, setPage] = useState<{ title: string; url: string }>();
+  const [page, setPage] = useState<BrowserPage>();
+  const onPageChangeRef = useRef(onPageChange);
+  useEffect(() => {
+    onPageChangeRef.current = onPageChange;
+  }, [onPageChange]);
   const [address, setAddress] = useState("");
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState({ back: false, forward: false });
@@ -105,6 +123,7 @@ export function BrowserView({ ref }: { ref: Ref<BrowserViewHandle> }) {
       const next =
         url && url !== BLANK ? { title: webview.getTitle(), url } : undefined;
       setPage(next);
+      onPageChangeRef.current?.(next);
       setHistory({
         back: webview.canGoBack(),
         forward: webview.canGoForward(),
@@ -140,36 +159,6 @@ export function BrowserView({ ref }: { ref: Ref<BrowserViewHandle> }) {
     };
   }, []);
 
-  useImperativeHandle(ref, () => ({
-    readPage: async () => {
-      const webview = webviewRef.current;
-      const url = webview?.getURL();
-      if (!webview || !url || url === BLANK) {
-        return;
-      }
-      const base = { title: webview.getTitle(), url };
-      let raw: unknown;
-      try {
-        raw = await webview.executeJavaScript(READ_PAGE_WORDS);
-      } catch {
-        // A page mid-navigation, or one that blocks scripts: its address and
-        // title still say what the user was looking at.
-        return base;
-      }
-      const words = PageWordsSchema.safeParse(raw);
-      if (!words.success) {
-        return base;
-      }
-      const selection = words.data.selection.trim().slice(0, SELECTION_MAX);
-      const text = words.data.text.slice(0, PAGE_TEXT_MAX);
-      return {
-        ...base,
-        ...(selection ? { selection } : {}),
-        ...(text ? { text } : {}),
-      };
-    },
-  }));
-
   const go = async (input: string) => {
     const text = input.trim();
     if (!text) {
@@ -189,6 +178,45 @@ export function BrowserView({ ref }: { ref: Ref<BrowserViewHandle> }) {
       // A load another load overtakes rejects; the later one is the one wanted.
     }
   };
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      open: (input: string) => {
+        void go(input);
+      },
+      readPage: async () => {
+        const webview = webviewRef.current;
+        const url = webview?.getURL();
+        if (!webview || !url || url === BLANK) {
+          return;
+        }
+        const base = { title: webview.getTitle(), url };
+        let raw: unknown;
+        try {
+          raw = await webview.executeJavaScript(READ_PAGE_WORDS);
+        } catch {
+          // A page mid-navigation, or one that blocks scripts: its address and
+          // title still say what the user was looking at.
+          return base;
+        }
+        const words = PageWordsSchema.safeParse(raw);
+        if (!words.success) {
+          return base;
+        }
+        const selection = words.data.selection.trim().slice(0, SELECTION_MAX);
+        const text = words.data.text.slice(0, PAGE_TEXT_MAX);
+        return {
+          ...base,
+          ...(selection ? { selection } : {}),
+          ...(text ? { text } : {}),
+        };
+      },
+      // Once: the handle reads the webview through its ref, and a new object per
+      // render would hand the parent a new handle every time.
+    }),
+    [],
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col">

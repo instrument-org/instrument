@@ -376,7 +376,13 @@ export namespace SessionMessageDataPart {
    * it had a folder on screen.
    */
   export const ViewContextDataPartSchema = z.object({
+    /** The folder on screen, as the person writes it: `~/Documents/Instrument`. */
     folder: z.string(),
+    /**
+     * The virtual path the agent reaches that folder by, when a folder it was
+     * granted covers it. Absent means the agent cannot read it.
+     */
+    mount: z.string().optional(),
     /**
      * The page the window's browser showed, when that tab was on screen: its
      * address and title, what was selected on it, and how its text begins.
@@ -389,6 +395,7 @@ export namespace SessionMessageDataPart {
         url: z.string(),
       })
       .optional(),
+    /** The names selected in the folder. */
     selected: z.array(z.string()).default([]),
   });
 

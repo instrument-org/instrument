@@ -455,6 +455,29 @@ const getTaskFileOpenCandidates = base
     return { apps: await getFileOpenCandidates(fullPath) };
   });
 
+/** Open a file or folder of the computer in the app the Mac would use. */
+const openPath = base
+  .errors({
+    ERROR_OPENING_FILE: {
+      message: "Error opening file",
+    },
+    FILE_NOT_FOUND: {
+      message: "File not found",
+    },
+  })
+  .input(z.object({ filepath: z.string() }))
+  .handler(async ({ errors, input }) => {
+    try {
+      await fs.access(input.filepath);
+    } catch {
+      throw errors.FILE_NOT_FOUND();
+    }
+    const errorMessage = await shell.openPath(input.filepath);
+    if (errorMessage) {
+      throw errors.ERROR_OPENING_FILE({ message: errorMessage });
+    }
+  });
+
 const showFileInFolder = base
   .errors({
     FILE_NOT_FOUND: {
@@ -848,6 +871,7 @@ export const utils = {
   minimizeWindow,
   openExternalLink,
   openFolder,
+  openPath,
   openTaskFile,
   openTaskFileWith,
   openTaskIn,

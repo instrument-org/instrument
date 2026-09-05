@@ -72,6 +72,7 @@ export function TaskChat({
   isReplayActive = false,
   navigateOnSend = true,
   onCancelReplay,
+  presentation,
   promptDraft,
   selectedModelURI: initialSelectedModelURI,
   selectedSessionId,
@@ -94,6 +95,8 @@ export function TaskChat({
    */
   navigateOnSend?: boolean;
   onCancelReplay?: () => void;
+  /** How the transcript draws the agent's steps; see `ChatStream`. */
+  presentation?: "orchestrator";
   promptDraft: string;
   selectedModelURI?: AIGatewayModelURI.Type;
   selectedSessionId?: StoreId.Session;
@@ -508,6 +511,7 @@ export function TaskChat({
                     onRetry={handleRetry}
                     onRunAgain={handleRunAgain}
                     onStartNewTask={handleStartNewTask}
+                    presentation={presentation}
                     task={task}
                   />
                 )

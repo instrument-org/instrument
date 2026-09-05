@@ -14,7 +14,7 @@ export function viewContextModelNote(
   const { page } = data;
   if (!page) {
     return systemNote`
-      When the user sent this, ${folderShown(data)}. "This folder", "here", "in here" and "these" refer to that; a task that should put results there gets it with --folder, writable.
+      When the user sent this, ${folderShown(data)}. "This folder", "here", "in here" and "these" refer to that. ${folderReach(data)}
     `;
   }
   const title = page.title ? ` "${page.title}"` : "";
@@ -25,14 +25,18 @@ export function viewContextModelNote(
       : "It has no text yet.";
   return systemNote`
     When the user sent this, the browser showed${title} at ${page.url}. "This page", "this site", "this" and "here" refer to it. You have no browser; a task does, so a task that needs the page gets its address in the brief. Answer from what is quoted here when that is enough. ${words}
-    Behind the browser, ${folderShown(data)}; "this folder" means that.
+    Behind the browser, ${folderShown(data)}; "this folder" means that. ${folderReach(data)}
   `;
 }
 
+/** Whether the agent can get at that folder, and how. */
+function folderReach(data: SessionMessageDataPart.ViewContextDataPart) {
+  return data.mount
+    ? `You reach it at \`${data.mount}\`; a task that should work there gets it with --folder, writable when it should write.`
+    : "No folder you were granted covers it, so you cannot read it or hand it to a task: ask for it with request_folder, or the user can allow it from the folder view.";
+}
+
 function folderShown(data: SessionMessageDataPart.ViewContextDataPart) {
-  if (data.folder === "/") {
-    return "the folder view showed the list of folders, none open";
-  }
   const selected =
     data.selected.length > 0
       ? `, with ${data.selected.map((entry) => `\`${entry}\``).join(", ")} selected in it`

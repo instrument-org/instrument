@@ -1,4 +1,5 @@
 import { browser } from "./routes/browser";
+import { computer } from "./routes/computer";
 import { debug } from "./routes/debug";
 import { message } from "./routes/message";
 import { orchestrator } from "./routes/orchestrator";
@@ -14,6 +15,7 @@ import { task } from "./routes/task";
 
 export const router = {
   browser,
+  computer,
   debug,
   message,
   orchestrator,

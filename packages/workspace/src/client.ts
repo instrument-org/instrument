@@ -16,6 +16,7 @@ export * from "./lib/is-task-id";
 export { isToolPart } from "./lib/is-tool-part";
 export { maxStepsModelNote } from "./lib/max-steps-model-text";
 export { normalizeTaskFilePath } from "./lib/normalize-task-file-path";
+export type { ComputerListing } from "./lib/orchestrator/computer";
 export { paneTabsModelNote } from "./lib/pane-tabs-model-text";
 export { projectChangesModelNote } from "./lib/project-changes-model-text";
 export { systemNoteBody } from "./lib/system-note";

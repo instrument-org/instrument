@@ -1,4 +1,8 @@
-import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
+import {
+  AIGatewayModelURI,
+  fetchModel,
+  fetchModelResultsForProviders,
+} from "@instrument-org/ai-gateway";
 import { type ByteString, defineCommand } from "just-bash";
 import ms from "ms";
 import fs from "node:fs/promises";
@@ -28,6 +32,7 @@ import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
 import { recordTaskActivity } from "../task-settings";
 import { trashTask } from "../trash-task";
+import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { getWorkspaceConfig } from "../workspace-config";
 import { effectiveFolderAccess } from "../workspace-fs-layout";
@@ -79,6 +84,8 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       Its transcript, last ${DEFAULT_LOG_TAIL_LINES} lines by default. Composes: \`${TASK_COMMAND.name} log <id> | rg error\`.
   ${TASK_COMMAND.name} model <id> <uri>
       The model its next turn runs on.
+  ${TASK_COMMAND.name} models
+      Every model available to you, with its provider and context window.
   ${TASK_COMMAND.name} wait <id> [--timeout <ms>]
       Block until it finishes or the timeout, whichever comes first. Rarely the
       right call: you are woken when it finishes anyway.
@@ -108,6 +115,9 @@ export function createTaskCommand(context: TaskCommandContext) {
         }
         case "model": {
           return await runModel(rest, context);
+        }
+        case "models": {
+          return await runModels();
         }
         case "new": {
           return await runNew(rest, context, ctx.stdin);
@@ -417,6 +427,49 @@ async function runModel(args: string[], context: TaskCommandContext) {
   return ok(`${task.id} will run its next turn on ${modelURI}.\n`);
 }
 
+async function runModels() {
+  const workspaceConfig = getWorkspaceConfig();
+  const results = await fetchModelResultsForProviders(
+    workspaceConfig.getAIProviderConfigs(),
+    {
+      captureException: workspaceConfig.captureException,
+      modelCache: workspaceConfig.modelCache,
+    },
+  );
+  const models = results.flatMap((result) => (result.ok ? result.value : []));
+  if (models.length === 0) {
+    return ok("No models are configured.\n");
+  }
+  const rows = models
+    .toSorted((a, b) => a.name.localeCompare(b.name))
+    .map((model) => [
+      model.uri,
+      model.name,
+      model.providerName,
+      model.contextLength === undefined
+        ? "?"
+        : `${Math.round(model.contextLength / 1000)}K`,
+    ]);
+  const widths = [0, 1, 2].map((column) =>
+    Math.max(...rows.map((row) => (row[column] ?? "").length)),
+  );
+  return ok(
+    `${["uri", "name", "provider", "context"]
+      .map((cell, column) =>
+        column === 3 ? cell : cell.padEnd(widths[column] ?? 0),
+      )
+      .join("  ")}\n${rows
+      .map((row) =>
+        row
+          .map((cell, column) =>
+            column === 3 ? cell : cell.padEnd(widths[column] ?? 0),
+          )
+          .join("  "),
+      )
+      .join("\n")}\n`,
+  );
+}
+
 async function runNew(
   args: string[],
   context: TaskCommandContext,
@@ -584,10 +637,12 @@ async function runShow(args: string[], context: TaskCommandContext) {
         })
       : undefined;
 
+  const usage = await getTaskUsageSummary(task.id);
   const lines = [
     `${task.id}: "${task.title}"`,
     `status: ${running ? "running" : "idle"}`,
     `last activity: ${ms(Math.max(1000, Date.now() - task.updatedAt.getTime()))} ago`,
+    `spent: ${ms(Math.max(1000, usage.activeMs), { long: true })} of work, ${usage.inputTokens + usage.outputTokens} tokens`,
     `model: ${state.selectedModelURI ?? "(none yet)"}`,
     `folders: ${folders.length > 0 ? folders.join(", ") : "none"}`,
     `scratch: ${MOUNT.tasks}/${task.id}`,

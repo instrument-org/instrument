@@ -10,6 +10,7 @@ import { createSession } from "../create-session";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
 import { getTaskSettings, recordTaskActivity } from "../task-settings";
+import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceConfig } from "../workspace-config";
 import { lastAssistantText, latestSessionId } from "./latest-session";
 
@@ -135,9 +136,11 @@ async function onSessionDone(
     return;
   }
 
+  const usage = await getTaskUsageSummary(id);
   schedule(
     orchestratorId,
     {
+      activeMs: usage.activeMs,
       status: "done",
       summary: await lastAssistantText({
         maxLength: SUMMARY_MAX_LENGTH,
@@ -146,6 +149,7 @@ async function onSessionDone(
       }),
       taskId: id,
       title: childSettings.name,
+      tokens: usage.inputTokens + usage.outputTokens,
     },
     workspaceRef,
   );

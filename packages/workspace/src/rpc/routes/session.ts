@@ -1,6 +1,6 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { mergeGenerators } from "@instrument-org/shared/merge-generators";
-import { call } from "@orpc/server";
+import { call, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { agentNameForTask } from "../../lib/agent-name-for-task";
@@ -13,6 +13,8 @@ import { recordTaskActivity } from "../../lib/task-settings";
 import { Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
+import { type ToolOutputByName, TOOLS_BY_NAME } from "../../tools/all";
+import { ToolNameSchema } from "../../tools/name";
 import { base, toORPCError } from "../base";
 import { publisher } from "../publisher";
 
@@ -310,7 +312,45 @@ const live = {
     }),
 };
 
+/**
+ * Answer a tool call that is waiting on the user: a `choose` or a
+ * `request_folder`. The output is checked against the tool's own schema, then
+ * handed to the session holding the call, which records it and lets the agent
+ * go on.
+ */
+const answerToolCall = base
+  .input(
+    z.object({
+      id: TaskIdSchema,
+      output: z.unknown(),
+      toolCallId: z.string(),
+      toolName: ToolNameSchema,
+    }),
+  )
+  .output(z.void())
+  .handler(({ context, input }) => {
+    const tool = TOOLS_BY_NAME[input.toolName];
+    const parsed = tool.outputSchema.safeParse(input.output);
+    if (!parsed.success) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: `Not an answer ${input.toolName} accepts: ${z.prettifyError(parsed.error)}`,
+      });
+    }
+    // The name and the output were validated together above, which is the
+    // correlation the union type carries and a lookup by name cannot express.
+    const output: unknown = parsed.data;
+    const value = { output, toolName: input.toolName } as ToolOutputByName;
+    context.workspaceRef.send({
+      type: "updateInteractiveToolCall",
+      value: {
+        id: input.id,
+        update: { toolCallId: input.toolCallId, type: "success", value },
+      },
+    });
+  });
+
 export const session = {
+  answerToolCall,
   byId,
   byIdWithMessagesAndParts,
   contextTokens,

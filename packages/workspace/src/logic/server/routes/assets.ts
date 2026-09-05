@@ -2,9 +2,11 @@ import { Hono, type MiddlewareHandler } from "hono";
 import { cors } from "hono/cors";
 
 import { TASK_FOLDER_NAMES } from "../../../constants";
+import { childTaskMounts } from "../../../lib/orchestrator/children";
 import { taskDir } from "../../../lib/task-dir-utils";
 import { resolveTaskProjectFolder } from "../../../lib/task-project-folder";
 import { getTaskState } from "../../../lib/task-record";
+import { getTaskSettings } from "../../../lib/task-settings";
 import {
   buildWorkspaceFsLayout,
   hostPathEscapesMount,
@@ -101,19 +103,27 @@ app.all("/*", async (c, next) => {
 
   const taskHostRoot = taskDir(id);
   const taskState = await getTaskState(taskHostRoot);
+  // An orchestrator shows what its tasks made, so their folders are part of
+  // its path space here the way they are in its sandbox.
+  const settings = await getTaskSettings(taskHostRoot);
   const layout = buildWorkspaceFsLayout({
     attachedFolders: taskState.attachedFolders,
+    extraMounts:
+      settings?.kind === "orchestrator" ? await childTaskMounts(id) : undefined,
     projectFolderName: await resolveTaskProjectFolder(id),
     taskHostRoot,
   });
   // A path under a mount root is already a virtual path; anything else is
-  // relative to the task and gets the task mount prefixed. Both mounts outside
-  // the task have to be listed, or an agent-authored page linking to one gets
+  // relative to the task and gets the task mount prefixed. Every mount outside
+  // the task has to be listed, or an agent-authored page linking to one gets
   // the path resolved inside the task folder and a 404 that looks like a missing
   // file rather than an unserved mount.
-  const virtualPath = [MOUNT.attachedFolders, MOUNT.project, MOUNT.skills].some(
-    (root) => assetPath === root || assetPath.startsWith(`${root}/`),
-  )
+  const virtualPath = [
+    MOUNT.attachedFolders,
+    MOUNT.project,
+    MOUNT.skills,
+    MOUNT.tasks,
+  ].some((root) => assetPath === root || assetPath.startsWith(`${root}/`))
     ? assetPath
     : `${MOUNT.task}${assetPath}`;
   const resolved = resolveHostPath(layout, virtualPath);

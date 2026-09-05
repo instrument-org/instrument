@@ -48,7 +48,14 @@ import {
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 import { call, eventIterator } from "@orpc/server";
-import { app, clipboard, dialog, nativeImage, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  nativeImage,
+  shell,
+} from "electron";
 import { isBinaryFile } from "isbinaryfile";
 import { exec, execFile } from "node:child_process";
 import fs from "node:fs/promises";
@@ -808,8 +815,9 @@ const showFolderPicker = base
   .handler(async () => {
     // Pass the parent window so macOS presents a window-modal sheet, which keeps
     // the open-panel service warm across opens. Without a parent it falls back to
-    // app-modal and cold-starts the panel every time (~2-3s).
-    const parentWindow = getMainWindow();
+    // app-modal and cold-starts the panel every time (~2-3s). The focused window
+    // first, so a picker asked for from a second window opens on that window.
+    const parentWindow = BrowserWindow.getFocusedWindow() ?? getMainWindow();
     const result = await (parentWindow
       ? dialog.showOpenDialog(parentWindow, {
           properties: ["openDirectory", "createDirectory"],

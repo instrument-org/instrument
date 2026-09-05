@@ -3,6 +3,7 @@ import { call, eventIterator } from "@orpc/server";
 import { z } from "zod";
 
 import { MAX_PROMPT_STORAGE_LENGTH } from "../../../constants";
+import { attachFolder as attachFolderToTask } from "../../../lib/attach-folder";
 import { taskDir } from "../../../lib/task-dir-utils";
 import {
   getTaskState,
@@ -164,8 +165,31 @@ const live = {
     }),
 };
 
+/**
+ * Attach a folder outside of a message: what answering an agent's request for
+ * one does. The message path stays the way a folder arrives with something the
+ * user typed.
+ */
+const attachFolder = base
+  .input(
+    z.object({
+      access: FolderAttachment.AccessSchema,
+      id: TaskIdSchema,
+      path: z.string(),
+    }),
+  )
+  .output(FolderAttachment.Schema)
+  .handler(({ input }) =>
+    attachFolderToTask({
+      access: input.access,
+      path: input.path,
+      taskId: input.id,
+    }),
+  );
+
 export const taskState = {
   applyPaneOperation,
+  attachFolder,
   get,
   live,
   removeFolder,

@@ -352,11 +352,15 @@ export namespace SessionMessageDataPart {
     events: z
       .array(
         z.object({
+          /** How long the child's agent has been at work in total. */
+          activeMs: z.number().nonnegative().optional(),
           status: z.enum(["done", "error"]),
           /** What the child last said, shortened. Absent when it said nothing. */
           summary: z.string().optional(),
           taskId: TaskIdSchema,
           title: z.string(),
+          /** Input and output tokens the child has spent in total. */
+          tokens: z.number().nonnegative().optional(),
         }),
       )
       .min(1),

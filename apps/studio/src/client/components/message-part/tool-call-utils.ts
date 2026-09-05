@@ -26,6 +26,19 @@ export function isActivityHeadingVisible(part: StartActivityPart): boolean {
 }
 
 /**
+ * Whether a call is waiting on the user rather than on the runtime: an
+ * interactive tool that has its input and no answer yet. Such a call is drawn
+ * in every mode, since the buttons on it are the only way the turn goes on,
+ * and it is not dead however long it waits.
+ */
+export function isAwaitingUser(part: SessionMessagePart.ToolPart) {
+  return (
+    part.state === "input-available" &&
+    isInteractiveTool(getToolNameByType(part.type))
+  );
+}
+
+/**
  * Whether a call is drawn at all.
  *
  * A call the model has asked for but that the runtime has not reached is left
@@ -54,6 +67,7 @@ export function isToolCallVisible({
   return (
     hasTerminalToolState(part) ||
     isDeveloperMode ||
+    isAwaitingUser(part) ||
     (isStreaming && isToolPartRunning(part))
   );
 }

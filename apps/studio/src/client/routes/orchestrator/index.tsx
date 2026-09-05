@@ -2,53 +2,149 @@ import { TaskChat } from "@/client/components/task/chat";
 import { Toaster } from "@/client/components/ui/sonner";
 import { Spinner } from "@/client/components/ui/spinner";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { type Task } from "@instrument-org/workspace/client";
+import { type Task, type TaskId } from "@instrument-org/workspace/client";
+import { XIcon } from "@phosphor-icons/react/X";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import ms from "ms";
+import { useState } from "react";
 
-/** How often the list of the orchestrator's tasks is re-read. */
-const CHILDREN_REFRESH_MS = ms("3 seconds");
+/** How often the orchestrator's tasks and their status are re-read. */
+const REFRESH_MS = ms("2 seconds");
 
 export const Route = createFileRoute("/orchestrator/")({
   component: OrchestratorRoute,
   head: () => ({ meta: [{ title: APP_NAME }] }),
 });
 
-function ChildTasks({ tasks }: { tasks: Task[] }) {
-  if (tasks.length === 0) {
-    return null;
-  }
+/**
+ * A task's own chat, opened beside the conversation. The escape hatch: the
+ * orchestrator is meant to be the only thing the user talks to, and this is
+ * how they look over its shoulder.
+ */
+function ChildChat({ onClose, task }: { onClose: () => void; task: Task }) {
+  const sessions = useQuery(
+    rpcClient.workspace.session.list.queryOptions({
+      input: { id: task.id },
+      refetchInterval: REFRESH_MS,
+    }),
+  );
+  const state = useQuery(
+    rpcClient.workspace.task.state.get.queryOptions({
+      input: { id: task.id },
+    }),
+  );
+  // Newest session: ids are ulids, so the last one alphabetically.
+  const sessionId = sessions.data
+    ?.map((session) => session.id)
+    .toSorted()
+    .at(-1);
+
   return (
-    <aside className="max-h-48 shrink-0 overflow-y-auto border-t border-border px-4 py-2">
-      <p className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-        Tasks
-      </p>
-      <ul className="flex flex-col gap-0.5">
-        {tasks.map((child) => (
-          <li
-            className="flex items-baseline justify-between gap-3 text-sm"
-            key={child.id}
-          >
-            <span className="truncate">{child.title}</span>
-            <span className="shrink-0 font-mono text-xs text-muted-foreground">
-              {child.id}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </aside>
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <span className="truncate text-sm font-medium">{task.title}</span>
+        <button
+          aria-label="Close task"
+          className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+          onClick={onClose}
+          type="button"
+        >
+          <XIcon className="size-4" />
+        </button>
+      </div>
+      <div className="min-h-0 flex-1">
+        {state.data && sessionId ? (
+          <TaskChat
+            navigateOnSend={false}
+            promptDraft={state.data.promptDraft ?? ""}
+            selectedModelURI={state.data.selectedModelURI}
+            selectedSessionId={sessionId}
+            task={task}
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center">
+            <Spinner className="size-5" />
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
-function Frame({ children }: { children: React.ReactNode }) {
+/**
+ * The orchestrator's tasks, one row each with a spinner while its agent is at
+ * work, and a click to open one beside the conversation.
+ */
+function ChildTasks({
+  onSelect,
+  running,
+  selectedId,
+  tasks,
+}: {
+  onSelect: (id: TaskId) => void;
+  running: ReadonlySet<TaskId>;
+  selectedId: TaskId | undefined;
+  tasks: Task[];
+}) {
+  if (tasks.length === 0) {
+    return (
+      <p className="px-3 py-2 text-xs text-muted-foreground">
+        No tasks yet. Ask for something and one appears here.
+      </p>
+    );
+  }
+  return (
+    <ul className="flex flex-col">
+      {tasks.map((child) => {
+        const isRunning = running.has(child.id);
+        return (
+          <li key={child.id}>
+            <button
+              className={cn(
+                "flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-foreground/5",
+                child.id === selectedId && "bg-foreground/8",
+              )}
+              onClick={() => {
+                onSelect(child.id);
+              }}
+              type="button"
+            >
+              {isRunning ? (
+                <Spinner className="size-3.5 shrink-0 text-muted-foreground" />
+              ) : (
+                <span className="size-3.5 shrink-0" />
+              )}
+              <span className="truncate">{child.title}</span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function Frame({
+  children,
+  status,
+}: {
+  children: React.ReactNode;
+  status?: string;
+}) {
   return (
     <div className="flex h-screen flex-col bg-background">
       {/* The title bar is hidden, so this strip is what the window is dragged by. */}
-      <header className="flex h-11 shrink-0 items-center justify-center text-sm font-medium [-webkit-app-region:drag]">
-        {APP_NAME}
+      <header className="flex h-11 shrink-0 items-center justify-center gap-3 text-sm font-medium [-webkit-app-region:drag]">
+        <span>{APP_NAME}</span>
+        {status ? (
+          <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
+            <Spinner className="size-3" />
+            {status}
+          </span>
+        ) : null}
       </header>
       {children}
       <Toaster position="top-center" />
@@ -58,9 +154,10 @@ function Frame({ children }: { children: React.ReactNode }) {
 
 /**
  * The one conversation, over the orchestrator's task, with the tasks it has
- * created listed beneath. The chat is the task page's own, with the sidebar
- * and the pane left behind: what this window is for is feeling whether one
- * thread that never takes turns is enough, not a new rendering of it.
+ * created in a column beside it and any one of them open below that list. The
+ * chat is the task page's own, with the sidebar and the pane left behind:
+ * what this window is for is feeling whether one thread that never takes
+ * turns is enough, not a new rendering of it.
  */
 function OrchestratorRoute() {
   const ensure = useQuery(
@@ -85,10 +182,37 @@ function OrchestratorRoute() {
   const children = useQuery(
     rpcClient.workspace.orchestrator.children.queryOptions({
       input: ids ? { id: ids.taskId } : skipToken,
-      refetchInterval: CHILDREN_REFRESH_MS,
+      refetchInterval: REFRESH_MS,
+    }),
+  );
+  const childIds = children.data?.map((child) => child.id) ?? [];
+  const status = useQuery(
+    rpcClient.workspace.task.agentStatus.byIds.queryOptions({
+      input: ids
+        ? { ids: [ids.taskId, ...childIds] }
+        : skipToken,
+      refetchInterval: REFRESH_MS,
     }),
   );
   const [defaultModelURI] = useDefaultModelURI();
+  const [selectedId, setSelectedId] = useState<TaskId | undefined>();
+
+  const running = new Set<TaskId>(
+    status.data
+      ?.filter((entry) =>
+        entry.sessionActors.some((actor) => actor.tags.includes("agent.alive")),
+      )
+      .map((entry) => entry.taskId) ?? [],
+  );
+  const runningChildren = childIds.filter((id) => running.has(id));
+  const statusLine =
+    ids && running.has(ids.taskId)
+      ? runningChildren.length > 0
+        ? `thinking, ${runningChildren.length} working`
+        : "thinking"
+      : runningChildren.length > 0
+        ? `${runningChildren.length} working`
+        : undefined;
 
   if (ensure.error) {
     return (
@@ -110,19 +234,53 @@ function OrchestratorRoute() {
     );
   }
 
+  const selected = children.data?.find((child) => child.id === selectedId);
+
   return (
-    <Frame>
-      <div className="min-h-0 flex-1">
-        <TaskChat
-          alwaysSubmittable
-          navigateOnSend={false}
-          promptDraft={state.data.promptDraft ?? ""}
-          selectedModelURI={state.data.selectedModelURI ?? defaultModelURI}
-          selectedSessionId={ids.sessionId}
-          task={task.data}
-        />
+    <Frame status={statusLine}>
+      <div className="flex min-h-0 flex-1">
+        <div className="min-w-0 flex-1">
+          <TaskChat
+            alwaysSubmittable
+            navigateOnSend={false}
+            promptDraft={state.data.promptDraft ?? ""}
+            selectedModelURI={state.data.selectedModelURI ?? defaultModelURI}
+            selectedSessionId={ids.sessionId}
+            task={task.data}
+          />
+        </div>
+        <aside
+          className={cn(
+            "flex shrink-0 flex-col border-l border-border",
+            selected ? "w-[26rem]" : "w-64",
+          )}
+        >
+          <p className="px-3 pt-3 pb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Tasks
+          </p>
+          <div className={cn("overflow-y-auto", selected ? "max-h-48" : "flex-1")}>
+            <ChildTasks
+              onSelect={(id) => {
+                setSelectedId((current) => (current === id ? undefined : id));
+              }}
+              running={running}
+              selectedId={selectedId}
+              tasks={children.data ?? []}
+            />
+          </div>
+          {selected ? (
+            <div className="min-h-0 flex-1 border-t border-border">
+              <ChildChat
+                key={selected.id}
+                onClose={() => {
+                  setSelectedId(undefined);
+                }}
+                task={selected}
+              />
+            </div>
+          ) : null}
+        </aside>
       </div>
-      <ChildTasks tasks={children.data ?? []} />
     </Frame>
   );
 }

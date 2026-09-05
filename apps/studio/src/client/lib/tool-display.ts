@@ -1,10 +1,10 @@
 import { type ToolName } from "@instrument-org/workspace/client";
 import { type Icon } from "@phosphor-icons/react";
 import { BookOpenIcon } from "@phosphor-icons/react/BookOpen";
-import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { FlagIcon } from "@phosphor-icons/react/Flag";
+import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { ImageIcon } from "@phosphor-icons/react/Image";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
@@ -20,7 +20,7 @@ const TOOL_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   generate_image: "Generated image",
   load_skill: "Loaded skill",
   read_file: "Read",
-  reply: "Replied",
+  request_folder: "Asked for a folder",
   start_activity: "Started working",
   unavailable: "Used unknown tool",
   web_fetch: "Read web page",
@@ -35,7 +35,7 @@ const TOOL_STREAMING_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   generate_image: "Generating an image",
   load_skill: "Loading skill",
   read_file: "Reading file",
-  reply: "Replying",
+  request_folder: "Waiting for a folder",
   start_activity: "Starting work",
   unavailable: "Using unknown tool",
   web_fetch: "Reading web page",
@@ -53,7 +53,7 @@ const TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE: Record<
   generate_image: "Generating",
   load_skill: "Loading skill",
   read_file: "Reading",
-  reply: TOOL_STREAMING_DISPLAY_NAMES.reply,
+  request_folder: TOOL_STREAMING_DISPLAY_NAMES.request_folder,
   start_activity: TOOL_STREAMING_DISPLAY_NAMES.start_activity,
   unavailable: TOOL_STREAMING_DISPLAY_NAMES.unavailable,
   web_fetch: "Reading",
@@ -68,7 +68,7 @@ const TOOL_TRIED_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   generate_image: "Tried to generate image",
   load_skill: "Tried to load skill",
   read_file: "Tried to read file",
-  reply: "Tried to reply",
+  request_folder: "Tried to ask for a folder",
   start_activity: "Tried to start work",
   unavailable: "Tried unknown tool",
   web_fetch: "Tried to read web page",
@@ -102,7 +102,7 @@ const TOOL_SUMMARY_PHRASES: Record<
     plural: (count) => `read ${count} files`,
     singular: "read a file",
   },
-  reply: { singular: "replied" },
+  request_folder: { singular: "asked for a folder" },
   // Never summarized: it is the heading, not a step under one.
   start_activity: undefined,
   unavailable: { singular: "used an unknown tool" },
@@ -124,7 +124,7 @@ export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
   generate_image: ImageIcon,
   load_skill: BookOpenIcon,
   read_file: EyeIcon,
-  reply: ChatCircleIcon,
+  request_folder: FolderOpenIcon,
   start_activity: FlagIcon,
   unavailable: WrenchIcon,
   web_fetch: GlobeIcon,

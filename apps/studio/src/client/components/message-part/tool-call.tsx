@@ -8,13 +8,17 @@ import { ToolBash } from "./tool-bash";
 import { ToolCallError } from "./tool-call-error";
 import { ToolCallSessionProvider } from "./tool-call-session";
 import { ToolCallSummary } from "./tool-call-summary";
-import { hasTerminalToolState, isToolCallVisible } from "./tool-call-utils";
+import {
+  hasTerminalToolState,
+  isAwaitingUser,
+  isToolCallVisible,
+} from "./tool-call-utils";
 import { ToolChoose } from "./tool-choose";
 import { ToolEditFile } from "./tool-edit-file";
 import { ToolGenerateImage } from "./tool-generate-image";
 import { ToolLoadSkill } from "./tool-load-skill";
 import { ToolReadFile } from "./tool-read-file";
-import { ToolReply } from "./tool-reply";
+import { ToolRequestFolder } from "./tool-request-folder";
 import { ToolStartActivity } from "./tool-start-activity";
 import { ToolUnavailable } from "./tool-unavailable";
 import { ToolWebFetch } from "./tool-web-fetch";
@@ -62,7 +66,10 @@ export function ToolCall({
   }
 
   const isDeadDevMode =
-    !hasTerminalToolState(part) && !isStreaming && isDeveloperMode;
+    !hasTerminalToolState(part) &&
+    !isStreaming &&
+    !isAwaitingUser(part) &&
+    isDeveloperMode;
 
   return (
     <ToolCallSessionProvider
@@ -129,7 +136,7 @@ function ToolCallBody({
       return <ToolBash part={part} />;
     }
     case "tool-choose": {
-      return <ToolChoose part={part} />;
+      return <ToolChoose part={part} taskId={task.id} />;
     }
     case "tool-edit_file": {
       return <ToolEditFile id={task.id} part={part} />;
@@ -150,8 +157,8 @@ function ToolCallBody({
     case "tool-read_file": {
       return <ToolReadFile id={task.id} part={part} />;
     }
-    case "tool-reply": {
-      return <ToolReply part={part} />;
+    case "tool-request_folder": {
+      return <ToolRequestFolder part={part} taskId={task.id} />;
     }
     case "tool-unavailable": {
       return <ToolUnavailable part={part} />;

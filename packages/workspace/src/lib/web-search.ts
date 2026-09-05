@@ -121,14 +121,27 @@ export async function* webSearch({
   // endpoint is rate limited, switched off, or down. The user asked for a
   // search, so run one on the provider rather than hand back an error; the
   // result names its own kind, so nothing downstream is told it got excerpts.
-  yield* searchWithProviderModel({
+  for await (const result of searchWithProviderModel({
     callingModel,
     configs,
     prompt,
     signal,
     workspaceConfig,
     workspaceServerURL,
-  });
+  })) {
+    // A provider with no search of its own (an OpenAI-compatible endpoint, say)
+    // leaves ours as the only backend. A search there costs the user cents;
+    // the agent's alternative is minutes of fetching pages by hand.
+    if (
+      result.isErr() &&
+      result.error.errorType === "no-search-backend" &&
+      callingModel.params.provider !== OUR_MODELS.providerType
+    ) {
+      yield await searchWithPlatform({ prompt, signal, workspaceConfig });
+      return;
+    }
+    yield result;
+  }
 }
 
 function delay(ms: number, signal: AbortSignal) {

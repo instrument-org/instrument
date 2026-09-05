@@ -141,30 +141,30 @@ function HomeRoute() {
             }}
             onKeyDown={(event) => {
               switch (event.key) {
-              case "ArrowDown": {
-                event.preventDefault();
-                setHighlight((value) => Math.min(rows.length - 1, value + 1));
-              
-              break;
-              }
-              case "ArrowUp": {
-                event.preventDefault();
-                setHighlight((value) => Math.max(0, value - 1));
-              
-              break;
-              }
-              case "Enter": {
-                event.preventDefault();
-                rows[current]?.run();
-              
-              break;
-              }
-              case "Escape": {
-                setQuery("");
-              
-              break;
-              }
-              // No default
+                case "ArrowDown": {
+                  event.preventDefault();
+                  setHighlight((value) => Math.min(rows.length - 1, value + 1));
+
+                  break;
+                }
+                case "ArrowUp": {
+                  event.preventDefault();
+                  setHighlight((value) => Math.max(0, value - 1));
+
+                  break;
+                }
+                case "Enter": {
+                  event.preventDefault();
+                  rows[current]?.run();
+
+                  break;
+                }
+                case "Escape": {
+                  setQuery("");
+
+                  break;
+                }
+                // No default
               }
             }}
             placeholder="Search, open, or ask Instrument"

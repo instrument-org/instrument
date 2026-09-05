@@ -8,6 +8,7 @@ import {
 import { assignAttachedMounts } from "../lib/attached-folder-mounts";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { getCurrentDate } from "../lib/get-current-date";
+import { isToolPart } from "../lib/is-tool-part";
 import { listRunnableModels, modelTable } from "../lib/orchestrator/models";
 import { TASK_COMMAND } from "../lib/shell-commands/task-command";
 import { taskDir } from "../lib/task-dir-utils";
@@ -77,7 +78,7 @@ export const instrumentAgent = setupAgent({
 
       # How you work
       - Do it yourself when it is one step, with your own tools: \`${agentTools.ReadFile.name}\` to read a file, \`${agentTools.EditFile.name}\` to change one, \`${agentTools.WriteFile.name}\` to make one, bash to list, rename, move, or copy. Adding lines to a file, fixing a typo, renaming a folder, answering from what you can see: never a task for these; a task takes longer to start than they take to do. Hand off anything that takes several steps, the web, a browser, or more than a minute.
-      - One line, then act. When the user says something, write one line of plain text saying what you are doing, then do it. When the doing is a task, that line is the whole reply: say nothing more until the task reports. Never announce a delegation twice, never narrate a step, and never read a file only to brief a task that will read it anyway.
+      - One line, then act, in the same reply. When the user says something, write one line of plain text saying what you are doing and then, in that same reply, do it: a reply that stops at the line has done nothing. When the doing is a task, that line is all the text: say nothing more until the task reports. Never announce a delegation twice, never narrate a step, and never read a file only to brief a task that will read it anyway.
       - Stay short. A turn is a few tool calls and a line or two of text. Never wait on a task inside a turn: no \`${TASK_COMMAND.name} wait\`, no sleeping, no polling. You are told when a task finishes, as a note at the start of a later turn.
       - One thread, many tasks. The user sends messages in any order about anything. For each one decide: a new task; a message into a task that already exists (\`${TASK_COMMAND.name} send\`); a stop and then a send, when the task must change course now; or only a reply, when nothing needs doing. A follow-up about work in flight goes to that task, even when it does not name it. A new subject is a new task.
       - Never take turns with the user. When a message arrives while tasks run, answer it now; the tasks keep running.
@@ -124,7 +125,7 @@ export const instrumentAgent = setupAgent({
         ${MOUNT.attachedFolders}/Desktop/test.txt
         \`\`\`
 
-        Any path you can read goes in it. One fence per reply, listing every file that reply names. Do not paste a path in prose instead, and never copy a file to make it visible.
+        Any path you can read goes in it, once it exists: never list a file a task is about to make. One fence per reply, listing every file that reply names. Do not paste a path in prose instead, and never copy a file to make it visible.
       - Refer to work by what it is, in the user's words, never by task id. Ids belong in commands and file paths.
       - Do not explain the app or narrate your tools. The \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter on a tool call is a label on a row, not a message to the user.
     `.trim();
@@ -167,10 +168,12 @@ export const instrumentAgent = setupAgent({
 }));
 
 /**
- * The turn ends once a task has been created and the user has heard a line:
- * the next word about it comes from the wake, and every model given the
- * chance narrates the hand-off a second time. A step that created a task
- * before saying anything gets one more step, for the line.
+ * The turn ends once a task has been created or steered and the user has
+ * heard a line: the next word about it comes from the wake, and every model
+ * given the chance narrates the hand-off a second time. A step that handed
+ * off before saying anything gets one more step, for the line. The mirror case
+ * gets one more step too: a first step that only promised a task, calling
+ * nothing, would otherwise leave the user waiting on work nobody started.
  */
 async function shouldContinueAfterHandingOff({
   messages,
@@ -185,12 +188,24 @@ async function shouldContinueAfterHandingOff({
   if (!last) {
     return shouldContinueWithToolCalls({ messages });
   }
+  const promisedOnly =
+    turn.length === 1 &&
+    !messages[turnStart]?.parts.some(
+      (part) => part.type === "data-taskEvent",
+    ) &&
+    !last.parts.some((part) => isToolPart(part)) &&
+    last.parts.some(
+      (part) => part.type === "text" && /\btask\b/i.test(part.text),
+    );
+  if (promisedOnly) {
+    return true;
+  }
   const handedOff = last.parts.some(
     (part) =>
       part.type === "tool-bash" &&
       part.state === "output-available" &&
-      /(?:^|[\n;&|])\s*task new\b/.test(part.input.command) &&
-      part.output.output.includes("Created "),
+      /(?:^|[\n;&|])\s*task (?:new|send)\b/.test(part.input.command) &&
+      /^(?:Created|Sent to) /m.test(part.output.output),
   );
   if (!handedOff) {
     return shouldContinueWithToolCalls({ messages });

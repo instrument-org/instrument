@@ -14,6 +14,7 @@ import { taskDir } from "../lib/task-dir-utils";
 import { getTaskState } from "../lib/task-record";
 import { effectiveFolderAccess } from "../lib/workspace-fs-layout";
 import { MOUNT } from "../mount-points";
+import { type SessionMessage } from "../schemas/session/message";
 import { TOOLS } from "../tools/all";
 import { setupAgent } from "./create-agent";
 import {
@@ -162,5 +163,44 @@ export const instrumentAgent = setupAgent({
   },
   onFinish: () => Promise.resolve(),
   onStart: () => Promise.resolve(),
-  shouldContinue: shouldContinueWithToolCalls,
+  shouldContinue: shouldContinueAfterHandingOff,
 }));
+
+/**
+ * The turn ends once a task has been created and the user has heard a line:
+ * the next word about it comes from the wake, and every model given the
+ * chance narrates the hand-off a second time. A step that created a task
+ * before saying anything gets one more step, for the line.
+ */
+async function shouldContinueAfterHandingOff({
+  messages,
+}: {
+  messages: SessionMessage.WithParts[];
+}) {
+  const turnStart = messages.findLastIndex(
+    (message) => message.role === "user",
+  );
+  const turn = messages.slice(turnStart + 1);
+  const last = turn.findLast((message) => message.role === "assistant");
+  if (!last) {
+    return shouldContinueWithToolCalls({ messages });
+  }
+  const handedOff = last.parts.some(
+    (part) =>
+      part.type === "tool-bash" &&
+      part.state === "output-available" &&
+      /(?:^|[\n;&|])\s*task new\b/.test(part.input.command) &&
+      part.output.output.includes("Created "),
+  );
+  if (!handedOff) {
+    return shouldContinueWithToolCalls({ messages });
+  }
+  const saidSomething = turn.some(
+    (message) =>
+      message.role === "assistant" &&
+      message.parts.some(
+        (part) => part.type === "text" && part.text.trim() !== "",
+      ),
+  );
+  return !saidSomething;
+}

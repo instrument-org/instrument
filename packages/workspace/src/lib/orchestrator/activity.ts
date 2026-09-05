@@ -96,3 +96,24 @@ export async function orchestratorActivity(
   );
   return { running };
 }
+
+/**
+ * When the task's current turn began: the moment the last message reached
+ * it. Wall-clock, because a task can spend minutes inside one model reply,
+ * which no tool timing counts.
+ */
+export async function turnStartedAt(taskId: TaskId): Promise<Date | undefined> {
+  const sessionId = await latestSessionId(taskId);
+  if (sessionId.isErr() || !sessionId.value) {
+    return undefined;
+  }
+  const messages = await Store.getMessagesWithParts({
+    sessionId: sessionId.value,
+    taskId,
+  });
+  if (messages.isErr()) {
+    return undefined;
+  }
+  return messages.value.findLast((message) => message.role === "user")?.metadata
+    .createdAt;
+}

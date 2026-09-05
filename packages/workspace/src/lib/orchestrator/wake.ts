@@ -14,7 +14,7 @@ import { getTaskState } from "../task-record";
 import { getTaskSettings, recordTaskActivity } from "../task-settings";
 import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceConfig } from "../workspace-config";
-import { isWorking, latestStep } from "./activity";
+import { isWorking, latestStep, turnStartedAt } from "./activity";
 import { lastAssistantText, latestSessionId } from "./latest-session";
 
 type TaskEvent = SessionMessageDataPart.TaskEventDataPart["events"][number];
@@ -86,12 +86,14 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
       overdueReportedAt.delete(task.id);
       continue;
     }
-    const usage = await getTaskUsageSummary(task.id);
     const reportedAt = overdueReportedAt.get(task.id);
-    const since = reportedAt === undefined ? usage.activeMs : now - reportedAt;
-    if (since < OVERDUE_AFTER_MS) {
+    const turnStart =
+      reportedAt === undefined ? await turnStartedAt(task.id) : undefined;
+    const startedAt = reportedAt ?? turnStart?.getTime();
+    if (startedAt === undefined || now - startedAt < OVERDUE_AFTER_MS) {
       continue;
     }
+    const usage = await getTaskUsageSummary(task.id);
     overdueReportedAt.set(task.id, now);
     schedule(
       parentTaskId,

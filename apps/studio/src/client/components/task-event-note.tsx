@@ -21,7 +21,11 @@ export function TaskEventNote({
         >
           <CheckCircleIcon className="size-3.5 shrink-0" />
           <span>
-            {event.status === "error" ? "Stopped: " : "Finished: "}
+            {event.status === "error"
+              ? "Stopped: "
+              : event.status === "overdue"
+                ? "Still working: "
+                : "Finished: "}
             {event.title}
           </span>
         </p>

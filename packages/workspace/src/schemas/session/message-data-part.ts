@@ -355,7 +355,11 @@ export namespace SessionMessageDataPart {
         z.object({
           /** How long the child's agent has been at work in total. */
           activeMs: z.number().nonnegative().optional(),
-          status: z.enum(["done", "error"]),
+          /**
+           * Done and error end a turn; overdue is a task still at work past
+           * the point the orchestrator should look, and says so once.
+           */
+          status: z.enum(["done", "error", "overdue"]),
           /** What the child last said, shortened. Absent when it said nothing. */
           summary: z.string().optional(),
           taskId: TaskIdSchema,

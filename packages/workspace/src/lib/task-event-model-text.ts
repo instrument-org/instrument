@@ -15,7 +15,11 @@ export function taskEventModelNote(
 ) {
   const lines = data.events.map((event) => {
     const outcome =
-      event.status === "error" ? "stopped with an error" : "finished a turn";
+      event.status === "error"
+        ? "stopped with an error"
+        : event.status === "overdue"
+          ? "is still working"
+          : "finished a turn";
     const spent = [
       event.activeMs === undefined
         ? undefined
@@ -26,10 +30,21 @@ export function taskEventModelNote(
     ].filter((part) => part !== undefined);
     const cost = spent.length > 0 ? ` (${spent.join(", ")})` : "";
     const summary = event.summary
-      ? ` It last said: "${event.summary}"`
+      ? event.status === "overdue"
+        ? ` Its latest step: "${event.summary}"`
+        : ` It last said: "${event.summary}"`
       : " It said nothing.";
     return `- ${event.taskId} ("${event.title}") ${outcome}${cost}.${summary}`;
   });
+
+  const overdue = data.events.every((event) => event.status === "overdue");
+  if (overdue) {
+    return systemNote`
+      ${data.events.length === 1 ? "A task you created is taking a while:" : "Tasks you created are taking a while:"}
+      ${lines.join("\n")}
+      Nothing has gone wrong that anyone has said; this is the clock. Decide: let it run and say nothing, or read \`${TASK_COMMAND.name} log <id> --tail 40\` and, if it is lost in the weeds, steer it with \`${TASK_COMMAND.name} send\` or stop it with \`${TASK_COMMAND.name} stop\` and finish another way. Tell the user only if the wait changes what they should expect. Nobody typed anything; this note is why you are awake.
+    `;
+  }
 
   return systemNote`
     ${data.events.length === 1 ? "A task you created has finished:" : "Tasks you created have finished:"}

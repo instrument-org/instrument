@@ -23,29 +23,7 @@ export type OrchestratorActivity = z.output<typeof OrchestratorActivitySchema>;
 /** How much of a step's label the conversation shows. */
 const STEP_MAX_LENGTH = 80;
 
-/**
- * What is happening behind the conversation right now: each task of the
- * orchestrator's that is at work, and the label on its latest step. The
- * conversation shows this under its transcript, so a reply that handed the
- * work off does not read as the end of it.
- */
-export async function orchestratorActivity(
-  orchestratorTaskId: TaskId,
-): Promise<OrchestratorActivity> {
-  const children = await listChildTasks(orchestratorTaskId);
-  const running = await Promise.all(
-    children
-      .filter((child) => isWorking(child.id))
-      .map(async (child) => ({
-        step: await latestStep(child.id),
-        taskId: child.id,
-        title: child.title,
-      })),
-  );
-  return { running };
-}
-
-function isWorking(taskId: TaskId) {
+export function isWorking(taskId: TaskId) {
   const status = getTaskAgentStatus({
     id: taskId,
     workspaceRef: getWorkspaceActorRef(),
@@ -58,7 +36,7 @@ function isWorking(taskId: TaskId) {
   );
 }
 
-async function latestStep(taskId: TaskId): Promise<string | undefined> {
+export async function latestStep(taskId: TaskId): Promise<string | undefined> {
   const sessionId = await latestSessionId(taskId);
   if (sessionId.isErr() || !sessionId.value) {
     return undefined;
@@ -95,4 +73,26 @@ async function latestStep(taskId: TaskId): Promise<string | undefined> {
     }
   }
   return undefined;
+}
+
+/**
+ * What is happening behind the conversation right now: each task of the
+ * orchestrator's that is at work, and the label on its latest step. The
+ * conversation shows this under its transcript, so a reply that handed the
+ * work off does not read as the end of it.
+ */
+export async function orchestratorActivity(
+  orchestratorTaskId: TaskId,
+): Promise<OrchestratorActivity> {
+  const children = await listChildTasks(orchestratorTaskId);
+  const running = await Promise.all(
+    children
+      .filter((child) => isWorking(child.id))
+      .map(async (child) => ({
+        step: await latestStep(child.id),
+        taskId: child.id,
+        title: child.title,
+      })),
+  );
+  return { running };
 }

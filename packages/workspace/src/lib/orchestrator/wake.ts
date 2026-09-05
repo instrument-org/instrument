@@ -1,4 +1,5 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
+import ms from "ms";
 
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
@@ -7,11 +8,13 @@ import { type SessionMessageDataPart } from "../../schemas/session/message-data-
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { createSession } from "../create-session";
+import { getTasks } from "../get-tasks";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
 import { getTaskSettings, recordTaskActivity } from "../task-settings";
 import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceConfig } from "../workspace-config";
+import { isWorking, latestStep } from "./activity";
 import { lastAssistantText, latestSessionId } from "./latest-session";
 
 type TaskEvent = SessionMessageDataPart.TaskEventDataPart["events"][number];
@@ -25,6 +28,18 @@ const WAKE_DEBOUNCE_MS = 1500;
 
 /** The most of a child's last words that travel in the note. */
 const SUMMARY_MAX_LENGTH = 400;
+
+/**
+ * How long a task works before the orchestrator is told it is still at it,
+ * and then again after as long again. Long enough that ordinary tasks never
+ * trip it; short enough that one lost in a website is caught before it has
+ * spent a quarter of an hour.
+ */
+const OVERDUE_AFTER_MS = ms("4 minutes");
+const OVERDUE_CHECK_MS = ms("30 seconds");
+
+/** When each child was last reported overdue, so the note comes once per stretch. */
+const overdueReportedAt = new Map<TaskId, number>();
 
 const pending = new Map<
   TaskId,
@@ -50,6 +65,47 @@ export function startOrchestratorWake(workspaceRef: WorkspaceActorRef): void {
       }
     }
   })();
+  // The clock on every child: a task that has worked past the mark wakes its
+  // orchestrator with where it is, so a task lost in the weeds is found by
+  // the agent rather than by the person.
+  const timer = setInterval(() => {
+    checkOverdue(workspaceRef).catch((error: unknown) => {
+      getWorkspaceConfig().captureException(error);
+    });
+  }, OVERDUE_CHECK_MS);
+  timer.unref();
+}
+
+async function checkOverdue(workspaceRef: WorkspaceActorRef) {
+  const workspaceConfig = getWorkspaceConfig();
+  const { tasks } = await getTasks(workspaceConfig);
+  const now = Date.now();
+  for (const task of tasks) {
+    const parentTaskId = task.parentTaskId;
+    if (parentTaskId === undefined || !isWorking(task.id)) {
+      overdueReportedAt.delete(task.id);
+      continue;
+    }
+    const usage = await getTaskUsageSummary(task.id);
+    const reportedAt = overdueReportedAt.get(task.id);
+    const since = reportedAt === undefined ? usage.activeMs : now - reportedAt;
+    if (since < OVERDUE_AFTER_MS) {
+      continue;
+    }
+    overdueReportedAt.set(task.id, now);
+    schedule(
+      parentTaskId,
+      {
+        activeMs: usage.activeMs,
+        status: "overdue",
+        summary: await latestStep(task.id),
+        taskId: task.id,
+        title: task.title,
+        tokens: usage.inputTokens + usage.outputTokens,
+      },
+      workspaceRef,
+    );
+  }
 }
 
 async function deliver(

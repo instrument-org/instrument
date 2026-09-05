@@ -256,22 +256,23 @@ export function BrowserTabs({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-9 shrink-0 items-stretch gap-1 overflow-x-auto border-b border-border px-2 pt-1">
+      {/* The strip and its tabs are drawn as the task page draws its pane tabs. */}
+      <div className="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-2">
         {tabs.map((tab) => {
           const page = pages[tab.id];
           const isActive = tab.id === active?.id;
           return (
             <div
               className={cn(
-                "group flex max-w-56 min-w-32 shrink-0 items-center gap-1.5 rounded-t-md border border-b-0 px-2 text-xs",
+                "group/pane-tab relative flex h-7 max-w-56 min-w-32 shrink-0 cursor-default items-center gap-1.5 rounded-md pr-6 pl-2 text-xs font-medium select-none",
                 isActive
-                  ? "border-border bg-background"
-                  : "border-transparent text-muted-foreground hover:bg-foreground/5",
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground hover:bg-accent/50",
               )}
               key={tab.id}
             >
               <button
-                className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left"
                 onClick={() => {
                   setTabs((current) => ({ ...current, activeId: tab.id }));
                 }}
@@ -284,7 +285,7 @@ export function BrowserTabs({
               </button>
               <button
                 aria-label="Close tab"
-                className="rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-foreground/10"
+                className="absolute top-1/2 right-1 flex size-4 -translate-y-1/2 items-center justify-center rounded-sm opacity-0 group-hover/pane-tab:opacity-100 hover:bg-foreground/10"
                 onClick={() => {
                   closeTab(tab.id);
                 }}
@@ -297,7 +298,7 @@ export function BrowserTabs({
         })}
         <button
           aria-label="New tab"
-          className="my-1 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+          className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground"
           onClick={() => {
             openTab();
           }}

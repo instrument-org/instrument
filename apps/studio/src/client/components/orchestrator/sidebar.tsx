@@ -11,17 +11,15 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/client/components/ui/sidebar";
-import { Spinner } from "@/client/components/ui/spinner";
+import { InstrumentGlyph } from "@/client/components/wordmark";
 import { rpcClient } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
-import { BooksIcon } from "@phosphor-icons/react/Books";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { FileIcon } from "@phosphor-icons/react/File";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { HouseIcon } from "@phosphor-icons/react/House";
 import { LaptopIcon } from "@phosphor-icons/react/Laptop";
-import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
@@ -73,18 +71,6 @@ const PLACES: Place[] = [
     open: (navigate) => void navigate({ to: "/orchestrator/discover" }),
   },
   {
-    icon: BooksIcon,
-    isAt: (location) =>
-      location.pathname === "/orchestrator/computer" &&
-      location.search.root === "instrument",
-    label: "Library",
-    open: (navigate) =>
-      void navigate({
-        search: { path: "", root: "instrument" },
-        to: "/orchestrator/computer",
-      }),
-  },
-  {
     icon: GlobeIcon,
     isAt: atPath("/orchestrator/browser"),
     label: "Browser",
@@ -93,9 +79,7 @@ const PLACES: Place[] = [
   },
   {
     icon: LaptopIcon,
-    isAt: (location) =>
-      location.pathname === "/orchestrator/computer" &&
-      location.search.root !== "instrument",
+    isAt: atPath("/orchestrator/computer"),
     label: "This Mac",
     open: (navigate) =>
       void navigate({
@@ -110,7 +94,8 @@ const PLACES: Place[] = [
     open: (navigate) => void navigate({ to: "/orchestrator/apps" }),
   },
   {
-    icon: ListChecksIcon,
+    // The mark, not a checklist: the tasks are the agent's, not to-dos.
+    icon: InstrumentGlyph,
     isAt: atPath("/orchestrator/tasks"),
     label: "Tasks",
     open: (navigate) => void navigate({ to: "/orchestrator/tasks" }),
@@ -132,7 +117,7 @@ const RECENT_ICONS: Record<OrchestratorRecent["kind"], RowIcon> = {
   browser: GlobeIcon,
   file: FileIcon,
   folder: FolderIcon,
-  task: ListChecksIcon,
+  task: InstrumentGlyph,
 };
 
 /**
@@ -185,9 +170,8 @@ export function OrchestratorSidebar({ className }: { className?: string }) {
                 }}
                 trailing={
                   place.label === "Tasks" && workingCount > 0 ? (
-                    <span className="ml-auto flex items-center gap-1 text-xs text-sidebar-foreground/50">
-                      <Spinner className="size-3" />
-                      {workingCount}
+                    <span className="brand-shiny-text ml-auto text-xs">
+                      {workingCount} working
                     </span>
                   ) : undefined
                 }

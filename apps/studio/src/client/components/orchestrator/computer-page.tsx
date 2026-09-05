@@ -6,11 +6,13 @@ import {
 } from "@/client/components/extend/file-system";
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
+import { InstrumentGlyph } from "@/client/components/wordmark";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ComputerListing } from "@instrument-org/workspace/client";
+import { formatBytes } from "@instrument-org/workspace/client";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
@@ -41,6 +43,8 @@ const FAVORITE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   Desktop: DesktopIcon,
   Downloads: DownloadSimpleIcon,
   Home: HouseIcon,
+  // Everything made here, under the mark of what made it.
+  Instrument: InstrumentGlyph,
 };
 
 /**
@@ -266,7 +270,7 @@ export function ComputerPage({ path, root }: { path: string; root: string }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="min-h-0 flex-1">
           <FileSystem
-            className="h-full"
+            className="h-full rounded-none border-0"
             defaultPath={path}
             defaultView="columns"
             items={items}
@@ -335,9 +339,10 @@ export function ComputerPage({ path, root }: { path: string; root: string }) {
 }
 
 /**
- * The pane past the last column while no file is selected: the folder on
- * screen and whether Instrument can see it, with the one thing to do about
- * it when it cannot.
+ * The pane past the last column while no file is selected: the folder the
+ * user opened, the way the Finder's preview column shows one, with whether
+ * Instrument can see it as one line and the one thing to do about it when
+ * it cannot.
  */
 function AccessPane({
   isAllowing,
@@ -349,59 +354,74 @@ function AccessPane({
   onAllow: (hostPath: string) => void;
 }) {
   if (!listing) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Spinner className="size-5" />
-      </div>
-    );
+    return null;
   }
   const name =
     listing.display === "~"
       ? "Home"
       : (listing.path.split("/").findLast(Boolean) ?? "Macintosh HD");
+  const folders = listing.entries.filter((entry) => entry.kind === "folder");
+  const files = listing.entries.filter((entry) => entry.kind === "file");
+  const bytes = files.reduce((sum, entry) => sum + (entry.size ?? 0), 0);
+  const count = [
+    folders.length > 0
+      ? `${folders.length} folder${folders.length === 1 ? "" : "s"}`
+      : "",
+    files.length > 0
+      ? `${files.length} file${files.length === 1 ? "" : "s"}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-      {listing.access ? (
-        <>
-          <LockSimpleOpenIcon className="size-8 text-muted-foreground" />
-          <p className="text-sm font-medium">{name}</p>
-          <p className="text-sm text-muted-foreground">
-            Instrument can{" "}
-            {listing.access.access === "read-write" ? "read and write" : "read"}{" "}
-            here.
-          </p>
-        </>
+    <div className="flex h-full flex-col items-center justify-center gap-1 p-6 text-center">
+      {listing.display === "~/Documents/Instrument" ? (
+        <InstrumentGlyph className="size-14 text-muted-foreground" />
       ) : (
-        <>
-          <LockSimpleIcon className="size-8 text-muted-foreground" />
-          <p className="text-sm font-medium">{name}</p>
-          <p className="text-sm text-muted-foreground">
-            Instrument can’t see this folder yet.
-          </p>
-          <Button
-            disabled={isAllowing}
-            onClick={() => {
-              onAllow(listing.path);
-            }}
-            size="sm"
-          >
-            Allow Instrument here
-          </Button>
-        </>
+        <FolderIcon className="size-14 text-muted-foreground" weight="fill" />
       )}
+      <p className="mt-2 text-sm font-medium">{name}</p>
+      <p className="text-xs text-muted-foreground">
+        {count || "Empty"}
+        {bytes > 0 ? ` · ${formatBytes(bytes)}` : ""}
+        {listing.truncated ? " · first 2000 shown" : ""}
+      </p>
       <p className="max-w-full truncate text-xs text-muted-foreground/70">
         {listing.display}
       </p>
+      {listing.access ? (
+        <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <LockSimpleOpenIcon className="size-3.5" />
+          Instrument can{" "}
+          {listing.access.access === "read-write"
+            ? "read and write"
+            : "read"}{" "}
+          here
+        </p>
+      ) : (
+        <Button
+          className="mt-3"
+          disabled={isAllowing}
+          onClick={() => {
+            onAllow(listing.path);
+          }}
+          size="sm"
+        >
+          <LockSimpleIcon className="size-4" />
+          Allow Instrument here
+        </Button>
+      )}
       <Button
+        className="mt-1 text-muted-foreground"
         onClick={() => {
           void rpcClient.utils.showFileInFolder.call({
             filepath: listing.path,
           });
         }}
-        size="sm"
+        size="xs"
         variant="ghost"
       >
-        <ArrowSquareOutIcon className="size-4" />
+        <ArrowSquareOutIcon className="size-3.5" />
         Show in Finder
       </Button>
     </div>

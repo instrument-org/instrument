@@ -35,6 +35,9 @@ interface PublisherEvents {
   "browser.targets-changed": null;
   "debug.browser-view-manager.updated": null;
   "features.updated": null;
+  // Back or forward asked of the orchestrator window by a swipe or a thumb
+  // button, which reach the main process rather than the page.
+  "orchestrator.navigate": "back" | "forward";
   "preferences.updated": null;
   "provider-config.updated": null;
   "server-exception": {

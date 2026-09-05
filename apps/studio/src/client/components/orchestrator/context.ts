@@ -5,6 +5,8 @@ import { type BrowserTabsHandle } from "./browser-tabs";
 
 /** What every screen of the orchestrator window shares. */
 export interface OrchestratorWindow {
+  /** Sends a line to the conversation, as typing it would, and shows the conversation. */
+  ask: (prompt: string) => void;
   /** The window's browser, mounted once by the layout and kept across screens; null until it is. */
   browser: BrowserTabsHandle | null;
   /** The virtual path of the folder outcomes land in by default. */

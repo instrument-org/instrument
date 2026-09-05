@@ -67,6 +67,25 @@ export function openOrchestratorWindow(): BrowserWindow {
 
   guardNavigation(orchestratorWindow.webContents);
 
+  // A trackpad swipe or a mouse thumb button asks for history, and both reach
+  // the main process rather than the page; the window's own router answers.
+  orchestratorWindow.on("swipe", (_event, direction) => {
+    if (direction === "left") {
+      publisher.publish("orchestrator.navigate", "back");
+    } else if (direction === "right") {
+      publisher.publish("orchestrator.navigate", "forward");
+    }
+  });
+  orchestratorWindow.on("app-command", (event, command) => {
+    if (command === "browser-backward") {
+      event.preventDefault();
+      publisher.publish("orchestrator.navigate", "back");
+    } else if (command === "browser-forward") {
+      event.preventDefault();
+      publisher.publish("orchestrator.navigate", "forward");
+    }
+  });
+
   // The Browser screen's tabs are browser guests like a task's, mounted by
   // this window's pool and driven by the same manager, so the orchestrator's
   // tasks can be handed one by target id.

@@ -38,7 +38,7 @@ import { type TaskId } from "@instrument-org/workspace/client";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import {
   createFileRoute,
   Outlet,
@@ -85,9 +85,8 @@ function ActivityStrip({
   const latest = running.find((entry) => entry.step) ?? running[0];
   const doing = latest?.step ?? latest?.title;
   return (
-    <div className="mb-2 flex items-center gap-2 px-1 text-xs text-muted-foreground">
-      <Spinner className="size-3 shrink-0" />
-      <span className="truncate">
+    <div className="mb-2 flex items-center gap-2 px-1 text-xs">
+      <span className="brand-shiny-text truncate">
         {running.length > 1 ? `${running.length} things in progress · ` : ""}
         {doing}
       </span>
@@ -264,8 +263,24 @@ function OrchestratorLayout() {
   const running = activity.data?.running ?? [];
   const isBusy = isThinking || running.length > 0;
 
+  const createMessage = useMutation(
+    rpcClient.workspace.message.create.mutationOptions(),
+  );
+  const modelURI = state.data?.selectedModelURI ?? defaultModelURI;
   const screens: null | OrchestratorWindow = ids
     ? {
+        ask: (prompt) => {
+          if (!modelURI) {
+            return;
+          }
+          setChatOpen(true);
+          createMessage.mutate({
+            id: ids.taskId,
+            modelURI,
+            prompt,
+            sessionId: ids.sessionId,
+          });
+        },
         browser,
         outputFolder: ids.outputFolder,
         sessionId: ids.sessionId,
@@ -365,10 +380,9 @@ function OrchestratorLayout() {
             <div className="flex min-h-0 w-full flex-1 flex-col">
               <header className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3 text-sm font-medium">
                 <InstrumentGlyph className="size-4" />
-                <span>{APP_NAME}</span>
-                {isBusy ? (
-                  <Spinner className="size-3 text-muted-foreground" />
-                ) : null}
+                <span className={isBusy ? "brand-shiny-text" : undefined}>
+                  {APP_NAME}
+                </span>
                 <span className="flex-1" />
                 <button
                   aria-label="Hide Instrument"
@@ -490,7 +504,27 @@ function useHistoryShortcuts() {
     };
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("mouseup", onMouseUp);
+    // Swipes and thumb buttons arrive from the main process.
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const directions = await rpcClient.orchestrator.events.navigate.call(
+          undefined,
+          { signal: controller.signal },
+        );
+        for await (const direction of directions) {
+          if (direction === "back") {
+            router.history.back();
+          } else {
+            router.history.forward();
+          }
+        }
+      } catch {
+        // The window is closing, which is the only way the stream ends.
+      }
+    })();
     return () => {
+      controller.abort();
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("mouseup", onMouseUp);
     };

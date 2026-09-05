@@ -34,6 +34,7 @@ export async function newMessage({
   prompt,
   sessionId,
   taskId,
+  viewing,
 }: {
   files?: FileUpload.Type[];
   folders?: {
@@ -48,6 +49,8 @@ export async function newMessage({
   prompt: string;
   sessionId: StoreId.Session;
   taskId: TaskId;
+  /** What the sending surface had on screen; see the view-context part. */
+  viewing?: SessionMessageDataPart.ViewContextDataPart;
 }) {
   const messageId = StoreId.newMessageId();
   const createdAt = new Date();
@@ -89,6 +92,19 @@ export async function newMessage({
         sessionId,
       },
       type: "data-intent",
+    });
+  }
+
+  if (viewing) {
+    parts.push({
+      data: viewing,
+      metadata: {
+        createdAt,
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
+      type: "data-viewContext",
     });
   }
 

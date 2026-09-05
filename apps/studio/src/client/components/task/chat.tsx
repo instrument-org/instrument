@@ -14,7 +14,11 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { type StoreId, type Task } from "@instrument-org/workspace/client";
+import {
+  type SessionMessageDataPart,
+  type StoreId,
+  type Task,
+} from "@instrument-org/workspace/client";
 import {
   skipToken,
   useMutation,
@@ -71,6 +75,7 @@ export function TaskChat({
   promptDraft,
   selectedModelURI: initialSelectedModelURI,
   selectedSessionId,
+  sendContext,
   showTutorial,
   task,
 }: {
@@ -92,6 +97,12 @@ export function TaskChat({
   promptDraft: string;
   selectedModelURI?: AIGatewayModelURI.Type;
   selectedSessionId?: StoreId.Session;
+  /**
+   * What the surface around this chat has on screen when a prompt is sent, so
+   * "this folder" means the folder in view. Read at send time, since what is on
+   * screen when the prompt is typed is what the words refer to.
+   */
+  sendContext?: () => SessionMessageDataPart.ViewContextDataPart | undefined;
   showTutorial?: boolean;
   task: Task;
 }) {
@@ -269,6 +280,7 @@ export function TaskChat({
         modelURI: queued.modelURI,
         prompt: queued.prompt,
         sessionId: selectedSessionId,
+        viewing: sendContext?.(),
       });
     },
   });
@@ -364,6 +376,7 @@ export function TaskChat({
             modelURI,
             prompt,
             sessionId: selectedSessionId,
+            viewing: sendContext?.(),
           },
           {
             onError: () => {

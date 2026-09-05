@@ -16,6 +16,7 @@ import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
 import { FolderAttachment } from "../../schemas/folder-attachment";
 import { SessionMessage } from "../../schemas/session/message";
+import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { base, toORPCError } from "../base";
@@ -59,6 +60,7 @@ const create = base
       modelURI: AIGatewayModelURI.Schema,
       prompt: z.string(),
       sessionId: StoreId.SessionSchema.optional(),
+      viewing: SessionMessageDataPart.ViewContextDataPartSchema.optional(),
     }),
   )
   .output(z.object({ sessionId: StoreId.SessionSchema }))
@@ -66,7 +68,7 @@ const create = base
     async ({
       context,
       errors,
-      input: { files, folders, id, modelURI, prompt, sessionId },
+      input: { files, folders, id, modelURI, prompt, sessionId, viewing },
     }) => {
       const taskId = id;
 
@@ -118,6 +120,7 @@ const create = base
         prompt,
         sessionId: finalSessionId,
         taskId,
+        viewing,
       });
 
       if (messageResult.isErr()) {

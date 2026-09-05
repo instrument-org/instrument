@@ -49,6 +49,7 @@ export namespace SessionMessageDataPart {
     "projectContext",
     "taskEvent",
     "unknown",
+    "viewContext",
   ]);
 
   export type Name = z.output<typeof NameSchema>;
@@ -369,6 +370,19 @@ export namespace SessionMessageDataPart {
   export type TaskEventDataPart = z.output<typeof TaskEventDataPartSchema>;
 
   /**
+   * What the user was looking at when they sent the message: the folder open
+   * in the window's folder view and what was selected in it, as virtual paths.
+   * Event cadence, written by the surface that sent the message and only when
+   * it had a folder on screen.
+   */
+  export const ViewContextDataPartSchema = z.object({
+    folder: z.string(),
+    selected: z.array(z.string()).default([]),
+  });
+
+  export type ViewContextDataPart = z.output<typeof ViewContextDataPartSchema>;
+
+  /**
    * The local calendar date a session moved onto, as `yyyy-MM-dd`, written to
    * the first user message sent on a later day than the one the session context
    * records. The session context is a startup snapshot and is never rewritten,
@@ -467,6 +481,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,
     [NameSchema.enum.taskEvent]: TaskEventDataPartSchema,
     [NameSchema.enum.unknown]: UnknownDataPartSchema,
+    [NameSchema.enum.viewContext]: ViewContextDataPartSchema,
   });
   export type DataParts = z.output<typeof DataPartsSchema>;
 

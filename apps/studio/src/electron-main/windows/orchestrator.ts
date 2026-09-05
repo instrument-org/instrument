@@ -8,8 +8,8 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import { BrowserWindow } from "electron";
 import path from "node:path";
 
-const ORCHESTRATOR_WIDTH = 720;
-const ORCHESTRATOR_HEIGHT = 820;
+const ORCHESTRATOR_WIDTH = 1240;
+const ORCHESTRATOR_HEIGHT = 840;
 
 let orchestratorWindow: BrowserWindow | null = null;
 
@@ -29,8 +29,8 @@ export function openOrchestratorWindow(): BrowserWindow {
   orchestratorWindow = new BrowserWindow({
     backgroundColor: getBackgroundColor(),
     height: ORCHESTRATOR_HEIGHT,
-    minHeight: 480,
-    minWidth: 480,
+    minHeight: 520,
+    minWidth: 900,
     show: false,
     title: "Instrument",
     titleBarStyle: "hiddenInset",

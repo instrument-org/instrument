@@ -7,6 +7,7 @@ import {
   paneTabsModelNote,
   type SessionMessagePart,
   TASK_FOLDER_NAMES,
+  viewContextModelNote,
 } from "@instrument-org/workspace/client";
 import { type ReactNode } from "react";
 
@@ -69,6 +70,7 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // user typed has a visible cause.
   "data-taskEvent": "always",
   "data-unknown": "dev",
+  "data-viewContext": "dev",
 };
 
 export function dataPartVisibility(
@@ -234,6 +236,15 @@ export function renderDataPart({
     }
     case "data-taskEvent": {
       return <TaskEventNote data={part.data} key={part.metadata.id} />;
+    }
+    case "data-viewContext": {
+      return (
+        <ModelContextDebugCard
+          className="mt-2"
+          key={part.metadata.id}
+          text={viewContextModelNote(part.data)}
+        />
+      );
     }
     case "data-unknown": {
       // Not a failure the reader can do anything about, so it stays a

@@ -22,7 +22,11 @@ The spike changes nothing the current app does. It adds a task kind, an agent, t
 | Queue drain | `machines/session.ts` | A turn that ends goes to `ProcessingQueuedMessages` rather than `Done`, so a message that arrived mid-turn runs next instead of being dropped. This is what lets the orchestrator's composer stay open while it works, and what makes `task send` into a busy child land at all. |
 | Steering between steps | `machines/agent.ts` (`MaybeSteering`), `machines/session.ts` | A message that arrives while a turn runs is handed to the agent, which writes it into the transcript at its next point between steps and continues, so the next request sees it. The session keeps it queued until the agent says it consumed it, so a turn that ends first still runs it as a turn of its own. |
 | Which agent answers | `lib/agent-name-for-task.ts` | Read from the task record where a message is sent, so any surface that sends to an orchestrator runs the orchestrator's agent. |
-| The window | `apps/studio/src/electron-main/windows/orchestrator.ts`, `client/routes/orchestrator/index.tsx` | A second window on the renderer bundle, the way onboarding is. The task page's chat with the sidebar and pane left behind, always submittable; a column beside it lists the tasks with a spinner on each at work and opens any one of them below the list; the header says when the orchestrator or its tasks are working. Opened from the Developer menu ("Open Instrument 2.0 Window", Cmd+Shift+I) or the `orchestrator.openWindow` route. |
+| The window | `apps/studio/src/electron-main/windows/orchestrator.ts`, `client/routes/orchestrator/index.tsx` | A second window on the renderer bundle, the way onboarding is. The human's side on the left, the conversation on the right: a Computer tab and a Tasks tab, and the task page's chat with the sidebar and pane left behind, always submittable. The header says when the orchestrator or its tasks are working. Opened from the Developer menu ("Open Instrument 2.0 Window", Cmd+Shift+I) or the `orchestrator.openWindow` route. |
+| The folder view | `client/components/orchestrator/folder-view.tsx`, `lib/orchestrator/list-folder.ts` | The Computer tab: the folders the conversation can reach, browsed like a file browser over the same layout the agent's tools resolve against. Breadcrumbs, a Finder-style list with kind, size and date, double-click to open in the Mac's own app, Show in Finder, and Add folder, which attaches one writable. Re-read every few seconds so a task's files appear as they land. |
+| What is on screen | `data-viewContext`, `lib/view-context-model-text.ts` | The folder open in the view and what is selected ride along with every message sent from the window, as a note the model reads, so "this folder", "here" and "these" mean what the user is looking at. |
+| The workspace folder | `lib/orchestrator/output-folder.ts` | `~/Documents/Instrument`, created on first open and attached writable to the conversation. Where outcomes land when nobody named a place, in a subfolder per job, and where the folder view opens. A task's own `output/` is scratch. |
+| The Tasks tab | `client/routes/orchestrator/index.tsx` | The tasks the orchestrator created, a spinner on each at work, and any one of them open beneath the list with its own chat: the escape hatch. |
 | Evals | `evals/cli.ts` `--orchestrator` | Runs an ad-hoc prompt through the orchestrator instead of the working agent. |
 
 ## Running it
@@ -41,10 +45,13 @@ A note asked for in a folder the orchestrator did not have: it asked for the fol
 
 The first iteration had a `reply` tool as the orchestrator's only voice, capped and markdown-free. Models called it and then wrote the same text again as assistant text, and the cap fought the answers that earned more room, so assistant text is the voice and the tool is gone.
 
+With the folder view open on the workspace folder, "write a haiku about autumn into a file in this folder" became a task handed that folder writable; the file appeared in the view as it landed, and the reply previewed it.
+
 ## Open
 
 - A boot note. Children mid-flight when the app quit are stopped like any task, and nothing tells the orchestrator. Planned as one `data-taskEvent` at boot naming them.
 - Standing folder grants. The conversation's attachments stand in, and `request_folder` asks for one at a time.
 - The wake reports every child finish as `done`; an errored turn is not told apart.
 - The stop button still shows in the composer while the orchestrator's turn runs, though the conversation never has to wait on it.
-- The window is a chat with a task column. The human's side of the window, a folder view with the agent given what is on screen as context, is the next thing to build.
+- The folder view is a list. No previews, no drag in, no rename or delete, no search; the browser tab beside it does not exist yet.
+- The workspace folder is fixed at `~/Documents/Instrument`; the user cannot yet move it.

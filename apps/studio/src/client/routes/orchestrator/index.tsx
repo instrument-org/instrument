@@ -1,3 +1,4 @@
+import { FolderView } from "@/client/components/orchestrator/folder-view";
 import { TaskChat } from "@/client/components/task/chat";
 import { Toaster } from "@/client/components/ui/sonner";
 import { Spinner } from "@/client/components/ui/spinner";
@@ -15,13 +16,15 @@ import { useState } from "react";
 /** How often the orchestrator's tasks and their status are re-read. */
 const REFRESH_MS = ms("2 seconds");
 
+type MainTab = "computer" | "tasks";
+
 export const Route = createFileRoute("/orchestrator/")({
   component: OrchestratorRoute,
   head: () => ({ meta: [{ title: APP_NAME }] }),
 });
 
 /**
- * A task's own chat, opened beside the conversation. The escape hatch: the
+ * A task's own chat, opened in the tasks tab. The escape hatch: the
  * orchestrator is meant to be the only thing the user talks to, and this is
  * how they look over its shoulder.
  */
@@ -77,7 +80,7 @@ function ChildChat({ onClose, task }: { onClose: () => void; task: Task }) {
 
 /**
  * The orchestrator's tasks, one row each with a spinner while its agent is at
- * work, and a click to open one beside the conversation.
+ * work, and a click to open one.
  */
 function ChildTasks({
   onSelect,
@@ -153,11 +156,12 @@ function Frame({
 }
 
 /**
- * The one conversation, over the orchestrator's task, with the tasks it has
- * created in a column beside it and any one of them open below that list. The
- * chat is the task page's own, with the sidebar and the pane left behind:
- * what this window is for is feeling whether one thread that never takes
- * turns is enough, not a new rendering of it.
+ * The window: the human's side on the left, the conversation on the right.
+ *
+ * The left is what the wireframes call the computer: the folders the
+ * conversation can reach, browsed like a file browser, with a second tab for
+ * the tasks behind the conversation. What is open on the left rides along with
+ * every message sent on the right, so "this folder" means the one on screen.
  */
 function OrchestratorRoute() {
   const ensure = useQuery(
@@ -188,14 +192,21 @@ function OrchestratorRoute() {
   const childIds = children.data?.map((child) => child.id) ?? [];
   const status = useQuery(
     rpcClient.workspace.task.agentStatus.byIds.queryOptions({
-      input: ids
-        ? { ids: [ids.taskId, ...childIds] }
-        : skipToken,
+      input: ids ? { ids: [ids.taskId, ...childIds] } : skipToken,
       refetchInterval: REFRESH_MS,
     }),
   );
   const [defaultModelURI] = useDefaultModelURI();
-  const [selectedId, setSelectedId] = useState<TaskId | undefined>();
+
+  const [tab, setTab] = useState<MainTab>("computer");
+  const [selectedTaskId, setSelectedTaskId] = useState<TaskId | undefined>();
+  // The folder view opens on the workspace folder, where outcomes land when
+  // nobody named a place, and follows the user from there.
+  const [visited, setVisited] = useState<string | undefined>();
+  const folder = visited ?? ids?.outputFolder ?? "/";
+  const [selected, setSelected] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
 
   const running = new Set<TaskId>(
     status.data
@@ -234,51 +245,98 @@ function OrchestratorRoute() {
     );
   }
 
-  const selected = children.data?.find((child) => child.id === selectedId);
+  const selectedTask = children.data?.find(
+    (child) => child.id === selectedTaskId,
+  );
 
   return (
     <Frame status={statusLine}>
       <div className="flex min-h-0 flex-1">
-        <div className="min-w-0 flex-1">
+        <main className="flex min-w-0 flex-1 flex-col">
+          <nav className="flex shrink-0 gap-1 border-b border-border px-3 pt-1">
+            {(
+              [
+                ["computer", "Computer"],
+                ["tasks", `Tasks${childIds.length > 0 ? ` (${childIds.length})` : ""}`],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                className={cn(
+                  "-mb-px border-b-2 px-3 py-2 text-sm",
+                  tab === id
+                    ? "border-foreground font-medium"
+                    : "border-transparent text-muted-foreground hover:text-foreground",
+                )}
+                key={id}
+                onClick={() => {
+                  setTab(id);
+                }}
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+          <div className="min-h-0 flex-1">
+            {tab === "computer" ? (
+              <FolderView
+                folder={folder}
+                onNavigate={(path) => {
+                  setVisited(path);
+                  setSelected(new Set());
+                }}
+                onSelect={(paths) => {
+                  setSelected(new Set(paths));
+                }}
+                selected={selected}
+                taskId={ids.taskId}
+              />
+            ) : (
+              <div className="flex h-full min-h-0 flex-col">
+                <div
+                  className={cn(
+                    "overflow-y-auto",
+                    selectedTask ? "max-h-56 shrink-0" : "flex-1",
+                  )}
+                >
+                  <ChildTasks
+                    onSelect={(id) => {
+                      setSelectedTaskId((current) =>
+                        current === id ? undefined : id,
+                      );
+                    }}
+                    running={running}
+                    selectedId={selectedTaskId}
+                    tasks={children.data ?? []}
+                  />
+                </div>
+                {selectedTask ? (
+                  <div className="min-h-0 flex-1 border-t border-border">
+                    <ChildChat
+                      key={selectedTask.id}
+                      onClose={() => {
+                        setSelectedTaskId(undefined);
+                      }}
+                      task={selectedTask}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+        </main>
+        <aside className="flex w-[30rem] shrink-0 flex-col border-l border-border">
           <TaskChat
             alwaysSubmittable
             navigateOnSend={false}
             promptDraft={state.data.promptDraft ?? ""}
             selectedModelURI={state.data.selectedModelURI ?? defaultModelURI}
             selectedSessionId={ids.sessionId}
+            sendContext={() =>
+              folder === "/" ? undefined : { folder, selected: [...selected] }
+            }
             task={task.data}
           />
-        </div>
-        <aside
-          className={cn(
-            "flex shrink-0 flex-col border-l border-border",
-            selected ? "w-[26rem]" : "w-64",
-          )}
-        >
-          <p className="px-3 pt-3 pb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            Tasks
-          </p>
-          <div className={cn("overflow-y-auto", selected ? "max-h-48" : "flex-1")}>
-            <ChildTasks
-              onSelect={(id) => {
-                setSelectedId((current) => (current === id ? undefined : id));
-              }}
-              running={running}
-              selectedId={selectedId}
-              tasks={children.data ?? []}
-            />
-          </div>
-          {selected ? (
-            <div className="min-h-0 flex-1 border-t border-border">
-              <ChildChat
-                key={selected.id}
-                onClose={() => {
-                  setSelectedId(undefined);
-                }}
-                task={selected}
-              />
-            </div>
-          ) : null}
         </aside>
       </div>
     </Frame>

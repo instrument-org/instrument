@@ -25,11 +25,16 @@ export {
   getUsageSummaryFromMessages,
   type UsageSummary,
 } from "./lib/usage-summary-compute";
+export { viewContextModelNote } from "./lib/view-context-model-text";
 export { readWebSearchResults } from "./lib/web-search-results";
 export { MOUNT } from "./mount-points";
 export { FileUpload } from "./schemas/file-upload";
 export { FolderAttachment } from "./schemas/folder-attachment";
-export { AbsolutePathSchema, RelativePathSchema } from "./schemas/paths";
+export {
+  AbsolutePathSchema,
+  RelativePathSchema,
+  WorkspaceFilePathSchema,
+} from "./schemas/paths";
 export type { Project, ProjectFolder } from "./schemas/project";
 export { type ProjectId, ProjectIdSchema } from "./schemas/project-id";
 export { type SessionMessage } from "./schemas/session/message";

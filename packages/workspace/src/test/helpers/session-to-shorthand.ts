@@ -200,6 +200,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-unknown": {
       return `<data-unknown originalType="${part.data.originalType}" />`;
     }
+    case "data-viewContext": {
+      return `<data-viewContext folder="${part.data.folder}" />`;
+    }
     case "file": {
       const filename = part.filename ? ` filename="${part.filename}"` : "";
       const mediaType = ` mediaType="${part.mediaType}"`;

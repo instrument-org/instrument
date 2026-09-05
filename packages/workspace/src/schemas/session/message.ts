@@ -30,6 +30,7 @@ import { paneTabsModelNote } from "../../lib/pane-tabs-model-text";
 import { projectChangesModelNote } from "../../lib/project-changes-model-text";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
 import { taskEventModelNote } from "../../lib/task-event-model-text";
+import { viewContextModelNote } from "../../lib/view-context-model-text";
 import { TOOL_NAMES } from "../../tools/name";
 import { StoreId } from "../store-id";
 import { SessionMessagePart } from "./message-part";
@@ -504,6 +505,20 @@ export namespace SessionMessage {
         if (taskEventPart) {
           injectedParts.push({
             text: taskEventModelNote(taskEventPart.data),
+            type: "text",
+          });
+        }
+
+        const viewContextPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-viewContext";
+          } => part.type === "data-viewContext",
+        );
+        if (viewContextPart) {
+          injectedParts.push({
+            text: viewContextModelNote(viewContextPart.data),
             type: "text",
           });
         }

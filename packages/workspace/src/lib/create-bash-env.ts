@@ -9,6 +9,7 @@ import {
   type StatementNode,
   type TransformPlugin,
 } from "just-bash";
+import ms from "ms";
 import { dedent } from "radashi";
 
 import { MOUNT } from "../mount-points";
@@ -21,6 +22,16 @@ import {
   agentBrowserCommandDescription,
   createAgentBrowserCommand,
 } from "./shell-commands/agent-browser";
+import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
+import {
+  createFgCommand,
+  createJobsCommand,
+  createKillCommand,
+  FG_COMMAND,
+  JOBS_COMMAND,
+  KILL_COMMAND,
+  type SessionCommandContext,
+} from "./shell-commands/background-jobs";
 import { createFfmpegCommand, FFMPEG_COMMAND } from "./shell-commands/ffmpeg";
 import {
   createFfprobeCommand,
@@ -99,76 +110,123 @@ const STATIC_STUB_COMMANDS = [
   ),
 ];
 
+/**
+ * Visits the name of every simple command in a script, including the ones inside
+ * loops, conditionals, function bodies and command substitutions.
+ *
+ * Shared because two plugins want the same traversal for opposite reasons: one
+ * reads the names, the other rewrites one of them. Walking twice is cheap; two
+ * copies of this recursion drifting apart is not.
+ */
+function forEachCommandName(
+  ast: ScriptNode,
+  visit: (name: { type: "Literal"; value: string }) => void,
+) {
+  walkScript(ast);
+
+  function walkScript(node: ScriptNode) {
+    for (const stmt of node.statements) {
+      walkStatement(stmt);
+    }
+  }
+
+  function walkStatement(stmt: StatementNode) {
+    for (const pipeline of stmt.pipelines) {
+      for (const cmd of pipeline.commands) {
+        walkCommand(cmd);
+      }
+    }
+  }
+
+  function walkCommand(node: CommandNode) {
+    switch (node.type) {
+      case "For":
+      case "Group":
+      case "Subshell":
+      case "Until":
+      case "While": {
+        const stmts = [
+          ...("condition" in node ? node.condition : []),
+          ...node.body,
+        ];
+        for (const stmt of stmts) {
+          walkStatement(stmt);
+        }
+        break;
+      }
+      case "FunctionDef": {
+        walkCommand(node.body);
+        break;
+      }
+      case "If": {
+        for (const clause of node.clauses) {
+          for (const stmt of [...clause.condition, ...clause.body]) {
+            walkStatement(stmt);
+          }
+        }
+        for (const stmt of node.elseBody ?? []) {
+          walkStatement(stmt);
+        }
+        break;
+      }
+      case "SimpleCommand": {
+        const part = node.name?.parts[0];
+        if (part?.type === "Literal") {
+          visit(part);
+        }
+        for (const arg of node.args) {
+          for (const p of arg.parts) {
+            if (p.type === "CommandSubstitution") {
+              walkScript(p.body);
+            }
+          }
+        }
+        break;
+      }
+    }
+  }
+}
+
+/**
+ * Rewrites `wait` to the `fg` command.
+ *
+ * `wait` is an interpreter builtin, so a custom command cannot shadow it the way
+ * `jobs` and `kill` are shadowed. Left alone it exits 0 with no output, which
+ * reads as "the process finished and wrote nothing" -- the one wrong answer here
+ * that looks right. Nothing can legitimately reach the builtin either, since `&`
+ * is unsupported and there are never shell jobs to wait for.
+ *
+ * Its own plugin rather than a line inside `command-order`, because this decides
+ * what runs. A rewrite that rides along inside a plugin registered to collect
+ * metadata stops happening the moment that plugin is made conditional or
+ * skipped, and what comes back is the builtin whose answer looks right.
+ */
+const waitAliasPlugin: TransformPlugin<Record<string, never>> = {
+  name: "wait-alias",
+  transform(context: { ast: ScriptNode; metadata: Record<string, unknown> }) {
+    forEachCommandName(context.ast, (name) => {
+      if (name.value === "wait") {
+        name.value = FG_COMMAND.name;
+      }
+    });
+    return { ast: context.ast };
+  },
+};
+
+/** Records which commands a script runs, in order, for the tool's metadata. */
 const commandOrderPlugin: TransformPlugin<{ commands: string[] }> = {
   name: "command-order",
   transform(context: { ast: ScriptNode; metadata: Record<string, unknown> }) {
     const seen = new Set<string>();
     const commands: string[] = [];
 
-    function walkScript(node: ScriptNode) {
-      for (const stmt of node.statements) {
-        walkStatement(stmt);
+    forEachCommandName(context.ast, (name) => {
+      if (!seen.has(name.value)) {
+        seen.add(name.value);
+        commands.push(name.value);
       }
-    }
+    });
 
-    function walkStatement(stmt: StatementNode) {
-      for (const pipeline of stmt.pipelines) {
-        for (const cmd of pipeline.commands) {
-          walkCommand(cmd);
-        }
-      }
-    }
-
-    function walkCommand(node: CommandNode) {
-      switch (node.type) {
-        case "For":
-        case "Group":
-        case "Subshell":
-        case "Until":
-        case "While": {
-          const stmts = [
-            ...("condition" in node ? node.condition : []),
-            ...node.body,
-          ];
-          for (const stmt of stmts) {
-            walkStatement(stmt);
-          }
-          break;
-        }
-        case "FunctionDef": {
-          walkCommand(node.body);
-          break;
-        }
-        case "If": {
-          for (const clause of node.clauses) {
-            for (const stmt of [...clause.condition, ...clause.body]) {
-              walkStatement(stmt);
-            }
-          }
-          for (const stmt of node.elseBody ?? []) {
-            walkStatement(stmt);
-          }
-          break;
-        }
-        case "SimpleCommand": {
-          const part = node.name?.parts[0];
-          if (part?.type === "Literal" && !seen.has(part.value)) {
-            seen.add(part.value);
-            commands.push(part.value);
-          }
-          for (const arg of node.args) {
-            for (const p of arg.parts) {
-              if (p.type === "CommandSubstitution") {
-                walkScript(p.body);
-              }
-            }
-          }
-          break;
-        }
-      }
-    }
-
-    walkScript(context.ast);
     return { ast: context.ast, metadata: { commands } };
   },
 };
@@ -192,6 +250,33 @@ interface CustomCommandDef {
   listInDescription: boolean;
   name: string;
 }
+
+/**
+ * Commands built with the session id rather than the task id. Background
+ * processes are owned by the session that started them, so the commands that
+ * list, wait on and stop them have to be keyed the way the registry is.
+ */
+const SESSION_COMMAND_DEFS: {
+  description: string;
+  factory: (context: SessionCommandContext) => ReturnType<typeof defineCommand>;
+  name: string;
+}[] = [
+  {
+    description: JOBS_COMMAND.description,
+    factory: createJobsCommand,
+    name: JOBS_COMMAND.name,
+  },
+  {
+    description: FG_COMMAND.description,
+    factory: createFgCommand,
+    name: FG_COMMAND.name,
+  },
+  {
+    description: KILL_COMMAND.description,
+    factory: createKillCommand,
+    name: KILL_COMMAND.name,
+  },
+];
 
 const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   {
@@ -308,6 +393,7 @@ export function createBashDescription() {
     ...CUSTOM_COMMAND_DEFS.filter((cmd) => cmd.listInDescription).map(
       (cmd) => `  ${cmd.name} - ${cmd.description}`,
     ),
+    ...SESSION_COMMAND_DEFS.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
   ];
 
   const specializedCommands = [...described, ...customLines].join("\n");
@@ -321,7 +407,13 @@ export function createBashDescription() {
 
     IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`${MOUNT.task}\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`${MOUNT.task}\`, the \`${MOUNT.attachedFolders}\` mounts, and \`${MOUNT.skills}\` exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files, or \`${MKTEMP_COMMAND.name}\` to name one. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
-    IMPORTANT: Backgrounding is NOT supported. Each call must complete within \`timeoutMs\`.
+    IMPORTANT: Interactive input is not supported -- there is no terminal, so a command that waits at a prompt waits forever. Pass non-interactive flags (\`-y\`, \`--yes\`, \`--no-input\`) instead.
+    A command goes to the background by outliving \`yieldMs\`, NOT by \`&\` (\`&\`, \`nohup\` and \`disown\` are unsupported). A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`${JOBS_COMMAND.name}\`, \`${FG_COMMAND.name}\` and \`${KILL_COMMAND.name}\` manage it from there. Start a server or watcher with a small \`yieldMs\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
+    Those three are ordinary commands, so they compose: \`${FG_COMMAND.name} bg_1 | rg -i error\` filters before you pay for the output, \`${FG_COMMAND.name} bg_1 && ${PNPM_COMMAND.name} test\` runs only on success, and \`${KILL_COMMAND.name} bg_1 bg_2; ${JOBS_COMMAND.name}\` cleans up and confirms in one call.
+    A background process is stopped once it has run for ${ms(MAX_RUNNING_AGE_MS, { long: true })}, whatever it is doing. \`${JOBS_COMMAND.name}\` reports that as \`stopped (${ms(MAX_RUNNING_AGE_MS)} cap)\` rather than as a failure or a kill; start it again if the work still needs it.
+    Only output written by real binaries (\`${PNPM_COMMAND.name}\`, \`${NODE_COMMAND.name}\`, \`${PYTHON_COMMAND.name}\`, \`${UV_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, ...) streams while a process runs; a long shell pipeline of builtins reports its output only when it finishes.
+
+    IMPORTANT: \`curl\`/\`wget\` refuse private and loopback addresses, so they cannot reach a server you started, and they fail with a bare exit 7 and no message. Make that request from a real process instead: a \`${NODE_COMMAND.name}\` or \`${PYTHON_COMMAND.name}\` script fetching \`http://127.0.0.1:<port>/\`. Pick an explicit port when you start the server so you know which one to call.
 
     Prefer specialized tools over shell equivalents:
       - Use the \`${TOOL_NAMES.readFile}\` tool instead of \`cat\`/\`head\`/\`tail\`.
@@ -348,11 +440,15 @@ export function createBashDescription() {
 export async function createBashEnv({
   attachedFolders,
   projectFolderName,
+  // Defaulted so the callers that never wait -- skill validation, tests, the
+  // sandbox script -- do not have to describe a yield window they do not have.
+  remainingYieldMs = () => Number.POSITIVE_INFINITY,
   sessionId,
   taskId,
 }: {
   attachedFolders?: Record<string, FolderAttachment.Type>;
   projectFolderName?: string;
+  remainingYieldMs?: () => number;
   sessionId: StoreId.Session;
   taskId: TaskId;
 }) {
@@ -388,12 +484,18 @@ export async function createBashEnv({
       createRgCommand({ attachedFolders, projectFolderName, taskId }),
       createShowCommand({ sessionId, taskId }),
       ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(taskId)),
+      // After the bundled commands so these shadow just-bash's own `kill` and
+      // `wait`, which act on host pids this sandbox deliberately cannot name.
+      ...SESSION_COMMAND_DEFS.map((cmd) =>
+        cmd.factory({ remainingYieldMs, sessionId }),
+      ),
       createWhichCommand(
         new Set([
           AGENT_BROWSER_COMMAND.name,
           SHOW_COMMAND.name,
           ...allowedCommands,
           ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.name),
+          ...SESSION_COMMAND_DEFS.map((cmd) => cmd.name),
         ]),
       ),
       ...STATIC_STUB_COMMANDS,
@@ -424,6 +526,9 @@ export async function createBashEnv({
     fs,
   });
 
+  // Order matters: the alias runs first so the recorded command list names
+  // what actually ran rather than what was typed.
+  bash.registerTransformPlugin(waitAliasPlugin);
   bash.registerTransformPlugin(commandOrderPlugin);
 
   return bash;

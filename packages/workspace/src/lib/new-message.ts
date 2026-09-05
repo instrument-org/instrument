@@ -14,6 +14,7 @@ import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { detectAttachedFolderChanges } from "./attached-folder-changes";
 import { allowBrowserReveal } from "./browser-state";
+import { createBackgroundProcessesPart } from "./create-background-processes-part";
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createPaneTabsPart } from "./create-pane-tabs-part";
 import { detectDateChange } from "./date-change";
@@ -118,6 +119,16 @@ export async function newMessage({
       },
       type: "data-projectContext",
     });
+  }
+
+  const backgroundProcessesPart = await createBackgroundProcessesPart({
+    createdAt,
+    messageId,
+    sessionId,
+    taskId,
+  });
+  if (backgroundProcessesPart) {
+    parts.push(backgroundProcessesPart);
   }
 
   // A fresh request is a fresh claim on the user's attention, so the first page

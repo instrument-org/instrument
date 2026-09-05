@@ -7,6 +7,7 @@ import { type WorkspaceActorRef } from "../machines/workspace";
 import { type TaskId } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
+import { killTaskBackgroundProcesses } from "./background-processes";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
 import {
@@ -39,8 +40,20 @@ export async function trashTask({
         });
       });
 
-      // Cap the wait so a stuck reap can't hang trashing forever; the old
-      // 500ms sleep was already best-effort, this is a strict upper bound.
+      // Background processes outlive the turn that started them, so the task
+      // going away is what ends them. Wait for that here: their logs live inside
+      // the directory about to be deleted, and an orphaned dev server would go on
+      // writing into the trashed folder and holding its port.
+      const backgroundCleanedUp = killTaskBackgroundProcesses(id);
+
+      // Awaited rather than raced, because it is already bounded and its logs are
+      // about to be deleted. A process that will not confirm it stopped is still
+      // recorded rather than thrown, so it cannot make the task undeletable.
+      // Browser teardown remains best-effort for the same reason: a stuck
+      // WebContents must not wedge task deletion forever.
+      await backgroundCleanedUp.catch((error: unknown) => {
+        workspaceConfig.captureException(error);
+      });
       await Promise.race([browserReaped, setTimeoutPromise(2000)]);
 
       // Mark storage as disposing to prevent recreation during deletion

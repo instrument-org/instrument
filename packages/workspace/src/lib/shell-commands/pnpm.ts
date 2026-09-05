@@ -72,8 +72,6 @@ const PACKAGE_MANAGEMENT_SUBCOMMANDS = new Set([
   "update",
 ]);
 
-const DEV_OR_START = new Set(["dev", "start"]);
-
 export function createNpxCommand(taskId: TaskId) {
   return createDlxAliasCommand(
     NPX_COMMAND.name,
@@ -85,25 +83,6 @@ export function createNpxCommand(taskId: TaskId) {
 export function createPnpmCommand(taskId: TaskId) {
   return defineCommand(PNPM_COMMAND.name, async (args, ctx) => {
     const subcommand = args[0];
-    const secondArg = args[1];
-
-    if (
-      DEV_OR_START.has(subcommand ?? "") ||
-      (subcommand === "run" && DEV_OR_START.has(secondArg ?? ""))
-    ) {
-      const fullCmd =
-        subcommand === "run"
-          ? `${PNPM_COMMAND.name} run ${secondArg ?? ""}`
-          : `${PNPM_COMMAND.name} ${subcommand ?? ""}`;
-      return {
-        exitCode: 1,
-        stderr: dedent`
-          '${fullCmd}' is not needed here.
-          The app is already started and running in the sandboxed environment.
-        `,
-        stdout: "",
-      };
-    }
 
     if (subcommand === "exec") {
       // `pnpm exec` normally resolves its command off PATH too, which would run

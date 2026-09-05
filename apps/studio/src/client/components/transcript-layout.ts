@@ -11,6 +11,7 @@ import { summarizeToolRun } from "../lib/tool-display";
 import { dataPartVisibility, isDataPart } from "./chat-stream-data-parts";
 import {
   isActivityHeadingVisible,
+  isAwaitingUser,
   isToolCallVisible,
   isToolPartRunning,
 } from "./message-part/tool-call-utils";
@@ -302,7 +303,13 @@ export function buildTranscriptLayout({
       push(id, kind);
       if (isToolPart(part)) {
         open.toolCalls.push({ name: getToolNameByType(part.type), rowId: id });
-        if (isStreaming && isToolPartRunning(part) && opensOnSight(part)) {
+        // A call waiting on the user opens itself whatever the session is
+        // doing: the buttons on it are how the turn goes on, and a reader who
+        // has to find and open the row first reads a pause as a stall.
+        if (
+          (isStreaming && isToolPartRunning(part) && opensOnSight(part)) ||
+          isAwaitingUser(part)
+        ) {
           selfOpeningRowIds.push(id);
         }
       }

@@ -1,3 +1,7 @@
+import {
+  BrowserView,
+  type BrowserViewHandle,
+} from "@/client/components/orchestrator/browser-view";
 import { FolderView } from "@/client/components/orchestrator/folder-view";
 import { TaskChat } from "@/client/components/task/chat";
 import { Toaster } from "@/client/components/ui/sonner";
@@ -11,12 +15,12 @@ import { XIcon } from "@phosphor-icons/react/X";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import ms from "ms";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 /** How often the orchestrator's tasks and their status are re-read. */
 const REFRESH_MS = ms("2 seconds");
 
-type MainTab = "computer" | "tasks";
+type MainTab = "browser" | "computer" | "tasks";
 
 export const Route = createFileRoute("/orchestrator/")({
   component: OrchestratorRoute,
@@ -207,6 +211,7 @@ function OrchestratorRoute() {
   const [selected, setSelected] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
+  const browserRef = useRef<BrowserViewHandle>(null);
 
   const running = new Set<TaskId>(
     status.data
@@ -257,6 +262,7 @@ function OrchestratorRoute() {
             {(
               [
                 ["computer", "Computer"],
+                ["browser", "Browser"],
                 [
                   "tasks",
                   `Tasks${childIds.length > 0 ? ` (${childIds.length})` : ""}`,
@@ -280,7 +286,7 @@ function OrchestratorRoute() {
               </button>
             ))}
           </nav>
-          <div className="min-h-0 flex-1">
+          <div className="relative min-h-0 flex-1">
             {tab === "computer" ? (
               <FolderView
                 folder={folder}
@@ -294,7 +300,7 @@ function OrchestratorRoute() {
                 selected={selected}
                 taskId={ids.taskId}
               />
-            ) : (
+            ) : tab === "tasks" ? (
               <div className="flex h-full min-h-0 flex-col">
                 <div
                   className={cn(
@@ -325,7 +331,16 @@ function OrchestratorRoute() {
                   </div>
                 ) : null}
               </div>
-            )}
+            ) : null}
+            {/* Hidden rather than unmounted when another tab is up, so the page stays. */}
+            <div
+              className={cn(
+                "absolute inset-0",
+                tab === "browser" ? undefined : "invisible",
+              )}
+            >
+              <BrowserView ref={browserRef} />
+            </div>
           </div>
         </main>
         <aside className="flex w-[30rem] shrink-0 flex-col border-l border-border">
@@ -335,9 +350,20 @@ function OrchestratorRoute() {
             promptDraft={state.data.promptDraft ?? ""}
             selectedModelURI={state.data.selectedModelURI ?? defaultModelURI}
             selectedSessionId={ids.sessionId}
-            sendContext={() =>
-              folder === "/" ? undefined : { folder, selected: [...selected] }
-            }
+            sendContext={async () => {
+              const page =
+                tab === "browser"
+                  ? await browserRef.current?.readPage()
+                  : undefined;
+              if (!page && folder === "/") {
+                return;
+              }
+              return {
+                folder,
+                ...(page ? { page } : {}),
+                selected: [...selected],
+              };
+            }}
             task={task.data}
           />
         </aside>

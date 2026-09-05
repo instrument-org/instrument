@@ -377,6 +377,18 @@ export namespace SessionMessageDataPart {
    */
   export const ViewContextDataPartSchema = z.object({
     folder: z.string(),
+    /**
+     * The page the window's browser showed, when that tab was on screen: its
+     * address and title, what was selected on it, and how its text begins.
+     */
+    page: z
+      .object({
+        selection: z.string().optional(),
+        text: z.string().optional(),
+        title: z.string(),
+        url: z.string(),
+      })
+      .optional(),
     selected: z.array(z.string()).default([]),
   });
 

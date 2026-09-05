@@ -102,7 +102,9 @@ export function TaskChat({
    * "this folder" means the folder in view. Read at send time, since what is on
    * screen when the prompt is typed is what the words refer to.
    */
-  sendContext?: () => SessionMessageDataPart.ViewContextDataPart | undefined;
+  sendContext?: () => Promise<
+    SessionMessageDataPart.ViewContextDataPart | undefined
+  >;
   showTutorial?: boolean;
   task: Task;
 }) {
@@ -273,14 +275,16 @@ export function TaskChat({
       if (!selectedSessionId) {
         return;
       }
-      createMessage.mutate({
-        files: queued.files,
-        folders: queued.folders,
-        id,
-        modelURI: queued.modelURI,
-        prompt: queued.prompt,
-        sessionId: selectedSessionId,
-        viewing: sendContext?.(),
+      void Promise.resolve(sendContext?.()).then((viewing) => {
+        createMessage.mutate({
+          files: queued.files,
+          folders: queued.folders,
+          id,
+          modelURI: queued.modelURI,
+          prompt: queued.prompt,
+          sessionId: selectedSessionId,
+          viewing,
+        });
       });
     },
   });
@@ -368,38 +372,40 @@ export function TaskChat({
           enqueue({ files, folders, modelURI, prompt });
           return;
         }
-        createMessage.mutate(
-          {
-            files,
-            folders,
-            id,
-            modelURI,
-            prompt,
-            sessionId: selectedSessionId,
-            viewing: sendContext?.(),
-          },
-          {
-            onError: () => {
-              if (draft) {
-                promptInputRef.current?.restore(draft);
-              }
+        void Promise.resolve(sendContext?.()).then((viewing) => {
+          createMessage.mutate(
+            {
+              files,
+              folders,
+              id,
+              modelURI,
+              prompt,
+              sessionId: selectedSessionId,
+              viewing,
             },
-            onSuccess: ({ sessionId }) => {
-              if (!navigateOnSend) {
-                return;
-              }
-              void navigate({
-                params: { id },
-                replace: true,
-                search: (prev) => ({
-                  ...prev,
-                  selectedSessionId: sessionId,
-                }),
-                to: "/tasks/$id",
-              });
+            {
+              onError: () => {
+                if (draft) {
+                  promptInputRef.current?.restore(draft);
+                }
+              },
+              onSuccess: ({ sessionId }) => {
+                if (!navigateOnSend) {
+                  return;
+                }
+                void navigate({
+                  params: { id },
+                  replace: true,
+                  search: (prev) => ({
+                    ...prev,
+                    selectedSessionId: sessionId,
+                  }),
+                  to: "/tasks/$id",
+                });
+              },
             },
-          },
-        );
+          );
+        });
       }}
       placeholder={
         !alwaysSubmittable && isQueueEnabled && isAgentAlive

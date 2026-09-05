@@ -54,6 +54,13 @@ export interface BrowserGuestTarget {
 export const BROWSER_ZOOM_MAX = 5;
 export const BROWSER_ZOOM_MIN = 0.25;
 
+/**
+ * The partition of the orchestrator window's own browser: the one the user
+ * drives by hand, with no target id because no agent drives it. Main matches
+ * it in `will-attach-webview` to give it the workspace browser profile.
+ */
+export const ORCHESTRATOR_BROWSER_PARTITION = "persist:orchestrator-browser";
+
 export function browserPartition(targetId: BrowserTargetId): string {
   // Encode so the target id's `/` doesn't complicate the partition string.
   return `${BROWSER_PARTITION_PREFIX}${encodeURIComponent(targetId)}`;

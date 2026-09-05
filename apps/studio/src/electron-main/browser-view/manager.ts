@@ -650,6 +650,33 @@ export function getBrowserViewManager(): BrowserViewManager | undefined {
   return managerInstance;
 }
 
+/**
+ * The Chromium session a browser guest runs in: the profile at `partitionDir`,
+ * with every permission prompt denied, an ordinary browser's User-Agent, and
+ * passkey account selection answered.
+ */
+export function guestSessionForDir(partitionDir: string) {
+  fs.mkdirSync(partitionDir, { recursive: true });
+  const guestSession = session.fromPath(partitionDir, { cache: true });
+  // Electron auto-approves every permission request (camera, mic, geolocation,
+  // notifications, ...) when no handler is set. There's no browser chrome here
+  // to show a native prompt, so deny everything rather than silently granting
+  // it to whatever site the guest navigates to.
+  guestSession.setPermissionRequestHandler((_wc, _permission, callback) => {
+    callback(false);
+  });
+  guestSession.setPermissionCheckHandler(() => false);
+  // Normalize the guest's User-Agent to the shape an ordinary Chromium-derived
+  // browser ships (and matching client hints) so third-party services treat it
+  // like one. Branded with the app's own name because the guest's pages get the
+  // matching metadata over CDP; see applyProductBrandedMetadata.
+  applyStandardUserAgent(guestSession, { productBranded: true });
+  // Required, not optional: a passkey sign-in that finds more than one
+  // credential is cancelled outright when nothing answers this.
+  selectWebAuthnAccountOnRequest(guestSession);
+  return guestSession;
+}
+
 // Record that a guest has started loading a real page, and republish so the UI
 // can surface it. `about:blank` doesn't count: bindGuest loads it to materialize
 // the RenderFrame, and agent-browser's own page bootstrap lands there too, so
@@ -687,25 +714,7 @@ function notifyEntriesChanged() {
 // in-place). The workspace's .instrument dir is created lazily, so ensure it
 // exists before handing the path to Electron.
 function sessionForEntry(entry: BrowserEntry) {
-  fs.mkdirSync(entry.partitionDir, { recursive: true });
-  const guestSession = session.fromPath(entry.partitionDir, { cache: true });
-  // Electron auto-approves every permission request (camera, mic, geolocation,
-  // notifications, ...) when no handler is set. There's no browser chrome here
-  // to show a native prompt, so deny everything rather than silently granting
-  // it to whatever site the guest navigates to.
-  guestSession.setPermissionRequestHandler((_wc, _permission, callback) => {
-    callback(false);
-  });
-  guestSession.setPermissionCheckHandler(() => false);
-  // Normalize the guest's User-Agent to the shape an ordinary Chromium-derived
-  // browser ships (and matching client hints) so third-party services treat it
-  // like one. Branded with the app's own name because the guest's pages get the
-  // matching metadata over CDP; see applyProductBrandedMetadata.
-  applyStandardUserAgent(guestSession, { productBranded: true });
-  // Required, not optional: a passkey sign-in that finds more than one
-  // credential is cancelled outright when nothing answers this.
-  selectWebAuthnAccountOnRequest(guestSession);
-  return guestSession;
+  return guestSessionForDir(entry.partitionDir);
 }
 
 function zoomGuest(wc: WebContents, direction: "in" | "out" | "reset") {

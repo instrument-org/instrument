@@ -188,7 +188,7 @@ export function FolderView({
                 return (
                   <tr
                     className={cn(
-                      "cursor-default select-none border-b border-border/50",
+                      "cursor-default border-b border-border/50 select-none",
                       isSelected ? "bg-foreground/10" : "hover:bg-foreground/5",
                     )}
                     key={entry.path}

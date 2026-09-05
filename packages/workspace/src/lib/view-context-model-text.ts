@@ -2,19 +2,40 @@ import { type SessionMessageDataPart } from "../schemas/session/message-data-par
 import { systemNote } from "./system-note";
 
 /**
- * What the user had on screen when they sent the message: the folder in the
- * window's folder view, and anything selected in it. "This folder", "here",
- * and "these" mean what is named here, so a request that points at the screen
- * needs no path typed out.
+ * What the user had on screen when they sent the message: the page in the
+ * window's browser when that tab was showing, else the folder in the folder
+ * view and anything selected in it. "This page", "this folder", "here", and
+ * "these" mean what is named here, so a request that points at the screen
+ * needs no address or path typed out.
  */
 export function viewContextModelNote(
   data: SessionMessageDataPart.ViewContextDataPart,
 ) {
+  const { page } = data;
+  if (!page) {
+    return systemNote`
+      When the user sent this, ${folderShown(data)}. "This folder", "here", "in here" and "these" refer to that; a task that should put results there gets it with --folder, writable.
+    `;
+  }
+  const title = page.title ? ` "${page.title}"` : "";
+  const words = page.selection
+    ? `Selected on it: "${page.selection}".`
+    : page.text
+      ? `It begins: "${page.text}".`
+      : "It has no text yet.";
+  return systemNote`
+    When the user sent this, the browser showed${title} at ${page.url}. "This page", "this site", "this" and "here" refer to it. You have no browser; a task does, so a task that needs the page gets its address in the brief. Answer from what is quoted here when that is enough. ${words}
+    Behind the browser, ${folderShown(data)}; "this folder" means that.
+  `;
+}
+
+function folderShown(data: SessionMessageDataPart.ViewContextDataPart) {
+  if (data.folder === "/") {
+    return "the folder view showed the list of folders, none open";
+  }
   const selected =
     data.selected.length > 0
-      ? `Selected in it: ${data.selected.map((entry) => `\`${entry}\``).join(", ")}.`
-      : "Nothing is selected in it.";
-  return systemNote`
-    When the user sent this, the folder view showed \`${data.folder}\`. ${selected} "This folder", "here", "in here" and "these" refer to that; a task that should put results there gets it with --folder, writable.
-  `;
+      ? `, with ${data.selected.map((entry) => `\`${entry}\``).join(", ")} selected in it`
+      : "";
+  return `the folder view showed \`${data.folder}\`${selected}`;
 }

@@ -8,6 +8,7 @@ import {
 import { assignAttachedMounts } from "../lib/attached-folder-mounts";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { getCurrentDate } from "../lib/get-current-date";
+import { listRunnableModels, modelTable } from "../lib/orchestrator/models";
 import { TASK_COMMAND } from "../lib/shell-commands/task-command";
 import { taskDir } from "../lib/task-dir-utils";
 import { getTaskState } from "../lib/task-record";
@@ -34,6 +35,27 @@ import {
  * user waits on. What it says is its assistant text, rendered the way any
  * agent's is, files fence included.
  */
+/** How many of the newest models ride along in the context, so "the newest" needs no command. */
+const NEWEST_MODELS_IN_CONTEXT = 12;
+
+async function newestModelsText(): Promise<string[]> {
+  let models;
+  try {
+    models = await listRunnableModels();
+  } catch {
+    return [];
+  }
+  if (models.length === 0) {
+    return [];
+  }
+  return [
+    `The newest models you can hand a task, newest first. \`${TASK_COMMAND.name} models\` lists every one, with more about each:\n${modelTable(
+      models.slice(0, NEWEST_MODELS_IN_CONTEXT),
+      ["uri", "name", "released", "price", "takes"],
+    )}`,
+  ];
+}
+
 export const instrumentAgent = setupAgent({
   agentTools: pick(TOOLS, ["BashTool", "Choose", "ReadFile", "RequestFolder"]),
   name: "instrument",
@@ -50,7 +72,7 @@ export const instrumentAgent = setupAgent({
       - Stay short. A turn is a few \`${TASK_COMMAND.name}\` commands and a line or two of text. Never wait on a task inside a turn: no \`${TASK_COMMAND.name} wait\`, no sleeping, no polling. You are told when a task finishes, as a note at the start of a later turn.
       - One thread, many tasks. The user sends messages in any order about anything. For each one decide: a new task; a message into a task that already exists (\`${TASK_COMMAND.name} send\`); a stop and then a send, when the task must change course now; or only a reply, when nothing needs doing. A follow-up about work in flight goes to that task, even when it does not name it. A new subject is a new task.
       - Never take turns with the user. When a message arrives while tasks run, answer it now; the tasks keep running.
-      - Questions: ask only what you cannot decide and cannot look up, in a sentence. Use \`${agentTools.Choose.name}\` only for a genuinely closed choice, since it holds the conversation until the user picks.
+      - Questions: ask only what you cannot decide and cannot look up. When a request could mean two things, take the likelier reading, say which in your reply, and go; ask first only when the wrong reading wastes real work. Ask in a sentence, or with \`${agentTools.Choose.name}\` when the options are few and closed, since it holds the conversation until the user picks.
       - Folders: when the work needs a folder the user has not attached, call \`${agentTools.RequestFolder.name}\` with one sentence saying which and why. The conversation waits while they pick it; it arrives mounted under \`${MOUNT.attachedFolders}\`, and the answer names the mount to pass to a task. Never ask them to attach one in prose when you can ask this way.
 
       # Tasks
@@ -70,7 +92,8 @@ export const instrumentAgent = setupAgent({
       - Always pass the brief and any message through the quoted heredoc, never as a double-quoted argument: the shell expands \`$\` inside double quotes, so "under $800" reaches the task as "under 00". Single-quote the title.
       - Folders: the user's folders are mounted for you under \`${MOUNT.attachedFolders}/<name>\` and listed in your context and in the messages they arrive with. A task sees none of them unless you pass \`--folder\`. Pass the folder the user wants results in as \`:rw\` and tell the task deliverables go there; pass others read-only unless the task must change files in them.
       - Where results go: a note on the user's message says which folder they had open and what was selected; "this folder", "here", and "these" mean that. Results the user pointed at a folder for go in that folder, passed writable. Results nobody placed go in \`${MOUNT.attachedFolders}/Instrument\`, the workspace folder, in a subfolder named for the job; pass it as \`--folder Instrument:rw\`. A task's own \`output/\` is scratch the user never looks at, so never leave a deliverable only there.
-      - Model: omit --model to run the task on the model this conversation runs on. \`${TASK_COMMAND.name} models\` lists what else is available, with context sizes, for when a task needs a bigger window or a cheaper model.
+      - Model: a task runs on one model for its whole life, the one you pass with --model, or this conversation's when you pass none. A task cannot pick, switch, or compare models, and it knows nothing about this app, so never brief it to; "one from each of the newest models" is one task per model, each with its own --model, all created in one turn. You choose the models, and say which you chose: the newest models, said plainly, means the newest release from each lab, not two builds of one release, and a paid model over a free build of it. The newest are listed in your context; \`${TASK_COMMAND.name} models\` has every one you can run, newest first, with release date, context window, price per million tokens in and out, what it takes besides text (image, file, audio, video, reasoning), and tags (recommended, default, new, legacy). It is long: \`${TASK_COMMAND.name} models | head -20\`, or \`${TASK_COMMAND.name} models --author openai\`.
+      - Several tasks in one turn is how the same brief runs on several models, or a job splits into parts. Give each its own file name in its brief so they do not overwrite one another, and when the point is comparing models, put the model's name in the file name.
       - A task's own folder is its scratch, readable at \`${MOUNT.tasks}/<id>/\`. Its \`output/\` holds what it made when you gave it no folder. Its transcript is \`${TASK_COMMAND.name} log <id>\`.
       - Reuse a task for a follow-up on the same subject; it has the context. Start a new one for a new subject. Several can run at once.
 
@@ -113,11 +136,12 @@ export const instrumentAgent = setupAgent({
           })
         : `The user has not attached any folders to this conversation yet. Work that needs their files needs a folder first; ask for it with ${agentTools.RequestFolder.name}. Folders attached later are announced on the message they arrive with.`;
 
+    const modelsText = await newestModelsText();
     const userMessage = createContextMessage({
       agentName: name,
       now,
       sessionId,
-      textParts: [getSystemInfoText(), foldersText],
+      textParts: [getSystemInfoText(), foldersText, ...modelsText],
     });
 
     return [systemMessage, userMessage];

@@ -8,6 +8,7 @@ import { addHeuristicTags } from "../add-heuristic-tags";
 import { TypedError } from "../errors";
 import { generateModelName } from "../generate-model-name";
 import { isModelNew } from "../is-model-new";
+import { modelReleaseDate } from "../parse-model-date";
 import { getProviderMetadata } from "../providers/metadata";
 import { modalityFeatures } from "./modality-features";
 
@@ -96,6 +97,7 @@ export function parseWorkersAiModelsList({
           params,
           providerId,
           providerName: config.displayName ?? metadata.name,
+          releasedAt: modelReleaseDate(model.created),
           tags,
           uri: AIGatewayModelURI.fromModel({ author, canonicalId, params }),
         },

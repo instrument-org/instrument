@@ -81,6 +81,12 @@ export namespace AIGatewayModel {
   });
   export type Reasoning = z.output<typeof ReasoningSchema>;
 
+  export const PricingSchema = z.object({
+    input: z.number().nonnegative(),
+    output: z.number().nonnegative(),
+  });
+  export type Pricing = z.output<typeof PricingSchema>;
+
   export const Schema = z.object({
     author: z.string(),
     canonicalId: AIGatewayModelURI.CanonicalIdSchema,
@@ -99,6 +105,12 @@ export namespace AIGatewayModel {
     features: ModelFeaturesSchema.array(),
     name: z.string(),
     params: AIGatewayModelURI.ParamsSchema,
+    /**
+     * Dollars per million tokens in and out, when the provider's list prices
+     * the model. Only OpenRouter-shaped responses do. Absent means unknown,
+     * not free.
+     */
+    pricing: PricingSchema.optional(),
     providerId: ProviderIdSchema,
     providerName: z.string(),
     /**
@@ -106,6 +118,12 @@ export namespace AIGatewayModel {
      * responses carry it, and absent means unknown rather than none.
      */
     reasoning: ReasoningSchema.optional(),
+    /**
+     * The calendar date the provider's list gives for the model's release.
+     * Absent where the list carries none, as Google's does, rather than a
+     * guess read off the id.
+     */
+    releasedAt: z.iso.date().optional(),
     restricted: RestrictionSchema.optional(),
     tags: ModelTagsSchema,
     uri: AIGatewayModelURI.Schema,

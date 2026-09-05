@@ -1,8 +1,4 @@
-import {
-  AIGatewayModelURI,
-  fetchModel,
-  fetchModelResultsForProviders,
-} from "@instrument-org/ai-gateway";
+import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { type ByteString, defineCommand } from "just-bash";
 import ms from "ms";
 import fs from "node:fs/promises";
@@ -28,6 +24,7 @@ import {
   lastAssistantText,
   latestSessionId,
 } from "../orchestrator/latest-session";
+import { listRunnableModels, modelTable } from "../orchestrator/models";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
 import { recordTaskActivity } from "../task-settings";
@@ -84,8 +81,10 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       Its transcript, last ${DEFAULT_LOG_TAIL_LINES} lines by default. Composes: \`${TASK_COMMAND.name} log <id> | rg error\`.
   ${TASK_COMMAND.name} model <id> <uri>
       The model its next turn runs on.
-  ${TASK_COMMAND.name} models
-      Every model available to you, with its provider and context window.
+  ${TASK_COMMAND.name} models [--author <name>]
+      Every model you can run, newest first: release date, context window, price
+      in dollars per million tokens in and out, what it takes besides text, and
+      tags. Long; pipe it through head or rg.
   ${TASK_COMMAND.name} wait <id> [--timeout <ms>]
       Block until it finishes or the timeout, whichever comes first. Rarely the
       right call: you are woken when it finishes anyway.
@@ -117,7 +116,7 @@ export function createTaskCommand(context: TaskCommandContext) {
           return await runModel(rest, context);
         }
         case "models": {
-          return await runModels();
+          return await runModels(rest);
         }
         case "new": {
           return await runNew(rest, context, ctx.stdin);
@@ -383,7 +382,9 @@ async function runLog(args: string[], context: TaskCommandContext) {
   const task = await requireChild(positional[0], context);
   const tailRaw = values.get("tail")?.[0];
   const tail =
-    tailRaw === undefined ? DEFAULT_LOG_TAIL_LINES : Number.parseInt(tailRaw, 10);
+    tailRaw === undefined
+      ? DEFAULT_LOG_TAIL_LINES
+      : Number.parseInt(tailRaw, 10);
   if (!Number.isFinite(tail) || tail <= 0) {
     throw new Error("--tail takes a number of lines.");
   }
@@ -427,47 +428,21 @@ async function runModel(args: string[], context: TaskCommandContext) {
   return ok(`${task.id} will run its next turn on ${modelURI}.\n`);
 }
 
-async function runModels() {
-  const workspaceConfig = getWorkspaceConfig();
-  const results = await fetchModelResultsForProviders(
-    workspaceConfig.getAIProviderConfigs(),
-    {
-      captureException: workspaceConfig.captureException,
-      modelCache: workspaceConfig.modelCache,
-    },
+async function runModels(args: string[]) {
+  const { values } = parseFlags(args, { flags: ["author"], repeatable: [] });
+  const author = values.get("author")?.[0]?.toLowerCase();
+  const runnable = await listRunnableModels();
+  const models = runnable.filter(
+    (model) => author === undefined || model.author.toLowerCase() === author,
   );
-  const models = results.flatMap((result) => (result.ok ? result.value : []));
   if (models.length === 0) {
-    return ok("No models are configured.\n");
+    return ok(
+      author === undefined
+        ? "No models are configured.\n"
+        : `No models by ${author}. Drop --author to see every author.\n`,
+    );
   }
-  const rows = models
-    .toSorted((a, b) => a.name.localeCompare(b.name))
-    .map((model) => [
-      model.uri,
-      model.name,
-      model.providerName,
-      model.contextLength === undefined
-        ? "?"
-        : `${Math.round(model.contextLength / 1000)}K`,
-    ]);
-  const widths = [0, 1, 2].map((column) =>
-    Math.max(...rows.map((row) => (row[column] ?? "").length)),
-  );
-  return ok(
-    `${["uri", "name", "provider", "context"]
-      .map((cell, column) =>
-        column === 3 ? cell : cell.padEnd(widths[column] ?? 0),
-      )
-      .join("  ")}\n${rows
-      .map((row) =>
-        row
-          .map((cell, column) =>
-            column === 3 ? cell : cell.padEnd(widths[column] ?? 0),
-          )
-          .join("  "),
-      )
-      .join("\n")}\n`,
-  );
+  return ok(modelTable(models));
 }
 
 async function runNew(
@@ -684,9 +659,10 @@ async function runWait(
     0,
     Math.min(MAX_WAIT_MS, context.remainingYieldMs() - WAIT_MARGIN_MS),
   );
-  const timeoutMs = requested === undefined ? budget : Math.min(requested, budget);
+  const timeoutMs =
+    requested === undefined ? budget : Math.min(requested, budget);
 
-  if (!(isRunning(task.id))) {
+  if (!isRunning(task.id)) {
     return ok(`${task.id} is not running.\n`);
   }
 

@@ -4,6 +4,8 @@ import { type AIGatewayProviderConfig } from "../../schemas/provider-config";
 import { addHeuristicTags } from "../add-heuristic-tags";
 import { generateModelName } from "../generate-model-name";
 import { isModelNew } from "../is-model-new";
+import { pricingPerMillionTokens } from "../model-pricing";
+import { modelReleaseDate } from "../parse-model-date";
 import { getProviderMetadata } from "../providers/metadata";
 import { modalityFeatures } from "./modality-features";
 
@@ -17,6 +19,7 @@ interface OpenRouterShapedModel {
   id: string;
   instrument?: { restricted?: AIGatewayModel.Restriction };
   name: string;
+  pricing?: null | { completion?: null | string; prompt?: null | string };
   reasoning?: null | {
     default_effort?: null | string;
     default_enabled?: boolean | null;
@@ -70,6 +73,7 @@ export function mapOpenRouterShapedModel({
       features,
       name: modelName,
       params,
+      pricing: pricingPerMillionTokens(model.pricing),
       providerId,
       providerName: config.displayName ?? metadata.name,
       reasoning: model.reasoning
@@ -80,6 +84,7 @@ export function mapOpenRouterShapedModel({
             mandatory: model.reasoning.mandatory ?? false,
           }
         : undefined,
+      releasedAt: modelReleaseDate(model.created),
       restricted: model.instrument?.restricted,
       tags,
       uri: AIGatewayModelURI.fromModel({ author, canonicalId, params }),

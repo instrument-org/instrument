@@ -1,3 +1,4 @@
+import { WINDOW_BROWSER_HOST } from "@/client/lib/browser-host";
 import { captureException } from "@/client/lib/telemetry";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -81,6 +82,7 @@ interface PooledWebview {
 interface WebviewElement extends HTMLElement {
   canGoBack(): boolean;
   canGoForward(): boolean;
+  executeJavaScript(code: string): Promise<unknown>;
   findInPage(
     text: string,
     options?: { findNext?: boolean; forward?: boolean },
@@ -576,7 +578,12 @@ function onWindowResize() {
 
 /** Bring the pool in line with the desired target set: create any missing
  * guests, dispose any that are no longer wanted, and mirror the attached set. */
-function reconcile(targets: BrowserGuestTarget[]) {
+function reconcile(allTargets: BrowserGuestTarget[]) {
+  // Every window hears about every target; each mounts only its own, since a
+  // guest can attach to one host renderer.
+  const targets = allTargets.filter(
+    (target) => target.host === WINDOW_BROWSER_HOST,
+  );
   const desired = new Set(targets.map((target) => target.id));
   for (const target of targets) {
     // A destroy+recreate of the same id (new generation) may reach us as a

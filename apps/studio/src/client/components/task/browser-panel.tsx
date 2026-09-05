@@ -28,6 +28,7 @@ import { useBrowserFind } from "@/client/hooks/use-browser-find";
 import { useBrowserSlot } from "@/client/hooks/use-browser-slot";
 import { useIsGuestCovered } from "@/client/hooks/use-guest-covered";
 import { useIsTaskPageVisible } from "@/client/hooks/use-task-page-visible";
+import { WINDOW_BROWSER_HOST } from "@/client/lib/browser-host";
 import { getWebviewElement } from "@/client/lib/browser-pool";
 import {
   EMULATED_DEVICES,
@@ -171,7 +172,7 @@ export function TaskBrowserPanel({
       return;
     }
     autoOpenedRef.current.add(targetId);
-    openBrowser({ id: taskId, sessionId });
+    openBrowser({ host: WINDOW_BROWSER_HOST, id: taskId, sessionId });
   }, [active, openBrowser, sessionId, sliding, targetId, taskId]);
 
   // Mirror the guest's URL + nav availability into the controls (it navigates
@@ -620,7 +621,11 @@ export function TaskBrowserPanel({
               <span>Couldn’t open the browser.</span>
               <Button
                 onClick={() => {
-                  openBrowser({ id: taskId, sessionId });
+                  openBrowser({
+                    host: WINDOW_BROWSER_HOST,
+                    id: taskId,
+                    sessionId,
+                  });
                 }}
                 size="sm"
                 variant="outline"
@@ -631,7 +636,11 @@ export function TaskBrowserPanel({
           ) : openStatus === "success" ? (
             <Button
               onClick={() => {
-                openBrowser({ id: taskId, sessionId });
+                openBrowser({
+                  host: WINDOW_BROWSER_HOST,
+                  id: taskId,
+                  sessionId,
+                });
               }}
               size="sm"
               variant="outline"

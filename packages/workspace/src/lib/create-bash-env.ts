@@ -495,6 +495,9 @@ export async function createBashEnv({
 
   const customCommands = orchestrator
     ? [
+        // On the tab the user has on screen, or none: the orchestrator never
+        // creates a browser of its own, so a command with no tab up refuses.
+        createAgentBrowserCommand({ sessionId, taskId }),
         createRgCommand({
           attachedFolders,
           extraMounts: orchestrator.childMounts,
@@ -505,6 +508,7 @@ export async function createBashEnv({
         ...sessionCommands,
         createWhichCommand(
           new Set([
+            AGENT_BROWSER_COMMAND.name,
             RG_COMMAND.name,
             TASK_COMMAND.name,
             ...allowedCommands,
@@ -579,15 +583,16 @@ export async function createBashEnv({
 }
 
 /**
- * The orchestrator's shell is for reading and for `task`. It has no network
- * commands and none of the native hatches (python, node, pnpm, ffmpeg, git),
- * because it never does the work: a shell that can only read and delegate is
+ * The orchestrator's shell is for reading, for `task`, and for the one tab
+ * the user has on screen. It has no network commands and none of the native
+ * hatches (python, node, pnpm, ffmpeg, git), because it never does long work:
+ * a shell that can read, delegate, and act on the page in front of the user is
  * what keeps every turn short, and what keeps the host paths of the user's
  * folders out of a process that could act on them.
  */
 function createOrchestratorBashDescription(builtins: string[]) {
   return dedent`
-    Run a bash command. This shell is for reading and for the \`${TASK_COMMAND.name}\` command. It has no python, node, package manager, browser, or network, on purpose: you never do the work here, tasks do.
+    Run a bash command. This shell is for reading, for the \`${TASK_COMMAND.name}\` command, and for \`${AGENT_BROWSER_COMMAND.name}\`, which drives the browser tab the user has on screen and nothing else (\`${AGENT_BROWSER_COMMAND.name} --help\`; \`eval\`, \`click\`, \`fill\`, \`get text\` are the one-step ones). It has no python, node, package manager, or network, on purpose: long work is a task's.
 
     What you can reach:
     - \`${MOUNT.task}\`: your own scratch folder and working directory. Keep notes here if you want them.

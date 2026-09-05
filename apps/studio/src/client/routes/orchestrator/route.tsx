@@ -13,9 +13,9 @@ import {
 import { FileOpenContext } from "@/client/components/file-open-context";
 import {
   type BrowserPage,
-  BrowserView,
-  type BrowserViewHandle,
-} from "@/client/components/orchestrator/browser-view";
+  BrowserTabs,
+  type BrowserTabsHandle,
+} from "@/client/components/orchestrator/browser-tabs";
 import {
   OrchestratorContext,
   type OrchestratorWindow,
@@ -249,7 +249,7 @@ function OrchestratorLayout() {
 
   // The browser hands its handle over once mounted; state rather than a ref,
   // since the send handler below and the screens read it.
-  const [browser, setBrowser] = useState<BrowserViewHandle | null>(null);
+  const [browser, setBrowser] = useState<BrowserTabsHandle | null>(null);
   const recordBrowserPage = useRecordRecents({
     childTitles: new Map(
       children.data?.map((child) => [child.id, child.title]) ?? [],
@@ -334,7 +334,7 @@ function OrchestratorLayout() {
                 isBrowserScreen ? undefined : "invisible",
               )}
             >
-              <BrowserView onPageChange={recordBrowserPage} ref={setBrowser} />
+              <BrowserTabs onPageChange={recordBrowserPage} ref={setBrowser} />
             </div>
           </main>
           <StudioSidebarRail

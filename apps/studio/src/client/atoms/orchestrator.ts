@@ -64,6 +64,31 @@ export const orchestratorChatWidthAtom = atomWithStorage<number>(
   { getOnInit: true },
 );
 
+/** A tab of the window's browser: a browser session of the orchestrator's. */
+export interface BrowserTab {
+  /** The session id, which is the half of the target id a task can be handed. */
+  id: string;
+  openedAt: number;
+  /** The last page it showed, opened again when the tab comes back. */
+  url?: string;
+}
+
+export interface BrowserTabs {
+  activeId: null | string;
+  tabs: BrowserTab[];
+}
+
 export function clampChatWidth(value: number) {
   return Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, Math.round(value)));
 }
+
+/**
+ * The window's tabs, kept across launches: each is a browser session whose
+ * last page the workspace restores when the tab is opened again.
+ */
+export const orchestratorTabsAtom = atomWithStorage<BrowserTabs>(
+  "orchestrator.browser-tabs.v1",
+  { activeId: null, tabs: [] },
+  undefined,
+  { getOnInit: true },
+);

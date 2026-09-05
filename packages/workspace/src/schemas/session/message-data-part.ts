@@ -390,6 +390,14 @@ export namespace SessionMessageDataPart {
     page: z
       .object({
         selection: z.string().optional(),
+        /** The tab on screen, by the id a task can be handed. */
+        tab: z.string().optional(),
+        /** Every tab open in the window's browser, on screen or not. */
+        tabs: z
+          .array(
+            z.object({ id: z.string(), title: z.string(), url: z.string() }),
+          )
+          .optional(),
         text: z.string().optional(),
         title: z.string(),
         url: z.string(),

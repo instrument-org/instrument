@@ -38,6 +38,8 @@ import {
   getScreenshotsDir,
   taskDir,
 } from "../task-dir-utils";
+import { getTaskState } from "../task-record";
+import { getTaskSettings } from "../task-settings";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   privateMountPoint,
@@ -694,18 +696,36 @@ export function createAgentBrowserCommand({
       // browser the next time a command needed a page.
       commandArgs.push("--session", `${sessionId}-read`, ...resolvedArgs);
     } else {
-      // Idempotent: createTarget returns the existing view for this
-      // (id, sessionId) pair if one is already live, so sub-agents and
-      // repeat invocations within the same session reuse the same browsing
-      // surface (cookies, page, debugger).
-      const partitionDir = getBrowserSessionDir();
-      const target = await workspaceConfig.browser.createTarget(
-        id,
-        sessionId,
-        partitionDir,
-      );
-      targetId = target.targetId;
-      await recordBrowserUseBestEffort({ sessionId, taskId });
+      // A task handed a tab of the orchestrator window drives that tab rather
+      // than a browser of its own; nothing is created and nothing recorded,
+      // since the tab is the user's and outlives the task.
+      const state = await getTaskState(taskDir(taskId));
+      const settings = await getTaskSettings(taskDir(taskId));
+      if (state.browserTargetId) {
+        targetId = state.browserTargetId;
+      } else if (settings?.kind === "orchestrator") {
+        // The orchestrator drives the tab on the user's screen and never a
+        // browser of its own; with no tab up there is nothing to drive.
+        return {
+          exitCode: 1,
+          stderr:
+            "agent-browser: no tab is open in the browser. Open one, or hand the work to a task.\n",
+          stdout: "",
+        };
+      } else {
+        // Idempotent: createTarget returns the existing view for this
+        // (id, sessionId) pair if one is already live, so sub-agents and
+        // repeat invocations within the same session reuse the same browsing
+        // surface (cookies, page, debugger).
+        const partitionDir = getBrowserSessionDir();
+        const target = await workspaceConfig.browser.createTarget(
+          id,
+          sessionId,
+          partitionDir,
+        );
+        targetId = target.targetId;
+        await recordBrowserUseBestEffort({ sessionId, taskId });
+      }
 
       const cdpUrl = `ws://127.0.0.1:${serverPort}${CDP_PAGE_PATH_PREFIX}${targetId}`;
       const pluginPath = await writeInstrumentProviderPlugin(homeDir);

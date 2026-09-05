@@ -30,10 +30,14 @@ if (rootElement) {
   const isMainWindow = window.api.windowType === "main";
   root.render(isMainWindow ? <MainWindow /> : <App />);
 
-  if (isMainWindow) {
+  if (isMainWindow || window.api.windowType === "orchestrator") {
     // Subscribe the browser webview pool to main-process mount/unmount
-    // commands for the lifetime of the main-window renderer.
+    // commands for the lifetime of the renderer. Both windows host browser
+    // guests: a task's browser in the main window, the orchestrator's tabs in
+    // its own.
     initBrowserPool();
+  }
+  if (isMainWindow) {
     // Only the main window has tabs and app-wide modals to drive.
     initStudioDrive();
   }

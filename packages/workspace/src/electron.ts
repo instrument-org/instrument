@@ -46,6 +46,7 @@ export {
 } from "./schemas/web-search";
 export {
   type BrowserConfig,
+  type BrowserHost,
   type BrowserTarget,
   type BrowserTargetId,
   BrowserTargetIdSchema,

@@ -1,4 +1,4 @@
-import { guestSessionForDir } from "@/electron-main/browser-view/manager";
+import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { createContextMenu } from "@/electron-main/lib/context-menu";
 import { guardNavigation } from "@/electron-main/lib/guard-navigation";
 import { loadWindowURL } from "@/electron-main/lib/load-window-url";
@@ -6,8 +6,6 @@ import { openExternal } from "@/electron-main/lib/open-external";
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { ORCHESTRATOR_BROWSER_PARTITION } from "@/shared/browser";
-import { getBrowserSessionDir } from "@instrument-org/workspace/electron";
 import { BrowserWindow } from "electron";
 import path from "node:path";
 
@@ -69,34 +67,13 @@ export function openOrchestratorWindow(): BrowserWindow {
 
   guardNavigation(orchestratorWindow.webContents);
 
-  // The Browser tab's guest runs in the workspace browser profile, so a site
-  // signed in to here is signed in for every task's browser too, hardened the
-  // way a task's guest is. It is the user's own browser, not an agent's: no
-  // target id, no CDP, and nothing in the main process drives it.
-  orchestratorWindow.webContents.on(
-    "will-attach-webview",
-    (_event, webPreferences, params) => {
-      if (params.partition !== ORCHESTRATOR_BROWSER_PARTITION) {
-        return;
-      }
-      webPreferences.session = guestSessionForDir(getBrowserSessionDir());
-      webPreferences.contextIsolation = true;
-      webPreferences.nodeIntegration = false;
-      webPreferences.sandbox = true;
-      webPreferences.allowRunningInsecureContent = false;
-      webPreferences.experimentalFeatures = false;
-      webPreferences.webSecurity = true;
-      webPreferences.transparent = false;
-    },
+  // The Browser screen's tabs are browser guests like a task's, mounted by
+  // this window's pool and driven by the same manager, so the orchestrator's
+  // tasks can be handed one by target id.
+  getBrowserViewManager()?.bindHost(
+    orchestratorWindow.webContents,
+    "orchestrator",
   );
-  // One page at a time: a link that asks for a new window opens in the guest
-  // itself, since there is no second tab for it to land in.
-  orchestratorWindow.webContents.on("did-attach-webview", (_event, guest) => {
-    guest.setWindowOpenHandler((details) => {
-      void guest.loadURL(details.url);
-      return { action: "deny" };
-    });
-  });
 
   loadWindowURL(orchestratorWindow.webContents, studioURL("/orchestrator/"));
 

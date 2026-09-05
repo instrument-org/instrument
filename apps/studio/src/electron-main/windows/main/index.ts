@@ -139,7 +139,7 @@ async function createMainWindowInstance() {
   // Bind the agent-browser `<webview>` attach lifecycle to this window's
   // webContents so the main process can grab guest WebContents (for CDP) as
   // the renderer pool mounts them.
-  getBrowserViewManager()?.bindHost(mainWindow.webContents);
+  getBrowserViewManager()?.bindHost(mainWindow.webContents, "main");
   // The size and position to come back to, which is the window's own only
   // while it is normal: maximize, fullscreen, minimize and bogus cross-display
   // move events all report bounds that would be useless to restore.

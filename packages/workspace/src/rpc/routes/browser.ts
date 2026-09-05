@@ -7,7 +7,7 @@ import { getBrowserSessionDir } from "../../lib/task-dir-utils";
 import { BrowserPresenceLevelSchema } from "../../machines/task-browser";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
-import { BrowserTargetIdSchema } from "../../types";
+import { BrowserHostSchema, BrowserTargetIdSchema } from "../../types";
 import { base } from "../base";
 import { publisher } from "../publisher";
 
@@ -33,6 +33,8 @@ const open = base
   })
   .input(
     z.object({
+      /** Which window shows the guest; the main window unless said. */
+      host: BrowserHostSchema.optional(),
       id: TaskIdSchema,
       sessionId: StoreId.SessionSchema,
       url: z.string().min(1).optional(),
@@ -40,11 +42,11 @@ const open = base
   )
   .output(z.object({ targetId: BrowserTargetIdSchema }))
   .handler(async ({ context, errors, input }) => {
-    const { id, sessionId, url } = input;
+    const { host, id, sessionId, url } = input;
     const partitionDir = getBrowserSessionDir();
 
     const target = await context.workspaceConfig.browser
-      .createTarget(id, sessionId, partitionDir)
+      .createTarget(id, sessionId, partitionDir, host)
       .catch((error: unknown) => {
         throw errors.BROWSER_OPEN_FAILED({
           message: error instanceof Error ? error.message : "Unknown error",

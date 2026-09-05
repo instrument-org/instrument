@@ -9,6 +9,7 @@ import { steppedZoom } from "@/shared/zoom";
 import {
   type AbsolutePath,
   type BrowserConfig,
+  type BrowserHost,
   type BrowserTarget,
   type BrowserTargetId,
   encodeBrowserTargetId,
@@ -63,9 +64,11 @@ import {
 const ATTACH_TIMEOUT_MS = 15_000;
 
 export interface BrowserViewManager {
-  // Register the `<webview>` attach lifecycle on the main window's webContents.
-  // Called once the window exists; the manager itself is created earlier.
-  bindHost: (host: WebContents) => void;
+  // Register the `<webview>` attach lifecycle on a window's webContents.
+  // Called once the window exists; the manager itself is created earlier. Each
+  // window that mounts guests binds under its own name, and gets only the
+  // guests meant for it.
+  bindHost: (host: WebContents, hostId: BrowserHost) => void;
   browser: BrowserConfig;
   // Debug-only handles, consumed by `./debug-snapshot.ts`. Read-only by
   // convention; do not mutate the returned map from outside the manager.
@@ -108,17 +111,20 @@ let managerInstance: BrowserViewManager | undefined;
 
 export function createBrowserViewManager(): BrowserViewManager {
   const entries = new Map<BrowserTargetId, BrowserEntry>();
-  // FIFO of target ids accepted in `will-attach-webview`, drained in
-  // `did-attach-webview` (Electron pairs the two events in order).
-  const pendingAttachQueue: BrowserTargetId[] = [];
+  // Per host, a FIFO of target ids accepted in `will-attach-webview`, drained
+  // in `did-attach-webview` (Electron pairs the two events in order, per host).
+  const pendingAttachQueues = new Map<BrowserHost, BrowserTargetId[]>();
   // The guest the renderer last reported real DOM focus on (see setGuestFocus).
   let focusedTargetId: BrowserTargetId | null = null;
-  let hostWebContents: null | WebContents = null;
+  const hosts = new Map<BrowserHost, WebContents>();
+  // The window whose renderer mounts a target's guest.
+  const hostOf = (targetId: BrowserTargetId) =>
+    hosts.get(entries.get(targetId)?.host ?? "main") ?? null;
   // Bounces focus stolen by agent CDP activity back to the host renderer.
   const focusGuard = createFocusGuard({ restoreHostFocus });
 
   function restoreHostFocus(targetId: BrowserTargetId) {
-    const host = hostWebContents;
+    const host = hostOf(targetId);
     if (
       !host ||
       host.isDestroyed() ||
@@ -314,8 +320,10 @@ export function createBrowserViewManager(): BrowserViewManager {
     notifyDebugChange();
   }
 
-  function bindHost(host: WebContents) {
-    hostWebContents = host;
+  function bindHost(host: WebContents, hostId: BrowserHost) {
+    hosts.set(hostId, host);
+    const pendingAttachQueue: BrowserTargetId[] = [];
+    pendingAttachQueues.set(hostId, pendingAttachQueue);
     host.on("will-attach-webview", (event, webPreferences, params) => {
       const targetId = targetIdFromPartition(params.partition);
       if (!targetId) {
@@ -327,6 +335,14 @@ export function createBrowserViewManager(): BrowserViewManager {
         // No page state recorded for this id: reject the attachment.
         log.warn(
           `rejected browser webview attach (no entry) targetId=${targetId}`,
+        );
+        event.preventDefault();
+        return;
+      }
+      if (entry.host !== hostId) {
+        // Meant for another window's pool, which mounts it itself.
+        log.warn(
+          `rejected browser webview attach (wrong host) targetId=${targetId}`,
         );
         event.preventDefault();
         return;
@@ -387,6 +403,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     id: TaskId,
     sessionId: StoreId.Session,
     partitionDir: AbsolutePath,
+    host: BrowserHost = "main",
   ): Promise<{ targetId: BrowserTargetId }> {
     const targetId = encodeBrowserTargetId(id, sessionId);
 
@@ -400,7 +417,7 @@ export function createBrowserViewManager(): BrowserViewManager {
       return waitForAttach(existing).then(() => ({ targetId }));
     }
 
-    const entry = createEntry({ id, partitionDir, sessionId, targetId });
+    const entry = createEntry({ host, id, partitionDir, sessionId, targetId });
     entries.set(targetId, entry);
     // Publishing the new desired set makes the renderer pool mount a guest
     // `<webview>` for this target; it attaches via will/did-attach-webview,
@@ -520,7 +537,7 @@ export function createBrowserViewManager(): BrowserViewManager {
       }
       const settle = focusGuard.armCommand(
         targetId,
-        hostWebContents?.isFocused() ?? false,
+        hostOf(targetId)?.isFocused() ?? false,
         bouncesGuestFocus(method),
       );
       try {
@@ -627,6 +644,7 @@ export function createBrowserViewManager(): BrowserViewManager {
           entry.webContents && !entry.webContents.isDestroyed(),
         ),
         generation: entry.generation,
+        host: entry.host,
         id: entry.targetId,
         navigated: entry.navigated,
       })),

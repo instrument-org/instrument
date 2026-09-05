@@ -48,6 +48,8 @@ export { type TaskId, TaskIdSchema } from "./schemas/task-id";
 export { TaskPane } from "./schemas/task-pane";
 export type { ToolName } from "./tools/types";
 export {
+  type BrowserHost,
+  BrowserHostSchema,
   type BrowserTargetId,
   BrowserTargetIdSchema,
   decodeBrowserTargetId,

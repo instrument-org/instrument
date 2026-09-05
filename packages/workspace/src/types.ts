@@ -16,12 +16,19 @@ import { StoreId } from "./schemas/store-id";
 import { type TaskId, TaskIdSchema } from "./schemas/task-id";
 import { type WebSearchClient } from "./schemas/web-search";
 
+/**
+ * Which window's renderer hosts a browser guest. A task's browser lives in the
+ * main window; the orchestrator window's tabs live in it, and its tasks reach
+ * them by target id rather than by mounting guests of their own.
+ */
+export const BrowserHostSchema = z.enum(["main", "orchestrator"]);
 export interface BrowserConfig {
   closeTarget: (targetId: BrowserTargetId) => Promise<void>;
   createTarget: (
     id: TaskId,
     sessionId: StoreId.Session,
     partitionDir: AbsolutePath,
+    host?: BrowserHost,
   ) => Promise<{ targetId: BrowserTargetId }>;
   getTargetMeta: (targetId: BrowserTargetId) => null | {
     id: TaskId;
@@ -50,6 +57,8 @@ export interface BrowserConfig {
     onEvent: (method: string, params: unknown) => void,
   ) => () => void;
 }
+
+export type BrowserHost = z.output<typeof BrowserHostSchema>;
 
 export interface BrowserTarget {
   id: BrowserTargetId;

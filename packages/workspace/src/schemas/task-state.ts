@@ -1,6 +1,7 @@
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
+import { BrowserTargetIdSchema } from "../types";
 import { FolderAttachment } from "./folder-attachment";
 import { TaskPane } from "./task-pane";
 
@@ -25,6 +26,7 @@ import { TaskPane } from "./task-pane";
 export const StoredTaskStateSchema = z
   .object({
     attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
+    browserTargetId: BrowserTargetIdSchema.optional(),
     // A pane this build cannot read costs the pane, not the folder list beside
     // it, which the record's silent catch would otherwise write away.
     // eslint-disable-next-line unicorn/prefer-top-level-await -- zod's catch, not a promise's
@@ -53,6 +55,13 @@ export const StoredTaskStateSchema = z
 // it is not something a client should be able to set.
 export const TaskStateSchema = z.object({
   attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
+  /**
+   * A browser tab this task drives instead of a browser of its own: one of
+   * the orchestrator window's, handed over by the orchestrator, or, for the
+   * orchestrator itself, the tab its user has on screen. `agent-browser`
+   * connects to it.
+   */
+  browserTargetId: BrowserTargetIdSchema.optional(),
   pane: TaskPane.Schema.optional(),
   promptDraft: z.string().optional(),
   selectedModelURI: AIGatewayModelURI.Schema.optional(),

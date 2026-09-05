@@ -1,12 +1,12 @@
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { createContext, useContext } from "react";
 
-import { type BrowserViewHandle } from "./browser-view";
+import { type BrowserTabsHandle } from "./browser-tabs";
 
 /** What every screen of the orchestrator window shares. */
 export interface OrchestratorWindow {
   /** The window's browser, mounted once by the layout and kept across screens; null until it is. */
-  browser: BrowserViewHandle | null;
+  browser: BrowserTabsHandle | null;
   /** The virtual path of the folder outcomes land in by default. */
   outputFolder: string;
   sessionId: StoreId.Session;

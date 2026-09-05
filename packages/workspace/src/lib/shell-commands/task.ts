@@ -11,6 +11,7 @@ import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { StoreId } from "../../schemas/store-id";
 import { type Task } from "../../schemas/task";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { type BrowserTargetId, encodeBrowserTargetId } from "../../types";
 import { absolutePathJoin } from "../absolute-path-join";
 import { createSession } from "../create-session";
 import { defaultTaskName } from "../default-task-name";
@@ -56,7 +57,7 @@ const MAX_WAIT_MS = ms("10 minutes");
 
 const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
 
-  ${TASK_COMMAND.name} new --name '<title>' [--model <uri>] [--folder <mount>[:rw|:ro]]... <<'EOF'
+  ${TASK_COMMAND.name} new --name '<title>' [--model <uri>] [--folder <mount>[:rw|:ro]]... [--tab <id>] <<'EOF'
   <prompt>
   EOF
       Create a task and start it. The prompt is its whole brief: it knows nothing
@@ -64,8 +65,10 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       so the shell leaves it alone: inside double quotes a $800 becomes 00. The
       title takes single quotes for the same reason. Folders are mounts under
       ${MOUNT.attachedFolders} in this conversation, named with or without the prefix; a task
-      sees none unless named here, and read-only unless :rw. Prints the task id.
-      You are told when it finishes a turn; do not poll it.
+      sees none unless named here, and read-only unless :rw. --tab hands the task
+      one of the user's browser tabs, by the id the note on their message gives;
+      its browser is then that tab, page and all. Prints the task id. You are
+      told when it finishes a turn; do not poll it.
   ${TASK_COMMAND.name} send <id> <<'EOF'
   <message>
   EOF
@@ -323,6 +326,25 @@ async function resolveModel(rawURI: string) {
   return { model: result.value, modelURI: parsed.data };
 }
 
+/**
+ * A tab id from the note on the user's message is the session half of one of
+ * the orchestrator's own browser targets; the target has to exist, since the
+ * task connects to it rather than creating anything.
+ */
+function resolveTab(tab: string, orchestratorTaskId: TaskId): BrowserTargetId {
+  const sessionId = StoreId.SessionSchema.safeParse(tab);
+  if (!sessionId.success) {
+    throw new Error(
+      `"${tab}" is not a tab id; the note on the user's message lists them.`,
+    );
+  }
+  const targetId = encodeBrowserTargetId(orchestratorTaskId, sessionId.data);
+  if (!getWorkspaceConfig().browser.getTargetMeta(targetId)) {
+    throw new Error(`Tab ${tab} is not open any more.`);
+  }
+  return targetId;
+}
+
 async function runArchive(args: string[], context: TaskCommandContext) {
   const task = await requireChild(args[0], context);
   const result = await trashTask({
@@ -451,7 +473,7 @@ async function runNew(
   stdin: ByteString,
 ) {
   const { positional, values } = parseFlags(args, {
-    flags: ["folder", "model", "name"],
+    flags: ["folder", "model", "name", "tab"],
     repeatable: ["folder"],
   });
   const prompt = promptFrom(positional.join(" "), stdin);
@@ -476,6 +498,9 @@ async function runNew(
     orchestratorState.attachedFolders ?? {},
   );
   const name = values.get("name")?.[0]?.trim() || defaultTaskName(prompt);
+  const tab = values.get("tab")?.[0];
+  const browserTargetId =
+    tab === undefined ? undefined : resolveTab(tab, context.orchestratorTaskId);
 
   const taskId = await newTaskId({ prompt, workspaceConfig });
   const initialized = await initializeTask(
@@ -492,6 +517,9 @@ async function runNew(
   );
   if (initialized.isErr()) {
     throw initialized.error;
+  }
+  if (browserTargetId) {
+    await setTaskState(taskDir(taskId), { browserTargetId });
   }
   const session = await createSession({
     sessionId: StoreId.newSessionId(),

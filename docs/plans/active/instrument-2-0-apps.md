@@ -1,6 +1,6 @@
 # Plan: Apps in the Instrument 2.0 prototype
 
-Status: planned, not started. Builds on the orchestrator spike ([instrument-2-0-prototype.md](instrument-2-0-prototype.md)) and takes its runtime from the unmerged connectors prototype (`jmack/connectors-v2`). Design context is the "Instrument 2.0 - Prototype Handoff" note, the app-pages wireframe set ("all your apps", "connecting by asking", "the agent navigates", "an app with a website", "an app without a website"), and [Plugins over connectors](../../decisions/2026-08-15-plugins-over-connectors.md).
+Status: first version built and running behind developer mode; the pieces table below is what the code does. Builds on the orchestrator spike ([instrument-2-0-prototype.md](instrument-2-0-prototype.md)) and takes its runtime from the unmerged connectors prototype (`jmack/connectors-v2`). Design context is the "Instrument 2.0 - Prototype Handoff" note, the app-pages wireframe set ("all your apps", "connecting by asking", "the agent navigates", "an app with a website", "an app without a website"), and [Plugins over connectors](../../decisions/2026-08-15-plugins-over-connectors.md).
 
 ## What it is
 
@@ -83,9 +83,19 @@ What it got wrong, and this plan changes: `enabled` lived in the agent-writable 
 4. Task hand-off and link opening.
 5. A run in the app on the free Cloudflare model: a loopback MCP app end to end; Notion and Linear as far as their authorization pages, since finishing needs the user's own sign-in.
 
+## What the runs showed
+
+In the sandbox shell against a loopback MCP server with no auth: `app new`, `app test` (five checks, two tools found), `app tools`, and two `app call`s, each result inside its nonce boundary, in one process.
+
+In the app, on the free Cloudflare model, with the same loopback server: "Connect the MCP server at 127.0.0.1:47911/mcp as an app called local, no sign-in" became `app new`, `app test`, `app tools`, and a two-line answer naming both tools, in eight seconds; the Apps screen moved Local to Connected as it landed, the sidebar gained an Apps row, and its page showed the two tools under "What it can do".
+
+Connect on Notion's row in the directory sent "Connect Notion"; the orchestrator ran `app catalog notion`, wrote the folder with the catalog's MCP endpoint, called `connect_app`, said one line, and ended its turn. The card drew with Notion's icon, the reason, a glyph Sign in and Not now; Notion moved under "Setting up: Needs a sign-in". Sign in registered a client with Notion's MCP server, switched the window to the Browser screen on Notion's login page, and the card read "Waiting for the sign-in" with Cancel. Finishing the sign-in needs the user's own account, so the callback, the connected event, and the wake that follows were exercised only against the loopback server and the key path.
+
 ## Open
 
 - Slack and Google refuse dynamic registration; connecting them needs a client we hold. The prototype says so honestly. The ladder in the plugins plan is the answer.
+- The sign-in callback page stays open in the tab it landed in; closing that tab when the card settles is a small addition.
+- An app's `guide.md` is a skeleton until the agent fills it in; nothing yet nudges it to.
 - The OAuth callback tab stays open on our landing page; closing it when the card resolves is a small addition.
 - Connected web apps as themselves under a badge, and the account address as the sidebar row's name, are drawn in the wireframes and not built here.
 - An app's activity (its tool calls, by task) is the idea the wireframes liked most for apps without a site; nothing indexes it yet.

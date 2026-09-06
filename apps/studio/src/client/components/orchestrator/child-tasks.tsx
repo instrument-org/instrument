@@ -9,6 +9,7 @@ import {
 } from "@/client/components/ui/message-scroller";
 import { Spinner } from "@/client/components/ui/spinner";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { hasLiveAgent } from "@/client/lib/agent-status";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -77,24 +78,31 @@ export function ChildTranscript({ task }: { task: Task }) {
         defaultScrollPosition="end"
         key={sessionId}
       >
-        <MessageScroller className="h-full min-h-0">
+        {/* The rest of the column, not the whole of it: with the brief above,
+            a full-height scroller ran past the bottom and its end was never
+            on screen. */}
+        <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport
             className="@container/transcript"
             data-transcript
           >
             <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]">
-              <ChatStream
-                isAgentRunning={isWorking}
-                isDeveloperMode={false}
-                messages={messages.data}
-                onContinue={noop}
-                onModelChange={noop}
-                onRetry={noop}
-                onRunAgain={noop}
-                onStartNewTask={noop}
-                renderAsItems
-                task={task}
-              />
+              {/* Names the task and session for the links inside, so a page
+                  the task names offers its browser as well as the user's. */}
+              <TaskSessionProvider sessionId={sessionId} taskId={task.id}>
+                <ChatStream
+                  isAgentRunning={isWorking}
+                  isDeveloperMode={false}
+                  messages={messages.data}
+                  onContinue={noop}
+                  onModelChange={noop}
+                  onRetry={noop}
+                  onRunAgain={noop}
+                  onStartNewTask={noop}
+                  renderAsItems
+                  task={task}
+                />
+              </TaskSessionProvider>
             </MessageScrollerContent>
           </MessageScrollerViewport>
         </MessageScroller>

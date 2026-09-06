@@ -36,6 +36,7 @@ import {
   usePopClosedTab,
   useWindowTabs,
 } from "@/client/components/orchestrator/window-tabs";
+import { PageOpenContext } from "@/client/components/page-open-context";
 import {
   type RailBounds,
   StudioSidebarRail,
@@ -386,179 +387,182 @@ function OrchestratorLayout() {
           openScreen(fileHref(filePath));
         }}
       >
-        <Frame>
-          {isSidebarOpen ? null : (
-            <Rail
-              onOpen={() => {
-                setSidebarOpen(true);
-              }}
-            />
-          )}
-          <StudioSidebarRail
-            bounds={SIDEBAR_BOUNDS}
-            isOpen={isSidebarOpen}
-            label="Resize the sidebar"
-            onCollapse={() => {
-              setSidebarOpen(false);
-            }}
-            panelClassName="bg-background"
-            widthAtom={orchestratorSidebarWidthAtom}
-          >
-            <div className="relative flex min-h-0 w-full flex-1 flex-col pt-10">
-              {/* Beside the traffic lights, where the rail's twin sits. */}
-              <button
-                aria-label="Hide sidebar"
-                className="absolute top-2 right-2 rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-                onClick={() => {
-                  setSidebarOpen(false);
-                }}
-                type="button"
-              >
-                <SidebarSimpleIcon className="size-4" />
-              </button>
-              <div
-                className="shrink-0 overflow-y-auto"
-                style={{ height: pinsHeight }}
-              >
-                <OrchestratorPins />
-              </div>
-              <PinsDivider
-                onResize={(height, sidebarHeight) => {
-                  setPinsHeight(
-                    Math.max(
-                      PINS_HEIGHT_MIN,
-                      Math.min(sidebarHeight - CHAT_HEIGHT_MIN, height),
-                    ),
-                  );
+        <PageOpenContext value={openPage}>
+          <Frame>
+            {isSidebarOpen ? null : (
+              <Rail
+                onOpen={() => {
+                  setSidebarOpen(true);
                 }}
               />
-              <div className="flex min-h-0 flex-1 flex-col">
-                <header className="flex h-8 shrink-0 items-center gap-2 px-3 text-sm font-medium">
-                  <InstrumentGlyph className="size-4" />
-                  <span>{APP_NAME}</span>
-                  {/* The one sign, for now, that the conversation is still at work. */}
-                  {isConversationWorking && (
-                    <Spinner className="size-3.5 text-muted-foreground" />
-                  )}
-                </header>
-                {/* `select-text`: the sidebar shell is chrome and turns selection off; the conversation is text. */}
-                <div className="min-h-0 flex-1 select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
-                  {/* Names the task and session for the links inside, so a page
+            )}
+            <StudioSidebarRail
+              bounds={SIDEBAR_BOUNDS}
+              isOpen={isSidebarOpen}
+              label="Resize the sidebar"
+              onCollapse={() => {
+                setSidebarOpen(false);
+              }}
+              panelClassName="bg-background"
+              widthAtom={orchestratorSidebarWidthAtom}
+            >
+              <div className="relative flex min-h-0 w-full flex-1 flex-col pt-10">
+                {/* Beside the traffic lights, where the rail's twin sits. */}
+                <button
+                  aria-label="Hide sidebar"
+                  className="absolute top-2 right-2 rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                  onClick={() => {
+                    setSidebarOpen(false);
+                  }}
+                  type="button"
+                >
+                  <SidebarSimpleIcon className="size-4" />
+                </button>
+                <div
+                  className="shrink-0 overflow-y-auto"
+                  style={{ height: pinsHeight }}
+                >
+                  <OrchestratorPins />
+                </div>
+                <PinsDivider
+                  onResize={(height, sidebarHeight) => {
+                    setPinsHeight(
+                      Math.max(
+                        PINS_HEIGHT_MIN,
+                        Math.min(sidebarHeight - CHAT_HEIGHT_MIN, height),
+                      ),
+                    );
+                  }}
+                />
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <header className="flex h-8 shrink-0 items-center gap-2 px-3 text-sm font-medium">
+                    <InstrumentGlyph className="size-4" />
+                    <span>{APP_NAME}</span>
+                    {/* The one sign, for now, that the conversation is still at work. */}
+                    {isConversationWorking && (
+                      <Spinner className="size-3.5 text-muted-foreground" />
+                    )}
+                  </header>
+                  {/* `select-text`: the sidebar shell is chrome and turns selection off; the conversation is text. */}
+                  <div className="min-h-0 flex-1 select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
+                    {/* Names the task and session for the links inside, so a page
                       a reply names offers both the window's browser and the
                       user's, the way a link in a task does. */}
-                  <TaskSessionProvider
-                    sessionId={screens.sessionId}
-                    taskId={screens.taskId}
-                  >
-                    <FilesLayoutContext value="list">
-                      <TaskChat
-                        alwaysSubmittable
-                        composerLead={<ViewChip />}
-                        navigateOnSend={false}
-                        presentation="orchestrator"
-                        promptDraft={state.data.promptDraft ?? ""}
-                        selectedModelURI={
-                          state.data.selectedModelURI ?? defaultModelURI
-                        }
-                        selectedSessionId={screens.sessionId}
-                        // What the tab on screen says it shows, plus the page's
-                        // words when that tab is a page, read at the moment of
-                        // sending; a screen that registered nothing sends nothing.
-                        sendContext={async () => {
-                          if (!screenView) {
-                            return;
+                    <TaskSessionProvider
+                      sessionId={screens.sessionId}
+                      taskId={screens.taskId}
+                    >
+                      <FilesLayoutContext value="list">
+                        <TaskChat
+                          alwaysSubmittable
+                          composerLead={<ViewChip />}
+                          navigateOnSend={false}
+                          presentation="orchestrator"
+                          promptDraft={state.data.promptDraft ?? ""}
+                          selectedModelURI={
+                            state.data.selectedModelURI ?? defaultModelURI
                           }
-                          const page =
-                            screenView.screen === "browser"
-                              ? await browser?.readPage()
-                              : undefined;
-                          return {
-                            ...screenView,
-                            ...(page ? { page } : {}),
-                            url: location.href,
-                          };
-                        }}
-                        task={task.data}
-                        transcriptTrailing={<TasksWorkingRow />}
-                      />
-                    </FilesLayoutContext>
-                  </TaskSessionProvider>
+                          selectedSessionId={screens.sessionId}
+                          // What the tab on screen says it shows, plus the page's
+                          // words when that tab is a page, read at the moment of
+                          // sending; a screen that registered nothing sends nothing.
+                          sendContext={async () => {
+                            if (!screenView) {
+                              return;
+                            }
+                            const page =
+                              screenView.screen === "browser"
+                                ? await browser?.readPage()
+                                : undefined;
+                            return {
+                              ...screenView,
+                              ...(page ? { page } : {}),
+                              url: location.href,
+                            };
+                          }}
+                          task={task.data}
+                          transcriptTrailing={<TasksWorkingRow />}
+                        />
+                      </FilesLayoutContext>
+                    </TaskSessionProvider>
+                  </div>
                 </div>
               </div>
-            </div>
-          </StudioSidebarRail>
-          <main className="relative flex min-w-0 flex-1 flex-col">
-            <WindowTabStrip
-              childTitles={
-                new Map(
-                  children.data?.map((child) => [child.id, child.title]) ?? [],
-                )
-              }
-              onClose={requestClose}
-              onNew={() => {
-                windowTabs.openScreen(NEW_TAB_HREF);
-              }}
-              onReorder={windowTabs.reorder}
-              onSelect={windowTabs.select}
-              selectedId={active?.id}
-              tabs={tabs}
-            />
-            <div className="relative min-h-0 flex-1">
-              <Outlet />
-              {/* Hidden rather than unmounted while a screen is up, so the pages stay. */}
-              <div
-                className={cn(
-                  "absolute inset-0 bg-background",
-                  isPageOnScreen ? undefined : "invisible",
-                )}
-              >
-                {/* The guests are the pool's, drawn over a slot rather than in it, so hiding this box hides nothing of theirs: the panel parks its guest when told the screen is off, the way a task page does when its tab is in the background. */}
-                <ActiveTabProvider isActive={isPageOnScreen}>
-                  <BrowserTabs ref={setBrowser} />
-                </ActiveTabProvider>
-              </div>
-            </div>
-            <AlertDialog
-              onOpenChange={(open) => {
-                if (!open) {
-                  setClosingBrowser(undefined);
+            </StudioSidebarRail>
+            <main className="relative flex min-w-0 flex-1 flex-col">
+              <WindowTabStrip
+                childTitles={
+                  new Map(
+                    children.data?.map((child) => [child.id, child.title]) ??
+                      [],
+                  )
                 }
-              }}
-              open={closingBrowser !== undefined}
-            >
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    {closingBrowser
-                      ? `“${closingBrowser.title}” is using this page`
-                      : ""}
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    The task is still working in this browser. Closing it takes
-                    the page away mid-work; the task is told, and carries on
-                    without it.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Keep it open</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => {
-                      if (closingBrowser) {
-                        closeTaskBrowser(
-                          closingBrowser.id,
-                          closingBrowser.taskId,
-                        );
-                      }
-                      setClosingBrowser(undefined);
-                    }}
-                  >
-                    Close anyway
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </main>
-        </Frame>
+                onClose={requestClose}
+                onNew={() => {
+                  windowTabs.openScreen(NEW_TAB_HREF);
+                }}
+                onReorder={windowTabs.reorder}
+                onSelect={windowTabs.select}
+                selectedId={active?.id}
+                tabs={tabs}
+              />
+              <div className="relative min-h-0 flex-1">
+                <Outlet />
+                {/* Hidden rather than unmounted while a screen is up, so the pages stay. */}
+                <div
+                  className={cn(
+                    "absolute inset-0 bg-background",
+                    isPageOnScreen ? undefined : "invisible",
+                  )}
+                >
+                  {/* The guests are the pool's, drawn over a slot rather than in it, so hiding this box hides nothing of theirs: the panel parks its guest when told the screen is off, the way a task page does when its tab is in the background. */}
+                  <ActiveTabProvider isActive={isPageOnScreen}>
+                    <BrowserTabs ref={setBrowser} />
+                  </ActiveTabProvider>
+                </div>
+              </div>
+              <AlertDialog
+                onOpenChange={(open) => {
+                  if (!open) {
+                    setClosingBrowser(undefined);
+                  }
+                }}
+                open={closingBrowser !== undefined}
+              >
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      {closingBrowser
+                        ? `“${closingBrowser.title}” is using this page`
+                        : ""}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      The task is still working in this browser. Closing it
+                      takes the page away mid-work; the task is told, and
+                      carries on without it.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep it open</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        if (closingBrowser) {
+                          closeTaskBrowser(
+                            closingBrowser.id,
+                            closingBrowser.taskId,
+                          );
+                        }
+                        setClosingBrowser(undefined);
+                      }}
+                    >
+                      Close anyway
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </main>
+          </Frame>
+        </PageOpenContext>
       </FileOpenContext>
     </OrchestratorContext>
   );

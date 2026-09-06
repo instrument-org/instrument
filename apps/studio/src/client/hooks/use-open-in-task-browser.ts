@@ -1,3 +1,4 @@
+import { PageOpenContext } from "@/client/components/page-open-context";
 import { useTaskPaneActions } from "@/client/hooks/use-task-pane";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -7,6 +8,7 @@ import {
   TaskPane,
 } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
+import { useContext } from "react";
 import { toast } from "sonner";
 
 const BROWSER_TAB_KEY = TaskPane.tabKey({ type: "browser" });
@@ -30,6 +32,8 @@ export function useOpenInTaskBrowser({
   sessionId: StoreId.Session;
   taskId: TaskId;
 }) {
+  // A window without a task pane says where a page goes instead.
+  const openPage = useContext(PageOpenContext);
   const { selectTab } = useTaskPaneActions(taskId);
   const { mutate: openBrowser } = useMutation(
     rpcClient.workspace.browser.open.mutationOptions({
@@ -40,6 +44,10 @@ export function useOpenInTaskBrowser({
   );
 
   return (url: string) => {
+    if (openPage) {
+      openPage(url);
+      return;
+    }
     selectTab(BROWSER_TAB_KEY);
     openBrowser({ id: taskId, sessionId, url });
   };

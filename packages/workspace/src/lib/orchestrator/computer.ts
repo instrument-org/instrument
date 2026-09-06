@@ -137,29 +137,6 @@ export async function computerPlaces(): Promise<ComputerPlaces> {
   return { favorites, volumes };
 }
 
-/** A host path the way a person writes it: the home folder as `~`. */
-export function displayHostPath(hostPath: string): string {
-  const home = os.homedir();
-  if (hostPath === home) {
-    return "~";
-  }
-  return hostPath.startsWith(`${home}/`)
-    ? `~${hostPath.slice(home.length)}`
-    : hostPath;
-}
-
-/** `~` and `~/x` as the home folder; anything else must already be absolute. */
-export function expandHomePath(input: string): string {
-  const trimmed = input.trim();
-  if (trimmed === "~" || trimmed.startsWith("~/")) {
-    return path.join(os.homedir(), trimmed.slice(1));
-  }
-  if (!path.isAbsolute(trimmed)) {
-    throw new Error(`Not a path on this computer: ${input}`);
-  }
-  return path.resolve(trimmed);
-}
-
 /**
  * One folder of the computer, as the Finder would show it: files and
  * subfolders, hidden ones left out, folders first. Read as the app's own user,
@@ -215,6 +192,29 @@ export async function listComputerFolder({
     path: hostPath,
     truncated,
   };
+}
+
+/** A host path the way a person writes it: the home folder as `~`. */
+function displayHostPath(hostPath: string): string {
+  const home = os.homedir();
+  if (hostPath === home) {
+    return "~";
+  }
+  return hostPath.startsWith(`${home}/`)
+    ? `~${hostPath.slice(home.length)}`
+    : hostPath;
+}
+
+/** `~` and `~/x` as the home folder; anything else must already be absolute. */
+function expandHomePath(input: string): string {
+  const trimmed = input.trim();
+  if (trimmed === "~" || trimmed.startsWith("~/")) {
+    return path.join(os.homedir(), trimmed.slice(1));
+  }
+  if (!path.isAbsolute(trimmed)) {
+    throw new Error(`Not a path on this computer: ${input}`);
+  }
+  return path.resolve(trimmed);
 }
 
 async function isDirectory(folder: string) {

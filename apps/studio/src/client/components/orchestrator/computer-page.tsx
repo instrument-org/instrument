@@ -24,6 +24,7 @@ import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import ms from "ms";
+import { unique } from "radashi";
 import { type ReactNode, useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -77,33 +78,48 @@ export function ComputerPage({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
-  const instrumentFolder = places.data?.favorites.find(
-    (place) => place.name === "Instrument",
-  )?.path;
-  // `~` and `instrument` are names for folders; anything else is one.
-  const rootPath =
-    root === "instrument" ? (instrumentFolder ?? undefined) : root;
-  // Folder prefixes under the root that the browser has opened, root first.
-  const [loaded, setLoaded] = useState<readonly string[]>([""]);
+  // Folder prefixes under the root whose listings are held, root first. The
+  // browser asks for a folder's children only once the folder is in its
+  // index, so the folder it opens on needs every folder above it listed.
+  const [loaded, setLoaded] = useState<readonly string[]>(() =>
+    prefixesOf(path),
+  );
+  // The folder the browser has open, as it last said; the address follows it.
   const [current, setCurrent] = useState(path);
   // The path rather than the item: the items are rebuilt on every re-read,
   // and a selection held as one of them would change with each.
   const [selectedPath, setSelectedPath] = useState<null | string>(null);
+  // The address this page wrote last, so one that arrives from outside can
+  // be told from the page's own echo of what the browser showed.
+  const [written, setWritten] = useState({ path, root });
+  // How many times the browser has been opened at an address from outside.
+  // It takes only a starting folder, so a Recent entry, the omnibox, or
+  // history landing here while the screen is up opens it again there.
+  const [openings, setOpenings] = useState(0);
+  if (path !== written.path || root !== written.root) {
+    const rootChanged = root !== written.root;
+    setWritten({ path, root });
+    setCurrent(path);
+    setSelectedPath(null);
+    setLoaded((previous) =>
+      rootChanged
+        ? prefixesOf(path)
+        : unique([...previous, ...prefixesOf(path)]),
+    );
+    setOpenings((count) => count + 1);
+  }
 
+  // `~` names the home folder; the workspace expands it.
   const hostPathOf = (prefix: string) => {
-    if (rootPath === undefined) {
-      return;
-    }
     const folder = prefix.replace(/\/$/, "");
-    return folder ? `${rootPath}/${folder}` : rootPath;
+    return folder ? `${root}/${folder}` : root;
   };
 
   const listings = useQueries({
     combine: combineListings,
     queries: loaded.map((prefix) =>
       rpcClient.workspace.computer.list.queryOptions({
-        enabled: rootPath !== undefined,
-        input: { id: taskId, path: hostPathOf(prefix) ?? "" },
+        input: { id: taskId, path: hostPathOf(prefix) },
         refetchInterval: REFRESH_MS,
       }),
     ),
@@ -164,6 +180,7 @@ export function ComputerPage({
   const currentListing = listingOf(onScreen);
   useEffect(() => {
     if (onScreen !== path) {
+      setWritten({ path: onScreen, root });
       void navigate({
         replace: true,
         search: (previous) => ({ ...previous, path: onScreen, root }),
@@ -255,7 +272,7 @@ export function ComputerPage({
     });
   };
 
-  if (!places.data || rootPath === undefined) {
+  if (!places.data) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="size-5" />
@@ -263,15 +280,20 @@ export function ComputerPage({
     );
   }
 
+  const homePath = places.data.favorites.find(
+    (place) => place.name === "Home",
+  )?.path;
+  const rootHostPath = root === "~" ? homePath : root;
   const rootName =
     root === "~"
       ? "Home"
-      : root === "instrument"
-        ? "Instrument"
-        : (rootPath.split("/").findLast(Boolean) ??
-          places.data.volumes[0]?.name ??
-          "Root");
-  const crumbs = breadcrumbs(currentListing?.path ?? rootPath, places.data);
+      : (root.split("/").findLast(Boolean) ??
+        places.data.volumes[0]?.name ??
+        "Root");
+  const crumbs = breadcrumbs(
+    currentListing?.path ?? rootHostPath ?? root,
+    places.data,
+  );
 
   return (
     <div className="flex h-full min-h-0">
@@ -279,7 +301,7 @@ export function ComputerPage({
         <PlaceList
           label="Favorites"
           onOpen={(folder) => {
-            rootTo(folder === places.data.favorites[0]?.path ? "~" : folder);
+            rootTo(folder === homePath ? "~" : folder);
           }}
           places={places.data.favorites.map((place) => ({
             icon:
@@ -289,7 +311,7 @@ export function ComputerPage({
               ) : (
                 <FileSystemFolderGlyph className="h-3.5 w-auto" />
               ),
-            isActive: rootPath === place.path,
+            isActive: rootHostPath === place.path,
             name: place.name,
             path: place.path,
           }))}
@@ -301,7 +323,7 @@ export function ComputerPage({
           }}
           places={places.data.volumes.map((volume) => ({
             icon: <HardDriveIcon className="size-4 text-muted-foreground" />,
-            isActive: rootPath === volume.path,
+            isActive: rootHostPath === volume.path,
             name: volume.name,
             path: volume.path,
           }))}
@@ -314,14 +336,14 @@ export function ComputerPage({
             defaultPath={path}
             defaultView="columns"
             items={items}
-            key={rootPath}
+            key={`${root}#${openings}`}
             loadChildren={async ({ path: prefix }) => {
               setLoaded((previous) =>
                 previous.includes(prefix) ? previous : [...previous, prefix],
               );
               await queryClient.fetchQuery(
                 rpcClient.workspace.computer.list.queryOptions({
-                  input: { id: taskId, path: hostPathOf(prefix) ?? "" },
+                  input: { id: taskId, path: hostPathOf(prefix) },
                 }),
               );
               // The entries arrive through `items`, re-read on the clock
@@ -439,6 +461,17 @@ function FileOpenWith({ tab, taskId }: { tab: FileTab; taskId: TaskId }) {
       variant="ghost"
     />
   );
+}
+
+/** A folder prefix and every folder above it, root first: `a/b/` is `""`, `a/`, `a/b/`. */
+function prefixesOf(folder: string): string[] {
+  const prefixes = [""];
+  let at = "";
+  for (const part of folder.split("/").filter(Boolean)) {
+    at = `${at}${part}/`;
+    prefixes.push(at);
+  }
+  return prefixes;
 }
 
 /** How much smaller than life a document is drawn in its thumbnail. */

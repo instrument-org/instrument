@@ -1,15 +1,14 @@
 import { err, ok, type Result, type ResultAsync, safeTry } from "neverthrow";
 
-import { StoreId } from "../../schemas/store-id";
+import { type StoreId } from "../../schemas/store-id";
 import { SubdomainPartSchema } from "../../schemas/subdomain-part";
 import { type TaskId } from "../../schemas/task-id";
-import { createSession } from "../create-session";
 import { type TypedError } from "../errors";
 import { getTasks } from "../get-tasks";
 import { initializeTask } from "../initialize-task";
 import { newTaskId } from "../new-task-id";
 import { getWorkspaceConfig } from "../workspace-config";
-import { latestSessionId } from "./latest-session";
+import { latestOrNewSessionId } from "./latest-session";
 
 /** What the orchestrator window opens on. */
 const ORCHESTRATOR_FOLDER_NAME = SubdomainPartSchema.parse("instrument");
@@ -36,17 +35,8 @@ export function ensureOrchestrator(): ResultAsync<
     const taskId = existing
       ? existing.id
       : yield* await createOrchestratorTask();
-
-    const newest = yield* await latestSessionId(taskId);
-    if (newest) {
-      return ok({ sessionId: newest, taskId });
-    }
-
-    const created = yield* await createSession({
-      sessionId: StoreId.newSessionId(),
-      taskId,
-    });
-    return ok({ sessionId: created.id, taskId });
+    const sessionId = yield* await latestOrNewSessionId(taskId);
+    return ok({ sessionId, taskId });
   });
 }
 

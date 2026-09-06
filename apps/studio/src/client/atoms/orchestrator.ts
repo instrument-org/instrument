@@ -16,7 +16,7 @@ export interface OrchestratorRecent {
 export const RECENTS_MAX = 15;
 
 export const orchestratorRecentsAtom = atomWithStorage<OrchestratorRecent[]>(
-  "orchestrator.recents.v1",
+  "orchestrator.recents.v2",
   [],
   undefined,
   { getOnInit: true },
@@ -78,25 +78,16 @@ export interface BrowserTab {
   url?: string;
 }
 
-export interface BrowserTabs {
-  activeId: null | string;
-  tabs: BrowserTab[];
-}
-
-export function clampChatWidth(value: number) {
-  return Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, Math.round(value)));
-}
-
 /**
  * The window's tabs, kept across launches: each is a browser session whose
  * last page the workspace restores when the tab is opened again.
  */
-export const orchestratorTabsAtom = atomWithStorage<BrowserTabs>(
-  "orchestrator.browser-tabs.v2",
-  { activeId: null, tabs: [] },
-  undefined,
-  { getOnInit: true },
-);
+export const orchestratorTabsAtom = atomWithStorage<{
+  activeId: null | string;
+  tabs: BrowserTab[];
+}>("orchestrator.browser-tabs.v2", { activeId: null, tabs: [] }, undefined, {
+  getOnInit: true,
+});
 
 /**
  * The icon each site last announced, by origin, so a pin or a recent can

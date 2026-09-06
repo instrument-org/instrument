@@ -7,7 +7,6 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
-import { createSession } from "../create-session";
 import { getTasks } from "../get-tasks";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
@@ -16,7 +15,7 @@ import { getTaskSettings, recordTaskActivity } from "../task-settings";
 import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking, latestStep, turnStartedAt } from "./activity";
-import { lastAssistantText, latestSessionId } from "./latest-session";
+import { lastAssistantText, latestOrNewSessionId } from "./latest-session";
 
 type TaskEvent = SessionMessageDataPart.TaskEventDataPart["events"][number];
 
@@ -144,7 +143,11 @@ async function deliver(
     throw modelResult.error;
   }
 
-  const sessionId = await sessionToWake(orchestratorId);
+  const session = await latestOrNewSessionId(orchestratorId);
+  if (session.isErr()) {
+    throw session.error;
+  }
+  const sessionId = session.value;
 
   const createdAt = new Date();
   const messageId = StoreId.newMessageId();
@@ -255,22 +258,4 @@ function schedule(
     );
   }, WAKE_DEBOUNCE_MS);
   pending.set(orchestratorId, { events, timer });
-}
-
-async function sessionToWake(taskId: TaskId): Promise<StoreId.Session> {
-  const newest = await latestSessionId(taskId);
-  if (newest.isErr()) {
-    throw newest.error;
-  }
-  if (newest.value) {
-    return newest.value;
-  }
-  const created = await createSession({
-    sessionId: StoreId.newSessionId(),
-    taskId,
-  });
-  if (created.isErr()) {
-    throw created.error;
-  }
-  return created.value.id;
 }

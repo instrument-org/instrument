@@ -818,6 +818,14 @@ function assistantMessageHasContent({
   });
 }
 
+/**
+ * The turn is running and has nothing to show for it yet.
+ *
+ * The one row in the transcript with no part behind it, so it is built here
+ * rather than through `renderChatPart`. It still takes `TRANSCRIPT_ROW` inside
+ * `STEP_RUN`, because the first real row will replace it in the same place and
+ * a row that is 4px off is a transcript that lifts as the agent starts working.
+ */
 function AwaitingFirstRow() {
   return (
     <div className={STEP_RUN}>
@@ -1021,14 +1029,6 @@ function TurnWordmark() {
   );
 }
 
-/**
- * The turn is running and has nothing to show for it yet.
- *
- * The one row in the transcript with no part behind it, so it is built here
- * rather than through `renderChatPart`. It still takes `TRANSCRIPT_ROW` inside
- * `STEP_RUN`, because the first real row will replace it in the same place and
- * a row that is 4px off is a transcript that lifts as the agent starts working.
- */
 // The wrapper a row sits in.
 //
 // A group's steps are indented under its head line. Nothing else in the box is,

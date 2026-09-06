@@ -104,6 +104,8 @@ export type WorkspaceEvent =
         model: AIGatewayModel.Type;
         parentSessionId?: StoreId.Session;
         runRequested?: boolean;
+        /** The message is already in the store; see `addMessage`. */
+        saved?: boolean;
         sessionId: StoreId.Session;
         sessionNamePrefix?: string;
         taskId: TaskId;
@@ -537,6 +539,7 @@ export const workspaceMachine = setup({
               agentName: event.value.agentName,
               message: event.value.message,
               model: event.value.model,
+              saved: event.value.saved,
               sessionId: event.value.sessionId,
               taskId,
             },
@@ -594,6 +597,7 @@ export const workspaceMachine = setup({
             model,
             parentSessionId,
             runRequested,
+            saved,
             sessionId,
             sessionNamePrefix,
             taskId,
@@ -609,6 +613,7 @@ export const workspaceMachine = setup({
               parentSessionId,
               queuedMessages: message ? [message] : [],
               runRequested,
+              savedMessageIds: saved && message ? [message.id] : [],
               sessionId,
               sessionNamePrefix,
               taskId,

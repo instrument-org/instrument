@@ -2,6 +2,7 @@ import { ChildTranscript } from "@/client/components/orchestrator/child-tasks";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { Spinner } from "@/client/components/ui/spinner";
+import { hasLiveAgent } from "@/client/lib/agent-status";
 import { rpcClient } from "@/client/rpc/client";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
@@ -36,10 +37,7 @@ function TaskRoute() {
       refetchInterval: REFRESH_MS,
     }),
   );
-  const isWorking =
-    status.data?.some((entry) =>
-      entry.sessionActors.some((actor) => actor.tags.includes("agent.alive")),
-    ) ?? false;
+  const isWorking = status.data?.some(hasLiveAgent) ?? false;
   const step = activity.data?.running.find(
     (entry) => entry.taskId === taskId,
   )?.step;

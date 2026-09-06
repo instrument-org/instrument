@@ -10,6 +10,7 @@ import {
   TRANSCRIPT_ROW,
 } from "@/client/components/message-part/transcript-group";
 import { InstrumentGlyph } from "@/client/components/wordmark";
+import { hasLiveAgent } from "@/client/lib/agent-status";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
@@ -47,10 +48,7 @@ export function TasksWorkingRow() {
       refetchInterval: REFRESH_MS,
     }),
   );
-  const isThinking =
-    status.data?.some((entry) =>
-      entry.sessionActors.some((actor) => actor.tags.includes("agent.alive")),
-    ) ?? false;
+  const isThinking = status.data?.some(hasLiveAgent) ?? false;
   const running = activity.data?.running ?? [];
   if (isThinking || running.length === 0) {
     return null;

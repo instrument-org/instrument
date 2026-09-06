@@ -25,19 +25,6 @@ import {
   shouldContinueWithToolCalls,
 } from "./shared";
 
-/**
- * The agent the user talks to. It never does the work: it creates tasks, each
- * run by the working agent with its own tools, folder, browser, and model, and
- * it keeps this one conversation answering while they run.
- *
- * Six tools on purpose. Bash carries the `task` command and reads; the file
- * reader is bounded; a write and an edit cover the one-step changes that
- * would take a task longer to start than to do; `choose` asks a closed
- * question; `request_folder` asks for a folder it does not have. No web, no
- * browser, no native binaries: those are what makes a turn long, and a long
- * turn is a turn the user waits on. What it says is its assistant text,
- * rendered the way any agent's is, files fence included.
- */
 /** How many of the newest models ride along in the context, so "the newest" needs no command. */
 const NEWEST_MODELS_IN_CONTEXT = 12;
 
@@ -59,6 +46,19 @@ async function newestModelsText(): Promise<string[]> {
   ];
 }
 
+/**
+ * The agent the user talks to. It never does the work: it creates tasks, each
+ * run by the working agent with its own tools, folder, browser, and model, and
+ * it keeps this one conversation answering while they run.
+ *
+ * Six tools on purpose. Bash carries the `task` command and reads; the file
+ * reader is bounded; a write and an edit cover the one-step changes that
+ * would take a task longer to start than to do; `choose` asks a closed
+ * question; `request_folder` asks for a folder it does not have. No web, no
+ * browser, no native binaries: those are what makes a turn long, and a long
+ * turn is a turn the user waits on. What it says is its assistant text,
+ * rendered the way any agent's is, files fence included.
+ */
 export const instrumentAgent = setupAgent({
   agentTools: pick(TOOLS, [
     "BashTool",
@@ -182,7 +182,7 @@ const PROMISES_A_TASK =
  * gets one more step too: a first step that only promised a task, calling
  * nothing, would otherwise leave the user waiting on work nobody started.
  */
-async function shouldContinueAfterHandingOff({
+export async function shouldContinueAfterHandingOff({
   messages,
 }: {
   messages: SessionMessage.WithParts[];

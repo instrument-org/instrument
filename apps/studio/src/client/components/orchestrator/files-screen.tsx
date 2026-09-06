@@ -1,8 +1,4 @@
-import {
-  closedFileTabsAtom,
-  type FileTab,
-  fileTabsAtom,
-} from "@/client/atoms/orchestrator";
+import { type FileTab, fileTabsAtom } from "@/client/atoms/orchestrator";
 import { FileIcon } from "@/client/components/file-icon";
 import { FileViewer } from "@/client/components/file-viewer";
 import {
@@ -16,12 +12,13 @@ import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn } from "@/client/lib/utils";
 import { LaptopIcon } from "@phosphor-icons/react/Laptop";
 import { useNavigate } from "@tanstack/react-router";
-import { useAtom, useSetAtom } from "jotai";
+import { useAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 
 import { computerName } from "./computer-name";
 import { ComputerPage, type FolderOnScreen } from "./computer-page";
 import { useOrchestrator } from "./context";
+import { useCloseFileTab, useOpenFileTab } from "./file-tabs";
 import { useOnScreen } from "./on-screen";
 import { TabStrip } from "./tab-strip";
 
@@ -48,7 +45,8 @@ export function FilesScreen({
   const { taskId } = useOrchestrator();
   const navigate = useNavigate();
   const [fileTabs, setFileTabs] = useAtom(fileTabsAtom);
-  const setClosed = useSetAtom(closedFileTabsAtom);
+  const openFile = useOpenFileTab();
+  const closeFile = useCloseFileTab();
   const [folder, setFolder] = useState<FolderOnScreen | null>(null);
   const [quickLook, setQuickLook] = useState<FileTab | null>(null);
   // Where the keyboard was when Quick Look opened, so it goes back there when
@@ -115,31 +113,6 @@ export function FilesScreen({
       search: { file: mount, path, root },
       to: "/orchestrator/computer",
     });
-  };
-  const openFile = (tab: FileTab) => {
-    setFileTabs((current) =>
-      current.some((entry) => entry.mount === tab.mount)
-        ? current
-        : [...current, tab],
-    );
-    showFile(tab.mount);
-  };
-  const closeFile = (mount: string) => {
-    const index = fileTabs.findIndex((tab) => tab.mount === mount);
-    const closing = fileTabs[index];
-    const remaining = fileTabs.filter((tab) => tab.mount !== mount);
-    setFileTabs(remaining);
-    if (closing) {
-      setClosed((current) => [...current, closing]);
-    }
-    if (file === mount) {
-      const next = remaining[Math.max(0, index - 1)];
-      if (next) {
-        showFile(next.mount);
-      } else {
-        showFolder();
-      }
-    }
   };
 
   const assetBase = getAssetBaseUrl(taskId);
@@ -264,7 +237,10 @@ export function FilesScreen({
         open={quickLook !== null}
       >
         <DialogContent
-          className="h-[85vh] w-[88vw] max-w-none gap-0 p-0 outline-none sm:max-w-none"
+          className="h-full gap-0 p-0 outline-none"
+          // Most of the window, the way Quick Look fills it, whatever the zoom.
+          maxHeight="calc(85vh / var(--content-zoom))"
+          maxWidth="calc(88vw / var(--content-zoom))"
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             quickLookOrigin.current?.focus();
@@ -282,7 +258,9 @@ export function FilesScreen({
           }}
           onOpenAutoFocus={(event) => {
             event.preventDefault();
-            (event.currentTarget as HTMLElement | null)?.focus();
+            if (event.currentTarget instanceof HTMLElement) {
+              event.currentTarget.focus();
+            }
           }}
         >
           <DialogTitle className="sr-only">

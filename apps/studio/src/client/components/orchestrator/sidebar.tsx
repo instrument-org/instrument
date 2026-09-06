@@ -258,13 +258,11 @@ function Item({
   isActive,
   label,
   onClick,
-  trailing,
 }: {
   icon: ReactNode;
   isActive: boolean;
   label: string;
   onClick: () => void;
-  trailing?: ReactNode;
 }) {
   return (
     <SidebarMenuItem>
@@ -273,7 +271,6 @@ function Item({
           {icon}
         </span>
         <span className="truncate">{label}</span>
-        {trailing}
       </SidebarMenuButton>
     </SidebarMenuItem>
   );

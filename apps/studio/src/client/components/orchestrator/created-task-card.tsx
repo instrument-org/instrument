@@ -1,3 +1,4 @@
+import { RelativeTime } from "@/client/components/relative-time";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
@@ -46,21 +47,24 @@ export function CreatedTaskCard({ taskId }: { taskId: string }) {
             standing?.isWorking ? "brand-shiny-text" : "text-muted-foreground",
           )}
         >
-          {standing
-            ? standing.isWorking
-              ? (standing.step ?? "Working")
-              : `Done · ${ago(standing.updatedAt)}`
-            : "Starting"}
+          {standing ? (
+            standing.isWorking ? (
+              (standing.step ?? "Working")
+            ) : (
+              <>
+                Done ·{" "}
+                <RelativeTime
+                  date={new Date(standing.updatedAt)}
+                  tooltip={false}
+                />
+              </>
+            )
+          ) : (
+            "Starting"
+          )}
         </span>
       </span>
       <ArrowRightIcon className="size-4 shrink-0 text-muted-foreground" />
     </button>
   );
-}
-
-function ago(at: number) {
-  const elapsed = Date.now() - at;
-  return elapsed < ms("1 minute")
-    ? "just now"
-    : `${ms(elapsed, { long: true })} ago`;
 }

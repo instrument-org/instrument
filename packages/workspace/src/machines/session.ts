@@ -258,6 +258,8 @@ export const sessionMachine = setup({
       parentSessionId?: StoreId.Session;
       queuedMessages: SessionMessage.UserWithParts[];
       runRequested?: boolean;
+      /** Those of `queuedMessages` the sender wrote to the store on arrival. */
+      savedMessageIds?: StoreId.Message[];
       sessionId: StoreId.Session;
       sessionNamePrefix?: string;
       taskId: TaskId;
@@ -363,7 +365,7 @@ export const sessionMachine = setup({
       parentSessionId: input.parentSessionId,
       queuedMessages: input.queuedMessages,
       runRequested: input.runRequested ?? false,
-      savedMessageIds: [],
+      savedMessageIds: input.savedMessageIds ?? [],
       sessionId: input.sessionId,
       sessionNamePrefix: input.sessionNamePrefix,
       spawnAgent,

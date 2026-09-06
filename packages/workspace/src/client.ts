@@ -31,11 +31,7 @@ export { readWebSearchResults } from "./lib/web-search-results";
 export { MOUNT } from "./mount-points";
 export { FileUpload } from "./schemas/file-upload";
 export { FolderAttachment } from "./schemas/folder-attachment";
-export {
-  AbsolutePathSchema,
-  RelativePathSchema,
-  WorkspaceFilePathSchema,
-} from "./schemas/paths";
+export { AbsolutePathSchema, RelativePathSchema } from "./schemas/paths";
 export type { Project, ProjectFolder } from "./schemas/project";
 export { type ProjectId, ProjectIdSchema } from "./schemas/project-id";
 export { type SessionMessage } from "./schemas/session/message";
@@ -49,7 +45,6 @@ export { TaskPane } from "./schemas/task-pane";
 export type { ToolName } from "./tools/types";
 export {
   type BrowserHost,
-  BrowserHostSchema,
   type BrowserTargetId,
   BrowserTargetIdSchema,
   decodeBrowserTargetId,

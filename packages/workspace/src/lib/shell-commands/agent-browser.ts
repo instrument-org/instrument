@@ -701,8 +701,9 @@ export function createAgentBrowserCommand({
       // since the tab is the user's and outlives the task.
       const state = await getTaskState(taskDir(taskId));
       const settings = await getTaskSettings(taskDir(taskId));
-      if (state.browserTargetId) {
-        targetId = state.browserTargetId;
+      const handedTab = state.browserTargetId;
+      if (handedTab && workspaceConfig.browser.getTargetMeta(handedTab)) {
+        targetId = handedTab;
       } else if (settings?.kind === "orchestrator") {
         // The orchestrator drives the tab on the user's screen and never a
         // browser of its own; with no tab up there is nothing to drive.
@@ -710,6 +711,15 @@ export function createAgentBrowserCommand({
           exitCode: 1,
           stderr:
             "agent-browser: no tab is open in the browser. Open one, or hand the work to a task.\n",
+          stdout: "",
+        };
+      } else if (handedTab) {
+        // The user closed the tab, or the window it was in, since the task
+        // was handed it. A task with a tab of its own never had a browser.
+        return {
+          exitCode: 1,
+          stderr:
+            "agent-browser: the tab this task was handed is closed, so there is no page to act on. Say so and finish with what you have.\n",
           stdout: "",
         };
       } else {

@@ -40,7 +40,7 @@ export async function listRunnableModels(): Promise<AIGatewayModel.Type[]> {
     );
 }
 
-export const ALL_MODEL_COLUMNS: ModelColumn[] = [
+const ALL_MODEL_COLUMNS: ModelColumn[] = [
   "uri",
   "name",
   "provider",

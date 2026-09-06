@@ -8,6 +8,7 @@ import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { RecentIcon, SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { InstrumentGlyph } from "@/client/components/wordmark";
+import { siteFromWords } from "@/client/lib/site-from-words";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import uFuzzy from "@leeoniya/ufuzzy";
@@ -44,18 +45,32 @@ const APPS = [
 const SCREENS: {
   icon: ComponentType<{ className?: string }>;
   name: string;
-  search?: Record<string, string>;
-  to: string;
+  open: (navigate: ReturnType<typeof useNavigate>) => void;
 }[] = [
   {
     icon: LaptopIcon,
     name: computerName(),
-    search: { path: "", root: "~" },
-    to: "/orchestrator/computer",
+    open: (navigate) =>
+      void navigate({
+        search: { path: "", root: "~" },
+        to: "/orchestrator/computer",
+      }),
   },
-  { icon: GlobeIcon, name: "Browser", to: "/orchestrator/browser" },
-  { icon: InstrumentGlyph, name: "Tasks", to: "/orchestrator/tasks" },
-  { icon: AppWindowIcon, name: "Apps", to: "/orchestrator/apps" },
+  {
+    icon: GlobeIcon,
+    name: "Browser",
+    open: (navigate) => void navigate({ to: "/orchestrator/browser" }),
+  },
+  {
+    icon: InstrumentGlyph,
+    name: "Tasks",
+    open: (navigate) => void navigate({ to: "/orchestrator/tasks" }),
+  },
+  {
+    icon: AppWindowIcon,
+    name: "Apps",
+    open: (navigate) => void navigate({ to: "/orchestrator/apps" }),
+  },
 ];
 
 const RECENTS_SHOWN = 6;
@@ -133,10 +148,7 @@ function HomeRoute() {
       name: screen.name,
       note: "Screen",
       run: () => {
-        void navigate({
-          search: screen.search ?? {},
-          to: screen.to as "/orchestrator/browser",
-        });
+        screen.open(navigate);
       },
     })),
     ...tasks.map((child) => ({
@@ -256,7 +268,7 @@ function HomeRoute() {
           />
         </div>
         {words ? (
-          <div className="absolute inset-x-0 top-full z-10 mt-2 max-h-[60vh] overflow-y-auto rounded-xl border border-border bg-popover shadow-lg">
+          <div className="absolute inset-x-0 top-full z-10 mt-2 max-h-[calc(60vh/var(--app-zoom))] overflow-y-auto rounded-xl border border-border bg-popover shadow-lg">
             {rows.length === 0 ? (
               <p className="px-4 py-3 text-sm text-muted-foreground">
                 Nothing by that name.
@@ -364,33 +376,6 @@ function HomeRoute() {
           </ul>
         </div>
       ) : null}
-      <p className="sr-only">{taskId}</p>
     </div>
   );
-}
-
-/**
- * What typed words are when they are an address: a scheme, or a host with a
- * dot in it and no spaces, the way a browser's own box reads them.
- */
-function siteFromWords(
-  words: string,
-): undefined | { host: string; url: string } {
-  if (!words || /\s/.test(words)) {
-    return;
-  }
-  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(words)
-    ? words
-    : /^[\w-]+(?:\.[\w-]+)+(?::\d+)?(?:\/.*)?$/.test(words)
-      ? `https://${words}`
-      : undefined;
-  if (!withScheme) {
-    return;
-  }
-  try {
-    const url = new URL(withScheme);
-    return { host: url.host, url: url.href };
-  } catch {
-    return;
-  }
 }

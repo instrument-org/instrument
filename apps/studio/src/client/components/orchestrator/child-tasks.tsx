@@ -9,6 +9,7 @@ import {
 } from "@/client/components/ui/message-scroller";
 import { Spinner } from "@/client/components/ui/spinner";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { hasLiveAgent } from "@/client/lib/agent-status";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type SessionMessage,
@@ -55,10 +56,7 @@ export function ChildTranscript({ task }: { task: Task }) {
       refetchInterval: REFRESH_MS,
     }),
   );
-  const isWorking =
-    status.data?.some((entry) =>
-      entry.sessionActors.some((actor) => actor.tags.includes("agent.alive")),
-    ) ?? false;
+  const isWorking = status.data?.some(hasLiveAgent) ?? false;
 
   const isDeveloperMode = useDeveloperMode();
 

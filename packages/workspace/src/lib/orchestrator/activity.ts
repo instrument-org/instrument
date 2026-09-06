@@ -8,7 +8,7 @@ import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { listChildTasks } from "./children";
 import { latestSessionId } from "./latest-session";
 
-export const RunningTaskSchema = z.object({
+const RunningTaskSchema = z.object({
   /** What the task is doing this moment, in its agent's own label, when it gave one. */
   step: z.string().optional(),
   taskId: z.string(),

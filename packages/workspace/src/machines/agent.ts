@@ -66,15 +66,16 @@ export type ToolCallUpdate =
 
 type AgentMachineEvent =
   | { error: Error; type: "error" }
-  | { saved?: boolean; type: "steer"; value: SessionMessage.UserWithParts }
-  | { type: "executeToolCalls" }
-  | { type: "llmRequest.chunkReceived" }
   /**
    * A message that arrived while this turn runs. Held until the next point
    * between steps, then written into the transcript so the next request sees
    * it, the way a person interrupting a colleague is heard at the end of the
-   * sentence rather than the end of the job.
+   * sentence rather than the end of the job. `saved` when the sender already
+   * wrote it to the store.
    */
+  | { saved?: boolean; type: "steer"; value: SessionMessage.UserWithParts }
+  | { type: "executeToolCalls" }
+  | { type: "llmRequest.chunkReceived" }
   | { type: "retry" }
   | { type: "stop" }
   | {

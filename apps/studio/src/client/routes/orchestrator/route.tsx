@@ -2,7 +2,6 @@ import {
   CHAT_WIDTH_DEFAULT,
   CHAT_WIDTH_MAX,
   CHAT_WIDTH_MIN,
-  fileTabsAtom,
   linkedFilesAtom,
   orchestratorChatOpenAtom,
   orchestratorChatWidthAtom,
@@ -29,6 +28,7 @@ import {
 import {
   hostPathOfMount,
   useCloseFileTab,
+  useOpenFileTab,
   useReopenFileTab,
   useSelectFileTab,
   useSelectRelativeFileTab,
@@ -45,7 +45,7 @@ import { InstrumentGlyph } from "@/client/components/wordmark";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { pathsNamedInMessage } from "@/client/lib/paths-named-in-message";
-import { cn } from "@/client/lib/utils";
+import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { type TaskId } from "@instrument-org/workspace/client";
@@ -226,7 +226,7 @@ function OrchestratorLayout() {
   const [isSidebarOpen, setSidebarOpen] = useAtom(orchestratorSidebarOpenAtom);
   const [isChatOpen, setChatOpen] = useAtom(orchestratorChatOpenAtom);
   const screenView = useAtomValue(screenViewAtom);
-  const setFileTabs = useSetAtom(fileTabsAtom);
+  const openFileTab = useOpenFileTab();
   const setLinkedFiles = useSetAtom(linkedFilesAtom);
   // The files the conversation has handed over, newest first, for the sidebar.
   const linkedFiles = messages.data
@@ -338,7 +338,6 @@ function OrchestratorLayout() {
           });
         },
         browser,
-        outputFolder: ids.outputFolder,
         sessionId: ids.sessionId,
         taskId: ids.taskId,
       }
@@ -384,25 +383,10 @@ function OrchestratorLayout() {
       <FileOpenContext
         value={(filePath) => {
           const hostPath = hostPathOfMount(filePath, attachedFolders);
-          setFileTabs((current) =>
-            current.some((tab) => tab.mount === filePath)
-              ? current
-              : [
-                  ...current,
-                  {
-                    ...(hostPath ? { hostPath } : {}),
-                    mount: filePath,
-                    name: filePath.split("/").at(-1) ?? filePath,
-                  },
-                ],
-          );
-          void navigate({
-            search: (previous: { path?: string; root?: string }) => ({
-              file: filePath,
-              path: previous.path ?? "",
-              root: previous.root ?? "~",
-            }),
-            to: "/orchestrator/computer",
+          openFileTab({
+            ...(hostPath ? { hostPath } : {}),
+            mount: filePath,
+            name: filePath.split("/").at(-1) ?? filePath,
           });
         }}
       >
@@ -625,8 +609,8 @@ function useRecordRecents({
  * What the main process asks of the window: back and forward from a trackpad
  * swipe, a thumb button or the History menu, and the close of the tab on
  * screen from Cmd+W, the reopening of the last closed one from Shift+Cmd+T.
- * The thumb buttons also arrive as mouse events here,
- * for a mouse whose buttons the window sees before the main process does.
+ * On a Mac the thumb buttons reach the page as mouse events and nothing else,
+ * so they are answered here; elsewhere they arrive through the main process.
  */
 function useWindowCommands(handlers: {
   closeTab: () => void;
@@ -650,7 +634,9 @@ function useWindowCommands(handlers: {
         router.history.forward();
       }
     };
-    window.addEventListener("mouseup", onMouseUp);
+    if (isMacOS()) {
+      window.addEventListener("mouseup", onMouseUp);
+    }
     const controller = new AbortController();
     void (async () => {
       try {

@@ -32,10 +32,11 @@ Renderer: React 19, TanStack Router file routes, shadcn UI, oRPC to main process
 
 ## Windows
 
-Two top-level windows, each its own `BrowserWindow` / web contents, both loaded from the same renderer bundle. `client/main.tsx` picks the root by `window.api.windowType` (set via the `--windowType` preload arg):
+Three top-level windows, each its own `BrowserWindow` / web contents, all loaded from the same renderer bundle. `client/main.tsx` picks the root by `window.api.windowType` (set via the `--windowType` preload arg):
 
 - **main** — renders `<MainWindow />`: the full multi-tab app (chrome + tabs in one web contents). This is what "single web contents" below refers to.
 - **onboarding** — renders `<App />`: a small (480×600), fixed-size, non-resizable "Welcome" window (`windows/onboarding.ts`) that runs the single-router onboarding flow at `/onboarding`. Shown before the main window on first run; dismissing it without completing quits the app.
+- **orchestrator** — renders `<App />` at `/orchestrator`: the Instrument 2.0 window (`windows/orchestrator.ts`), opened from the Developer menu beside the main window, with its own menu (`menus/orchestrator-window.ts`) and its own browser guests, which the browser-view manager hosts under the `orchestrator` host name so each window's pool mounts only its own. Its screens and conversation are under `client/routes/orchestrator/` and `client/components/orchestrator/`; `docs/plans/active/instrument-2-0-prototype.md` records what it does.
 
 They share renderer state that's `localStorage`-backed at the same origin (e.g. `zoomAtom`, theme), so anything scoped to a single window (tab commands, main-only chrome) must not assume the onboarding window is present.
 
@@ -63,7 +64,7 @@ The whole main window scales with CSS `zoom` on `ZoomRoot` (`zoomAtom`, user-adj
 - A virtualizer inside self-zoomed content must measure in layout px: pass `measureElement: (el) => el.offsetHeight` and an `observeElementRect` reading `offsetWidth`/`offsetHeight`. The defaults read `getBoundingClientRect`, which is on-screen px.
 - Never add a `container-type` above a portal target. floating-ui counts it as a containing block for fixed content and Chrome doesn't, so every menu/popover silently shifts by that element's offset. `@container/app-content` sits below the portal target for exactly this reason.
 - Routes lay out against that `@container/app-content` container (`TabView` puts it around them), never viewport media queries.
-- Both windows (see Windows) use the same `ZoomRoot` + `zoomAtom`: the onboarding window wires it via `OnboardingZoomRoot`. `ZoomToast` (a transient corner readout on any zoom change) is mounted once per window, outside `ZoomRoot`, so keep it in sync in both roots.
+- Every window (see Windows) uses the same `ZoomRoot` + `zoomAtom`: the onboarding and orchestrator windows wire it via `OnboardingZoomRoot`. `ZoomToast` (a transient corner readout on any zoom change) is mounted once per window, outside `ZoomRoot`, so keep it in sync in both roots.
 
 ## Tests
 

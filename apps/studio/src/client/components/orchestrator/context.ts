@@ -9,8 +9,6 @@ export interface OrchestratorWindow {
   ask: (prompt: string) => void;
   /** The window's browser, mounted once by the layout and kept across screens; null until it is. */
   browser: BrowserTabsHandle | null;
-  /** The virtual path of the folder outcomes land in by default. */
-  outputFolder: string;
   sessionId: StoreId.Session;
   taskId: TaskId;
 }

@@ -489,65 +489,51 @@ export async function createBashEnv({
     ...(orchestrator ? [] : getNetworkCommandNames()),
   ].filter((name) => !BROKEN_COMMANDS.has(name)) as CommandName[];
 
-  const sessionCommands = SESSION_COMMAND_DEFS.map((cmd) =>
-    cmd.factory({ remainingYieldMs, sessionId }),
-  );
-
-  const customCommands = orchestrator
-    ? [
-        // On the tab the user has on screen, or none: the orchestrator never
-        // creates a browser of its own, so a command with no tab up refuses.
-        createAgentBrowserCommand({ sessionId, taskId }),
-        createRgCommand({
-          attachedFolders,
-          extraMounts: orchestrator.childMounts,
-          projectFolderName,
-          taskId,
-        }),
-        createTaskCommand({ orchestratorTaskId: taskId, remainingYieldMs }),
-        ...sessionCommands,
-        createWhichCommand(
-          new Set([
-            AGENT_BROWSER_COMMAND.name,
-            RG_COMMAND.name,
-            TASK_COMMAND.name,
-            ...allowedCommands,
-            ...SESSION_COMMAND_DEFS.map((cmd) => cmd.name),
-          ]),
-        ),
-        ...STATIC_STUB_COMMANDS,
-      ]
+  // What sets the two shells apart: the orchestrator gets `task` and nothing
+  // else beyond reading, the working agent gets `show` and the native hatches.
+  const specializedCommands = orchestrator
+    ? [createTaskCommand({ orchestratorTaskId: taskId, remainingYieldMs })]
     : [
-        createAgentBrowserCommand({
-          sessionId,
-          taskId,
-        }),
-        // Registered after the bundled commands, which is what lets it shadow
-        // just-bash's own `rg`. The built-in is a TypeScript reimplementation;
-        // the real binary is orders of magnitude faster on a large tree and
-        // does not carry its `(?i)` and root-level-glob bugs.
-        createRgCommand({ attachedFolders, projectFolderName, taskId }),
         createShowCommand({ sessionId, taskId }),
         ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(taskId)),
-        // After the bundled commands so these shadow just-bash's own `kill`
-        // and `wait`, which act on host pids this sandbox deliberately cannot
-        // name.
-        ...sessionCommands,
-        createWhichCommand(
-          new Set([
-            AGENT_BROWSER_COMMAND.name,
-            SHOW_COMMAND.name,
-            ...allowedCommands,
-            ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.name),
-            ...SESSION_COMMAND_DEFS.map((cmd) => cmd.name),
-          ]),
-        ),
-        ...STATIC_STUB_COMMANDS,
       ];
+  const specializedCommandNames = orchestrator
+    ? [TASK_COMMAND.name]
+    : [SHOW_COMMAND.name, ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.name)];
 
   const bash = new Bash({
     commands: allowedCommands,
-    customCommands,
+    customCommands: [
+      // For the orchestrator, the tab the user has on screen or none: it never
+      // creates a browser of its own, so a command with no tab up refuses.
+      createAgentBrowserCommand({ sessionId, taskId }),
+      // Registered after the bundled commands, which is what lets it shadow
+      // just-bash's own `rg`. The built-in is a TypeScript reimplementation;
+      // the real binary is orders of magnitude faster on a large tree and does
+      // not carry its `(?i)` and root-level-glob bugs.
+      createRgCommand({
+        attachedFolders,
+        extraMounts: orchestrator?.childMounts,
+        projectFolderName,
+        taskId,
+      }),
+      ...specializedCommands,
+      // After the bundled commands so these shadow just-bash's own `kill` and
+      // `wait`, which act on host pids this sandbox deliberately cannot name.
+      ...SESSION_COMMAND_DEFS.map((cmd) =>
+        cmd.factory({ remainingYieldMs, sessionId }),
+      ),
+      createWhichCommand(
+        new Set([
+          AGENT_BROWSER_COMMAND.name,
+          RG_COMMAND.name,
+          ...allowedCommands,
+          ...SESSION_COMMAND_DEFS.map((cmd) => cmd.name),
+          ...specializedCommandNames,
+        ]),
+      ),
+      ...STATIC_STUB_COMMANDS,
+    ],
     cwd: MOUNT.task,
     executionLimits: {
       maxOutputSize: SANDBOX_MAX_BYTES,

@@ -5,11 +5,13 @@ import {
 } from "@/client/atoms/orchestrator";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
+import { RelativeTime } from "@/client/components/relative-time";
 import {
   type RailBounds,
   StudioSidebarRail,
 } from "@/client/components/studio-sidebar-rail";
 import { Spinner } from "@/client/components/ui/spinner";
+import { hasLiveAgent } from "@/client/lib/agent-status";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type TaskId } from "@instrument-org/workspace/client";
@@ -42,13 +44,6 @@ export const Route = createFileRoute("/orchestrator/tasks")({
   component: TasksLayout,
 });
 
-function ago(date: Date) {
-  const elapsed = Date.now() - date.getTime();
-  return elapsed < ms("1 minute")
-    ? "just now"
-    : `${ms(elapsed, { long: true })} ago`;
-}
-
 function TasksLayout() {
   const { taskId } = useOrchestrator();
   const navigate = useNavigate();
@@ -67,11 +62,7 @@ function TasksLayout() {
     }),
   );
   const running = new Set<TaskId>(
-    status.data
-      ?.filter((entry) =>
-        entry.sessionActors.some((actor) => actor.tags.includes("agent.alive")),
-      )
-      .map((entry) => entry.taskId) ?? [],
+    status.data?.filter(hasLiveAgent).map((entry) => entry.taskId) ?? [],
   );
   const activity = useQuery(
     rpcClient.workspace.orchestrator.activity.queryOptions({
@@ -147,7 +138,13 @@ function TasksLayout() {
                                 Working
                               </>
                             ) : (
-                              `Done · ${ago(child.updatedAt)}`
+                              <>
+                                Done ·{" "}
+                                <RelativeTime
+                                  date={child.updatedAt}
+                                  tooltip={false}
+                                />
+                              </>
                             )}
                           </span>
                         </button>

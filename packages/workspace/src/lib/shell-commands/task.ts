@@ -7,22 +7,21 @@ import path from "node:path";
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
 import { publisher } from "../../rpc/publisher";
-import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { StoreId } from "../../schemas/store-id";
 import { type Task } from "../../schemas/task";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { type BrowserTargetId, encodeBrowserTargetId } from "../../types";
 import { absolutePathJoin } from "../absolute-path-join";
-import { createSession } from "../create-session";
 import { defaultTaskName } from "../default-task-name";
-import { getTaskAgentStatus } from "../get-task-agent-status";
 import { getTask } from "../get-tasks";
 import { initializeTask } from "../initialize-task";
 import { newMessage } from "../new-message";
 import { newTaskId } from "../new-task-id";
+import { isWorking } from "../orchestrator/activity";
 import { listChildTasks } from "../orchestrator/children";
 import {
   lastAssistantText,
+  latestOrNewSessionId,
   latestSessionId,
 } from "../orchestrator/latest-session";
 import { listRunnableModels, modelTable } from "../orchestrator/models";
@@ -36,6 +35,7 @@ import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { getWorkspaceConfig } from "../workspace-config";
 import { effectiveFolderAccess } from "../workspace-fs-layout";
+import { parseFlags, resolveFolders } from "./task-args";
 import { TASK_COMMAND } from "./task-command";
 import { subprocessStdin } from "./utils";
 
@@ -166,19 +166,6 @@ function fail(message: string) {
   };
 }
 
-function isRunning(taskId: TaskId): boolean {
-  const status = getTaskAgentStatus({
-    id: taskId,
-    workspaceRef: getWorkspaceActorRef(),
-  });
-  return (
-    status.isOk() &&
-    status.value.sessionActors.some((actor) =>
-      actor.tags.includes("agent.alive"),
-    )
-  );
-}
-
 async function listOutputs(taskId: TaskId): Promise<string[]> {
   const outputDir = absolutePathJoin(taskDir(taskId), TASK_FOLDER_NAMES.output);
   try {
@@ -205,62 +192,6 @@ async function listOutputs(taskId: TaskId): Promise<string[]> {
 
 function ok(stdout: string) {
   return { exitCode: 0, stderr: "", stdout };
-}
-
-/**
- * `--flag value` and `--flag=value` pairs, plus everything else in order. Each
- * flag in `repeatable` collects every value it is given; the others keep the
- * last. Values are whatever the shell already split them into, so a quoted
- * prompt arrives whole.
- */
-function parseFlags(
-  args: string[],
-  { flags, repeatable }: { flags: string[]; repeatable: string[] },
-) {
-  const values = new Map<string, string[]>();
-  const positional: string[] = [];
-  for (let index = 0; index < args.length; index++) {
-    const argument = args[index] ?? "";
-    const inline = /^--([a-z-]+)=(.*)$/.exec(argument);
-    const name = inline?.[1] ?? argument.replace(/^--/, "");
-    if (argument.startsWith("--") && flags.includes(name)) {
-      const value = inline ? inline[2] : args[++index];
-      if (value === undefined) {
-        throw new Error(`--${name} needs a value.`);
-      }
-      const list = values.get(name) ?? [];
-      values.set(name, repeatable.includes(name) ? [...list, value] : [value]);
-      continue;
-    }
-    positional.push(argument);
-  }
-  return { positional, values };
-}
-
-/**
- * `--folder Home/Downloads:rw`: the mount, the folder inside it when the task
- * gets less than the whole mount, and the access asked for.
- */
-function parseFolderSpec(spec: string): {
-  access?: FolderAttachment.Access;
-  name: string;
-  subpath: string;
-} {
-  const match = /^(.*?)(?::(rw|ro|read-write|read-only))?$/.exec(spec);
-  const raw = match?.[1] ?? spec;
-  const suffix = match?.[2];
-  const prefix = `${MOUNT.attachedFolders}/`;
-  const inside = (raw.startsWith(prefix) ? raw.slice(prefix.length) : raw)
-    .replace(/\/+$/, "")
-    .trim();
-  const [name = "", ...rest] = inside.split("/");
-  const access =
-    suffix === "rw" || suffix === "read-write"
-      ? ("read-write" as const)
-      : suffix === undefined
-        ? undefined
-        : ("read-only" as const);
-  return { access, name, subpath: rest.filter(Boolean).join("/") };
 }
 
 /**
@@ -291,40 +222,6 @@ async function requireChild(
     throw new Error(`no task "${rawId}" of yours. See \`task list\`.`);
   }
   return task.value;
-}
-
-function resolveFolders(
-  specs: string[],
-  attached: Record<string, FolderAttachment.Type>,
-) {
-  const byMount = new Map(
-    Object.values(attached).map((folder) => [folder.mountName, folder]),
-  );
-  const available =
-    [...byMount.keys()]
-      .map((name) => `${MOUNT.attachedFolders}/${name}`)
-      .join(", ") || "none";
-  return specs.map((spec) => {
-    const { access, name, subpath } = parseFolderSpec(spec);
-    const folder = byMount.get(name);
-    if (!folder) {
-      throw new Error(
-        `no folder "${name}" in this conversation. Yours: ${available}; a folder inside one is written ${MOUNT.attachedFolders}/<mount>/<folder>. Ask for one outside them with request_folder.`,
-      );
-    }
-    const granted = effectiveFolderAccess(folder);
-    if (access === "read-write" && granted !== "read-write") {
-      throw new Error(
-        `${MOUNT.attachedFolders}/${name} is read-only in this conversation, so a task cannot write to it. Ask the user to attach it with write access.`,
-      );
-    }
-    // The task gets what the conversation has unless the brief narrows it.
-    return {
-      access: access ?? granted,
-      path: subpath ? path.join(folder.path, subpath) : folder.path,
-      source: "user" as const,
-    };
-  });
 }
 
 async function resolveModel(rawURI: string) {
@@ -381,7 +278,7 @@ async function runList(args: string[], context: TaskCommandContext) {
   const children = await listChildTasks(context.orchestratorTaskId);
   const rows: string[][] = [];
   for (const task of children) {
-    const running = isRunning(task.id);
+    const running = isWorking(task.id);
     if (args.includes("--running") && !running) {
       continue;
     }
@@ -498,7 +395,7 @@ async function runNew(
   const prompt = promptFrom(positional.join(" "), stdin);
   if (!prompt) {
     throw new Error(
-      `new: a prompt is required, as one quoted argument.\n\n${USAGE}`,
+      `new: a brief is required, on stdin through a quoted heredoc.\n\n${USAGE}`,
     );
   }
   const workspaceConfig = getWorkspaceConfig();
@@ -540,19 +437,17 @@ async function runNew(
   if (browserTargetId) {
     await setTaskState(taskDir(taskId), { browserTargetId });
   }
-  const session = await createSession({
-    sessionId: StoreId.newSessionId(),
-    taskId,
-  });
+  const session = await latestOrNewSessionId(taskId);
   if (session.isErr()) {
     throw session.error;
   }
+  const sessionId = session.value;
   const message = await newMessage({
     folders: folders.length > 0 ? folders : undefined,
     model,
     modelURI,
     prompt,
-    sessionId: session.value.id,
+    sessionId,
     taskId,
   });
   if (message.isErr()) {
@@ -567,7 +462,7 @@ async function runNew(
       id: taskId,
       message: message.value,
       model,
-      sessionId: session.value.id,
+      sessionId,
     },
   });
   await recordTaskActivity(taskId);
@@ -599,7 +494,9 @@ async function runSend(
   const task = await requireChild(args[0], context);
   const prompt = promptFrom(args.slice(1).join(" "), stdin);
   if (!prompt) {
-    throw new Error("send: a message is required, as one quoted argument.");
+    throw new Error(
+      "send: a message is required, on stdin through a quoted heredoc.",
+    );
   }
   const state = await getTaskState(taskDir(task.id));
   const orchestratorState = await getTaskState(
@@ -610,21 +507,11 @@ async function runSend(
     throw new Error("send: the task has no model; set one with `task model`.");
   }
   const { model, modelURI } = await resolveModel(rawURI);
-  const existing = await latestSessionId(task.id);
-  if (existing.isErr()) {
-    throw existing.error;
+  const session = await latestOrNewSessionId(task.id);
+  if (session.isErr()) {
+    throw session.error;
   }
-  let sessionId = existing.value;
-  if (!sessionId) {
-    const created = await createSession({
-      sessionId: StoreId.newSessionId(),
-      taskId: task.id,
-    });
-    if (created.isErr()) {
-      throw created.error;
-    }
-    sessionId = created.value.id;
-  }
+  const sessionId = session.value;
   const message = await newMessage({
     model,
     modelURI,
@@ -635,7 +522,7 @@ async function runSend(
   if (message.isErr()) {
     throw message.error;
   }
-  const running = isRunning(task.id);
+  const running = isWorking(task.id);
   // Written now, so the task's transcript shows it the moment it was sent.
   const written = await Store.saveMessageWithParts(message.value, task.id);
   if (written.isErr()) {
@@ -663,7 +550,7 @@ async function runSend(
 async function runShow(args: string[], context: TaskCommandContext) {
   const task = await requireChild(args[0], context);
   const state = await getTaskState(taskDir(task.id));
-  const running = isRunning(task.id);
+  const running = isWorking(task.id);
   const folders = Object.values(state.attachedFolders ?? {}).map(
     (folder) =>
       `${MOUNT.attachedFolders}/${folder.mountName} (${effectiveFolderAccess(folder)})`,
@@ -696,7 +583,7 @@ async function runShow(args: string[], context: TaskCommandContext) {
 
 async function runStop(args: string[], context: TaskCommandContext) {
   const task = await requireChild(args[0], context);
-  const running = isRunning(task.id);
+  const running = isWorking(task.id);
   if (!running) {
     return ok(`${task.id} is not running.\n`);
   }
@@ -731,7 +618,7 @@ async function runWait(
   const timeoutMs =
     requested === undefined ? budget : Math.min(requested, budget);
 
-  if (!isRunning(task.id)) {
+  if (!isWorking(task.id)) {
     return ok(`${task.id} is not running.\n`);
   }
 

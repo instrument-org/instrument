@@ -1493,6 +1493,88 @@ describe("sessionMachine", () => {
         </session>"
       `);
     });
+
+    // A message sent while the agent is inside a tool call is written into
+    // the transcript at the next point between steps and seen by the request
+    // that follows, and once heard it is not run again as a turn of its own.
+    it.each([{ saved: false }, { saved: true }])(
+      "hears a message that arrives mid-turn at the next step, once (saved: $saved)",
+      async ({ saved }) => {
+        const result = await createActorAndTask({
+          chunkSets: [writeFileChunks, finishChunks],
+        });
+        result.actor.start();
+
+        await waitFor(
+          result.actor,
+          (state) => state.context.agentRef !== undefined,
+        );
+        const agentRef = result.actor.getSnapshot().context.agentRef;
+        if (!agentRef) {
+          throw new Error("The agent never started");
+        }
+        await waitFor(agentRef, (state) => state.matches("ExecutingToolCall"));
+
+        const steerId = StoreId.newMessageId();
+        const steer: SessionMessage.UserWithParts = {
+          id: steerId,
+          metadata: { createdAt: mockDate, sessionId: defaultSessionId },
+          parts: [
+            {
+              metadata: {
+                createdAt: mockDate,
+                id: StoreId.newPartId(),
+                messageId: steerId,
+                sessionId: defaultSessionId,
+              },
+              text: "Make it about a submarine captain instead.",
+              type: "text",
+            },
+          ],
+          role: "user",
+        };
+        if (saved) {
+          await Store.saveMessageWithParts(steer, result.taskId);
+        }
+        result.actor.send({ saved, type: "addMessage", value: steer });
+
+        const session = await runTestMachine(result);
+        expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
+          "<session title="Test session" count="6">
+            <user>
+              <text>Hello, I need help with something.</text>
+            </user>
+            <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+              <step-start step="1" />
+              <tool tool="write_file" state="output-available" callId="test-call-2">
+                <input>
+                  {
+                    "filePath": "test.txt",
+                    "content": "console.log('Hello, world!');"
+                  }
+                </input>
+                <output>
+                  {
+                    "content": "console.log('Hello, world!');",
+                    "filePath": "test.js",
+                    "isNewFile": false
+                  }
+                </output>
+              </tool>
+            </assistant>
+            <session-context main realRole="system" />
+            <session-context main realRole="user" />
+            <user>
+              <text>Make it about a submarine captain instead.</text>
+            </user>
+            <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+              <step-start step="2" />
+              <text state="done">I'm done.</text>
+            </assistant>
+          </session>"
+        `);
+      },
+    );
   });
 
   describe("running a turn over the stored session", () => {

@@ -10,17 +10,12 @@ import {
 import { listChildTasks } from "../../lib/orchestrator/children";
 import { ensureOrchestrator } from "../../lib/orchestrator/ensure";
 import {
-  FolderListingSchema,
-  listOrchestratorFolder,
-} from "../../lib/orchestrator/list-folder";
-import {
   ensureHomeFolder,
   ensureOutputFolder,
 } from "../../lib/orchestrator/output-folder";
 import { taskDir } from "../../lib/task-dir-utils";
 import { setTaskState } from "../../lib/task-record";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
-import { MOUNT } from "../../mount-points";
 import { StoreId } from "../../schemas/store-id";
 import { TaskSchema } from "../../schemas/task";
 import { TaskIdSchema } from "../../schemas/task-id";
@@ -66,13 +61,12 @@ const children = base
   .handler(({ input }) => listChildTasks(input.id));
 
 /**
- * The orchestrator task, the session to talk to it in, and the mount of the
- * folder its outcomes land in by default, all created on first use.
+ * The orchestrator task and the session to talk to it in, created on first
+ * use, with the home folder and the workspace folder attached to it.
  */
 const ensure = base
   .output(
     z.object({
-      outputFolder: z.string(),
       sessionId: StoreId.SessionSchema,
       taskId: TaskIdSchema,
     }),
@@ -84,24 +78,13 @@ const ensure = base
       throw toORPCError(result.error, errors);
     }
     await ensureHomeFolder(result.value.taskId);
-    const mountName = await ensureOutputFolder(result.value.taskId);
-    return {
-      ...result.value,
-      outputFolder: `${MOUNT.attachedFolders}/${mountName}`,
-    };
+    await ensureOutputFolder(result.value.taskId);
+    return result.value;
   });
 
-/** One folder the orchestrator can reach, as the person browsing it sees it. */
-const listFolder = base
-  .input(z.object({ id: TaskIdSchema, path: z.string() }))
-  .output(FolderListingSchema)
-  .handler(({ input }) =>
-    listOrchestratorFolder({ path: input.path, taskId: input.id }),
-  );
-
 /**
- * The tab the user has on screen, which is the tab the orchestrator's own
- * `agent-browser` drives; null when the browser is not up.
+ * The tab the window's browser has in front, which is the tab the
+ * orchestrator's own `agent-browser` drives; null once no tab is open.
  */
 const setActiveTab = base
   .input(
@@ -118,6 +101,5 @@ export const orchestrator = {
   children,
   childStatus,
   ensure,
-  listFolder,
   setActiveTab,
 };

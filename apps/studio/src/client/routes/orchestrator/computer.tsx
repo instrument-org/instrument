@@ -9,10 +9,7 @@ export const Route = createFileRoute("/orchestrator/computer")({
     file: z.string().optional(),
     /** The folder open under the root, as a prefix: `Documents/Instrument/`. */
     path: z.string().default(""),
-    /**
-     * Where the browser is rooted: `~` for the home folder, `instrument` for
-     * the folder Instrument keeps its outcomes in, or a folder's own path.
-     */
+    /** Where the browser is rooted: `~` for the home folder, or a folder's own path. */
     root: z.string().default("~"),
   }),
 });

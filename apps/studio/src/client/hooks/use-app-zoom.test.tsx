@@ -72,7 +72,10 @@ function sourceFiles(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      return sourceFiles(full);
+      // Vendored from a component registry and kept as it arrived; the viewer
+      // dialogs its viewport units size never open here, since every use of
+      // it hands `onFileOpen` the product's own viewer.
+      return entry.name === "extend" ? [] : sourceFiles(full);
     }
     // Test files stand up deliberately wrong markup -- oversized boxes, class
     // strings fed to `cn()` as data -- which is the opposite of a claim about

@@ -7,6 +7,13 @@ import { MOUNT } from "@instrument-org/workspace/client";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 
+/** The folder browser's address as the screen was left, for a navigation that keeps it. */
+interface ComputerSearch {
+  file?: string;
+  path?: string;
+  root?: string;
+}
+
 /** Where a virtual path lives on the Mac, when a granted folder covers it. */
 export function hostPathOfMount(
   mount: string,
@@ -24,34 +31,33 @@ export function hostPathOfMount(
 }
 
 /**
- * Closes a file tab from outside the screen, which is what Cmd+W does when
- * This Mac is up: the tab in the address goes, and the strip moves to its
- * neighbor or back to the folder.
+ * Closes a file tab on This Mac: the one named, or the one in the address,
+ * which is what Cmd+W closes. The strip moves to its neighbor, or back to the
+ * folder when it was the last.
  */
 export function useCloseFileTab() {
   const [fileTabs, setFileTabs] = useAtom(fileTabsAtom);
   const setClosed = useSetAtom(closedFileTabsAtom);
   const navigate = useNavigate();
   const location = useRouterState({ select: (state) => state.location });
-  return () => {
+  return (mount?: string) => {
     if (location.pathname !== "/orchestrator/computer") {
       return;
     }
-    const search = location.search as {
-      file?: string;
-      path?: string;
-      root?: string;
-    };
-    const mount = search.file;
-    if (!mount) {
+    const search = location.search as ComputerSearch;
+    const closing = mount ?? search.file;
+    if (!closing) {
       return;
     }
-    const index = fileTabs.findIndex((tab) => tab.mount === mount);
-    const closing = fileTabs[index];
-    const remaining = fileTabs.filter((tab) => tab.mount !== mount);
+    const index = fileTabs.findIndex((tab) => tab.mount === closing);
+    const tab = fileTabs[index];
+    const remaining = fileTabs.filter((entry) => entry.mount !== closing);
     setFileTabs(remaining);
-    if (closing) {
-      setClosed((current) => [...current, closing]);
+    if (tab) {
+      setClosed((current) => [...current, tab]);
+    }
+    if (search.file !== closing) {
+      return;
     }
     const next = remaining[Math.max(0, index - 1)];
     void navigate({
@@ -66,26 +72,20 @@ export function useCloseFileTab() {
 }
 
 /**
- * Brings back the file tab closed last, on This Mac, and shows it: what
- * Shift+Cmd+T does when that screen is up.
+ * Opens a file in a tab on This Mac, beside whatever folder is up there, and
+ * shows it. A tab already open for the file is shown rather than doubled.
  */
-export function useReopenFileTab() {
+export function useOpenFileTab() {
   const setFileTabs = useSetAtom(fileTabsAtom);
-  const [closed, setClosed] = useAtom(closedFileTabsAtom);
   const navigate = useNavigate();
   const location = useRouterState({ select: (state) => state.location });
-  return () => {
-    const tab: FileTab | undefined = closed.at(-1);
-    if (!tab) {
-      return;
-    }
-    setClosed((current) => current.slice(0, -1));
+  return (tab: FileTab) => {
     setFileTabs((current) =>
       current.some((entry) => entry.mount === tab.mount)
         ? current
         : [...current, tab],
     );
-    const search = location.search as { path?: string; root?: string };
+    const search = location.search as ComputerSearch;
     void navigate({
       search: {
         file: tab.mount,
@@ -94,6 +94,23 @@ export function useReopenFileTab() {
       },
       to: "/orchestrator/computer",
     });
+  };
+}
+
+/**
+ * Brings back the file tab closed last, on This Mac, and shows it: what
+ * Shift+Cmd+T does when that screen is up.
+ */
+export function useReopenFileTab() {
+  const [closed, setClosed] = useAtom(closedFileTabsAtom);
+  const openFileTab = useOpenFileTab();
+  return () => {
+    const tab: FileTab | undefined = closed.at(-1);
+    if (!tab) {
+      return;
+    }
+    setClosed((current) => current.slice(0, -1));
+    openFileTab(tab);
   };
 }
 
@@ -109,7 +126,7 @@ export function useSelectFileTab() {
     if (location.pathname !== "/orchestrator/computer") {
       return;
     }
-    const search = location.search as { path?: string; root?: string };
+    const search = location.search as ComputerSearch;
     const tab = index >= 9 ? fileTabs.at(-1) : fileTabs[index - 2];
     void navigate({
       search: {
@@ -131,11 +148,7 @@ export function useSelectRelativeFileTab() {
     if (location.pathname !== "/orchestrator/computer") {
       return;
     }
-    const search = location.search as {
-      file?: string;
-      path?: string;
-      root?: string;
-    };
+    const search = location.search as ComputerSearch;
     const keys = [undefined, ...fileTabs.map((tab) => tab.mount)];
     const at = Math.max(0, keys.indexOf(search.file));
     const next = keys[(at + direction + keys.length) % keys.length];

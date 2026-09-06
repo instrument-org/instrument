@@ -31,6 +31,7 @@ import {
   useCloseFileTab,
   useReopenFileTab,
   useSelectFileTab,
+  useSelectRelativeFileTab,
 } from "@/client/components/orchestrator/file-tabs";
 import { OrchestratorSidebar } from "@/client/components/orchestrator/sidebar";
 import {
@@ -260,6 +261,7 @@ function OrchestratorLayout() {
   const closeFileTab = useCloseFileTab();
   const reopenFileTab = useReopenFileTab();
   const selectFileTab = useSelectFileTab();
+  const selectRelativeFileTab = useSelectRelativeFileTab();
   useWindowCommands({
     closeTab: () => {
       if (isBrowserScreen) {
@@ -268,11 +270,22 @@ function OrchestratorLayout() {
         closeFileTab();
       }
     },
+    newTab: () => {
+      browser?.open();
+      void navigate({ to: "/orchestrator/browser" });
+    },
     reopenTab: () => {
       if (isBrowserScreen) {
         browser?.reopenClosed();
       } else {
         reopenFileTab();
+      }
+    },
+    selectRelative: (direction) => {
+      if (isBrowserScreen) {
+        browser?.selectRelative(direction);
+      } else {
+        selectRelativeFileTab(direction);
       }
     },
     selectTab: (index) => {
@@ -615,21 +628,19 @@ function useRecordRecents({
  * The thumb buttons also arrive as mouse events here,
  * for a mouse whose buttons the window sees before the main process does.
  */
-function useWindowCommands({
-  closeTab,
-  reopenTab,
-  selectTab,
-}: {
+function useWindowCommands(handlers: {
   closeTab: () => void;
+  newTab: () => void;
   reopenTab: () => void;
+  selectRelative: (direction: -1 | 1) => void;
   selectTab: (index: number) => void;
 }) {
   const router = useRouter();
   // The stream is opened once; what a chord means is read at the moment it
   // fires, off whatever screen is up then.
-  const latest = useRef({ closeTab, reopenTab, selectTab });
+  const latest = useRef(handlers);
   useEffect(() => {
-    latest.current = { closeTab, reopenTab, selectTab };
+    latest.current = handlers;
   });
   useEffect(() => {
     const onMouseUp = (event: MouseEvent) => {
@@ -663,6 +674,18 @@ function useWindowCommands({
             }
             case "forward": {
               router.history.forward();
+              break;
+            }
+            case "newTab": {
+              latest.current.newTab();
+              break;
+            }
+            case "nextTab": {
+              latest.current.selectRelative(1);
+              break;
+            }
+            case "previousTab": {
+              latest.current.selectRelative(-1);
               break;
             }
             case "reopenTab": {

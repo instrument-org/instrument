@@ -20,7 +20,13 @@ import {
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useSetAtom } from "jotai";
-import { type Ref, useEffect, useImperativeHandle, useRef } from "react";
+import {
+  type Ref,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import { z } from "zod";
 
 import { useOrchestrator } from "./context";
@@ -43,6 +49,8 @@ export interface BrowserTabsHandle {
   readPage: () => Promise<PageContext | undefined>;
   /** Brings back the tab closed last, at the page it was on. */
   reopenClosed: () => void;
+  /** Shows the next or previous tab, wrapping. */
+  selectRelative: (direction: -1 | 1) => void;
   /** Shows the tab at that place, counting from one; nine is the last, as in a browser. */
   selectTab: (index: number) => void;
 }
@@ -405,6 +413,14 @@ export function BrowserTabs({
         };
       },
       reopenClosed,
+      selectRelative: (direction) => {
+        const { active: current, tabs: all } = latest.current;
+        const at = all.findIndex((tab) => tab.id === current?.id);
+        const next = all[(at + direction + all.length) % all.length];
+        if (next) {
+          setTabs((state) => ({ ...state, activeId: next.id }));
+        }
+      },
       selectTab: (index) => {
         const all = latest.current.tabs;
         const tab = index >= 9 ? all.at(-1) : all[index - 1];
@@ -473,10 +489,9 @@ export function BrowserTabs({
 }
 
 /**
- * What the browser shows with no tab open: where it has been, newest first,
- * each a click from coming back, and a way to start blank. Closing the last
- * tab lands here rather than on another screen: the browser is still the
- * screen the user was on.
+ * What the browser shows with no tab open: an empty tab, the way a browser
+ * opens, with where it has been under it. Closing the last tab lands here:
+ * the browser is still the screen the user was on.
  */
 function NewTabPage({
   onNew,
@@ -488,7 +503,7 @@ function NewTabPage({
   visited: VisitedPage[];
 }) {
   return (
-    <div className="flex h-full min-h-0 flex-col items-center overflow-y-auto px-8 pt-16 pb-10">
+    <div className="flex h-full min-h-0 flex-col items-center justify-center overflow-y-auto px-8 py-10">
       <GlobeIcon className="size-8 text-muted-foreground" />
       <button
         className="mt-4 rounded-md bg-foreground/10 px-3 py-1.5 text-sm text-foreground hover:bg-foreground/20"
@@ -498,35 +513,23 @@ function NewTabPage({
         New tab
       </button>
       {visited.length > 0 ? (
-        <div className="mt-10 w-full max-w-2xl">
-          <p className="text-xs font-medium tracking-[0.12em] text-muted-foreground uppercase">
-            Recent pages
-          </p>
-          <ul className="mt-3 grid gap-1 sm:grid-cols-2">
-            {visited.map((page) => (
-              <li key={page.url}>
-                <button
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent/50"
-                  onClick={() => {
-                    onOpen(page.url);
-                  }}
-                  title={page.url}
-                  type="button"
-                >
-                  <TabIcon favicon={page.favicon} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate">
-                      {page.title || page.url}
-                    </span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {page.url}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <ul className="mt-8 grid w-full max-w-xl gap-0.5">
+          {visited.slice(0, 8).map((page) => (
+            <li key={page.url}>
+              <button
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                onClick={() => {
+                  onOpen(page.url);
+                }}
+                title={page.url}
+                type="button"
+              >
+                <TabIcon favicon={page.favicon} />
+                <span className="truncate">{page.title || page.url}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
       ) : null}
     </div>
   );
@@ -537,13 +540,17 @@ function sameAddress(a: string | undefined, b: string) {
   return a !== undefined && trimAddress(a) === trimAddress(b);
 }
 
-/** The page's own icon when it has announced one, else the globe. */
+/** The page's own icon when it has announced one and it loads, else the globe. */
 function TabIcon({ favicon }: { favicon: string | undefined }) {
-  return favicon ? (
+  const [failed, setFailed] = useState<string | undefined>();
+  return favicon && failed !== favicon ? (
     <img
       alt=""
       className="size-3.5 rounded-xs"
       draggable={false}
+      onError={() => {
+        setFailed(favicon);
+      }}
       src={favicon}
     />
   ) : (

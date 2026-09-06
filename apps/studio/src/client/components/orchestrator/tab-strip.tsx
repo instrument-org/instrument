@@ -295,6 +295,11 @@ export function TabStrip({
               key={tab.key}
               nextIsSelected={drawnKeys[index + 1] === selectedKey}
               onClose={() => {
+                // A tab already on its way out is not closed twice: the
+                // second close would keep it collapsing rather than gone.
+                if (isClosing) {
+                  return;
+                }
                 if (!prefersReducedMotion) {
                   setClosing((current) => [...current, { index, tab }]);
                 }

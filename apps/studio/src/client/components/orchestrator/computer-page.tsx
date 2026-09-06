@@ -6,14 +6,19 @@ import {
   type FileSystemItem,
 } from "@/client/components/extend/file-system";
 import { FileViewer } from "@/client/components/file-viewer";
+import { OpenTaskFileButton } from "@/client/components/open-task-file-button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { InstrumentGlyph } from "@/client/components/wordmark";
+import { useTaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type ComputerListing } from "@instrument-org/workspace/client";
+import {
+  type ComputerListing,
+  type TaskId,
+} from "@instrument-org/workspace/client";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -263,7 +268,9 @@ export function ComputerPage({
       ? "Home"
       : root === "instrument"
         ? "Instrument"
-        : (rootPath.split("/").findLast(Boolean) ?? "Macintosh HD");
+        : (rootPath.split("/").findLast(Boolean) ??
+          places.data.volumes[0]?.name ??
+          "Root");
   const crumbs = breadcrumbs(currentListing?.path ?? rootPath, places.data);
 
   return (
@@ -327,6 +334,10 @@ export function ComputerPage({
             onPathChange={setCurrent}
             onSelectionChange={(item) => {
               setSelectedPath(item?.path ?? null);
+            }}
+            renderFileActions={(file) => {
+              const tab = fileTabOf(file);
+              return tab ? <FileOpenWith tab={tab} taskId={taskId} /> : null;
             }}
             renderFileStage={(file) => {
               // Text reads as a thumbnail of the document, the way an image
@@ -394,7 +405,7 @@ function breadcrumbs(
     ) ?? places.volumes.find((candidate) => candidate.path === "/");
   const base = volume?.path ?? "/";
   const rest = hostPath.slice(base === "/" ? 1 : base.length + 1);
-  const crumbs = [{ name: volume?.name ?? "Macintosh HD", path: base }];
+  const crumbs = [{ name: volume?.name ?? "Root", path: base }];
   let at = base === "/" ? "" : base;
   for (const segment of rest.split("/").filter(Boolean)) {
     at = `${at}/${segment}`;
@@ -409,6 +420,25 @@ function breadcrumbs(
  */
 function combineListings(results: { data: ComputerListing | undefined }[]) {
   return results.map((result) => result.data);
+}
+
+/**
+ * The product's open control for a file the Finder view has selected: the
+ * Mac's own app for it, with the other apps that take it a click away.
+ */
+function FileOpenWith({ tab, taskId }: { tab: FileTab; taskId: TaskId }) {
+  const file = { filePath: tab.mount, taskId };
+  const control = useTaskFileOpenControl(file);
+  return (
+    <OpenTaskFileButton
+      className="text-muted-foreground"
+      control={control}
+      file={file}
+      iconClassName="size-4"
+      size="sm"
+      variant="ghost"
+    />
+  );
 }
 
 /** How much smaller than life a document is drawn in its thumbnail. */

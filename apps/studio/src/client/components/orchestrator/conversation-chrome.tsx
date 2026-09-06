@@ -20,6 +20,7 @@ import { useAtomValue } from "jotai";
 import ms from "ms";
 import { type ReactNode } from "react";
 
+import { computerName } from "./computer-name";
 import { useOrchestrator } from "./context";
 import { SiteIcon } from "./sidebar";
 
@@ -84,16 +85,21 @@ export function ViewChip() {
   if (!chip) {
     return null;
   }
+  // The folder, and then what is selected in it: "this" is the selection
+  // when there is one, and the chip says so.
+  const selected =
+    view.screen === "computer" ? (view.folder?.selected ?? []).slice(0, 2) : [];
   return (
-    <span
-      className="flex h-7 max-w-64 items-center gap-1.5 rounded-lg bg-foreground/5 px-2 text-xs text-muted-foreground"
-      title="Instrument sees this when you send"
-    >
-      <span className="flex size-3.5 shrink-0 items-center justify-center">
-        {chip.icon}
-      </span>
-      <span className="truncate">{chip.title}</span>
-    </span>
+    <>
+      <Chip icon={chip.icon} title={chip.title} />
+      {selected.map((name) => (
+        <Chip
+          icon={<FileIcon className="size-3.5" filename={name} />}
+          key={name}
+          title={name}
+        />
+      ))}
+    </>
   );
 
   function describe(): undefined | { icon: ReactNode; title: string } {
@@ -115,7 +121,7 @@ export function ViewChip() {
         };
       }
       case "computer": {
-        const display = view.folder?.display ?? "This Mac";
+        const display = view.folder?.display ?? computerName();
         return {
           icon: <FileSystemFolderGlyph className="h-3 w-auto" />,
           title:
@@ -152,4 +158,18 @@ export function ViewChip() {
       }
     }
   }
+}
+
+function Chip({ icon, title }: { icon: ReactNode; title: string }) {
+  return (
+    <span
+      className="flex h-7 max-w-64 items-center gap-1.5 rounded-lg bg-foreground/5 px-2 text-xs text-muted-foreground"
+      title="Instrument sees this when you send"
+    >
+      <span className="flex size-3.5 shrink-0 items-center justify-center">
+        {icon}
+      </span>
+      <span className="truncate">{title}</span>
+    </span>
+  );
 }

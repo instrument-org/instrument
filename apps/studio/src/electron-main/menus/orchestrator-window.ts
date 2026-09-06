@@ -1,3 +1,4 @@
+import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { type MenuItemConstructorOptions } from "electron";
 
@@ -21,6 +22,13 @@ export function createOrchestratorWindowMenu(): MenuItemConstructorOptions[] {
     label: "File",
     submenu: [
       {
+        accelerator: "CmdOrCtrl+T",
+        click: () => {
+          publisher.publish("orchestrator.command", "newTab");
+        },
+        label: "New Tab",
+      },
+      {
         accelerator: "CmdOrCtrl+W",
         click: () => {
           publisher.publish("orchestrator.command", "closeTab");
@@ -42,35 +50,76 @@ export function createOrchestratorWindowMenu(): MenuItemConstructorOptions[] {
     ],
   };
 
-  // Cmd+1 through Cmd+8 pick a tab by place; Cmd+9 the last, as browsers do.
+  // The chords the main window's tab bar answers to, on whichever screen is
+  // up here: next and previous by Ctrl+Tab and by Cmd+Shift+bracket, a tab by
+  // place with Cmd+1 through Cmd+8, and the last with Cmd+9, as browsers do.
   const tabMenu: MenuItemConstructorOptions = {
     label: "Tabs",
-    submenu: Array.from({ length: 9 }, (_, index) => ({
-      accelerator: `CmdOrCtrl+${index + 1}`,
-      click: () => {
-        publisher.publish("orchestrator.command", {
-          index: index + 1,
-          type: "selectTab",
-        });
+    submenu: [
+      {
+        accelerator: "Ctrl+Tab",
+        click: () => {
+          publisher.publish("orchestrator.command", "nextTab");
+        },
+        label: "Show Next Tab",
       },
-      label: index === 8 ? "Last Tab" : `Tab ${index + 1}`,
-    })),
+      {
+        accelerator: "CmdOrCtrl+Shift+]",
+        click: () => {
+          publisher.publish("orchestrator.command", "nextTab");
+        },
+        label: "Show Next Tab",
+        visible: false,
+      },
+      {
+        accelerator: "Ctrl+Shift+Tab",
+        click: () => {
+          publisher.publish("orchestrator.command", "previousTab");
+        },
+        label: "Show Previous Tab",
+      },
+      {
+        accelerator: "CmdOrCtrl+Shift+[",
+        click: () => {
+          publisher.publish("orchestrator.command", "previousTab");
+        },
+        label: "Show Previous Tab",
+        visible: false,
+      },
+      { type: "separator" },
+      ...Array.from({ length: 9 }, (_, index) => ({
+        accelerator: `CmdOrCtrl+${index + 1}`,
+        click: () => {
+          publisher.publish("orchestrator.command", {
+            index: index + 1,
+            type: "selectTab",
+          });
+        },
+        label: index === 8 ? "Last Tab" : `Tab ${index + 1}`,
+      })),
+    ],
   };
 
   const historyMenu: MenuItemConstructorOptions = {
     label: "History",
     submenu: [
+      // A focused browser guest navigates its own history, the way the main
+      // window's does; otherwise the window's screens do.
       {
         accelerator: "CmdOrCtrl+[",
         click: () => {
-          publisher.publish("orchestrator.command", "back");
+          if (!getBrowserViewManager()?.navigateFocusedGuest("back")) {
+            publisher.publish("orchestrator.command", "back");
+          }
         },
         label: "Back",
       },
       {
         accelerator: "CmdOrCtrl+]",
         click: () => {
-          publisher.publish("orchestrator.command", "forward");
+          if (!getBrowserViewManager()?.navigateFocusedGuest("forward")) {
+            publisher.publish("orchestrator.command", "forward");
+          }
         },
         label: "Forward",
       },

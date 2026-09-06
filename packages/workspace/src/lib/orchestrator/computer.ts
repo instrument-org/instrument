@@ -93,10 +93,10 @@ export async function computerPlaces(): Promise<ComputerPlaces> {
   const home = os.homedir();
   const candidates: [string, string][] = [
     ["Home", home],
+    ["Instrument", outputFolderPath()],
     ["Desktop", path.join(home, "Desktop")],
     ["Documents", path.join(home, "Documents")],
     ["Downloads", path.join(home, "Downloads")],
-    ["Instrument", outputFolderPath()],
   ];
   const candidatePlaces = await Promise.all(
     candidates.map(async ([name, folder]) =>
@@ -123,7 +123,16 @@ export async function computerPlaces(): Promise<ComputerPlaces> {
     );
     volumes = mounted.filter((place) => place !== undefined);
   } catch {
-    // Not a Mac, or no volumes folder: the favorites are the whole computer.
+    // Not a Mac, or no volumes folder: the root the home folder sits on,
+    // named the way that system names it.
+    const { root } = path.parse(home);
+    volumes = [
+      {
+        name:
+          process.platform === "win32" ? root.replace(/[\\/]+$/, "") : "Root",
+        path: root,
+      },
+    ];
   }
   return { favorites, volumes };
 }

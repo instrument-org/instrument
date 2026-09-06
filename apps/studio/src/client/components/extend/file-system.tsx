@@ -62,7 +62,6 @@ import {
   ChevronUp,
   Calendar,
   FileArchiveIcon,
-  GalleryThumbnails,
   LayoutGrid,
   Columns3,
   Columns3Icon,
@@ -87,9 +86,6 @@ function Calendar03Glyph(props: InlineRegistryIconProps) {
 }
 function File01Glyph(props: InlineRegistryIconProps) {
   return <FileArchiveIcon {...props} />;
-}
-function GalleryThumbnailsGlyph(props: InlineRegistryIconProps) {
-  return <GalleryThumbnails {...props} />;
 }
 function GridViewGlyph(props: InlineRegistryIconProps) {
   return <LayoutGrid {...props} />;
@@ -187,6 +183,8 @@ export type FileSystemProps = {
   renderTrailing?: (folderPath: string) => React.ReactNode;
   /** What the columns view shows in its preview pane for a selected file, when something other than its icon. */
   renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
+  /** Controls drawn under a selected file's name in the columns view's preview pane. */
+  renderFileActions?: (file: FileSystemFileItem) => React.ReactNode;
   /**
    * Lazily render a page thumbnail beyond the eagerly provided
    * `previewImageUrls` (the pager calls this as pages come into view).
@@ -1206,7 +1204,6 @@ const VIEW_OPTIONS: Array<{
   { icon: GridViewGlyph, label: "Grid", value: "icons" },
   { icon: LeftToRightListBulletGlyph, label: "List", value: "list" },
   { icon: LayoutThreeColumnGlyph, label: "Columns", value: "columns" },
-  { icon: GalleryThumbnailsGlyph, label: "Gallery", value: "gallery" },
 ];
 export function FileSystem({
   items,
@@ -1225,6 +1222,7 @@ export function FileSystem({
   renderFilePreview,
   renderTrailing,
   renderFileStage,
+  renderFileActions,
 }: FileSystemProps) {
   const [internalView, setInternalView] = React.useState(defaultView);
   const view = viewProp ?? internalView;
@@ -1246,8 +1244,6 @@ export function FileSystem({
     stack: [normalizeFolderPath(defaultPath)],
   }));
   const currentPath = history.stack[history.index] ?? "";
-  const canGoBack = history.index > 0;
-  const canGoForward = history.index < history.stack.length - 1;
   React.useEffect(() => {
     onPathChange?.(currentPath);
   }, [currentPath, onPathChange]);
@@ -1780,22 +1776,6 @@ export function FileSystem({
     },
     [ensureChildren, selectEntry],
   );
-  const goBack = React.useCallback(() => {
-    setHistory((previous) => ({
-      ...previous,
-      index: Math.max(0, previous.index - 1),
-    }));
-    setSearchInput("");
-    selectEntry(null);
-  }, [selectEntry]);
-  const goForward = React.useCallback(() => {
-    setHistory((previous) => ({
-      ...previous,
-      index: Math.min(previous.stack.length - 1, previous.index + 1),
-    }));
-    setSearchInput("");
-    selectEntry(null);
-  }, [selectEntry]);
   const currentEntries = sortedIndex.children.get(currentPath) ?? [];
   const currentFolderName =
     currentPath === "" ? title : pathName(currentPath) || title;
@@ -1822,6 +1802,7 @@ export function FileSystem({
     renderFilePreview,
     renderTrailing,
     renderFileStage,
+    renderFileActions,
     searchQuery,
     selectedEntry,
     selectedPath,
@@ -1865,26 +1846,6 @@ export function FileSystem({
       <FileSystemIconSpriteSheet />
       <div className="relative flex h-12 shrink-0 items-center gap-2 border-b bg-muted/40 px-2">
         <div className="flex min-w-0 flex-1 items-center gap-0.5">
-          <button
-            type="button"
-            aria-label="Back"
-            title="Back"
-            disabled={!canGoBack}
-            onClick={goBack}
-            className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
-          >
-            <ChevronLeft className="size-4.5" />
-          </button>
-          <button
-            type="button"
-            aria-label="Forward"
-            title="Forward"
-            disabled={!canGoForward}
-            onClick={goForward}
-            className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
-          >
-            <ArrowRight className="size-4.5" />
-          </button>
           {headerLayout !== "minimal" ? (
             <span className="ml-1.5 truncate text-sm font-semibold">
               {currentFolderName}
@@ -2912,6 +2873,7 @@ type FileSystemViewProps = {
   renderFilePreview?: (file: FileSystemFileItem) => React.ReactNode;
   renderTrailing?: (folderPath: string) => React.ReactNode;
   renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
+  renderFileActions?: (file: FileSystemFileItem) => React.ReactNode;
   searchQuery: string;
   selectedEntry: FileSystemEntry | null;
   selectedPath: string | null;
@@ -3924,6 +3886,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     renderFilePreview,
     renderTrailing,
     renderFileStage,
+    renderFileActions,
     selectedEntry,
     selectedPath,
   } = props;
@@ -4039,6 +4002,9 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     : null;
   const selectedFileStage =
     selectedFile && renderFileStage ? renderFileStage(selectedFile) : null;
+  // One width for every column, dragged at any column's right edge, the way
+  // the Finder's option-drag sets them all.
+  const [columnWidth, setColumnWidth] = React.useState(COLUMN_WIDTH_DEFAULT);
   React.useEffect(() => {
     const container = scrollContainerRef.current;
     if (container) container.scrollLeft = container.scrollWidth;
@@ -4066,8 +4032,10 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
             index={index}
             isLoading={loadingFolders.has(columnPath)}
             onOpen={onOpen}
+            onResize={setColumnWidth}
             onSelect={onSelect}
             rowRefs={rowRefs}
+            width={columnWidth}
             // Scalar per-column props so the memoized column only
             // re-renders when its own rows change — a selection deeper in
             // the trail leaves ancestor columns untouched.
@@ -4120,6 +4088,11 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
                   {selectedFileSize ? ` - ${selectedFileSize}` : null}
                 </div>
               </div>
+              {renderFileActions ? (
+                <div className="flex justify-center">
+                  {renderFileActions(selectedFile)}
+                </div>
+              ) : null}
               <FileSystemInformation entry={selectedFile} index={index} />
             </div>
           </InlineScrollArea2>
@@ -4139,26 +4112,33 @@ const COLUMN_ROW_GAP = 1; // gap-px
 const COLUMN_ROW_STRIDE = COLUMN_ROW_HEIGHT + COLUMN_ROW_GAP;
 // Memoized with scalar selection props: pressing into a deep trail only
 // re-renders the columns whose rows actually change.
+const COLUMN_WIDTH_DEFAULT = 240;
+const COLUMN_WIDTH_MIN = 160;
+const COLUMN_WIDTH_MAX = 640;
 const FileSystemColumn = React.memo(function FileSystemColumn({
   entries,
   index,
   isLoading,
   onOpen,
+  onResize,
   onSelect,
   rowRefs,
   selectedChildPath,
   tabStopChildPath,
   trailChildPath,
+  width,
 }: {
   entries: FileSystemEntry[];
   index: FileSystemIndex;
   isLoading: boolean;
   onOpen: (entry: FileSystemEntry) => void;
+  onResize: (width: number) => void;
   onSelect: (entry: FileSystemEntry | null) => void;
   rowRefs: React.RefObject<Map<string, HTMLButtonElement>>;
   selectedChildPath: string | null;
   tabStopChildPath: string | null;
   trailChildPath: string | null;
+  width: number;
 }) {
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
   const { end, start } = useVirtualWindow({
@@ -4181,110 +4161,145 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
     });
   }, [entries, selectedChildPath]);
   return (
-    <InlineScrollArea2
-      orientation="vertical"
-      className="w-60 shrink-0 border-r"
-      viewportRef={viewportRef}
-      viewportClassName="p-1.5"
-      viewportProps={{ "aria-label": "Files", role: "listbox" }}
-    >
-      {isLoading && entries.length === 0 ? (
-        <div className="animate-pulse px-2 py-1.5 text-xs text-muted-foreground motion-reduce:animate-none">
-          Loading…
-        </div>
-      ) : (
-        <div
-          className="relative"
-          style={{
-            height: entries.length
-              ? entries.length * COLUMN_ROW_STRIDE - COLUMN_ROW_GAP
-              : undefined,
-          }}
-        >
-          <div
-            className="absolute inset-x-0 flex flex-col gap-px"
-            style={{ top: start * COLUMN_ROW_STRIDE }}
-          >
-            {entries.slice(start, end).map((entry) => {
-              const isSelected = entry.path === selectedChildPath;
-              const isOnTrail =
-                entry.kind === "folder" && entry.path === trailChildPath;
-              const coverUrl =
-                entry.kind === "file" ? filePreviewUrls(entry)[0] : undefined;
-              return (
-                <button
-                  key={entry.path}
-                  type="button"
-                  role="option"
-                  aria-selected={isSelected}
-                  // Selected rows sit on the primary surface — the opposite
-                  // of the mode's background — so the file-type icon swaps
-                  // to the opposite palette.
-                  data-file-system-on-primary={isSelected ? "" : undefined}
-                  tabIndex={entry.path === tabStopChildPath ? 0 : -1}
-                  ref={(element) => {
-                    if (element) {
-                      rowRefs.current.set(entry.path, element);
-                    } else {
-                      rowRefs.current.delete(entry.path);
-                    }
-                  }}
-                  // Selecting on press (mouse only) starts mounting the
-                  // child column a beat before mouseup — the immediacy
-                  // @pierre/trees rows have. Touch keeps selection on the
-                  // click so scroll gestures don't select.
-                  onPointerDown={(event) => {
-                    if (event.pointerType === "mouse" && event.button === 0) {
-                      onSelect(entry);
-                    }
-                  }}
-                  onClick={() => onSelect(entry)}
-                  onDoubleClick={() => onOpen(entry)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") onOpen(entry);
-                  }}
-                  className={cn(
-                    "flex h-7 shrink-0 items-center gap-2 rounded-md px-2 py-1 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    isSelected
-                      ? "bg-primary text-primary-foreground"
-                      : isOnTrail
-                        ? "bg-accent"
-                        : "hover:bg-accent/50",
-                  )}
-                >
-                  {entry.kind === "folder" ? (
-                    <FileSystemFolderGlyph className="h-3.5 w-auto shrink-0" />
-                  ) : coverUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- Cover thumbnails come from caller-provided file preview URLs.
-                    <img
-                      src={coverUrl}
-                      alt=""
-                      draggable={false}
-                      className="size-4 shrink-0 rounded-[3px] bg-white object-cover"
-                    />
-                  ) : (
-                    <FileTypeIcon
-                      fileName={entry.name}
-                      className="size-4 shrink-0"
-                    />
-                  )}
-                  <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-                  {entry.kind === "folder" &&
-                  folderHasChildren(index, entry) ? (
-                    <ChevronRight
-                      className={cn(
-                        "size-3.5 shrink-0",
-                        !isSelected && "text-muted-foreground/60",
-                      )}
-                    />
-                  ) : null}
-                </button>
-              );
-            })}
+    <div className="relative shrink-0 border-r" style={{ width }}>
+      <InlineScrollArea2
+        orientation="vertical"
+        className="h-full w-full"
+        viewportRef={viewportRef}
+        viewportClassName="p-1.5"
+        viewportProps={{ "aria-label": "Files", role: "listbox" }}
+      >
+        {isLoading && entries.length === 0 ? (
+          <div className="animate-pulse px-2 py-1.5 text-xs text-muted-foreground motion-reduce:animate-none">
+            Loading…
           </div>
-        </div>
-      )}
-    </InlineScrollArea2>
+        ) : (
+          <div
+            className="relative"
+            style={{
+              height: entries.length
+                ? entries.length * COLUMN_ROW_STRIDE - COLUMN_ROW_GAP
+                : undefined,
+            }}
+          >
+            <div
+              className="absolute inset-x-0 flex flex-col gap-px"
+              style={{ top: start * COLUMN_ROW_STRIDE }}
+            >
+              {entries.slice(start, end).map((entry) => {
+                const isSelected = entry.path === selectedChildPath;
+                const isOnTrail =
+                  entry.kind === "folder" && entry.path === trailChildPath;
+                const coverUrl =
+                  entry.kind === "file" ? filePreviewUrls(entry)[0] : undefined;
+                return (
+                  <button
+                    key={entry.path}
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    // Selected rows sit on the primary surface — the opposite
+                    // of the mode's background — so the file-type icon swaps
+                    // to the opposite palette.
+                    data-file-system-on-primary={isSelected ? "" : undefined}
+                    tabIndex={entry.path === tabStopChildPath ? 0 : -1}
+                    ref={(element) => {
+                      if (element) {
+                        rowRefs.current.set(entry.path, element);
+                      } else {
+                        rowRefs.current.delete(entry.path);
+                      }
+                    }}
+                    // Selecting on press (mouse only) starts mounting the
+                    // child column a beat before mouseup — the immediacy
+                    // @pierre/trees rows have. Touch keeps selection on the
+                    // click so scroll gestures don't select.
+                    onPointerDown={(event) => {
+                      if (event.pointerType === "mouse" && event.button === 0) {
+                        onSelect(entry);
+                      }
+                    }}
+                    onClick={() => onSelect(entry)}
+                    onDoubleClick={() => onOpen(entry)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") onOpen(entry);
+                    }}
+                    className={cn(
+                      "flex h-7 shrink-0 items-center gap-2 rounded-md px-2 py-1 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      isSelected
+                        ? "bg-primary text-primary-foreground"
+                        : isOnTrail
+                          ? "bg-accent"
+                          : "hover:bg-accent/50",
+                    )}
+                  >
+                    {entry.kind === "folder" ? (
+                      <FileSystemFolderGlyph className="h-3.5 w-auto shrink-0" />
+                    ) : coverUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- Cover thumbnails come from caller-provided file preview URLs.
+                      <img
+                        src={coverUrl}
+                        alt=""
+                        draggable={false}
+                        className="size-4 shrink-0 rounded-[3px] bg-white object-cover"
+                      />
+                    ) : (
+                      <FileTypeIcon
+                        fileName={entry.name}
+                        className="size-4 shrink-0"
+                      />
+                    )}
+                    <span className="min-w-0 flex-1 truncate">
+                      {entry.name}
+                    </span>
+                    {entry.kind === "folder" &&
+                    folderHasChildren(index, entry) ? (
+                      <ChevronRight
+                        className={cn(
+                          "size-3.5 shrink-0",
+                          !isSelected && "text-muted-foreground/60",
+                        )}
+                      />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </InlineScrollArea2>
+      {/* The edge that drags: every column follows, since the width is one. */}
+      <div
+        aria-hidden
+        className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize hover:bg-ring/30"
+        onPointerDown={(event) => {
+          event.preventDefault();
+          const handle = event.currentTarget;
+          const startX = event.clientX;
+          const startWidth = width;
+          handle.setPointerCapture(event.pointerId);
+          const move = (moveEvent: PointerEvent) => {
+            onResize(
+              Math.min(
+                COLUMN_WIDTH_MAX,
+                Math.max(
+                  COLUMN_WIDTH_MIN,
+                  startWidth + moveEvent.clientX - startX,
+                ),
+              ),
+            );
+          };
+          const stop = () => {
+            handle.removeEventListener("pointermove", move);
+            handle.removeEventListener("pointerup", stop);
+            handle.removeEventListener("pointercancel", stop);
+          };
+          handle.addEventListener("pointermove", move);
+          handle.addEventListener("pointerup", stop);
+          handle.addEventListener("pointercancel", stop);
+        }}
+      />
+    </div>
   );
 });
 function FileSystemInformation({

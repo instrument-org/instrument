@@ -42,6 +42,9 @@ interface PublisherEvents {
     | "back"
     | "closeTab"
     | "forward"
+    | "newTab"
+    | "nextTab"
+    | "previousTab"
     | "reopenTab"
     | { index: number; type: "selectTab" };
   "preferences.updated": null;

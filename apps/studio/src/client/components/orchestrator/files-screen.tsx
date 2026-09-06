@@ -19,6 +19,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useAtom, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 
+import { computerName } from "./computer-name";
 import { ComputerPage, type FolderOnScreen } from "./computer-page";
 import { useOrchestrator } from "./context";
 import { useOnScreen } from "./on-screen";
@@ -57,17 +58,21 @@ export function FilesScreen({
     ? fileTabs.find((tab) => tab.mount === file)
     : undefined;
 
-  // A file in the address that the strip does not hold yet (a link followed
-  // from Recent after a launch) joins the strip.
+  // A file in the address when the screen first mounts (a launch landing on
+  // the last address) joins the strip. Only then: while the screen is up,
+  // tabs are opened by whoever opens them, and a close that is still
+  // navigating away from the address it removed must not be undone here.
   useEffect(() => {
-    if (!file || fileTabs.some((tab) => tab.mount === file)) {
+    if (!file) {
       return;
     }
-    setFileTabs((current) => [
-      ...current,
-      { mount: file, name: file.split("/").at(-1) ?? file },
-    ]);
-  }, [file, fileTabs, setFileTabs]);
+    setFileTabs((current) =>
+      current.some((tab) => tab.mount === file)
+        ? current
+        : [...current, { mount: file, name: file.split("/").at(-1) ?? file }],
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useOnScreen(
     activeFile
@@ -204,7 +209,7 @@ export function FilesScreen({
             icon: <LaptopIcon className="size-3.5" />,
             isFixed: true,
             key: FOLDER_TAB,
-            title: "This Mac",
+            title: computerName(),
           },
           ...fileTabs.map((tab) => ({
             icon: <FileIcon className="size-4" filename={tab.name} />,

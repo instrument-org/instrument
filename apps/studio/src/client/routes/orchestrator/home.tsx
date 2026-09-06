@@ -3,6 +3,7 @@ import {
   originOf,
   siteFaviconsAtom,
 } from "@/client/atoms/orchestrator";
+import { computerName } from "@/client/components/orchestrator/computer-name";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { RecentIcon, SiteIcon } from "@/client/components/orchestrator/sidebar";
@@ -48,7 +49,7 @@ const SCREENS: {
 }[] = [
   {
     icon: LaptopIcon,
-    name: "This Mac",
+    name: computerName(),
     search: { path: "", root: "~" },
     to: "/orchestrator/computer",
   },
@@ -314,7 +315,7 @@ function HomeRoute() {
         >
           <LaptopIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
           <span className="min-w-0">
-            <span className="block text-sm font-medium">This Mac</span>
+            <span className="block text-sm font-medium">{computerName()}</span>
             <span className="block truncate text-xs text-muted-foreground">
               {places.data?.favorites.map((place) => place.name).join(", ") ??
                 "Your folders"}

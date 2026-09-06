@@ -121,3 +121,31 @@ export function useSelectFileTab() {
     });
   };
 }
+
+/** Shows the next or previous tab on This Mac, the folder browser counting as the first, wrapping. */
+export function useSelectRelativeFileTab() {
+  const fileTabs = useAtomValue(fileTabsAtom);
+  const navigate = useNavigate();
+  const location = useRouterState({ select: (state) => state.location });
+  return (direction: -1 | 1) => {
+    if (location.pathname !== "/orchestrator/computer") {
+      return;
+    }
+    const search = location.search as {
+      file?: string;
+      path?: string;
+      root?: string;
+    };
+    const keys = [undefined, ...fileTabs.map((tab) => tab.mount)];
+    const at = Math.max(0, keys.indexOf(search.file));
+    const next = keys[(at + direction + keys.length) % keys.length];
+    void navigate({
+      search: {
+        path: search.path ?? "",
+        root: search.root ?? "~",
+        ...(next ? { file: next } : {}),
+      },
+      to: "/orchestrator/computer",
+    });
+  };
+}

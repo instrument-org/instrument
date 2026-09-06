@@ -23,7 +23,7 @@ export function viewContextModelNote(data: ViewContext) {
     }
     case "computer": {
       return systemNote`
-        When the user sent this, This Mac showed ${folderShown(data)}. "This folder", "here", "in here" and "these" refer to that. ${folderReach(data)}
+        When the user sent this, the folder view showed ${folderShown(data)}. "This folder", "here", "in here" and "these" refer to that. ${folderReach(data)}
       `;
     }
     case "discover": {
@@ -52,7 +52,7 @@ function fileNote(data: ViewContext) {
   const { file } = data;
   if (!file) {
     return systemNote`
-      When the user sent this, a file was open on This Mac. "This file" and "this" refer to it.
+      When the user sent this, a file was open in the folder view. "This file" and "this" refer to it.
     `;
   }
   const reach = file.mount
@@ -62,7 +62,7 @@ function fileNote(data: ViewContext) {
     ? ` It sits in \`${data.folder.display}\`, which "this folder" means.`
     : "";
   return systemNote`
-    When the user sent this, This Mac showed the file \`${file.path}\` open. "This file", "this" and "it" refer to it. ${reach}${folder}
+    When the user sent this, the folder view showed the file \`${file.path}\` open. "This file", "this" and "it" refer to it. ${reach}${folder}
   `;
 }
 

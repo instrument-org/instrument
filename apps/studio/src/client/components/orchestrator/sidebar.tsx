@@ -25,8 +25,14 @@ import { HouseIcon } from "@phosphor-icons/react/House";
 import { LaptopIcon } from "@phosphor-icons/react/Laptop";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { type ComponentType, type ReactNode, useContext } from "react";
+import {
+  type ComponentType,
+  type ReactNode,
+  useContext,
+  useState,
+} from "react";
 
+import { computerName } from "./computer-name";
 import { useOrchestrator } from "./context";
 
 /** How many of the files the conversation linked the sidebar lists. */
@@ -77,7 +83,7 @@ const PLACES: Place[] = [
   {
     icon: LaptopIcon,
     isAt: atPath("/orchestrator/computer"),
-    label: "This Mac",
+    label: computerName(),
     open: (navigate) =>
       void navigate({
         search: { path: "", root: "~" },
@@ -225,12 +231,18 @@ export function SiteIcon({
   favicon?: string | undefined;
   url?: string | undefined;
 }) {
-  if (favicon) {
+  // An announced icon that does not load (a site with none, a stale address)
+  // gives way to the proxy's, then the globe, rather than a broken image.
+  const [failed, setFailed] = useState<string | undefined>();
+  if (favicon && failed !== favicon) {
     return (
       <img
         alt=""
         className="size-4 shrink-0 rounded-xs"
         draggable={false}
+        onError={() => {
+          setFailed(favicon);
+        }}
         src={favicon}
       />
     );

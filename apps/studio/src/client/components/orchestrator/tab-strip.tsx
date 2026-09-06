@@ -318,6 +318,9 @@ export function TabStrip({
                 }
                 onClose(tab.key);
               }}
+              onContextMenu={(event) => {
+                onContextMenu?.(tab.key, event);
+              }}
               onDragEnd={() => {
                 setDraggingKey(undefined);
               }}

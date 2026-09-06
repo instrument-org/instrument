@@ -745,7 +745,9 @@ export function ChatStream({
               className={SENT_BOX}
               key={message.id}
               messageId={message.id}
-              scrollAnchor
+              // The conversation keeps to its end, the way a chat does; a
+              // turn brought to the top is for reading work back.
+              scrollAnchor={presentation !== "orchestrator"}
             >
               {messageElements}
             </MessageScrollerItem>

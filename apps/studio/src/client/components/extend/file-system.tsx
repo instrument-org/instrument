@@ -3357,6 +3357,19 @@ function FileSystemListView({
         paths.push(relativePath);
       }
     }
+    // Folders as rows of their own, trailing slash and all, which is how the
+    // tree tells a directory from a file: a folder whose children are not
+    // loaded yet has no file path to stand in for it, and a folder of
+    // folders would otherwise list nothing. Under a filter a folder is only
+    // as visible as the files inside it, so none is added there.
+    if (!fileFilter) {
+      for (const path of index.folders.keys()) {
+        if (currentPath === "" || path.startsWith(currentPath)) {
+          const relativePath = path.slice(currentPath.length);
+          if (relativePath) paths.push(relativePath);
+        }
+      }
+    }
     return paths.sort();
   }, [currentPath, fileFilter, index]);
   if (relativePaths.length === 0) {

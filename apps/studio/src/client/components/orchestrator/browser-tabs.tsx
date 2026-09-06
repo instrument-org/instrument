@@ -51,6 +51,8 @@ export interface BrowserTabsHandle {
 
 /** What the page had on it that the words in a message can refer to. */
 export interface PageContext {
+  /** The control the user's cursor is in, described: "the editor, after 'Prototype'". */
+  focus?: string;
   selection?: string;
   /** The tab on screen, by the id a task can be handed. */
   tab?: string;
@@ -67,18 +69,56 @@ export interface PageContext {
 const PAGE_TEXT_MAX = 1500;
 const SELECTION_MAX = 2000;
 
-const PageWordsSchema = z.object({ selection: z.string(), text: z.string() });
+const PageWordsSchema = z.object({
+  focus: z.string(),
+  selection: z.string(),
+  text: z.string(),
+});
 
-/** Runs in the page: what is selected, and its text with the whitespace folded. */
-const READ_PAGE_WORDS = `({
-  selection: String(window.getSelection() ?? ""),
-  text: (
-    (document.querySelector("main, article, [role=main]") ?? document.body)
-      ?.innerText ?? ""
-  )
-    .replace(/\\s+/g, " ")
-    .trim(),
-})`;
+/**
+ * Runs in the page: what is selected, its text with the whitespace folded,
+ * and where the cursor is. The focused control is described by what any
+ * page says about itself (its role or tag, its label or placeholder, and the
+ * words around the caret when it holds text), never by knowing the site.
+ */
+const READ_PAGE_WORDS = `(() => {
+  const fold = (words) => String(words ?? "").replace(/\\s+/g, " ").trim();
+  const describeFocus = () => {
+    const el = document.activeElement;
+    if (!el || el === document.body || el === document.documentElement) return "";
+    const kind =
+      el.getAttribute("role") ||
+      (el.isContentEditable ? "editor" : el.tagName.toLowerCase());
+    const label = fold(
+      el.getAttribute("aria-label") ||
+        el.getAttribute("placeholder") ||
+        el.getAttribute("title") ||
+        el.getAttribute("name") ||
+        (el.labels && el.labels[0] && el.labels[0].innerText) ||
+        "",
+    );
+    let around = "";
+    const selection = window.getSelection();
+    if (el.isContentEditable && selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const block = range.startContainer.nodeType === 3 ? range.startContainer.parentElement : range.startContainer;
+      around = fold(block && block.innerText).slice(0, 160);
+    } else if ("value" in el && typeof el.value === "string") {
+      around = fold(el.value).slice(0, 160);
+    }
+    return (
+      "the " + kind + (label ? ' "' + label.slice(0, 80) + '"' : "") +
+      (around ? ", at the line \u201c" + around + "\u201d" : ", which is empty")
+    );
+  };
+  return {
+    focus: describeFocus(),
+    selection: String(window.getSelection() ?? ""),
+    text: fold(
+      (document.querySelector("main, article, [role=main]") ?? document.body)?.innerText,
+    ),
+  };
+})()`;
 
 type PageTabsUpdate = (current: {
   activeId: null | string;
@@ -429,8 +469,10 @@ export function BrowserTabs({
         }
         const selection = words.data.selection.trim().slice(0, SELECTION_MAX);
         const text = words.data.text.slice(0, PAGE_TEXT_MAX);
+        const { focus } = words.data;
         return {
           ...base,
+          ...(focus ? { focus } : {}),
           ...(selection ? { selection } : {}),
           ...(text ? { text } : {}),
         };

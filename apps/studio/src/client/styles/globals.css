@@ -12,8 +12,11 @@
   position: relative;
 }
 
+/* The line box a surface wants: the block's 24px unless it says otherwise,
+   which a one-row pill does to center a 20px line. A variable rather than a
+   utility because this rule is unlayered, and no utility could beat it. */
 .prompt-editor p {
-  min-height: 1.5rem;
+  min-height: var(--prompt-editor-line, 1.5rem);
   margin: 0;
 }
 

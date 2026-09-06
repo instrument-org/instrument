@@ -111,7 +111,7 @@ export function ComposerFrame({
           {/* One 20px line box for the words and the placeholder alike, centered
               in the row's 28px: the editor's own paragraph height is for the
               block, and would sit this line high by a couple of pixels. */}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col self-center py-1 [&_.prompt-editor]:min-h-5 [&_.prompt-editor]:text-[13px] [&_.prompt-editor]:leading-5 [&_.prompt-editor_p]:min-h-5">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col self-center py-1 [--prompt-editor-line:1.25rem] [&_.prompt-editor]:min-h-5 [&_.prompt-editor]:text-[13px] [&_.prompt-editor]:leading-5">
             {children}
           </div>
           <div

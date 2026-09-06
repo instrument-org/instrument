@@ -400,11 +400,6 @@ export function ComputerPage({
       : (root.split("/").findLast(Boolean) ??
         places.data.volumes[0]?.name ??
         "Root");
-  const crumbs = breadcrumbs(
-    currentListing?.path ?? rootHostPath ?? root,
-    places.data,
-  );
-
   return (
     <div className="flex h-full min-h-0">
       <nav className="flex w-44 shrink-0 flex-col gap-4 overflow-y-auto border-r border-border px-2 py-2 text-sm">
@@ -523,29 +518,52 @@ export function ComputerPage({
             title={rootName}
           />
         </div>
-        <div className="flex h-8 shrink-0 items-center gap-0.5 overflow-x-auto border-t border-border px-2 text-xs text-muted-foreground">
-          {crumbs.map((crumb, index) => (
-            <span
-              className="flex shrink-0 items-center gap-0.5"
-              key={crumb.path}
-            >
-              {index > 0 ? <CaretRightIcon className="size-3" /> : null}
-              <button
-                className={cn(
-                  "rounded px-1 py-0.5 hover:bg-foreground/5 hover:text-foreground",
-                  index === crumbs.length - 1 && "text-foreground",
-                )}
-                onClick={() => {
-                  rootTo(crumb.path);
-                }}
-                type="button"
-              >
-                {crumb.name}
-              </button>
-            </span>
-          ))}
-        </div>
+        <PathBar
+          hostPath={currentListing?.path ?? rootHostPath ?? root}
+          onOpen={rootTo}
+          places={places.data}
+        />
       </div>
+    </div>
+  );
+}
+
+/**
+ * The path on the Mac as the Finder writes it at the bottom of a window: the
+ * volume, then every folder down to this one, each a way there. The folder
+ * view and a file's tab draw the same bar, so a file is never shown without
+ * the place it sits in.
+ */
+export function PathBar({
+  hostPath,
+  onOpen,
+  places,
+}: {
+  hostPath: string;
+  /** A folder along the path, chosen. */
+  onOpen: (folder: string) => void;
+  places: { volumes: { name: string; path: string }[] };
+}) {
+  const crumbs = breadcrumbs(hostPath, places);
+  return (
+    <div className="flex h-8 shrink-0 items-center gap-0.5 overflow-x-auto border-t border-border px-2 text-xs text-muted-foreground">
+      {crumbs.map((crumb, index) => (
+        <span className="flex shrink-0 items-center gap-0.5" key={crumb.path}>
+          {index > 0 ? <CaretRightIcon className="size-3" /> : null}
+          <button
+            className={cn(
+              "rounded px-1 py-0.5 hover:bg-foreground/5 hover:text-foreground",
+              index === crumbs.length - 1 && "text-foreground",
+            )}
+            onClick={() => {
+              onOpen(crumb.path);
+            }}
+            type="button"
+          >
+            {crumb.name}
+          </button>
+        </span>
+      ))}
     </div>
   );
 }

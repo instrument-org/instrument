@@ -417,7 +417,15 @@ export function createBrowserViewManager(): BrowserViewManager {
       return waitForAttach(existing).then(() => ({ targetId }));
     }
 
-    const entry = createEntry({ host, id, partitionDir, sessionId, targetId });
+    // A window that is not open cannot mount a guest, and a create that waited
+    // on one would time out; the main window is always there.
+    const entry = createEntry({
+      host: hosts.has(host) ? host : "main",
+      id,
+      partitionDir,
+      sessionId,
+      targetId,
+    });
     entries.set(targetId, entry);
     // Publishing the new desired set makes the renderer pool mount a guest
     // `<webview>` for this target; it attaches via will/did-attach-webview,

@@ -8,6 +8,7 @@ import { type TaskId } from "../../schemas/task-id";
 import { TaskPane } from "../../schemas/task-pane";
 import { recordBrowserUse } from "../browser-state";
 import { isTaskId } from "../is-task-id";
+import { browserHostForTask } from "../orchestrator/browser-host";
 import { isAtOrUnder, isUnder } from "../path-containment";
 import { getBrowserSessionDir, taskDir } from "../task-dir-utils";
 import { updateTaskPane } from "../task-record";
@@ -163,6 +164,7 @@ async function navigateTaskBrowser({
       taskId,
       sessionId,
       getBrowserSessionDir(),
+      await browserHostForTask(taskId),
     );
     // A navigation that never starts resolves rather than throwing, reporting
     // why in `errorText` -- an unresolvable host, a refused connection. Without

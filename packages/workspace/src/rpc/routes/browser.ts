@@ -7,7 +7,11 @@ import { getBrowserSessionDir } from "../../lib/task-dir-utils";
 import { BrowserPresenceLevelSchema } from "../../machines/task-browser";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
-import { BrowserHostSchema, BrowserTargetIdSchema } from "../../types";
+import {
+  BrowserHostSchema,
+  BrowserTargetIdSchema,
+  encodeBrowserTargetId,
+} from "../../types";
 import { base } from "../base";
 import { publisher } from "../publisher";
 
@@ -154,7 +158,21 @@ const agentActivity = base
     }
   });
 
+/**
+ * Closes a task's browser for good: the guest goes, and the task is told on
+ * its next turn that its page is gone. What closing one of the window's tabs
+ * means, as against hiding the panel it is drawn in.
+ */
+const close = base
+  .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
+  .handler(async ({ context, input }) => {
+    await context.workspaceConfig.browser.closeTarget(
+      encodeBrowserTargetId(input.id, input.sessionId),
+    );
+  });
+
 export const browser = {
+  close,
   events: {
     agentActivity,
   },

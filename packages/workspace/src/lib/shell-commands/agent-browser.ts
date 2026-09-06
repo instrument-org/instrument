@@ -30,6 +30,7 @@ import {
 import { recordBrowserUse } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isTaskId } from "../is-task-id";
+import { browserHostForTask } from "../orchestrator/browser-host";
 import { isAtOrUnder } from "../path-containment";
 import {
   getBrowserSessionDir,
@@ -732,6 +733,7 @@ export function createAgentBrowserCommand({
           id,
           sessionId,
           partitionDir,
+          await browserHostForTask(id),
         );
         targetId = target.targetId;
         await recordBrowserUseBestEffort({ sessionId, taskId });

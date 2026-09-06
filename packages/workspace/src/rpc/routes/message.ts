@@ -160,6 +160,12 @@ const create = base
         })();
       }
 
+      // Written now, so the conversation shows it the moment it was sent; the
+      // session runs it when its turn comes and never writes it again.
+      const written = await Store.saveMessageWithParts(message, taskId);
+      if (written.isErr()) {
+        throw toORPCError(written.error, errors);
+      }
       context.workspaceRef.send({
         type: "addMessage",
         value: {
@@ -167,6 +173,7 @@ const create = base
           id,
           message,
           model,
+          saved: true,
           sessionId: message.metadata.sessionId,
         },
       });

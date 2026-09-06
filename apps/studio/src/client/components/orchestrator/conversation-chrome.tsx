@@ -86,15 +86,16 @@ export function ViewChip() {
     return null;
   }
   return (
-    <div className="mb-2 flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
+    <span
+      className="flex h-7 max-w-64 items-center gap-1.5 rounded-lg bg-foreground/5 px-2 text-xs text-muted-foreground"
+      title="Goes with what you send"
+    >
       <EyeIcon className="size-3.5 shrink-0" />
-      <span className="flex min-w-0 items-center gap-1.5 rounded-md bg-foreground/5 px-1.5 py-0.5">
-        <span className="flex size-3.5 shrink-0 items-center justify-center">
-          {chip.icon}
-        </span>
-        <span className="truncate">{chip.title}</span>
+      <span className="flex size-3.5 shrink-0 items-center justify-center">
+        {chip.icon}
       </span>
-    </div>
+      <span className="truncate">{chip.title}</span>
+    </span>
   );
 
   function describe(): undefined | { icon: ReactNode; title: string } {

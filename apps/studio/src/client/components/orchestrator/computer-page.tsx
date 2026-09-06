@@ -329,14 +329,14 @@ export function ComputerPage({
               setSelectedPath(item?.path ?? null);
             }}
             renderFileStage={(file) => {
-              // Text reads in place, the way a document does; the viewers the
-              // browser has of its own cover the rest.
+              // Text reads as a thumbnail of the document, the way an image
+              // does; the viewers the browser has of its own cover the rest.
               const tab = fileTabOf(file);
               if (!tab || !isTextLike(file)) {
                 return null;
               }
               return (
-                <div className="absolute inset-0 p-3">
+                <DocumentThumbnail key={tab.mount}>
                   <FileViewer
                     className="h-full"
                     file={{
@@ -345,9 +345,8 @@ export function ComputerPage({
                       taskId,
                       url: getAssetUrl({ assetBase, filePath: tab.mount }),
                     }}
-                    key={tab.mount}
                   />
-                </div>
+                </DocumentThumbnail>
               );
             }}
             title={rootName}
@@ -410,6 +409,33 @@ function breadcrumbs(
  */
 function combineListings(results: { data: ComputerListing | undefined }[]) {
   return results.map((result) => result.data);
+}
+
+/** How much smaller than life a document is drawn in its thumbnail. */
+const THUMBNAIL_SCALE = 0.4;
+
+/**
+ * A document at thumbnail size: the viewer drawn at full width and scaled
+ * down into a page-shaped box, not interactive, clipped at the bottom the way
+ * a page preview is. The viewer sees a box wide enough to lay itself out as
+ * it would in a pane, so type and tables keep their shape at a smaller size.
+ */
+function DocumentThumbnail({ children }: { children: ReactNode }) {
+  const inverse = `${100 / THUMBNAIL_SCALE}%`;
+  return (
+    <div className="pointer-events-none aspect-[0.78] w-full overflow-hidden rounded-sm bg-card shadow-sm ring-1 ring-border">
+      <div
+        className="origin-top-left"
+        style={{
+          height: inverse,
+          transform: `scale(${THUMBNAIL_SCALE})`,
+          width: inverse,
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
 }
 
 const TEXT_EXTENSIONS = new Set([

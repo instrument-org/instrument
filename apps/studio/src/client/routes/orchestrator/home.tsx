@@ -5,10 +5,11 @@ import {
 } from "@/client/atoms/orchestrator";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
-import { RecentIcon } from "@/client/components/orchestrator/sidebar";
+import { RecentIcon, SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import uFuzzy from "@leeoniya/ufuzzy";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { LaptopIcon } from "@phosphor-icons/react/Laptop";
@@ -58,6 +59,9 @@ const SCREENS: {
 
 const RECENTS_SHOWN = 6;
 const TASKS_SHOWN = 5;
+const SCREENS_SHOWN = 4;
+
+const fuzzy = new uFuzzy({ intraMode: 1 });
 
 interface OmniRow {
   group: string;
@@ -84,11 +88,16 @@ function HomeRoute() {
     }),
   );
   const siteFavicons = useAtomValue(siteFaviconsAtom);
+  // The matcher the model picker uses: typed letters in order, close
+  // together, so "lsbn" finds lisbon.md and "pel news" the pelican task.
   const matches = (name: string) =>
-    !words || name.toLowerCase().includes(words);
+    !words || (fuzzy.filter([name], query.trim())?.length ?? 0) > 0;
   const typedSite = siteFromWords(query.trim());
 
-  const screens = SCREENS.filter((screen) => matches(screen.name));
+  const screens = SCREENS.filter((screen) => matches(screen.name)).slice(
+    0,
+    words ? SCREENS_SHOWN : SCREENS.length,
+  );
   const apps = APPS.filter((app) => matches(app.name));
   const tasks = (children.data ?? [])
     .filter((child) => matches(child.title))
@@ -151,7 +160,12 @@ function HomeRoute() {
     })),
     ...apps.map((app) => ({
       group: "Apps",
-      icon: <SiteIcon favicon={siteFavicons[originOf(app.url) ?? ""]} />,
+      icon: (
+        <SiteIcon
+          favicon={siteFavicons[originOf(app.url) ?? ""]}
+          url={app.url}
+        />
+      ),
       name: app.name,
       note: "App",
       run: () => {
@@ -236,7 +250,7 @@ function HomeRoute() {
           />
         </div>
         {words ? (
-          <div className="absolute inset-x-0 top-full z-10 mt-2 overflow-hidden rounded-xl border border-border bg-popover shadow-lg">
+          <div className="absolute inset-x-0 top-full z-10 mt-2 max-h-[60vh] overflow-y-auto rounded-xl border border-border bg-popover shadow-lg">
             {rows.length === 0 ? (
               <p className="px-4 py-3 text-sm text-muted-foreground">
                 Nothing by that name.
@@ -366,13 +380,4 @@ function siteFromWords(
   } catch {
     return;
   }
-}
-
-/** A site's own icon when a tab has announced one, else the globe. */
-function SiteIcon({ favicon }: { favicon: string | undefined }) {
-  return favicon ? (
-    <img alt="" className="size-4 rounded-xs" draggable={false} src={favicon} />
-  ) : (
-    <GlobeIcon className="size-4" />
-  );
 }

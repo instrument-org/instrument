@@ -9,6 +9,7 @@ import { StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { createSession } from "../create-session";
 import { getTasks } from "../get-tasks";
+import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
 import { getTaskSettings, recordTaskActivity } from "../task-settings";
@@ -165,6 +166,12 @@ async function deliver(
     role: "user",
   };
 
+  // Written now, so the note shows in the conversation the moment it fires,
+  // whatever the orchestrator is in the middle of.
+  const written = await Store.saveMessageWithParts(message, orchestratorId);
+  if (written.isErr()) {
+    throw new Error(written.error.message);
+  }
   workspaceRef.send({
     type: "addMessage",
     value: {
@@ -172,6 +179,7 @@ async function deliver(
       id: orchestratorId,
       message,
       model: modelResult.value,
+      saved: true,
       sessionId,
     },
   });

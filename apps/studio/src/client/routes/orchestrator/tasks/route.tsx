@@ -1,5 +1,14 @@
+import {
+  TASKS_COLUMN_MAX,
+  TASKS_COLUMN_MIN,
+  tasksColumnWidthAtom,
+} from "@/client/atoms/orchestrator";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
+import {
+  type RailBounds,
+  StudioSidebarRail,
+} from "@/client/components/studio-sidebar-rail";
 import { Spinner } from "@/client/components/ui/spinner";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -14,6 +23,14 @@ import {
 import ms from "ms";
 
 const REFRESH_MS = ms("2 seconds");
+
+/** The list column never collapses: its floor is its collapse point. */
+const COLUMN_BOUNDS: RailBounds = {
+  collapse: TASKS_COLUMN_MIN,
+  initial: 288,
+  max: TASKS_COLUMN_MAX,
+  min: TASKS_COLUMN_MIN,
+};
 
 /**
  * The Tasks screen: the tasks behind the conversation down a column, one row
@@ -81,61 +98,72 @@ function TasksLayout() {
 
   return (
     <div className="flex h-full min-h-0">
-      <div className="flex w-72 shrink-0 flex-col border-r border-border">
-        <h1 className="px-4 pt-3 pb-2 text-lg font-semibold">Tasks</h1>
-        <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-          {children.data ? (
-            children.data.length === 0 ? (
-              <p className="px-2 py-2 text-sm text-muted-foreground">
-                Ask for something and a task appears here.
-              </p>
-            ) : (
-              <ul className="flex flex-col gap-0.5">
-                {children.data.map((child) => {
-                  const isOpen =
-                    location.pathname === `/orchestrator/tasks/${child.id}`;
-                  const isRunning = running.has(child.id);
-                  return (
-                    <li key={child.id}>
-                      <button
-                        className={cn(
-                          "flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-foreground/5",
-                          isOpen && "bg-foreground/8",
-                        )}
-                        onClick={() => {
-                          void navigate({
-                            params: { id: child.id },
-                            to: "/orchestrator/tasks/$id",
-                          });
-                        }}
-                        type="button"
-                      >
-                        <span className="w-full truncate text-sm">
-                          {child.title}
-                        </span>
-                        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          {isRunning ? (
-                            <>
-                              <Spinner className="size-3" />
-                              Working
-                            </>
-                          ) : (
-                            `Done · ${ago(child.updatedAt)}`
+      <StudioSidebarRail
+        bounds={COLUMN_BOUNDS}
+        isOpen
+        label="Resize the task list"
+        onCollapse={() => {
+          // The list is the screen; it has no away to slide to.
+        }}
+        panelClassName="bg-background"
+        widthAtom={tasksColumnWidthAtom}
+      >
+        <div className="flex min-h-0 w-full flex-1 flex-col">
+          <h1 className="px-4 pt-3 pb-2 text-lg font-semibold">Tasks</h1>
+          <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+            {children.data ? (
+              children.data.length === 0 ? (
+                <p className="px-2 py-2 text-sm text-muted-foreground">
+                  Ask for something and a task appears here.
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-0.5">
+                  {children.data.map((child) => {
+                    const isOpen =
+                      location.pathname === `/orchestrator/tasks/${child.id}`;
+                    const isRunning = running.has(child.id);
+                    return (
+                      <li key={child.id}>
+                        <button
+                          className={cn(
+                            "flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-foreground/5",
+                            isOpen && "bg-foreground/8",
                           )}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )
-          ) : (
-            <div className="flex justify-center py-8">
-              <Spinner className="size-5" />
-            </div>
-          )}
+                          onClick={() => {
+                            void navigate({
+                              params: { id: child.id },
+                              to: "/orchestrator/tasks/$id",
+                            });
+                          }}
+                          type="button"
+                        >
+                          <span className="w-full truncate text-sm">
+                            {child.title}
+                          </span>
+                          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            {isRunning ? (
+                              <>
+                                <Spinner className="size-3" />
+                                Working
+                              </>
+                            ) : (
+                              `Done · ${ago(child.updatedAt)}`
+                            )}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )
+            ) : (
+              <div className="flex justify-center py-8">
+                <Spinner className="size-5" />
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </StudioSidebarRail>
       <div className="min-w-0 flex-1">
         <Outlet />
       </div>

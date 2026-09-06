@@ -29,6 +29,7 @@ import {
 import {
   hostPathOfMount,
   useCloseFileTab,
+  useReopenFileTab,
 } from "@/client/components/orchestrator/file-tabs";
 import { OrchestratorSidebar } from "@/client/components/orchestrator/sidebar";
 import {
@@ -256,12 +257,20 @@ function OrchestratorLayout() {
   // since the send handler below and the screens read it.
   const [browser, setBrowser] = useState<BrowserTabsHandle | null>(null);
   const closeFileTab = useCloseFileTab();
+  const reopenFileTab = useReopenFileTab();
   useWindowCommands({
     closeTab: () => {
       if (isBrowserScreen) {
         browser?.closeActive();
       } else {
         closeFileTab();
+      }
+    },
+    reopenTab: () => {
+      if (isBrowserScreen) {
+        browser?.reopenClosed();
+      } else {
+        reopenFileTab();
       }
     },
   });
@@ -593,16 +602,23 @@ function useRecordRecents({
 /**
  * What the main process asks of the window: back and forward from a trackpad
  * swipe, a thumb button or the History menu, and the close of the tab on
- * screen from Cmd+W. The thumb buttons also arrive as mouse events here,
+ * screen from Cmd+W, the reopening of the last closed one from Shift+Cmd+T.
+ * The thumb buttons also arrive as mouse events here,
  * for a mouse whose buttons the window sees before the main process does.
  */
-function useWindowCommands({ closeTab }: { closeTab: () => void }) {
+function useWindowCommands({
+  closeTab,
+  reopenTab,
+}: {
+  closeTab: () => void;
+  reopenTab: () => void;
+}) {
   const router = useRouter();
-  // The stream is opened once; what a close means is read at the moment of
-  // the chord, off whatever screen is up then.
-  const latestCloseTab = useRef(closeTab);
+  // The stream is opened once; what a close or a reopen means is read at the
+  // moment of the chord, off whatever screen is up then.
+  const latest = useRef({ closeTab, reopenTab });
   useEffect(() => {
-    latestCloseTab.current = closeTab;
+    latest.current = { closeTab, reopenTab };
   });
   useEffect(() => {
     const onMouseUp = (event: MouseEvent) => {
@@ -627,11 +643,15 @@ function useWindowCommands({ closeTab }: { closeTab: () => void }) {
               break;
             }
             case "closeTab": {
-              latestCloseTab.current();
+              latest.current.closeTab();
               break;
             }
             case "forward": {
               router.history.forward();
+              break;
+            }
+            case "reopenTab": {
+              latest.current.reopenTab();
               break;
             }
           }

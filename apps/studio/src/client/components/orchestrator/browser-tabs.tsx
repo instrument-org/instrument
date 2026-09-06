@@ -38,6 +38,8 @@ export interface BrowserTabsHandle {
   openOrFocus: (url: string) => void;
   /** Reads the tab on screen as it is at that moment; undefined while none is. */
   readPage: () => Promise<PageContext | undefined>;
+  /** Brings back the tab closed last, at the page it was on. */
+  reopenClosed: () => void;
 }
 
 /** What the page had on it that the words in a message can refer to. */
@@ -275,8 +277,15 @@ export function BrowserTabs({
     });
   };
 
+  // Tabs closed this launch, newest last, so Shift+Cmd+T has somewhere to
+  // reach. Not kept across launches: a guest gone with the app is gone.
+  const closed = useRef<BrowserTab[]>([]);
   const closeTab = (id: string) => {
     setTabs((current) => {
+      const closing = current.tabs.find((tab) => tab.id === id);
+      if (closing?.url) {
+        closed.current.push(closing);
+      }
       const remaining = current.tabs.filter((tab) => tab.id !== id);
       const index = current.tabs.findIndex((tab) => tab.id === id);
       const next =
@@ -285,6 +294,12 @@ export function BrowserTabs({
           : current.activeId;
       return { activeId: next, tabs: remaining };
     });
+  };
+  const reopenClosed = () => {
+    const tab = closed.current.pop();
+    if (tab?.url) {
+      openTab(tab.url);
+    }
   };
 
   useImperativeHandle(
@@ -364,6 +379,7 @@ export function BrowserTabs({
           ...(text ? { text } : {}),
         };
       },
+      reopenClosed,
     }),
     // The handle reads the strip through `latest` at call time.
     // eslint-disable-next-line react-hooks/exhaustive-deps

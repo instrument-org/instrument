@@ -65,7 +65,7 @@ type ParentActorRef = ActorRef<AnyMachineSnapshot, SessionMachineParentEvent>;
 
 type SessionMachineEvent =
   | AgentParentEvent
-  | { type: "addMessage"; value: SessionMessage.UserWithParts }
+  | { saved?: boolean; type: "addMessage"; value: SessionMessage.UserWithParts }
   | { type: "done" }
   | { type: "error"; value: { message: string } }
   | { type: "runTurn" }
@@ -139,6 +139,7 @@ export const sessionMachine = setup({
       SessionMessage.WithParts,
       {
         message: SessionMessage.UserWithParts;
+        saved: boolean;
         sessionId: StoreId.Session;
         taskId: TaskId;
       }
@@ -150,6 +151,9 @@ export const sessionMachine = setup({
         throw new Error(
           `Session ID mismatch: expected ${input.sessionId}, found parts with different session IDs`,
         );
+      }
+      if (input.saved) {
+        return input.message;
       }
       const result = await Store.saveMessageWithParts(
         input.message,
@@ -234,6 +238,8 @@ export const sessionMachine = setup({
       parentSessionId?: StoreId.Session;
       queuedMessages: SessionMessage.UserWithParts[];
       runRequested: boolean;
+      /** Queued messages the sender wrote to the store on arrival; see `addMessage`. */
+      savedMessageIds: StoreId.Message[];
       sessionId: StoreId.Session;
       sessionNamePrefix?: string;
       spawnAgent: SpawnAgentFunction;
@@ -357,6 +363,7 @@ export const sessionMachine = setup({
       parentSessionId: input.parentSessionId,
       queuedMessages: input.queuedMessages,
       runRequested: input.runRequested ?? false,
+      savedMessageIds: [],
       sessionId: input.sessionId,
       sessionNamePrefix: input.sessionNamePrefix,
       spawnAgent,
@@ -377,6 +384,9 @@ export const sessionMachine = setup({
         });
       },
     },
+    // A sender that wrote the message to the store first says so: the
+    // transcript shows it the moment it was sent, the way a message app does,
+    // and whoever runs it later reads it rather than writing it again.
     addMessage: {
       actions: [
         assign({
@@ -384,6 +394,10 @@ export const sessionMachine = setup({
             ...context.queuedMessages,
             event.value,
           ],
+          savedMessageIds: ({ context, event }) =>
+            event.saved
+              ? [...context.savedMessageIds, event.value.id]
+              : context.savedMessageIds,
         }),
         // A running agent hears it at its next point between steps and then
         // says so, which is what takes it back out of the queue. Until then it
@@ -391,7 +405,11 @@ export const sessionMachine = setup({
         ({ context, event }) => {
           const agentRef = context.agentRef;
           if (agentRef?.getSnapshot().status === "active") {
-            agentRef.send({ type: "steer", value: event.value });
+            agentRef.send({
+              saved: event.saved,
+              type: "steer",
+              value: event.value,
+            });
           }
         },
       ],
@@ -587,6 +605,7 @@ export const sessionMachine = setup({
           invariant(message, "No message to save");
           return {
             message,
+            saved: context.savedMessageIds.includes(message.id),
             sessionId: context.sessionId,
             taskId: context.taskId,
           };

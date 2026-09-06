@@ -1863,8 +1863,8 @@ export function FileSystem({
       )}
     >
       <FileSystemIconSpriteSheet />
-      <div className="relative grid h-12 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b bg-muted/40 px-2">
-        <div className="flex min-w-0 items-center gap-0.5">
+      <div className="relative flex h-12 shrink-0 items-center gap-2 border-b bg-muted/40 px-2">
+        <div className="flex min-w-0 flex-1 items-center gap-0.5">
           <button
             type="button"
             aria-label="Back"
@@ -4084,11 +4084,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
             trailChildPath={columnPaths[columnIndex + 1] ?? null}
           />
         ))}
-        {selectedFile && selectedFileStage ? (
-          <div className="relative min-w-60 flex-1 contain-inline-size">
-            {selectedFileStage}
-          </div>
-        ) : selectedFile ? (
+        {selectedFile ? (
           <InlineScrollArea2
             orientation="vertical"
             className="min-w-60 flex-1 contain-inline-size"
@@ -4103,15 +4099,17 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
                   maxWidth: `min(100%, ${(selectedFile.previewAspectRatio ?? 0.78) * 20}rem)`,
                 }}
               >
-                <FileVisual
-                  file={selectedFile}
-                  className="w-full"
-                  loadPreviewImageUrl={loadPreviewImageUrl}
-                  pageable
-                  pageUrlCache={pageUrlCache}
-                  previewAspectRatio={0.78}
-                  renderFilePreview={renderFilePreview}
-                />
+                {selectedFileStage ?? (
+                  <FileVisual
+                    file={selectedFile}
+                    className="w-full"
+                    loadPreviewImageUrl={loadPreviewImageUrl}
+                    pageable
+                    pageUrlCache={pageUrlCache}
+                    previewAspectRatio={0.78}
+                    renderFilePreview={renderFilePreview}
+                  />
+                )}
               </div>
               <div className="text-center">
                 <div className="text-sm font-semibold break-words">

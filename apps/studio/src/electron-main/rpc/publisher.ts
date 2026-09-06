@@ -38,7 +38,7 @@ interface PublisherEvents {
   // Asked of the orchestrator window by a swipe, a thumb button, or a menu
   // chord, which reach the main process rather than the page: history either
   // way, or the close of the tab on screen.
-  "orchestrator.command": "back" | "closeTab" | "forward";
+  "orchestrator.command": "back" | "closeTab" | "forward" | "reopenTab";
   "preferences.updated": null;
   "provider-config.updated": null;
   "server-exception": {

@@ -5,6 +5,7 @@ import {
   siteFaviconsAtom,
 } from "@/client/atoms/orchestrator";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
+import { Favicon } from "@/client/components/favicon";
 import { FileIcon } from "@/client/components/file-icon";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import {
@@ -153,7 +154,10 @@ export function OrchestratorSidebar({ className }: { className?: string }) {
           {PINNED.map((pin) => (
             <Item
               icon={
-                <SiteIcon favicon={siteFavicons[originOf(pin.url) ?? ""]} />
+                <SiteIcon
+                  favicon={siteFavicons[originOf(pin.url) ?? ""]}
+                  url={pin.url}
+                />
               }
               isActive={false}
               key={pin.name}
@@ -210,18 +214,31 @@ export function RecentIcon({ recent }: { recent: OrchestratorRecent }) {
   }
 }
 
-/** A site's own icon when a tab has announced one, else the globe. */
-export function SiteIcon({ favicon }: { favicon: string | undefined }) {
-  return favicon ? (
-    <img
-      alt=""
-      className="size-4 shrink-0 rounded-xs"
-      draggable={false}
-      src={favicon}
-    />
-  ) : (
-    <GlobeIcon className="size-4 shrink-0" />
-  );
+/**
+ * A site's icon: the one its page announced when a tab has one, else the
+ * one the favicon proxy serves for the address, else the globe.
+ */
+export function SiteIcon({
+  favicon,
+  url,
+}: {
+  favicon?: string | undefined;
+  url?: string | undefined;
+}) {
+  if (favicon) {
+    return (
+      <img
+        alt=""
+        className="size-4 shrink-0 rounded-xs"
+        draggable={false}
+        src={favicon}
+      />
+    );
+  }
+  if (url) {
+    return <Favicon className="size-4 shrink-0 rounded-xs" url={url} />;
+  }
+  return <GlobeIcon className="size-4 shrink-0" />;
 }
 
 function Item({

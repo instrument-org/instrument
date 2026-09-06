@@ -138,6 +138,20 @@ export interface FileTab {
   name: string;
 }
 
+/** File tabs closed this launch, newest last, for Shift+Cmd+T. */
+export const closedFileTabsAtom = atom<FileTab[]>([]);
+
+export const TASKS_COLUMN_MIN = 200;
+export const TASKS_COLUMN_MAX = 480;
+
+/** The Tasks screen's list column width in CSS px, dragged by its right edge. */
+export const tasksColumnWidthAtom = atomWithStorage<number>(
+  "orchestrator.tasks-column-width.v1",
+  288,
+  undefined,
+  { getOnInit: true },
+);
+
 /** The files open on This Mac, in strip order, kept across launches. */
 export const fileTabsAtom = atomWithStorage<FileTab[]>(
   "orchestrator.file-tabs.v1",

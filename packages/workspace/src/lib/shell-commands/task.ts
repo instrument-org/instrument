@@ -27,6 +27,7 @@ import {
 } from "../orchestrator/latest-session";
 import { listRunnableModels, modelTable } from "../orchestrator/models";
 import { expectStop } from "../orchestrator/wake";
+import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
 import { recordTaskActivity, updateTaskSettings } from "../task-settings";
@@ -635,6 +636,11 @@ async function runSend(
     throw message.error;
   }
   const running = isRunning(task.id);
+  // Written now, so the task's transcript shows it the moment it was sent.
+  const written = await Store.saveMessageWithParts(message.value, task.id);
+  if (written.isErr()) {
+    throw written.error;
+  }
   getWorkspaceActorRef().send({
     type: "addMessage",
     value: {
@@ -642,6 +648,7 @@ async function runSend(
       id: task.id,
       message: message.value,
       model,
+      saved: true,
       sessionId,
     },
   });

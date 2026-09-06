@@ -72,6 +72,8 @@ export type WorkspaceEvent =
         id: TaskId;
         message: SessionMessage.UserWithParts;
         model: AIGatewayModel.Type;
+        /** Already in the store, so the session shows it now and never writes it again. */
+        saved?: boolean;
         sessionId: StoreId.Session;
       };
     }
@@ -517,6 +519,7 @@ export const workspaceMachine = setup({
         actions: ({ context, event }) => {
           const targetRef = findLiveSessionRef(context, event.value);
           targetRef?.send({
+            saved: event.value.saved,
             type: "addMessage",
             value: event.value.message,
           });

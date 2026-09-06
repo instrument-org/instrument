@@ -133,6 +133,8 @@ interface PromptInputProps {
   isLoading: boolean;
   isStoppable?: boolean;
   isSubmittable?: boolean;
+  /** A chip at the head of the box, before any attached file: what goes with the prompt besides its words. */
+  lead?: React.ReactNode;
   modelURI?: AIGatewayModelURI.Type;
   // Whether a navigation that landed on the page this composer is already on is
   // answered here. On where the composer is what the page is for, so pressing
@@ -173,6 +175,7 @@ export const PromptInput = ({
   isLoading,
   isStoppable = false,
   isSubmittable = true,
+  lead,
   modelURI,
   nudgeOnReentry = false,
   onFolderCountChange,
@@ -890,12 +893,13 @@ export const PromptInput = ({
           </>
         }
         attachments={
-          attachedFiles.length > 0 && (
+          (lead || attachedFiles.length > 0) && (
             // A file lands in the corner of a box the user is looking away
             // from, at the caret, so it grows into place rather than appearing
             // there. `initial={false}`: the first one is carried in by the row
             // opening around it, and does not need a second motion of its own.
             <AnimatePresence initial={false}>
+              {lead}
               {attachedFiles.map((item) => (
                 <motion.div
                   animate={{ opacity: 1, scale: 1 }}

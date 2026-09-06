@@ -12,8 +12,10 @@ import {
   type SessionMessage,
   type Task,
 } from "@instrument-org/workspace/client";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import ms from "ms";
+import { Fragment, type ReactNode } from "react";
 
 /** How often a task's sessions and standing are re-read while it is open. */
 const REFRESH_MS = ms("2 seconds");
@@ -105,11 +107,22 @@ export function ChildTranscript({ task }: { task: Task }) {
 const LIMIT_LINE =
   /\b(?:effort|budget|minutes?|tokens?|no more than|at most|do not (?:go|spend)|\$\d)/i;
 
+/** One fact about the task: a label in muted type, the value beside it. */
+function Chip({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <span className="flex max-w-64 items-center gap-1 rounded-md bg-foreground/5 px-1.5 py-0.5">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="truncate font-medium">{children}</span>
+    </span>
+  );
+}
+
 /**
  * What the orchestrator handed the task, along the top, for whoever is
- * checking its work: the model it runs on, the folders it was given and with
- * what access, the tab it was handed, the lines of its brief that set a
- * limit, and the brief itself behind a click.
+ * checking its work: the model, the folders and their access, a handed tab,
+ * and the lines of the brief that set a limit, as a row of labeled chips.
+ * The brief itself is the first message below, so it is not repeated here;
+ * the row opens to the folders' full paths.
  */
 function TaskBrief({
   messages,
@@ -133,24 +146,54 @@ function TaskBrief({
     .slice(0, 3);
   const folders = Object.values(state.data?.attachedFolders ?? {});
   const model = state.data?.selectedModelURI?.split("?")[0];
-  const chips = [
-    ...(model ? [`Model: ${model}`] : []),
-    ...folders.map(
-      (folder) =>
-        `${folder.mountName}: ${folder.access === "read-write" ? "read and write" : "read only"}`,
-    ),
-    ...(state.data?.browserTargetId ? ["A browser tab was handed over"] : []),
-  ];
   return (
-    <details className="shrink-0 border-b border-border px-4 py-2 text-xs text-muted-foreground">
-      <summary className="cursor-default select-none">
-        <span className="font-medium text-foreground">Brief</span>
-        {chips.length > 0 ? ` · ${chips.join(" · ")}` : ""}
-        {limits.length > 0 ? ` · ${limits.join(" · ")}` : ""}
+    <details className="group shrink-0 border-b border-border px-4 py-2 text-xs">
+      <summary className="flex cursor-default list-none flex-wrap items-center gap-1.5 select-none [&::-webkit-details-marker]:hidden">
+        <CaretRightIcon className="size-3 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
+        <Chip label="Model">{model ?? "conversation's"}</Chip>
+        {folders.length === 0 ? (
+          <Chip label="Folders">none</Chip>
+        ) : (
+          folders.map((folder) => (
+            <Chip
+              key={folder.id}
+              label={folder.access === "read-write" ? "Read, write" : "Read"}
+            >
+              {folder.mountName}
+            </Chip>
+          ))
+        )}
+        {state.data?.browserTargetId ? <Chip label="Tab">handed</Chip> : null}
+        {limits.map((line) => (
+          <Chip key={line} label="Limit">
+            {line}
+          </Chip>
+        ))}
       </summary>
-      <pre className="mt-2 max-h-64 overflow-auto font-sans whitespace-pre-wrap text-foreground/80">
-        {brief || "No brief recorded."}
-      </pre>
+      <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-muted-foreground">
+        {folders.map((folder) => (
+          <Fragment key={folder.id}>
+            <dt className="font-medium text-foreground/70">
+              {folder.mountName}
+            </dt>
+            <dd className="truncate">
+              {folder.path} · {folder.access}
+            </dd>
+          </Fragment>
+        ))}
+        {state.data?.selectedModelURI ? (
+          <>
+            <dt className="font-medium text-foreground/70">Model</dt>
+            <dd className="truncate">{state.data.selectedModelURI}</dd>
+          </>
+        ) : null}
+        {state.data?.browserTargetId ? (
+          <>
+            <dt className="font-medium text-foreground/70">Tab</dt>
+            <dd className="truncate">{state.data.browserTargetId}</dd>
+          </>
+        ) : null}
+      </dl>
     </details>
   );
 }

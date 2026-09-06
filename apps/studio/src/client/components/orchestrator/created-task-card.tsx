@@ -58,7 +58,6 @@ export function CreatedTaskCard({ taskId }: { taskId: string }) {
   );
 }
 
-
 function ago(at: number) {
   const elapsed = Date.now() - at;
   return elapsed < ms("1 minute")

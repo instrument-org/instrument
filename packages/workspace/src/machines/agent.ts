@@ -66,16 +66,16 @@ export type ToolCallUpdate =
 
 type AgentMachineEvent =
   | { error: Error; type: "error" }
+  | { saved?: boolean; type: "steer"; value: SessionMessage.UserWithParts }
   | { type: "executeToolCalls" }
   | { type: "llmRequest.chunkReceived" }
-  | { type: "retry" }
   /**
    * A message that arrived while this turn runs. Held until the next point
    * between steps, then written into the transcript so the next request sees
    * it, the way a person interrupting a colleague is heard at the end of the
    * sentence rather than the end of the job.
    */
-  | { type: "steer"; value: SessionMessage.UserWithParts }
+  | { type: "retry" }
   | { type: "stop" }
   | {
       type: "updateInteractiveToolCall";
@@ -279,10 +279,18 @@ export const agentMachine = setup({
      */
     saveSteeringMessages: fromPromise<
       StoreId.Message[],
-      { messages: SessionMessage.UserWithParts[]; taskId: TaskId }
+      {
+        messages: SessionMessage.UserWithParts[];
+        savedIds: StoreId.Message[];
+        taskId: TaskId;
+      }
     >(async ({ input, signal }) => {
       const ids: StoreId.Message[] = [];
       for (const message of input.messages) {
+        if (input.savedIds.includes(message.id)) {
+          ids.push(message.id);
+          continue;
+        }
         const saved = await Store.saveMessageWithParts(message, input.taskId, {
           signal,
         });
@@ -343,6 +351,8 @@ export const agentMachine = setup({
       parentRef: ParentActorRef;
       pendingToolCalls: SessionMessagePart.ToolPartInputAvailable[];
       retryCount: number;
+      /** Steering messages the sender wrote to the store on arrival. */
+      savedSteerIds: StoreId.Message[];
       sessionId: StoreId.Session;
       spawnAgent: SpawnAgentFunction;
       /** Messages waiting for the next point between steps; see `steer`. */
@@ -386,6 +396,7 @@ export const agentMachine = setup({
     parentRef: input.parentRef,
     pendingToolCalls: [],
     retryCount: 0,
+    savedSteerIds: [],
     sessionId: input.sessionId,
     spawnAgent: input.spawnAgent,
     steeringMessages: [],
@@ -413,6 +424,10 @@ export const agentMachine = setup({
     },
     steer: {
       actions: assign({
+        savedSteerIds: ({ context, event }) =>
+          event.saved
+            ? [...context.savedSteerIds, event.value.id]
+            : context.savedSteerIds,
         steeringMessages: ({ context, event }) => [
           ...context.steeringMessages,
           event.value,
@@ -831,6 +846,7 @@ export const agentMachine = setup({
       invoke: {
         input: ({ context }) => ({
           messages: context.steeringMessages,
+          savedIds: context.savedSteerIds,
           taskId: context.taskId,
         }),
         onDone: {
@@ -841,7 +857,7 @@ export const agentMachine = setup({
                 value: { messageIds: event.output },
               });
             },
-            assign({ steeringMessages: [] }),
+            assign({ savedSteerIds: [], steeringMessages: [] }),
           ],
           target: "MaybeStartingLLMRequest",
         },

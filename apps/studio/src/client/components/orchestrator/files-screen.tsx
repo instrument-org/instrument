@@ -1,5 +1,8 @@
-import { type FileTab, fileTabsAtom } from "@/client/atoms/orchestrator";
-import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
+import {
+  closedFileTabsAtom,
+  type FileTab,
+  fileTabsAtom,
+} from "@/client/atoms/orchestrator";
 import { FileIcon } from "@/client/components/file-icon";
 import { FileViewer } from "@/client/components/file-viewer";
 import {
@@ -7,13 +10,13 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/client/components/ui/dialog";
-import { InstrumentGlyph } from "@/client/components/wordmark";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn } from "@/client/lib/utils";
+import { LaptopIcon } from "@phosphor-icons/react/Laptop";
 import { useNavigate } from "@tanstack/react-router";
-import { useAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import { useEffect, useState } from "react";
 
 import { ComputerPage, type FolderOnScreen } from "./computer-page";
@@ -44,6 +47,7 @@ export function FilesScreen({
   const { taskId } = useOrchestrator();
   const navigate = useNavigate();
   const [fileTabs, setFileTabs] = useAtom(fileTabsAtom);
+  const setClosed = useSetAtom(closedFileTabsAtom);
   const [folder, setFolder] = useState<FolderOnScreen | null>(null);
   const [quickLook, setQuickLook] = useState<FileTab | null>(null);
   const activeFile = file
@@ -114,8 +118,12 @@ export function FilesScreen({
   };
   const closeFile = (mount: string) => {
     const index = fileTabs.findIndex((tab) => tab.mount === mount);
+    const closing = fileTabs[index];
     const remaining = fileTabs.filter((tab) => tab.mount !== mount);
     setFileTabs(remaining);
+    if (closing) {
+      setClosed((current) => [...current, closing]);
+    }
     if (file === mount) {
       const next = remaining[Math.max(0, index - 1)];
       if (next) {
@@ -126,16 +134,40 @@ export function FilesScreen({
     }
   };
 
-  const folderName =
-    root === "~" && !path
-      ? "Home"
-      : root === "instrument" && !path
-        ? "Instrument"
-        : (path.replace(/\/$/, "").split("/").findLast(Boolean) ??
-          root.split("/").findLast(Boolean) ??
-          "This Mac");
-  const isInstrumentFolder = folder?.display === "~/Documents/Instrument";
   const assetBase = getAssetBaseUrl(taskId);
+
+  // A tab whose file is gone (renamed, moved, deleted) goes with it rather
+  // than standing as a tab that cannot load. Checked when the strip changes,
+  // by asking the asset origin for the file.
+  const tabKeys = fileTabs.map((tab) => tab.mount).join("\n");
+  useEffect(() => {
+    const controller = new AbortController();
+    void (async () => {
+      const gone: string[] = [];
+      for (const mount of tabKeys.split("\n").filter(Boolean)) {
+        try {
+          const response = await fetch(
+            getAssetUrl({ assetBase, filePath: mount }),
+            { headers: { Range: "bytes=0-0" }, signal: controller.signal },
+          );
+          if (response.status === 404) {
+            gone.push(mount);
+          }
+        } catch {
+          // The origin is not up, or the request was cut off: not the file's
+          // absence, so the tab stays.
+        }
+      }
+      if (!controller.signal.aborted && gone.length > 0) {
+        setFileTabs((current) =>
+          current.filter((tab) => !gone.includes(tab.mount)),
+        );
+      }
+    })();
+    return () => {
+      controller.abort();
+    };
+  }, [assetBase, setFileTabs, tabKeys]);
   const viewerFile = (tab: FileTab) => ({
     filename: tab.name,
     filePath: tab.mount,
@@ -166,14 +198,10 @@ export function FilesScreen({
         selectedKey={activeFile ? activeFile.mount : FOLDER_TAB}
         tabs={[
           {
-            icon: isInstrumentFolder ? (
-              <InstrumentGlyph className="size-3.5" />
-            ) : (
-              <FileSystemFolderGlyph className="h-3 w-auto" />
-            ),
+            icon: <LaptopIcon className="size-3.5" />,
             isFixed: true,
             key: FOLDER_TAB,
-            title: folderName,
+            title: "This Mac",
           },
           ...fileTabs.map((tab) => ({
             icon: <FileIcon className="size-4" filename={tab.name} />,

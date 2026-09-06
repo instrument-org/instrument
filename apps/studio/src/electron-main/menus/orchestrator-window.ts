@@ -28,6 +28,13 @@ export function createOrchestratorWindowMenu(): MenuItemConstructorOptions[] {
         label: "Close Tab",
       },
       {
+        accelerator: "Shift+CmdOrCtrl+T",
+        click: () => {
+          publisher.publish("orchestrator.command", "reopenTab");
+        },
+        label: "Reopen Closed Tab",
+      },
+      {
         accelerator: "Shift+CmdOrCtrl+W",
         label: "Close Window",
         role: "close" as const,

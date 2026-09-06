@@ -3,6 +3,7 @@ import invariant from "tiny-invariant";
 import { z } from "zod";
 
 import { navigateTarget, restoreLastPage } from "../../lib/browser-state";
+import { browserHostForTask } from "../../lib/orchestrator/browser-host";
 import { getBrowserSessionDir } from "../../lib/task-dir-utils";
 import { BrowserPresenceLevelSchema } from "../../machines/task-browser";
 import { StoreId } from "../../schemas/store-id";
@@ -46,8 +47,11 @@ const open = base
   )
   .output(z.object({ targetId: BrowserTargetIdSchema }))
   .handler(async ({ context, errors, input }) => {
-    const { host, id, sessionId, url } = input;
+    const { id, sessionId, url } = input;
     const partitionDir = getBrowserSessionDir();
+    // Unsaid, the window is the task's own: an orchestrator's task browses in
+    // the orchestrator's window, any other on its task page.
+    const host = input.host ?? (await browserHostForTask(id));
 
     const target = await context.workspaceConfig.browser
       .createTarget(id, sessionId, partitionDir, host)

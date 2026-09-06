@@ -338,7 +338,9 @@ export function TaskChat({
       folderTrayPlacement="above"
       id={id}
       isLoading={createMessage.isPending}
-      isStoppable={isAgentAlive}
+      // The conversation's composer never turns into a stop: a message sent
+      // while it composes supersedes the reply, so send is always the answer.
+      isStoppable={presentation !== "orchestrator" && isAgentAlive}
       isSubmittable={alwaysSubmittable || isQueueEnabled || !isAgentAlive}
       lead={composerLead}
       modelURI={selectedModelURI}

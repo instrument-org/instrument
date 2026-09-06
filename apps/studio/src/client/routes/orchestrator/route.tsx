@@ -169,10 +169,14 @@ function OrchestratorLayout() {
   const { active, activeId, tabs } = windowTabs;
   const isPageOnScreen = active?.kind === "page";
 
-  // The window is never empty: closing the last tab leaves a new one.
+  // The window is never empty: with no tab, the screen the router is at
+  // becomes one, or a new tab when the router is at the page route. The one
+  // opener while the list is empty; the effects below wait for it.
   useEffect(() => {
     if (tabs.length === 0) {
-      windowTabs.openScreen(NEW_TAB_HREF);
+      windowTabs.openScreen(
+        location.pathname === PAGE_ROUTE ? NEW_TAB_HREF : location.href,
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabs.length]);
@@ -197,7 +201,7 @@ function OrchestratorLayout() {
   // itself moves its tab's address; an address reached while a page was up
   // (a link, a command) is a screen tab of its own.
   useEffect(() => {
-    if (location.pathname === PAGE_ROUTE) {
+    if (location.pathname === PAGE_ROUTE || tabs.length === 0) {
       return;
     }
     if (active?.kind === "screen") {

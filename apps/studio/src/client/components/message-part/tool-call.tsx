@@ -14,6 +14,7 @@ import {
   isToolCallVisible,
 } from "./tool-call-utils";
 import { ToolChoose } from "./tool-choose";
+import { ToolConnectApp } from "./tool-connect-app";
 import { ToolEditFile } from "./tool-edit-file";
 import { ToolGenerateImage } from "./tool-generate-image";
 import { ToolLoadSkill } from "./tool-load-skill";
@@ -137,6 +138,9 @@ function ToolCallBody({
     }
     case "tool-choose": {
       return <ToolChoose part={part} taskId={task.id} />;
+    }
+    case "tool-connect_app": {
+      return <ToolConnectApp part={part} />;
     }
     case "tool-edit_file": {
       return <ToolEditFile id={task.id} part={part} />;

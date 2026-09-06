@@ -12,6 +12,7 @@ import {
 import { type ReactNode } from "react";
 
 import { FilePathsGrid } from "./agent-files-block";
+import { AppEventNote } from "./app-event-note";
 import { AttachedFolderChangesNote } from "./attached-folder-changes-note";
 import { type RenderPartContext } from "./chat-stream-render-part";
 import { ModelChangeNote } from "./model-change-note";
@@ -31,6 +32,7 @@ type DataPartType = SessionMessagePart.DataPart["type"];
 type DataPartVisibility = "always" | "dev" | "hidden";
 
 const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
+  "data-appEvent": "always",
   "data-attachedFolderChanges": "always",
   "data-attachments": "hidden",
   // Deliberately not "always". This part is a persisted record of what was
@@ -110,6 +112,9 @@ export function renderDataPart({
   }
 
   switch (part.type) {
+    case "data-appEvent": {
+      return <AppEventNote data={part.data} key={part.metadata.id} />;
+    }
     case "data-attachedFolderChanges": {
       return (
         <AttachedFolderChangesNote data={part.data} key={part.metadata.id} />

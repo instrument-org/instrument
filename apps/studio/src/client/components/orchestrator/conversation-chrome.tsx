@@ -21,6 +21,7 @@ import { useAtomValue } from "jotai";
 import ms from "ms";
 import { type ReactNode } from "react";
 
+import { AppIcon } from "./app-icon";
 import { computerName } from "./computer-name";
 import { useOrchestrator } from "./context";
 import { SiteIcon } from "./sidebar";
@@ -106,7 +107,13 @@ export function ViewChip() {
     }
     switch (view.screen) {
       case "apps": {
-        return { icon: <AppWindowIcon className="size-3.5" />, title: "Apps" };
+        // An app's page is that app; the directory is the screen.
+        return view.app
+          ? {
+              icon: <AppIcon site={view.app.site} size="sm" />,
+              title: view.app.name,
+            }
+          : { icon: <AppWindowIcon className="size-3.5" />, title: "Apps" };
       }
       case "browser": {
         const tab = tabs.find((entry) => entry.id === activeId) ?? tabs[0];

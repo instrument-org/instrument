@@ -1,13 +1,12 @@
 import {
   linkedFilesAtom,
   type OrchestratorRecent,
-  originOf,
-  siteFaviconsAtom,
 } from "@/client/atoms/orchestrator";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { Favicon } from "@/client/components/favicon";
 import { FileIcon } from "@/client/components/file-icon";
 import { FileOpenContext } from "@/client/components/file-open-context";
+import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import {
   Sidebar,
   SidebarContent,
@@ -18,11 +17,13 @@ import {
   SidebarMenuItem,
 } from "@/client/components/ui/sidebar";
 import { InstrumentGlyph } from "@/client/components/wordmark";
+import { rpcClient } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { HouseIcon } from "@phosphor-icons/react/House";
 import { LaptopIcon } from "@phosphor-icons/react/Laptop";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import {
@@ -33,7 +34,6 @@ import {
 } from "react";
 
 import { computerName } from "./computer-name";
-import { useOrchestrator } from "./context";
 
 /** How many of the files the conversation linked the sidebar lists. */
 const FILES_SHOWN = 8;
@@ -106,27 +106,18 @@ const PLACES: Place[] = [
 ];
 
 /**
- * Services pinned as web apps. Fixtures for now: what a pin is and how it
- * arrives are still being decided, and what matters first is what the sidebar
- * feels like with them in it.
- */
-const PINNED: { name: string; url: string }[] = [
-  { name: "Gmail", url: "https://mail.google.com/" },
-  { name: "Notion", url: "https://www.notion.so/" },
-  { name: "Linear", url: "https://linear.app/" },
-];
-
-/**
- * The window's left side: the places at the top, then what is pinned, then
- * the files the conversation has handed over. Tasks is a place, not a list:
- * the screen behind it holds the tasks.
+ * The window's left side: the places at the top, then the apps that are
+ * connected, then the files the conversation has handed over. Tasks is a
+ * place, not a list: the screen behind it holds the tasks.
  */
 export function OrchestratorSidebar({ className }: { className?: string }) {
-  const { browser } = useOrchestrator();
   const navigate = useNavigate();
   const location = useRouterState({ select: (state) => state.location });
   const linkedFiles = useAtomValue(linkedFilesAtom);
-  const siteFavicons = useAtomValue(siteFaviconsAtom);
+  const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
+  const connectedApps = (apps.data?.apps ?? []).filter(
+    (app) => app.standing === "connected",
+  );
   const openFile = useContext(FileOpenContext);
   const here = {
     pathname: location.pathname,
@@ -156,26 +147,27 @@ export function OrchestratorSidebar({ className }: { className?: string }) {
           </SidebarMenu>
         </SidebarGroup>
 
-        <Section label="Pinned">
-          {PINNED.map((pin) => (
-            <Item
-              icon={
-                <SiteIcon
-                  favicon={siteFavicons[originOf(pin.url) ?? ""]}
-                  url={pin.url}
-                />
-              }
-              isActive={false}
-              key={pin.name}
-              label={pin.name}
-              onClick={() => {
-                // One tab per pin: the tab already on that site comes forward.
-                browser?.openOrFocus(pin.url);
-                void navigate({ to: "/orchestrator/browser" });
-              }}
-            />
-          ))}
-        </Section>
+        {/* Each connected app is a place: its page, with the way to ask about it and the site itself behind. */}
+        {connectedApps.length > 0 ? (
+          <Section label="Apps">
+            {connectedApps.map((app) => (
+              <Item
+                icon={<AppIcon site={app.site} size="sm" />}
+                isActive={
+                  location.pathname === `/orchestrator/apps/${app.slug}`
+                }
+                key={app.slug}
+                label={app.name}
+                onClick={() => {
+                  void navigate({
+                    params: { slug: app.slug },
+                    to: "/orchestrator/apps/$slug",
+                  });
+                }}
+              />
+            ))}
+          </Section>
+        ) : null}
 
         {/* What the conversation has handed over, newest first: the files
             worth coming back to, rather than every screen the window passed

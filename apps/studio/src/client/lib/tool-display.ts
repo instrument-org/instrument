@@ -8,6 +8,7 @@ import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { ImageIcon } from "@phosphor-icons/react/Image";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { PlugsConnectedIcon } from "@phosphor-icons/react/PlugsConnected";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { TerminalIcon } from "@phosphor-icons/react/Terminal";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
@@ -16,6 +17,7 @@ import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 const TOOL_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   bash: "Ran terminal command",
   choose: "Waiting for answer",
+  connect_app: "Asked to connect an app",
   edit_file: "Edited",
   generate_image: "Generated image",
   load_skill: "Loaded skill",
@@ -31,6 +33,7 @@ const TOOL_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
 const TOOL_STREAMING_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   bash: "Running terminal command",
   choose: "Thinking about a question",
+  connect_app: "Asking to connect an app",
   edit_file: "Editing a file",
   generate_image: "Generating an image",
   load_skill: "Loading skill",
@@ -49,6 +52,7 @@ const TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE: Record<
 > = {
   bash: TOOL_STREAMING_DISPLAY_NAMES.bash,
   choose: TOOL_STREAMING_DISPLAY_NAMES.choose,
+  connect_app: TOOL_STREAMING_DISPLAY_NAMES.connect_app,
   edit_file: "Editing",
   generate_image: "Generating",
   load_skill: "Loading skill",
@@ -64,6 +68,7 @@ const TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE: Record<
 const TOOL_TRIED_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   bash: "Tried to run terminal command",
   choose: "Tried to ask a question",
+  connect_app: "Tried to ask to connect an app",
   edit_file: "Tried to edit file",
   generate_image: "Tried to generate image",
   load_skill: "Tried to load skill",
@@ -89,6 +94,7 @@ const TOOL_SUMMARY_PHRASES: Record<
     singular: "ran a command",
   },
   choose: { singular: "asked a question" },
+  connect_app: { singular: "asked to connect an app" },
   edit_file: {
     plural: (count) => `edited ${count} files`,
     singular: "edited a file",
@@ -120,6 +126,7 @@ const TOOL_SUMMARY_PHRASES: Record<
 export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
   bash: TerminalIcon,
   choose: QuestionIcon,
+  connect_app: PlugsConnectedIcon,
   edit_file: CodeIcon,
   generate_image: ImageIcon,
   load_skill: BookOpenIcon,

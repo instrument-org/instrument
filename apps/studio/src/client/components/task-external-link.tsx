@@ -1,4 +1,5 @@
 import { zoomAtom } from "@/client/atoms/zoom";
+import { OrchestratorContext } from "@/client/components/orchestrator/context";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,8 +13,9 @@ import { APP_NAME } from "@instrument-org/shared";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
+import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { useState } from "react";
+import { useContext, useState } from "react";
 
 // The menu straddles the click rather than hanging below the link, so both
 // destinations are a short move from where the pointer already is. Radix
@@ -62,6 +64,18 @@ export function TaskExternalLink({
 
   const openInTaskBrowser = useOpenInTaskBrowser({ sessionId, taskId });
   const openExternalLink = useOpenExternalLink();
+  // In the orchestrator window the page the user can see is the window's own
+  // Browser screen, not the task's pane, which that window never draws.
+  const orchestrator = useContext(OrchestratorContext);
+  const navigate = useNavigate();
+  const openInApp = (url: string) => {
+    if (orchestrator?.browser) {
+      orchestrator.browser.open(url);
+      void navigate({ to: "/orchestrator/browser" });
+    } else {
+      openInTaskBrowser(url);
+    }
+  };
 
   return (
     <DropdownMenu onOpenChange={setOpen} open={open}>
@@ -109,7 +123,7 @@ export function TaskExternalLink({
       >
         <DropdownMenuItem
           onSelect={() => {
-            openInTaskBrowser(href);
+            openInApp(href);
           }}
         >
           <GlobeIcon />

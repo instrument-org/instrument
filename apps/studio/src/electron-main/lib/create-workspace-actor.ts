@@ -33,6 +33,7 @@ import { createActor } from "xstate";
 
 import { createBrowserViewManager } from "../browser-view/manager";
 import { searchWeb } from "../platform-api/web-search";
+import { createAppsConfig, rememberAppsDir } from "./apps";
 import { captureServerEvent } from "./capture-server-event";
 import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";
@@ -126,6 +127,7 @@ export function createWorkspaceActor({
   const actor = createActor(workspaceMachine, {
     input: {
       aiGatewayApp,
+      apps: createAppsConfig(),
       appVersion: app.getVersion(),
       browser: browserViewManager.browser,
       captureEvent: captureServerEvent,
@@ -235,6 +237,7 @@ export function createWorkspaceActor({
   }
 
   const workspaceConfig = snapshot.context.config;
+  rememberAppsDir(workspaceConfig.appsDir);
 
   // Reconcile task -> project references against disk. A project folder can be
   // deleted outside the app (or while it is closed), leaving tasks pointing at

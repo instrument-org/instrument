@@ -1,12 +1,9 @@
-import {
-  orchestratorRecentsAtom,
-  originOf,
-  siteFaviconsAtom,
-} from "@/client/atoms/orchestrator";
+import { orchestratorRecentsAtom } from "@/client/atoms/orchestrator";
+import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { computerName } from "@/client/components/orchestrator/computer-name";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
-import { RecentIcon, SiteIcon } from "@/client/components/orchestrator/sidebar";
+import { RecentIcon } from "@/client/components/orchestrator/sidebar";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { siteFromWords } from "@/client/lib/site-from-words";
 import { cn } from "@/client/lib/utils";
@@ -34,13 +31,6 @@ import { type ComponentType, type ReactNode, useState } from "react";
 export const Route = createFileRoute("/orchestrator/home")({
   component: HomeRoute,
 });
-
-/** Services pinned as web apps; the sidebar's fixtures, reached from here too. */
-const APPS = [
-  { name: "Gmail", url: "https://mail.google.com/" },
-  { name: "Notion", url: "https://www.notion.so/" },
-  { name: "Linear", url: "https://linear.app/" },
-];
 
 const SCREENS: {
   icon: ComponentType<{ className?: string }>;
@@ -103,7 +93,8 @@ function HomeRoute() {
       input: { id: taskId },
     }),
   );
-  const siteFavicons = useAtomValue(siteFaviconsAtom);
+  const appList = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
+  const catalog = useQuery(rpcClient.apps.catalog.queryOptions());
   // The matcher the model picker uses: typed letters in order, close
   // together, so "lsbn" finds lisbon.md and "pel news" the pelican task.
   const matches = (name: string) =>
@@ -114,7 +105,33 @@ function HomeRoute() {
     0,
     words ? SCREENS_SHOWN : SCREENS.length,
   );
-  const apps = APPS.filter((app) => matches(app.name));
+  // The apps this workspace has, each opening its page; then what the
+  // directory knows, each a request to connect it.
+  const known = new Set((appList.data?.apps ?? []).map((app) => app.slug));
+  const apps = [
+    ...(appList.data?.apps ?? []).map((app) => ({
+      name: app.name,
+      note: app.standing === "connected" ? "App" : "Setting up",
+      run: () => {
+        void navigate({
+          params: { slug: app.slug },
+          to: "/orchestrator/apps/$slug",
+        });
+      },
+      site: app.site,
+    })),
+    ...(catalog.data ?? [])
+      .filter((entry) => !known.has(entry.slug))
+      .map((entry) => ({
+        name: entry.name,
+        note: "Connect",
+        run: () => {
+          ask(`Connect ${entry.name}`);
+          setQuery("");
+        },
+        site: `https://${entry.domain}`,
+      })),
+  ].filter((app) => matches(app.name));
   // A task's id is made from its brief, so words in the brief find it too.
   const tasks = (children.data ?? [])
     .filter(
@@ -176,17 +193,10 @@ function HomeRoute() {
     })),
     ...apps.map((app) => ({
       group: "Apps",
-      icon: (
-        <SiteIcon
-          favicon={siteFavicons[originOf(app.url) ?? ""]}
-          url={app.url}
-        />
-      ),
+      icon: <AppIcon site={app.site} size="sm" />,
       name: app.name,
-      note: "App",
-      run: () => {
-        openSite(app.url);
-      },
+      note: app.note,
+      run: app.run,
     })),
     // What the words can be used with, whatever else matched: the way a
     // launcher offers its fallbacks under the results rather than as an "or".

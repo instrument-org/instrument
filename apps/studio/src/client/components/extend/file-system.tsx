@@ -185,6 +185,8 @@ export type FileSystemProps = {
   renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
   /** Controls drawn under a selected file's name in the columns view's preview pane. */
   renderFileActions?: (file: FileSystemFileItem) => React.ReactNode;
+  /** Controls drawn at the head of the toolbar, before the folder's name: back and forward. */
+  renderHeaderLead?: () => React.ReactNode;
   /**
    * Lazily render a page thumbnail beyond the eagerly provided
    * `previewImageUrls` (the pager calls this as pages come into view).
@@ -1223,6 +1225,7 @@ export function FileSystem({
   renderTrailing,
   renderFileStage,
   renderFileActions,
+  renderHeaderLead,
 }: FileSystemProps) {
   const [internalView, setInternalView] = React.useState(defaultView);
   const view = viewProp ?? internalView;
@@ -1846,6 +1849,7 @@ export function FileSystem({
       <FileSystemIconSpriteSheet />
       <div className="relative flex h-12 shrink-0 items-center gap-2 border-b bg-muted/40 px-2">
         <div className="flex min-w-0 flex-1 items-center gap-0.5">
+          {renderHeaderLead ? renderHeaderLead() : null}
           {headerLayout !== "minimal" ? (
             <span className="ml-1.5 truncate text-sm font-semibold">
               {currentFolderName}

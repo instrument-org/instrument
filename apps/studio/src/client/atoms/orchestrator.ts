@@ -1,4 +1,7 @@
-import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
+import {
+  type SessionMessageDataPart,
+  type TaskId,
+} from "@instrument-org/workspace/client";
 import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 
@@ -44,6 +47,8 @@ export interface BrowserTab {
   openedAt: number;
   /** The address it was opened at, which a pin asks for again; the page may have moved on from it. */
   openedUrl?: string;
+  /** The task whose browser this is, when it is not the window's own: a task the conversation started, browsing in the user's sight. */
+  taskId?: TaskId;
   /** The page's title, as it last announced it; kept so a tab not yet shown still says what it is. */
   title?: string;
   /** The last page it showed, opened again when the tab comes back. */
@@ -150,6 +155,42 @@ export const SIDEBAR_WIDTH_DEFAULT = 400;
 export const orchestratorSidebarWidthAtom = atomWithStorage<number>(
   "orchestrator.sidebar-width.v1",
   SIDEBAR_WIDTH_DEFAULT,
+  undefined,
+  { getOnInit: true },
+);
+
+/** Whether the sidebar is open, or shrunk to a rail. It is never gone: the rail keeps the conversation one click away. */
+export const orchestratorSidebarOpenAtom = atomWithStorage<boolean>(
+  "orchestrator.sidebar-open.v2",
+  true,
+  undefined,
+  { getOnInit: true },
+);
+
+export const PINS_HEIGHT_MIN = 40;
+export const PINS_HEIGHT_DEFAULT = 96;
+
+/** The height of the pinned area above the conversation, in CSS px, dragged by the divider under it. */
+export const orchestratorPinsHeightAtom = atomWithStorage<number>(
+  "orchestrator.pins-height.v1",
+  PINS_HEIGHT_DEFAULT,
+  undefined,
+  { getOnInit: true },
+);
+
+/** A thing the user pinned to the sidebar: a page by its address, or a screen by its route. */
+export interface Pin {
+  favicon?: string;
+  id: string;
+  kind: "page" | "screen";
+  /** A page's address or a screen's route. */
+  target: string;
+  title: string;
+}
+
+export const pinsAtom = atomWithStorage<Pin[]>(
+  "orchestrator.pins.v1",
+  [],
   undefined,
   { getOnInit: true },
 );

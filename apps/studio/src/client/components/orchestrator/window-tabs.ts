@@ -3,6 +3,9 @@ import {
   type WindowTab,
   windowTabsAtom,
 } from "@/client/atoms/orchestrator";
+import { WINDOW_BROWSER_HOST } from "@/client/lib/browser-host";
+import { rpcClient } from "@/client/rpc/client";
+import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { useAtom, useSetAtom } from "jotai";
 
 /** The route that shows nothing of its own: what the router is at while a page is on screen. */
@@ -57,6 +60,32 @@ export function useWindowTabs() {
       tabs: [...current.tabs, { href, id, kind: "screen" }],
     }));
     return id;
+  };
+
+  /**
+   * Shows a task's browser as a tab of the window: the tab it has, or a new
+   * one, and the browser itself opened in this window if it is not up.
+   */
+  const openTaskBrowser = (taskId: TaskId, sessionId: StoreId.Session) => {
+    const existing = tabs.find(
+      (tab) => tab.kind === "page" && tab.id === sessionId,
+    );
+    if (existing) {
+      select(existing.id);
+    } else {
+      setTabs((current) => ({
+        activeId: sessionId,
+        tabs: [
+          ...current.tabs,
+          { id: sessionId, kind: "page", openedAt: Date.now(), taskId },
+        ],
+      }));
+    }
+    void rpcClient.workspace.browser.open.call({
+      host: WINDOW_BROWSER_HOST,
+      id: taskId,
+      sessionId,
+    });
   };
 
   /** Shows the screen tab already at that address, or opens one there. */
@@ -118,6 +147,7 @@ export function useWindowTabs() {
     },
     openOrFocusScreen,
     openScreen,
+    openTaskBrowser,
     reorder: (keys: string[]) => {
       setTabs((current) => ({
         ...current,

@@ -1,10 +1,13 @@
 import { ChildTranscript } from "@/client/components/orchestrator/child-tasks";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
+import { useWindowTabs } from "@/client/components/orchestrator/window-tabs";
+import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { hasLiveAgent } from "@/client/lib/agent-status";
 import { rpcClient } from "@/client/rpc/client";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
+import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import ms from "ms";
@@ -38,6 +41,18 @@ function TaskRoute() {
     }),
   );
   const isWorking = status.data?.some(hasLiveAgent) ?? false;
+  // The task's browser, as a tab of this window: the one session the task
+  // runs in is the newest, ids being ulids.
+  const sessions = useQuery(
+    rpcClient.workspace.session.list.queryOptions({
+      input: { id: taskId },
+    }),
+  );
+  const sessionId = sessions.data
+    ?.map((session) => session.id)
+    .toSorted()
+    .at(-1);
+  const { openTaskBrowser } = useWindowTabs();
   const step = activity.data?.running.find(
     (entry) => entry.taskId === taskId,
   )?.step;
@@ -63,8 +78,23 @@ function TaskRoute() {
   }
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0 border-b border-border px-4 py-2">
-        <h2 className="truncate text-sm font-medium">{task.data.title}</h2>
+      <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2">
+        <h2 className="min-w-0 flex-1 truncate text-sm font-medium">
+          {task.data.title}
+        </h2>
+        <Button
+          disabled={sessionId === undefined}
+          onClick={() => {
+            if (sessionId) {
+              openTaskBrowser(taskId, sessionId);
+            }
+          }}
+          size="sm"
+          variant="ghost"
+        >
+          <GlobeIcon className="size-4" />
+          Browser
+        </Button>
       </div>
       <div className="min-h-0 flex-1">
         <ChildTranscript key={taskId} task={task.data} />

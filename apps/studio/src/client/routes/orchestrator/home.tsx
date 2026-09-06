@@ -384,22 +384,41 @@ function HomeRoute() {
             </span>
           </span>
         </button>
-        <button
-          className="flex items-center gap-3 rounded-xl border border-border bg-card/60 px-4 py-2.5 text-left text-muted-foreground hover:bg-accent/30 sm:col-span-2"
-          onClick={() => {
-            void navigate({ to: "/orchestrator/tasks" });
-          }}
-          type="button"
-        >
-          <InstrumentGlyph className="size-4 shrink-0" />
-          <span className="text-sm">
-            Tasks
-            {children.data && children.data.length > 0
-              ? ` · ${children.data.length}`
-              : ""}
-          </span>
-        </button>
       </div>
+
+      {(appList.data?.apps ?? []).length > 0 ? (
+        <div className="mt-8 w-full max-w-3xl">
+          <p className="text-xs font-medium tracking-[0.12em] text-muted-foreground uppercase">
+            Apps
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {(appList.data?.apps ?? []).map((app) => (
+              <button
+                className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm shadow-sm hover:bg-accent/30"
+                key={app.slug}
+                onClick={() => {
+                  void navigate({
+                    params: { slug: app.slug },
+                    to: "/orchestrator/apps/$slug",
+                  });
+                }}
+                type="button"
+              >
+                <AppIcon site={app.site} size="sm" />
+                <span>{app.name}</span>
+                {app.standing === "connected" ? null : (
+                  <span className="text-xs text-muted-foreground">
+                    {app.standing === "needs-sign-in" ||
+                    app.standing === "needs-key"
+                      ? "Connect"
+                      : "Setting up"}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {wasAt.length > 0 ? (
         <div className="mt-10 w-full max-w-3xl">
@@ -427,6 +446,24 @@ function HomeRoute() {
           </ul>
         </div>
       ) : null}
+
+      <div className="mt-auto w-full max-w-3xl pt-10">
+        <button
+          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-muted-foreground hover:bg-accent/30"
+          onClick={() => {
+            void navigate({ to: "/orchestrator/tasks" });
+          }}
+          type="button"
+        >
+          <InstrumentGlyph className="size-3.5 shrink-0" />
+          <span>
+            Tasks
+            {children.data && children.data.length > 0
+              ? ` · ${children.data.length}`
+              : ""}
+          </span>
+        </button>
+      </div>
     </div>
   );
 }

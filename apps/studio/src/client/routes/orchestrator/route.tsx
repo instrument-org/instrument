@@ -1,9 +1,12 @@
 import {
   linkedFilesAtom,
   NEW_TAB_HREF,
+  orchestratorPinsHeightAtom,
   type OrchestratorRecent,
   orchestratorRecentsAtom,
+  orchestratorSidebarOpenAtom,
   orchestratorSidebarWidthAtom,
+  PINS_HEIGHT_MIN,
   RECENTS_MAX,
   screenViewAtom,
   SIDEBAR_WIDTH_DEFAULT,
@@ -11,6 +14,7 @@ import {
   SIDEBAR_WIDTH_MIN,
 } from "@/client/atoms/orchestrator";
 import { FileOpenContext } from "@/client/components/file-open-context";
+import { FilesLayoutContext } from "@/client/components/files-layout-context";
 import {
   BrowserTabs,
   type BrowserTabsHandle,
@@ -24,7 +28,7 @@ import {
   ViewChip,
 } from "@/client/components/orchestrator/conversation-chrome";
 import { fileHref } from "@/client/components/orchestrator/file-tabs";
-import { OrchestratorBookmarks } from "@/client/components/orchestrator/sidebar";
+import { OrchestratorPins } from "@/client/components/orchestrator/sidebar";
 import { WindowTabStrip } from "@/client/components/orchestrator/window-tab-strip";
 import {
   PAGE_ROUTE,
@@ -37,6 +41,16 @@ import {
   StudioSidebarRail,
 } from "@/client/components/studio-sidebar-rail";
 import { TaskChat } from "@/client/components/task/chat";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/client/components/ui/alert-dialog";
 import { Toaster } from "@/client/components/ui/sonner";
 import { Spinner } from "@/client/components/ui/spinner";
 import { InstrumentGlyph } from "@/client/components/wordmark";
@@ -47,7 +61,8 @@ import { pathsNamedInMessage } from "@/client/lib/paths-named-in-message";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import {
   createFileRoute,
@@ -55,7 +70,7 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import ms from "ms";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
@@ -65,13 +80,16 @@ const REFRESH_MS = ms("2 seconds");
 /** How long a screen has to stay up before Recent counts it. */
 const RECENT_DWELL_MS = ms("2 seconds");
 
-/** The sidebar holds the conversation, so its floor is where it stops shrinking, never a collapse. */
+/** Dragged under the collapse point, the sidebar shrinks to a rail; it is never gone. */
 const SIDEBAR_BOUNDS: RailBounds = {
-  collapse: 0,
+  collapse: 220,
   initial: SIDEBAR_WIDTH_DEFAULT,
   max: SIDEBAR_WIDTH_MAX,
   min: SIDEBAR_WIDTH_MIN,
 };
+
+/** The least the conversation keeps when the pinned area is dragged down. */
+const CHAT_HEIGHT_MIN = 240;
 
 export const Route = createFileRoute("/orchestrator")({
   component: OrchestratorLayout,
@@ -110,6 +128,16 @@ function OrchestratorLayout() {
     }),
   );
   const ids = ensure.data;
+  // Whether the conversation is at work, for the sign by its name.
+  const { data: conversationActivity } = useQuery({
+    ...rpcClient.workspace.task.live.activity.experimental_liveOptions(),
+    select: (activity) =>
+      activity.find((entry) => entry.taskId === ids?.taskId),
+  });
+  const isConversationWorking =
+    conversationActivity?.sessionActors.some((actor) =>
+      actor.tags.includes("agent.running"),
+    ) ?? false;
 
   const task = useQuery(
     rpcClient.workspace.task.live.byId.experimental_liveOptions({
@@ -134,6 +162,8 @@ function OrchestratorLayout() {
   );
   const [defaultModelURI] = useDefaultModelURI();
   const screenView = useAtomValue(screenViewAtom);
+  const [isSidebarOpen, setSidebarOpen] = useAtom(orchestratorSidebarOpenAtom);
+  const [pinsHeight, setPinsHeight] = useAtom(orchestratorPinsHeightAtom);
   const setLinkedFiles = useSetAtom(linkedFilesAtom);
   // The files the conversation has handed over, newest first, for the sidebar.
   const linkedFiles = messages.data
@@ -201,7 +231,16 @@ function OrchestratorLayout() {
   // itself moves its tab's address; an address reached while a page was up
   // (a link, a command) is a screen tab of its own.
   useEffect(() => {
-    if (location.pathname === PAGE_ROUTE || tabs.length === 0) {
+    if (tabs.length === 0) {
+      return;
+    }
+    if (location.pathname === PAGE_ROUTE) {
+      // History walked back to the page route while a screen is up (a page
+      // was on screen at that point in the history); the screen stays, and
+      // the address goes back to it.
+      if (active?.kind === "screen") {
+        router.history.replace(active.href);
+      }
       return;
     }
     if (active?.kind === "screen") {
@@ -230,9 +269,46 @@ function OrchestratorLayout() {
     }
   };
 
+  // Closing a task's browser tab closes the browser, and the task loses its
+  // page; while the task is in it, the user is asked first.
+  const [closingBrowser, setClosingBrowser] = useState<{
+    id: string;
+    taskId: TaskId;
+    title: string;
+  }>();
+  const closeTaskBrowser = (id: string, taskId: TaskId) => {
+    void rpcClient.workspace.browser.close.call({
+      id: taskId,
+      sessionId: StoreId.SessionSchema.parse(id),
+    });
+    windowTabs.close(id);
+  };
+  const requestClose = (id: string) => {
+    const tab = tabs.find((entry) => entry.id === id);
+    if (tab?.kind !== "page" || !tab.taskId) {
+      windowTabs.close(id);
+      return;
+    }
+    const { taskId } = tab;
+    void rpcClient.workspace.orchestrator.childStatus
+      .call({ id: taskId })
+      .then((status) => {
+        if (status.isWorking) {
+          setClosingBrowser({ id, taskId, title: status.title });
+        } else {
+          closeTaskBrowser(id, taskId);
+        }
+      })
+      .catch(() => {
+        closeTaskBrowser(id, taskId);
+      });
+  };
+
   useWindowCommands({
     closeTab: () => {
-      windowTabs.closeActive();
+      if (active) {
+        requestClose(active.id);
+      }
     },
     newTab: () => {
       windowTabs.openScreen(NEW_TAB_HREF);
@@ -311,25 +387,62 @@ function OrchestratorLayout() {
         }}
       >
         <Frame>
+          {isSidebarOpen ? null : (
+            <Rail
+              onOpen={() => {
+                setSidebarOpen(true);
+              }}
+            />
+          )}
           <StudioSidebarRail
             bounds={SIDEBAR_BOUNDS}
-            isOpen
+            isOpen={isSidebarOpen}
             label="Resize the sidebar"
             onCollapse={() => {
-              // The conversation lives here; the sidebar has no away to slide to.
+              setSidebarOpen(false);
             }}
             panelClassName="bg-background"
             widthAtom={orchestratorSidebarWidthAtom}
           >
-            <div className="flex min-h-0 w-full flex-1 flex-col pt-10">
-              <OrchestratorBookmarks className="max-h-2/5 shrink-0 overflow-y-auto" />
-              <div className="mx-3 h-px shrink-0 bg-border" />
+            <div className="relative flex min-h-0 w-full flex-1 flex-col pt-10">
+              {/* Beside the traffic lights, where the rail's twin sits. */}
+              <button
+                aria-label="Hide sidebar"
+                className="absolute top-2 right-2 rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                onClick={() => {
+                  setSidebarOpen(false);
+                }}
+                type="button"
+              >
+                <SidebarSimpleIcon className="size-4" />
+              </button>
+              <div
+                className="shrink-0 overflow-y-auto"
+                style={{ height: pinsHeight }}
+              >
+                <OrchestratorPins />
+              </div>
+              <PinsDivider
+                onResize={(height, sidebarHeight) => {
+                  setPinsHeight(
+                    Math.max(
+                      PINS_HEIGHT_MIN,
+                      Math.min(sidebarHeight - CHAT_HEIGHT_MIN, height),
+                    ),
+                  );
+                }}
+              />
               <div className="flex min-h-0 flex-1 flex-col">
-                <header className="flex h-9 shrink-0 items-center gap-2 px-3 text-sm font-medium">
+                <header className="flex h-8 shrink-0 items-center gap-2 px-3 text-sm font-medium">
                   <InstrumentGlyph className="size-4" />
                   <span>{APP_NAME}</span>
+                  {/* The one sign, for now, that the conversation is still at work. */}
+                  {isConversationWorking && (
+                    <Spinner className="size-3.5 text-muted-foreground" />
+                  )}
                 </header>
-                <div className="min-h-0 flex-1">
+                {/* `select-text`: the sidebar shell is chrome and turns selection off; the conversation is text. */}
+                <div className="min-h-0 flex-1 select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
                   {/* Names the task and session for the links inside, so a page
                       a reply names offers both the window's browser and the
                       user's, the way a link in a task does. */}
@@ -337,36 +450,38 @@ function OrchestratorLayout() {
                     sessionId={screens.sessionId}
                     taskId={screens.taskId}
                   >
-                    <TaskChat
-                      alwaysSubmittable
-                      composerLead={<ViewChip />}
-                      navigateOnSend={false}
-                      presentation="orchestrator"
-                      promptDraft={state.data.promptDraft ?? ""}
-                      selectedModelURI={
-                        state.data.selectedModelURI ?? defaultModelURI
-                      }
-                      selectedSessionId={screens.sessionId}
-                      // What the tab on screen says it shows, plus the page's
-                      // words when that tab is a page, read at the moment of
-                      // sending; a screen that registered nothing sends nothing.
-                      sendContext={async () => {
-                        if (!screenView) {
-                          return;
+                    <FilesLayoutContext value="list">
+                      <TaskChat
+                        alwaysSubmittable
+                        composerLead={<ViewChip />}
+                        navigateOnSend={false}
+                        presentation="orchestrator"
+                        promptDraft={state.data.promptDraft ?? ""}
+                        selectedModelURI={
+                          state.data.selectedModelURI ?? defaultModelURI
                         }
-                        const page =
-                          screenView.screen === "browser"
-                            ? await browser?.readPage()
-                            : undefined;
-                        return {
-                          ...screenView,
-                          ...(page ? { page } : {}),
-                          url: location.href,
-                        };
-                      }}
-                      task={task.data}
-                      transcriptTrailing={<TasksWorkingRow />}
-                    />
+                        selectedSessionId={screens.sessionId}
+                        // What the tab on screen says it shows, plus the page's
+                        // words when that tab is a page, read at the moment of
+                        // sending; a screen that registered nothing sends nothing.
+                        sendContext={async () => {
+                          if (!screenView) {
+                            return;
+                          }
+                          const page =
+                            screenView.screen === "browser"
+                              ? await browser?.readPage()
+                              : undefined;
+                          return {
+                            ...screenView,
+                            ...(page ? { page } : {}),
+                            url: location.href,
+                          };
+                        }}
+                        task={task.data}
+                        transcriptTrailing={<TasksWorkingRow />}
+                      />
+                    </FilesLayoutContext>
                   </TaskSessionProvider>
                 </div>
               </div>
@@ -379,7 +494,7 @@ function OrchestratorLayout() {
                   children.data?.map((child) => [child.id, child.title]) ?? [],
                 )
               }
-              onClose={windowTabs.close}
+              onClose={requestClose}
               onNew={() => {
                 windowTabs.openScreen(NEW_TAB_HREF);
               }}
@@ -403,10 +518,127 @@ function OrchestratorLayout() {
                 </ActiveTabProvider>
               </div>
             </div>
+            <AlertDialog
+              onOpenChange={(open) => {
+                if (!open) {
+                  setClosingBrowser(undefined);
+                }
+              }}
+              open={closingBrowser !== undefined}
+            >
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    {closingBrowser
+                      ? `“${closingBrowser.title}” is using this page`
+                      : ""}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    The task is still working in this browser. Closing it takes
+                    the page away mid-work; the task is told, and carries on
+                    without it.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep it open</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      if (closingBrowser) {
+                        closeTaskBrowser(
+                          closingBrowser.id,
+                          closingBrowser.taskId,
+                        );
+                      }
+                      setClosingBrowser(undefined);
+                    }}
+                  >
+                    Close anyway
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </main>
         </Frame>
       </FileOpenContext>
     </OrchestratorContext>
+  );
+}
+
+/**
+ * The line between the pinned area and the conversation, dragged to give
+ * either the height. Reports the pinned height and the sidebar's, so the
+ * conversation keeps its floor.
+ */
+function PinsDivider({
+  onResize,
+}: {
+  onResize: (pinsHeight: number, sidebarHeight: number) => void;
+}) {
+  return (
+    <div
+      aria-label="Resize the pinned area"
+      aria-orientation="horizontal"
+      className="relative mx-3 h-px shrink-0 cursor-row-resize bg-border before:absolute before:inset-x-0 before:-inset-y-1.5 hover:bg-muted-foreground/40"
+      onPointerDown={(event) => {
+        const handle = event.currentTarget;
+        const sidebar = handle.parentElement;
+        if (!sidebar) {
+          return;
+        }
+        event.preventDefault();
+        handle.setPointerCapture(event.pointerId);
+        const top = sidebar.getBoundingClientRect().top;
+        const move = (moveEvent: PointerEvent) => {
+          const zoom = Number.parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue(
+              "--app-zoom",
+            ) || "1",
+          );
+          onResize(
+            (moveEvent.clientY - top) / zoom - 40,
+            sidebar.getBoundingClientRect().height / zoom,
+          );
+        };
+        const up = () => {
+          handle.removeEventListener("pointermove", move);
+          handle.removeEventListener("pointerup", up);
+          handle.removeEventListener("pointercancel", up);
+        };
+        handle.addEventListener("pointermove", move);
+        handle.addEventListener("pointerup", up);
+        handle.addEventListener("pointercancel", up);
+      }}
+      role="separator"
+    />
+  );
+}
+
+/**
+ * The sidebar shrunk to a rail: wide enough for the traffic lights to sit
+ * clear of the tabs, with the mark at its foot to bring the conversation
+ * back. Never gone.
+ */
+function Rail({ onOpen }: { onOpen: () => void }) {
+  return (
+    <aside className="relative flex w-20 shrink-0 flex-col items-center border-r border-border bg-background pt-10 pb-3">
+      <button
+        aria-label="Show sidebar"
+        className="rounded-md p-1.5 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+        onClick={onOpen}
+        type="button"
+      >
+        <SidebarSimpleIcon className="size-4" />
+      </button>
+      <span className="flex-1" />
+      <button
+        aria-label="Show Instrument"
+        className="rounded-md p-1.5 text-brand-600 hover:bg-foreground/5 dark:text-brand-400"
+        onClick={onOpen}
+        type="button"
+      >
+        <InstrumentGlyph className="size-6" />
+      </button>
+    </aside>
   );
 }
 

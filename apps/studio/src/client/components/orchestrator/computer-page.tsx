@@ -19,13 +19,14 @@ import {
   type ComputerListing,
   type TaskId,
 } from "@instrument-org/workspace/client";
+import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import ms from "ms";
 import { unique } from "radashi";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useOrchestrator } from "./context";
@@ -90,15 +91,23 @@ export function ComputerPage({
   // and a selection held as one of them would change with each.
   const [selectedPath, setSelectedPath] = useState<null | string>(null);
   // The address this page wrote last, so one that arrives from outside can
-  // be told from the page's own echo of what the browser showed.
-  const [written, setWritten] = useState({ path, root });
+  // be told from the page's own echo of what the browser showed. A ref, not
+  // state: the router answers a write in a render of its own, ahead of any
+  // state set beside the write, and a page that read stale state there took
+  // every selection for an arrival and reopened the browser at it.
+  const written = useRef(`${root}#${path}`);
   // How many times the browser has been opened at an address from outside.
   // It takes only a starting folder, so a Recent entry, the omnibox, or
   // history landing here while the screen is up opens it again there.
   const [openings, setOpenings] = useState(0);
-  if (path !== written.path || root !== written.root) {
-    const rootChanged = root !== written.root;
-    setWritten({ path, root });
+  useEffect(() => {
+    const here = `${root}#${path}`;
+    const [writtenRoot] = written.current.split("#");
+    if (written.current === here) {
+      return;
+    }
+    const rootChanged = root !== writtenRoot;
+    written.current = here;
     setCurrent(path);
     setSelectedPath(null);
     setLoaded((previous) =>
@@ -107,7 +116,7 @@ export function ComputerPage({
         : unique([...previous, ...prefixesOf(path)]),
     );
     setOpenings((count) => count + 1);
-  }
+  }, [path, root]);
 
   // `~` names the home folder; the workspace expands it.
   const hostPathOf = (prefix: string) => {
@@ -180,7 +189,7 @@ export function ComputerPage({
   const currentListing = listingOf(onScreen);
   useEffect(() => {
     if (onScreen !== path) {
-      setWritten({ path: onScreen, root });
+      written.current = `${root}#${onScreen}`;
       void navigate({
         replace: true,
         search: (previous) => ({ ...previous, path: onScreen, root }),
@@ -188,6 +197,45 @@ export function ComputerPage({
       });
     }
   }, [navigate, onScreen, path, root]);
+
+  // The arrows work the moment a folder is on screen: the first row takes
+  // the keyboard on each opening, unless the user is typing somewhere.
+  const browserRef = useRef<HTMLDivElement>(null);
+  const hasRows = items.length > 0;
+  useEffect(() => {
+    if (!hasRows || isTypingTarget(document.activeElement)) {
+      return;
+    }
+    const row = browserRef.current?.querySelector<HTMLElement>(
+      '[role="option"][tabindex="0"]',
+    );
+    row?.focus({ preventScroll: true });
+    // Once per opening, when its rows are first there.
+  }, [openings, hasRows]);
+
+  // The folders this tab has shown, in order, for back and forward the way
+  // the Finder's are: a step back is a folder, never a screen the window was
+  // on. A folder reached by back or forward is not pushed again.
+  const trail = useRef<{ at: number; folders: string[] }>({
+    at: 0,
+    folders: [`${root}#${path}`],
+  });
+  const walking = useRef(false);
+  useEffect(() => {
+    const here = `${root}#${onScreen}`;
+    const { at, folders } = trail.current;
+    if (folders[at] === here) {
+      return;
+    }
+    if (walking.current) {
+      walking.current = false;
+      return;
+    }
+    trail.current = {
+      at: at + 1,
+      folders: [...folders.slice(0, at + 1), here],
+    };
+  }, [onScreen, root]);
 
   // What the conversation is told "this folder" means.
   const display = currentListing?.display;
@@ -272,6 +320,18 @@ export function ComputerPage({
     });
   };
 
+  const walk = (direction: -1 | 1) => {
+    const { at, folders } = trail.current;
+    const next = folders[at + direction];
+    if (next === undefined) {
+      return;
+    }
+    walking.current = true;
+    trail.current = { at: at + direction, folders };
+    const [nextRoot = root, nextPath = ""] = next.split("#");
+    rootTo(nextRoot, nextPath);
+  };
+
   if (!places.data) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -330,7 +390,7 @@ export function ComputerPage({
         />
       </nav>
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="min-h-0 flex-1">
+        <div className="min-h-0 flex-1" ref={browserRef}>
           <FileSystem
             className="h-full rounded-none border-0"
             defaultPath={path}
@@ -382,6 +442,34 @@ export function ComputerPage({
                 </DocumentThumbnail>
               );
             }}
+            renderHeaderLead={() => (
+              <span className="flex items-center gap-0.5 pr-1">
+                <button
+                  aria-label="Back"
+                  className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
+                  disabled={trail.current.at === 0}
+                  onClick={() => {
+                    walk(-1);
+                  }}
+                  type="button"
+                >
+                  <CaretLeftIcon className="size-4" />
+                </button>
+                <button
+                  aria-label="Forward"
+                  className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
+                  disabled={
+                    trail.current.at >= trail.current.folders.length - 1
+                  }
+                  onClick={() => {
+                    walk(1);
+                  }}
+                  type="button"
+                >
+                  <CaretRightIcon className="size-4" />
+                </button>
+              </span>
+            )}
             title={rootName}
           />
         </div>

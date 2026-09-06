@@ -144,7 +144,7 @@ export function ViewChip() {
         };
       }
       case "home": {
-        return { icon: <HouseIcon className="size-3.5" />, title: "Home" };
+        return { icon: <HouseIcon className="size-3.5" />, title: "New tab" };
       }
       case "task": {
         return {

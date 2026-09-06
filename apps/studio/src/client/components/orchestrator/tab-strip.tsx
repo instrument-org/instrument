@@ -15,6 +15,8 @@ export interface StripTab {
   icon: ReactNode;
   /** Drawn first and held there: not dragged, not closed. */
   isFixed?: boolean;
+  /** An agent is at work in it: its name shimmers. */
+  isWorking?: boolean;
   key: string;
   title: string;
 }
@@ -84,6 +86,7 @@ type TabDensity = "compact" | "full" | "icon";
 export function TabStrip({
   className,
   onClose,
+  onContextMenu,
   onNew,
   onReorder,
   onSelect,
@@ -93,6 +96,8 @@ export function TabStrip({
 }: {
   className?: string;
   onClose: (key: string) => void;
+  /** A right click on a tab, for a menu the caller draws. */
+  onContextMenu?: (key: string, event: React.MouseEvent) => void;
   /** Drawn as a plus at the end of the row when given. */
   onNew?: () => void;
   onReorder: (keys: string[]) => void;
@@ -240,7 +245,12 @@ export function TabStrip({
 
   return (
     <div
-      className={cn("flex h-10 shrink-0 items-center gap-1 px-2", className)}
+      // The window drags by the strip's empty run, the way a browser's does;
+      // the tabs and the buttons in it stay theirs.
+      className={cn(
+        "flex h-10 shrink-0 items-center gap-1 px-2 [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]",
+        className,
+      )}
       style={TAB_MOTION}
     >
       <div
@@ -259,6 +269,9 @@ export function TabStrip({
             nextIsSelected={
               (fixedTabs[index + 1]?.key ?? visibleKeys[0]) === selectedKey
             }
+            onContextMenu={(event) => {
+              onContextMenu?.(tab.key, event);
+            }}
             onSelect={() => {
               onSelect(tab.key);
             }}
@@ -424,6 +437,7 @@ function Tab({
   isSelected,
   nextIsSelected,
   onClose,
+  onContextMenu,
   onDragEnd,
   onDragStart,
   onSelect,
@@ -441,6 +455,7 @@ function Tab({
   isSelected: boolean;
   nextIsSelected: boolean;
   onClose?: () => void;
+  onContextMenu?: (event: React.MouseEvent) => void;
   onDragEnd?: () => void;
   onDragStart?: () => void;
   onSelect: () => void;
@@ -508,6 +523,7 @@ function Tab({
                     : "group-hover/pane-tab:tab-title-fade"),
               )
             : "sr-only",
+          tab.isWorking && "brand-shiny-text",
         )}
       >
         {tab.title}
@@ -547,6 +563,7 @@ function Tab({
     "aria-selected": isSelected,
     className,
     "data-density": density,
+    onContextMenu,
     onKeyDown: (event: React.KeyboardEvent) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();

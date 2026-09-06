@@ -15,8 +15,10 @@ import { getWebviewElement } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type BrowserTargetId,
+  decodeBrowserTargetId,
   encodeBrowserTargetId,
   StoreId,
+  type TaskId,
 } from "@instrument-org/workspace/client";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { useQuery } from "@tanstack/react-query";
@@ -126,11 +128,15 @@ export function BrowserTabs({
   );
 
   const targetOf = (tab: BrowserTab): BrowserTargetId =>
-    encodeBrowserTargetId(taskId, StoreId.SessionSchema.parse(tab.id));
+    encodeBrowserTargetId(
+      tab.taskId ?? taskId,
+      StoreId.SessionSchema.parse(tab.id),
+    );
   const active = tabs.find((tab) => tab.id === activeId);
 
-  // The orchestrator's own browser is the tab on screen.
-  const activeTarget = active ? targetOf(active) : null;
+  // The orchestrator's own browser is the tab on screen; a task's tab is the
+  // task's to drive.
+  const activeTarget = active && !active.taskId ? targetOf(active) : null;
   useEffect(() => {
     void rpcClient.workspace.orchestrator.setActiveTab.call({
       id: taskId,
@@ -149,7 +155,7 @@ export function BrowserTabs({
     }
     void rpcClient.workspace.browser.open.call({
       host: WINDOW_BROWSER_HOST,
-      id: taskId,
+      id: active.taskId ?? taskId,
       sessionId: StoreId.SessionSchema.parse(active.id),
       url: activeUrl,
     });
@@ -164,11 +170,50 @@ export function BrowserTabs({
     latest.current = { active, tabs };
   });
 
+  // A task the conversation started browses here too: its guest is mounted
+  // in this window, and the moment one attaches it gets a tab, behind the one
+  // on screen, so the user can watch it work. Only a guest arriving is a tab
+  // to add: one the user closed is still attached until the close lands, and
+  // must not come straight back.
+  const seenTargets = useRef(new Set<BrowserTargetId>());
+  useEffect(() => {
+    const arrived = [...attached].filter(
+      (target) => !seenTargets.current.has(target),
+    );
+    seenTargets.current = new Set(attached);
+    const newcomers = arrived.flatMap((target) => {
+      const decoded = decodeBrowserTargetId(target);
+      if (
+        !decoded ||
+        decoded.id === taskId ||
+        latest.current.tabs.some((tab) => tab.id === decoded.sessionId)
+      ) {
+        return [];
+      }
+      return [
+        {
+          id: decoded.sessionId,
+          openedAt: Date.now(),
+          taskId: decoded.id,
+        } satisfies BrowserTab,
+      ];
+    });
+    if (newcomers.length === 0) {
+      return;
+    }
+    setAllTabs(
+      withPageTabs((current) => ({
+        ...current,
+        tabs: [...current.tabs, ...newcomers],
+      })),
+    );
+  }, [attached, setAllTabs, taskId]);
+
   // Titles, addresses and icons come off the guests as the pages announce
   // them: the pages navigate by the user's hand and by an agent's, so the
   // strip is told rather than polled. Listeners are put on each guest once it
   // has attached, and again for a tab that arrives later.
-  const tabIds = tabs.map((tab) => tab.id).join(",");
+  const tabIds = tabs.map((tab) => `${tab.taskId ?? ""}:${tab.id}`).join(",");
   useEffect(() => {
     const patch = (id: string, changes: Partial<BrowserTab>) => {
       setAllTabs(
@@ -191,12 +236,13 @@ export function BrowserTabs({
         }),
       );
     };
-    const cleanups = tabIds.split(",").map((id) => {
+    const cleanups = tabIds.split(",").map((key) => {
+      const [owner, id] = key.split(":");
       if (!id) {
         return;
       }
       const target = encodeBrowserTargetId(
-        taskId,
+        owner ? (owner as TaskId) : taskId,
         StoreId.SessionSchema.parse(id),
       );
       if (!attached.has(target)) {
@@ -353,9 +399,12 @@ export function BrowserTabs({
         if (!url) {
           return;
         }
+        // The window's own tabs are the ones a task can be handed; a task's
+        // tab is already that task's.
+        const own = all.filter((tab) => !tab.taskId);
         const base: PageContext = {
-          tab: current.id,
-          tabs: all.map((tab) => ({
+          ...(current.taskId ? {} : { tab: current.id }),
+          tabs: own.map((tab) => ({
             id: tab.id,
             title: tab.title ?? "",
             url: tab.url ?? "",
@@ -392,15 +441,22 @@ export function BrowserTabs({
     [taskId],
   );
 
+  const taskIdsWithTabs = [
+    ...new Set(tabs.flatMap((tab) => (tab.taskId ? [tab.taskId] : []))),
+  ];
+
   return (
     <div className="relative h-full min-h-0">
+      {taskIdsWithTabs.map((id) => (
+        <BrowserHold key={id} taskId={id} />
+      ))}
       {active ? (
         <TaskBrowserPanel
           active={attached.has(targetOf(active))}
           className="h-full"
           key={active.id}
           sessionId={StoreId.SessionSchema.parse(active.id)}
-          taskId={taskId}
+          taskId={active.taskId ?? taskId}
         />
       ) : null}
     </div>
@@ -437,6 +493,25 @@ export function TabIcon({
     return <Favicon className="size-3.5 rounded-xs" url={url} />;
   }
   return <GlobeIcon className="size-3.5" />;
+}
+
+/**
+ * Holds a task's browser for as long as the window has a tab of it: the task
+ * page's leases, taken here instead, since the page for a task the
+ * conversation started is never open.
+ */
+function BrowserHold({ taskId }: { taskId: TaskId }) {
+  useQuery(
+    rpcClient.workspace.browser.live.presence.experimental_liveOptions({
+      input: { id: taskId, level: "retained" },
+    }),
+  );
+  useQuery(
+    rpcClient.workspace.browser.live.presence.experimental_liveOptions({
+      input: { id: taskId, level: "visible" },
+    }),
+  );
+  return null;
 }
 
 /** Two addresses are the same tab when they differ only by a trailing slash or a fragment. */

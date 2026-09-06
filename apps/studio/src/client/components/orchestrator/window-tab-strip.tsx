@@ -1,13 +1,19 @@
-import { NEW_TAB_HREF, type WindowTab } from "@/client/atoms/orchestrator";
+import {
+  NEW_TAB_HREF,
+  pinsAtom,
+  type WindowTab,
+} from "@/client/atoms/orchestrator";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { FileIcon } from "@/client/components/file-icon";
 import { InstrumentGlyph } from "@/client/components/wordmark";
+import { useBrowserAgentActivity } from "@/client/hooks/use-browser-agent-activity";
 import { rpcClient } from "@/client/rpc/client";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode } from "react";
+import { useSetAtom } from "jotai";
+import { type ReactNode, useEffect, useState } from "react";
 
 import { AppIcon } from "./app-icon";
 import { TabIcon } from "./browser-tabs";
@@ -15,10 +21,22 @@ import { computerName } from "./computer-name";
 import { TabStrip } from "./tab-strip";
 import { parseHref } from "./window-tabs";
 
+/** A screen's icon on its own, by its address: for a pin's row. */
+export function ScreenIcon({
+  appsBySlug,
+  href,
+}: {
+  appsBySlug: Map<string, { name: string; site: string | undefined }>;
+  href: string;
+}) {
+  return screenPresentation(href, { appsBySlug, childTitles: new Map() }).icon;
+}
+
 /**
  * The strip along the top of the window: every tab, whatever it holds, drawn
  * the way the task page draws its pane tabs. A page carries its site's icon
- * and title; a screen is named for what it is at.
+ * and title; a screen is named for what it is at. A right click on any tab
+ * offers to pin it to the sidebar or close it.
  */
 export function WindowTabStrip({
   childTitles,
@@ -44,25 +62,152 @@ export function WindowTabStrip({
       { name: app.name, site: app.site },
     ]),
   );
+  const setPins = useSetAtom(pinsAtom);
+  const [menu, setMenu] = useState<{ key: string; x: number; y: number }>();
+
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => {
+      setMenu(undefined);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [menu]);
+
+  const pin = (tab: WindowTab) => {
+    // A page with no address yet has nothing to come back to.
+    const target = tab.kind === "page" ? tab.url : tab.href;
+    if (!target) return;
+    const title =
+      tab.kind === "page"
+        ? tab.title || target
+        : screenPresentation(tab.href, { appsBySlug, childTitles }).title;
+    setPins((pins) =>
+      pins.some((pinned) => pinned.target === target)
+        ? pins
+        : [
+            ...pins,
+            {
+              favicon: tab.kind === "page" ? tab.favicon : undefined,
+              id: crypto.randomUUID(),
+              kind: tab.kind,
+              target,
+              title,
+            },
+          ],
+    );
+  };
+
+  const menuTab = menu && tabs.find((tab) => tab.id === menu.key);
+
+  // Which tasks are in their browsers right now, one probe per task with a
+  // tab here, since the answer is a subscription and the list is a list.
+  const [working, setWorking] = useState<ReadonlySet<TaskId>>(new Set());
+  const browsingTaskIds = [
+    ...new Set(
+      tabs.flatMap((tab) =>
+        tab.kind === "page" && tab.taskId ? [tab.taskId] : [],
+      ),
+    ),
+  ];
+  const reportWorking = (id: TaskId, isWorking: boolean) => {
+    setWorking((current) => {
+      if (current.has(id) === isWorking) return current;
+      const next = new Set(current);
+      if (isWorking) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
   return (
-    <TabStrip
-      className="border-b border-border"
-      onClose={onClose}
-      onNew={onNew}
-      onReorder={onReorder}
-      onSelect={onSelect}
-      selectedKey={selectedId}
-      tabs={tabs.map((tab) => ({
-        key: tab.id,
-        ...(tab.kind === "page"
-          ? {
-              icon: <TabIcon favicon={tab.favicon} url={tab.url} />,
-              title: tab.title || tab.url || "New tab",
-            }
-          : screenPresentation(tab.href, { appsBySlug, childTitles })),
-      }))}
-    />
+    <>
+      {browsingTaskIds.map((id) => (
+        <BrowserActivityProbe key={id} onChange={reportWorking} taskId={id} />
+      ))}
+      <TabStrip
+        className="border-b border-border"
+        onClose={onClose}
+        onContextMenu={(key, event) => {
+          event.preventDefault();
+          setMenu({ key, x: event.clientX, y: event.clientY });
+        }}
+        onNew={onNew}
+        onReorder={onReorder}
+        onSelect={onSelect}
+        selectedKey={selectedId}
+        tabs={tabs.map((tab) => ({
+          key: tab.id,
+          ...(tab.kind === "page"
+            ? {
+                icon: <TabIcon favicon={tab.favicon} url={tab.url} />,
+                isWorking: tab.taskId !== undefined && working.has(tab.taskId),
+                title:
+                  tab.title ||
+                  (tab.taskId && childTitles.get(tab.taskId)) ||
+                  tab.url ||
+                  "New tab",
+              }
+            : screenPresentation(tab.href, { appsBySlug, childTitles })),
+        }))}
+      />
+      {menu && menuTab && (
+        <div
+          className="fixed z-50 min-w-40 rounded-md border border-border bg-popover p-1 text-sm text-popover-foreground shadow-md"
+          onPointerDown={(event) => {
+            event.stopPropagation();
+          }}
+          role="menu"
+          style={{ left: menu.x, top: menu.y }}
+        >
+          <button
+            className="flex w-full rounded-sm px-2 py-1.5 text-left hover:bg-accent"
+            onClick={() => {
+              pin(menuTab);
+              setMenu(undefined);
+            }}
+            role="menuitem"
+            type="button"
+          >
+            Pin to sidebar
+          </button>
+          <button
+            className="flex w-full rounded-sm px-2 py-1.5 text-left hover:bg-accent"
+            onClick={() => {
+              onClose(menuTab.id);
+              setMenu(undefined);
+            }}
+            role="menuitem"
+            type="button"
+          >
+            Close tab
+          </button>
+        </div>
+      )}
+    </>
   );
+}
+
+/** Reports whether a task is in its browser, for the strip to shimmer its tab by. */
+function BrowserActivityProbe({
+  onChange,
+  taskId,
+}: {
+  onChange: (taskId: TaskId, isWorking: boolean) => void;
+  taskId: TaskId;
+}) {
+  const isWorking = useBrowserAgentActivity(taskId);
+  useEffect(() => {
+    onChange(taskId, isWorking);
+  }, [isWorking, onChange, taskId]);
+  return null;
 }
 
 /** What a screen tab is called and drawn with, read off its address. */

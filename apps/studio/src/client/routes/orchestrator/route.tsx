@@ -129,17 +129,6 @@ function OrchestratorLayout() {
     }),
   );
   const ids = ensure.data;
-  // Whether the conversation is at work, for the sign by its name.
-  const { data: conversationActivity } = useQuery({
-    ...rpcClient.workspace.task.live.activity.experimental_liveOptions(),
-    select: (activity) =>
-      activity.find((entry) => entry.taskId === ids?.taskId),
-  });
-  const isConversationWorking =
-    conversationActivity?.sessionActors.some((actor) =>
-      actor.tags.includes("agent.running"),
-    ) ?? false;
-
   const task = useQuery(
     rpcClient.workspace.task.live.byId.experimental_liveOptions({
       input: ids ? { id: ids.taskId } : skipToken,
@@ -438,10 +427,6 @@ function OrchestratorLayout() {
                   <header className="flex h-8 shrink-0 items-center gap-2 px-3 text-sm font-medium">
                     <InstrumentGlyph className="size-4" />
                     <span>{APP_NAME}</span>
-                    {/* The one sign, for now, that the conversation is still at work. */}
-                    {isConversationWorking && (
-                      <Spinner className="size-3.5 text-muted-foreground" />
-                    )}
                   </header>
                   {/* `select-text`: the sidebar shell is chrome and turns selection off; the conversation is text. */}
                   <div className="min-h-0 flex-1 select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
@@ -455,6 +440,7 @@ function OrchestratorLayout() {
                       <FilesLayoutContext value="list">
                         <TaskChat
                           alwaysSubmittable
+                          beforeComposer={<TasksWorkingRow />}
                           composerLead={<ViewChip />}
                           navigateOnSend={false}
                           presentation="orchestrator"
@@ -481,7 +467,6 @@ function OrchestratorLayout() {
                             };
                           }}
                           task={task.data}
-                          transcriptTrailing={<TasksWorkingRow />}
                         />
                       </FilesLayoutContext>
                     </TaskSessionProvider>

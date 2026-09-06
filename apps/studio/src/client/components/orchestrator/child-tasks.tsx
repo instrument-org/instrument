@@ -1,3 +1,4 @@
+import { type WindowTab, windowTabsAtom } from "@/client/atoms/orchestrator";
 import { ChatStream } from "@/client/components/chat-stream";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { ModelPreview } from "@/client/components/tasks-data-table/model-preview";
@@ -13,13 +14,16 @@ import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { hasLiveAgent } from "@/client/lib/agent-status";
 import { rpcClient } from "@/client/rpc/client";
 import {
+  decodeBrowserTargetId,
   type SessionMessage,
   type Task,
 } from "@instrument-org/workspace/client";
-import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { skipToken, useQuery } from "@tanstack/react-query";
+import { useAtomValue } from "jotai";
 import ms from "ms";
-import { Fragment, type ReactNode } from "react";
+import { type ReactNode } from "react";
+
+import { TabIcon } from "./browser-tabs";
 
 /** How often a task's sessions and standing are re-read while it is open. */
 const REFRESH_MS = ms("2 seconds");
@@ -125,6 +129,27 @@ function Chip({ children, label }: { children: ReactNode; label: string }) {
   );
 }
 
+/** The window's tab the task was handed, drawn as the strip draws it: its icon and name, the address on hover. */
+function HandedTabChip({ sessionId }: { sessionId: string }) {
+  const { tabs } = useAtomValue(windowTabsAtom);
+  const tab = tabs.find(
+    (entry): entry is Extract<WindowTab, { kind: "page" }> =>
+      entry.kind === "page" && entry.id === sessionId,
+  );
+  return (
+    <span
+      className="flex h-6 max-w-64 items-center gap-1.5 rounded-md bg-foreground/5 px-1.5"
+      title={tab?.url ?? "A tab of this window"}
+    >
+      <span className="text-muted-foreground">Tab</span>
+      <TabIcon favicon={tab?.favicon} url={tab?.url} />
+      <span className="truncate font-medium">
+        {tab?.title || tab?.url || "closed"}
+      </span>
+    </span>
+  );
+}
+
 /**
  * What the orchestrator handed the task, along the top, for whoever is
  * checking its work: the model, the folders and their access, a handed tab,
@@ -153,62 +178,40 @@ function TaskBrief({
     .filter((line) => line && LIMIT_LINE.test(line))
     .slice(0, 3);
   const folders = Object.values(state.data?.attachedFolders ?? {});
-  const model = state.data?.selectedModelURI?.split("?")[0];
+  const handed = state.data?.browserTargetId
+    ? decodeBrowserTargetId(state.data.browserTargetId)
+    : null;
   return (
-    <details className="group shrink-0 border-b border-border px-4 py-2 text-xs">
-      <summary className="flex cursor-default list-none flex-wrap items-center gap-1.5 select-none [&::-webkit-details-marker]:hidden">
-        <CaretRightIcon className="size-3 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
-        <span className="flex h-6 items-center rounded-md bg-foreground/5 px-1.5">
-          <ModelPreview id={taskId} />
-        </span>
-        {folders.length === 0 ? (
-          <Chip label="Folders">none</Chip>
-        ) : (
-          folders.map((folder) => (
-            <span
-              className="flex h-6 max-w-64 items-center gap-1.5 rounded-md bg-foreground/5 px-1.5"
-              key={folder.id}
-              title={folder.path}
-            >
-              <MacFolderIcon className="size-4 shrink-0" />
-              <span className="truncate font-medium">{folder.mountName}</span>
-              <span className="text-muted-foreground">
-                {folder.access === "read-write" ? "read, write" : "read"}
-              </span>
+    <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border px-4 py-2 text-xs">
+      <span
+        className="flex h-6 items-center rounded-md bg-foreground/5 px-1.5"
+        title="The model the task runs on"
+      >
+        <ModelPreview id={taskId} />
+      </span>
+      {folders.length === 0 ? (
+        <Chip label="Folders">none</Chip>
+      ) : (
+        folders.map((folder) => (
+          <span
+            className="flex h-6 max-w-64 items-center gap-1.5 rounded-md bg-foreground/5 px-1.5"
+            key={folder.id}
+            title={`${folder.path} · ${folder.access}`}
+          >
+            <MacFolderIcon className="size-4 shrink-0" />
+            <span className="truncate font-medium">{folder.mountName}</span>
+            <span className="text-muted-foreground">
+              {folder.access === "read-write" ? "read, write" : "read"}
             </span>
-          ))
-        )}
-        {state.data?.browserTargetId ? <Chip label="Tab">handed</Chip> : null}
-        {limits.map((line) => (
-          <Chip key={line} label="Limit">
-            {line}
-          </Chip>
-        ))}
-      </summary>
-      <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-muted-foreground">
-        {folders.map((folder) => (
-          <Fragment key={folder.id}>
-            <dt className="font-medium text-foreground/70">
-              {folder.mountName}
-            </dt>
-            <dd className="truncate">
-              {folder.path} · {folder.access}
-            </dd>
-          </Fragment>
-        ))}
-        {model ? (
-          <>
-            <dt className="font-medium text-foreground/70">Model</dt>
-            <dd className="truncate">{model}</dd>
-          </>
-        ) : null}
-        {state.data?.browserTargetId ? (
-          <>
-            <dt className="font-medium text-foreground/70">Tab</dt>
-            <dd className="truncate">{state.data.browserTargetId}</dd>
-          </>
-        ) : null}
-      </dl>
-    </details>
+          </span>
+        ))
+      )}
+      {handed ? <HandedTabChip sessionId={handed.sessionId} /> : null}
+      {limits.map((line) => (
+        <Chip key={line} label="Limit">
+          {line}
+        </Chip>
+      ))}
+    </div>
   );
 }

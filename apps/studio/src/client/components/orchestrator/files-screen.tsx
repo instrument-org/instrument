@@ -159,7 +159,9 @@ export function FilesScreen({
                 current?.mount === tab.mount ? null : tab,
               );
             }}
+            onQuickLookFollow={setQuickLook}
             path={path}
+            quickLookOpen={quickLook !== null}
             root={root}
           />
         )}

@@ -7,8 +7,14 @@ import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { FileIcon } from "@/client/components/file-icon";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { useBrowserAgentActivity } from "@/client/hooks/use-browser-agent-activity";
+import { useTargetAgentActivity } from "@/client/hooks/use-target-agent-activity";
 import { rpcClient } from "@/client/rpc/client";
-import { type TaskId } from "@instrument-org/workspace/client";
+import {
+  type BrowserTargetId,
+  encodeBrowserTargetId,
+  StoreId,
+  type TaskId,
+} from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { useQuery } from "@tanstack/react-query";
@@ -18,6 +24,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { AppIcon } from "./app-icon";
 import { TabIcon } from "./browser-tabs";
 import { computerName } from "./computer-name";
+import { useOrchestrator } from "./context";
 import { TabStrip } from "./tab-strip";
 import { parseHref } from "./window-tabs";
 
@@ -117,6 +124,22 @@ export function WindowTabStrip({
       ),
     ),
   ];
+  // And which of the window's own tabs a task is driving, having been handed
+  // it: those shimmer too, keyed by the tab rather than by a task.
+  const { taskId: ownTaskId } = useOrchestrator();
+  const [driven, setDriven] = useState<ReadonlySet<string>>(new Set());
+  const ownPageTabs = tabs.flatMap((tab) =>
+    tab.kind === "page" && !tab.taskId ? [tab.id] : [],
+  );
+  const reportDriven = (id: string, isDriven: boolean) => {
+    setDriven((current) => {
+      if (current.has(id) === isDriven) return current;
+      const next = new Set(current);
+      if (isDriven) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
   const reportWorking = (id: TaskId, isWorking: boolean) => {
     setWorking((current) => {
       if (current.has(id) === isWorking) return current;
@@ -131,6 +154,17 @@ export function WindowTabStrip({
     <>
       {browsingTaskIds.map((id) => (
         <BrowserActivityProbe key={id} onChange={reportWorking} taskId={id} />
+      ))}
+      {ownPageTabs.map((id) => (
+        <TargetActivityProbe
+          key={id}
+          onChange={reportDriven}
+          tabId={id}
+          targetId={encodeBrowserTargetId(
+            ownTaskId,
+            StoreId.SessionSchema.parse(id),
+          )}
+        />
       ))}
       <TabStrip
         className="border-b border-border"
@@ -148,7 +182,9 @@ export function WindowTabStrip({
           ...(tab.kind === "page"
             ? {
                 icon: <TabIcon favicon={tab.favicon} url={tab.url} />,
-                isWorking: tab.taskId !== undefined && working.has(tab.taskId),
+                isWorking: tab.taskId
+                  ? working.has(tab.taskId)
+                  : driven.has(tab.id),
                 title:
                   tab.title ||
                   (tab.taskId && childTitles.get(tab.taskId)) ||
@@ -272,4 +308,21 @@ function screenPresentation(
     return { icon: <AppWindowIcon className="size-3.5" />, title: "Apps" };
   }
   return { icon: <MagnifyingGlassIcon className="size-3.5" />, title: "Tab" };
+}
+
+/** Reports whether an agent is driving one guest, for the strip to shimmer its tab by. */
+function TargetActivityProbe({
+  onChange,
+  tabId,
+  targetId,
+}: {
+  onChange: (tabId: string, isDriven: boolean) => void;
+  tabId: string;
+  targetId: BrowserTargetId;
+}) {
+  const isDriven = useTargetAgentActivity(targetId);
+  useEffect(() => {
+    onChange(tabId, isDriven);
+  }, [isDriven, onChange, tabId]);
+  return null;
 }

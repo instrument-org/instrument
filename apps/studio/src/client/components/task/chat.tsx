@@ -70,6 +70,7 @@ const TRANSCRIPT_PREVIOUS_TURN_PEEK = 40;
 
 export function TaskChat({
   alwaysSubmittable = false,
+  beforeComposer,
   composerLead,
   isReplayActive = false,
   navigateOnSend = true,
@@ -90,6 +91,8 @@ export function TaskChat({
    * arrives mid-turn and runs it the moment the turn ends.
    */
   alwaysSubmittable?: boolean;
+  /** Drawn between the transcript and the composer, outside the scroll: a standing row the transcript's end does not move for. */
+  beforeComposer?: ReactNode;
   /** A chip at the head of the composer's box: what goes with the prompt besides its words. */
   composerLead?: ReactNode;
   isReplayActive?: boolean;
@@ -548,6 +551,8 @@ export function TaskChat({
             />
           </div>
         </MessageScroller>
+
+        {beforeComposer}
 
         {/* isolate: keep the tutorial card's -z-10 background and the prompt
             input's z-10 contained to the composer. */}

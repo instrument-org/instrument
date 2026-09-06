@@ -2,21 +2,17 @@ import { screenViewAtom, windowTabsAtom } from "@/client/atoms/orchestrator";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { FileIcon } from "@/client/components/file-icon";
 import { PlanningDotIcon } from "@/client/components/icons/planning-dot";
-import {
-  STEP_RUN,
-  TRANSCRIPT_ROW,
-} from "@/client/components/message-part/transcript-group";
 import { InstrumentGlyph } from "@/client/components/wordmark";
-import { hasLiveAgent } from "@/client/lib/agent-status";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { HouseIcon } from "@phosphor-icons/react/House";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import ms from "ms";
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import { AppIcon } from "./app-icon";
 import { computerName } from "./computer-name";
@@ -27,40 +23,68 @@ import { SiteIcon } from "./sidebar";
 const REFRESH_MS = ms("2 seconds");
 
 /**
- * The row under the last turn while tasks work and the conversation itself
- * is idle: the same shape as the row the agent's own steps take, carrying
- * the latest step of whichever task moved last, so the transcript reads as
- * still going rather than finished.
+ * The banner between the transcript and the composer while tasks work: the
+ * place they are followed from, since inline cards scroll away. Shut, it is
+ * one shimmering line carrying the latest step of whichever task moved last;
+ * open, every running task with its step, each a way to its screen.
  */
 export function TasksWorkingRow() {
-  const { taskId } = useOrchestrator();
+  const { openScreen, taskId } = useOrchestrator();
+  const [isOpen, setIsOpen] = useState(false);
   const activity = useQuery(
     rpcClient.workspace.orchestrator.activity.queryOptions({
       input: { id: taskId },
       refetchInterval: REFRESH_MS,
     }),
   );
-  const status = useQuery(
-    rpcClient.workspace.task.agentStatus.byIds.queryOptions({
-      input: { ids: [taskId] },
-      refetchInterval: REFRESH_MS,
-    }),
-  );
-  const isThinking = status.data?.some(hasLiveAgent) ?? false;
   const running = activity.data?.running ?? [];
-  if (isThinking || running.length === 0) {
+  if (running.length === 0) {
     return null;
   }
   const latest = running.find((entry) => entry.step) ?? running[0];
   const doing = latest?.step ?? latest?.title ?? "Working";
   return (
-    <div className={STEP_RUN}>
-      <div className={cn(TRANSCRIPT_ROW, "animate-in fill-mode-both fade-in")}>
-        <PlanningDotIcon />
-        <span className="brand-shiny-text truncate text-sm">
-          {running.length > 1 ? `${running.length} tasks · ` : ""}
-          {doing}
-        </span>
+    <div className="mx-auto w-full max-w-3xl px-3 pb-1">
+      <div className="rounded-lg border border-border bg-background text-sm">
+        <button
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-left"
+          onClick={() => {
+            setIsOpen((open) => !open);
+          }}
+          type="button"
+        >
+          <PlanningDotIcon />
+          <span className="brand-shiny-text min-w-0 flex-1 truncate">
+            {running.length > 1 ? `${running.length} tasks · ` : ""}
+            {doing}
+          </span>
+          <CaretRightIcon
+            className={cn(
+              "size-3 shrink-0 text-muted-foreground transition-transform",
+              isOpen && "rotate-90",
+            )}
+          />
+        </button>
+        {isOpen && (
+          <ul className="flex flex-col border-t border-border py-1">
+            {running.map((entry) => (
+              <li key={entry.taskId}>
+                <button
+                  className="flex w-full flex-col px-3 py-1 text-left hover:bg-accent/50"
+                  onClick={() => {
+                    openScreen(`/orchestrator/tasks/${entry.taskId}`);
+                  }}
+                  type="button"
+                >
+                  <span className="truncate font-medium">{entry.title}</span>
+                  <span className="brand-shiny-text truncate text-xs">
+                    {entry.step ?? "Working"}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

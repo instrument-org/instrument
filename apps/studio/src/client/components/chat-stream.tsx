@@ -70,6 +70,8 @@ const TURN_WORDMARK_ID = "turn-wordmark";
 // The initial row has no message part of its own, so it needs a stable key as
 // empty assistant messages arrive before the first visible part.
 const PLANNING_ROW_ID = "planning";
+/** The dots at the conversation's end while it works without words. */
+const TYPING_TAIL_ID = "typing-tail";
 
 // What the agent said, held apart from what it did. 24px above a paragraph
 // written under a run of steps rather than the 8px the transcript puts between
@@ -446,6 +448,8 @@ export function ChatStream({
     let lastFooterIndex = 0;
     let previousBrowserStatusNote: string | undefined;
     let visibleAssistantContentCount = 0;
+    // Whether the dots are already standing in for words being composed.
+    let isTypingShown = false;
 
     // The turn being built. A turn is one message per step, so its rows arrive
     // over several passes of the loop below and are held here until the run
@@ -557,6 +561,7 @@ export function ChatStream({
       }
 
       if (heldBackRowId !== undefined && isAgentRunning && isLastMessage) {
+        isTypingShown = true;
         messageRows.push({
           id: heldBackRowId,
           node: <TypingRow key={heldBackRowId} />,
@@ -786,6 +791,26 @@ export function ChatStream({
           </MessageScrollerItem>
         ) : (
           initialRows
+        ),
+      );
+    }
+
+    // The conversation at work with nothing on show for it, between calls or
+    // between steps: the dots stand at its end, since that is where the next
+    // thing comes out, whether or not words follow.
+    if (
+      presentation === "orchestrator" &&
+      isAgentRunning &&
+      !isAwaitingFirstRow &&
+      !isTypingShown
+    ) {
+      elements.push(
+        renderAsItems ? (
+          <MessageScrollerItem key={TYPING_TAIL_ID}>
+            <TypingRow />
+          </MessageScrollerItem>
+        ) : (
+          <TypingRow key={TYPING_TAIL_ID} />
         ),
       );
     }

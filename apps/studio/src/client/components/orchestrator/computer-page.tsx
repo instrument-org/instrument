@@ -63,7 +63,9 @@ export function ComputerPage({
   onFolderChange,
   onOpenFile,
   onQuickLook,
+  onQuickLookFollow,
   path,
+  quickLookOpen,
   root,
 }: {
   /** Told the folder on screen whenever it changes. */
@@ -72,7 +74,11 @@ export function ComputerPage({
   onOpenFile: (file: FileTab) => void;
   /** The selected file, on Space. */
   onQuickLook: (file: FileTab) => void;
+  /** The file the selection moved to while Quick Look is up, for it to show. */
+  onQuickLookFollow: (file: FileTab) => void;
   path: string;
+  /** Whether Quick Look is up: the arrows then move the selection under it. */
+  quickLookOpen: boolean;
   root: string;
 }) {
   const { taskId } = useOrchestrator();
@@ -312,6 +318,50 @@ export function ComputerPage({
     // The tab is rebuilt with the items on every re-read; its path is its identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quickLookKey, onQuickLook]);
+
+  // Quick Look stays up while the arrows walk the folder, and shows whatever
+  // the selection lands on. The panel holds the keyboard, so the keys are
+  // handed to the browser's selected row, which answers them as its own;
+  // only the user's own presses are forwarded, not the copies.
+  useEffect(() => {
+    if (!quickLookOpen) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.isTrusted || !event.key.startsWith("Arrow")) {
+        return;
+      }
+      const row =
+        browserRef.current?.querySelector<HTMLElement>(
+          '[role="option"][aria-selected="true"]',
+        ) ??
+        browserRef.current?.querySelector<HTMLElement>(
+          '[role="option"][tabindex="0"]',
+        );
+      if (!row) {
+        return;
+      }
+      event.preventDefault();
+      row.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          bubbles: true,
+          cancelable: true,
+          key: event.key,
+        }),
+      );
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [quickLookOpen]);
+  useEffect(() => {
+    if (quickLookOpen && quickLookTab) {
+      onQuickLookFollow(quickLookTab);
+    }
+    // The tab is rebuilt with the items on every re-read; its path is its identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quickLookKey, quickLookOpen, onQuickLookFollow]);
 
   const rootTo = (folder: string, prefix = "") => {
     void navigate({

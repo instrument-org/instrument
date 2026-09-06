@@ -517,13 +517,13 @@ function Tab({
       <span
         className={cn(
           "min-w-0",
+          // A name that does not fit fades out at its end, selected or not:
+          // an ellipsis reads as a different name.
           density === "full"
             ? cn(
-                isFixed ? "whitespace-nowrap" : "flex-1 truncate",
-                isClosable &&
-                  (isSelected
-                    ? "tab-title-fade"
-                    : "group-hover/pane-tab:tab-title-fade"),
+                isFixed
+                  ? "whitespace-nowrap"
+                  : "flex-1 overflow-hidden tab-title-fade whitespace-nowrap",
               )
             : "sr-only",
           tab.isWorking && "brand-shiny-text",

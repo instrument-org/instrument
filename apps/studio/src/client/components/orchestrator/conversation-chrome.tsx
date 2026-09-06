@@ -1,23 +1,22 @@
-import { screenViewAtom, windowTabsAtom } from "@/client/atoms/orchestrator";
-import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
+import {
+  NEW_TAB_HREF,
+  screenViewAtom,
+  windowTabsAtom,
+} from "@/client/atoms/orchestrator";
 import { FileIcon } from "@/client/components/file-icon";
 import { PlanningDotIcon } from "@/client/components/icons/planning-dot";
-import { InstrumentGlyph } from "@/client/components/wordmark";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
-import { CompassIcon } from "@phosphor-icons/react/Compass";
-import { HouseIcon } from "@phosphor-icons/react/House";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import ms from "ms";
 import { type ReactNode, useState } from "react";
 
-import { AppIcon } from "./app-icon";
-import { computerName } from "./computer-name";
 import { useOrchestrator } from "./context";
+import { screenPresentation } from "./screen-presentation";
 import { SiteIcon } from "./sidebar";
+import { parseHref } from "./window-tabs";
 
 /** How often the tasks' standing is re-read for the row under the transcript. */
 const REFRESH_MS = ms("2 seconds");
@@ -116,19 +115,50 @@ export function TasksWorkingRow() {
 }
 
 /**
- * The chip on the composer that says what the conversation can see: the
- * screen that is up, named and drawn the way the sidebar draws it, so the
- * user knows "this" will land where they think before they send.
+ * The chip on the composer that says what the conversation can see: the tab
+ * on screen, named and drawn exactly as the strip draws it, so the user knows
+ * "this" will land where they think before they send. A new tab is no chip:
+ * the conversation is told, but there is nothing there worth reminding the
+ * user of.
  */
 export function ViewChip() {
   const view = useAtomValue(screenViewAtom);
   const { activeId, tabs } = useAtomValue(windowTabsAtom);
+  const { taskId } = useOrchestrator();
+  const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
+  const children = useQuery(
+    rpcClient.workspace.orchestrator.children.queryOptions({
+      input: { id: taskId },
+    }),
+  );
   if (!view) {
     return null;
   }
-  const chip = describe();
-  if (!chip) {
+  const active = tabs.find((tab) => tab.id === activeId);
+  if (!active) {
     return null;
+  }
+  let chip: { icon: ReactNode; title: string };
+  if (active.kind === "page") {
+    chip = {
+      icon: <SiteIcon favicon={active.favicon} url={active.url} />,
+      title: active.title || active.url || "New tab",
+    };
+  } else {
+    if (parseHref(active.href).pathname === parseHref(NEW_TAB_HREF).pathname) {
+      return null;
+    }
+    chip = screenPresentation(active.href, {
+      appsBySlug: new Map(
+        (apps.data?.apps ?? []).map((app) => [
+          app.slug,
+          { name: app.name, site: app.site },
+        ]),
+      ),
+      childTitles: new Map(
+        children.data?.map((child) => [child.id, child.title]) ?? [],
+      ),
+    });
   }
   // The folder, and then what is selected in it: "this" is the selection
   // when there is one, and the chip says so.
@@ -146,69 +176,6 @@ export function ViewChip() {
       ))}
     </>
   );
-
-  function describe(): undefined | { icon: ReactNode; title: string } {
-    if (!view) {
-      return;
-    }
-    switch (view.screen) {
-      case "apps": {
-        // An app's page is that app; the directory is the screen.
-        return view.app
-          ? {
-              icon: <AppIcon site={view.app.site} size="sm" />,
-              title: view.app.name,
-            }
-          : { icon: <AppWindowIcon className="size-3.5" />, title: "Apps" };
-      }
-      case "browser": {
-        const tab = tabs.find((entry) => entry.id === activeId);
-        if (tab?.kind !== "page") {
-          return;
-        }
-        return {
-          icon: <SiteIcon favicon={tab.favicon} url={tab.url} />,
-          title: tab.title || tab.url || "New tab",
-        };
-      }
-      case "computer": {
-        const display = view.folder?.display ?? computerName();
-        return {
-          icon: <FileSystemFolderGlyph className="h-3 w-auto" />,
-          title:
-            display === "~" ? "Home" : (display.split("/").at(-1) ?? display),
-        };
-      }
-      case "discover": {
-        return {
-          icon: <CompassIcon className="size-3.5" />,
-          title: "Discover",
-        };
-      }
-      case "file": {
-        const name = view.file?.name ?? "File";
-        return {
-          icon: <FileIcon className="size-3.5" filename={name} />,
-          title: name,
-        };
-      }
-      case "home": {
-        return { icon: <HouseIcon className="size-3.5" />, title: "New tab" };
-      }
-      case "task": {
-        return {
-          icon: <InstrumentGlyph className="size-3.5" />,
-          title: view.task?.title ?? "Task",
-        };
-      }
-      case "tasks": {
-        return {
-          icon: <InstrumentGlyph className="size-3.5" />,
-          title: "Tasks",
-        };
-      }
-    }
-  }
 }
 
 function Chip({ icon, title }: { icon: ReactNode; title: string }) {

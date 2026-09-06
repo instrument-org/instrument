@@ -89,7 +89,9 @@ export function ComposerFrame({
               transition={BLOCK_OPEN}
             >
               <div
-                className="flex min-h-7 items-center gap-1 px-1 pb-1"
+                // `empty:hidden`: a row with nothing in it, a screen with no
+                // chip to show, takes no height rather than a blank line.
+                className="flex min-h-7 items-center gap-1 px-1 pb-1 empty:hidden"
                 data-slot="composer-extras"
               >
                 {extras}

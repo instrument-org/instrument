@@ -38,6 +38,7 @@ import {
 import { safe } from "@orpc/client";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
+import { CpuIcon } from "@phosphor-icons/react/Cpu";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { StopIcon } from "@phosphor-icons/react/Stop";
@@ -554,6 +555,22 @@ export const PromptInput = ({
           },
         ]
       : []),
+    // A pill has no room for the model beside the words, so the menu offers
+    // it, and the picker opens where the menu was.
+    ...(variant === "pill"
+      ? [
+          {
+            icon: CpuIcon,
+            id: "model",
+            label: selectedModel
+              ? `Model · ${selectedModel.name}`
+              : "Choose a model",
+            onSelect: () => {
+              setPickerOpen(true);
+            },
+          },
+        ]
+      : []),
   ];
 
   const canSubmit =
@@ -964,73 +981,75 @@ export const PromptInput = ({
                   projectId={selectedProjectId}
                 />
               )}
-              <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-                {lead}
-              </div>
-              <div className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-hidden [&_[data-slot=model-picker]]:max-w-full">
-                {features.context_ring && id && selectedSessionId && (
-                  <SessionContextRing
-                    id={id}
-                    model={selectedModel}
-                    selectedSessionId={selectedSessionId}
-                  />
-                )}
-                <ModelPicker
-                  className="min-w-0"
-                  disabled={disabled || isLoading}
-                  errors={modelsErrors}
-                  isError={modelsIsError}
-                  isInvalidOurModel={isInvalidSelectedModel}
-                  isLoading={modelsIsLoading}
-                  models={models}
-                  modelURI={modelURI}
-                  onAddProvider={() => {
-                    openLogin(
-                      hasToken ? { reason: "provider-required" } : undefined,
-                    );
-                  }}
-                  onClose={() => {
-                    if (modelURI) {
-                      promptEditorRef.current?.focus();
-                    }
-                  }}
-                  onOpenChange={(open) => {
-                    setPickerOpen(open);
-                    if (open && modelsErrors && modelsErrors.length > 0) {
-                      void modelsRefetch();
-                    }
-                  }}
-                  onValueChange={onModelChange}
-                  selectedModel={selectedModel}
+              {lead}
+              {features.context_ring && id && selectedSessionId && (
+                <SessionContextRing
+                  id={id}
+                  model={selectedModel}
+                  selectedSessionId={selectedSessionId}
                 />
-              </div>
+              )}
             </>
           ) : undefined
         }
         layout={variant}
         leading={
           variant === "pill" ? (
-            <ComposerAddMenu
-              actions={actions}
-              bounds={composerBounds}
-              disabled={disabled || isLoading}
-              onReturnFocus={() => {
-                promptEditorRef.current?.focus();
-              }}
-              onSelectProject={
-                allowWorkInProject ? setSelectedProjectId : undefined
-              }
-              onSelectSkill={(skill) => {
-                promptEditorRef.current?.insertText(
-                  skillMentionToken(skill.id),
-                );
-              }}
-              onViewChange={setMenuView}
-              projectId={selectedProjectId}
-              skills={userInvocableSkills}
-              triggerClassName="size-7 rounded-full [&_svg]:size-4"
-              view={menuView}
-            />
+            // The picker's own button is laid over the plus, unseen, so its
+            // popover opens from the plus when the menu asks for it.
+            <div className="relative">
+              <ComposerAddMenu
+                actions={actions}
+                bounds={composerBounds}
+                disabled={disabled || isLoading}
+                onReturnFocus={() => {
+                  promptEditorRef.current?.focus();
+                }}
+                onSelectProject={
+                  allowWorkInProject ? setSelectedProjectId : undefined
+                }
+                onSelectSkill={(skill) => {
+                  promptEditorRef.current?.insertText(
+                    skillMentionToken(skill.id),
+                  );
+                }}
+                onViewChange={setMenuView}
+                projectId={selectedProjectId}
+                skills={userInvocableSkills}
+                triggerClassName="size-7 rounded-full [&_svg]:size-4"
+                view={menuView}
+              />
+              <ModelPicker
+                className="pointer-events-none absolute inset-0 opacity-0"
+                disabled={disabled || isLoading}
+                errors={modelsErrors}
+                isError={modelsIsError}
+                isInvalidOurModel={isInvalidSelectedModel}
+                isLoading={modelsIsLoading}
+                models={models}
+                modelURI={modelURI}
+                onAddProvider={() => {
+                  openLogin(
+                    hasToken ? { reason: "provider-required" } : undefined,
+                  );
+                }}
+                onClose={() => {
+                  setPickerOpen(false);
+                  if (modelURI) {
+                    promptEditorRef.current?.focus();
+                  }
+                }}
+                onOpenChange={(open) => {
+                  setPickerOpen(open);
+                  if (open && modelsErrors && modelsErrors.length > 0) {
+                    void modelsRefetch();
+                  }
+                }}
+                onValueChange={onModelChange}
+                open={pickerOpen}
+                selectedModel={selectedModel}
+              />
+            </div>
           ) : undefined
         }
         maxHeight={autoResizeMaxHeight}

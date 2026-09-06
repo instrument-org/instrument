@@ -1,6 +1,7 @@
 import { useImageArrival } from "@/client/hooks/use-image-arrival";
 import { getFaviconUrl } from "@/client/lib/favicon-url";
 import { cn } from "@/client/lib/utils";
+import { useState } from "react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
@@ -34,7 +35,14 @@ export function Favicon({
   url: string;
 }) {
   const hostname = URL.canParse(url) ? new URL(url).hostname : url;
-  const faviconUrl = getFaviconUrl(url);
+  // The proxy first, and the site's own icon when the proxy has none for it:
+  // a site the proxy never fetched, or one behind a sign-in, still serves
+  // its own.
+  const [proxyFailed, setProxyFailed] = useState(false);
+  const faviconUrl =
+    proxyFailed && URL.canParse(url)
+      ? `${new URL(url).origin}/favicon.ico`
+      : getFaviconUrl(url);
   const arrival = useImageArrival(faviconUrl, "icon");
 
   return (
@@ -48,6 +56,9 @@ export function Favicon({
             arrival.className,
             className,
           )}
+          onError={() => {
+            setProxyFailed(true);
+          }}
           onLoad={arrival.onLoad}
           src={faviconUrl}
         />

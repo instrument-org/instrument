@@ -1,8 +1,5 @@
 import { type OrchestratorRecent, pinsAtom } from "@/client/atoms/orchestrator";
-import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { Favicon } from "@/client/components/favicon";
-import { FileIcon } from "@/client/components/file-icon";
-import { InstrumentGlyph } from "@/client/components/wordmark";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
@@ -12,6 +9,7 @@ import { useAtom } from "jotai";
 import { useState } from "react";
 
 import { useOrchestrator } from "./context";
+import { screenPresentation } from "./screen-presentation";
 import { ScreenIcon } from "./window-tab-strip";
 
 /**
@@ -84,20 +82,14 @@ export function OrchestratorPins({ className }: { className?: string }) {
 
 /** What stands for a recent screen: the Finder's own folder and file icons, the globe, the mark. */
 export function RecentIcon({ recent }: { recent: OrchestratorRecent }) {
-  switch (recent.kind) {
-    case "browser": {
-      return <SiteIcon favicon={recent.favicon} />;
-    }
-    case "file": {
-      return <FileIcon className="size-4 shrink-0" filename={recent.title} />;
-    }
-    case "folder": {
-      return <FileSystemFolderGlyph className="h-3.5 w-auto shrink-0" />;
-    }
-    case "task": {
-      return <InstrumentGlyph className="size-4 shrink-0" />;
-    }
+  if (recent.kind === "browser") {
+    return <SiteIcon favicon={recent.favicon} url={recent.href} />;
   }
+  // The same icon the strip gives the screen's tab, read off the address.
+  return screenPresentation(recent.href, {
+    appsBySlug: new Map(),
+    childTitles: new Map(),
+  }).icon;
 }
 
 /**

@@ -81,6 +81,8 @@ interface ModelPickerProps {
   onClose?: () => void;
   onOpenChange?: (open: boolean) => void;
   onValueChange: (value: AIGatewayModelURI.Type) => void;
+  /** Open from outside, for a surface that offers the picker from a menu rather than its own button. */
+  open?: boolean;
   placeholder?: string;
   selectedModel?: AIGatewayModel.Type;
 }
@@ -102,10 +104,12 @@ export function ModelPicker({
   onClose,
   onOpenChange,
   onValueChange,
+  open: openProp,
   placeholder = "Select a model",
   selectedModel,
 }: ModelPickerProps) {
   const [open, setOpen] = useState(false);
+  const isOpen = openProp ?? open;
   const [searchQuery, setSearchQuery] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -220,11 +224,11 @@ export function ModelPicker({
         }
         onOpenChange?.(newOpen);
       }}
-      open={open}
+      open={isOpen}
     >
       <PopoverTrigger asChild>
         <Button
-          aria-expanded={open}
+          aria-expanded={isOpen}
           aria-label="Model"
           className={cn(
             "flex h-auto items-center justify-between gap-2 rounded-lg px-1.5! py-1 text-left",

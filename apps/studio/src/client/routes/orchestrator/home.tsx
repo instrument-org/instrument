@@ -145,6 +145,7 @@ function HomeRoute() {
   const wasAt = [
     ...recents.map((entry) => ({
       at: entry.at,
+      hint: entry.title,
       icon: <RecentIcon recent={entry} />,
       note: { browser: "Page", file: "File", folder: "Folder", task: "Task" }[
         entry.kind
@@ -156,6 +157,7 @@ function HomeRoute() {
     })),
     ...visited.map((page) => ({
       at: page.at,
+      hint: page.url,
       icon: <SiteIcon favicon={page.favicon} url={page.url} />,
       note: "Page",
       run: () => {
@@ -432,6 +434,7 @@ function HomeRoute() {
                 <button
                   className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent/50"
                   onClick={entry.run}
+                  title={entry.hint}
                   type="button"
                 >
                   <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">

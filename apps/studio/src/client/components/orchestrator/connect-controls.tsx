@@ -29,14 +29,17 @@ export function ConnectControls({
   kind,
   label,
   name,
+  runs,
   slug,
 }: {
   /** Whether "Not now" is offered: a card asks a question, a row does not. */
   dismissible?: boolean;
-  kind: "key" | "sign-in";
+  kind: "key" | "run" | "sign-in";
   /** The sign-in button's words; the app's name is the default. */
   label?: string;
   name: string;
+  /** For a local app, what would run on this machine, in words. */
+  runs?: string;
   slug: string;
 }) {
   const orchestrator = useContext(OrchestratorContext);
@@ -84,6 +87,21 @@ export function ConnectControls({
     }),
   );
   const dismiss = useMutation(rpcClient.apps.dismiss.mutationOptions());
+  const allow = useMutation(
+    rpcClient.apps.allow.mutationOptions({
+      onError: (error) => {
+        toast.error(`Could not start ${name}`, { description: error.message });
+      },
+      onSuccess: (report) => {
+        const failure = report.checks.find((check) => check.status === "fail");
+        if (failure) {
+          toast.error(`${name} did not connect`, {
+            description: failure.detail.split("\n")[0],
+          });
+        }
+      },
+    }),
+  );
   const setCredential = useMutation(
     rpcClient.apps.setCredential.mutationOptions({
       onError: (error) => {
@@ -96,10 +114,50 @@ export function ConnectControls({
   );
 
   const busy =
+    allow.isPending ||
     startOAuth.isPending ||
     cancelOAuth.isPending ||
     dismiss.isPending ||
     setCredential.isPending;
+
+  // A server that runs here is the one thing the user is agreeing to rather
+  // than supplying, so the words say what will run before the button does it.
+  if (kind === "run") {
+    return (
+      <div className="flex flex-col gap-2">
+        {runs ? (
+          <p className="text-xs text-muted-foreground">
+            Instrument will install and run {runs} on this Mac.
+          </p>
+        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            disabled={busy}
+            onClick={() => {
+              allow.mutate({ slug });
+            }}
+            size="sm"
+          >
+            {allow.isPending
+              ? "Setting it up…"
+              : (label ?? "Allow and connect")}
+          </Button>
+          {dismissible ? (
+            <Button
+              disabled={busy}
+              onClick={() => {
+                dismiss.mutate({ slug });
+              }}
+              size="sm"
+              variant="ghost"
+            >
+              Not now
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
 
   if (kind === "sign-in") {
     return (

@@ -57,7 +57,7 @@ function AppRoute() {
 
   const tools = useQuery(
     rpcClient.apps.tools.queryOptions({
-      input: isConnected && app.type === "mcp" ? { slug } : skipToken,
+      input: isConnected && app.type !== "api" ? { slug } : skipToken,
       staleTime: Number.POSITIVE_INFINITY,
     }),
   );
@@ -119,11 +119,13 @@ function AppRoute() {
   const domain = home ? new URL(home).host : undefined;
   const description = entry?.description ?? entry?.tagline;
   const needs = app
-    ? app.type === "mcp" && app.authKind === "oauth"
-      ? `A sign-in with ${name}, once.`
-      : app.authKind === "none"
-        ? "Nothing: it is open."
-        : `A key from ${name}, which Instrument stores encrypted on this Mac.`
+    ? app.type === "mcp-local"
+      ? `Its server runs on this Mac: Instrument installs and starts ${app.runs ?? app.endpoint}${app.authKind === "env" ? `, with a key from ${name} in its environment` : ""}.`
+      : app.type === "mcp" && app.authKind === "oauth"
+        ? `A sign-in with ${name}, once.`
+        : app.authKind === "none"
+          ? "Nothing: it is open."
+          : `A key from ${name}, which Instrument stores encrypted on this Mac.`
     : (entry?.authMethods ?? []).map((method) => method.label).join(", ");
   const openHome = () => {
     if (home && browser) {
@@ -211,6 +213,13 @@ function AppRoute() {
             </>
           ) : app?.standing === "needs-sign-in" ? (
             <ConnectControls kind="sign-in" name={name} slug={slug} />
+          ) : app?.standing === "needs-approval" ? (
+            <ConnectControls
+              kind="run"
+              name={name}
+              runs={app.runs}
+              slug={slug}
+            />
           ) : app?.standing === "needs-key" ? (
             <ConnectControls kind="key" name={name} slug={slug} />
           ) : (
@@ -243,11 +252,13 @@ function AppRoute() {
                   ? "Connected, then changed; Instrument will test it again"
                   : app.standing === "needs-sign-in"
                     ? "Waiting for a sign-in"
-                    : app.standing === "needs-key"
-                      ? "Waiting for a key"
-                      : app.standing === "declined"
-                        ? "Not connected"
-                        : `Could not connect${app.connection.error ? `: ${app.connection.error}` : ""}`}
+                    : app.standing === "needs-approval"
+                      ? "Waiting for you to allow its server to run"
+                      : app.standing === "needs-key"
+                        ? "Waiting for a key"
+                        : app.standing === "declined"
+                          ? "Not connected"
+                          : `Could not connect${app.connection.error ? `: ${app.connection.error}` : ""}`}
               {app.connection.connectedAt ? (
                 <>
                   {" "}
@@ -259,7 +270,7 @@ function AppRoute() {
           </Block>
         ) : null}
 
-        {isConnected && app.type === "mcp" ? (
+        {isConnected && app.type !== "api" ? (
           <Block label="What it can do">
             {tools.data ? (
               tools.data.map((tool) => <Line key={tool.name}>{tool.name}</Line>)

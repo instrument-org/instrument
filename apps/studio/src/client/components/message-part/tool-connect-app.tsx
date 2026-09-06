@@ -47,7 +47,7 @@ function ConnectCard({
   >;
   reason: string;
 }) {
-  const { kind, name, site, slug } = output;
+  const { kind, name, runs, site, slug } = output;
 
   // The app's standing, live: the record the sign-in callback or the key
   // writes, which is what settles the card.
@@ -75,7 +75,9 @@ function ConnectCard({
                 ? `Sign in to ${name}`
                 : kind === "key"
                   ? `${name} needs a key`
-                  : `Connect ${name}`}
+                  : kind === "run"
+                    ? `${name} runs on this Mac`
+                    : `Connect ${name}`}
             </p>
             <p className="text-xs leading-5 text-muted-foreground">{reason}</p>
           </div>
@@ -99,7 +101,13 @@ function ConnectCard({
           </p>
         ) : (
           <div className="mt-3">
-            <ConnectControls dismissible kind={kind} name={name} slug={slug} />
+            <ConnectControls
+              dismissible
+              kind={kind}
+              name={name}
+              runs={runs}
+              slug={slug}
+            />
           </div>
         )}
       </ToolCardSection>

@@ -13,17 +13,18 @@ import {
   AppSlugSchema,
   beginMcpOAuth,
   cancelMcpOAuth,
+  describeLocalLaunch,
   getAppCatalog,
   isConnected,
+  isMcpManifest,
   listApps,
   listMcpTools,
   loadApp,
-  mcpAuthProviderForCommand,
-  mcpConnectionConfig,
   readAppGuide,
   recordConnection,
+  removeLocalServer,
   runAppTest,
-  withMcpClient,
+  withAppMcpClient,
   workspacePublisher,
 } from "@instrument-org/workspace/electron";
 import { call, eventIterator } from "@orpc/server";
@@ -41,6 +42,7 @@ const AppStandingSchema = z.enum([
   "connected",
   "declined",
   "failed",
+  "needs-approval",
   "needs-key",
   "needs-sign-in",
   // A manifest the agent edited since the connection passed.
@@ -51,18 +53,20 @@ const AppStandingSchema = z.enum([
 const AppListItemSchema = z.object({
   authKind: z.string(),
   connection: AppConnectionSchema.optional(),
-  /** API base URL or MCP server URL, by `type`. */
+  /** API base URL, MCP server URL, or the package a local server runs from. */
   endpoint: z.string(),
   hasCredential: z.boolean(),
   hasGuide: z.boolean(),
   /** The signed-in web app, for the page's primary action. */
   home: z.string().optional(),
   name: z.string(),
+  /** For an app whose server runs here, what runs, in words. */
+  runs: z.string().optional(),
   /** The service's origin, for its icon. */
   site: z.string().optional(),
   slug: z.string(),
   standing: AppStandingSchema,
-  type: z.enum(["api", "mcp"]),
+  type: z.enum(["api", "mcp", "mcp-local"]),
 });
 
 const AppListSchema = z.object({
@@ -91,11 +95,16 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
           endpoint:
             app.manifest.type === "api"
               ? app.manifest.baseUrl
-              : app.manifest.url,
+              : app.manifest.type === "mcp"
+                ? app.manifest.url
+                : app.manifest.package,
           hasCredential: hasAppCredential(app.slug),
           hasGuide: (await readAppGuide(app.dir)) !== null,
           home: appHomeFor(app.slug, app.manifest),
           name: app.manifest.name,
+          ...(app.manifest.type === "mcp-local"
+            ? { runs: describeLocalLaunch(app.manifest) }
+            : {}),
           site: appSiteFor(app.slug, app.manifest),
           slug: app.slug,
           standing,
@@ -145,19 +154,21 @@ const tools = base
     if (loaded.isErr()) {
       throw errors.NOT_FOUND({ message: loaded.error.message });
     }
-    const { manifest, slug } = loaded.value;
-    if (manifest.type !== "mcp") {
+    const { manifest, manifestHash, slug } = loaded.value;
+    if (!isMcpManifest(manifest)) {
       return [];
     }
     const credential =
-      manifest.auth.kind === "oauth"
+      manifest.auth.kind === "none" || manifest.auth.kind === "oauth"
         ? null
         : await context.workspaceConfig.apps.getCredential(slug);
-    const result = await withMcpClient({
-      authProvider: mcpAuthProviderForCommand(slug, manifest),
-      config: mcpConnectionConfig(manifest, credential),
+    const result = await withAppMcpClient({
+      credential,
+      manifest,
+      manifestHash,
       run: (client) => listMcpTools(client),
       signal,
+      slug,
     });
     if (result.isErr()) {
       throw errors.API_ERROR({ message: result.error.message });
@@ -258,6 +269,43 @@ const setCredential = base
     });
   });
 
+/**
+ * The user lets a local app's server run on this machine, from the card or
+ * its page. The approval is pinned to the manifest they saw, and the test
+ * that follows installs the package and starts the server for the first time.
+ */
+const allow = base
+  .input(z.object({ slug: AppSlugSchema }))
+  .handler(async ({ context, errors, input, signal }) => {
+    const loaded = await loadApp(context.workspaceConfig.appsDir, input.slug);
+    if (loaded.isErr()) {
+      throw errors.NOT_FOUND({ message: loaded.error.message });
+    }
+    await recordConnection(input.slug, {
+      approvedManifestHash: loaded.value.manifestHash,
+      status: "needs-approval",
+    });
+    const report = await runAppTest({
+      appsDir: context.workspaceConfig.appsDir,
+      // An install from a registry runs the first time, so this waits on the
+      // network rather than on a request to a service that is already up.
+      signal: signal ?? AbortSignal.timeout(180_000),
+      slug: input.slug,
+    });
+    const name = await appName(context.workspaceConfig.appsDir, input.slug);
+    workspacePublisher.publish("app.updated", null);
+    const failure = report.checks.find((check) => check.status === "fail");
+    workspacePublisher.publish("app.event", {
+      detail: report.passed
+        ? "its server was installed and started"
+        : failure?.detail.split("\n")[0],
+      event: report.passed ? "connected" : "failed",
+      name,
+      slug: input.slug,
+    });
+    return report;
+  });
+
 /** "Not now" on the card. */
 const dismiss = base
   .input(z.object({ slug: AppSlugSchema }))
@@ -286,6 +334,7 @@ const remove = base
     if (loaded.isOk()) {
       await context.workspaceConfig.trashItem(loaded.value.dir);
     }
+    await removeLocalServer(input.slug);
     workspacePublisher.publish("app.updated", null);
   });
 
@@ -312,6 +361,7 @@ async function decline(appsDir: Parameters<typeof appName>[0], slug: string) {
 }
 
 export const apps = {
+  allow,
   cancelOAuth,
   catalog,
   disconnect,

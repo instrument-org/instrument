@@ -102,6 +102,13 @@ function AppsRoute() {
                       name={app.name}
                       slug={app.slug}
                     />
+                  ) : app.standing === "needs-approval" ? (
+                    <ConnectControls
+                      kind="run"
+                      label="Allow"
+                      name={app.name}
+                      slug={app.slug}
+                    />
                   ) : app.standing === "needs-key" ? (
                     <Button
                       onClick={() => {
@@ -289,6 +296,9 @@ function settingUpLine(app: App): string {
     }
     case "failed": {
       return app.connection?.error ?? "Could not connect";
+    }
+    case "needs-approval": {
+      return "Runs on this Mac; needs your go-ahead";
     }
     case "needs-key": {
       return "Needs a key";

@@ -5,7 +5,7 @@ import {
   FileSystemFolderGlyph,
   type FileSystemItem,
 } from "@/client/components/extend/file-system";
-import { Button } from "@/client/components/ui/button";
+import { FileViewer } from "@/client/components/file-viewer";
 import { Spinner } from "@/client/components/ui/spinner";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
@@ -14,12 +14,8 @@ import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ComputerListing } from "@instrument-org/workspace/client";
-import { formatBytes } from "@instrument-org/workspace/client";
-import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
-import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
-import { LockSimpleOpenIcon } from "@phosphor-icons/react/LockSimpleOpen";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import ms from "ms";
@@ -33,6 +29,8 @@ const REFRESH_MS = ms("4 seconds");
 
 /** The folder the user is looking at, for the conversation. */
 export interface FolderOnScreen {
+  /** Whether the agent may write there, when it can reach it at all. */
+  access?: "read-only" | "read-write";
   /** As the person writes it: `~/Documents`. */
   display: string;
   hostPath: string;
@@ -45,11 +43,10 @@ export interface FolderOnScreen {
 /**
  * This Mac, browsed the way the Finder browses it: a sidebar of the places a
  * person keeps things and every volume, and the folder the browser is rooted
- * in, opened as the app's own user so every folder opens. Whether Instrument
- * may read one is said in the pane past the last column, as a line rather
- * than a control: what it can reach is what the user has granted, and asking
- * for more is the conversation's to do. Under the columns, the folder's whole
- * path on the Mac, each part a way back up.
+ * in, opened as the app's own user so every folder opens. A folder is shown
+ * by showing its contents, the way the Finder's columns do, and nothing
+ * beside it; a text file reads in the last column. Under the columns, the
+ * folder's whole path on the Mac, each part a way back up.
  *
  * The file browser holds a flat manifest and asks for a folder's children the
  * first time it is opened. Every folder it has asked for is re-read on a
@@ -174,6 +171,7 @@ export function ComputerPage({
   const display = currentListing?.display;
   const hostPath = currentListing?.path;
   const mount = currentListing?.access?.mountPath;
+  const access = currentListing?.access?.access;
   const selectedName =
     selectedPath !== null && !selectedPath.endsWith("/")
       ? selectedPath.split("/").at(-1)
@@ -183,12 +181,13 @@ export function ComputerPage({
       return;
     }
     onFolderChange({
+      ...(access === undefined ? {} : { access }),
       display,
       hostPath,
       ...(mount === undefined ? {} : { mount }),
       selected: selectedName ? [selectedName] : [],
     });
-  }, [display, hostPath, mount, onFolderChange, selectedName]);
+  }, [access, display, hostPath, mount, onFolderChange, selectedName]);
 
   const openFile = async (file: FileSystemFileItem) => {
     const tab = fileTabOf(file);
@@ -329,9 +328,28 @@ export function ComputerPage({
             onSelectionChange={(item) => {
               setSelectedPath(item?.path ?? null);
             }}
-            renderTrailing={(prefix) => (
-              <FolderPane listing={listingOf(prefix)} />
-            )}
+            renderFileStage={(file) => {
+              // Text reads in place, the way a document does; the viewers the
+              // browser has of its own cover the rest.
+              const tab = fileTabOf(file);
+              if (!tab || !isTextLike(file)) {
+                return null;
+              }
+              return (
+                <div className="absolute inset-0 p-3">
+                  <FileViewer
+                    className="h-full"
+                    file={{
+                      filename: tab.name,
+                      filePath: tab.mount,
+                      taskId,
+                      url: getAssetUrl({ assetBase, filePath: tab.mount }),
+                    }}
+                    key={tab.mount}
+                  />
+                </div>
+              );
+            }}
             title={rootName}
           />
         </div>
@@ -394,6 +412,25 @@ function combineListings(results: { data: ComputerListing | undefined }[]) {
   return results.map((result) => result.data);
 }
 
+const TEXT_EXTENSIONS = new Set([
+  "css",
+  "csv",
+  "html",
+  "js",
+  "json",
+  "jsx",
+  "md",
+  "py",
+  "sh",
+  "toml",
+  "ts",
+  "tsx",
+  "txt",
+  "xml",
+  "yaml",
+  "yml",
+]);
+
 /** The tab a file opens in, when a granted folder covers it. */
 function fileTabOf(file: FileSystemFileItem): FileTab | undefined {
   const mounted = file.metadata?.mount;
@@ -408,80 +445,13 @@ function fileTabOf(file: FileSystemFileItem): FileTab | undefined {
   };
 }
 
-/**
- * The pane past the last column while no file is selected: the folder the
- * user opened, the way the Finder's preview column shows one, with whether
- * Instrument can see it as one line.
- */
-function FolderPane({ listing }: { listing: ComputerListing | undefined }) {
-  if (!listing) {
-    return null;
+/** A file that reads as text: by its declared type, or by an extension a person would open in an editor. */
+function isTextLike(file: FileSystemFileItem) {
+  if (file.contentType?.startsWith("text/")) {
+    return true;
   }
-  const name =
-    listing.display === "~"
-      ? "Home"
-      : (listing.path.split("/").findLast(Boolean) ?? "Macintosh HD");
-  const folders = listing.entries.filter((entry) => entry.kind === "folder");
-  const files = listing.entries.filter((entry) => entry.kind === "file");
-  const bytes = files.reduce((sum, entry) => sum + (entry.size ?? 0), 0);
-  const count = [
-    folders.length > 0
-      ? `${folders.length} folder${folders.length === 1 ? "" : "s"}`
-      : "",
-    files.length > 0
-      ? `${files.length} file${files.length === 1 ? "" : "s"}`
-      : "",
-  ]
-    .filter(Boolean)
-    .join(", ");
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-1 p-6 text-center">
-      {listing.display === "~/Documents/Instrument" ? (
-        <InstrumentGlyph className="size-14 text-muted-foreground" />
-      ) : (
-        <FileSystemFolderGlyph className="h-12 w-auto drop-shadow-sm" />
-      )}
-      <p className="mt-2 text-sm font-medium">{name}</p>
-      <p className="text-xs text-muted-foreground">
-        {count || "Empty"}
-        {bytes > 0 ? ` · ${formatBytes(bytes)}` : ""}
-        {listing.truncated ? " · first 2000 shown" : ""}
-      </p>
-      <p className="max-w-full truncate text-xs text-muted-foreground/70">
-        {listing.display}
-      </p>
-      <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-        {listing.access ? (
-          <>
-            <LockSimpleOpenIcon className="size-3.5" />
-            Instrument can{" "}
-            {listing.access.access === "read-write"
-              ? "read and write"
-              : "read"}{" "}
-            here
-          </>
-        ) : (
-          <>
-            <LockSimpleIcon className="size-3.5" />
-            Instrument cannot see in here yet
-          </>
-        )}
-      </p>
-      <Button
-        className="mt-1 text-muted-foreground"
-        onClick={() => {
-          void rpcClient.utils.showFileInFolder.call({
-            filepath: listing.path,
-          });
-        }}
-        size="xs"
-        variant="ghost"
-      >
-        <ArrowSquareOutIcon className="size-3.5" />
-        Show in Finder
-      </Button>
-    </div>
-  );
+  const extension = file.path.split(".").at(-1)?.toLowerCase() ?? "";
+  return TEXT_EXTENSIONS.has(extension);
 }
 
 function PlaceList({

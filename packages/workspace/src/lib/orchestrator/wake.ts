@@ -41,6 +41,17 @@ const OVERDUE_CHECK_MS = ms("30 seconds");
 /** When each child was last reported overdue, so the note comes once per stretch. */
 const overdueReportedAt = new Map<TaskId, number>();
 
+/**
+ * Children the orchestrator itself told to stop. The turn that ends is the
+ * one it ended, so there is nothing to wake it about; the next finish after
+ * that is news again.
+ */
+const stoppedByOrchestrator = new Set<TaskId>();
+
+export function expectStop(taskId: TaskId) {
+  stoppedByOrchestrator.add(taskId);
+}
+
 const pending = new Map<
   TaskId,
   { events: Map<TaskId, TaskEvent>; timer: NodeJS.Timeout }
@@ -191,6 +202,9 @@ async function onSessionDone(
   }
   const orchestratorSettings = await getTaskSettings(taskDir(orchestratorId));
   if (orchestratorSettings?.kind !== "orchestrator") {
+    return;
+  }
+  if (stoppedByOrchestrator.delete(id)) {
     return;
   }
 

@@ -56,8 +56,8 @@ function fileNote(data: ViewContext) {
     `;
   }
   const reach = file.mount
-    ? `You reach it at \`${file.mount}\`.`
-    : "No folder you were granted covers it, so you cannot read it: ask for its folder with request_folder.";
+    ? `You reach it at \`${file.mount}\`${data.folder?.access === "read-only" ? ", read-only" : ", read and write"}.`
+    : "No folder you can reach covers it, so you cannot read it: ask for its folder with request_folder.";
   const folder = data.folder
     ? ` It sits in \`${data.folder.display}\`, which "this folder" means.`
     : "";
@@ -68,9 +68,15 @@ function fileNote(data: ViewContext) {
 
 /** Whether the agent can get at that folder, and how. */
 function folderReach(data: ViewContext) {
-  return data.folder?.mount
-    ? `You reach it at \`${data.folder.mount}\`; a task that should work there gets it with --folder, writable when it should write.`
-    : "No folder you were granted covers it, so you cannot read it or hand it to a task: ask for it with request_folder.";
+  const { folder } = data;
+  if (!folder?.mount) {
+    return "No folder you can reach covers it, so you cannot read it or hand it to a task: ask for it with request_folder.";
+  }
+  const access =
+    folder.access === "read-only"
+      ? "read-only for you, so ask before promising to change anything in it"
+      : "read and write for you";
+  return `You reach it at \`${folder.mount}\`, ${access}; a task that should work there gets that path with --folder, :rw when it should write.`;
 }
 
 function folderShown(data: ViewContext) {

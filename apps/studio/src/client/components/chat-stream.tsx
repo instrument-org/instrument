@@ -1,8 +1,6 @@
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   browserStatusModelNote,
-  getToolNameByType,
-  isInteractiveTool,
   isToolPart,
   type SessionMessage,
   type SessionMessagePart,
@@ -137,10 +135,8 @@ interface ChatStreamProps {
   onRunAgain: () => void;
   onStartNewTask: () => void;
   /**
-   * The orchestrator's conversation shows what the agent is doing, not how.
-   * Its steps are commands and reads the user asked for none of, so a phase in
-   * flight is one working line, a finished phase is nothing, and only a call
-   * waiting on the user keeps its row.
+   * The orchestrator's conversation is the one thing the user talks to, so
+   * it opens no turn with the wordmark: there is nobody else it could be.
    */
   presentation?: "orchestrator";
   // Wrap each turn in a MessageScrollerItem so the transcript scroller can
@@ -390,33 +386,6 @@ export function ChatStream({
       );
     }).length;
 
-  // What the orchestrator's working line says: the label the call in flight
-  // carries, when it carries one.
-  const workingLabel = (group: TranscriptGroupData): string | undefined => {
-    const rowId = groupStandInRowId({ group, isExpanded: false });
-    const part = rowId === undefined ? undefined : partsById.get(rowId)?.part;
-    if (!part || !isToolPart(part)) {
-      return undefined;
-    }
-    const input: unknown = part.input;
-    const explanation =
-      typeof input === "object" && input !== null && "explanation" in input
-        ? input.explanation
-        : undefined;
-    return typeof explanation === "string" && explanation.trim() !== ""
-      ? explanation
-      : undefined;
-  };
-
-  const isInteractiveRow = (rowId: StoreId.Part): boolean => {
-    const part = partsById.get(rowId)?.part;
-    return (
-      part !== undefined &&
-      isToolPart(part) &&
-      isInteractiveTool(getToolNameByType(part.type))
-    );
-  };
-
   const renderStandIn = (group: TranscriptGroupData): React.ReactNode => {
     const rowId = groupStandInRowId({
       group,
@@ -568,17 +537,17 @@ export function ChatStream({
         groupRunningProcessCount,
         groups: layout.groups,
         isGroupExpanded,
-        isInteractiveRow,
         onToggle: toggleGroup,
-        presentation,
         renderStandIn,
         rows: messageRows,
-        workingLabel,
       });
 
       // --- Per-message chrome ---
 
-      if (wordmarkMessageIds.has(message.id)) {
+      if (
+        presentation !== "orchestrator" &&
+        wordmarkMessageIds.has(message.id)
+      ) {
         messageElements.unshift(
           <TurnWordmark key={`assistant-header-${message.id}`} />,
         );
@@ -753,7 +722,9 @@ export function ChatStream({
     // single step rather than fading a second copy in beneath it.
     if (isAwaitingFirstRow) {
       const initialRows = [
-        <TurnWordmark key={TURN_WORDMARK_ID} />,
+        ...(presentation === "orchestrator"
+          ? []
+          : [<TurnWordmark key={TURN_WORDMARK_ID} />]),
         <AwaitingFirstRow key={PLANNING_ROW_ID} />,
       ];
       elements.push(
@@ -873,22 +844,16 @@ function collectGroups({
   groupRunningProcessCount,
   groups,
   isGroupExpanded,
-  isInteractiveRow,
   onToggle,
-  presentation,
   renderStandIn,
   rows,
-  workingLabel,
 }: {
   groupRunningProcessCount: (group: TranscriptGroupData) => number;
   groups: Map<StoreId.Part, TranscriptGroupData>;
   isGroupExpanded: (group: TranscriptGroupData | undefined) => boolean;
-  isInteractiveRow: (rowId: StoreId.Part) => boolean;
   onToggle: (group: TranscriptGroupData) => void;
-  presentation: ChatStreamProps["presentation"];
   renderStandIn: (group: TranscriptGroupData) => React.ReactNode;
   rows: MessageRow[];
-  workingLabel: (group: TranscriptGroupData) => string | undefined;
 }): React.ReactNode[] {
   const runs: { groupId?: StoreId.Part; rows: MessageRow[] }[] = [];
   for (const row of rows) {
@@ -906,23 +871,6 @@ function collectGroups({
     const nodes = run.rows.map((row) => row.node).filter(Boolean);
     if (!group) {
       return nodes;
-    }
-
-    if (presentation === "orchestrator") {
-      const kept = run.rows
-        .filter((row) => isInteractiveRow(row.id))
-        .map((row) => row.node)
-        .filter(Boolean);
-      const isOpeningSlice = run.rows.some((row) => row.id === group.id);
-      return group.phase === "working" && isOpeningSlice
-        ? [
-            <WorkingLine
-              key={`working-${group.id}`}
-              label={workingLabel(group)}
-            />,
-            ...kept,
-          ]
-        : kept;
     }
 
     // Both belong to the slice the group opens on, or they would be drawn again
@@ -1081,18 +1029,6 @@ function TurnWordmark() {
  * `STEP_RUN`, because the first real row will replace it in the same place and
  * a row that is 4px off is a transcript that lifts as the agent starts working.
  */
-/** The orchestrator's one line for a phase in flight, in the planning row's shape. */
-function WorkingLine({ label }: { label: string | undefined }) {
-  return (
-    <div className={STEP_RUN}>
-      <div className={cn(TRANSCRIPT_ROW, "animate-in fill-mode-both fade-in")}>
-        <PlanningDotIcon />
-        <span className="brand-shiny-text text-sm">{label ?? "Working"}</span>
-      </div>
-    </div>
-  );
-}
-
 // The wrapper a row sits in.
 //
 // A group's steps are indented under its head line. Nothing else in the box is,

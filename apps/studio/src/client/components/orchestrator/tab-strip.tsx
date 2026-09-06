@@ -27,6 +27,9 @@ const MIN_TAB = 28;
 const CLOSE_FITS = 60;
 // An icon at the head of the tab and a few characters of name after it.
 const NAME_FITS = 80;
+// The most a tab takes, so the row of tabs ends where the tabs do and the
+// control that adds one sits against the last of them rather than far off.
+const MAX_TAB = 192;
 // The `mr-3` holding a fixed tab off the rest, on top of the gap.
 const FIXED_MARGIN = 12;
 
@@ -245,9 +248,7 @@ export function TabStrip({
       >
         {fixedTabs.map((tab, index) => (
           <Tab
-            density={
-              selectedKey === tab.key || fixedIsNamed ? "full" : "icon"
-            }
+            density={selectedKey === tab.key || fixedIsNamed ? "full" : "icon"}
             isFixed
             isSelected={selectedKey === tab.key}
             key={tab.key}
@@ -260,9 +261,7 @@ export function TabStrip({
             onSelectRelative={(direction) => {
               selectRelative(tab.key, direction);
             }}
-            showSeparator={
-              index < fixedTabs.length - 1 || drawnCount > 0
-            }
+            showSeparator={index < fixedTabs.length - 1 || drawnCount > 0}
             tab={tab}
           />
         ))}
@@ -279,6 +278,7 @@ export function TabStrip({
           }}
           ref={areaRef}
           role="none"
+          style={{ maxWidth: Math.max(1, drawnCount) * (MAX_TAB + GAP) }}
           values={drawnKeys}
         >
           {drawnTabs.map(({ isClosing, tab }, index) => (
@@ -315,17 +315,17 @@ export function TabStrip({
             />
           ))}
         </Reorder.Group>
+        {onNew ? (
+          <button
+            aria-label="New tab"
+            className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+            onClick={onNew}
+            type="button"
+          >
+            <PlusIcon className="size-4" />
+          </button>
+        ) : null}
       </div>
-      {onNew ? (
-        <button
-          aria-label="New tab"
-          className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-          onClick={onNew}
-          type="button"
-        >
-          <PlusIcon className="size-4" />
-        </button>
-      ) : null}
       {trailing}
     </div>
   );

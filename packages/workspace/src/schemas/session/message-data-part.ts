@@ -420,6 +420,8 @@ export namespace SessionMessageDataPart {
     /** The folder on screen on This Mac, or the folder a file on screen sits in. */
     folder: z
       .object({
+        /** Whether the agent may write there, when it can reach it at all. */
+        access: z.enum(["read-only", "read-write"]).optional(),
         /** As the person writes it: `~/Documents/Instrument`. */
         display: z.string(),
         /** The virtual path the agent reaches it by; absent means it cannot read it. */

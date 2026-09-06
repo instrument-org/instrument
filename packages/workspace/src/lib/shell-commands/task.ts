@@ -26,9 +26,10 @@ import {
   latestSessionId,
 } from "../orchestrator/latest-session";
 import { listRunnableModels, modelTable } from "../orchestrator/models";
+import { expectStop } from "../orchestrator/wake";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
-import { recordTaskActivity } from "../task-settings";
+import { recordTaskActivity, updateTaskSettings } from "../task-settings";
 import { trashTask } from "../trash-task";
 import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
@@ -57,15 +58,16 @@ const MAX_WAIT_MS = ms("10 minutes");
 
 const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
 
-  ${TASK_COMMAND.name} new --name '<title>' [--model <uri>] [--folder <mount>[:rw|:ro]]... [--tab <id>] <<'EOF'
+  ${TASK_COMMAND.name} new --name '<title>' [--model <uri>] [--folder <mount>[/<folder>][:rw|:ro]]... [--tab <id>] <<'EOF'
   <prompt>
   EOF
       Create a task and start it. The prompt is its whole brief: it knows nothing
       about this conversation. Give it on stdin with a quoted heredoc, as shown,
       so the shell leaves it alone: inside double quotes a $800 becomes 00. The
       title takes single quotes for the same reason. Folders are mounts under
-      ${MOUNT.attachedFolders} in this conversation, named with or without the prefix; a task
-      sees none unless named here, and read-only unless :rw. --tab hands the task
+      ${MOUNT.attachedFolders} in this conversation, or a folder inside one, named with or
+      without the prefix; a task sees none unless named here, with the access
+      this conversation has unless :ro narrows it. --tab hands the task
       one of the user's browser tabs, by the id the note on their message gives;
       its browser is then that tab, page and all. Prints the task id. You are
       told when it finishes a turn; do not poll it.
@@ -91,6 +93,8 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
   ${TASK_COMMAND.name} wait <id> [--timeout <ms>]
       Block until it finishes or the timeout, whichever comes first. Rarely the
       right call: you are woken when it finishes anyway.
+  ${TASK_COMMAND.name} rename <id> '<title>'
+      Give a task a better title.
   ${TASK_COMMAND.name} archive <id>
       Move a finished task to the trash.
 `;
@@ -127,6 +131,9 @@ export function createTaskCommand(context: TaskCommandContext) {
         }
         case "new": {
           return await runNew(rest, context, ctx.stdin);
+        }
+        case "rename": {
+          return await runRename(rest, context);
         }
         case "send": {
           return await runSend(rest, context, ctx.stdin);
@@ -229,24 +236,30 @@ function parseFlags(
   return { positional, values };
 }
 
+/**
+ * `--folder Home/Downloads:rw`: the mount, the folder inside it when the task
+ * gets less than the whole mount, and the access asked for.
+ */
 function parseFolderSpec(spec: string): {
   access?: FolderAttachment.Access;
   name: string;
+  subpath: string;
 } {
   const match = /^(.*?)(?::(rw|ro|read-write|read-only))?$/.exec(spec);
   const raw = match?.[1] ?? spec;
   const suffix = match?.[2];
   const prefix = `${MOUNT.attachedFolders}/`;
-  const name = (raw.startsWith(prefix) ? raw.slice(prefix.length) : raw)
+  const inside = (raw.startsWith(prefix) ? raw.slice(prefix.length) : raw)
     .replace(/\/+$/, "")
     .trim();
+  const [name = "", ...rest] = inside.split("/");
   const access =
     suffix === "rw" || suffix === "read-write"
       ? ("read-write" as const)
       : suffix === undefined
         ? undefined
         : ("read-only" as const);
-  return { access, name };
+  return { access, name, subpath: rest.filter(Boolean).join("/") };
 }
 
 /**
@@ -291,11 +304,11 @@ function resolveFolders(
       .map((name) => `${MOUNT.attachedFolders}/${name}`)
       .join(", ") || "none";
   return specs.map((spec) => {
-    const { access, name } = parseFolderSpec(spec);
+    const { access, name, subpath } = parseFolderSpec(spec);
     const folder = byMount.get(name);
     if (!folder) {
       throw new Error(
-        `no attached folder "${name}". Attached to this conversation: ${available}. Folders reach you only when the user attaches them; ask for one you need.`,
+        `no folder "${name}" in this conversation. Yours: ${available}; a folder inside one is written ${MOUNT.attachedFolders}/<mount>/<folder>. Ask for one outside them with request_folder.`,
       );
     }
     const granted = effectiveFolderAccess(folder);
@@ -304,9 +317,10 @@ function resolveFolders(
         `${MOUNT.attachedFolders}/${name} is read-only in this conversation, so a task cannot write to it. Ask the user to attach it with write access.`,
       );
     }
+    // The task gets what the conversation has unless the brief narrows it.
     return {
-      access: access ?? ("read-only" as const),
-      path: folder.path,
+      access: access ?? granted,
+      path: subpath ? path.join(folder.path, subpath) : folder.path,
       source: "user" as const,
     };
   });
@@ -562,6 +576,20 @@ async function runNew(
   );
 }
 
+async function runRename(args: string[], context: TaskCommandContext) {
+  const task = await requireChild(args[0], context);
+  const title = args.slice(1).join(" ").trim();
+  if (!title) {
+    throw new Error("rename takes the new title after the id.");
+  }
+  const result = await updateTaskSettings(task.id, { name: title });
+  if (result.isErr()) {
+    throw result.error;
+  }
+  publisher.publish("task.updated", { id: task.id });
+  return ok(`Renamed ${task.id} to "${title}".\n`);
+}
+
 async function runSend(
   args: string[],
   context: TaskCommandContext,
@@ -665,6 +693,8 @@ async function runStop(args: string[], context: TaskCommandContext) {
   if (!running) {
     return ok(`${task.id} is not running.\n`);
   }
+  // The wake would report the turn this ends as a finish; it is not news.
+  expectStop(task.id);
   getWorkspaceActorRef().send({ type: "stopSessions", value: { id: task.id } });
   return ok(
     `Stopping ${task.id}. Its turn ends where it is; \`task send\` gives it the next thing to do.\n`,

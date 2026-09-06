@@ -73,6 +73,7 @@ export function FilesScreen({
           ...(folder
             ? {
                 folder: {
+                  ...(folder.access ? { access: folder.access } : {}),
                   display: folder.display,
                   ...(folder.mount ? { mount: folder.mount } : {}),
                   selected: [],
@@ -84,6 +85,7 @@ export function FilesScreen({
       : folder
         ? {
             folder: {
+              ...(folder.access ? { access: folder.access } : {}),
               display: folder.display,
               ...(folder.mount ? { mount: folder.mount } : {}),
               selected: folder.selected,
@@ -223,12 +225,21 @@ export function FilesScreen({
         open={quickLook !== null}
       >
         <DialogContent
-          className="h-[85vh] w-[88vw] max-w-none gap-0 p-0 sm:max-w-none"
-          onKeyDown={(event) => {
+          className="h-[85vh] w-[88vw] max-w-none gap-0 p-0 outline-none sm:max-w-none"
+          // Focus stays on the panel itself rather than moving to the first
+          // control in it, so Space puts the panel away instead of pressing
+          // whatever button it landed on, the way a second Space does in the
+          // Finder. Caught on the way down, before any control sees it.
+          onKeyDownCapture={(event) => {
             if (event.key === " " && !isTypingTarget(event.target)) {
               event.preventDefault();
+              event.stopPropagation();
               setQuickLook(null);
             }
+          }}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            (event.currentTarget as HTMLElement | null)?.focus();
           }}
         >
           <DialogTitle className="sr-only">

@@ -81,6 +81,7 @@ export function TaskChat({
   sendContext,
   showTutorial,
   task,
+  transcriptTrailing,
 }: {
   /**
    * Send every prompt the moment it is submitted, whether or not a turn is
@@ -114,6 +115,8 @@ export function TaskChat({
   >;
   showTutorial?: boolean;
   task: Task;
+  /** Drawn under the transcript's last turn, inside the scroller: what is going on past the conversation. */
+  transcriptTrailing?: ReactNode;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -522,6 +525,7 @@ export function TaskChat({
               ) : (
                 <ChatZeroState id={id} selectedSessionId={selectedSessionId} />
               )}
+              {transcriptTrailing}
             </MessageScrollerContent>
           </MessageScrollerViewport>
 

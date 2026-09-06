@@ -3,6 +3,7 @@ import {
   CHAT_WIDTH_MAX,
   CHAT_WIDTH_MIN,
   fileTabsAtom,
+  linkedFilesAtom,
   orchestratorChatOpenAtom,
   orchestratorChatWidthAtom,
   type OrchestratorRecent,
@@ -22,6 +23,10 @@ import {
   type OrchestratorWindow,
 } from "@/client/components/orchestrator/context";
 import {
+  TasksWorkingRow,
+  ViewChip,
+} from "@/client/components/orchestrator/conversation-chrome";
+import {
   hostPathOfMount,
   useCloseFileTab,
 } from "@/client/components/orchestrator/file-tabs";
@@ -36,6 +41,7 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
+import { pathsNamedInMessage } from "@/client/lib/paths-named-in-message";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -54,7 +60,7 @@ import {
 } from "@tanstack/react-router";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import ms from "ms";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 /** How often the orchestrator's tasks and their status are re-read. */
 const REFRESH_MS = ms("2 seconds");
@@ -73,31 +79,6 @@ export const Route = createFileRoute("/orchestrator")({
   component: OrchestratorLayout,
   head: () => ({ meta: [{ title: APP_NAME }] }),
 });
-
-/**
- * What is going on behind the conversation, just above the composer: the
- * tasks at work, named by what each is doing this moment rather than by task,
- * so a reply that handed the work off does not read as the end of it.
- */
-function ActivityStrip({
-  running,
-}: {
-  running: { step?: string; taskId: string; title: string }[];
-}) {
-  if (running.length === 0) {
-    return null;
-  }
-  const latest = running.find((entry) => entry.step) ?? running[0];
-  const doing = latest?.step ?? latest?.title;
-  return (
-    <div className="mb-2 flex items-center gap-2 px-1 text-xs">
-      <span className="brand-shiny-text truncate">
-        {running.length > 1 ? `${running.length} things in progress · ` : ""}
-        {doing}
-      </span>
-    </div>
-  );
-}
 
 function ChromeButton({
   children,
@@ -231,12 +212,6 @@ function OrchestratorLayout() {
       refetchInterval: REFRESH_MS,
     }),
   );
-  const activity = useQuery(
-    rpcClient.workspace.orchestrator.activity.queryOptions({
-      input: ids ? { id: ids.taskId } : skipToken,
-      refetchInterval: REFRESH_MS,
-    }),
-  );
   // The same subscription the conversation holds, read here for the dot on
   // the mark: which reply is newest, against which one the user last had open.
   const messages = useQuery(
@@ -249,6 +224,28 @@ function OrchestratorLayout() {
   const [isChatOpen, setChatOpen] = useAtom(orchestratorChatOpenAtom);
   const screenView = useAtomValue(screenViewAtom);
   const setFileTabs = useSetAtom(fileTabsAtom);
+  const setLinkedFiles = useSetAtom(linkedFilesAtom);
+  // The files the conversation has handed over, newest first, for the sidebar.
+  const linkedFiles = messages.data
+    ?.toReversed()
+    .flatMap((message) =>
+      message.role === "assistant" ? [...pathsNamedInMessage(message)] : [],
+    );
+  const linkedKey = linkedFiles?.join("\n") ?? "";
+  useEffect(() => {
+    const seen = new Set<string>();
+    setLinkedFiles(
+      (linkedFiles ?? []).flatMap((path) => {
+        if (seen.has(path)) {
+          return [];
+        }
+        seen.add(path);
+        return [{ name: path.split("/").at(-1) ?? path, path }];
+      }),
+    );
+    // By content: the list is rebuilt from the messages on every update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedKey, setLinkedFiles]);
   const navigate = useNavigate();
   const location = useRouterState({
     select: (routerState) => routerState.location,
@@ -290,8 +287,6 @@ function OrchestratorLayout() {
   };
   const hasUnread =
     !isChatOpen && latestReplyId !== undefined && latestReplyId !== seenReplyId;
-
-  const running = activity.data?.running ?? [];
 
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions(),
@@ -442,7 +437,7 @@ function OrchestratorLayout() {
               <div className="min-h-0 flex-1">
                 <TaskChat
                   alwaysSubmittable
-                  composerLead={<ActivityStrip running={running} />}
+                  composerLead={<ViewChip />}
                   navigateOnSend={false}
                   presentation="orchestrator"
                   promptDraft={state.data.promptDraft ?? ""}
@@ -468,6 +463,7 @@ function OrchestratorLayout() {
                     };
                   }}
                   task={task.data}
+                  transcriptTrailing={<TasksWorkingRow />}
                 />
               </div>
             </div>
@@ -582,7 +578,13 @@ function useRecordRecents({
     }
     setRecents((current) =>
       current.map((recent) =>
-        recent.kind === "browser" ? { ...recent, title: page.title } : recent,
+        recent.kind === "browser"
+          ? {
+              ...recent,
+              ...(page.favicon ? { favicon: page.favicon } : {}),
+              title: page.title,
+            }
+          : recent,
       ),
     );
   };
@@ -596,6 +598,12 @@ function useRecordRecents({
  */
 function useWindowCommands({ closeTab }: { closeTab: () => void }) {
   const router = useRouter();
+  // The stream is opened once; what a close means is read at the moment of
+  // the chord, off whatever screen is up then.
+  const latestCloseTab = useRef(closeTab);
+  useEffect(() => {
+    latestCloseTab.current = closeTab;
+  });
   useEffect(() => {
     const onMouseUp = (event: MouseEvent) => {
       if (event.button === 3) {
@@ -619,7 +627,7 @@ function useWindowCommands({ closeTab }: { closeTab: () => void }) {
               break;
             }
             case "closeTab": {
-              closeTab();
+              latestCloseTab.current();
               break;
             }
             case "forward": {
@@ -636,7 +644,5 @@ function useWindowCommands({ closeTab }: { closeTab: () => void }) {
       controller.abort();
       window.removeEventListener("mouseup", onMouseUp);
     };
-    // The stream is opened once; the close handler reads the screen as it is at the call.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 }

@@ -1,4 +1,8 @@
-import { orchestratorRecentsAtom } from "@/client/atoms/orchestrator";
+import {
+  orchestratorRecentsAtom,
+  originOf,
+  siteFaviconsAtom,
+} from "@/client/atoms/orchestrator";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { RecentIcon } from "@/client/components/orchestrator/sidebar";
@@ -16,7 +20,7 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { type ComponentType, useState } from "react";
+import { type ComponentType, type ReactNode, useState } from "react";
 
 /**
  * Home: the mark, one box that reaches every screen and every app and, failing
@@ -53,6 +57,15 @@ const SCREENS: {
 ];
 
 const RECENTS_SHOWN = 6;
+const TASKS_SHOWN = 5;
+
+interface OmniRow {
+  group: string;
+  icon: ReactNode;
+  name: string;
+  note: string;
+  run: () => void;
+}
 
 function HomeRoute() {
   const { ask, browser, taskId } = useOrchestrator();
@@ -65,22 +78,45 @@ function HomeRoute() {
   const [highlight, setHighlight] = useState(0);
   const words = query.trim().toLowerCase();
 
-  const screens = SCREENS.filter(
-    (screen) => !words || screen.name.toLowerCase().includes(words),
+  const children = useQuery(
+    rpcClient.workspace.orchestrator.children.queryOptions({
+      input: { id: taskId },
+    }),
   );
-  const apps = APPS.filter(
-    (app) => !words || app.name.toLowerCase().includes(words),
-  );
-  const rows: {
-    group: string;
-    icon: ComponentType<{ className?: string }>;
-    name: string;
-    note: string;
-    run: () => void;
-  }[] = [
+  const siteFavicons = useAtomValue(siteFaviconsAtom);
+  const matches = (name: string) =>
+    !words || name.toLowerCase().includes(words);
+  const typedSite = siteFromWords(query.trim());
+
+  const screens = SCREENS.filter((screen) => matches(screen.name));
+  const apps = APPS.filter((app) => matches(app.name));
+  const tasks = (children.data ?? [])
+    .filter((child) => matches(child.title))
+    .slice(0, words ? TASKS_SHOWN : 0);
+  const recentRows = recents
+    .filter((entry) => matches(entry.title))
+    .slice(0, words ? RECENTS_SHOWN : 0);
+  const openSite = (url: string) => {
+    browser?.openOrFocus(url);
+    void navigate({ to: "/orchestrator/browser" });
+  };
+  const rows: OmniRow[] = [
+    ...(typedSite
+      ? [
+          {
+            group: "Site",
+            icon: <GlobeIcon className="size-4" />,
+            name: `Open ${typedSite.host}`,
+            note: "Site",
+            run: () => {
+              openSite(typedSite.url);
+            },
+          },
+        ]
+      : []),
     ...screens.map((screen) => ({
       group: "Screens",
-      icon: screen.icon,
+      icon: <screen.icon className="size-4" />,
       name: screen.name,
       note: "Screen",
       run: () => {
@@ -90,25 +126,59 @@ function HomeRoute() {
         });
       },
     })),
+    ...tasks.map((child) => ({
+      group: "Tasks",
+      icon: <InstrumentGlyph className="size-4" />,
+      name: child.title,
+      note: "Task",
+      run: () => {
+        void navigate({
+          params: { id: child.id },
+          to: "/orchestrator/tasks/$id",
+        });
+      },
+    })),
+    ...recentRows.map((entry) => ({
+      group: "Recent",
+      icon: <RecentIcon recent={entry} />,
+      name: entry.title,
+      note: { browser: "Page", file: "File", folder: "Folder", task: "Task" }[
+        entry.kind
+      ],
+      run: () => {
+        router.history.push(entry.href);
+      },
+    })),
     ...apps.map((app) => ({
       group: "Apps",
-      icon: GlobeIcon,
+      icon: <SiteIcon favicon={siteFavicons[originOf(app.url) ?? ""]} />,
       name: app.name,
       note: "App",
       run: () => {
-        browser?.openOrFocus(app.url);
-        void navigate({ to: "/orchestrator/browser" });
+        openSite(app.url);
       },
     })),
     ...(words
       ? [
           {
             group: "Or",
-            icon: InstrumentGlyph,
+            icon: <InstrumentGlyph className="size-4" />,
             name: `Ask Instrument: “${query.trim()}”`,
             note: "Agent",
             run: () => {
               ask(query.trim());
+              setQuery("");
+            },
+          },
+          {
+            group: "Or",
+            icon: <MagnifyingGlassIcon className="size-4" />,
+            name: `Search the web for “${query.trim()}”`,
+            note: "Browser",
+            run: () => {
+              openSite(
+                `https://www.google.com/search?q=${encodeURIComponent(query.trim())}`,
+              );
               setQuery("");
             },
           },
@@ -190,7 +260,9 @@ function HomeRoute() {
                     }}
                     type="button"
                   >
-                    <row.icon className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
+                      {row.icon}
+                    </span>
                     <span className="min-w-0 flex-1 truncate">{row.name}</span>
                     <span className="text-xs text-muted-foreground">
                       {row.note}
@@ -267,5 +339,40 @@ function HomeRoute() {
       ) : null}
       <p className="sr-only">{taskId}</p>
     </div>
+  );
+}
+
+/**
+ * What typed words are when they are an address: a scheme, or a host with a
+ * dot in it and no spaces, the way a browser's own box reads them.
+ */
+function siteFromWords(
+  words: string,
+): undefined | { host: string; url: string } {
+  if (!words || /\s/.test(words)) {
+    return;
+  }
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(words)
+    ? words
+    : /^[\w-]+(?:\.[\w-]+)+(?::\d+)?(?:\/.*)?$/.test(words)
+      ? `https://${words}`
+      : undefined;
+  if (!withScheme) {
+    return;
+  }
+  try {
+    const url = new URL(withScheme);
+    return { host: url.host, url: url.href };
+  } catch {
+    return;
+  }
+}
+
+/** A site's own icon when a tab has announced one, else the globe. */
+function SiteIcon({ favicon }: { favicon: string | undefined }) {
+  return favicon ? (
+    <img alt="" className="size-4 rounded-xs" draggable={false} src={favicon} />
+  ) : (
+    <GlobeIcon className="size-4" />
   );
 }

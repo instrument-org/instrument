@@ -5,6 +5,8 @@ import { atomWithStorage } from "jotai/utils";
 /** A screen the window was on, so the sidebar can take the user back to it. */
 export interface OrchestratorRecent {
   at: number;
+  /** The page's icon, for a screen that is a page. */
+  favicon?: string;
   /** Path and search together: the address of the screen, and its identity. */
   href: string;
   kind: "browser" | "file" | "folder" | "task";
@@ -95,6 +97,37 @@ export const orchestratorTabsAtom = atomWithStorage<BrowserTabs>(
   undefined,
   { getOnInit: true },
 );
+
+/**
+ * The icon each site last announced, by origin, so a pin or a recent can
+ * carry it before its tab is shown again.
+ */
+export const siteFaviconsAtom = atomWithStorage<Record<string, string>>(
+  "orchestrator.site-favicons.v1",
+  {},
+  undefined,
+  { getOnInit: true },
+);
+
+/** A file the conversation has put on screen, newest first: what the sidebar lists as recent. */
+export interface LinkedFile {
+  name: string;
+  /** The virtual path the reply named. */
+  path: string;
+}
+
+export function originOf(url: string | undefined): string | undefined {
+  if (!url) {
+    return;
+  }
+  try {
+    return new URL(url).origin;
+  } catch {
+    return;
+  }
+}
+
+export const linkedFilesAtom = atom<LinkedFile[]>([]);
 
 /** A file open in a tab of This Mac, beside the folder browser. */
 export interface FileTab {

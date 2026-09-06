@@ -1,9 +1,12 @@
 import {
+  linkedFilesAtom,
   type OrchestratorRecent,
-  orchestratorRecentsAtom,
+  originOf,
+  siteFaviconsAtom,
 } from "@/client/atoms/orchestrator";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { FileIcon } from "@/client/components/file-icon";
+import { FileOpenContext } from "@/client/components/file-open-context";
 import {
   Sidebar,
   SidebarContent,
@@ -14,26 +17,19 @@ import {
   SidebarMenuItem,
 } from "@/client/components/ui/sidebar";
 import { InstrumentGlyph } from "@/client/components/wordmark";
-import { rpcClient } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { HouseIcon } from "@phosphor-icons/react/House";
 import { LaptopIcon } from "@phosphor-icons/react/Laptop";
-import { PushPinIcon } from "@phosphor-icons/react/PushPin";
-import { useQuery } from "@tanstack/react-query";
-import { useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import ms from "ms";
-import { type ComponentType, type ReactNode } from "react";
+import { type ComponentType, type ReactNode, useContext } from "react";
 
 import { useOrchestrator } from "./context";
 
-/** How often the tasks' status is re-read, for the badge on Tasks. */
-const REFRESH_MS = ms("2 seconds");
-
-/** How many recent screens the sidebar lists. */
-const RECENTS_SHOWN = 8;
+/** How many of the files the conversation linked the sidebar lists. */
+const FILES_SHOWN = 8;
 
 /**
  * The places in the product, the way the wireframes list them. Home,
@@ -115,37 +111,24 @@ const PINNED: { name: string; url: string }[] = [
 
 /**
  * The window's left side: the places at the top, then what is pinned, then
- * where the user has been. Tasks is a place, not a list: the screen behind it
- * holds the tasks.
+ * the files the conversation has handed over. Tasks is a place, not a list:
+ * the screen behind it holds the tasks.
  */
 export function OrchestratorSidebar({ className }: { className?: string }) {
-  const { browser, taskId } = useOrchestrator();
+  const { browser } = useOrchestrator();
   const navigate = useNavigate();
-  const router = useRouter();
   const location = useRouterState({ select: (state) => state.location });
-  const recents = useAtomValue(orchestratorRecentsAtom);
-  const children = useQuery(
-    rpcClient.workspace.orchestrator.children.queryOptions({
-      input: { id: taskId },
-      refetchInterval: REFRESH_MS,
-    }),
-  );
-  const childIds = children.data?.map((child) => child.id) ?? [];
-  const status = useQuery(
-    rpcClient.workspace.task.agentStatus.byIds.queryOptions({
-      input: { ids: childIds },
-      refetchInterval: REFRESH_MS,
-    }),
-  );
+  const linkedFiles = useAtomValue(linkedFilesAtom);
+  const siteFavicons = useAtomValue(siteFaviconsAtom);
+  const openFile = useContext(FileOpenContext);
   const here = {
     pathname: location.pathname,
     search: location.search as Record<string, unknown>,
   };
-  const isAtPlace = PLACES.some((place) => place.isAt(here));
-  const workingCount =
-    status.data?.filter((entry) =>
-      entry.sessionActors.some((actor) => actor.tags.includes("agent.alive")),
-    ).length ?? 0;
+  const openFilePath =
+    location.pathname === "/orchestrator/computer"
+      ? (here.search as { file?: string }).file
+      : undefined;
 
   return (
     <Sidebar className={className} collapsible="none" side="left">
@@ -161,13 +144,6 @@ export function OrchestratorSidebar({ className }: { className?: string }) {
                 onClick={() => {
                   place.open(navigate);
                 }}
-                trailing={
-                  place.label === "Tasks" && workingCount > 0 ? (
-                    <span className="brand-shiny-text ml-auto text-xs">
-                      {workingCount} working
-                    </span>
-                  ) : undefined
-                }
               />
             ))}
           </SidebarMenu>
@@ -176,7 +152,9 @@ export function OrchestratorSidebar({ className }: { className?: string }) {
         <Section label="Pinned">
           {PINNED.map((pin) => (
             <Item
-              icon={<PushPinIcon className="size-4 shrink-0" />}
+              icon={
+                <SiteIcon favicon={siteFavicons[originOf(pin.url) ?? ""]} />
+              }
               isActive={false}
               key={pin.name}
               label={pin.name}
@@ -189,17 +167,21 @@ export function OrchestratorSidebar({ className }: { className?: string }) {
           ))}
         </Section>
 
-        {recents.length > 0 ? (
-          <Section label="Recent">
-            {recents.slice(0, RECENTS_SHOWN).map((recent) => (
+        {/* What the conversation has handed over, newest first: the files
+            worth coming back to, rather than every screen the window passed
+            through. */}
+        {linkedFiles.length > 0 ? (
+          <Section label="Files">
+            {linkedFiles.slice(0, FILES_SHOWN).map((file) => (
               <Item
-                icon={<RecentIcon recent={recent} />}
-                // A recent that is also a place lights the place, not itself.
-                isActive={!isAtPlace && location.href === recent.href}
-                key={recent.href}
-                label={recent.title}
+                icon={
+                  <FileIcon className="size-4 shrink-0" filename={file.name} />
+                }
+                isActive={openFilePath === file.path}
+                key={file.path}
+                label={file.name}
                 onClick={() => {
-                  router.history.push(recent.href);
+                  openFile?.(file.path);
                 }}
               />
             ))}
@@ -214,7 +196,7 @@ export function OrchestratorSidebar({ className }: { className?: string }) {
 export function RecentIcon({ recent }: { recent: OrchestratorRecent }) {
   switch (recent.kind) {
     case "browser": {
-      return <GlobeIcon className="size-4 shrink-0" />;
+      return <SiteIcon favicon={recent.favicon} />;
     }
     case "file": {
       return <FileIcon className="size-4 shrink-0" filename={recent.title} />;
@@ -226,6 +208,20 @@ export function RecentIcon({ recent }: { recent: OrchestratorRecent }) {
       return <InstrumentGlyph className="size-4 shrink-0" />;
     }
   }
+}
+
+/** A site's own icon when a tab has announced one, else the globe. */
+export function SiteIcon({ favicon }: { favicon: string | undefined }) {
+  return favicon ? (
+    <img
+      alt=""
+      className="size-4 shrink-0 rounded-xs"
+      draggable={false}
+      src={favicon}
+    />
+  ) : (
+    <GlobeIcon className="size-4 shrink-0" />
+  );
 }
 
 function Item({

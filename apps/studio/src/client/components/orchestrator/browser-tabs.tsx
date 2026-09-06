@@ -1,6 +1,8 @@
 import {
   type BrowserTab,
   orchestratorTabsAtom,
+  originOf,
+  siteFaviconsAtom,
 } from "@/client/atoms/orchestrator";
 import { TaskBrowserPanel } from "@/client/components/task/browser-panel";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
@@ -14,7 +16,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { useQuery } from "@tanstack/react-query";
-import { useAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import { type Ref, useEffect, useImperativeHandle, useRef } from "react";
 import { z } from "zod";
 
@@ -22,6 +24,7 @@ import { useOrchestrator } from "./context";
 import { TabStrip } from "./tab-strip";
 
 export interface BrowserPage {
+  favicon?: string;
   title: string;
   url: string;
 }
@@ -87,6 +90,7 @@ export function BrowserTabs({
 }) {
   const { taskId } = useOrchestrator();
   const [{ activeId, tabs }, setTabs] = useAtom(orchestratorTabsAtom);
+  const setSiteFavicons = useSetAtom(siteFaviconsAtom);
   const attached = useBrowserTargets();
 
   // Holds every tab's guest for as long as the window is open, the way the
@@ -133,6 +137,13 @@ export function BrowserTabs({
     // Once per tab coming back, not per render while it attaches.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.id, taskId]);
+
+  // The strip as it is at any moment, for the handle below and the listeners,
+  // both of which are made once and read it when called.
+  const latest = useRef({ active, tabs });
+  useEffect(() => {
+    latest.current = { active, tabs };
+  });
 
   // Titles, addresses and icons come off the guests as the pages announce
   // them: the pages navigate by the user's hand and by an agent's, so the
@@ -192,7 +203,29 @@ export function BrowserTabs({
       };
       const onFavicon = (event: Event) => {
         const { favicons } = event as Event & { favicons?: string[] };
-        patch(id, { favicon: favicons?.[0] });
+        const favicon = favicons?.[0];
+        patch(id, { favicon });
+        if (!favicon) {
+          return;
+        }
+        // Under the site's origin, and under the one the tab was opened at
+        // when the site moved it on, so a pin finds its icon either way.
+        setSiteFavicons((current) => {
+          const next = { ...current };
+          let url: string | undefined;
+          try {
+            url = webview.getURL();
+          } catch {
+            // Not attached: the tab's own record of its address will do.
+          }
+          const tab = latest.current.tabs.find((entry) => entry.id === id);
+          for (const origin of [originOf(url), originOf(tab?.openedUrl)]) {
+            if (origin) {
+              next[origin] = favicon;
+            }
+          }
+          return next;
+        });
       };
       onNavigate();
       webview.addEventListener("did-navigate", onNavigate);
@@ -211,15 +244,19 @@ export function BrowserTabs({
         cleanup?.();
       }
     };
-  }, [attached, setTabs, tabIds, taskId]);
+  }, [attached, setSiteFavicons, setTabs, tabIds, taskId]);
 
   const activePage: BrowserPage | undefined = active?.url
-    ? { title: active.title ?? "", url: active.url }
+    ? {
+        ...(active.favicon ? { favicon: active.favicon } : {}),
+        title: active.title ?? "",
+        url: active.url,
+      }
     : undefined;
   useEffect(() => {
     onPageChange?.(activePage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activePage?.title, activePage?.url]);
+  }, [activePage?.favicon, activePage?.title, activePage?.url]);
 
   const openTab = (url?: string) => {
     const id = StoreId.newSessionId();
@@ -250,12 +287,6 @@ export function BrowserTabs({
     });
   };
 
-  // The handle is made once and reads the strip as it is when called, so
-  // nothing holding it is told to re-run each time a title comes in.
-  const latest = useRef({ active, tabs });
-  useEffect(() => {
-    latest.current = { active, tabs };
-  });
   useImperativeHandle(
     ref,
     () => ({

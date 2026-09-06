@@ -185,6 +185,8 @@ export type FileSystemProps = {
    * selected, given the folder that column lists.
    */
   renderTrailing?: (folderPath: string) => React.ReactNode;
+  /** What the columns view shows in its preview pane for a selected file, when something other than its icon. */
+  renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
   /**
    * Lazily render a page thumbnail beyond the eagerly provided
    * `previewImageUrls` (the pager calls this as pages come into view).
@@ -1222,6 +1224,7 @@ export function FileSystem({
   loadPreviewImageUrl,
   renderFilePreview,
   renderTrailing,
+  renderFileStage,
 }: FileSystemProps) {
   const [internalView, setInternalView] = React.useState(defaultView);
   const view = viewProp ?? internalView;
@@ -1818,6 +1821,7 @@ export function FileSystem({
     registerStageHost,
     renderFilePreview,
     renderTrailing,
+    renderFileStage,
     searchQuery,
     selectedEntry,
     selectedPath,
@@ -2907,6 +2911,7 @@ type FileSystemViewProps = {
   registerStageHost: (path: string, element: HTMLElement | null) => void;
   renderFilePreview?: (file: FileSystemFileItem) => React.ReactNode;
   renderTrailing?: (folderPath: string) => React.ReactNode;
+  renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
   searchQuery: string;
   selectedEntry: FileSystemEntry | null;
   selectedPath: string | null;
@@ -3918,6 +3923,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     pageUrlCache,
     renderFilePreview,
     renderTrailing,
+    renderFileStage,
     selectedEntry,
     selectedPath,
   } = props;
@@ -4031,6 +4037,8 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
   const selectedFileSize = selectedFile
     ? formatByteSize(selectedFile.size)
     : null;
+  const selectedFileStage =
+    selectedFile && renderFileStage ? renderFileStage(selectedFile) : null;
   React.useEffect(() => {
     const container = scrollContainerRef.current;
     if (container) container.scrollLeft = container.scrollWidth;
@@ -4076,7 +4084,11 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
             trailChildPath={columnPaths[columnIndex + 1] ?? null}
           />
         ))}
-        {selectedFile ? (
+        {selectedFile && selectedFileStage ? (
+          <div className="relative min-w-60 flex-1 contain-inline-size">
+            {selectedFileStage}
+          </div>
+        ) : selectedFile ? (
           <InlineScrollArea2
             orientation="vertical"
             className="min-w-60 flex-1 contain-inline-size"
@@ -4407,6 +4419,7 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
     poolStagePath,
     registerStageHost,
     renderFilePreview,
+    renderFileStage,
     selectedEntry,
     selectedPath,
   } = props;
@@ -4444,6 +4457,8 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
     [attachedStagePaths, registerStageHost],
   );
   const activeFileSize = activeFile ? formatByteSize(activeFile.size) : null;
+  const fileStage =
+    activeFile && renderFileStage ? renderFileStage(activeFile) : null;
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (entries.length === 0) return;
     const currentIndex = activeEntry
@@ -4566,7 +4581,9 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
           {activeEntry?.kind === "folder" ? (
             <FileSystemFolderGlyph className="h-40 max-h-full w-auto drop-shadow-md" />
           ) : activeFile && !attachedStagePaths.includes(activeFile.path) ? (
-            <InlineSpinner className="size-6 text-muted-foreground" />
+            (fileStage ?? (
+              <InlineSpinner className="size-6 text-muted-foreground" />
+            ))
           ) : null}
           {/* Inactive hosts hide via `visibility` + `opacity`, never
             `display`: the document viewers size pages off ResizeObserver

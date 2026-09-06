@@ -1,4 +1,4 @@
-import { ChildChat } from "@/client/components/orchestrator/child-tasks";
+import { ChildTranscript } from "@/client/components/orchestrator/child-tasks";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { Spinner } from "@/client/components/ui/spinner";
@@ -69,7 +69,7 @@ function TaskRoute() {
         <h2 className="truncate text-sm font-medium">{task.data.title}</h2>
       </div>
       <div className="min-h-0 flex-1">
-        <ChildChat key={taskId} task={task.data} />
+        <ChildTranscript key={taskId} task={task.data} />
       </div>
     </div>
   );

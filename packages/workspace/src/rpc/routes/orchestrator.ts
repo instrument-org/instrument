@@ -1,6 +1,9 @@
 import { z } from "zod";
 
+import { getTask } from "../../lib/get-tasks";
 import {
+  isWorking,
+  latestStep,
   orchestratorActivity,
   OrchestratorActivitySchema,
 } from "../../lib/orchestrator/activity";
@@ -10,9 +13,13 @@ import {
   FolderListingSchema,
   listOrchestratorFolder,
 } from "../../lib/orchestrator/list-folder";
-import { ensureOutputFolder } from "../../lib/orchestrator/output-folder";
+import {
+  ensureHomeFolder,
+  ensureOutputFolder,
+} from "../../lib/orchestrator/output-folder";
 import { taskDir } from "../../lib/task-dir-utils";
 import { setTaskState } from "../../lib/task-record";
+import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { MOUNT } from "../../mount-points";
 import { StoreId } from "../../schemas/store-id";
 import { TaskSchema } from "../../schemas/task";
@@ -25,6 +32,32 @@ const activity = base
   .input(z.object({ id: TaskIdSchema }))
   .output(OrchestratorActivitySchema)
   .handler(({ input }) => orchestratorActivity(input.id));
+
+/** Where one task the orchestrator created stands this moment, for a card that follows it. */
+const childStatus = base
+  .input(z.object({ id: TaskIdSchema }))
+  .output(
+    z.object({
+      isWorking: z.boolean(),
+      step: z.string().optional(),
+      title: z.string(),
+      updatedAt: z.number(),
+    }),
+  )
+  .handler(async ({ errors, input }) => {
+    const task = await getTask(input.id, getWorkspaceConfig());
+    if (task.isErr()) {
+      throw toORPCError(task.error, errors);
+    }
+    const working = isWorking(input.id);
+    const step = working ? await latestStep(input.id) : undefined;
+    return {
+      isWorking: working,
+      ...(step ? { step } : {}),
+      title: task.value.title,
+      updatedAt: task.value.updatedAt.getTime(),
+    };
+  });
 
 /** The tasks an orchestrator created, newest activity first. */
 const children = base
@@ -50,6 +83,7 @@ const ensure = base
       context.workspaceConfig.captureException(result.error);
       throw toORPCError(result.error, errors);
     }
+    await ensureHomeFolder(result.value.taskId);
     const mountName = await ensureOutputFolder(result.value.taskId);
     return {
       ...result.value,
@@ -82,6 +116,7 @@ const setActiveTab = base
 export const orchestrator = {
   activity,
   children,
+  childStatus,
   ensure,
   listFolder,
   setActiveTab,

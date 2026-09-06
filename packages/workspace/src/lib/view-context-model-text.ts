@@ -139,6 +139,7 @@ function pageNote(data: ViewContext) {
     : page.text
       ? `It begins: "${page.text}".`
       : "It has no text yet.";
+  const focus = page.focus ? ` Their cursor is in ${page.focus}.` : "";
   const tab = page.tab ? ` (tab ${page.tab})` : "";
   const others = (page.tabs ?? []).filter((other) => other.id !== page.tab);
   const tabs =
@@ -146,7 +147,7 @@ function pageNote(data: ViewContext) {
       ? `Other tabs open but not on screen: ${others.map((other) => `"${other.title || other.url}" at ${other.url} (tab ${other.id})`).join("; ")}.`
       : "No other tabs are open.";
   return systemNote`
-    When the user sent this, the browser showed${title} at ${page.url}${tab}. "This page", "this site", "this" and "here" refer to it. Your own agent-browser drives this tab, for one-step things on it; a task that should work in it gets it with --tab and its id, and then drives it in the user's sight. Answer from what is quoted here when that is enough. ${words}
+    When the user sent this, the browser showed${title} at ${page.url}${tab}. "This page", "this site", "this" and "here" refer to it. Your own agent-browser drives this tab, for one-step things on it; a task that should work in it gets it with --tab and its id, and then drives it in the user's sight. Answer from what is quoted here when that is enough. ${words}${focus}
     ${tabs}
   `;
 }

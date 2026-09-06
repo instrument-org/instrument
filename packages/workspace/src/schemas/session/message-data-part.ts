@@ -411,6 +411,8 @@ export namespace SessionMessageDataPart {
    */
   /** The page the window's browser shows: its address and title, what is selected on it, and how its text begins. */
   const ViewedPageSchema = z.object({
+    /** Where the user's cursor is on the page: the focused control, described. */
+    focus: z.string().optional(),
     selection: z.string().optional(),
     /** The tab on screen, by the id a task can be handed. */
     tab: z.string().optional(),

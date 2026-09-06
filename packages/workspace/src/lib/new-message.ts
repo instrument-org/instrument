@@ -185,14 +185,17 @@ export async function newMessage({
 
   // A message that says what its window has on screen has said it all; the
   // pane is the task page's, and a window without one has nothing to report.
-  const paneTabsPart = viewing
-    ? undefined
-    : await createPaneTabsPart({
-        createdAt,
-        messageId,
-        sessionId,
-        taskId,
-      });
+  // An orchestrator's window is never that page: whatever a message of its
+  // own leaves unsaid about the screen, the pane cannot say either.
+  const paneTabsPart =
+    viewing || settings?.kind === "orchestrator"
+      ? undefined
+      : await createPaneTabsPart({
+          createdAt,
+          messageId,
+          sessionId,
+          taskId,
+        });
   if (paneTabsPart) {
     parts.push(paneTabsPart);
   }

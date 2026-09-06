@@ -2,6 +2,8 @@ import {
   type OrchestratorRecent,
   orchestratorRecentsAtom,
 } from "@/client/atoms/orchestrator";
+import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
+import { FileIcon } from "@/client/components/file-icon";
 import {
   Sidebar,
   SidebarContent,
@@ -15,8 +17,6 @@ import { InstrumentGlyph } from "@/client/components/wordmark";
 import { rpcClient } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
-import { FileIcon } from "@phosphor-icons/react/File";
-import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { HouseIcon } from "@phosphor-icons/react/House";
 import { LaptopIcon } from "@phosphor-icons/react/Laptop";
@@ -113,20 +113,13 @@ const PINNED: { name: string; url: string }[] = [
   { name: "Linear", url: "https://linear.app/" },
 ];
 
-const RECENT_ICONS: Record<OrchestratorRecent["kind"], RowIcon> = {
-  browser: GlobeIcon,
-  file: FileIcon,
-  folder: FolderIcon,
-  task: InstrumentGlyph,
-};
-
 /**
  * The window's left side: the places at the top, then what is pinned, then
  * where the user has been. Tasks is a place, not a list: the screen behind it
  * holds the tasks.
  */
 export function OrchestratorSidebar({ className }: { className?: string }) {
-  const { taskId } = useOrchestrator();
+  const { browser, taskId } = useOrchestrator();
   const navigate = useNavigate();
   const router = useRouter();
   const location = useRouterState({ select: (state) => state.location });
@@ -161,7 +154,7 @@ export function OrchestratorSidebar({ className }: { className?: string }) {
           <SidebarMenu>
             {PLACES.map((place) => (
               <Item
-                icon={place.icon}
+                icon={<place.icon className="size-4 shrink-0" />}
                 isActive={place.isAt(here)}
                 key={place.label}
                 label={place.label}
@@ -183,15 +176,14 @@ export function OrchestratorSidebar({ className }: { className?: string }) {
         <Section label="Pinned">
           {PINNED.map((pin) => (
             <Item
-              icon={PushPinIcon}
+              icon={<PushPinIcon className="size-4 shrink-0" />}
               isActive={false}
               key={pin.name}
               label={pin.name}
               onClick={() => {
-                void navigate({
-                  search: { url: pin.url },
-                  to: "/orchestrator/browser",
-                });
+                // One tab per pin: the tab already on that site comes forward.
+                browser?.openOrFocus(pin.url);
+                void navigate({ to: "/orchestrator/browser" });
               }}
             />
           ))}
@@ -201,7 +193,7 @@ export function OrchestratorSidebar({ className }: { className?: string }) {
           <Section label="Recent">
             {recents.slice(0, RECENTS_SHOWN).map((recent) => (
               <Item
-                icon={RECENT_ICONS[recent.kind]}
+                icon={<RecentIcon recent={recent} />}
                 // A recent that is also a place lights the place, not itself.
                 isActive={!isAtPlace && location.href === recent.href}
                 key={recent.href}
@@ -218,14 +210,32 @@ export function OrchestratorSidebar({ className }: { className?: string }) {
   );
 }
 
+/** What stands for a recent screen: the Finder's own folder and file icons, the globe, the mark. */
+export function RecentIcon({ recent }: { recent: OrchestratorRecent }) {
+  switch (recent.kind) {
+    case "browser": {
+      return <GlobeIcon className="size-4 shrink-0" />;
+    }
+    case "file": {
+      return <FileIcon className="size-4 shrink-0" filename={recent.title} />;
+    }
+    case "folder": {
+      return <FileSystemFolderGlyph className="h-3.5 w-auto shrink-0" />;
+    }
+    case "task": {
+      return <InstrumentGlyph className="size-4 shrink-0" />;
+    }
+  }
+}
+
 function Item({
-  icon: ItemIcon,
+  icon,
   isActive,
   label,
   onClick,
   trailing,
 }: {
-  icon: RowIcon;
+  icon: ReactNode;
   isActive: boolean;
   label: string;
   onClick: () => void;
@@ -234,7 +244,9 @@ function Item({
   return (
     <SidebarMenuItem>
       <SidebarMenuButton isActive={isActive} onClick={onClick}>
-        <ItemIcon className="size-4 shrink-0" />
+        <span className="flex size-4 shrink-0 items-center justify-center">
+          {icon}
+        </span>
         <span className="truncate">{label}</span>
         {trailing}
       </SidebarMenuButton>

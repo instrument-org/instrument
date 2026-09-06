@@ -1,7 +1,8 @@
-import { computerViewAtom } from "@/client/atoms/orchestrator";
+import { type FileTab } from "@/client/atoms/orchestrator";
 import {
   FileSystem,
   type FileSystemFileItem,
+  FileSystemFolderGlyph,
   type FileSystemItem,
 } from "@/client/components/extend/file-system";
 import { Button } from "@/client/components/ui/button";
@@ -9,29 +10,20 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
+import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ComputerListing } from "@instrument-org/workspace/client";
 import { formatBytes } from "@instrument-org/workspace/client";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
-import { DesktopIcon } from "@phosphor-icons/react/Desktop";
-import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
-import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
-import { HouseIcon } from "@phosphor-icons/react/House";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { LockSimpleOpenIcon } from "@phosphor-icons/react/LockSimpleOpen";
-import {
-  useMutation,
-  useQueries,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useSetAtom } from "jotai";
 import ms from "ms";
-import { type ComponentType, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { useOrchestrator } from "./context";
@@ -39,31 +31,49 @@ import { useOrchestrator } from "./context";
 /** How often every folder on screen is re-read, so files a task writes appear. */
 const REFRESH_MS = ms("4 seconds");
 
-const FAVORITE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
-  Desktop: DesktopIcon,
-  Downloads: DownloadSimpleIcon,
-  Home: HouseIcon,
-  // Everything made here, under the mark of what made it.
-  Instrument: InstrumentGlyph,
-};
+/** The folder the user is looking at, for the conversation. */
+export interface FolderOnScreen {
+  /** As the person writes it: `~/Documents`. */
+  display: string;
+  hostPath: string;
+  /** How the agent reaches it, when a granted folder covers it. */
+  mount?: string;
+  /** Names selected in it. */
+  selected: string[];
+}
 
 /**
  * This Mac, browsed the way the Finder browses it: a sidebar of the places a
  * person keeps things and every volume, and the folder the browser is rooted
  * in, opened as the app's own user so every folder opens. Whether Instrument
- * may read one is a separate question, answered in the pane past the last
- * column and settled there with one click. Under the columns, the folder's
- * whole path on the Mac, each part a way back up.
+ * may read one is said in the pane past the last column, as a line rather
+ * than a control: what it can reach is what the user has granted, and asking
+ * for more is the conversation's to do. Under the columns, the folder's whole
+ * path on the Mac, each part a way back up.
  *
  * The file browser holds a flat manifest and asks for a folder's children the
  * first time it is opened. Every folder it has asked for is re-read on a
  * clock, so what a task writes shows up without a refresh.
  */
-export function ComputerPage({ path, root }: { path: string; root: string }) {
+export function ComputerPage({
+  onFolderChange,
+  onOpenFile,
+  onQuickLook,
+  path,
+  root,
+}: {
+  /** Told the folder on screen whenever it changes. */
+  onFolderChange: (folder: FolderOnScreen) => void;
+  /** A file the user opened, when a granted folder covers it. */
+  onOpenFile: (file: FileTab) => void;
+  /** The selected file, on Space. */
+  onQuickLook: (file: FileTab) => void;
+  path: string;
+  root: string;
+}) {
   const { taskId } = useOrchestrator();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const setComputerView = useSetAtom(computerViewAtom);
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const instrumentFolder = places.data?.favorites.find(
     (place) => place.name === "Instrument",
@@ -154,7 +164,7 @@ export function ComputerPage({ path, root }: { path: string; root: string }) {
     if (onScreen !== path) {
       void navigate({
         replace: true,
-        search: { path: onScreen, root },
+        search: (previous) => ({ ...previous, path: onScreen, root }),
         to: "/orchestrator/computer",
       });
     }
@@ -172,39 +182,22 @@ export function ComputerPage({ path, root }: { path: string; root: string }) {
     if (display === undefined || hostPath === undefined) {
       return;
     }
-    setComputerView({
-      folder: display,
+    onFolderChange({
+      display,
       hostPath,
       ...(mount === undefined ? {} : { mount }),
       selected: selectedName ? [selectedName] : [],
     });
-  }, [display, hostPath, mount, selectedName, setComputerView]);
-
-  const allow = useMutation(
-    rpcClient.workspace.task.state.attachFolder.mutationOptions({
-      onError: (error) => {
-        toast.error("Could not allow the folder", {
-          description: error.message,
-        });
-      },
-      onSuccess: () => {
-        void queryClient.invalidateQueries({
-          queryKey: rpcClient.workspace.computer.list
-            .queryOptions({ input: { id: taskId, path: "" } })
-            .queryKey.slice(0, -1),
-        });
-      },
-    }),
-  );
+  }, [display, hostPath, mount, onFolderChange, selectedName]);
 
   const openFile = async (file: FileSystemFileItem) => {
-    const mounted = file.metadata?.mount;
-    if (mounted) {
-      await navigate({ search: { path: mounted }, to: "/orchestrator/file" });
+    const tab = fileTabOf(file);
+    if (tab) {
+      onOpenFile(tab);
       return;
     }
     const filepath = file.metadata?.hostPath;
-    if (!filepath) {
+    if (typeof filepath !== "string") {
       return;
     }
     try {
@@ -215,6 +208,41 @@ export function ComputerPage({ path, root }: { path: string; root: string }) {
       });
     }
   };
+
+  // Space on a selected file, the way the Finder shows one over everything.
+  const selectedFile =
+    selectedPath === null
+      ? undefined
+      : items.find(
+          (item): item is FileSystemFileItem =>
+            item.kind === "file" && item.path === selectedPath,
+        );
+  const quickLookTab = selectedFile ? fileTabOf(selectedFile) : undefined;
+  const quickLookKey = quickLookTab?.mount;
+  useEffect(() => {
+    if (!quickLookTab) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key !== " " ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        isTypingTarget(event.target)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      onQuickLook(quickLookTab);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+    // The tab is rebuilt with the items on every re-read; its path is its identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quickLookKey, onQuickLook]);
 
   const rootTo = (folder: string, prefix = "") => {
     void navigate({
@@ -248,7 +276,13 @@ export function ComputerPage({ path, root }: { path: string; root: string }) {
             rootTo(folder === places.data.favorites[0]?.path ? "~" : folder);
           }}
           places={places.data.favorites.map((place) => ({
-            icon: FAVORITE_ICONS[place.name] ?? FolderIcon,
+            icon:
+              place.name === "Instrument" ? (
+                // Everything made here, under the mark of what made it.
+                <InstrumentGlyph className="size-4 text-muted-foreground" />
+              ) : (
+                <FileSystemFolderGlyph className="h-3.5 w-auto" />
+              ),
             isActive: rootPath === place.path,
             name: place.name,
             path: place.path,
@@ -260,7 +294,7 @@ export function ComputerPage({ path, root }: { path: string; root: string }) {
             rootTo(folder);
           }}
           places={places.data.volumes.map((volume) => ({
-            icon: HardDriveIcon,
+            icon: <HardDriveIcon className="size-4 text-muted-foreground" />,
             isActive: rootPath === volume.path,
             name: volume.name,
             path: volume.path,
@@ -296,17 +330,7 @@ export function ComputerPage({ path, root }: { path: string; root: string }) {
               setSelectedPath(item?.path ?? null);
             }}
             renderTrailing={(prefix) => (
-              <AccessPane
-                isAllowing={allow.isPending}
-                listing={listingOf(prefix)}
-                onAllow={(folder) => {
-                  allow.mutate({
-                    access: "read-write",
-                    id: taskId,
-                    path: folder,
-                  });
-                }}
-              />
+              <FolderPane listing={listingOf(prefix)} />
             )}
             title={rootName}
           />
@@ -334,96 +358,6 @@ export function ComputerPage({ path, root }: { path: string; root: string }) {
           ))}
         </div>
       </div>
-    </div>
-  );
-}
-
-/**
- * The pane past the last column while no file is selected: the folder the
- * user opened, the way the Finder's preview column shows one, with whether
- * Instrument can see it as one line and the one thing to do about it when
- * it cannot.
- */
-function AccessPane({
-  isAllowing,
-  listing,
-  onAllow,
-}: {
-  isAllowing: boolean;
-  listing: ComputerListing | undefined;
-  onAllow: (hostPath: string) => void;
-}) {
-  if (!listing) {
-    return null;
-  }
-  const name =
-    listing.display === "~"
-      ? "Home"
-      : (listing.path.split("/").findLast(Boolean) ?? "Macintosh HD");
-  const folders = listing.entries.filter((entry) => entry.kind === "folder");
-  const files = listing.entries.filter((entry) => entry.kind === "file");
-  const bytes = files.reduce((sum, entry) => sum + (entry.size ?? 0), 0);
-  const count = [
-    folders.length > 0
-      ? `${folders.length} folder${folders.length === 1 ? "" : "s"}`
-      : "",
-    files.length > 0
-      ? `${files.length} file${files.length === 1 ? "" : "s"}`
-      : "",
-  ]
-    .filter(Boolean)
-    .join(", ");
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-1 p-6 text-center">
-      {listing.display === "~/Documents/Instrument" ? (
-        <InstrumentGlyph className="size-14 text-muted-foreground" />
-      ) : (
-        <FolderIcon className="size-14 text-muted-foreground" weight="fill" />
-      )}
-      <p className="mt-2 text-sm font-medium">{name}</p>
-      <p className="text-xs text-muted-foreground">
-        {count || "Empty"}
-        {bytes > 0 ? ` · ${formatBytes(bytes)}` : ""}
-        {listing.truncated ? " · first 2000 shown" : ""}
-      </p>
-      <p className="max-w-full truncate text-xs text-muted-foreground/70">
-        {listing.display}
-      </p>
-      {listing.access ? (
-        <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <LockSimpleOpenIcon className="size-3.5" />
-          Instrument can{" "}
-          {listing.access.access === "read-write"
-            ? "read and write"
-            : "read"}{" "}
-          here
-        </p>
-      ) : (
-        <Button
-          className="mt-3"
-          disabled={isAllowing}
-          onClick={() => {
-            onAllow(listing.path);
-          }}
-          size="sm"
-        >
-          <LockSimpleIcon className="size-4" />
-          Allow Instrument here
-        </Button>
-      )}
-      <Button
-        className="mt-1 text-muted-foreground"
-        onClick={() => {
-          void rpcClient.utils.showFileInFolder.call({
-            filepath: listing.path,
-          });
-        }}
-        size="xs"
-        variant="ghost"
-      >
-        <ArrowSquareOutIcon className="size-3.5" />
-        Show in Finder
-      </Button>
     </div>
   );
 }
@@ -460,6 +394,96 @@ function combineListings(results: { data: ComputerListing | undefined }[]) {
   return results.map((result) => result.data);
 }
 
+/** The tab a file opens in, when a granted folder covers it. */
+function fileTabOf(file: FileSystemFileItem): FileTab | undefined {
+  const mounted = file.metadata?.mount;
+  if (typeof mounted !== "string") {
+    return;
+  }
+  const hostFile = file.metadata?.hostPath;
+  return {
+    ...(typeof hostFile === "string" ? { hostPath: hostFile } : {}),
+    mount: mounted,
+    name: file.path.split("/").at(-1) ?? file.path,
+  };
+}
+
+/**
+ * The pane past the last column while no file is selected: the folder the
+ * user opened, the way the Finder's preview column shows one, with whether
+ * Instrument can see it as one line.
+ */
+function FolderPane({ listing }: { listing: ComputerListing | undefined }) {
+  if (!listing) {
+    return null;
+  }
+  const name =
+    listing.display === "~"
+      ? "Home"
+      : (listing.path.split("/").findLast(Boolean) ?? "Macintosh HD");
+  const folders = listing.entries.filter((entry) => entry.kind === "folder");
+  const files = listing.entries.filter((entry) => entry.kind === "file");
+  const bytes = files.reduce((sum, entry) => sum + (entry.size ?? 0), 0);
+  const count = [
+    folders.length > 0
+      ? `${folders.length} folder${folders.length === 1 ? "" : "s"}`
+      : "",
+    files.length > 0
+      ? `${files.length} file${files.length === 1 ? "" : "s"}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-1 p-6 text-center">
+      {listing.display === "~/Documents/Instrument" ? (
+        <InstrumentGlyph className="size-14 text-muted-foreground" />
+      ) : (
+        <FileSystemFolderGlyph className="h-12 w-auto drop-shadow-sm" />
+      )}
+      <p className="mt-2 text-sm font-medium">{name}</p>
+      <p className="text-xs text-muted-foreground">
+        {count || "Empty"}
+        {bytes > 0 ? ` · ${formatBytes(bytes)}` : ""}
+        {listing.truncated ? " · first 2000 shown" : ""}
+      </p>
+      <p className="max-w-full truncate text-xs text-muted-foreground/70">
+        {listing.display}
+      </p>
+      <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+        {listing.access ? (
+          <>
+            <LockSimpleOpenIcon className="size-3.5" />
+            Instrument can{" "}
+            {listing.access.access === "read-write"
+              ? "read and write"
+              : "read"}{" "}
+            here
+          </>
+        ) : (
+          <>
+            <LockSimpleIcon className="size-3.5" />
+            Instrument cannot see in here yet
+          </>
+        )}
+      </p>
+      <Button
+        className="mt-1 text-muted-foreground"
+        onClick={() => {
+          void rpcClient.utils.showFileInFolder.call({
+            filepath: listing.path,
+          });
+        }}
+        size="xs"
+        variant="ghost"
+      >
+        <ArrowSquareOutIcon className="size-3.5" />
+        Show in Finder
+      </Button>
+    </div>
+  );
+}
+
 function PlaceList({
   label,
   onOpen,
@@ -468,7 +492,7 @@ function PlaceList({
   label: string;
   onOpen: (path: string) => void;
   places: {
-    icon: ComponentType<{ className?: string }>;
+    icon: ReactNode;
     isActive: boolean;
     name: string;
     path: string;
@@ -492,7 +516,9 @@ function PlaceList({
               }}
               type="button"
             >
-              <place.icon className="size-4 shrink-0 text-muted-foreground" />
+              <span className="flex size-4 shrink-0 items-center justify-center">
+                {place.icon}
+              </span>
               <span className="truncate">{place.name}</span>
             </button>
           </li>

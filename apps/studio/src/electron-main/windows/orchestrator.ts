@@ -14,6 +14,12 @@ const ORCHESTRATOR_HEIGHT = 840;
 
 let orchestratorWindow: BrowserWindow | null = null;
 
+export function getOrchestratorWindow(): BrowserWindow | null {
+  return orchestratorWindow && !orchestratorWindow.isDestroyed()
+    ? orchestratorWindow
+    : null;
+}
+
 /**
  * The window where the user talks to the orchestrator: one conversation and
  * the tasks it created beneath. A second window on the same renderer bundle,
@@ -71,18 +77,18 @@ export function openOrchestratorWindow(): BrowserWindow {
   // the main process rather than the page; the window's own router answers.
   orchestratorWindow.on("swipe", (_event, direction) => {
     if (direction === "left") {
-      publisher.publish("orchestrator.navigate", "back");
+      publisher.publish("orchestrator.command", "back");
     } else if (direction === "right") {
-      publisher.publish("orchestrator.navigate", "forward");
+      publisher.publish("orchestrator.command", "forward");
     }
   });
   orchestratorWindow.on("app-command", (event, command) => {
     if (command === "browser-backward") {
       event.preventDefault();
-      publisher.publish("orchestrator.navigate", "back");
+      publisher.publish("orchestrator.command", "back");
     } else if (command === "browser-forward") {
       event.preventDefault();
-      publisher.publish("orchestrator.navigate", "forward");
+      publisher.publish("orchestrator.command", "forward");
     }
   });
 

@@ -174,12 +174,16 @@ export async function newMessage({
     parts.push(dateChange.value);
   }
 
-  const paneTabsPart = await createPaneTabsPart({
-    createdAt,
-    messageId,
-    sessionId,
-    taskId,
-  });
+  // A message that says what its window has on screen has said it all; the
+  // pane is the task page's, and a window without one has nothing to report.
+  const paneTabsPart = viewing
+    ? undefined
+    : await createPaneTabsPart({
+        createdAt,
+        messageId,
+        sessionId,
+        taskId,
+      });
   if (paneTabsPart) {
     parts.push(paneTabsPart);
   }

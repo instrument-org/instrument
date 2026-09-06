@@ -1,11 +1,11 @@
 import { orchestratorRecentsAtom } from "@/client/atoms/orchestrator";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
+import { useOnScreen } from "@/client/components/orchestrator/on-screen";
+import { RecentIcon } from "@/client/components/orchestrator/sidebar";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
-import { FileIcon } from "@phosphor-icons/react/File";
-import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { LaptopIcon } from "@phosphor-icons/react/Laptop";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
@@ -54,15 +54,9 @@ const SCREENS: {
 
 const RECENTS_SHOWN = 6;
 
-const RECENT_ICONS = {
-  browser: GlobeIcon,
-  file: FileIcon,
-  folder: FolderIcon,
-  task: InstrumentGlyph,
-};
-
 function HomeRoute() {
-  const { ask, taskId } = useOrchestrator();
+  const { ask, browser, taskId } = useOrchestrator();
+  useOnScreen({ screen: "home" });
   const navigate = useNavigate();
   const router = useRouter();
   const recents = useAtomValue(orchestratorRecentsAtom);
@@ -102,10 +96,8 @@ function HomeRoute() {
       name: app.name,
       note: "App",
       run: () => {
-        void navigate({
-          search: { url: app.url },
-          to: "/orchestrator/browser",
-        });
+        browser?.openOrFocus(app.url);
+        void navigate({ to: "/orchestrator/browser" });
       },
     })),
     ...(words
@@ -254,23 +246,22 @@ function HomeRoute() {
             Recent
           </p>
           <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-            {recents.slice(0, RECENTS_SHOWN).map((recent) => {
-              const Icon = RECENT_ICONS[recent.kind];
-              return (
-                <li key={recent.href}>
-                  <button
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent/50"
-                    onClick={() => {
-                      router.history.push(recent.href);
-                    }}
-                    type="button"
-                  >
-                    <Icon className="size-4 shrink-0 text-muted-foreground" />
-                    <span className="truncate">{recent.title}</span>
-                  </button>
-                </li>
-              );
-            })}
+            {recents.slice(0, RECENTS_SHOWN).map((recent) => (
+              <li key={recent.href}>
+                <button
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent/50"
+                  onClick={() => {
+                    router.history.push(recent.href);
+                  }}
+                  type="button"
+                >
+                  <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
+                    <RecentIcon recent={recent} />
+                  </span>
+                  <span className="truncate">{recent.title}</span>
+                </button>
+              </li>
+            ))}
           </ul>
         </div>
       ) : null}

@@ -1,20 +1,95 @@
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { systemNote } from "./system-note";
 
+type ViewContext = SessionMessageDataPart.ViewContextDataPart;
+
 /**
- * What the user had on screen when they sent the message: the page in the
- * window's browser when that tab was showing, else the folder in the folder
- * view and anything selected in it. "This page", "this folder", "here", and
- * "these" mean what is named here, so a request that points at the screen
- * needs no address or path typed out.
+ * What the user had on screen when they sent the message, whichever screen it
+ * was: the page in the browser, the folder or file on This Mac, the task they
+ * were looking over the shoulder of, or a screen with nothing on it. "This",
+ * "here", "it" and "these" mean what is named here, so a request that points
+ * at the screen needs no address, path, or id typed out. Only what is on
+ * screen is named; a folder the user left a screen ago is not.
  */
-export function viewContextModelNote(
-  data: SessionMessageDataPart.ViewContextDataPart,
-) {
+export function viewContextModelNote(data: ViewContext) {
+  switch (data.screen) {
+    case "apps": {
+      return systemNote`
+        When the user sent this, the window showed the Apps screen, which has nothing on it yet. Nothing in particular is in view.
+      `;
+    }
+    case "browser": {
+      return pageNote(data);
+    }
+    case "computer": {
+      return systemNote`
+        When the user sent this, This Mac showed ${folderShown(data)}. "This folder", "here", "in here" and "these" refer to that. ${folderReach(data)}
+      `;
+    }
+    case "discover": {
+      return systemNote`
+        When the user sent this, the window showed the Discover screen, which has nothing on it yet. Nothing in particular is in view.
+      `;
+    }
+    case "file": {
+      return fileNote(data);
+    }
+    case "home": {
+      return systemNote`
+        When the user sent this, the window showed Home: the box that opens any screen or asks you. Nothing in particular is in view.
+      `;
+    }
+    case "task": {
+      return taskNote(data);
+    }
+    case "tasks": {
+      return tasksNote(data);
+    }
+  }
+}
+
+function fileNote(data: ViewContext) {
+  const { file } = data;
+  if (!file) {
+    return systemNote`
+      When the user sent this, a file was open on This Mac. "This file" and "this" refer to it.
+    `;
+  }
+  const reach = file.mount
+    ? `You reach it at \`${file.mount}\`.`
+    : "No folder you were granted covers it, so you cannot read it: ask for its folder with request_folder.";
+  const folder = data.folder
+    ? ` It sits in \`${data.folder.display}\`, which "this folder" means.`
+    : "";
+  return systemNote`
+    When the user sent this, This Mac showed the file \`${file.path}\` open. "This file", "this" and "it" refer to it. ${reach}${folder}
+  `;
+}
+
+/** Whether the agent can get at that folder, and how. */
+function folderReach(data: ViewContext) {
+  return data.folder?.mount
+    ? `You reach it at \`${data.folder.mount}\`; a task that should work there gets it with --folder, writable when it should write.`
+    : "No folder you were granted covers it, so you cannot read it or hand it to a task: ask for it with request_folder.";
+}
+
+function folderShown(data: ViewContext) {
+  const { folder } = data;
+  if (!folder) {
+    return "a folder";
+  }
+  const selected =
+    folder.selected.length > 0
+      ? `, with ${folder.selected.map((entry) => `\`${entry}\``).join(", ")} selected in it`
+      : "";
+  return `the folder \`${folder.display}\`${selected}`;
+}
+
+function pageNote(data: ViewContext) {
   const { page } = data;
   if (!page) {
     return systemNote`
-      When the user sent this, ${folderShown(data)}. "This folder", "here", "in here" and "these" refer to that. ${folderReach(data)}
+      When the user sent this, the window showed the Browser with no tab open. "This page" refers to nothing yet; your own agent-browser has no tab to drive until one is opened.
     `;
   }
   const title = page.title ? ` "${page.title}"` : "";
@@ -27,26 +102,46 @@ export function viewContextModelNote(
   const others = (page.tabs ?? []).filter((other) => other.id !== page.tab);
   const tabs =
     others.length > 0
-      ? `Other tabs open: ${others.map((other) => `"${other.title || other.url}" at ${other.url} (tab ${other.id})`).join("; ")}.`
+      ? `Other tabs open but not on screen: ${others.map((other) => `"${other.title || other.url}" at ${other.url} (tab ${other.id})`).join("; ")}.`
       : "No other tabs are open.";
   return systemNote`
     When the user sent this, the browser showed${title} at ${page.url}${tab}. "This page", "this site", "this" and "here" refer to it. Your own agent-browser drives this tab, for one-step things on it; a task that should work in it gets it with --tab and its id, and then drives it in the user's sight. Answer from what is quoted here when that is enough. ${words}
     ${tabs}
-    Behind the browser, ${folderShown(data)}; "this folder" means that. ${folderReach(data)}
   `;
 }
 
-/** Whether the agent can get at that folder, and how. */
-function folderReach(data: SessionMessageDataPart.ViewContextDataPart) {
-  return data.mount
-    ? `You reach it at \`${data.mount}\`; a task that should work there gets it with --folder, writable when it should write.`
-    : "No folder you were granted covers it, so you cannot read it or hand it to a task: ask for it with request_folder, or the user can allow it from the folder view.";
+function taskNote(data: ViewContext) {
+  const { task } = data;
+  if (!task) {
+    return systemNote`
+      When the user sent this, the window showed one of your tasks. "This task" and "it" refer to it.
+    `;
+  }
+  const standing =
+    task.status === "working"
+      ? task.step
+        ? `which is working now, on "${task.step}"`
+        : "which is working now"
+      : "which has finished";
+  return systemNote`
+    When the user sent this, the Tasks screen showed your task "${task.title}" (id ${task.id}), ${standing}. "This task", "this", "it" and "the task" refer to it: steer it with \`task send ${task.id}\`, stop it with \`task stop ${task.id}\`, read it with \`task log ${task.id}\`.
+  `;
 }
 
-function folderShown(data: SessionMessageDataPart.ViewContextDataPart) {
-  const selected =
-    data.selected.length > 0
-      ? `, with ${data.selected.map((entry) => `\`${entry}\``).join(", ")} selected in it`
-      : "";
-  return `the folder view showed \`${data.folder}\`${selected}`;
+function tasksNote(data: ViewContext) {
+  const tasks = data.tasks ?? [];
+  if (tasks.length === 0) {
+    return systemNote`
+      When the user sent this, the window showed the Tasks screen, with no tasks yet. "These" refers to nothing yet.
+    `;
+  }
+  const rows = tasks
+    .map(
+      (task) =>
+        `"${task.title}" (id ${task.id}, ${task.status === "working" ? (task.step ? `working on "${task.step}"` : "working") : "finished"})`,
+    )
+    .join("; ");
+  return systemNote`
+    When the user sent this, the window showed the Tasks screen: your tasks, listed as ${rows}. "These", "them" and "the tasks" refer to that list; "the first one" and the like count down it.
+  `;
 }

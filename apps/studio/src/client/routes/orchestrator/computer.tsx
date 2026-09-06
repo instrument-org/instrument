@@ -1,10 +1,12 @@
-import { ComputerPage } from "@/client/components/orchestrator/computer-page";
+import { FilesScreen } from "@/client/components/orchestrator/files-screen";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
 export const Route = createFileRoute("/orchestrator/computer")({
   component: ComputerRoute,
   validateSearch: z.object({
+    /** A file open in a tab beside the folder, by its virtual path. */
+    file: z.string().optional(),
     /** The folder open under the root, as a prefix: `Documents/Instrument/`. */
     path: z.string().default(""),
     /**
@@ -16,6 +18,6 @@ export const Route = createFileRoute("/orchestrator/computer")({
 });
 
 function ComputerRoute() {
-  const { path, root } = Route.useSearch();
-  return <ComputerPage path={path} root={root} />;
+  const { file, path, root } = Route.useSearch();
+  return <FilesScreen file={file} path={path} root={root} />;
 }

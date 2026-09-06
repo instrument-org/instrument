@@ -6,7 +6,6 @@ import { TaskBrowserPanel } from "@/client/components/task/browser-panel";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { WINDOW_BROWSER_HOST } from "@/client/lib/browser-host";
 import { getWebviewElement } from "@/client/lib/browser-pool";
-import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type BrowserTargetId,
@@ -14,15 +13,13 @@ import {
   StoreId,
 } from "@instrument-org/workspace/client";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { PlusIcon } from "@phosphor-icons/react/Plus";
-import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
-import ms from "ms";
-import { type Ref, useEffect, useImperativeHandle, useState } from "react";
+import { type Ref, useEffect, useImperativeHandle, useRef } from "react";
 import { z } from "zod";
 
 import { useOrchestrator } from "./context";
+import { TabStrip } from "./tab-strip";
 
 export interface BrowserPage {
   title: string;
@@ -30,8 +27,12 @@ export interface BrowserPage {
 }
 
 export interface BrowserTabsHandle {
-  /** Opens an address in a new tab and shows it. */
-  open: (url: string) => void;
+  /** Closes the tab on screen, if any. */
+  closeActive: () => void;
+  /** Opens a new tab, at an address when given, and shows it. */
+  open: (url?: string) => void;
+  /** Shows the tab already at that address, or opens one there. */
+  openOrFocus: (url: string) => void;
   /** Reads the tab on screen as it is at that moment; undefined while none is. */
   readPage: () => Promise<PageContext | undefined>;
 }
@@ -54,9 +55,6 @@ export interface PageContext {
 const PAGE_TEXT_MAX = 1500;
 const SELECTION_MAX = 2000;
 
-/** How often the tabs' titles are re-read off their guests. */
-const TITLE_REFRESH_MS = ms("1.5 seconds");
-
 const PageWordsSchema = z.object({ selection: z.string(), text: z.string() });
 
 /** Runs in the page: what is selected, and its text with the whitespace folded. */
@@ -75,7 +73,9 @@ const READ_PAGE_WORDS = `({
  * orchestrator's, like a task's browser and driven by the same machinery, so
  * a task can be handed one by id and drive it in the user's sight. The tab on
  * screen is the one the orchestrator's own commands drive, and it rides along
- * with every message.
+ * with every message. Each tab keeps its title, address and icon as the page
+ * announces them, so a tab that has not been shown since the app opened still
+ * says what it is.
  */
 export function BrowserTabs({
   onPageChange,
@@ -88,7 +88,6 @@ export function BrowserTabs({
   const { taskId } = useOrchestrator();
   const [{ activeId, tabs }, setTabs] = useAtom(orchestratorTabsAtom);
   const attached = useBrowserTargets();
-  const [pages, setPages] = useState<Record<string, BrowserPage>>({});
 
   // Holds every tab's guest for as long as the window is open, the way the
   // task page holds its browser: subscribing is the hold.
@@ -135,42 +134,88 @@ export function BrowserTabs({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.id, taskId]);
 
-  // Titles and addresses come off the guests themselves, which navigate by
-  // the user's hand and by an agent's, so the strip is read rather than told.
+  // Titles, addresses and icons come off the guests as the pages announce
+  // them: the pages navigate by the user's hand and by an agent's, so the
+  // strip is told rather than polled. Listeners are put on each guest once it
+  // has attached, and again for a tab that arrives later.
+  const tabIds = tabs.map((tab) => tab.id).join(",");
   useEffect(() => {
-    const read = () => {
-      const next: Record<string, BrowserPage> = {};
-      for (const tab of tabs) {
-        const webview = getWebviewElement(targetOf(tab));
-        const url = webview?.getURL();
-        if (url && url !== "about:blank") {
-          next[tab.id] = { title: webview?.getTitle() ?? "", url };
-        }
-      }
-      setPages((previous) =>
-        JSON.stringify(previous) === JSON.stringify(next) ? previous : next,
-      );
-      // The address rides with the tab, so a tab that comes back after a
-      // launch opens where it was.
+    const patch = (id: string, changes: Partial<BrowserTab>) => {
       setTabs((current) => {
-        const updated = current.tabs.map((tab) => {
-          const page = next[tab.id];
-          return page && page.url !== tab.url ? { ...tab, url: page.url } : tab;
-        });
-        return updated.some((tab, index) => tab !== current.tabs[index])
-          ? { ...current, tabs: updated }
-          : current;
+        const tab = current.tabs.find((entry) => entry.id === id);
+        if (
+          !tab ||
+          Object.entries(changes).every(
+            ([key, value]) => tab[key as keyof BrowserTab] === value,
+          )
+        ) {
+          return current;
+        }
+        return {
+          ...current,
+          tabs: current.tabs.map((entry) =>
+            entry.id === id ? { ...entry, ...changes } : entry,
+          ),
+        };
       });
     };
-    read();
-    const timer = setInterval(read, TITLE_REFRESH_MS);
+    const cleanups = tabIds.split(",").map((id) => {
+      if (!id) {
+        return;
+      }
+      const target = encodeBrowserTargetId(
+        taskId,
+        StoreId.SessionSchema.parse(id),
+      );
+      if (!attached.has(target)) {
+        return;
+      }
+      const webview = getWebviewElement(target);
+      if (!webview) {
+        return;
+      }
+      const onNavigate = () => {
+        try {
+          const url = webview.getURL();
+          if (url && url !== "about:blank") {
+            patch(id, { title: webview.getTitle() || undefined, url });
+          }
+        } catch {
+          // Not attached yet; the events that follow attachment re-run this.
+        }
+      };
+      const onTitle = (event: Event) => {
+        const { title } = event as Event & { title?: string };
+        if (title) {
+          patch(id, { title });
+        }
+      };
+      const onFavicon = (event: Event) => {
+        const { favicons } = event as Event & { favicons?: string[] };
+        patch(id, { favicon: favicons?.[0] });
+      };
+      onNavigate();
+      webview.addEventListener("did-navigate", onNavigate);
+      webview.addEventListener("did-navigate-in-page", onNavigate);
+      webview.addEventListener("page-title-updated", onTitle);
+      webview.addEventListener("page-favicon-updated", onFavicon);
+      return () => {
+        webview.removeEventListener("did-navigate", onNavigate);
+        webview.removeEventListener("did-navigate-in-page", onNavigate);
+        webview.removeEventListener("page-title-updated", onTitle);
+        webview.removeEventListener("page-favicon-updated", onFavicon);
+      };
+    });
     return () => {
-      clearInterval(timer);
+      for (const cleanup of cleanups) {
+        cleanup?.();
+      }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabs, taskId]);
+  }, [attached, setTabs, tabIds, taskId]);
 
-  const activePage = active ? pages[active.id] : undefined;
+  const activePage: BrowserPage | undefined = active?.url
+    ? { title: active.title ?? "", url: active.url }
+    : undefined;
   useEffect(() => {
     onPageChange?.(activePage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -180,7 +225,10 @@ export function BrowserTabs({
     const id = StoreId.newSessionId();
     setTabs((current) => ({
       activeId: id,
-      tabs: [...current.tabs, { id, openedAt: Date.now() }],
+      tabs: [
+        ...current.tabs,
+        { id, openedAt: Date.now(), ...(url ? { openedUrl: url, url } : {}) },
+      ],
     }));
     void rpcClient.workspace.browser.open.call({
       host: WINDOW_BROWSER_HOST,
@@ -202,32 +250,69 @@ export function BrowserTabs({
     });
   };
 
+  // The handle is made once and reads the strip as it is when called, so
+  // nothing holding it is told to re-run each time a title comes in.
+  const latest = useRef({ active, tabs });
+  useEffect(() => {
+    latest.current = { active, tabs };
+  });
   useImperativeHandle(
     ref,
     () => ({
-      open: (url: string) => {
+      closeActive: () => {
+        const current = latest.current.active;
+        if (current) {
+          closeTab(current.id);
+        }
+      },
+      open: (url) => {
         openTab(url);
       },
+      openOrFocus: (url) => {
+        // The tab opened at that address, wherever the site has taken it
+        // since, or failing that one that is there now.
+        const existing =
+          latest.current.tabs.find((tab) => sameAddress(tab.openedUrl, url)) ??
+          latest.current.tabs.find((tab) => sameAddress(tab.url, url));
+        if (existing) {
+          setTabs((current) => ({ ...current, activeId: existing.id }));
+        } else {
+          openTab(url);
+        }
+      },
       readPage: async () => {
-        const current = active;
+        const { active: current, tabs: all } = latest.current;
         if (!current) {
           return;
         }
         const webview = getWebviewElement(targetOf(current));
-        const url = webview?.getURL();
-        if (!webview || !url || url === "about:blank") {
+        let url: string | undefined;
+        let title = current.title ?? "";
+        try {
+          url = webview?.getURL();
+          title = webview?.getTitle() || title;
+        } catch {
+          // Not attached: what the tab remembers of the page is the answer.
+        }
+        if (!url || url === "about:blank") {
+          url = current.url;
+        }
+        if (!url) {
           return;
         }
         const base: PageContext = {
           tab: current.id,
-          tabs: tabs.map((tab) => ({
+          tabs: all.map((tab) => ({
             id: tab.id,
-            title: pages[tab.id]?.title ?? "",
-            url: pages[tab.id]?.url ?? "",
+            title: tab.title ?? "",
+            url: tab.url ?? "",
           })),
-          title: webview.getTitle(),
+          title,
           url,
         };
+        if (!webview) {
+          return base;
+        }
         let raw: unknown;
         try {
           raw = await webview.executeJavaScript(READ_PAGE_WORDS);
@@ -249,64 +334,38 @@ export function BrowserTabs({
         };
       },
     }),
-    // The handle reads the tabs through the closure as they are at the call.
+    // The handle reads the strip through `latest` at call time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [active?.id, tabs, pages, taskId],
+    [taskId],
   );
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* The strip and its tabs are drawn as the task page draws its pane tabs. */}
-      <div className="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-2">
-        {tabs.map((tab) => {
-          const page = pages[tab.id];
-          const isActive = tab.id === active?.id;
-          return (
-            <div
-              className={cn(
-                "group/pane-tab relative flex h-7 max-w-56 min-w-32 shrink-0 cursor-default items-center gap-1.5 rounded-md pr-6 pl-2 text-xs font-medium select-none",
-                isActive
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:bg-accent/50",
-              )}
-              key={tab.id}
-            >
-              <button
-                className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left"
-                onClick={() => {
-                  setTabs((current) => ({ ...current, activeId: tab.id }));
-                }}
-                type="button"
-              >
-                <GlobeIcon className="size-3.5 shrink-0" />
-                <span className="truncate">
-                  {page?.title || page?.url || "New tab"}
-                </span>
-              </button>
-              <button
-                aria-label="Close tab"
-                className="absolute top-1/2 right-1 flex size-4 -translate-y-1/2 items-center justify-center rounded-sm opacity-0 group-hover/pane-tab:opacity-100 hover:bg-foreground/10"
-                onClick={() => {
-                  closeTab(tab.id);
-                }}
-                type="button"
-              >
-                <XIcon className="size-3" />
-              </button>
-            </div>
-          );
-        })}
-        <button
-          aria-label="New tab"
-          className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-          onClick={() => {
-            openTab();
-          }}
-          type="button"
-        >
-          <PlusIcon className="size-4" />
-        </button>
-      </div>
+      <TabStrip
+        className="border-b border-border"
+        onClose={closeTab}
+        onNew={() => {
+          openTab();
+        }}
+        onReorder={(keys) => {
+          setTabs((current) => ({
+            ...current,
+            tabs: keys.flatMap((key) => {
+              const tab = current.tabs.find((entry) => entry.id === key);
+              return tab ? [tab] : [];
+            }),
+          }));
+        }}
+        onSelect={(id) => {
+          setTabs((current) => ({ ...current, activeId: id }));
+        }}
+        selectedKey={active?.id}
+        tabs={tabs.map((tab) => ({
+          icon: <TabIcon favicon={tab.favicon} />,
+          key: tab.id,
+          title: tab.title || tab.url || "New tab",
+        }))}
+      />
       <div className="relative min-h-0 flex-1">
         {active ? (
           <TaskBrowserPanel
@@ -334,4 +393,27 @@ export function BrowserTabs({
       </div>
     </div>
   );
+}
+
+/** Two addresses are the same tab when they differ only by a trailing slash or a fragment. */
+function sameAddress(a: string | undefined, b: string) {
+  return a !== undefined && trimAddress(a) === trimAddress(b);
+}
+
+/** The page's own icon when it has announced one, else the globe. */
+function TabIcon({ favicon }: { favicon: string | undefined }) {
+  return favicon ? (
+    <img
+      alt=""
+      className="size-3.5 rounded-xs"
+      draggable={false}
+      src={favicon}
+    />
+  ) : (
+    <GlobeIcon className="size-3.5" />
+  );
+}
+
+function trimAddress(url: string) {
+  return url.replace(/#.*$/, "").replace(/\/+$/, "");
 }

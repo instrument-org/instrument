@@ -379,36 +379,73 @@ export namespace SessionMessageDataPart {
    * Event cadence, written by the surface that sent the message and only when
    * it had a folder on screen.
    */
+  /** The page the window's browser shows: its address and title, what is selected on it, and how its text begins. */
+  const ViewedPageSchema = z.object({
+    selection: z.string().optional(),
+    /** The tab on screen, by the id a task can be handed. */
+    tab: z.string().optional(),
+    /** Every tab open in the window's browser, on screen or not. */
+    tabs: z
+      .array(z.object({ id: z.string(), title: z.string(), url: z.string() }))
+      .optional(),
+    text: z.string().optional(),
+    title: z.string(),
+    url: z.string(),
+  });
+
+  const ViewedTaskSchema = z.object({
+    id: z.string(),
+    status: z.enum(["working", "done"]),
+    /** What the task is doing this moment, in its agent's own label. */
+    step: z.string().optional(),
+    title: z.string(),
+  });
+
+  /**
+   * What the window had on screen when the message was sent: which screen,
+   * and what was on it. One record for every screen, written by the screen
+   * itself, so "this", "here" and "these" in the message can be resolved
+   * against what the user was actually looking at and nothing else.
+   */
   export const ViewContextDataPartSchema = z.object({
-    /** The folder on screen, as the person writes it: `~/Documents/Instrument`. */
-    folder: z.string(),
-    /**
-     * The virtual path the agent reaches that folder by, when a folder it was
-     * granted covers it. Absent means the agent cannot read it.
-     */
-    mount: z.string().optional(),
-    /**
-     * The page the window's browser showed, when that tab was on screen: its
-     * address and title, what was selected on it, and how its text begins.
-     */
-    page: z
+    /** A file open on This Mac, as the person writes its path. */
+    file: z
       .object({
-        selection: z.string().optional(),
-        /** The tab on screen, by the id a task can be handed. */
-        tab: z.string().optional(),
-        /** Every tab open in the window's browser, on screen or not. */
-        tabs: z
-          .array(
-            z.object({ id: z.string(), title: z.string(), url: z.string() }),
-          )
-          .optional(),
-        text: z.string().optional(),
-        title: z.string(),
-        url: z.string(),
+        /** The virtual path the agent reaches it by, when a granted folder covers it. */
+        mount: z.string().optional(),
+        name: z.string(),
+        path: z.string(),
       })
       .optional(),
-    /** The names selected in the folder. */
-    selected: z.array(z.string()).default([]),
+    /** The folder on screen on This Mac, or the folder a file on screen sits in. */
+    folder: z
+      .object({
+        /** As the person writes it: `~/Documents/Instrument`. */
+        display: z.string(),
+        /** The virtual path the agent reaches it by; absent means it cannot read it. */
+        mount: z.string().optional(),
+        /** The names selected in it. */
+        selected: z.array(z.string()).default([]),
+      })
+      .optional(),
+    page: ViewedPageSchema.optional(),
+    /** The screen up in the window, by the name the sidebar gives it. */
+    screen: z.enum([
+      "apps",
+      "browser",
+      "computer",
+      "discover",
+      "file",
+      "home",
+      "task",
+      "tasks",
+    ]),
+    /** The one task open on the Tasks screen. */
+    task: ViewedTaskSchema.optional(),
+    /** The tasks listed on the Tasks screen. */
+    tasks: z.array(ViewedTaskSchema).optional(),
+    /** The screen's address in the window, the way a browser has one. */
+    url: z.string().optional(),
   });
 
   export type ViewContextDataPart = z.output<typeof ViewContextDataPartSchema>;

@@ -2,13 +2,14 @@ import {
   CHAT_WIDTH_DEFAULT,
   CHAT_WIDTH_MAX,
   CHAT_WIDTH_MIN,
-  computerViewAtom,
+  fileTabsAtom,
   orchestratorChatOpenAtom,
   orchestratorChatWidthAtom,
   type OrchestratorRecent,
   orchestratorRecentsAtom,
   orchestratorSidebarOpenAtom,
   RECENTS_MAX,
+  screenViewAtom,
 } from "@/client/atoms/orchestrator";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import {
@@ -20,6 +21,10 @@ import {
   OrchestratorContext,
   type OrchestratorWindow,
 } from "@/client/components/orchestrator/context";
+import {
+  hostPathOfMount,
+  useCloseFileTab,
+} from "@/client/components/orchestrator/file-tabs";
 import { OrchestratorSidebar } from "@/client/components/orchestrator/sidebar";
 import {
   type RailBounds,
@@ -122,18 +127,19 @@ function ChromeButton({
  * The window's chrome. It drags by its top-left corner only, so the rest of
  * the top edge is the screens' to use; past the traffic lights sit the
  * sidebar toggle and back and forward; and when the conversation is away,
- * the mark floats in the bottom right corner to bring it back.
+ * the mark floats in the bottom right corner to bring it back, with a dot on
+ * it while there is a reply the user has not seen.
  */
 function Frame({
   children,
-  isBusy,
+  hasUnread,
   isChatOpen,
   isSidebarOpen,
   onOpenChat,
   onToggleSidebar,
 }: {
   children: ReactNode;
-  isBusy: boolean;
+  hasUnread: boolean;
   isChatOpen: boolean;
   isSidebarOpen: boolean;
   onOpenChat: () => void;
@@ -172,16 +178,17 @@ function Frame({
       {children}
       {isChatOpen ? null : (
         <button
-          aria-label="Show Instrument"
-          className="fixed right-4 bottom-4 z-30 flex size-11 items-center justify-center rounded-full bg-foreground text-background shadow-lg hover:scale-105"
+          aria-label={
+            hasUnread ? "Show Instrument, new reply" : "Show Instrument"
+          }
+          className="fixed right-4 bottom-4 z-30 size-11 text-brand-600 transition-transform hover:scale-105 dark:text-brand-400"
           onClick={onOpenChat}
           type="button"
         >
-          {isBusy ? (
-            <Spinner className="size-5" />
-          ) : (
-            <InstrumentGlyph className="size-5" />
-          )}
+          <InstrumentGlyph className="size-11" />
+          {hasUnread ? (
+            <span className="absolute -top-0.5 -right-0.5 size-3 rounded-full bg-foreground ring-2 ring-background" />
+          ) : null}
         </button>
       )}
       <Toaster position="top-center" />
@@ -224,44 +231,67 @@ function OrchestratorLayout() {
       refetchInterval: REFRESH_MS,
     }),
   );
-  const status = useQuery(
-    rpcClient.workspace.task.agentStatus.byIds.queryOptions({
-      input: ids ? { ids: [ids.taskId] } : skipToken,
-      refetchInterval: REFRESH_MS,
-    }),
-  );
   const activity = useQuery(
     rpcClient.workspace.orchestrator.activity.queryOptions({
       input: ids ? { id: ids.taskId } : skipToken,
       refetchInterval: REFRESH_MS,
     }),
   );
+  // The same subscription the conversation holds, read here for the dot on
+  // the mark: which reply is newest, against which one the user last had open.
+  const messages = useQuery(
+    rpcClient.workspace.message.live.list.experimental_liveOptions({
+      input: ids ? { id: ids.taskId, sessionId: ids.sessionId } : skipToken,
+    }),
+  );
   const [defaultModelURI] = useDefaultModelURI();
   const [isSidebarOpen, setSidebarOpen] = useAtom(orchestratorSidebarOpenAtom);
   const [isChatOpen, setChatOpen] = useAtom(orchestratorChatOpenAtom);
-  const computerView = useAtomValue(computerViewAtom);
+  const screenView = useAtomValue(screenViewAtom);
+  const setFileTabs = useSetAtom(fileTabsAtom);
   const navigate = useNavigate();
   const location = useRouterState({
     select: (routerState) => routerState.location,
   });
   const isBrowserScreen = location.pathname === "/orchestrator/browser";
-  useHistoryShortcuts();
 
   // The browser hands its handle over once mounted; state rather than a ref,
   // since the send handler below and the screens read it.
   const [browser, setBrowser] = useState<BrowserTabsHandle | null>(null);
+  const closeFileTab = useCloseFileTab();
+  useWindowCommands({
+    closeTab: () => {
+      if (isBrowserScreen) {
+        browser?.closeActive();
+      } else {
+        closeFileTab();
+      }
+    },
+  });
   const recordBrowserPage = useRecordRecents({
     childTitles: new Map(
       children.data?.map((child) => [child.id, child.title]) ?? [],
     ),
   });
 
-  const isThinking =
-    status.data?.some((entry) =>
-      entry.sessionActors.some((actor) => actor.tags.includes("agent.alive")),
-    ) ?? false;
+  const latestReplyId = messages.data?.findLast(
+    (message) =>
+      message.role === "assistant" &&
+      message.parts.some(
+        (part) => part.type === "text" && part.text.trim() !== "",
+      ),
+  )?.id;
+  // The reply that was newest when the conversation was put away: a newer one
+  // since is one the user has not seen.
+  const [seenReplyId, setSeenReplyId] = useState<string | undefined>();
+  const closeChat = () => {
+    setSeenReplyId(latestReplyId);
+    setChatOpen(false);
+  };
+  const hasUnread =
+    !isChatOpen && latestReplyId !== undefined && latestReplyId !== seenReplyId;
+
   const running = activity.data?.running ?? [];
-  const isBusy = isThinking || running.length > 0;
 
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions(),
@@ -289,7 +319,7 @@ function OrchestratorLayout() {
     : null;
 
   const chrome = {
-    isBusy,
+    hasUnread,
     isChatOpen,
     isSidebarOpen,
     onOpenChat: () => {
@@ -320,13 +350,33 @@ function OrchestratorLayout() {
     );
   }
 
+  const attachedFolders = state.data.attachedFolders ?? {};
+
   return (
     <OrchestratorContext value={screens}>
+      {/* A file the conversation offers opens in a tab on This Mac, beside whatever folder is up there. */}
       <FileOpenContext
         value={(filePath) => {
+          const hostPath = hostPathOfMount(filePath, attachedFolders);
+          setFileTabs((current) =>
+            current.some((tab) => tab.mount === filePath)
+              ? current
+              : [
+                  ...current,
+                  {
+                    ...(hostPath ? { hostPath } : {}),
+                    mount: filePath,
+                    name: filePath.split("/").at(-1) ?? filePath,
+                  },
+                ],
+          );
           void navigate({
-            search: { path: filePath },
-            to: "/orchestrator/file",
+            search: (previous: { path?: string; root?: string }) => ({
+              file: filePath,
+              path: previous.path ?? "",
+              root: previous.root ?? "~",
+            }),
+            to: "/orchestrator/computer",
           });
         }}
       >
@@ -370,9 +420,7 @@ function OrchestratorLayout() {
             bounds={CHAT_BOUNDS}
             isOpen={isChatOpen}
             label="Resize Instrument"
-            onCollapse={() => {
-              setChatOpen(false);
-            }}
+            onCollapse={closeChat}
             panelClassName="bg-background"
             side="right"
             widthAtom={orchestratorChatWidthAtom}
@@ -380,16 +428,12 @@ function OrchestratorLayout() {
             <div className="flex min-h-0 w-full flex-1 flex-col">
               <header className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3 text-sm font-medium">
                 <InstrumentGlyph className="size-4" />
-                <span className={isBusy ? "brand-shiny-text" : undefined}>
-                  {APP_NAME}
-                </span>
+                <span>{APP_NAME}</span>
                 <span className="flex-1" />
                 <button
                   aria-label="Hide Instrument"
                   className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-                  onClick={() => {
-                    setChatOpen(false);
-                  }}
+                  onClick={closeChat}
                   type="button"
                 >
                   <SidebarSimpleIcon className="size-4 -scale-x-100" />
@@ -406,20 +450,21 @@ function OrchestratorLayout() {
                     state.data.selectedModelURI ?? defaultModelURI
                   }
                   selectedSessionId={screens.sessionId}
+                  // What the screen that is up says it shows, plus the page's
+                  // words when that screen is the browser, read at the moment
+                  // of sending; a screen that registered nothing sends nothing.
                   sendContext={async () => {
-                    const page = isBrowserScreen
-                      ? await browser?.readPage()
-                      : undefined;
-                    if (!computerView && !page) {
+                    if (!screenView) {
                       return;
                     }
+                    const page =
+                      screenView.screen === "browser"
+                        ? await browser?.readPage()
+                        : undefined;
                     return {
-                      folder: computerView?.folder ?? "~",
-                      ...(computerView?.mount
-                        ? { mount: computerView.mount }
-                        : {}),
+                      ...screenView,
                       ...(page ? { page } : {}),
-                      selected: computerView?.selected ?? [],
+                      url: location.href,
                     };
                   }}
                   task={task.data}
@@ -454,6 +499,10 @@ function recentFor({
       };
     }
     case "/orchestrator/computer": {
+      const file = typeof search.file === "string" ? search.file : "";
+      if (file) {
+        return { href, kind: "file", title: file.split("/").at(-1) || "File" };
+      }
       const path = typeof search.path === "string" ? search.path : "";
       const folder = path.replace(/\/$/, "").split("/").at(-1);
       // The roots are places in the sidebar already.
@@ -462,10 +511,6 @@ function recentFor({
       }
       return { href, kind: "folder", title: folder };
     }
-    case "/orchestrator/file": {
-      const path = typeof search.path === "string" ? search.path : "";
-      return { href, kind: "file", title: path.split("/").at(-1) || "File" };
-    }
     default: {
       if (pathname.startsWith("/orchestrator/tasks/")) {
         return { href, kind: "task", title: taskTitle ?? "Task" };
@@ -473,62 +518,6 @@ function recentFor({
       return undefined;
     }
   }
-}
-
-/**
- * Back and forward as a browser has them: Cmd+[ and Cmd+], and the thumb
- * buttons on a mouse. The webview swallows its own, so these reach only the
- * window's own screens.
- */
-function useHistoryShortcuts() {
-  const router = useRouter();
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!event.metaKey || event.altKey || event.ctrlKey) {
-        return;
-      }
-      if (event.key === "[") {
-        event.preventDefault();
-        router.history.back();
-      } else if (event.key === "]") {
-        event.preventDefault();
-        router.history.forward();
-      }
-    };
-    const onMouseUp = (event: MouseEvent) => {
-      if (event.button === 3) {
-        router.history.back();
-      } else if (event.button === 4) {
-        router.history.forward();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("mouseup", onMouseUp);
-    // Swipes and thumb buttons arrive from the main process.
-    const controller = new AbortController();
-    void (async () => {
-      try {
-        const directions = await rpcClient.orchestrator.events.navigate.call(
-          undefined,
-          { signal: controller.signal },
-        );
-        for await (const direction of directions) {
-          if (direction === "back") {
-            router.history.back();
-          } else {
-            router.history.forward();
-          }
-        }
-      } catch {
-        // The window is closing, which is the only way the stream ends.
-      }
-    })();
-    return () => {
-      controller.abort();
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("mouseup", onMouseUp);
-    };
-  }, [router]);
 }
 
 /**
@@ -597,4 +586,57 @@ function useRecordRecents({
       ),
     );
   };
+}
+
+/**
+ * What the main process asks of the window: back and forward from a trackpad
+ * swipe, a thumb button or the History menu, and the close of the tab on
+ * screen from Cmd+W. The thumb buttons also arrive as mouse events here,
+ * for a mouse whose buttons the window sees before the main process does.
+ */
+function useWindowCommands({ closeTab }: { closeTab: () => void }) {
+  const router = useRouter();
+  useEffect(() => {
+    const onMouseUp = (event: MouseEvent) => {
+      if (event.button === 3) {
+        router.history.back();
+      } else if (event.button === 4) {
+        router.history.forward();
+      }
+    };
+    window.addEventListener("mouseup", onMouseUp);
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const commands = await rpcClient.orchestrator.events.command.call(
+          undefined,
+          { signal: controller.signal },
+        );
+        for await (const command of commands) {
+          switch (command) {
+            case "back": {
+              router.history.back();
+              break;
+            }
+            case "closeTab": {
+              closeTab();
+              break;
+            }
+            case "forward": {
+              router.history.forward();
+              break;
+            }
+          }
+        }
+      } catch {
+        // The window is closing, which is the only way the stream ends.
+      }
+    })();
+    return () => {
+      controller.abort();
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+    // The stream is opened once; the close handler reads the screen as it is at the call.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router]);
 }

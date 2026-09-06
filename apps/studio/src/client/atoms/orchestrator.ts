@@ -1,3 +1,4 @@
+import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 
@@ -28,21 +29,17 @@ export const orchestratorSidebarOpenAtom = atomWithStorage<boolean>(
 );
 
 /**
- * What the Computer screen last had on screen, kept after the user moves to
- * another screen: "this folder" in the conversation means the folder they were
- * looking at, whichever screen is up when they say it.
+ * What the window has on screen this moment, written by the screen that is
+ * up and cleared when it leaves, so what goes with a message is what the
+ * user was looking at and never a screen they left. The page's words and the
+ * screen's address are added at send time by the layout, which holds both.
  */
-export interface ComputerView {
-  /** The folder as a person writes it: `~/Documents`. */
-  folder: string;
-  hostPath: string;
-  /** How the agent reaches it, when a granted folder covers it. */
-  mount?: string;
-  /** Names selected in it. */
-  selected: string[];
-}
+export type ScreenView = Omit<
+  SessionMessageDataPart.ViewContextDataPart,
+  "page" | "url"
+>;
 
-export const computerViewAtom = atom<ComputerView | null>(null);
+export const screenViewAtom = atom<null | ScreenView>(null);
 
 /** Whether the conversation down the right is open. */
 export const orchestratorChatOpenAtom = atomWithStorage<boolean>(
@@ -66,9 +63,15 @@ export const orchestratorChatWidthAtom = atomWithStorage<number>(
 
 /** A tab of the window's browser: a browser session of the orchestrator's. */
 export interface BrowserTab {
+  /** The page's icon, as the page last announced it. */
+  favicon?: string;
   /** The session id, which is the half of the target id a task can be handed. */
   id: string;
   openedAt: number;
+  /** The address it was opened at, which a pin asks for again; the page may have moved on from it. */
+  openedUrl?: string;
+  /** The page's title, as it last announced it; kept so a tab not yet shown still says what it is. */
+  title?: string;
   /** The last page it showed, opened again when the tab comes back. */
   url?: string;
 }
@@ -87,8 +90,25 @@ export function clampChatWidth(value: number) {
  * last page the workspace restores when the tab is opened again.
  */
 export const orchestratorTabsAtom = atomWithStorage<BrowserTabs>(
-  "orchestrator.browser-tabs.v1",
+  "orchestrator.browser-tabs.v2",
   { activeId: null, tabs: [] },
+  undefined,
+  { getOnInit: true },
+);
+
+/** A file open in a tab of This Mac, beside the folder browser. */
+export interface FileTab {
+  /** Where it is on the Mac, when known: as the person writes it. */
+  hostPath?: string;
+  /** The virtual path the viewer and the agent reach it by; the tab's identity. */
+  mount: string;
+  name: string;
+}
+
+/** The files open on This Mac, in strip order, kept across launches. */
+export const fileTabsAtom = atomWithStorage<FileTab[]>(
+  "orchestrator.file-tabs.v1",
+  [],
   undefined,
   { getOnInit: true },
 );

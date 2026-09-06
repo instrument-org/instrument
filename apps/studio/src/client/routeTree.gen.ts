@@ -17,7 +17,6 @@ import { Route as OrchestratorIndexRouteImport } from './routes/orchestrator/ind
 import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
 import { Route as OrchestratorLibraryRouteImport } from './routes/orchestrator/library'
 import { Route as OrchestratorHomeRouteImport } from './routes/orchestrator/home'
-import { Route as OrchestratorFileRouteImport } from './routes/orchestrator/file'
 import { Route as OrchestratorDiscoverRouteImport } from './routes/orchestrator/discover'
 import { Route as OrchestratorComputerRouteImport } from './routes/orchestrator/computer'
 import { Route as OrchestratorBrowserRouteImport } from './routes/orchestrator/browser'
@@ -98,11 +97,6 @@ const OrchestratorLibraryRoute = OrchestratorLibraryRouteImport.update({
 const OrchestratorHomeRoute = OrchestratorHomeRouteImport.update({
   id: '/home',
   path: '/home',
-  getParentRoute: () => OrchestratorRouteRoute,
-} as any)
-const OrchestratorFileRoute = OrchestratorFileRouteImport.update({
-  id: '/file',
-  path: '/file',
   getParentRoute: () => OrchestratorRouteRoute,
 } as any)
 const OrchestratorDiscoverRoute = OrchestratorDiscoverRouteImport.update({
@@ -347,7 +341,6 @@ export interface FileRoutesByFullPath {
   '/orchestrator/browser': typeof OrchestratorBrowserRoute
   '/orchestrator/computer': typeof OrchestratorComputerRoute
   '/orchestrator/discover': typeof OrchestratorDiscoverRoute
-  '/orchestrator/file': typeof OrchestratorFileRoute
   '/orchestrator/home': typeof OrchestratorHomeRoute
   '/orchestrator/library': typeof OrchestratorLibraryRoute
   '/onboarding/': typeof OnboardingIndexRoute
@@ -393,7 +386,6 @@ export interface FileRoutesByTo {
   '/orchestrator/browser': typeof OrchestratorBrowserRoute
   '/orchestrator/computer': typeof OrchestratorComputerRoute
   '/orchestrator/discover': typeof OrchestratorDiscoverRoute
-  '/orchestrator/file': typeof OrchestratorFileRoute
   '/orchestrator/home': typeof OrchestratorHomeRoute
   '/orchestrator/library': typeof OrchestratorLibraryRoute
   '/onboarding': typeof OnboardingIndexRoute
@@ -445,7 +437,6 @@ export interface FileRoutesById {
   '/orchestrator/browser': typeof OrchestratorBrowserRoute
   '/orchestrator/computer': typeof OrchestratorComputerRoute
   '/orchestrator/discover': typeof OrchestratorDiscoverRoute
-  '/orchestrator/file': typeof OrchestratorFileRoute
   '/orchestrator/home': typeof OrchestratorHomeRoute
   '/orchestrator/library': typeof OrchestratorLibraryRoute
   '/onboarding/': typeof OnboardingIndexRoute
@@ -498,7 +489,6 @@ export interface FileRouteTypes {
     | '/orchestrator/browser'
     | '/orchestrator/computer'
     | '/orchestrator/discover'
-    | '/orchestrator/file'
     | '/orchestrator/home'
     | '/orchestrator/library'
     | '/onboarding/'
@@ -544,7 +534,6 @@ export interface FileRouteTypes {
     | '/orchestrator/browser'
     | '/orchestrator/computer'
     | '/orchestrator/discover'
-    | '/orchestrator/file'
     | '/orchestrator/home'
     | '/orchestrator/library'
     | '/onboarding'
@@ -595,7 +584,6 @@ export interface FileRouteTypes {
     | '/orchestrator/browser'
     | '/orchestrator/computer'
     | '/orchestrator/discover'
-    | '/orchestrator/file'
     | '/orchestrator/home'
     | '/orchestrator/library'
     | '/onboarding/'
@@ -694,13 +682,6 @@ declare module '@tanstack/react-router' {
       path: '/home'
       fullPath: '/orchestrator/home'
       preLoaderRoute: typeof OrchestratorHomeRouteImport
-      parentRoute: typeof OrchestratorRouteRoute
-    }
-    '/orchestrator/file': {
-      id: '/orchestrator/file'
-      path: '/file'
-      fullPath: '/orchestrator/file'
-      preLoaderRoute: typeof OrchestratorFileRouteImport
       parentRoute: typeof OrchestratorRouteRoute
     }
     '/orchestrator/discover': {
@@ -1172,7 +1153,6 @@ interface OrchestratorRouteRouteChildren {
   OrchestratorBrowserRoute: typeof OrchestratorBrowserRoute
   OrchestratorComputerRoute: typeof OrchestratorComputerRoute
   OrchestratorDiscoverRoute: typeof OrchestratorDiscoverRoute
-  OrchestratorFileRoute: typeof OrchestratorFileRoute
   OrchestratorHomeRoute: typeof OrchestratorHomeRoute
   OrchestratorLibraryRoute: typeof OrchestratorLibraryRoute
   OrchestratorIndexRoute: typeof OrchestratorIndexRoute
@@ -1184,7 +1164,6 @@ const OrchestratorRouteRouteChildren: OrchestratorRouteRouteChildren = {
   OrchestratorBrowserRoute: OrchestratorBrowserRoute,
   OrchestratorComputerRoute: OrchestratorComputerRoute,
   OrchestratorDiscoverRoute: OrchestratorDiscoverRoute,
-  OrchestratorFileRoute: OrchestratorFileRoute,
   OrchestratorHomeRoute: OrchestratorHomeRoute,
   OrchestratorLibraryRoute: OrchestratorLibraryRoute,
   OrchestratorIndexRoute: OrchestratorIndexRoute,

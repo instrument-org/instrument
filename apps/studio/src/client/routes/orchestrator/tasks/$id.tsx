@@ -1,9 +1,14 @@
 import { ChildChat } from "@/client/components/orchestrator/child-tasks";
+import { useOrchestrator } from "@/client/components/orchestrator/context";
+import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { Spinner } from "@/client/components/ui/spinner";
 import { rpcClient } from "@/client/rpc/client";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import ms from "ms";
+
+const REFRESH_MS = ms("2 seconds");
 
 /** One task's own chat, beside the list: how the user looks over the orchestrator's shoulder. */
 export const Route = createFileRoute("/orchestrator/tasks/$id")({
@@ -13,10 +18,43 @@ export const Route = createFileRoute("/orchestrator/tasks/$id")({
 function TaskRoute() {
   const { id } = Route.useParams();
   const taskId = TaskIdSchema.parse(id);
+  const orchestrator = useOrchestrator();
   const task = useQuery(
     rpcClient.workspace.task.live.byId.experimental_liveOptions({
       input: { id: taskId },
     }),
+  );
+  const status = useQuery(
+    rpcClient.workspace.task.agentStatus.byIds.queryOptions({
+      input: { ids: [taskId] },
+      refetchInterval: REFRESH_MS,
+    }),
+  );
+  const activity = useQuery(
+    rpcClient.workspace.orchestrator.activity.queryOptions({
+      input: { id: orchestrator.taskId },
+      refetchInterval: REFRESH_MS,
+    }),
+  );
+  const isWorking =
+    status.data?.some((entry) =>
+      entry.sessionActors.some((actor) => actor.tags.includes("agent.alive")),
+    ) ?? false;
+  const step = activity.data?.running.find(
+    (entry) => entry.taskId === taskId,
+  )?.step;
+  useOnScreen(
+    task.data
+      ? {
+          screen: "task",
+          task: {
+            id: taskId,
+            status: isWorking ? "working" : "done",
+            ...(step ? { step } : {}),
+            title: task.data.title,
+          },
+        }
+      : null,
   );
   if (!task.data) {
     return (

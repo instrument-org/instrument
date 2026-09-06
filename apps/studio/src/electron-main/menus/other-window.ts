@@ -22,6 +22,19 @@ export function createOtherWindowMenu(): MenuItemConstructorOptions[] {
     ],
   };
 
+  return [
+    createAppMenu(),
+    fileMenu,
+    createEditMenu(),
+    createOtherWindowViewMenu(),
+    createWindowMenu(),
+    createHelpMenu({ includeShortcutGuide: false }),
+    ...(isDeveloperMode() ? createDevToolsMenu() : []),
+  ];
+}
+
+/** The View menu of a window that is not the main one: reload, dev tools, and the app's own zoom. */
+export function createOtherWindowViewMenu(): MenuItemConstructorOptions {
   const viewMenu: MenuItemConstructorOptions = {
     label: "View",
     role: "viewMenu" as const,
@@ -87,13 +100,5 @@ export function createOtherWindowMenu(): MenuItemConstructorOptions[] {
     ],
   };
 
-  return [
-    createAppMenu(),
-    fileMenu,
-    createEditMenu(),
-    viewMenu,
-    createWindowMenu(),
-    createHelpMenu({ includeShortcutGuide: false }),
-    ...(isDeveloperMode() ? createDevToolsMenu() : []),
-  ];
+  return viewMenu;
 }

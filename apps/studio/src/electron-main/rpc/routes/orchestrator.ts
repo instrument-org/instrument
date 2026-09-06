@@ -12,12 +12,12 @@ const openWindow = base.output(z.void()).handler(() => {
 });
 
 const events = {
-  /** Back and forward asked by a swipe or a thumb button, for the window's router. */
-  navigate: base.handler(async function* ({ signal }) {
-    for await (const direction of publisher.subscribe("orchestrator.navigate", {
+  /** What a swipe, a thumb button, or a menu chord asked of the window. */
+  command: base.handler(async function* ({ signal }) {
+    for await (const command of publisher.subscribe("orchestrator.command", {
       signal,
     })) {
-      yield direction;
+      yield command;
     }
   }),
 };

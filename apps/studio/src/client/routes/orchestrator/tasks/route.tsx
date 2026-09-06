@@ -1,4 +1,5 @@
 import { useOrchestrator } from "@/client/components/orchestrator/context";
+import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { Spinner } from "@/client/components/ui/spinner";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -54,6 +55,28 @@ function TasksLayout() {
         entry.sessionActors.some((actor) => actor.tags.includes("agent.alive")),
       )
       .map((entry) => entry.taskId) ?? [],
+  );
+  const activity = useQuery(
+    rpcClient.workspace.orchestrator.activity.queryOptions({
+      input: { id: taskId },
+      refetchInterval: REFRESH_MS,
+    }),
+  );
+  const stepOf = (id: TaskId) =>
+    activity.data?.running.find((entry) => entry.taskId === id)?.step;
+  // The list is what is on screen only while no task is open beside it.
+  useOnScreen(
+    location.pathname === "/orchestrator/tasks" && children.data
+      ? {
+          screen: "tasks",
+          tasks: children.data.map((child) => ({
+            id: child.id,
+            status: running.has(child.id) ? "working" : "done",
+            ...(stepOf(child.id) ? { step: stepOf(child.id) } : {}),
+            title: child.title,
+          })),
+        }
+      : null,
   );
 
   return (

@@ -32,6 +32,7 @@
     "script:run-bash": "node --import tsx scripts/run-bash.ts",
     "script:run-workspace": "cross-env NODE_ENV=development tsx scripts/run-workspace.ts",
     "script:seed-workspace": "cross-env NODE_ENV=development tsx scripts/seed-workspace.ts",
+    "script:try-local-app": "node --import tsx scripts/try-local-app.ts",
     "test": "vitest",
     "test:ci": "cross-env CI=true vitest --maxWorkers=40%",
     "turbo:check": "turbo run check:types check:lint",

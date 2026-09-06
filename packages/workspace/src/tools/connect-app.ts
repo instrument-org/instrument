@@ -4,6 +4,7 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { recordConnection } from "../lib/apps/connection";
+import { describeLocalLaunch } from "../lib/apps/mcp/local-server";
 import { appSiteFor } from "../lib/apps/site";
 import { loadApp } from "../lib/apps/store";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
@@ -32,9 +33,14 @@ export const ConnectApp = setupTool({
   name: "connect_app",
   outputSchema: z.discriminatedUnion("state", [
     z.object({
-      /** What the card asks for: a browser sign-in, a key, or nothing. */
-      kind: z.enum(["key", "none", "sign-in"]),
+      /**
+       * What the card asks for: a browser sign-in, a key, leave to run a
+       * server on this machine, or nothing.
+       */
+      kind: z.enum(["key", "none", "run", "sign-in"]),
       name: z.string(),
+      /** For a local app, what would run: the package, in words. */
+      runs: z.string().optional(),
       /** The service's origin, for the card's icon. */
       site: z.string().optional(),
       slug: z.string(),
@@ -48,7 +54,7 @@ export const ConnectApp = setupTool({
   ]),
 }).create({
   description: dedent`
-    Ask the user to connect an app whose folder you have written under ${MOUNT.apps}/<slug>/. A card appears in the conversation: a sign-in button for an OAuth app, a secure field for a key. It returns at once; say one line and end your turn. You are woken with a note when the user has signed in, saved a key, or declined. Never ask for a key in prose instead.
+    Ask the user to connect an app whose folder you have written under ${MOUNT.apps}/<slug>/. A card appears in the conversation: a sign-in button for an OAuth app, a secure field for a key, and for an app whose server runs on this machine, what would run and a button to allow it. It returns at once; say one line and end your turn. You are woken with a note when the user has signed in, saved a key, or declined. Never ask for a key in prose instead.
   `,
   execute: async ({ input }) => {
     const config = getWorkspaceConfig();
@@ -62,11 +68,13 @@ export const ConnectApp = setupTool({
     }
     const { manifest, slug } = loaded.value;
     const kind =
-      manifest.auth.kind === "oauth"
-        ? "sign-in"
-        : manifest.auth.kind === "none"
-          ? "none"
-          : "key";
+      manifest.type === "mcp-local"
+        ? "run"
+        : manifest.auth.kind === "oauth"
+          ? "sign-in"
+          : manifest.auth.kind === "none"
+            ? "none"
+            : "key";
     if (kind === "sign-in" && !config.apps.oauth) {
       return ok({
         message: "Sign-in is not available in this context.",
@@ -76,12 +84,20 @@ export const ConnectApp = setupTool({
     }
     if (kind !== "none") {
       await recordConnection(slug, {
-        status: kind === "key" ? "needs-key" : "needs-sign-in",
+        status:
+          kind === "key"
+            ? "needs-key"
+            : kind === "run"
+              ? "needs-approval"
+              : "needs-sign-in",
       });
     }
     return ok({
       kind,
       name: manifest.name,
+      ...(manifest.type === "mcp-local"
+        ? { runs: describeLocalLaunch(manifest) }
+        : {}),
       site: appSiteFor(slug, manifest),
       slug,
       state: "asked" as const,
@@ -104,6 +120,12 @@ export const ConnectApp = setupTool({
         return {
           type: "text",
           value: `${output.name} needs no sign-in. Run \`${APP_COMMAND.name} test ${output.slug}\` to connect it.`,
+        };
+      }
+      case "run": {
+        return {
+          type: "text",
+          value: `A card asking the user to let ${output.name}'s server run on this machine is in the conversation. Say one line and end your turn: you will be woken with a note when they allow it or decline, and the app installs and connects on its own when they do. Do not poll, and do not test before the note.`,
         };
       }
       case "sign-in": {

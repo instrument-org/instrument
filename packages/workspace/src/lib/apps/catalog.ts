@@ -28,6 +28,9 @@ const AppCatalogEntrySchema = z.object({
       endpoint: z.string().optional(),
       format: z.string(),
       name: z.string(),
+      /** For a server that runs on this machine, what to install. */
+      package: z.string().optional(),
+      runtime: z.enum(["node", "python"]).optional(),
     }),
   ),
   name: z.string(),
@@ -42,6 +45,21 @@ const CatalogSeedSchema = z.object({
 });
 
 let cached: AppCatalogEntry[] | undefined;
+
+/**
+ * The entry's own MCP server that runs on this machine, when it has one: for
+ * a service with no cloud API, this is the only way in.
+ */
+export function catalogEntryLocalServer(
+  entry: AppCatalogEntry,
+): undefined | { package: string; runtime: "node" | "python" } {
+  const surface = entry.interfaces.find(
+    (candidate) => candidate.format === "mcp-local" && candidate.package,
+  );
+  return surface?.package
+    ? { package: surface.package, runtime: surface.runtime ?? "node" }
+    : undefined;
+}
 
 /**
  * The entry's hosted MCP endpoint, when it has one: the interface the agent

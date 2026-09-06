@@ -5,6 +5,7 @@ import { MOUNT } from "../../mount-points";
 import { type TaskId } from "../../schemas/task-id";
 import {
   type AppCatalogEntry,
+  catalogEntryLocalServer,
   catalogEntryMcpEndpoint,
   searchAppCatalog,
 } from "../apps/catalog";
@@ -20,10 +21,10 @@ import {
   type AppManifest,
   AppManifestSchema,
   AppSlugSchema,
+  isMcpManifest,
 } from "../apps/manifest";
-import { callMcpTool, listMcpTools, withMcpClient } from "../apps/mcp/client";
-import { mcpConnectionConfig } from "../apps/mcp/connection-config";
-import { mcpAuthProviderForCommand } from "../apps/mcp/tool-auth";
+import { callMcpTool, listMcpTools } from "../apps/mcp/client";
+import { withAppMcpClient } from "../apps/mcp/run";
 import { performAppRequest, redactCredential } from "../apps/request";
 import {
   type AppInfo,
@@ -60,12 +61,16 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       The directory: services it knows, each with its endpoints (an MCP server
       to prefer, an API base) and how each is reached (a sign-in, a key). Words
       filter by name, domain, or category.
-  ${APP_COMMAND.name} new <slug> --name '<Name>' (--mcp <url> | --api <base-url>) [--auth oauth|bearer|header:<Name>|query:<param>|none] [--header '<Name>: <value>']... [--test <path>] [--force]
+  ${APP_COMMAND.name} new <slug> --name '<Name>' (--mcp <url> | --api <base-url> | --local <package>) [--auth oauth|bearer|header:<Name>|query:<param>|env:<VAR>|none] [--header '<Name>: <value>']... [--arg <arg>]... [--runtime node|python] [--test <path>] [--force]
       Write ${MOUNT.apps}/<slug>/${APP_MANIFEST_FILE_NAME}, and a ${APP_GUIDE_FILE_NAME} to fill in when
       there is none. An MCP app defaults to oauth (a one-click sign-in, no key);
       an API app to bearer, and needs --test, a cheap GET that proves the key.
-      Refuses to overwrite an existing manifest without --force. You can also
-      write the two files yourself with your file tools.
+      --local names an MCP server that runs on this machine, installed from npm
+      (--runtime node, the default) or PyPI (--runtime python): it defaults to
+      no key, takes env:<VAR> when the server reads one from its environment,
+      and the user has to allow it to run before it does. Refuses to overwrite
+      an existing manifest without --force. You can also write the two files
+      yourself with your file tools.
   ${APP_COMMAND.name} test <slug>
       The red/green loop: manifest, guide, key or sign-in, a scan for secrets in
       the folder, then the service for real. A pass connects the app; a failure
@@ -162,15 +167,18 @@ async function allowedSlugs(taskId: TaskId): Promise<Set<string> | undefined> {
 function describeCatalogEntry(entry: AppCatalogEntry): string {
   const surfaces = entry.interfaces.map((surface) => {
     const auth = surface.auth ? ` (${surface.auth})` : "";
-    return `    ${surface.format.padEnd(8)} ${surface.endpoint ?? surface.name}${auth}`;
+    return `    ${surface.format.padEnd(9)} ${surface.endpoint ?? surface.package ?? surface.name}${auth}`;
   });
   const methods = entry.authMethods
     .map((method) => `${method.label}${method.note ? `: ${method.note}` : ""}`)
     .join("; ");
   const mcp = catalogEntryMcpEndpoint(entry);
+  const local = catalogEntryLocalServer(entry);
   const howTo = mcp
     ? `${APP_COMMAND.name} new ${entry.slug} --name '${entry.name}' --mcp ${mcp}`
-    : `${APP_COMMAND.name} new ${entry.slug} --name '${entry.name}' --api <base-url> --auth <kind> --test <path>`;
+    : local
+      ? `${APP_COMMAND.name} new ${entry.slug} --name '${entry.name}' --local ${local.package} --runtime ${local.runtime}`
+      : `${APP_COMMAND.name} new ${entry.slug} --name '${entry.name}' --api <base-url> --auth <kind> --test <path>`;
   return [
     `${entry.slug}  ${entry.name}  ${entry.domain}`,
     `  ${entry.tagline}`,
@@ -200,9 +208,11 @@ function firstSentence(text: string): string {
 /** A guide the agent fills in: what the app is for, and how it is reached. */
 function guideSkeleton(manifest: AppManifest): string {
   const reach =
-    manifest.type === "mcp"
-      ? `Reached through its MCP server at ${manifest.url}: \`${APP_COMMAND.name} tools <slug>\` lists what it can do, \`${APP_COMMAND.name} call <slug> <tool> '<json>'\` runs one.`
-      : `Reached through its API at ${manifest.baseUrl}: \`${APP_COMMAND.name} request <slug> GET /path\`.\n\n## Endpoints\n\nList the endpoints the work needs, with an example each: the method, the path relative to the base URL, the parameters, and what comes back. Pagination and rate limits go here too.`;
+    manifest.type === "mcp-local"
+      ? `Runs on this machine from the ${manifest.runtime === "node" ? "npm" : "PyPI"} package ${manifest.package}: \`${APP_COMMAND.name} tools <slug>\` lists what it can do, \`${APP_COMMAND.name} call <slug> <tool> '<json>'\` runs one. Say here what has to be true on this machine for it to work (an app installed, a file in place).`
+      : manifest.type === "mcp"
+        ? `Reached through its MCP server at ${manifest.url}: \`${APP_COMMAND.name} tools <slug>\` lists what it can do, \`${APP_COMMAND.name} call <slug> <tool> '<json>'\` runs one.`
+        : `Reached through its API at ${manifest.baseUrl}: \`${APP_COMMAND.name} request <slug> GET /path\`.\n\n## Endpoints\n\nList the endpoints the work needs, with an example each: the method, the path relative to the base URL, the parameters, and what comes back. Pagination and rate limits go here too.`;
   return `# ${manifest.name}\n\nWhat this app is for, in a sentence or two.\n\n${reach}\n\n## Conventions\n\nAnything a request has to get right that the service does not say in its errors.\n`;
 }
 
@@ -246,9 +256,23 @@ function ok(stdout: string) {
 
 function parseAuth(
   raw: string | undefined,
-  type: "api" | "mcp",
+  type: "api" | "mcp" | "mcp-local",
 ): AppManifest["auth"] {
-  const value = raw?.trim() || (type === "mcp" ? "oauth" : "bearer");
+  const value =
+    raw?.trim() ||
+    (type === "mcp" ? "oauth" : type === "mcp-local" ? "none" : "bearer");
+  if (type === "mcp-local") {
+    if (value === "none") {
+      return { kind: "none" };
+    }
+    const env = /^env:(.+)$/.exec(value);
+    if (env?.[1]) {
+      return { envVar: env[1].trim(), kind: "env" };
+    }
+    throw new Error(
+      `a local server takes none, or env:<VAR> when it reads a key from its environment (got "${value}").`,
+    );
+  }
   if (value === "oauth") {
     if (type === "api") {
       throw new Error(
@@ -358,7 +382,8 @@ async function runCall(
 ) {
   const [slug, tool, inline] = args;
   const app = await requireApp(slug, context, { connected: true });
-  if (app.manifest.type !== "mcp") {
+  const manifest = app.manifest;
+  if (!isMcpManifest(manifest)) {
     throw new Error(
       `"${app.slug}" is an API app; make requests with \`${APP_COMMAND.name} request\`.`,
     );
@@ -369,18 +394,19 @@ async function runCall(
     );
   }
   const params = jsonFrom(inline, stdin, "The tool's arguments");
-  const manifest = app.manifest;
   const config = getWorkspaceConfig();
   const credential =
-    manifest.auth.kind === "oauth"
+    manifest.auth.kind === "none" || manifest.auth.kind === "oauth"
       ? null
       : await config.apps.getCredential(app.slug);
   const redact = await redactorFor(app, credential);
-  const result = await withMcpClient({
-    authProvider: mcpAuthProviderForCommand(app.slug, manifest),
-    config: mcpConnectionConfig(manifest, credential),
+  const result = await withAppMcpClient({
+    credential,
+    manifest,
+    manifestHash: app.manifestHash,
     run: (client) => callMcpTool(client, { args: params, name: tool }),
     signal: withTimeout(signal, REQUEST_TIMEOUT_MS),
+    slug: app.slug,
   });
   if (result.isErr()) {
     throw new Error(
@@ -462,8 +488,18 @@ async function runList(context: AppCommandContext) {
 
 async function runNew(args: string[], context: AppCommandContext) {
   const { positional, values } = parseFlags(args, {
-    flags: ["api", "auth", "header", "mcp", "name", "test"],
-    repeatable: ["header"],
+    flags: [
+      "api",
+      "arg",
+      "auth",
+      "header",
+      "local",
+      "mcp",
+      "name",
+      "runtime",
+      "test",
+    ],
+    repeatable: ["arg", "header"],
   });
   const force = positional.includes("--force");
   const rawSlug = positional.find((argument) => !argument.startsWith("--"));
@@ -484,12 +520,16 @@ async function runNew(args: string[], context: AppCommandContext) {
   }
   const mcp = values.get("mcp")?.[0];
   const api = values.get("api")?.[0];
-  if ((mcp && api) || (!mcp && !api)) {
+  const local = values.get("local")?.[0];
+  if ([mcp, api, local].filter(Boolean).length !== 1) {
     throw new Error(
-      "new takes exactly one of --mcp <url> or --api <base-url>.",
+      "new takes exactly one of --mcp <url>, --api <base-url>, or --local <package>.",
     );
   }
-  const auth = parseAuth(values.get("auth")?.[0], mcp ? "mcp" : "api");
+  const auth = parseAuth(
+    values.get("auth")?.[0],
+    local ? "mcp-local" : mcp ? "mcp" : "api",
+  );
   const headers = Object.fromEntries(
     (values.get("header") ?? []).map((header) => {
       const [key, ...valueParts] = header.split(":");
@@ -501,16 +541,32 @@ async function runNew(args: string[], context: AppCommandContext) {
     }),
   );
   const test = values.get("test")?.[0];
-  const candidate: unknown = mcp
-    ? { auth, name, type: "mcp", url: mcp }
-    : {
+  const serverArgs = values.get("arg") ?? [];
+  const runtime = values.get("runtime")?.[0]?.trim() ?? "node";
+  if (local && runtime !== "node" && runtime !== "python") {
+    throw new Error(
+      `--runtime takes node (an npm package) or python (a PyPI one), and defaults to node (got "${runtime}").`,
+    );
+  }
+  const candidate: unknown = local
+    ? {
+        ...(serverArgs.length > 0 ? { args: serverArgs } : {}),
         auth,
-        baseUrl: api,
-        ...(Object.keys(headers).length > 0 ? { headers } : {}),
         name,
-        test: { path: test ?? "" },
-        type: "api",
-      };
+        package: local,
+        runtime,
+        type: "mcp-local",
+      }
+    : mcp
+      ? { auth, name, type: "mcp", url: mcp }
+      : {
+          auth,
+          baseUrl: api,
+          ...(Object.keys(headers).length > 0 ? { headers } : {}),
+          name,
+          test: { path: test ?? "" },
+          type: "api",
+        };
   if (api && !test) {
     throw new Error(
       "an API app needs --test <path>: a cheap GET, relative to the base URL, that proves the key (a /me or /users/me is usual).",
@@ -656,23 +712,25 @@ async function runTools(
   only?: string,
 ) {
   const app = await requireApp(args[0], context, { connected: true });
-  if (app.manifest.type !== "mcp") {
+  const manifest = app.manifest;
+  if (!isMcpManifest(manifest)) {
     throw new Error(
       `"${app.slug}" is an API app and has no tools; read its guide with \`${APP_COMMAND.name} guide ${app.slug}\` and make requests.`,
     );
   }
-  const manifest = app.manifest;
   const config = getWorkspaceConfig();
   const credential =
-    manifest.auth.kind === "oauth"
+    manifest.auth.kind === "none" || manifest.auth.kind === "oauth"
       ? null
       : await config.apps.getCredential(app.slug);
   const redact = await redactorFor(app, credential);
-  const result = await withMcpClient({
-    authProvider: mcpAuthProviderForCommand(app.slug, manifest),
-    config: mcpConnectionConfig(manifest, credential),
+  const result = await withAppMcpClient({
+    credential,
+    manifest,
+    manifestHash: app.manifestHash,
     run: (client) => listMcpTools(client),
     signal: withTimeout(signal, REQUEST_TIMEOUT_MS),
+    slug: app.slug,
   });
   if (result.isErr()) {
     throw new Error(redact(result.error.message));

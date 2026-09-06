@@ -11,6 +11,7 @@ export const AppConnectionStatusSchema = z.enum([
   "connected",
   "declined",
   "failed",
+  "needs-approval",
   "needs-key",
   "needs-sign-in",
 ]);
@@ -20,6 +21,12 @@ export type AppConnectionStatus = z.output<typeof AppConnectionStatusSchema>;
 export const AppConnectionSchema = z.object({
   /** Whom the service says the connection belongs to, when it tells us. */
   account: z.string().optional(),
+  /**
+   * The manifest the user allowed to run on this machine, for a local app.
+   * Approval is of a package and its arguments, so a manifest edited after it
+   * was given is not what was agreed to, and the app asks again.
+   */
+  approvedManifestHash: z.string().optional(),
   connectedAt: z.number().optional(),
   /** Why the last test failed, for the card and the page. */
   error: z.string().optional(),
@@ -68,6 +75,9 @@ export function describeConnection(
     }
     case "failed": {
       return `failed${connection.error ? `: ${connection.error}` : ""}`;
+    }
+    case "needs-approval": {
+      return "needs the user to allow its server to run on this machine (connect_app)";
     }
     case "needs-key": {
       return "needs a key from the user (connect_app)";

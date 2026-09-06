@@ -4,13 +4,16 @@ import {
   UnauthorizedError,
 } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { type Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { type ContentBlock } from "@modelcontextprotocol/sdk/types.js";
 import { err, ok, type Result } from "neverthrow";
 import { noop } from "radashi";
 
 import { isLoopbackHost } from "../manifest";
 import { checkPublicUrl } from "../safe-url";
+import { type LocalServerLaunch } from "./local-server";
 
 /**
  * How to reach and authenticate to an MCP server. Token auth injects a static
@@ -28,7 +31,7 @@ export interface McpConnectionConfig {
 
 export interface McpConnectionError {
   message: string;
-  reason: "connect" | "protocol" | "unauthorized";
+  reason: "connect" | "protocol" | "unapproved" | "unauthorized";
 }
 
 interface McpCallResult {
@@ -67,6 +70,36 @@ export async function listMcpTools(client: Client): Promise<McpToolSummary[]> {
     inputSchema: tool.inputSchema,
     name: tool.name,
   }));
+}
+
+/**
+ * The same, for a server that runs on this machine: spawn it, speak MCP over
+ * its stdio, and end the process when the operation does. The launch comes
+ * from `prepareLocalServer`, which is what decides that a package may run at
+ * all; nothing here reads the manifest.
+ *
+ * A server that dies on startup says why on stderr (a missing app, an
+ * unsupported OS), so that is captured and carried into the error rather than
+ * left as an unexplained closed pipe.
+ */
+export async function withLocalMcpClient<T>({
+  launch,
+  run,
+}: {
+  launch: LocalServerLaunch;
+  run: (client: Client) => Promise<T>;
+}): Promise<Result<T, McpConnectionError>> {
+  const transport = new StdioClientTransport({
+    args: launch.args,
+    command: launch.command,
+    env: launch.env,
+    stderr: "pipe",
+  });
+  let stderr = "";
+  transport.stderr?.on("data", (chunk: Buffer) => {
+    stderr = `${stderr}${chunk.toString("utf8")}`.slice(-800);
+  });
+  return runWithTransport(transport, run, () => stderr.trim());
 }
 
 /**
@@ -109,42 +142,16 @@ export async function withMcpClient<T>({
     return err({ message: unsafe, reason: "connect" });
   }
 
-  const transport = new StreamableHTTPClientTransport(url, {
-    authProvider,
-    requestInit: {
-      headers: authProvider ? {} : authHeaders(config.auth),
-      signal,
-    },
-  });
-  const client = new Client({ name: APP_NAME, version: "1.0.0" });
-
-  try {
-    await client.connect(transport);
-  } catch (error) {
-    await transport.close().catch(noop);
-    const message = error instanceof Error ? error.message : String(error);
-    // cspell:ignore unauthor
-    const unauthorized =
-      error instanceof UnauthorizedError || /401|unauthor/i.test(message);
-    return err({
-      message: unauthorized
-        ? `The MCP server rejected the credential (unauthorized): ${message}`
-        : `Could not connect to the MCP server: ${message}`,
-      reason: unauthorized ? "unauthorized" : "connect",
-    });
-  }
-
-  try {
-    const value = await run(client);
-    return ok(value);
-  } catch (error) {
-    return err({
-      message: error instanceof Error ? error.message : String(error),
-      reason: "protocol",
-    });
-  } finally {
-    await client.close().catch(noop);
-  }
+  return runWithTransport(
+    new StreamableHTTPClientTransport(url, {
+      authProvider,
+      requestInit: {
+        headers: authProvider ? {} : authHeaders(config.auth),
+        signal,
+      },
+    }),
+    run,
+  );
 }
 
 function authHeaders(
@@ -160,5 +167,48 @@ function authHeaders(
     case "none": {
       return {};
     }
+  }
+}
+
+/**
+ * Connect a client over the given transport, run one operation, and always
+ * close. Never throws: connection and protocol failures come back as a typed
+ * Result. Connections are made per-operation for simplicity and isolation; a
+ * pooled variant can layer on if call latency warrants it.
+ */
+async function runWithTransport<T>(
+  transport: Transport,
+  run: (client: Client) => Promise<T>,
+  detail?: () => string,
+): Promise<Result<T, McpConnectionError>> {
+  const client = new Client({ name: APP_NAME, version: "1.0.0" });
+
+  try {
+    await client.connect(transport);
+  } catch (error) {
+    await transport.close().catch(noop);
+    const message = error instanceof Error ? error.message : String(error);
+    // cspell:ignore unauthor
+    const unauthorized =
+      error instanceof UnauthorizedError || /401|unauthor/i.test(message);
+    const said = detail?.();
+    return err({
+      message: unauthorized
+        ? `The MCP server rejected the credential (unauthorized): ${message}`
+        : `Could not connect to the MCP server: ${message}${said ? `\n${said}` : ""}`,
+      reason: unauthorized ? "unauthorized" : "connect",
+    });
+  }
+
+  try {
+    const value = await run(client);
+    return ok(value);
+  } catch (error) {
+    return err({
+      message: error instanceof Error ? error.message : String(error),
+      reason: "protocol",
+    });
+  } finally {
+    await client.close().catch(noop);
   }
 }

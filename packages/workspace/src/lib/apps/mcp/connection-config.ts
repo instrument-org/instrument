@@ -1,5 +1,29 @@
-import { type McpAppManifest } from "../manifest";
+import { type LocalMcpAppManifest, type McpAppManifest } from "../manifest";
 import { type McpConnectionConfig } from "./client";
+import { type LocalServerLaunch } from "./local-server";
+
+/**
+ * Fold an app's own environment and its stored credential into a local
+ * server's launch. The credential reaches the process as the environment
+ * variable the manifest names and never as an argument, where another process
+ * on this machine could read it off the command line.
+ */
+export function localLaunchConfig(
+  launch: LocalServerLaunch,
+  manifest: LocalMcpAppManifest,
+  credential: null | string,
+): LocalServerLaunch {
+  return {
+    ...launch,
+    env: {
+      ...launch.env,
+      ...manifest.env,
+      ...(manifest.auth.kind === "env" && credential !== null
+        ? { [manifest.auth.envVar]: credential }
+        : {}),
+    },
+  };
+}
 
 /**
  * Build the connection config for an MCP app by folding its stored

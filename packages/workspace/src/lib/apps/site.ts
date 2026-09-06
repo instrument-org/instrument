@@ -29,6 +29,11 @@ export function appSiteFor(
   if (entry) {
     return `https://${entry.domain}`;
   }
+  if (manifest.type === "mcp-local") {
+    // A server that runs here has no address to draw; only the directory can
+    // say what site the thing it reaches belongs to.
+    return undefined;
+  }
   const endpoint = manifest.type === "api" ? manifest.baseUrl : manifest.url;
   let url: URL;
   try {

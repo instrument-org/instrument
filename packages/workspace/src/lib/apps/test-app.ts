@@ -1,9 +1,13 @@
 import { type AbsolutePath } from "../../schemas/paths";
 import { getWorkspaceConfig } from "../workspace-config";
 import { recordConnection } from "./connection";
-import { APP_GUIDE_FILE_NAME, APP_MANIFEST_EXAMPLE } from "./manifest";
-import { listMcpTools, withMcpClient } from "./mcp/client";
-import { mcpConnectionConfig } from "./mcp/connection-config";
+import {
+  APP_GUIDE_FILE_NAME,
+  APP_MANIFEST_EXAMPLE,
+  isMcpManifest,
+} from "./manifest";
+import { listMcpTools } from "./mcp/client";
+import { withAppMcpClient } from "./mcp/run";
 import { mcpAuthProviderForCommand } from "./mcp/tool-auth";
 import { performAppRequest, redactCredential } from "./request";
 import { scanAppFolder } from "./secret-scan";
@@ -112,12 +116,20 @@ export async function runAppTest({
 
   const { apps } = getWorkspaceConfig();
   const credential = await apps.getCredential(slug);
-  let missing: "key" | "sign-in" | undefined;
+  let missing: "approval" | "key" | "sign-in" | undefined;
   if (app.manifest.auth.kind === "none") {
     checks.push({
       detail: "No credential required (auth kind is none).",
       name: "credential",
       status: "skip",
+    });
+  } else if (app.manifest.type === "mcp-local" && credential === null) {
+    missing = "key";
+    checks.push({
+      name: "credential",
+      ...failure(
+        `No key is stored for this app; its server reads one from ${app.manifest.auth.envVar}. Ask the user for one with connect_app, then test again.`,
+      ),
     });
   } else if (app.manifest.auth.kind === "oauth") {
     // OAuth tokens live in the OAuth store, not the credential store; the
@@ -167,24 +179,32 @@ export async function runAppTest({
     );
   }
 
-  if (app.manifest.type === "mcp") {
+  if (isMcpManifest(app.manifest)) {
     const manifest = app.manifest;
-    const authProvider = mcpAuthProviderForCommand(slug, manifest);
-    if (manifest.auth.kind === "oauth" && authProvider === undefined) {
+    if (
+      manifest.type === "mcp" &&
+      manifest.auth.kind === "oauth" &&
+      mcpAuthProviderForCommand(slug, manifest) === undefined
+    ) {
       checks.push({
         name: "canary",
         ...failure("Sign-in is not available in this context."),
       });
       return finish(report());
     }
-    const mcpResult = await withMcpClient({
-      authProvider,
-      config: mcpConnectionConfig(manifest, credential),
+    const mcpResult = await withAppMcpClient({
+      credential,
+      manifest,
+      manifestHash: app.manifestHash,
       run: (client) => listMcpTools(client),
       signal,
+      slug,
     });
     if (mcpResult.isErr()) {
-      if (
+      if (mcpResult.error.reason === "unapproved") {
+        missing = "approval";
+      } else if (
+        manifest.type === "mcp" &&
         manifest.auth.kind === "oauth" &&
         mcpResult.error.reason === "unauthorized"
       ) {
@@ -194,7 +214,10 @@ export async function runAppTest({
       return finish(report());
     }
     checks.push({
-      detail: `Connected to the MCP server; ${mcpResult.value.length} tools available.`,
+      detail:
+        manifest.type === "mcp-local"
+          ? `Started the server and listed its tools; ${mcpResult.value.length} available.`
+          : `Connected to the MCP server; ${mcpResult.value.length} tools available.`,
       name: "canary",
       status: "pass",
     });
@@ -254,7 +277,9 @@ export async function runAppTest({
           ? "needs-key"
           : missing === "sign-in"
             ? "needs-sign-in"
-            : "failed",
+            : missing === "approval"
+              ? "needs-approval"
+              : "failed",
     });
     return result;
   }

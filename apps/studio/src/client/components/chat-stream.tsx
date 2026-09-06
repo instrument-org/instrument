@@ -633,7 +633,17 @@ export function ChatStream({
         }
       }
 
-      if (message.role === "assistant" && message.metadata.error) {
+      // A reply the conversation superseded is not an error to anyone; it
+      // is simply not shown, in developer mode too.
+      const superseded =
+        presentation === "orchestrator" &&
+        message.role === "assistant" &&
+        message.metadata.error?.kind === "aborted";
+      if (
+        message.role === "assistant" &&
+        message.metadata.error &&
+        !superseded
+      ) {
         messageElements.push(
           <MessageError
             isAgentRunning={isAgentRunning}

@@ -4,15 +4,15 @@
     {
       "slug": "cloudflare",
       "name": "Cloudflare",
-      "tagline": "The whole Cloudflare API, DNS to Workers, from one MCP server.",
-      "description": "Cloudflare hosts one MCP server for its entire API, over 2,500 endpoints, but that server only accepts clients registered with Cloudflare, which Instrument does not hold yet, so a sign-in there fails with an invalid client id. Its product-scoped servers (Workers bindings, documentation, observability, Radar and more) accept a client registered on the spot and sign in with OAuth in the browser. The REST API takes an API token.",
+      "tagline": "Workers, bindings, docs, and observability over one sign-in.",
+      "description": "Cloudflare runs a separate MCP server per product: Workers bindings, documentation, observability, Radar and more. Each registers a client on the spot and signs in with OAuth in the browser. The server covering the whole API is not reachable from here, since it only accepts clients Cloudflare has issued in advance, so use a product-scoped one or the REST API, which takes an API token.",
       "domain": "cloudflare.com",
       "categories": ["infrastructure", "developer-tools", "dns"],
       "authMethods": [
         {
           "type": "oauth2",
           "label": "OAuth 2.0",
-          "note": "The product-scoped MCP servers register a client on the spot; the whole-API server needs one registered with Cloudflare in advance."
+          "note": "The product-scoped MCP servers register a client on the spot; no key to paste."
         },
         {
           "type": "token",
@@ -35,9 +35,9 @@
         },
         {
           "format": "mcp",
-          "name": "Cloudflare API MCP server (needs a client registered with Cloudflare)",
-          "endpoint": "https://mcp.cloudflare.com/mcp",
-          "auth": "oauth-registered"
+          "name": "Observability MCP server",
+          "endpoint": "https://observability.mcp.cloudflare.com/mcp",
+          "auth": "oauth"
         },
         {
           "format": "openapi",

@@ -181,6 +181,35 @@ function HomeRoute() {
           },
         ]
       : []),
+    // What the words can be used with, first: searching the web and asking
+    // the conversation are what typed words most often mean, and the rows
+    // that matched them follow.
+    ...(words
+      ? [
+          {
+            group: `Use “${query.trim()}” with`,
+            icon: <MagnifyingGlassIcon className="size-4" />,
+            name: "Search the web",
+            note: "Browser",
+            run: () => {
+              openSite(
+                `https://www.google.com/search?q=${encodeURIComponent(query.trim())}`,
+              );
+              setQuery("");
+            },
+          },
+          {
+            group: `Use “${query.trim()}” with`,
+            icon: <InstrumentGlyph className="size-4" />,
+            name: "Ask Instrument",
+            note: "Agent",
+            run: () => {
+              ask(query.trim());
+              setQuery("");
+            },
+          },
+        ]
+      : []),
     ...screens.map((screen) => ({
       group: "Screens",
       icon: <screen.icon className="size-4" />,
@@ -216,34 +245,6 @@ function HomeRoute() {
       note: app.note,
       run: app.run,
     })),
-    // What the words can be used with, whatever else matched: the way a
-    // launcher offers its fallbacks under the results rather than as an "or".
-    ...(words
-      ? [
-          {
-            group: `Use “${query.trim()}” with`,
-            icon: <InstrumentGlyph className="size-4" />,
-            name: "Ask Instrument",
-            note: "Agent",
-            run: () => {
-              ask(query.trim());
-              setQuery("");
-            },
-          },
-          {
-            group: `Use “${query.trim()}” with`,
-            icon: <MagnifyingGlassIcon className="size-4" />,
-            name: "Search the web",
-            note: "Browser",
-            run: () => {
-              openSite(
-                `https://www.google.com/search?q=${encodeURIComponent(query.trim())}`,
-              );
-              setQuery("");
-            },
-          },
-        ]
-      : []),
   ];
   const current = Math.min(highlight, Math.max(0, rows.length - 1));
 

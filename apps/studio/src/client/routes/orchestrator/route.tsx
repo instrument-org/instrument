@@ -28,6 +28,7 @@ import {
   ViewChip,
 } from "@/client/components/orchestrator/conversation-chrome";
 import { fileHref } from "@/client/components/orchestrator/file-tabs";
+import { screenPresentation } from "@/client/components/orchestrator/screen-presentation";
 import { OrchestratorPins } from "@/client/components/orchestrator/sidebar";
 import { WindowTabStrip } from "@/client/components/orchestrator/window-tab-strip";
 import {
@@ -145,6 +146,9 @@ function OrchestratorLayout() {
       refetchInterval: REFRESH_MS,
     }),
   );
+  const childTitles = new Map<TaskId, string>(
+    children.data?.map((child) => [child.id, child.title]) ?? [],
+  );
   const messages = useQuery(
     rpcClient.workspace.message.live.list.experimental_liveOptions({
       input: ids ? { id: ids.taskId, sessionId: ids.sessionId } : skipToken,
@@ -259,6 +263,40 @@ function OrchestratorLayout() {
     }
   };
 
+  // What the conversation asks to open, as it asks: a page as a tab, a file
+  // of the user's as a file tab. The openers are read at the moment of each
+  // ask, since they close over the tabs as they are then.
+  const openers = useRef({ openPage, openScreen });
+  useEffect(() => {
+    openers.current = { openPage, openScreen };
+  });
+  useEffect(() => {
+    if (!ids) {
+      return;
+    }
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const asks = await rpcClient.workspace.orchestrator.events.open.call(
+          { id: ids.taskId },
+          { signal: controller.signal },
+        );
+        for await (const target of asks) {
+          if (target.kind === "page") {
+            openers.current.openPage(target.url);
+          } else {
+            openers.current.openScreen(fileHref(target.mount));
+          }
+        }
+      } catch {
+        // The window closing ends the stream.
+      }
+    })();
+    return () => {
+      controller.abort();
+    };
+  }, [ids]);
+
   // Closing a task's browser tab closes the browser, and the task loses its
   // page; while the task is in it, the user is asked first.
   const [closingBrowser, setClosingBrowser] = useState<{
@@ -317,11 +355,7 @@ function OrchestratorLayout() {
     selectRelative: windowTabs.selectRelative,
     selectTab: windowTabs.selectIndex,
   });
-  useRecordRecents({
-    childTitles: new Map(
-      children.data?.map((child) => [child.id, child.title]) ?? [],
-    ),
-  });
+  useRecordRecents({ childTitles });
 
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions(),
@@ -463,6 +497,21 @@ function OrchestratorLayout() {
                             return {
                               ...screenView,
                               ...(page ? { page } : {}),
+                              tabs: tabs.map((tab) =>
+                                tab.kind === "page"
+                                  ? {
+                                      at: tab.url ?? "about:blank",
+                                      id: tab.id,
+                                      title: tab.title || tab.url || "New tab",
+                                    }
+                                  : {
+                                      at: tab.href,
+                                      title: screenPresentation(tab.href, {
+                                        appsBySlug: new Map(),
+                                        childTitles,
+                                      }).title,
+                                    },
+                              ),
                               url: location.href,
                             };
                           }}

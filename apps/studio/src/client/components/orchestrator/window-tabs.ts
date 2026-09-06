@@ -1,5 +1,6 @@
 import {
   closedTabsAtom,
+  NEW_TAB_HREF,
   type WindowTab,
   windowTabsAtom,
 } from "@/client/atoms/orchestrator";
@@ -97,6 +98,16 @@ export function useWindowTabs() {
         return current;
       }
       const remaining = current.tabs.filter((tab) => tab.id !== id);
+      // The last tab closing leaves a new tab in its place, whatever it was:
+      // the window is never empty, and an empty list would only reopen the
+      // screen the router is still at.
+      if (remaining.length === 0) {
+        const fresh = `screen-${crypto.randomUUID()}`;
+        return {
+          activeId: fresh,
+          tabs: [{ href: NEW_TAB_HREF, id: fresh, kind: "screen" }],
+        };
+      }
       return {
         activeId:
           current.activeId === id

@@ -81,11 +81,10 @@ export function parseWorkersAiModelsList({
     }
 
     const params = { provider: config.type, providerConfigId: config.id };
-    const colonIndex = model.name.indexOf(":");
-    const modelName =
-      colonIndex === -1
-        ? model.name || generateModelName(canonicalId)
-        : model.name.slice(colonIndex + 1);
+    // Cloudflare's name is the id title-cased word by word ("Zai Org: Glm 5.3
+    // Flash"), so it carries nothing the id does not and gets the brands
+    // wrong. Our own generator knows GLM, GPT, OSS and DeepSeek.
+    const modelName = generateModelName(canonicalId);
 
     validModels.push(
       addHeuristicTags(

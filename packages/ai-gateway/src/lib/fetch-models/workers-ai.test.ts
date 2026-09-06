@@ -147,6 +147,39 @@ describe("fetchAndParseWorkersAiModels", () => {
     ]);
   });
 
+  it("names a model from its id rather than Cloudflare's title-cased name", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          modelsSearchResponse([
+            openRouterModel({
+              id: "@cf/zai-org/glm-5.3-flash",
+              name: "Zai Org: Glm 5.3 Flash",
+              supported_features: ["tools"],
+            }),
+            openRouterModel({
+              id: "@cf/openai/gpt-oss-120b",
+              name: "OpenAI: Gpt Oss 120B",
+              supported_features: ["tools"],
+            }),
+          ]),
+        ),
+        { status: 200 },
+      ),
+    );
+    const result = await fetchAndParseWorkersAiModels(workersAiConfig);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.value.map((m) => m.name)).toEqual([
+      "GLM 5.3 Flash",
+      "GPT OSS 120B",
+    ]);
+  });
+
   it("maps tool support from supported_features", async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(

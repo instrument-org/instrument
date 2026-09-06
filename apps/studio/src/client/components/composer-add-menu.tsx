@@ -35,6 +35,12 @@ export interface ComposerAction {
    */
   keepMenuOpen?: boolean;
   label: string;
+  /**
+   * For an entry that opens another surface which takes the caret itself. The
+   * menu then closes without putting the caret anywhere, since focusing the
+   * prompt would close what just opened.
+   */
+  leavesFocus?: boolean;
   onSelect: () => void;
 }
 
@@ -86,7 +92,7 @@ export function ComposerAddMenu({
   // Whether this closed because something was chosen, which is the only case
   // where the menu owns where focus lands next. Dismissing it is the user
   // going somewhere themselves, and Radix's own handling is right for that.
-  const chose = useRef(false);
+  const chose = useRef<"leave" | "prompt" | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const { alignOffset, side, sideOffset, width } = useComposerMenuPlacement({
     anchorRef: triggerRef,
@@ -136,12 +142,15 @@ export function ComposerAddMenu({
         // opened this -- including out of the project picker, which is a
         // second menu deep and would otherwise leave the caret nowhere.
         onCloseAutoFocus={(event) => {
-          if (!chose.current) {
+          const after = chose.current;
+          if (!after) {
             return;
           }
-          chose.current = false;
+          chose.current = null;
           event.preventDefault();
-          onReturnFocus();
+          if (after === "prompt") {
+            onReturnFocus();
+          }
         }}
         side={side}
         sideOffset={sideOffset}
@@ -150,7 +159,7 @@ export function ComposerAddMenu({
         {view === "projects" && onSelectProject ? (
           <ProjectItems
             onSelect={(id) => {
-              chose.current = true;
+              chose.current = "prompt";
               onSelectProject(id);
               onViewChange(null);
             }}
@@ -165,7 +174,7 @@ export function ComposerAddMenu({
                   if (action.keepMenuOpen) {
                     event.preventDefault();
                   } else {
-                    chose.current = true;
+                    chose.current = action.leavesFocus ? "leave" : "prompt";
                   }
                   action.onSelect();
                 }}
@@ -181,7 +190,7 @@ export function ComposerAddMenu({
               <DropdownMenuItem
                 key={skill.id}
                 onSelect={() => {
-                  chose.current = true;
+                  chose.current = "prompt";
                   onSelectSkill(skill);
                 }}
               >

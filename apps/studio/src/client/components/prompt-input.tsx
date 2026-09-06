@@ -565,6 +565,9 @@ export const PromptInput = ({
             label: selectedModel
               ? `Model · ${selectedModel.name}`
               : "Choose a model",
+            // The picker takes the caret; the prompt getting it back would
+            // read as focus leaving the picker and close it at once.
+            leavesFocus: true,
             onSelect: () => {
               setPickerOpen(true);
             },

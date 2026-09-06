@@ -22,14 +22,6 @@ export const orchestratorRecentsAtom = atomWithStorage<OrchestratorRecent[]>(
   { getOnInit: true },
 );
 
-/** Its own key: this window's sidebar opens and closes apart from Studio's. */
-export const orchestratorSidebarOpenAtom = atomWithStorage<boolean>(
-  "orchestrator.sidebar-open.v1",
-  true,
-  undefined,
-  { getOnInit: true },
-);
-
 /**
  * What the window has on screen this moment, written by the screen that is
  * up and cleared when it leaves, so what goes with a message is what the
@@ -42,26 +34,6 @@ export type ScreenView = Omit<
 >;
 
 export const screenViewAtom = atom<null | ScreenView>(null);
-
-/** Whether the conversation down the right is open. */
-export const orchestratorChatOpenAtom = atomWithStorage<boolean>(
-  "orchestrator.chat-open.v1",
-  true,
-  undefined,
-  { getOnInit: true },
-);
-
-export const CHAT_WIDTH_MIN = 320;
-export const CHAT_WIDTH_MAX = 800;
-export const CHAT_WIDTH_DEFAULT = 480;
-
-/** The conversation's width in CSS px, dragged by its left edge. */
-export const orchestratorChatWidthAtom = atomWithStorage<number>(
-  "orchestrator.chat-width.v1",
-  CHAT_WIDTH_DEFAULT,
-  undefined,
-  { getOnInit: true },
-);
 
 /** A tab of the window's browser: a browser session of the orchestrator's. */
 export interface BrowserTab {
@@ -77,17 +49,6 @@ export interface BrowserTab {
   /** The last page it showed, opened again when the tab comes back. */
   url?: string;
 }
-
-/**
- * The window's tabs, kept across launches: each is a browser session whose
- * last page the workspace restores when the tab is opened again.
- */
-export const orchestratorTabsAtom = atomWithStorage<{
-  activeId: null | string;
-  tabs: BrowserTab[];
-}>("orchestrator.browser-tabs.v2", { activeId: null, tabs: [] }, undefined, {
-  getOnInit: true,
-});
 
 /**
  * The icon each site last announced, by origin, so a pin or a recent can
@@ -137,7 +98,7 @@ export function originOf(url: string | undefined): string | undefined {
 
 export const linkedFilesAtom = atom<LinkedFile[]>([]);
 
-/** A file open in a tab of This Mac, beside the folder browser. */
+/** A file the window can open in a tab: where the viewer reaches it, and where it is on the Mac when known. */
 export interface FileTab {
   /** Where it is on the Mac, when known: as the person writes it. */
   hostPath?: string;
@@ -145,9 +106,6 @@ export interface FileTab {
   mount: string;
   name: string;
 }
-
-/** File tabs closed this launch, newest last, for Shift+Cmd+T. */
-export const closedFileTabsAtom = atom<FileTab[]>([]);
 
 export const TASKS_COLUMN_MIN = 200;
 export const TASKS_COLUMN_MAX = 480;
@@ -160,10 +118,38 @@ export const tasksColumnWidthAtom = atomWithStorage<number>(
   { getOnInit: true },
 );
 
-/** The files open on This Mac, in strip order, kept across launches. */
-export const fileTabsAtom = atomWithStorage<FileTab[]>(
-  "orchestrator.file-tabs.v1",
-  [],
+/**
+ * A tab of the window. A page is a browser session of the orchestrator's,
+ * drawn by a guest the pool holds; a screen is anything else the product
+ * shows (a folder, a file, a task, the apps, a new tab), addressed by the
+ * route it is at, so navigating inside it changes the tab and not the row.
+ */
+export type WindowTab =
+  | (BrowserTab & { kind: "page" })
+  | { href: string; id: string; kind: "screen" };
+
+/** The address a new tab opens at: the page with the box that reaches everything. */
+export const NEW_TAB_HREF = "/orchestrator/home";
+
+/** The window's tabs in strip order and which is on screen, kept across launches. */
+export const windowTabsAtom = atomWithStorage<{
+  activeId: null | string;
+  tabs: WindowTab[];
+}>("orchestrator.tabs.v1", { activeId: null, tabs: [] }, undefined, {
+  getOnInit: true,
+});
+
+/** Tabs closed this launch, newest last, for Shift+Cmd+T. A page comes back at its last address. */
+export const closedTabsAtom = atom<WindowTab[]>([]);
+
+export const SIDEBAR_WIDTH_MIN = 320;
+export const SIDEBAR_WIDTH_MAX = 640;
+export const SIDEBAR_WIDTH_DEFAULT = 400;
+
+/** The sidebar's width in CSS px, dragged by its right edge. It holds the conversation, so it never closes. */
+export const orchestratorSidebarWidthAtom = atomWithStorage<number>(
+  "orchestrator.sidebar-width.v1",
+  SIDEBAR_WIDTH_DEFAULT,
   undefined,
   { getOnInit: true },
 );

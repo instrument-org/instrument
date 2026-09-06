@@ -459,7 +459,22 @@ export function ChatStream({
       let projectContextPart: SessionMessagePart.DataPart | undefined;
       const seenSourceIds = new Set<string>();
 
+      // The conversation's own replies land whole: while a step is still
+      // being composed its words are held back and a typing row stands in,
+      // so what the user reads is what was sent, never what is being typed.
+      // A reply that was superseded before it finished is never shown.
+      const isComposing =
+        presentation === "orchestrator" &&
+        message.role === "assistant" &&
+        ((isAgentRunning && isLastMessage && !message.metadata.finishedAt) ||
+          message.metadata.error?.kind === "aborted");
+      let heldBackRowId: StoreId.Part | undefined;
+
       for (const [partIndex, part] of message.parts.entries()) {
+        if (isComposing && part.type === "text") {
+          heldBackRowId ??= part.metadata.id;
+          continue;
+        }
         let browserStatusContextAdded = false;
         if (part.type === "data-browserStatus") {
           const note = browserStatusModelNote(part.data);
@@ -531,6 +546,13 @@ export function ChatStream({
         if (message.role === "assistant") {
           visibleAssistantContentCount++;
         }
+      }
+
+      if (heldBackRowId !== undefined && isAgentRunning && isLastMessage) {
+        messageRows.push({
+          id: heldBackRowId,
+          node: <TypingRow key={heldBackRowId} />,
+        });
       }
 
       const messageElements = collectGroups({
@@ -725,7 +747,11 @@ export function ChatStream({
         ...(presentation === "orchestrator"
           ? []
           : [<TurnWordmark key={TURN_WORDMARK_ID} />]),
-        <AwaitingFirstRow key={PLANNING_ROW_ID} />,
+        presentation === "orchestrator" ? (
+          <TypingRow key={PLANNING_ROW_ID} />
+        ) : (
+          <AwaitingFirstRow key={PLANNING_ROW_ID} />
+        ),
       ];
       elements.push(
         renderAsItems ? (
@@ -1025,6 +1051,29 @@ function TurnWordmark() {
     // depend on which kind of content happens to open the turn.
     <div className="flex justify-start pb-2.5">
       <Wordmark className="mt-5 mb-2 h-5.5 text-black/30 dark:text-white/30" />
+    </div>
+  );
+}
+
+/**
+ * The conversation is composing: three dots, the way a messaging app says
+ * someone is typing, in the place the reply will land. No words are shown
+ * until the reply is whole.
+ */
+function TypingRow() {
+  return (
+    <div className={STEP_RUN}>
+      <div className={cn(TRANSCRIPT_ROW, "animate-in fill-mode-both fade-in")}>
+        <span aria-label="Typing" className="flex h-5 items-center gap-1">
+          {[0, 1, 2].map((index) => (
+            <span
+              className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60"
+              key={index}
+              style={{ animationDelay: `${index * 150}ms` }}
+            />
+          ))}
+        </span>
+      </div>
     </div>
   );
 }

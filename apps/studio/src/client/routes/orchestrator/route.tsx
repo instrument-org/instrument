@@ -1,19 +1,17 @@
 import {
-  CHAT_WIDTH_DEFAULT,
-  CHAT_WIDTH_MAX,
-  CHAT_WIDTH_MIN,
   linkedFilesAtom,
-  orchestratorChatOpenAtom,
-  orchestratorChatWidthAtom,
+  NEW_TAB_HREF,
   type OrchestratorRecent,
   orchestratorRecentsAtom,
-  orchestratorSidebarOpenAtom,
+  orchestratorSidebarWidthAtom,
   RECENTS_MAX,
   screenViewAtom,
+  SIDEBAR_WIDTH_DEFAULT,
+  SIDEBAR_WIDTH_MAX,
+  SIDEBAR_WIDTH_MIN,
 } from "@/client/atoms/orchestrator";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import {
-  type BrowserPage,
   BrowserTabs,
   type BrowserTabsHandle,
 } from "@/client/components/orchestrator/browser-tabs";
@@ -25,15 +23,15 @@ import {
   TasksWorkingRow,
   ViewChip,
 } from "@/client/components/orchestrator/conversation-chrome";
+import { fileHref } from "@/client/components/orchestrator/file-tabs";
+import { OrchestratorBookmarks } from "@/client/components/orchestrator/sidebar";
+import { WindowTabStrip } from "@/client/components/orchestrator/window-tab-strip";
 import {
-  hostPathOfMount,
-  useCloseFileTab,
-  useOpenFileTab,
-  useReopenFileTab,
-  useSelectFileTab,
-  useSelectRelativeFileTab,
-} from "@/client/components/orchestrator/file-tabs";
-import { OrchestratorSidebar } from "@/client/components/orchestrator/sidebar";
+  PAGE_ROUTE,
+  parseHref,
+  usePopClosedTab,
+  useWindowTabs,
+} from "@/client/components/orchestrator/window-tabs";
 import {
   type RailBounds,
   StudioSidebarRail,
@@ -50,33 +48,29 @@ import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { type TaskId } from "@instrument-org/workspace/client";
-import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
-import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
-import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import {
   createFileRoute,
   Outlet,
-  useCanGoBack,
-  useNavigate,
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import ms from "ms";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
-/** How often the orchestrator's tasks and their status are re-read. */
+/** How often the tasks' titles are re-read, for the strip. */
 const REFRESH_MS = ms("2 seconds");
 
 /** How long a screen has to stay up before Recent counts it. */
 const RECENT_DWELL_MS = ms("2 seconds");
 
-const CHAT_BOUNDS: RailBounds = {
-  collapse: 240,
-  initial: CHAT_WIDTH_DEFAULT,
-  max: CHAT_WIDTH_MAX,
-  min: CHAT_WIDTH_MIN,
+/** The sidebar holds the conversation, so its floor is where it stops shrinking, never a collapse. */
+const SIDEBAR_BOUNDS: RailBounds = {
+  collapse: 0,
+  initial: SIDEBAR_WIDTH_DEFAULT,
+  max: SIDEBAR_WIDTH_MAX,
+  min: SIDEBAR_WIDTH_MIN,
 };
 
 export const Route = createFileRoute("/orchestrator")({
@@ -84,111 +78,28 @@ export const Route = createFileRoute("/orchestrator")({
   head: () => ({ meta: [{ title: APP_NAME }] }),
 });
 
-function ChromeButton({
-  children,
-  disabled,
-  label,
-  onClick,
-}: {
-  children: ReactNode;
-  disabled?: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      aria-label={label}
-      className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
-      disabled={disabled}
-      onClick={onClick}
-      type="button"
-    >
-      {children}
-    </button>
-  );
-}
-
 /**
- * The window's chrome. It drags by its top-left corner only, so the rest of
- * the top edge is the screens' to use; past the traffic lights sit the
- * sidebar toggle and back and forward; and when the conversation is away,
- * the mark floats in the bottom right corner to bring it back, with a dot on
- * it while there is a reply the user has not seen.
+ * The window's chrome: no title bar, so it drags by its top-left corner,
+ * which is the sidebar's top, past the traffic lights.
  */
-function Frame({
-  children,
-  hasUnread,
-  isChatOpen,
-  isSidebarOpen,
-  onOpenChat,
-  onToggleSidebar,
-}: {
-  children: ReactNode;
-  hasUnread: boolean;
-  isChatOpen: boolean;
-  isSidebarOpen: boolean;
-  onOpenChat: () => void;
-  onToggleSidebar: () => void;
-}) {
-  const router = useRouter();
-  const canGoBack = useCanGoBack();
+function Frame({ children }: { children: ReactNode }) {
   return (
     <div className="relative flex h-screen bg-background">
       <div className="absolute top-0 left-0 z-10 h-10 w-60 [-webkit-app-region:drag]" />
-      <div className="absolute top-2 left-20 z-20 flex items-center gap-0.5 [-webkit-app-region:no-drag]">
-        <ChromeButton
-          label={isSidebarOpen ? "Hide sidebar" : "Show sidebar"}
-          onClick={onToggleSidebar}
-        >
-          <SidebarSimpleIcon className="size-4" />
-        </ChromeButton>
-        <ChromeButton
-          disabled={!canGoBack}
-          label="Back"
-          onClick={() => {
-            router.history.back();
-          }}
-        >
-          <ArrowLeftIcon className="size-4" />
-        </ChromeButton>
-        <ChromeButton
-          label="Forward"
-          onClick={() => {
-            router.history.forward();
-          }}
-        >
-          <ArrowRightIcon className="size-4" />
-        </ChromeButton>
-      </div>
       {children}
-      {isChatOpen ? null : (
-        <button
-          aria-label={
-            hasUnread ? "Show Instrument, new reply" : "Show Instrument"
-          }
-          className="fixed right-4 bottom-4 z-30 size-11 text-brand-600 transition-transform hover:scale-105 dark:text-brand-400"
-          onClick={onOpenChat}
-          type="button"
-        >
-          <InstrumentGlyph className="size-11" />
-          {hasUnread ? (
-            <span className="absolute -top-0.5 -right-0.5 size-3 rounded-full bg-foreground ring-2 ring-background" />
-          ) : null}
-        </button>
-      )}
       <Toaster position="top-center" />
     </div>
   );
 }
 
 /**
- * The window: the places in the product down the left, the screen that is up
- * in the middle, the conversation down the right. No title bar: the window
- * drags by its top-left corner, past the traffic lights sit the sidebar
- * toggle and back and forward, and the conversation is a rail like the
- * sidebar, with the Instrument mark floating in the corner when it is away.
- * The browser is mounted here rather than by its screen, so the page it
- * holds survives the user leaving for a folder and coming back.
+ * The window: the sidebar down the left, with the user's own things at its
+ * top and the conversation under them, and to its right one strip of tabs
+ * above whatever is open. A tab is a page (a browser guest of the
+ * orchestrator's) or a screen (a folder, a file, a task, the apps, a new tab)
+ * addressed by the route it is at, so the router follows the tab on screen
+ * and a screen navigating inside itself changes its own tab. The sidebar
+ * never closes: the conversation is always in reach.
  */
 function OrchestratorLayout() {
   const ensure = useQuery(
@@ -216,18 +127,13 @@ function OrchestratorLayout() {
       refetchInterval: REFRESH_MS,
     }),
   );
-  // The same subscription the conversation holds, read here for the dot on
-  // the mark: which reply is newest, against which one the user last had open.
   const messages = useQuery(
     rpcClient.workspace.message.live.list.experimental_liveOptions({
       input: ids ? { id: ids.taskId, sessionId: ids.sessionId } : skipToken,
     }),
   );
   const [defaultModelURI] = useDefaultModelURI();
-  const [isSidebarOpen, setSidebarOpen] = useAtom(orchestratorSidebarOpenAtom);
-  const [isChatOpen, setChatOpen] = useAtom(orchestratorChatOpenAtom);
   const screenView = useAtomValue(screenViewAtom);
-  const openFileTab = useOpenFileTab();
   const setLinkedFiles = useSetAtom(linkedFilesAtom);
   // The files the conversation has handed over, newest first, for the sidebar.
   const linkedFiles = messages.data
@@ -250,75 +156,102 @@ function OrchestratorLayout() {
     // By content: the list is rebuilt from the messages on every update.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linkedKey, setLinkedFiles]);
-  const navigate = useNavigate();
+  const router = useRouter();
   const location = useRouterState({
     select: (routerState) => routerState.location,
   });
-  const isBrowserScreen = location.pathname === "/orchestrator/browser";
 
   // The browser hands its handle over once mounted; state rather than a ref,
   // since the send handler below and the screens read it.
   const [browser, setBrowser] = useState<BrowserTabsHandle | null>(null);
-  const closeFileTab = useCloseFileTab();
-  const reopenFileTab = useReopenFileTab();
-  const selectFileTab = useSelectFileTab();
-  const selectRelativeFileTab = useSelectRelativeFileTab();
+  const windowTabs = useWindowTabs();
+  const popClosed = usePopClosedTab();
+  const { active, activeId, tabs } = windowTabs;
+  const isPageOnScreen = active?.kind === "page";
+
+  // The window is never empty: closing the last tab leaves a new one.
+  useEffect(() => {
+    if (tabs.length === 0) {
+      windowTabs.openScreen(NEW_TAB_HREF);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabs.length]);
+
+  // The router follows the tab on screen: a screen's own address, or the
+  // page route, which shows nothing of its own, while a page is up.
+  useEffect(() => {
+    if (!active) {
+      return;
+    }
+    if (active.kind === "page") {
+      if (location.pathname !== PAGE_ROUTE) {
+        router.history.push(PAGE_ROUTE);
+      }
+    } else if (location.href !== active.href) {
+      router.history.push(active.href);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId]);
+
+  // And the tab on screen follows the router: a screen navigating inside
+  // itself moves its tab's address; an address reached while a page was up
+  // (a link, a command) is a screen tab of its own.
+  useEffect(() => {
+    if (location.pathname === PAGE_ROUTE) {
+      return;
+    }
+    if (active?.kind === "screen") {
+      windowTabs.setActiveHref(location.href);
+    } else {
+      windowTabs.openOrFocusScreen(location.href);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.href]);
+
+  const isFreshNewTab =
+    active?.kind === "screen" &&
+    parseHref(active.href).pathname === parseHref(NEW_TAB_HREF).pathname;
+  const openPage = (url: string) => {
+    const fresh = isFreshNewTab ? active.id : undefined;
+    browser?.openOrFocus(url);
+    if (fresh) {
+      windowTabs.close(fresh);
+    }
+  };
+  const openScreen = (href: string) => {
+    if (isFreshNewTab) {
+      router.history.push(href);
+    } else {
+      windowTabs.openOrFocusScreen(href);
+    }
+  };
+
   useWindowCommands({
     closeTab: () => {
-      if (isBrowserScreen) {
-        browser?.closeActive();
-      } else {
-        closeFileTab();
-      }
+      windowTabs.closeActive();
     },
     newTab: () => {
-      browser?.open();
-      void navigate({ to: "/orchestrator/browser" });
+      windowTabs.openScreen(NEW_TAB_HREF);
     },
     reopenTab: () => {
-      if (isBrowserScreen) {
-        browser?.reopenClosed();
+      const tab = popClosed();
+      if (!tab) {
+        return;
+      }
+      if (tab.kind === "page") {
+        browser?.open(tab.url);
       } else {
-        reopenFileTab();
+        windowTabs.openScreen(tab.href);
       }
     },
-    selectRelative: (direction) => {
-      if (isBrowserScreen) {
-        browser?.selectRelative(direction);
-      } else {
-        selectRelativeFileTab(direction);
-      }
-    },
-    selectTab: (index) => {
-      if (isBrowserScreen) {
-        browser?.selectTab(index);
-      } else {
-        selectFileTab(index);
-      }
-    },
+    selectRelative: windowTabs.selectRelative,
+    selectTab: windowTabs.selectIndex,
   });
-  const recordBrowserPage = useRecordRecents({
+  useRecordRecents({
     childTitles: new Map(
       children.data?.map((child) => [child.id, child.title]) ?? [],
     ),
   });
-
-  const latestReplyId = messages.data?.findLast(
-    (message) =>
-      message.role === "assistant" &&
-      message.parts.some(
-        (part) => part.type === "text" && part.text.trim() !== "",
-      ),
-  )?.id;
-  // The reply that was newest when the conversation was put away: a newer one
-  // since is one the user has not seen.
-  const [seenReplyId, setSeenReplyId] = useState<string | undefined>();
-  const closeChat = () => {
-    setSeenReplyId(latestReplyId);
-    setChatOpen(false);
-  };
-  const hasUnread =
-    !isChatOpen && latestReplyId !== undefined && latestReplyId !== seenReplyId;
 
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions(),
@@ -330,7 +263,6 @@ function OrchestratorLayout() {
           if (!modelURI) {
             return;
           }
-          setChatOpen(true);
           createMessage.mutate({
             id: ids.taskId,
             modelURI,
@@ -339,26 +271,16 @@ function OrchestratorLayout() {
           });
         },
         browser,
+        openPage,
+        openScreen,
         sessionId: ids.sessionId,
         taskId: ids.taskId,
       }
     : null;
 
-  const chrome = {
-    hasUnread,
-    isChatOpen,
-    isSidebarOpen,
-    onOpenChat: () => {
-      setChatOpen(true);
-    },
-    onToggleSidebar: () => {
-      setSidebarOpen((open) => !open);
-    },
-  };
-
   if (ensure.error) {
     return (
-      <Frame {...chrome}>
+      <Frame>
         <p className="p-4 pt-12 text-sm text-destructive">
           Could not open the conversation: {ensure.error.message}
         </p>
@@ -368,7 +290,7 @@ function OrchestratorLayout() {
 
   if (!screens || !task.data || !state.data) {
     return (
-      <Frame {...chrome}>
+      <Frame>
         <div className="flex h-full flex-1 items-center justify-center">
           <Spinner className="size-6" />
         </div>
@@ -376,122 +298,108 @@ function OrchestratorLayout() {
     );
   }
 
-  const attachedFolders = state.data.attachedFolders ?? {};
-
   return (
     <OrchestratorContext value={screens}>
-      {/* A file the conversation offers opens in a tab on This Mac, beside whatever folder is up there. */}
+      {/* A file the conversation offers opens in a tab of its own. */}
       <FileOpenContext
         value={(filePath) => {
-          const hostPath = hostPathOfMount(filePath, attachedFolders);
-          openFileTab({
-            ...(hostPath ? { hostPath } : {}),
-            mount: filePath,
-            name: filePath.split("/").at(-1) ?? filePath,
-          });
+          openScreen(fileHref(filePath));
         }}
       >
-        <Frame {...chrome}>
+        <Frame>
           <StudioSidebarRail
-            isOpen={isSidebarOpen}
+            bounds={SIDEBAR_BOUNDS}
+            isOpen
+            label="Resize the sidebar"
             onCollapse={() => {
-              setSidebarOpen(false);
+              // The conversation lives here; the sidebar has no away to slide to.
             }}
+            panelClassName="bg-background"
+            widthAtom={orchestratorSidebarWidthAtom}
           >
             <div className="flex min-h-0 w-full flex-1 flex-col pt-10">
-              <OrchestratorSidebar className="min-h-0 w-full flex-1" />
-            </div>
-          </StudioSidebarRail>
-          {/* With the sidebar away, the traffic lights and the window controls sit over the top of the screen, so it starts below them. */}
-          <main
-            className={cn(
-              "relative flex min-w-0 flex-1 flex-col",
-              isSidebarOpen ? undefined : "pt-10",
-            )}
-          >
-            <Outlet />
-            {/* Hidden rather than unmounted when another screen is up, so the page stays. */}
-            <div
-              className={cn(
-                "absolute inset-x-0 bottom-0 bg-background",
-                isSidebarOpen ? "top-0" : "top-10",
-                isBrowserScreen ? undefined : "invisible",
-              )}
-            >
-              {/* The guests are the pool's, drawn over a slot rather than in it, so hiding this box hides nothing of theirs: the panel parks its guest when told the screen is off, the way a task page does when its tab is in the background. */}
-              <ActiveTabProvider isActive={isBrowserScreen}>
-                <BrowserTabs
-                  onPageChange={recordBrowserPage}
-                  ref={setBrowser}
-                />
-              </ActiveTabProvider>
-            </div>
-          </main>
-          <StudioSidebarRail
-            bounds={CHAT_BOUNDS}
-            isOpen={isChatOpen}
-            label="Resize Instrument"
-            onCollapse={closeChat}
-            panelClassName="bg-background"
-            side="right"
-            widthAtom={orchestratorChatWidthAtom}
-          >
-            <div className="flex min-h-0 w-full flex-1 flex-col">
-              <header className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3 text-sm font-medium">
-                <InstrumentGlyph className="size-4" />
-                <span>{APP_NAME}</span>
-                <span className="flex-1" />
-                <button
-                  aria-label="Hide Instrument"
-                  className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-                  onClick={closeChat}
-                  type="button"
-                >
-                  <SidebarSimpleIcon className="size-4 -scale-x-100" />
-                </button>
-              </header>
-              <div className="min-h-0 flex-1">
-                {/* Names the task and session for the links inside, so a page
-                    a reply names offers both the window's browser and the
-                    user's, the way a link in a task does. */}
-                <TaskSessionProvider
-                  sessionId={screens.sessionId}
-                  taskId={screens.taskId}
-                >
-                  <TaskChat
-                    alwaysSubmittable
-                    composerLead={<ViewChip />}
-                    navigateOnSend={false}
-                    presentation="orchestrator"
-                    promptDraft={state.data.promptDraft ?? ""}
-                    selectedModelURI={
-                      state.data.selectedModelURI ?? defaultModelURI
-                    }
-                    selectedSessionId={screens.sessionId}
-                    // What the screen that is up says it shows, plus the page's
-                    // words when that screen is the browser, read at the moment
-                    // of sending; a screen that registered nothing sends nothing.
-                    sendContext={async () => {
-                      if (!screenView) {
-                        return;
+              <OrchestratorBookmarks className="max-h-2/5 shrink-0 overflow-y-auto" />
+              <div className="mx-3 h-px shrink-0 bg-border" />
+              <div className="flex min-h-0 flex-1 flex-col">
+                <header className="flex h-9 shrink-0 items-center gap-2 px-3 text-sm font-medium">
+                  <InstrumentGlyph className="size-4" />
+                  <span>{APP_NAME}</span>
+                </header>
+                <div className="min-h-0 flex-1">
+                  {/* Names the task and session for the links inside, so a page
+                      a reply names offers both the window's browser and the
+                      user's, the way a link in a task does. */}
+                  <TaskSessionProvider
+                    sessionId={screens.sessionId}
+                    taskId={screens.taskId}
+                  >
+                    <TaskChat
+                      alwaysSubmittable
+                      composerLead={<ViewChip />}
+                      navigateOnSend={false}
+                      presentation="orchestrator"
+                      promptDraft={state.data.promptDraft ?? ""}
+                      selectedModelURI={
+                        state.data.selectedModelURI ?? defaultModelURI
                       }
-                      const page =
-                        screenView.screen === "browser"
-                          ? await browser?.readPage()
-                          : undefined;
-                      return {
-                        ...screenView,
-                        ...(page ? { page } : {}),
-                        url: location.href,
-                      };
-                    }}
-                    task={task.data}
-                    transcriptTrailing={<TasksWorkingRow />}
-                  />
-                </TaskSessionProvider>
+                      selectedSessionId={screens.sessionId}
+                      // What the tab on screen says it shows, plus the page's
+                      // words when that tab is a page, read at the moment of
+                      // sending; a screen that registered nothing sends nothing.
+                      sendContext={async () => {
+                        if (!screenView) {
+                          return;
+                        }
+                        const page =
+                          screenView.screen === "browser"
+                            ? await browser?.readPage()
+                            : undefined;
+                        return {
+                          ...screenView,
+                          ...(page ? { page } : {}),
+                          url: location.href,
+                        };
+                      }}
+                      task={task.data}
+                      transcriptTrailing={<TasksWorkingRow />}
+                    />
+                  </TaskSessionProvider>
+                </div>
               </div>
             </div>
           </StudioSidebarRail>
+          <main className="relative flex min-w-0 flex-1 flex-col">
+            <WindowTabStrip
+              childTitles={
+                new Map(
+                  children.data?.map((child) => [child.id, child.title]) ?? [],
+                )
+              }
+              onClose={windowTabs.close}
+              onNew={() => {
+                windowTabs.openScreen(NEW_TAB_HREF);
+              }}
+              onReorder={windowTabs.reorder}
+              onSelect={windowTabs.select}
+              selectedId={active?.id}
+              tabs={tabs}
+            />
+            <div className="relative min-h-0 flex-1">
+              <Outlet />
+              {/* Hidden rather than unmounted while a screen is up, so the pages stay. */}
+              <div
+                className={cn(
+                  "absolute inset-0 bg-background",
+                  isPageOnScreen ? undefined : "invisible",
+                )}
+              >
+                {/* The guests are the pool's, drawn over a slot rather than in it, so hiding this box hides nothing of theirs: the panel parks its guest when told the screen is off, the way a task page does when its tab is in the background. */}
+                <ActiveTabProvider isActive={isPageOnScreen}>
+                  <BrowserTabs ref={setBrowser} />
+                </ActiveTabProvider>
+              </div>
+            </div>
+          </main>
         </Frame>
       </FileOpenContext>
     </OrchestratorContext>
@@ -510,14 +418,6 @@ function recentFor({
   taskTitle: string | undefined;
 }): Omit<OrchestratorRecent, "at"> | undefined {
   switch (pathname) {
-    case "/orchestrator/browser": {
-      // One browser, one entry, whatever address it was sent.
-      return {
-        href: "/orchestrator/browser",
-        kind: "browser",
-        title: "Browser",
-      };
-    }
     case "/orchestrator/computer": {
       const file = typeof search.file === "string" ? search.file : "";
       if (file) {
@@ -525,7 +425,7 @@ function recentFor({
       }
       const path = typeof search.path === "string" ? search.path : "";
       const folder = path.replace(/\/$/, "").split("/").at(-1);
-      // The roots are places in the sidebar already.
+      // The roots are doors on the new tab page already.
       if (!folder) {
         return undefined;
       }
@@ -542,9 +442,7 @@ function recentFor({
 
 /**
  * Keeps the Recent list: every screen the window lands on goes to the top,
- * one entry per address. The browser's entry is named for the page it shows,
- * which arrives after the screen does, so this also hands back the function
- * that renames it.
+ * one entry per address. Pages keep their own list, by the browser.
  */
 function useRecordRecents({
   childTitles,
@@ -561,19 +459,6 @@ function useRecordRecents({
     pathname.startsWith("/orchestrator/tasks/") &&
     childTitles.get(pathname.slice("/orchestrator/tasks/".length) as TaskId);
 
-  const record = (entry: Omit<OrchestratorRecent, "at">) => {
-    setRecents((current) => {
-      const previous = current.find((recent) => recent.href === entry.href);
-      const title =
-        // The browser keeps the name of the page it shows across visits.
-        entry.kind === "browser" && previous ? previous.title : entry.title;
-      return [
-        { ...entry, at: Date.now(), title },
-        ...current.filter((recent) => recent.href !== entry.href),
-      ].slice(0, RECENTS_MAX);
-    });
-  };
-
   useEffect(() => {
     const entry = recentFor({
       href,
@@ -587,7 +472,12 @@ function useRecordRecents({
     // A screen counts once the user has stayed on it a moment: clicking down
     // through folders passes through many that were never the destination.
     const timer = setTimeout(() => {
-      record(entry);
+      setRecents((current) =>
+        [
+          { ...entry, at: Date.now() },
+          ...current.filter((recent) => recent.href !== entry.href),
+        ].slice(0, RECENTS_MAX),
+      );
     }, RECENT_DWELL_MS);
     return () => {
       clearTimeout(timer);
@@ -595,29 +485,12 @@ function useRecordRecents({
     // The search object is a new one each render; its address is what matters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [href, pathname, taskTitle, setRecents]);
-
-  return (page: BrowserPage | undefined) => {
-    if (!page?.title) {
-      return;
-    }
-    setRecents((current) =>
-      current.map((recent) =>
-        recent.kind === "browser"
-          ? {
-              ...recent,
-              ...(page.favicon ? { favicon: page.favicon } : {}),
-              title: page.title,
-            }
-          : recent,
-      ),
-    );
-  };
 }
 
 /**
  * What the main process asks of the window: back and forward from a trackpad
- * swipe, a thumb button or the History menu, and the close of the tab on
- * screen from Cmd+W, the reopening of the last closed one from Shift+Cmd+T.
+ * swipe, a thumb button or the History menu, and the tab chords: close,
+ * new, reopen, next and previous, one by number.
  * On a Mac the thumb buttons reach the page as mouse events and nothing else,
  * so they are answered here; elsewhere they arrive through the main process.
  */
@@ -630,7 +503,7 @@ function useWindowCommands(handlers: {
 }) {
   const router = useRouter();
   // The stream is opened once; what a chord means is read at the moment it
-  // fires, off whatever screen is up then.
+  // fires, off whatever tab is up then.
   const latest = useRef(handlers);
   useEffect(() => {
     latest.current = handlers;

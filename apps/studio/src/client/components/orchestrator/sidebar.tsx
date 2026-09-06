@@ -18,99 +18,21 @@ import {
 } from "@/client/components/ui/sidebar";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { rpcClient } from "@/client/rpc/client";
-import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
-import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { HouseIcon } from "@phosphor-icons/react/House";
-import { LaptopIcon } from "@phosphor-icons/react/Laptop";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import {
-  type ComponentType,
-  type ReactNode,
-  useContext,
-  useState,
-} from "react";
-
-import { computerName } from "./computer-name";
+import { type ReactNode, useContext, useState } from "react";
 
 /** How many of the files the conversation linked the sidebar lists. */
 const FILES_SHOWN = 8;
 
 /**
- * The places in the product, the way the wireframes list them. Home,
- * Discover, and Apps are fixtures for now: a screen each, empty but for a
- * line saying what will live there, so the sidebar can be felt whole.
+ * The top of the sidebar: the user's own things, above the conversation. For
+ * now the apps that are connected and the files the conversation has handed
+ * over; the places the product used to list here live on the new tab page.
  */
-interface Place {
-  icon: RowIcon;
-  /** Whether the location is this place; the same screen can be two places. */
-  isAt: (location: {
-    pathname: string;
-    search: Record<string, unknown>;
-  }) => boolean;
-  label: string;
-  open: (navigate: ReturnType<typeof useNavigate>) => void;
-}
-
-/** What a row draws in its icon slot. */
-type RowIcon = ComponentType<{ className?: string }>;
-
-const atPath = (to: string) => (location: { pathname: string }) =>
-  location.pathname === to || location.pathname.startsWith(`${to}/`);
-
-const PLACES: Place[] = [
-  {
-    icon: HouseIcon,
-    isAt: atPath("/orchestrator/home"),
-    label: "Home",
-    open: (navigate) => void navigate({ to: "/orchestrator/home" }),
-  },
-  {
-    icon: CompassIcon,
-    isAt: atPath("/orchestrator/discover"),
-    label: "Discover",
-    open: (navigate) => void navigate({ to: "/orchestrator/discover" }),
-  },
-  {
-    icon: GlobeIcon,
-    isAt: atPath("/orchestrator/browser"),
-    label: "Browser",
-    open: (navigate) =>
-      void navigate({ search: {}, to: "/orchestrator/browser" }),
-  },
-  {
-    icon: LaptopIcon,
-    isAt: atPath("/orchestrator/computer"),
-    label: computerName(),
-    open: (navigate) =>
-      void navigate({
-        search: { path: "", root: "~" },
-        to: "/orchestrator/computer",
-      }),
-  },
-  {
-    icon: AppWindowIcon,
-    isAt: atPath("/orchestrator/apps"),
-    label: "Apps",
-    open: (navigate) => void navigate({ to: "/orchestrator/apps" }),
-  },
-  {
-    // The mark, not a checklist: the tasks are the agent's, not to-dos.
-    icon: InstrumentGlyph,
-    isAt: atPath("/orchestrator/tasks"),
-    label: "Tasks",
-    open: (navigate) => void navigate({ to: "/orchestrator/tasks" }),
-  },
-];
-
-/**
- * The window's left side: the places at the top, then the apps that are
- * connected, then the files the conversation has handed over. Tasks is a
- * place, not a list: the screen behind it holds the tasks.
- */
-export function OrchestratorSidebar({ className }: { className?: string }) {
+export function OrchestratorBookmarks({ className }: { className?: string }) {
   const navigate = useNavigate();
   const location = useRouterState({ select: (state) => state.location });
   const linkedFiles = useAtomValue(linkedFilesAtom);
@@ -131,22 +53,6 @@ export function OrchestratorSidebar({ className }: { className?: string }) {
   return (
     <Sidebar className={className} collapsible="none" side="left">
       <SidebarContent className="gap-0 scroll-fade-y">
-        <SidebarGroup className="px-3 pt-1 pb-2">
-          <SidebarMenu>
-            {PLACES.map((place) => (
-              <Item
-                icon={<place.icon className="size-4 shrink-0" />}
-                isActive={place.isAt(here)}
-                key={place.label}
-                label={place.label}
-                onClick={() => {
-                  place.open(navigate);
-                }}
-              />
-            ))}
-          </SidebarMenu>
-        </SidebarGroup>
-
         {/* Each connected app is a place: its page, with the way to ask about it and the site itself behind. */}
         {connectedApps.length > 0 ? (
           <Section label="Apps">

@@ -1,11 +1,11 @@
 import {
   type BrowserTab,
-  orchestratorTabsAtom,
   originOf,
   siteFaviconsAtom,
   VISITED_MAX,
-  type VisitedPage,
   visitedPagesAtom,
+  type WindowTab,
+  windowTabsAtom,
 } from "@/client/atoms/orchestrator";
 import { Favicon } from "@/client/components/favicon";
 import { TaskBrowserPanel } from "@/client/components/task/browser-panel";
@@ -31,7 +31,6 @@ import {
 import { z } from "zod";
 
 import { useOrchestrator } from "./context";
-import { TabStrip } from "./tab-strip";
 
 export interface BrowserPage {
   favicon?: string;
@@ -40,20 +39,12 @@ export interface BrowserPage {
 }
 
 export interface BrowserTabsHandle {
-  /** Closes the tab on screen, if any. */
-  closeActive: () => void;
-  /** Opens a new tab, at an address when given, and shows it. */
+  /** Opens a new page tab, at an address when given, and shows it. */
   open: (url?: string) => void;
-  /** Shows the tab already at that address, or opens one there. */
+  /** Shows the page tab already at that address, or opens one there. */
   openOrFocus: (url: string) => void;
-  /** Reads the tab on screen as it is at that moment; undefined while none is. */
+  /** Reads the page on screen as it is at that moment; undefined while none is. */
   readPage: () => Promise<PageContext | undefined>;
-  /** Brings back the tab closed last, at the page it was on. */
-  reopenClosed: () => void;
-  /** Shows the next or previous tab, wrapping. */
-  selectRelative: (direction: -1 | 1) => void;
-  /** Shows the tab at that place, counting from one; nine is the last, as in a browser. */
-  selectTab: (index: number) => void;
 }
 
 /** What the page had on it that the words in a message can refer to. */
@@ -87,14 +78,20 @@ const READ_PAGE_WORDS = `({
     .trim(),
 })`;
 
+type PageTabsUpdate = (current: {
+  activeId: null | string;
+  tabs: BrowserTab[];
+}) => { activeId: null | string; tabs: BrowserTab[] };
+
 /**
- * The window's browser: tabs along the top, each a browser guest of the
- * orchestrator's, like a task's browser and driven by the same machinery, so
- * a task can be handed one by id and drive it in the user's sight. The tab on
- * screen is the one the orchestrator's own commands drive, and it rides along
- * with every message. Each tab keeps its title, address and icon as the page
- * announces them, so a tab that has not been shown since the app opened still
- * says what it is.
+ * The window's pages: each page tab is a browser guest of the orchestrator's,
+ * like a task's browser and driven by the same machinery, so a task can be
+ * handed one by id and drive it in the user's sight. The tabs themselves are
+ * the window's, drawn by the window's strip; this holds their guests, keeps
+ * each tab's title, address and icon as its page announces them, and shows
+ * the guest of the tab on screen when that tab is a page. The page on screen
+ * is the one the orchestrator's own commands drive, and it rides along with
+ * every message.
  */
 export function BrowserTabs({
   onPageChange,
@@ -105,9 +102,14 @@ export function BrowserTabs({
   ref: Ref<BrowserTabsHandle>;
 }) {
   const { taskId } = useOrchestrator();
-  const [{ activeId, tabs }, setTabs] = useAtom(orchestratorTabsAtom);
+  const [{ activeId, tabs: allTabs }, setAllTabs] = useAtom(windowTabsAtom);
+  const tabs = allTabs.filter((tab) => tab.kind === "page");
+  // A patch to a page tab lands in the window's list, where the tab lives.
+  const setTabs = (update: PageTabsUpdate) => {
+    setAllTabs(withPageTabs(update));
+  };
   const setSiteFavicons = useSetAtom(siteFaviconsAtom);
-  const [visited, setVisited] = useAtom(visitedPagesAtom);
+  const setVisited = useSetAtom(visitedPagesAtom);
   const attached = useBrowserTargets();
 
   // Holds every tab's guest for as long as the window is open, the way the
@@ -125,7 +127,7 @@ export function BrowserTabs({
 
   const targetOf = (tab: BrowserTab): BrowserTargetId =>
     encodeBrowserTargetId(taskId, StoreId.SessionSchema.parse(tab.id));
-  const active = tabs.find((tab) => tab.id === activeId) ?? tabs[0];
+  const active = tabs.find((tab) => tab.id === activeId);
 
   // The orchestrator's own browser is the tab on screen.
   const activeTarget = active ? targetOf(active) : null;
@@ -169,23 +171,25 @@ export function BrowserTabs({
   const tabIds = tabs.map((tab) => tab.id).join(",");
   useEffect(() => {
     const patch = (id: string, changes: Partial<BrowserTab>) => {
-      setTabs((current) => {
-        const tab = current.tabs.find((entry) => entry.id === id);
-        if (
-          !tab ||
-          Object.entries(changes).every(
-            ([key, value]) => tab[key as keyof BrowserTab] === value,
-          )
-        ) {
-          return current;
-        }
-        return {
-          ...current,
-          tabs: current.tabs.map((entry) =>
-            entry.id === id ? { ...entry, ...changes } : entry,
-          ),
-        };
-      });
+      setAllTabs(
+        withPageTabs((current) => {
+          const tab = current.tabs.find((entry) => entry.id === id);
+          if (
+            !tab ||
+            Object.entries(changes).every(
+              ([key, value]) => tab[key as keyof BrowserTab] === value,
+            )
+          ) {
+            return current;
+          }
+          return {
+            ...current,
+            tabs: current.tabs.map((entry) =>
+              entry.id === id ? { ...entry, ...changes } : entry,
+            ),
+          };
+        }),
+      );
     };
     const cleanups = tabIds.split(",").map((id) => {
       if (!id) {
@@ -277,7 +281,7 @@ export function BrowserTabs({
         cleanup?.();
       }
     };
-  }, [attached, setSiteFavicons, setTabs, setVisited, tabIds, taskId]);
+  }, [attached, setAllTabs, setSiteFavicons, setVisited, tabIds, taskId]);
 
   const activePage: BrowserPage | undefined = active?.url
     ? {
@@ -308,40 +312,9 @@ export function BrowserTabs({
     });
   };
 
-  // Tabs closed this launch, newest last, so Shift+Cmd+T has somewhere to
-  // reach. Not kept across launches: a guest gone with the app is gone.
-  const closed = useRef<BrowserTab[]>([]);
-  const closeTab = (id: string) => {
-    setTabs((current) => {
-      const closing = current.tabs.find((tab) => tab.id === id);
-      if (closing?.url) {
-        closed.current.push(closing);
-      }
-      const remaining = current.tabs.filter((tab) => tab.id !== id);
-      const index = current.tabs.findIndex((tab) => tab.id === id);
-      const next =
-        current.activeId === id
-          ? (remaining[Math.max(0, index - 1)]?.id ?? null)
-          : current.activeId;
-      return { activeId: next, tabs: remaining };
-    });
-  };
-  const reopenClosed = () => {
-    const tab = closed.current.pop();
-    if (tab?.url) {
-      openTab(tab.url);
-    }
-  };
-
   useImperativeHandle(
     ref,
     () => ({
-      closeActive: () => {
-        const current = latest.current.active;
-        if (current) {
-          closeTab(current.id);
-        }
-      },
       open: (url) => {
         openTab(url);
       },
@@ -413,22 +386,6 @@ export function BrowserTabs({
           ...(text ? { text } : {}),
         };
       },
-      reopenClosed,
-      selectRelative: (direction) => {
-        const { active: current, tabs: all } = latest.current;
-        const at = all.findIndex((tab) => tab.id === current?.id);
-        const next = all[(at + direction + all.length) % all.length];
-        if (next) {
-          setTabs((state) => ({ ...state, activeId: next.id }));
-        }
-      },
-      selectTab: (index) => {
-        const all = latest.current.tabs;
-        const tab = index >= 9 ? all.at(-1) : all[index - 1];
-        if (tab) {
-          setTabs((current) => ({ ...current, activeId: tab.id }));
-        }
-      },
     }),
     // The handle reads the strip through `latest` at call time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -436,109 +393,18 @@ export function BrowserTabs({
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      {tabs.length === 0 ? null : (
-        <TabStrip
-          className="border-b border-border"
-          onClose={closeTab}
-          onNew={() => {
-            openTab();
-          }}
-          onReorder={(keys) => {
-            setTabs((current) => ({
-              ...current,
-              tabs: keys.flatMap((key) => {
-                const tab = current.tabs.find((entry) => entry.id === key);
-                return tab ? [tab] : [];
-              }),
-            }));
-          }}
-          onSelect={(id) => {
-            setTabs((current) => ({ ...current, activeId: id }));
-          }}
-          selectedKey={active?.id}
-          tabs={tabs.map((tab) => ({
-            icon: <TabIcon favicon={tab.favicon} url={tab.url} />,
-            key: tab.id,
-            title: tab.title || tab.url || "New tab",
-          }))}
+    <div className="relative h-full min-h-0">
+      {active ? (
+        <TaskBrowserPanel
+          active={attached.has(targetOf(active))}
+          className="h-full"
+          key={active.id}
+          sessionId={StoreId.SessionSchema.parse(active.id)}
+          taskId={taskId}
         />
-      )}
-      <div className="relative min-h-0 flex-1">
-        {active ? (
-          <TaskBrowserPanel
-            active={attached.has(targetOf(active))}
-            className="h-full"
-            key={active.id}
-            sessionId={StoreId.SessionSchema.parse(active.id)}
-            taskId={taskId}
-          />
-        ) : (
-          <NewTabPage
-            onNew={() => {
-              openTab();
-            }}
-            onOpen={(url) => {
-              openTab(url);
-            }}
-            visited={visited}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-/**
- * What the browser shows with no tab open: an empty tab, the way a browser
- * opens, with where it has been under it. Closing the last tab lands here:
- * the browser is still the screen the user was on.
- */
-function NewTabPage({
-  onNew,
-  onOpen,
-  visited,
-}: {
-  onNew: () => void;
-  onOpen: (url: string) => void;
-  visited: VisitedPage[];
-}) {
-  return (
-    <div className="flex h-full min-h-0 flex-col items-center justify-center overflow-y-auto px-8 py-10">
-      <GlobeIcon className="size-8 text-muted-foreground" />
-      <button
-        className="mt-4 rounded-md bg-foreground/10 px-3 py-1.5 text-sm text-foreground hover:bg-foreground/20"
-        onClick={onNew}
-        type="button"
-      >
-        New tab
-      </button>
-      {visited.length > 0 ? (
-        <ul className="mt-8 grid w-full max-w-xl gap-0.5">
-          {visited.slice(0, 8).map((page) => (
-            <li key={page.url}>
-              <button
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                onClick={() => {
-                  onOpen(page.url);
-                }}
-                title={page.url}
-                type="button"
-              >
-                <TabIcon favicon={page.favicon} url={page.url} />
-                <span className="truncate">{page.title || page.url}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
       ) : null}
     </div>
   );
-}
-
-/** Two addresses are the same tab when they differ only by a trailing slash or a fragment. */
-function sameAddress(a: string | undefined, b: string) {
-  return a !== undefined && trimAddress(a) === trimAddress(b);
 }
 
 /**
@@ -546,7 +412,7 @@ function sameAddress(a: string | undefined, b: string) {
  * looked up by address, since a page that announced none or a stale one is
  * still on a site with one; else the globe.
  */
-function TabIcon({
+export function TabIcon({
   favicon,
   url,
 }: {
@@ -573,6 +439,44 @@ function TabIcon({
   return <GlobeIcon className="size-3.5" />;
 }
 
+/** Two addresses are the same tab when they differ only by a trailing slash or a fragment. */
+function sameAddress(a: string | undefined, b: string) {
+  return a !== undefined && trimAddress(a) === trimAddress(b);
+}
+
 function trimAddress(url: string) {
   return url.replace(/#.*$/, "").replace(/\/+$/, "");
+}
+
+/**
+ * An update to the page tabs, applied to the window's list: the pages are
+ * taken out, changed, and put back where they were, with any new one at the
+ * end and the screens untouched.
+ */
+function withPageTabs(update: PageTabsUpdate) {
+  return (current: {
+    activeId: null | string;
+    tabs: WindowTab[];
+  }): { activeId: null | string; tabs: WindowTab[] } => {
+    const pages = current.tabs.filter((tab) => tab.kind === "page");
+    const next = update({ activeId: current.activeId, tabs: pages });
+    const byId = new Map(next.tabs.map((tab) => [tab.id, tab]));
+    const merged: WindowTab[] = [];
+    for (const tab of current.tabs) {
+      if (tab.kind !== "page") {
+        merged.push(tab);
+        continue;
+      }
+      const updated = byId.get(tab.id);
+      if (updated) {
+        merged.push({ ...updated, kind: "page" });
+      }
+    }
+    for (const tab of next.tabs) {
+      if (!current.tabs.some((entry) => entry.id === tab.id)) {
+        merged.push({ ...tab, kind: "page" });
+      }
+    }
+    return { activeId: next.activeId, tabs: merged };
+  };
 }

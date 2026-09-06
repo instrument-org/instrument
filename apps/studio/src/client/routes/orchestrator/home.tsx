@@ -1,9 +1,12 @@
-import { orchestratorRecentsAtom } from "@/client/atoms/orchestrator";
+import {
+  orchestratorRecentsAtom,
+  visitedPagesAtom,
+} from "@/client/atoms/orchestrator";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { computerName } from "@/client/components/orchestrator/computer-name";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
-import { RecentIcon } from "@/client/components/orchestrator/sidebar";
+import { RecentIcon, SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { siteFromWords } from "@/client/lib/site-from-words";
 import { cn } from "@/client/lib/utils";
@@ -23,10 +26,10 @@ import { useAtomValue } from "jotai";
 import { type ComponentType, type ReactNode, useState } from "react";
 
 /**
- * Home: the mark, one box that reaches every screen and every app and, failing
- * those, asks Instrument, and beneath it where the user was last. The box is
- * the wireframes' omnibox; its list is screens, then apps, then the two
- * fallbacks, and typing filters it.
+ * A new tab: the mark, one box that reaches every screen, every app, and any
+ * site and, failing those, asks Instrument; under it the doors that stay
+ * (This Mac, the apps, the tasks) and where the user was last. Whatever is
+ * picked, this tab becomes it.
  */
 export const Route = createFileRoute("/orchestrator/home")({
   component: HomeRoute,
@@ -45,11 +48,6 @@ const SCREENS: {
         search: { path: "", root: "~" },
         to: "/orchestrator/computer",
       }),
-  },
-  {
-    icon: GlobeIcon,
-    name: "Browser",
-    open: (navigate) => void navigate({ to: "/orchestrator/browser" }),
   },
   {
     icon: InstrumentGlyph,
@@ -78,11 +76,12 @@ interface OmniRow {
 }
 
 function HomeRoute() {
-  const { ask, browser, taskId } = useOrchestrator();
+  const { ask, openPage, taskId } = useOrchestrator();
   useOnScreen({ screen: "home" });
   const navigate = useNavigate();
   const router = useRouter();
   const recents = useAtomValue(orchestratorRecentsAtom);
+  const visited = useAtomValue(visitedPagesAtom);
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
@@ -138,13 +137,36 @@ function HomeRoute() {
       (child) => matches(child.title) || matches(child.id.replaceAll("-", " ")),
     )
     .slice(0, words ? TASKS_SHOWN : 0);
-  const recentRows = recents
+  const openSite = (url: string) => {
+    openPage(url);
+  };
+  // Where the window has been: the screens it landed on and the pages the
+  // browser showed, newest first, as one list.
+  const wasAt = [
+    ...recents.map((entry) => ({
+      at: entry.at,
+      icon: <RecentIcon recent={entry} />,
+      note: { browser: "Page", file: "File", folder: "Folder", task: "Task" }[
+        entry.kind
+      ],
+      run: () => {
+        router.history.push(entry.href);
+      },
+      title: entry.title,
+    })),
+    ...visited.map((page) => ({
+      at: page.at,
+      icon: <SiteIcon favicon={page.favicon} url={page.url} />,
+      note: "Page",
+      run: () => {
+        openSite(page.url);
+      },
+      title: page.title || page.url,
+    })),
+  ].sort((a, b) => b.at - a.at);
+  const recentRows = wasAt
     .filter((entry) => matches(entry.title))
     .slice(0, words ? RECENTS_SHOWN : 0);
-  const openSite = (url: string) => {
-    browser?.openOrFocus(url);
-    void navigate({ to: "/orchestrator/browser" });
-  };
   const rows: OmniRow[] = [
     ...(typedSite
       ? [
@@ -182,14 +204,10 @@ function HomeRoute() {
     })),
     ...recentRows.map((entry) => ({
       group: "Recent",
-      icon: <RecentIcon recent={entry} />,
+      icon: entry.icon,
       name: entry.title,
-      note: { browser: "Page", file: "File", folder: "Folder", task: "Task" }[
-        entry.kind
-      ],
-      run: () => {
-        router.history.push(entry.href);
-      },
+      note: entry.note,
+      run: entry.run,
     })),
     ...apps.map((app) => ({
       group: "Apps",
@@ -347,39 +365,62 @@ function HomeRoute() {
         <button
           className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 text-left shadow-sm hover:bg-accent/30"
           onClick={() => {
+            void navigate({ to: "/orchestrator/apps" });
+          }}
+          type="button"
+        >
+          <AppWindowIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+          <span className="min-w-0">
+            <span className="block text-sm font-medium">Apps</span>
+            <span className="block truncate text-xs text-muted-foreground">
+              {(appList.data?.apps ?? []).some(
+                (app) => app.standing === "connected",
+              )
+                ? (appList.data?.apps ?? [])
+                    .filter((app) => app.standing === "connected")
+                    .map((app) => app.name)
+                    .join(", ")
+                : "Connect the services you use"}
+            </span>
+          </span>
+        </button>
+        <button
+          className="flex items-center gap-3 rounded-xl border border-border bg-card/60 px-4 py-2.5 text-left text-muted-foreground hover:bg-accent/30 sm:col-span-2"
+          onClick={() => {
             void navigate({ to: "/orchestrator/tasks" });
           }}
           type="button"
         >
-          <InstrumentGlyph className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
-          <span className="min-w-0">
-            <span className="block text-sm font-medium">Tasks</span>
-            <span className="block truncate text-xs text-muted-foreground">
-              What Instrument has done and is doing for you
-            </span>
+          <InstrumentGlyph className="size-4 shrink-0" />
+          <span className="text-sm">
+            Tasks
+            {children.data && children.data.length > 0
+              ? ` · ${children.data.length}`
+              : ""}
           </span>
         </button>
       </div>
 
-      {recents.length > 0 ? (
+      {wasAt.length > 0 ? (
         <div className="mt-10 w-full max-w-3xl">
           <p className="text-xs font-medium tracking-[0.12em] text-muted-foreground uppercase">
             Recent
           </p>
           <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-            {recents.slice(0, RECENTS_SHOWN).map((recent) => (
-              <li key={recent.href}>
+            {wasAt.slice(0, RECENTS_SHOWN).map((entry) => (
+              <li key={`${entry.note}:${entry.title}:${entry.at}`}>
                 <button
                   className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent/50"
-                  onClick={() => {
-                    router.history.push(recent.href);
-                  }}
+                  onClick={entry.run}
                   type="button"
                 >
                   <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-                    <RecentIcon recent={recent} />
+                    {entry.icon}
                   </span>
-                  <span className="truncate">{recent.title}</span>
+                  <span className="min-w-0 flex-1 truncate">{entry.title}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {entry.note}
+                  </span>
                 </button>
               </li>
             ))}

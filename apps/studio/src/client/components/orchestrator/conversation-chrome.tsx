@@ -1,7 +1,4 @@
-import {
-  orchestratorTabsAtom,
-  screenViewAtom,
-} from "@/client/atoms/orchestrator";
+import { screenViewAtom, windowTabsAtom } from "@/client/atoms/orchestrator";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { FileIcon } from "@/client/components/file-icon";
 import { PlanningDotIcon } from "@/client/components/icons/planning-dot";
@@ -76,7 +73,7 @@ export function TasksWorkingRow() {
  */
 export function ViewChip() {
   const view = useAtomValue(screenViewAtom);
-  const { activeId, tabs } = useAtomValue(orchestratorTabsAtom);
+  const { activeId, tabs } = useAtomValue(windowTabsAtom);
   if (!view) {
     return null;
   }
@@ -116,8 +113,8 @@ export function ViewChip() {
           : { icon: <AppWindowIcon className="size-3.5" />, title: "Apps" };
       }
       case "browser": {
-        const tab = tabs.find((entry) => entry.id === activeId) ?? tabs[0];
-        if (!tab) {
+        const tab = tabs.find((entry) => entry.id === activeId);
+        if (tab?.kind !== "page") {
           return;
         }
         return {

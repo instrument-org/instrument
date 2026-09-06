@@ -3,10 +3,15 @@ import { describe, expect, it } from "vitest";
 import { leadingWords, orchestratorRefusal } from "./bash";
 
 describe("leadingWords", () => {
-  it("reads the first word of each command, through pipes and separators", () => {
+  it("reads the first word of each command, and whether it follows a pipe", () => {
     expect(
       leadingWords("task list --running | head -5; app list && echo ok"),
-    ).toEqual(["task", "head", "app", "echo"]);
+    ).toEqual([
+      { piped: false, word: "task" },
+      { piped: true, word: "head" },
+      { piped: false, word: "app" },
+      { piped: false, word: "echo" },
+    ]);
   });
 
   it("skips the body of a heredoc, which is a brief and not commands", () => {
@@ -17,7 +22,10 @@ describe("leadingWords", () => {
       "EOF",
       "task list",
     ].join("\n");
-    expect(leadingWords(script)).toEqual(["task", "task"]);
+    expect(leadingWords(script).map(({ word }) => word)).toEqual([
+      "task",
+      "task",
+    ]);
   });
 });
 
@@ -37,5 +45,15 @@ describe("orchestratorRefusal", () => {
       /task new/,
     );
     expect(orchestratorRefusal("task list; ls /mnt")).toMatch(/`ls`/);
+  });
+
+  it("refuses a filter that is not on a pipe from task or app", () => {
+    expect(orchestratorRefusal("jq '.issues[]' issues.json")).toMatch(/`jq`/);
+    expect(orchestratorRefusal("awk -F, '{print $1}' saved.txt")).toMatch(
+      /`awk`/,
+    );
+    expect(
+      orchestratorRefusal("app call linear list_issues '{}' | jq '.[0]'"),
+    ).toBeUndefined();
   });
 });

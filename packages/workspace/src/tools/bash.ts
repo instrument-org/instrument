@@ -66,12 +66,15 @@ const ORCHESTRATOR_FILTERS = new Set([
 ]);
 
 /**
- * The first word of every command in a script, heredoc bodies skipped: a
- * command that starts with a quoted heredoc marker owns the lines up to the
- * marker, and those lines are a brief, not commands.
+ * The first word of every command in a script, heredoc bodies skipped, and
+ * whether the command follows a pipe: a command that starts with a quoted
+ * heredoc marker owns the lines up to the marker, and those lines are a
+ * brief, not commands.
  */
-export function leadingWords(script: string): string[] {
-  const words: string[] = [];
+export function leadingWords(
+  script: string,
+): { piped: boolean; word: string }[] {
+  const words: { piped: boolean; word: string }[] = [];
   const lines = script.split("\n");
   let terminator: string | undefined;
   for (const line of lines) {
@@ -81,10 +84,13 @@ export function leadingWords(script: string): string[] {
       }
       continue;
     }
-    for (const segment of line.split(/\|\||&&|[;|]/)) {
-      const word = segment.trim().split(/\s+/)[0];
-      if (word) {
-        words.push(word);
+    // Separate commands first, then the stages of each pipeline.
+    for (const command of line.split(/\|\||&&|;/)) {
+      for (const [index, stage] of command.split("|").entries()) {
+        const word = stage.trim().split(/\s+/)[0];
+        if (word) {
+          words.push({ piped: index > 0, word });
+        }
       }
     }
     const heredoc = /<<-?\s*['"]?(\w+)['"]?/.exec(line);
@@ -96,20 +102,21 @@ export function leadingWords(script: string): string[] {
 }
 
 /**
- * The conversation's agent does no work of its own: it runs `task` and `app`,
- * reads their output through a filter, and nothing else. A command outside
- * that is refused with the way to do it instead, so the agent never becomes
- * busy doing what a task exists for.
+ * The conversation's agent does no work of its own: every command it runs
+ * is `task` or `app`, and a filter is allowed only downstream of one, on
+ * their output. Anything else is refused with the way to do it instead, so
+ * the agent never becomes busy doing what a task exists for.
  */
 export function orchestratorRefusal(script: string): string | undefined {
   const outside = leadingWords(script).find(
-    (word) =>
-      !ORCHESTRATOR_COMMANDS.has(word) && !ORCHESTRATOR_FILTERS.has(word),
+    ({ piped, word }) =>
+      !ORCHESTRATOR_COMMANDS.has(word) &&
+      !(piped && ORCHESTRATOR_FILTERS.has(word)),
   );
   if (outside === undefined) {
     return;
   }
-  return `\`${outside}\` is not yours to run: this shell runs \`task\` and \`app\` and a filter on their output (${[...ORCHESTRATOR_FILTERS].join(", ")}), nothing else. Work that needs a shell, a file, a page, or the web is a task's: start one with \`task new\`.`;
+  return `\`${outside.word}\` is not yours to run: this shell runs \`task\` and \`app\`, and a filter (${[...ORCHESTRATOR_FILTERS].join(", ")}) only after a pipe from one of them. Work that needs a shell, a file, a page, or the web is a task's: start one with \`task new\`.`;
 }
 
 function bashToolCallTimeoutMs(yieldMs: number) {

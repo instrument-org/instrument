@@ -213,6 +213,25 @@ function promptFrom(inline: string, stdin: ByteString): string {
   return (piped || inline).trim();
 }
 
+/**
+ * A brief that tells the task to use an app the command did not hand it is
+ * refused, with the flag to add: the task would fail on its first call and
+ * wake the orchestrator about it, which is a turn spent on what this catches.
+ */
+function requireAppsNamedInBrief(prompt: string, apps: string[]) {
+  const named = new Set(
+    [...prompt.matchAll(/\bapp (?:call|request|tools|guide) ([a-z0-9][a-z0-9-]*)/g)].map(
+      (match) => match[1] ?? "",
+    ),
+  );
+  const missing = [...named].filter((slug) => slug && !apps.includes(slug));
+  if (missing.length > 0) {
+    throw new Error(
+      `the brief tells the task to use ${missing.map((slug) => `"${slug}"`).join(", ")}, but a task reaches only the apps handed to it on the command. Add ${missing.map((slug) => `--app ${slug}`).join(" ")}.`,
+    );
+  }
+}
+
 async function requireChild(
   rawId: string | undefined,
   { orchestratorTaskId }: TaskCommandContext,
@@ -451,6 +470,7 @@ async function runNew(
   const browserTargetId =
     tab === undefined ? undefined : resolveTab(tab, context.orchestratorTaskId);
   const apps = await resolveApps(values.get("app") ?? []);
+  requireAppsNamedInBrief(prompt, apps);
 
   const taskId = await newTaskId({ prompt, workspaceConfig });
   const initialized = await initializeTask(

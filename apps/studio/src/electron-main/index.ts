@@ -7,6 +7,7 @@ import { runMigrations } from "@/electron-main/lib/run-migrations";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
 import { getAppStateStore } from "@/electron-main/stores/app-state";
+import { isFeatureEnabled } from "@/electron-main/stores/features";
 import { checkRecentVersionBump } from "@/electron-main/stores/preferences";
 import {
   createMainWindow,
@@ -20,6 +21,10 @@ import {
   openOnboardingWindow,
   updateOnboardingWindowBackgroundColor,
 } from "@/electron-main/windows/onboarding";
+import {
+  getOrchestratorWindow,
+  openOrchestratorWindow,
+} from "@/electron-main/windows/orchestrator";
 import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
 import {
@@ -222,6 +227,14 @@ async function bootstrapPrimaryInstance() {
   if (shouldShowOnboarding()) {
     openOnboardingWindow();
     void createMainWindow({ reveal: false });
+  } else if (isFeatureEnabled("instrument_2")) {
+    // The classic window is made and kept out of sight: the tasks' machinery
+    // and the browser host for a task page live in it. Its File menu brings
+    // it back.
+    await timeBootStep("createMainWindow", () =>
+      createMainWindow({ reveal: false }),
+    );
+    openOrchestratorWindow();
   } else {
     await timeBootStep("createMainWindow", () => createMainWindow());
   }
@@ -247,6 +260,14 @@ async function bootstrapPrimaryInstance() {
       } else {
         void createMainWindow();
       }
+    } else if (
+      isFeatureEnabled("instrument_2") &&
+      getOrchestratorWindow() === null &&
+      !getMainWindow()?.isVisible()
+    ) {
+      // The hidden classic window counts as a window, so with the 2.0 window
+      // closed the dock click would otherwise open nothing.
+      openOrchestratorWindow();
     }
   });
   app.on("open-url", (event, url) => {

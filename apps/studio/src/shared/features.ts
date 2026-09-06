@@ -4,6 +4,7 @@ export const FeatureNameSchema = z.enum([
   "bash_summary_chip",
   "context_ring",
   "external_browser",
+  "instrument_2",
   "prompt_queue",
   "skills",
 ]);
@@ -30,6 +31,11 @@ export const FEATURE_METADATA: Record<
     description:
       "Let the agent drive a browser outside the app: the user's own Chrome profile and its logins, a Chromium already running with remote debugging, or a cloud browser. macOS asks for a system permission the first time.",
     title: "External Browser",
+  },
+  instrument_2: {
+    description:
+      "Open the app in the Instrument 2.0 window and keep the classic window out of sight. Its File menu switches back, which also turns this off.",
+    title: "Start in Instrument 2.0",
   },
   prompt_queue: {
     description:

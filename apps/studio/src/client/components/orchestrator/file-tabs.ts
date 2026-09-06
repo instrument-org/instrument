@@ -8,20 +8,30 @@ export function fileHref(mount: string) {
   return `/orchestrator/computer?file=${encodeURIComponent(mount)}&path=&root=~`;
 }
 
-/** Where a virtual path lives on the Mac, when a granted folder covers it. */
+/**
+ * Where a virtual path lives on the Mac: under a granted folder, or under the
+ * folder of a task the conversation started, which it sees at `/tasks/<id>`.
+ */
 export function hostPathOfMount(
   mount: string,
   attachedFolders: Record<string, { mountName: string; path: string }>,
+  taskDirs: ReadonlyMap<string, string> = new Map(),
 ): string | undefined {
-  const prefix = `${MOUNT.attachedFolders}/`;
-  if (!mount.startsWith(prefix)) {
-    return;
+  const attached = `${MOUNT.attachedFolders}/`;
+  if (mount.startsWith(attached)) {
+    const [mountName, ...rest] = mount.slice(attached.length).split("/");
+    const folder = Object.values(attachedFolders).find(
+      (entry) => entry.mountName === mountName,
+    );
+    return folder ? [folder.path, ...rest].join("/") : undefined;
   }
-  const [mountName, ...rest] = mount.slice(prefix.length).split("/");
-  const folder = Object.values(attachedFolders).find(
-    (attached) => attached.mountName === mountName,
-  );
-  return folder ? [folder.path, ...rest].join("/") : undefined;
+  const tasks = `${MOUNT.tasks}/`;
+  if (mount.startsWith(tasks)) {
+    const [id, ...rest] = mount.slice(tasks.length).split("/");
+    const dir = id ? taskDirs.get(id) : undefined;
+    return dir ? [dir, ...rest].join("/") : undefined;
+  }
+  return;
 }
 
 /**

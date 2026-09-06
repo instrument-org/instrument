@@ -57,8 +57,12 @@ const childStatus = base
 /** The tasks an orchestrator created, newest activity first. */
 const children = base
   .input(z.object({ id: TaskIdSchema }))
-  .output(TaskSchema.array())
-  .handler(({ input }) => listChildTasks(input.id));
+  // With each one's folder on disk: what a link into `/tasks/<id>` opens.
+  .output(TaskSchema.extend({ dir: z.string() }).array())
+  .handler(async ({ input }) => {
+    const tasks = await listChildTasks(input.id);
+    return tasks.map((task) => ({ ...task, dir: taskDir(task.id) }));
+  });
 
 /**
  * The orchestrator task and the session to talk to it in, created on first

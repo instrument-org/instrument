@@ -10,7 +10,8 @@ import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { ComputerPage, type FolderOnScreen } from "./computer-page";
 import { useOrchestrator } from "./context";
@@ -42,6 +43,11 @@ export function FilesScreen({
   const state = useQuery(
     rpcClient.workspace.task.state.get.queryOptions({ input: { id: taskId } }),
   );
+  const children = useQuery(
+    rpcClient.workspace.orchestrator.children.queryOptions({
+      input: { id: taskId },
+    }),
+  );
   const [folder, setFolder] = useState<FolderOnScreen | null>(null);
   const [quickLook, setQuickLook] = useState<FileTab | null>(null);
   // Where the keyboard was when Quick Look opened, so it goes back there when
@@ -53,6 +59,7 @@ export function FilesScreen({
           const hostPath = hostPathOfMount(
             file,
             state.data?.attachedFolders ?? {},
+            new Map(children.data?.map((child) => [child.id, child.dir])),
           );
           return hostPath ? { hostPath } : {};
         })(),
@@ -85,6 +92,36 @@ export function FilesScreen({
   );
 
   const assetBase = getAssetBaseUrl(taskId);
+
+  // A tab whose file is gone (renamed, moved, deleted) goes with it rather
+  // than standing as a tab that cannot load. Asked of the asset origin once
+  // the tab is up.
+  useEffect(() => {
+    if (!file) {
+      return;
+    }
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch(
+          getAssetUrl({ assetBase, filePath: file }),
+          { headers: { Range: "bytes=0-0" }, signal: controller.signal },
+        );
+        if (response.status === 404 && !controller.signal.aborted) {
+          toast(`${file.split("/").at(-1) ?? file} is no longer there`);
+          closeActive();
+        }
+      } catch {
+        // The origin is not up, or the request was cut off: not the file's
+        // absence, so the tab stays.
+      }
+    })();
+    return () => {
+      controller.abort();
+    };
+    // Once per file the tab shows.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetBase, file]);
   const viewerFile = (tab: FileTab) => ({
     filename: tab.name,
     filePath: tab.mount,

@@ -3,6 +3,9 @@ import { systemNote } from "./system-note";
 
 type ViewContext = SessionMessageDataPart.ViewContextDataPart;
 
+/** How many tabs a note names before it says how many more there are. */
+const TABS_NAMED_MAX = 8;
+
 /**
  * What the user had on screen when they sent the message, whichever screen it
  * was: the page in the browser, the folder or file on This Mac, the task they
@@ -12,45 +15,7 @@ type ViewContext = SessionMessageDataPart.ViewContextDataPart;
  * screen is named; a folder the user left a screen ago is not.
  */
 export function viewContextModelNote(data: ViewContext) {
-  switch (data.screen) {
-    case "apps": {
-      if (data.app) {
-        return systemNote`
-          When the user sent this, the window showed the page of the app "${data.app.name}" (slug ${data.app.slug}), which is ${describeStanding(data.app.standing)}. "This app", "this", and "it" refer to it. A request about the service itself is answered with the app's tools or requests when it is connected; a request to connect it means writing its folder if it has none, then asking with connect_app.
-        `;
-      }
-      return systemNote`
-        When the user sent this, the window showed the Apps screen: the directory of apps, connected ones first. Nothing in particular is in view unless they name an app.
-      `;
-    }
-    case "browser": {
-      return pageNote(data);
-    }
-    case "computer": {
-      return systemNote`
-        When the user sent this, the folder view showed ${folderShown(data)}. "This folder", "here", "in here" and "these" refer to that. ${folderReach(data)}
-      `;
-    }
-    case "discover": {
-      return systemNote`
-        When the user sent this, the window showed the Discover screen, which has nothing on it yet. Nothing in particular is in view.
-      `;
-    }
-    case "file": {
-      return fileNote(data);
-    }
-    case "home": {
-      return systemNote`
-        When the user sent this, the window showed Home: the box that opens any screen or asks you. Nothing in particular is in view.
-      `;
-    }
-    case "task": {
-      return taskNote(data);
-    }
-    case "tasks": {
-      return tasksNote(data);
-    }
-  }
+  return `${screenNote(data)}${tabsNote(data)}`;
 }
 
 /** An app's standing, in the Apps screen's words, as a clause. */
@@ -150,6 +115,66 @@ function pageNote(data: ViewContext) {
     When the user sent this, the browser showed${title} at ${page.url}${tab}. "This page", "this site", "this" and "here" refer to it. Your own agent-browser drives this tab, for one-step things on it; a task that should work in it gets it with --tab and its id, and then drives it in the user's sight. Answer from what is quoted here when that is enough. ${words}${focus}
     ${tabs}
   `;
+}
+
+function screenNote(data: ViewContext) {
+  switch (data.screen) {
+    case "apps": {
+      if (data.app) {
+        return systemNote`
+          When the user sent this, the window showed the page of the app "${data.app.name}" (slug ${data.app.slug}), which is ${describeStanding(data.app.standing)}. "This app", "this", and "it" refer to it. A request about the service itself is answered with the app's tools or requests when it is connected; a request to connect it means writing its folder if it has none, then asking with connect_app.
+        `;
+      }
+      return systemNote`
+        When the user sent this, the window showed the Apps screen: the directory of apps, connected ones first. Nothing in particular is in view unless they name an app.
+      `;
+    }
+    case "browser": {
+      return pageNote(data);
+    }
+    case "computer": {
+      return systemNote`
+        When the user sent this, the folder view showed ${folderShown(data)}. "This folder", "here", "in here" and "these" refer to that. ${folderReach(data)}
+      `;
+    }
+    case "discover": {
+      return systemNote`
+        When the user sent this, the window showed the Discover screen, which has nothing on it yet. Nothing in particular is in view.
+      `;
+    }
+    case "file": {
+      return fileNote(data);
+    }
+    case "home": {
+      return systemNote`
+        When the user sent this, the window showed Home: the box that opens any screen or asks you. Nothing in particular is in view.
+      `;
+    }
+    case "task": {
+      return taskNote(data);
+    }
+    case "tasks": {
+      return tasksNote(data);
+    }
+  }
+}
+
+/** The window's tabs, in a line, so "open" has something to build on and "--tab" something to name. */
+function tabsNote(data: ViewContext) {
+  const tabs = (data.tabs ?? []).slice(0, TABS_NAMED_MAX);
+  if (tabs.length === 0 || data.screen === "browser") {
+    return "";
+  }
+  const named = tabs
+    .map(
+      (tab) => `"${tab.title}" at ${tab.at}${tab.id ? ` (tab ${tab.id})` : ""}`,
+    )
+    .join("; ");
+  const more =
+    (data.tabs?.length ?? 0) > tabs.length
+      ? `; and ${(data.tabs?.length ?? 0) - tabs.length} more`
+      : "";
+  return `\nTabs open in the window: ${named}${more}.`;
 }
 
 function taskNote(data: ViewContext) {

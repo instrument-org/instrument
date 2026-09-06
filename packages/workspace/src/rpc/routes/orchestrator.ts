@@ -1,3 +1,4 @@
+import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
 import { getTask } from "../../lib/get-tasks";
@@ -21,6 +22,7 @@ import { TaskSchema } from "../../schemas/task";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { BrowserTargetIdSchema } from "../../types";
 import { base, toORPCError } from "../base";
+import { publisher } from "../publisher";
 
 /** What the orchestrator's tasks are doing right now. */
 const activity = base
@@ -100,10 +102,32 @@ const setActiveTab = base
     });
   });
 
+/** What the conversation asks its window to open, as it asks. */
+const open = base
+  .input(z.object({ id: TaskIdSchema }))
+  .output(
+    eventIterator(
+      z.union([
+        z.object({ kind: z.literal("page"), url: z.string() }),
+        z.object({ kind: z.literal("file"), mount: z.string() }),
+      ]),
+    ),
+  )
+  .handler(async function* ({ input, signal }) {
+    for await (const event of publisher.subscribe("orchestrator.open", {
+      signal,
+    })) {
+      if (event.id === input.id) {
+        yield event.target;
+      }
+    }
+  });
+
 export const orchestrator = {
   activity,
   children,
   childStatus,
   ensure,
+  events: { open },
   setActiveTab,
 };

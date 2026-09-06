@@ -106,8 +106,8 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       right call: you are woken when it finishes anyway.
   ${TASK_COMMAND.name} rename <id> '<title>'
       Give a task a better title.
-  ${TASK_COMMAND.name} archive <id>
-      Move a finished task to the trash.
+  ${TASK_COMMAND.name} delete <id>
+      Move a finished task to the trash. \`archive\` is the same command.
 `;
 
 export function createTaskCommand(context: TaskCommandContext) {
@@ -125,7 +125,8 @@ export function createTaskCommand(context: TaskCommandContext) {
         case undefined: {
           return ok(USAGE);
         }
-        case "archive": {
+        case "archive":
+        case "delete": {
           return await runArchive(rest, context);
         }
         case "list": {

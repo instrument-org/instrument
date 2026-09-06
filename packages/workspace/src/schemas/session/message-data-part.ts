@@ -474,6 +474,18 @@ export namespace SessionMessageDataPart {
       })
       .optional(),
     page: ViewedPageSchema.optional(),
+    /** Every tab the window has open, on screen or not, for "open" and "--tab" to name; the strip's order. */
+    tabs: z
+      .array(
+        z.object({
+          /** A page's address, or a screen's route. */
+          at: z.string(),
+          /** The session id a page tab can be handed to a task by; absent for a screen. */
+          id: z.string().optional(),
+          title: z.string(),
+        }),
+      )
+      .optional(),
     /** The screen up in the window, by the name the sidebar gives it. */
     screen: z.enum([
       "apps",

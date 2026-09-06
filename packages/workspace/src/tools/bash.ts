@@ -62,6 +62,7 @@ const ORCHESTRATOR_COMMANDS = new Set([
   "ls",
   "mkdir",
   "mv",
+  "open",
   "stat",
   "tail",
   "task",
@@ -134,7 +135,7 @@ export function orchestratorRefusal(script: string): string | undefined {
   if (outside === undefined) {
     return;
   }
-  return `\`${outside.word}\` is not yours to run: this shell runs \`task\`, \`app\`, and the file commands (ls, cat, head, tail, wc, stat, file, find, cp, mv, mkdir), with a filter (${[...ORCHESTRATOR_FILTERS].join(", ")}) only after a pipe from one of them. Work that needs a shell, a page, or the web, or that writes a file's contents, is a task's: start one with \`task new\`.`;
+  return `\`${outside.word}\` is not yours to run: this shell runs \`task\`, \`app\`, \`open\`, and the file commands (ls, cat, head, tail, wc, stat, file, find, cp, mv, mkdir), with a filter (${[...ORCHESTRATOR_FILTERS].join(", ")}) only after a pipe from one of them. Work that needs a shell, a page, or the web, or that writes a file's contents, is a task's: start one with \`task new\`.`;
 }
 
 function bashToolCallTimeoutMs(yieldMs: number) {

@@ -53,6 +53,14 @@ export const publisher = new EventPublisher<{
     messageId: StoreId.Message;
     sessionId: StoreId.Session;
   };
+  /**
+   * The conversation asking its window to put something on screen: a page as
+   * a browser tab, or a file of the user's as a file tab.
+   */
+  "orchestrator.open": {
+    id: TaskId;
+    target: { kind: "file"; mount: string } | { kind: "page"; url: string };
+  };
   "part.updated": {
     id: TaskId;
     part: SessionMessagePart.Type;

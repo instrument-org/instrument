@@ -1,5 +1,6 @@
 import { InternalLink } from "@/client/components/internal-link";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
+import { ConnectControls } from "@/client/components/orchestrator/connect-controls";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { GlyphButton } from "@/client/components/orchestrator/glyph-button";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
@@ -129,6 +130,10 @@ function AppRoute() {
             >
               Ask about {name}
             </GlyphButton>
+          ) : app?.standing === "needs-sign-in" ? (
+            <ConnectControls kind="sign-in" name={name} slug={slug} />
+          ) : app?.standing === "needs-key" ? (
+            <ConnectControls kind="key" name={name} slug={slug} />
           ) : (
             <GlyphButton
               onClick={() => {

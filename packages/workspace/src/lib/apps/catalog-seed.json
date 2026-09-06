@@ -2,6 +2,53 @@
   "generatedFrom": "integrations.sh curated catalog",
   "entries": [
     {
+      "slug": "cloudflare",
+      "name": "Cloudflare",
+      "tagline": "The whole Cloudflare API, DNS to Workers, from one MCP server.",
+      "description": "Cloudflare hosts one MCP server for its entire API, over 2,500 endpoints, plus product-scoped servers (documentation, Workers bindings and builds, observability, Radar, AI Gateway, audit logs and more), all signing in with OAuth in the browser. The REST API takes an API token.",
+      "domain": "cloudflare.com",
+      "categories": ["infrastructure", "developer-tools", "dns"],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Every hosted MCP server signs in with the Cloudflare account in the browser."
+        },
+        {
+          "type": "token",
+          "label": "API token",
+          "note": "Scoped tokens from the dashboard, sent as a Bearer header to the REST API."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Cloudflare API MCP server",
+          "endpoint": "https://mcp.cloudflare.com/mcp",
+          "auth": "oauth"
+        },
+        {
+          "format": "mcp",
+          "name": "Workers Bindings MCP server",
+          "endpoint": "https://bindings.mcp.cloudflare.com/mcp",
+          "auth": "oauth"
+        },
+        {
+          "format": "mcp",
+          "name": "Documentation MCP server",
+          "endpoint": "https://docs.mcp.cloudflare.com/mcp",
+          "auth": "none"
+        },
+        {
+          "format": "openapi",
+          "name": "Cloudflare REST API",
+          "endpoint": "https://api.cloudflare.com/client/v4",
+          "auth": "token"
+        }
+      ],
+      "docsUrl": "https://developers.cloudflare.com/agents/model-context-protocol/mcp-servers-for-cloudflare/"
+    },
+    {
       "slug": "github",
       "name": "GitHub",
       "tagline": "Repos, issues, PRs, and Actions in every format agents speak.",

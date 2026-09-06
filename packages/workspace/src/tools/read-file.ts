@@ -438,6 +438,7 @@ export const ReadFile = setupTool({
   execute: async ({ agentName, input, signal, taskId, taskState }) => {
     const region = input.region;
     const layout = buildWorkspaceFsLayout({
+      apps: agentName === "instrument",
       attachedFolders: taskState.attachedFolders,
       extraMounts:
         agentName === "instrument" ? await childTaskMounts(taskId) : undefined,

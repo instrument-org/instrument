@@ -134,7 +134,9 @@ export function createAppCommand(context: AppCommandContext) {
           return await runTools(rest, context, ctx.signal, rest[1]);
         }
         case "tools": {
-          return await runTools(rest, context, ctx.signal);
+          // `app tools linear save_comment` is how the singular gets reached
+          // for, so it means the same thing.
+          return await runTools(rest, context, ctx.signal, rest[1]);
         }
         default: {
           return fail(`unknown subcommand "${subcommand}".\n\n${USAGE}`);
@@ -393,7 +395,11 @@ async function runCall(
     tool,
   });
   return result.value.isError
-    ? { exitCode: 1, stderr: `${text}\n`, stdout: "" }
+    ? {
+        exitCode: 1,
+        stderr: `${text}\nThe tool refused the call. If the arguments were the problem, \`${APP_COMMAND.name} tool ${app.slug} ${tool}\` shows the JSON it takes.\n`,
+        stdout: "",
+      }
     : ok(`${text}\n`);
 }
 

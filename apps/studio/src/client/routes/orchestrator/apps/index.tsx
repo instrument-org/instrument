@@ -1,4 +1,5 @@
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
+import { ConnectControls } from "@/client/components/orchestrator/connect-controls";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { GlyphButton } from "@/client/components/orchestrator/glyph-button";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
@@ -100,14 +101,35 @@ function AppsRoute() {
             {settingUp.map((app) => (
               <AppRow
                 action={
-                  <GlyphButton
-                    onClick={() => {
-                      ask(`Finish connecting ${app.name}`);
-                    }}
-                    size="sm"
-                  >
-                    Continue
-                  </GlyphButton>
+                  // What the app is waiting for is done here when it is a
+                  // click; anything the agent has to fix goes back to it.
+                  app.standing === "needs-sign-in" ? (
+                    <ConnectControls
+                      kind="sign-in"
+                      label="Sign in"
+                      name={app.name}
+                      size="sm"
+                      slug={app.slug}
+                    />
+                  ) : app.standing === "needs-key" ? (
+                    <GlyphButton
+                      onClick={() => {
+                        openApp(app.slug);
+                      }}
+                      size="sm"
+                    >
+                      Enter key
+                    </GlyphButton>
+                  ) : (
+                    <GlyphButton
+                      onClick={() => {
+                        ask(`Finish connecting ${app.name}`);
+                      }}
+                      size="sm"
+                    >
+                      Continue
+                    </GlyphButton>
+                  )
                 }
                 app={app}
                 key={app.slug}

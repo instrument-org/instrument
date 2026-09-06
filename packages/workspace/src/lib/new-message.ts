@@ -21,6 +21,7 @@ import { detectDateChange } from "./date-change";
 import { detectProjectChanges } from "./detect-project-changes";
 import { taskDir } from "./task-dir-utils";
 import { setTaskState } from "./task-record";
+import { getTaskSettings } from "./task-settings";
 import { getWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
@@ -154,12 +155,20 @@ export async function newMessage({
     getWorkspaceConfig().captureException(allowed.error);
   }
 
-  const browserStatusPart = await createBrowserStatusPart({
-    createdAt,
-    messageId,
-    sessionId,
-    taskId,
-  });
+  // An orchestrator has no browser of its own: it drives whichever of the
+  // window's tabs is on screen, which the view note on each message names,
+  // so the open-and-closed bookkeeping of a task's browser would only tell
+  // it tales about tabs it never owned.
+  const settings = await getTaskSettings(taskDir(taskId));
+  const browserStatusPart =
+    settings?.kind === "orchestrator"
+      ? undefined
+      : await createBrowserStatusPart({
+          createdAt,
+          messageId,
+          sessionId,
+          taskId,
+        });
   if (browserStatusPart) {
     parts.push(browserStatusPart);
   }

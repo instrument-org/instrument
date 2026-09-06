@@ -34,13 +34,18 @@ const CREDENTIAL_FIELD_PATTERN = /^(password|username)=.*$/gim;
  * `rewriteSeparators` turns every backslash in the output into a forward slash,
  * so paths printed by a Windows-native tool stay usable as tool path inputs. It
  * cannot tell a separator from any other backslash, so it also rewrites escape
- * sequences, regex literals, and matched file contents. Callers whose output is
- * already POSIX pass false rather than pay that.
+ * sequences, regex literals, and matched file contents: JSON printed by a
+ * script comes back with every `\n` spelled `/n`, which reads as corrupted
+ * data and sends an agent hunting for the corruption. So it defaults on only
+ * where those paths exist. On a posix host every backslash in output is
+ * content, and callers there whose output is already POSIX pass false anyway.
  */
 export function filterShellOutput(
   output: string,
   dir: TaskDir,
-  { rewriteSeparators = true }: { rewriteSeparators?: boolean } = {},
+  {
+    rewriteSeparators = process.platform === "win32",
+  }: { rewriteSeparators?: boolean } = {},
 ): string {
   let filtered = redactHostPaths(output, dir);
 

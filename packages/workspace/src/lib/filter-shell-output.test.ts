@@ -58,12 +58,26 @@ ${dir}/file3.ts`;
     const output = String.raw`Converted -> output\smiley.png
 ${dir}\output\rainbow.pdf`;
 
-    const result = filterShellOutput(output, dir);
+    const result = filterShellOutput(output, dir, { rewriteSeparators: true });
 
     expect(result).toMatchInlineSnapshot(`
       "Converted -> output/smiley.png
       ./output/rainbow.pdf"
     `);
+  });
+
+  it("leaves a script's own escape sequences alone on a posix host", () => {
+    // The rewrite exists for paths a Windows-native tool prints. Where no such
+    // tool can run, every backslash in output is content: JSON, a regex, a
+    // LaTeX macro. Rewriting them made valid output look corrupted.
+    const result = filterShellOutput(
+      String.raw`{"body":"line\nline","re":"/a\d+/"}`,
+      dir,
+    );
+
+    expect(result).toMatchInlineSnapshot(
+      `"{"body":"line\\nline","re":"/a\\d+/"}"`,
+    );
   });
 
   it("still redacts host paths when the separator rewrite is off, but leaves other backslashes alone", () => {
@@ -95,7 +109,10 @@ ${dir}\output\rainbow.pdf`;
   path: 'C:\\Users\\user\\AppData\\Roaming\\Instrument\\workspace\\tasks\\my-task\\attachments\\chart.svg'
 }`;
 
-    const result = filterShellOutput(output, windowsDir);
+    // The flag is what a Windows build's default is; this test runs on posix.
+    const result = filterShellOutput(output, windowsDir, {
+      rewriteSeparators: true,
+    });
 
     expect(result).not.toContain(String.raw`C://Users`);
     expect(result).toMatchInlineSnapshot(`

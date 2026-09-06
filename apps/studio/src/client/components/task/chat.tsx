@@ -427,6 +427,7 @@ export function TaskChat({
       }
       ref={promptInputRef}
       selectedSessionId={selectedSessionId}
+      variant={presentation === "orchestrator" ? "pill" : "block"}
     />
   );
 

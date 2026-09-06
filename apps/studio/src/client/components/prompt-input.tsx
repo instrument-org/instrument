@@ -160,6 +160,8 @@ interface PromptInputProps {
   // menu would be invisible and impossible to remove -- it just does not
   // advertise itself on surfaces that have their own folder controls.
   showWorkInFolder?: boolean;
+  /** A pill is one row, the height of a text field, that grows with the draft. */
+  variant?: "block" | "pill";
 }
 
 export const PromptInput = ({
@@ -186,6 +188,7 @@ export const PromptInput = ({
   ref,
   selectedSessionId,
   showWorkInFolder = false,
+  variant = "block",
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
@@ -203,6 +206,9 @@ export const PromptInput = ({
     null,
   );
   const [menuView, setMenuView] = useState<ComposerMenuView | null>(null);
+  // A pill is one row until it is written in, then opens a row for the rest.
+  const [pillFocused, setPillFocused] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const openFilePreview = useSetAtom(openFilePreviewAtom);
   const promptEditorRef = useRef<PromptEditorRef>(null);
   // The box the prompt is written in: what this composer's menus are sized and
@@ -557,6 +563,17 @@ export const PromptInput = ({
     modelURI &&
     selectedModel;
 
+  // Open while the caret is in it, a menu of its is up, or a draft is waiting:
+  // the model and the message's context have nowhere else to go, and a row
+  // that folded away mid-draft would take them with it.
+  const pillOpen =
+    variant === "pill" &&
+    (pillFocused ||
+      pickerOpen ||
+      menuView !== null ||
+      value.trim().length > 0 ||
+      attachedItems.length > 0);
+
   const validateSubmission = () => {
     if (isUnavailableModel) {
       toast.error("Selected model is not available", {
@@ -893,13 +910,13 @@ export const PromptInput = ({
           </>
         }
         attachments={
-          (lead || attachedFiles.length > 0) && (
+          ((variant === "block" && lead) || attachedFiles.length > 0) && (
             // A file lands in the corner of a box the user is looking away
             // from, at the caret, so it grows into place rather than appearing
             // there. `initial={false}`: the first one is carried in by the row
             // opening around it, and does not need a second motion of its own.
             <AnimatePresence initial={false}>
-              {lead}
+              {variant === "block" ? lead : null}
               {attachedFiles.map((item) => (
                 <motion.div
                   animate={{ opacity: 1, scale: 1 }}
@@ -932,7 +949,109 @@ export const PromptInput = ({
             </AnimatePresence>
           )
         }
+        extras={
+          pillOpen ? (
+            <>
+              {allowWorkInProject && selectedProjectId && (
+                <PromptProjectChip
+                  disabled={disabled || isLoading}
+                  onOpenPicker={() => {
+                    setMenuView("projects");
+                  }}
+                  onRemove={() => {
+                    setSelectedProjectId(null);
+                  }}
+                  projectId={selectedProjectId}
+                />
+              )}
+              {lead}
+              <div className="ml-auto flex min-w-0 items-center gap-1 [&_[data-slot=model-picker]]:max-w-44">
+                {features.context_ring && id && selectedSessionId && (
+                  <SessionContextRing
+                    id={id}
+                    model={selectedModel}
+                    selectedSessionId={selectedSessionId}
+                  />
+                )}
+                <ModelPicker
+                  className="min-w-0"
+                  disabled={disabled || isLoading}
+                  errors={modelsErrors}
+                  isError={modelsIsError}
+                  isInvalidOurModel={isInvalidSelectedModel}
+                  isLoading={modelsIsLoading}
+                  models={models}
+                  modelURI={modelURI}
+                  onAddProvider={() => {
+                    openLogin(
+                      hasToken ? { reason: "provider-required" } : undefined,
+                    );
+                  }}
+                  onClose={() => {
+                    if (modelURI) {
+                      promptEditorRef.current?.focus();
+                    }
+                  }}
+                  onOpenChange={(open) => {
+                    setPickerOpen(open);
+                    if (open && modelsErrors && modelsErrors.length > 0) {
+                      void modelsRefetch();
+                    }
+                  }}
+                  onValueChange={onModelChange}
+                  selectedModel={selectedModel}
+                />
+              </div>
+            </>
+          ) : undefined
+        }
+        layout={variant}
+        leading={
+          variant === "pill" ? (
+            <ComposerAddMenu
+              actions={actions}
+              bounds={composerBounds}
+              disabled={disabled || isLoading}
+              onReturnFocus={() => {
+                promptEditorRef.current?.focus();
+              }}
+              onSelectProject={
+                allowWorkInProject ? setSelectedProjectId : undefined
+              }
+              onSelectSkill={(skill) => {
+                promptEditorRef.current?.insertText(
+                  skillMentionToken(skill.id),
+                );
+              }}
+              onViewChange={setMenuView}
+              projectId={selectedProjectId}
+              skills={userInvocableSkills}
+              triggerClassName="size-7 rounded-full [&_svg]:size-4"
+              view={menuView}
+            />
+          ) : undefined
+        }
         maxHeight={autoResizeMaxHeight}
+        onBlur={
+          variant === "pill"
+            ? (event) => {
+                if (
+                  event.relatedTarget instanceof Node &&
+                  event.currentTarget.contains(event.relatedTarget)
+                ) {
+                  return;
+                }
+                setPillFocused(false);
+              }
+            : undefined
+        }
+        onFocus={
+          variant === "pill"
+            ? () => {
+                setPillFocused(true);
+              }
+            : undefined
+        }
         overlay={
           <>
             {/* Just outside the box rather than on it, so the ring reads as
@@ -948,6 +1067,33 @@ export const PromptInput = ({
           </>
         }
         ref={setComposerBounds}
+        trailing={
+          variant === "pill" ? (
+            <Button
+              aria-label={isStoppable ? "Stop" : "Send"}
+              className="size-7 shrink-0 rounded-full p-0 disabled:opacity-100"
+              disabled={isStoppable ? false : !canSubmit}
+              onClick={(e) => {
+                if (isStoppable) {
+                  handleStop();
+                } else {
+                  const openInNewTab =
+                    allowOpenInNewTab && (isMacOS() ? e.metaKey : e.ctrlKey);
+                  handleSubmit(openInNewTab);
+                }
+              }}
+              variant="brand"
+            >
+              {isStoppable ? (
+                <StopIcon className="size-4" weight="fill" />
+              ) : isLoading ? (
+                <Spinner className="size-4" />
+              ) : (
+                <ArrowUpIcon className="size-4" />
+              )}
+            </Button>
+          ) : undefined
+        }
       >
         {/* Keyed by draft: the editor reads its text once, at mount, so a
             surface that swaps which draft it is composing (one skill page to

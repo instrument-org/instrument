@@ -64,6 +64,7 @@ export function ComposerAddMenu({
   onViewChange,
   projectId,
   skills,
+  triggerClassName,
   view,
 }: {
   actions: ComposerAction[];
@@ -78,6 +79,8 @@ export function ComposerAddMenu({
   onViewChange: (view: ComposerMenuView | null) => void;
   projectId?: null | ProjectId;
   skills: ComposerSkill[];
+  /** The trigger's shape where the composer draws it differently: a pill's round button. */
+  triggerClassName?: string;
   view: ComposerMenuView | null;
 }) {
   // Whether this closed because something was chosen, which is the only case
@@ -104,7 +107,10 @@ export function ComposerAddMenu({
           // A filled rest state rather than a ghost one, so the way in is
           // visible before it is pointed at. Its hover has to darken in one
           // theme and lighten in the other, which no single token does.
-          className="size-8 bg-muted p-0 text-foreground/60 not-disabled:hover:bg-black/10 dark:not-disabled:hover:bg-white/15"
+          className={cn(
+            "size-8 bg-muted p-0 text-foreground/60 not-disabled:hover:bg-black/10 dark:not-disabled:hover:bg-white/15",
+            triggerClassName,
+          )}
           disabled={disabled}
           ref={triggerRef}
           size="sm"

@@ -21,9 +21,15 @@ export function ComposerFrame({
   actions,
   attachments,
   children,
+  extras,
+  layout = "block",
+  leading,
   maxHeight,
+  onBlur,
+  onFocus,
   overlay,
   ref,
+  trailing,
 }: {
   /** The button row along the bottom. Never pushed out of the box. */
   actions: React.ReactNode;
@@ -31,13 +37,93 @@ export function ComposerFrame({
   attachments?: React.ReactNode;
   /** The editor. Fills the row it is given and scrolls past it. */
   children: React.ReactNode;
+  /**
+   * A pill's second row, above the editor, present only while the pill is
+   * open: the model and what the message will carry. It slides in and out.
+   */
+  extras?: React.ReactNode;
+  /**
+   * A block is the box with the editor above its button row. A pill is one
+   * row, the height of a text field, with `leading` at its left and
+   * `trailing` at its right and the editor between; it grows with the draft
+   * up to `maxHeight`.
+   */
+  layout?: "block" | "pill";
+  /** The pill's left end: the add menu. */
+  leading?: React.ReactNode;
   /** Layout px: inside the zoom root, so the cap scales with the rest of the UI. */
   maxHeight: number;
+  /** Focus entering and leaving the pill, for what it shows only while open. */
+  onBlur?: React.FocusEventHandler<HTMLDivElement>;
+  onFocus?: React.FocusEventHandler<HTMLDivElement>;
   /** Laid over the whole box, out of flow: the drop target, the re-entry ring. */
   overlay?: React.ReactNode;
   /** The box itself, for anything that has to be sized or placed against it. */
   ref?: React.Ref<HTMLDivElement>;
+  /** The pill's right end: the send button. */
+  trailing?: React.ReactNode;
 }) {
+  if (layout === "pill") {
+    return (
+      <div
+        className={cn(
+          "relative isolate flex w-full flex-col rounded-[22px] px-1.5 py-1.5",
+          "bg-white shadow-sm-soft transition-shadow dark:bg-gray-800",
+          "focus-within:ring-1 focus-within:ring-black/5 dark:focus-within:ring-white/5",
+        )}
+        data-slot="composer-frame"
+        onBlur={onBlur}
+        onFocus={onFocus}
+        ref={ref}
+        style={{ maxHeight }}
+      >
+        {overlay}
+        <AnimatePresence initial={false}>
+          {extras ? (
+            <motion.div
+              animate={{ height: "auto", opacity: 1 }}
+              className="overflow-hidden"
+              exit={{ height: 0, opacity: 0 }}
+              initial={{ height: 0, opacity: 0 }}
+              key="extras"
+              transition={BLOCK_OPEN}
+            >
+              <div
+                className="flex min-h-7 items-center gap-1 px-1 pb-1"
+                data-slot="composer-extras"
+              >
+                {extras}
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+        {attachments ? (
+          <div
+            className="flex max-h-24 min-h-0 flex-wrap items-start gap-1.5 overflow-y-auto px-1 pt-1 pb-1.5"
+            data-slot="composer-attachments"
+          >
+            {attachments}
+          </div>
+        ) : null}
+        <div className="flex min-h-7 w-full items-end gap-1.5">
+          <div className="flex shrink-0 items-center self-end">{leading}</div>
+          {/* `min-w-0`: a pasted link is one word as wide as a paragraph. */}
+          {/* One 20px line box for the words and the placeholder alike, centered
+              in the row's 28px: the editor's own paragraph height is for the
+              block, and would sit this line high by a couple of pixels. */}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col self-center py-1 [&_.prompt-editor]:min-h-5 [&_.prompt-editor]:text-[13px] [&_.prompt-editor]:leading-5 [&_.prompt-editor_p]:min-h-5">
+            {children}
+          </div>
+          <div
+            className="flex shrink-0 items-center gap-1 self-end"
+            data-slot="composer-actions"
+          >
+            {trailing}
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div
       className={cn(

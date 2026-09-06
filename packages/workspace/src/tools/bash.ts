@@ -48,7 +48,25 @@ const MAX_YIELD_MS = ms("10 minutes");
 const YIELD_TIMEOUT_SLACK_MS = ms("30 seconds");
 
 /** What the orchestrator's shell runs: the two commands that are its job, and filters to read their output with. */
-const ORCHESTRATOR_COMMANDS = new Set(["app", "task"]);
+// Its commands, and the file commands for putting a finished file where it
+// belongs and looking at one: a task's folder is mounted read-only under the
+// orchestrator's view and the user's folders read and write, so a copy out of
+// one into the other is the whole of what these can do to a file.
+const ORCHESTRATOR_COMMANDS = new Set([
+  "app",
+  "cat",
+  "cp",
+  "file",
+  "find",
+  "head",
+  "ls",
+  "mkdir",
+  "mv",
+  "stat",
+  "tail",
+  "task",
+  "wc",
+]);
 const ORCHESTRATOR_FILTERS = new Set([
   "awk",
   "cut",
@@ -116,7 +134,7 @@ export function orchestratorRefusal(script: string): string | undefined {
   if (outside === undefined) {
     return;
   }
-  return `\`${outside.word}\` is not yours to run: this shell runs \`task\` and \`app\`, and a filter (${[...ORCHESTRATOR_FILTERS].join(", ")}) only after a pipe from one of them. Work that needs a shell, a file, a page, or the web is a task's: start one with \`task new\`.`;
+  return `\`${outside.word}\` is not yours to run: this shell runs \`task\`, \`app\`, and the file commands (ls, cat, head, tail, wc, stat, file, find, cp, mv, mkdir), with a filter (${[...ORCHESTRATOR_FILTERS].join(", ")}) only after a pipe from one of them. Work that needs a shell, a page, or the web, or that writes a file's contents, is a task's: start one with \`task new\`.`;
 }
 
 function bashToolCallTimeoutMs(yieldMs: number) {

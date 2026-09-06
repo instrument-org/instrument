@@ -41,10 +41,20 @@ describe("orchestratorRefusal", () => {
     expect(orchestratorRefusal("agent-browser click @e98")).toMatch(
       /`agent-browser` is not yours to run/,
     );
-    expect(orchestratorRefusal("cat /mnt/Instrument/sums.txt")).toMatch(
-      /task new/,
+    expect(orchestratorRefusal("curl https://example.com")).toMatch(/task new/);
+    expect(orchestratorRefusal("task list; python3 -c 'print(1)'")).toMatch(
+      /`python3`/,
     );
-    expect(orchestratorRefusal("task list; ls /mnt")).toMatch(/`ls`/);
+  });
+
+  it("lets a file be looked at and put where it belongs", () => {
+    expect(orchestratorRefusal("ls /tasks/abc/output")).toBeUndefined();
+    expect(
+      orchestratorRefusal(
+        "cp /tasks/abc/output/report.md /mnt/Instrument/report.md && cat /mnt/Instrument/report.md | head -3",
+      ),
+    ).toBeUndefined();
+    expect(orchestratorRefusal("rm /mnt/Instrument/report.md")).toMatch(/`rm`/);
   });
 
   it("refuses a filter that is not on a pipe from task or app", () => {

@@ -31,6 +31,7 @@ import {
   latestSessionId,
 } from "../orchestrator/latest-session";
 import { listRunnableModels, modelTable } from "../orchestrator/models";
+import { outputFolderPath } from "../orchestrator/output-folder";
 import { expectStop } from "../orchestrator/wake";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
@@ -71,10 +72,12 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       Create a task and start it. The prompt is its whole brief: it knows nothing
       about this conversation. Give it on stdin with a quoted heredoc, as shown,
       so the shell leaves it alone: inside double quotes a $800 becomes 00. The
-      title takes single quotes for the same reason. Folders are mounts under
-      ${MOUNT.attachedFolders} in this conversation, or a folder inside one, named with or
-      without the prefix; a task sees none unless named here, with the access
-      this conversation has unless :ro narrows it. --app hands the task a
+      title takes single quotes for the same reason. Every task has the workspace
+      folder, ${MOUNT.attachedFolders}/Instrument, read and write, without being asked:
+      its results go there unless the brief says where else. Other folders are
+      mounts under ${MOUNT.attachedFolders} in this conversation, or a folder inside one,
+      named with or without the prefix; a task sees none unless named here,
+      with the access this conversation has unless :ro narrows it. --app hands the task a
       connected app, by slug; it gets the \`app\` command for that app and no
       other. --tab hands the task one of the user's browser tabs, by the id the
       note on their message gives; its browser is then that tab, page and all.
@@ -463,9 +466,11 @@ async function runNew(
     );
   }
   const { model, modelURI } = await resolveModel(rawURI);
-  const folders = resolveFolders(
-    values.get("folder") ?? [],
-    orchestratorState.attachedFolders ?? {},
+  const folders = withWorkspaceFolder(
+    resolveFolders(
+      values.get("folder") ?? [],
+      orchestratorState.attachedFolders ?? {},
+    ),
   );
   const name = values.get("name")?.[0]?.trim() || defaultTaskName(prompt);
   const tab = values.get("tab")?.[0];
@@ -500,7 +505,7 @@ async function runNew(
   }
   const sessionId = session.value;
   const message = await newMessage({
-    folders: folders.length > 0 ? folders : undefined,
+    folders,
     model,
     modelURI,
     prompt,
@@ -700,4 +705,19 @@ async function runWait(
   return ok(
     `${task.id} is still running after ${ms(Math.max(1000, Date.now() - startedAt), { long: true })}. You will be told when it finishes; there is no need to wait again.\n`,
   );
+}
+
+/**
+ * The workspace folder, read and write, on every task: where results go when
+ * nobody said where, so a task puts its deliverable there itself rather than
+ * leaving it in scratch for the conversation to fetch. A brief that names the
+ * folder, or a folder inside it, keeps what it asked for beside this.
+ */
+function withWorkspaceFolder<T extends { path: string }>(
+  folders: T[],
+): (T | { access: "read-write"; path: string; source: "user" })[] {
+  const workspace = outputFolderPath();
+  return folders.some((folder) => folder.path === workspace)
+    ? folders
+    : [...folders, { access: "read-write", path: workspace, source: "user" }];
 }

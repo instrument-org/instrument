@@ -592,7 +592,7 @@ export async function createBashEnv({
  */
 function createOrchestratorBashDescription(_builtins: string[]) {
   return dedent`
-    Run one of the two commands that are your job: \`${TASK_COMMAND.name}\` and \`${APP_COMMAND.name}\`. Their output may go through a filter (head, tail, rg, grep, wc, sort, cut, sed, awk, jq). Nothing else runs here, on purpose: no file reading or writing, no python or node, no browser, no network. Anything that touches a file, a page, or the web is a task's job, and you start the task instead.
+    Run one of the two commands that are your job, \`${TASK_COMMAND.name}\` and \`${APP_COMMAND.name}\`, or a file command for looking at a file (ls, cat, head, tail, wc, stat, file, find) or putting a finished one where it belongs (cp, mv, mkdir). Output may go through a filter (head, tail, rg, grep, wc, sort, cut, sed, awk, jq). Nothing else runs here, on purpose: nothing that writes a file's contents, no python or node, no browser, no network. That work is a task's job, and you start the task instead. Each task's folder is mounted read-only at \`${MOUNT.tasks}/<id>\`; the user's folders under \`${MOUNT.attachedFolders}\` are yours to read and write.
 
     Not a persistent terminal: every call starts fresh. Pass a brief or a message through a quoted heredoc (\`<<'EOF'\`), never as a double-quoted argument.
 

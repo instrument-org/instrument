@@ -305,10 +305,13 @@ export function buildTranscriptLayout({
         open.toolCalls.push({ name: getToolNameByType(part.type), rowId: id });
         // A call waiting on the user opens itself whatever the session is
         // doing: the buttons on it are how the turn goes on, and a reader who
-        // has to find and open the row first reads a pause as a stall.
+        // has to find and open the row first reads a pause as a stall. The
+        // card asking to connect an app is the same kind of thing, though the
+        // call itself returned at once: the answer comes from the card.
         if (
           (isStreaming && isToolPartRunning(part) && opensOnSight(part)) ||
-          isAwaitingUser(part)
+          isAwaitingUser(part) ||
+          part.type === "tool-connect_app"
         ) {
           selfOpeningRowIds.push(id);
         }

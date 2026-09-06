@@ -5,7 +5,7 @@ import {
 } from "@/client/atoms/orchestrator";
 import { MOUNT } from "@instrument-org/workspace/client";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { useAtom, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 
 /** Where a virtual path lives on the Mac, when a granted folder covers it. */
 export function hostPathOfMount(
@@ -91,6 +91,31 @@ export function useReopenFileTab() {
         file: tab.mount,
         path: search.path ?? "",
         root: search.root ?? "~",
+      },
+      to: "/orchestrator/computer",
+    });
+  };
+}
+
+/**
+ * Shows the tab at that place on This Mac, counting from one: the folder
+ * browser first, then the files in strip order, nine being the last.
+ */
+export function useSelectFileTab() {
+  const fileTabs = useAtomValue(fileTabsAtom);
+  const navigate = useNavigate();
+  const location = useRouterState({ select: (state) => state.location });
+  return (index: number) => {
+    if (location.pathname !== "/orchestrator/computer") {
+      return;
+    }
+    const search = location.search as { path?: string; root?: string };
+    const tab = index >= 9 ? fileTabs.at(-1) : fileTabs[index - 2];
+    void navigate({
+      search: {
+        path: search.path ?? "",
+        root: search.root ?? "~",
+        ...(index > 1 && tab ? { file: tab.mount } : {}),
       },
       to: "/orchestrator/computer",
     });

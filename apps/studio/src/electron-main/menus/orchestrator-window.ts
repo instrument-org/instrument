@@ -42,6 +42,21 @@ export function createOrchestratorWindowMenu(): MenuItemConstructorOptions[] {
     ],
   };
 
+  // Cmd+1 through Cmd+8 pick a tab by place; Cmd+9 the last, as browsers do.
+  const tabMenu: MenuItemConstructorOptions = {
+    label: "Tabs",
+    submenu: Array.from({ length: 9 }, (_, index) => ({
+      accelerator: `CmdOrCtrl+${index + 1}`,
+      click: () => {
+        publisher.publish("orchestrator.command", {
+          index: index + 1,
+          type: "selectTab",
+        });
+      },
+      label: index === 8 ? "Last Tab" : `Tab ${index + 1}`,
+    })),
+  };
+
   const historyMenu: MenuItemConstructorOptions = {
     label: "History",
     submenu: [
@@ -67,6 +82,7 @@ export function createOrchestratorWindowMenu(): MenuItemConstructorOptions[] {
     fileMenu,
     createEditMenu(),
     createOtherWindowViewMenu(),
+    tabMenu,
     historyMenu,
     createWindowMenu(),
     createHelpMenu({ includeShortcutGuide: false }),

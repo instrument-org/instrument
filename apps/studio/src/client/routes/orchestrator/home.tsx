@@ -99,8 +99,11 @@ function HomeRoute() {
     words ? SCREENS_SHOWN : SCREENS.length,
   );
   const apps = APPS.filter((app) => matches(app.name));
+  // A task's id is made from its brief, so words in the brief find it too.
   const tasks = (children.data ?? [])
-    .filter((child) => matches(child.title))
+    .filter(
+      (child) => matches(child.title) || matches(child.id.replaceAll("-", " ")),
+    )
     .slice(0, words ? TASKS_SHOWN : 0);
   const recentRows = recents
     .filter((entry) => matches(entry.title))
@@ -172,12 +175,14 @@ function HomeRoute() {
         openSite(app.url);
       },
     })),
+    // What the words can be used with, whatever else matched: the way a
+    // launcher offers its fallbacks under the results rather than as an "or".
     ...(words
       ? [
           {
-            group: "Or",
+            group: `Use “${query.trim()}” with`,
             icon: <InstrumentGlyph className="size-4" />,
-            name: `Ask Instrument: “${query.trim()}”`,
+            name: "Ask Instrument",
             note: "Agent",
             run: () => {
               ask(query.trim());
@@ -185,9 +190,9 @@ function HomeRoute() {
             },
           },
           {
-            group: "Or",
+            group: `Use “${query.trim()}” with`,
             icon: <MagnifyingGlassIcon className="size-4" />,
-            name: `Search the web for “${query.trim()}”`,
+            name: "Search the web",
             note: "Browser",
             run: () => {
               openSite(
@@ -271,6 +276,13 @@ function HomeRoute() {
                     onClick={row.run}
                     onMouseEnter={() => {
                       setHighlight(index);
+                    }}
+                    // The arrows move the highlight past the list's fold; the
+                    // list follows, so the row picked is the row seen.
+                    ref={(element) => {
+                      if (index === current) {
+                        element?.scrollIntoView({ block: "nearest" });
+                      }
                     }}
                     type="button"
                   >

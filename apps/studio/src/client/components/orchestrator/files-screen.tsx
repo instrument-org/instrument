@@ -17,7 +17,7 @@ import { cn } from "@/client/lib/utils";
 import { LaptopIcon } from "@phosphor-icons/react/Laptop";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom, useSetAtom } from "jotai";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ComputerPage, type FolderOnScreen } from "./computer-page";
 import { useOrchestrator } from "./context";
@@ -50,6 +50,9 @@ export function FilesScreen({
   const setClosed = useSetAtom(closedFileTabsAtom);
   const [folder, setFolder] = useState<FolderOnScreen | null>(null);
   const [quickLook, setQuickLook] = useState<FileTab | null>(null);
+  // Where the keyboard was when Quick Look opened, so it goes back there when
+  // Quick Look closes and the arrows keep walking the folder.
+  const quickLookOrigin = useRef<HTMLElement | null>(null);
   const activeFile = file
     ? fileTabs.find((tab) => tab.mount === file)
     : undefined;
@@ -223,6 +226,9 @@ export function FilesScreen({
             }}
             onOpenFile={openFile}
             onQuickLook={(tab) => {
+              if (document.activeElement instanceof HTMLElement) {
+                quickLookOrigin.current = document.activeElement;
+              }
               setQuickLook((current) =>
                 current?.mount === tab.mount ? null : tab,
               );
@@ -254,6 +260,10 @@ export function FilesScreen({
       >
         <DialogContent
           className="h-[85vh] w-[88vw] max-w-none gap-0 p-0 outline-none sm:max-w-none"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            quickLookOrigin.current?.focus();
+          }}
           // Focus stays on the panel itself rather than moving to the first
           // control in it, so Space puts the panel away instead of pressing
           // whatever button it landed on, the way a second Space does in the

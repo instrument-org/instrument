@@ -30,6 +30,7 @@ import {
   hostPathOfMount,
   useCloseFileTab,
   useReopenFileTab,
+  useSelectFileTab,
 } from "@/client/components/orchestrator/file-tabs";
 import { OrchestratorSidebar } from "@/client/components/orchestrator/sidebar";
 import {
@@ -258,6 +259,7 @@ function OrchestratorLayout() {
   const [browser, setBrowser] = useState<BrowserTabsHandle | null>(null);
   const closeFileTab = useCloseFileTab();
   const reopenFileTab = useReopenFileTab();
+  const selectFileTab = useSelectFileTab();
   useWindowCommands({
     closeTab: () => {
       if (isBrowserScreen) {
@@ -271,6 +273,13 @@ function OrchestratorLayout() {
         browser?.reopenClosed();
       } else {
         reopenFileTab();
+      }
+    },
+    selectTab: (index) => {
+      if (isBrowserScreen) {
+        browser?.selectTab(index);
+      } else {
+        selectFileTab(index);
       }
     },
   });
@@ -609,16 +618,18 @@ function useRecordRecents({
 function useWindowCommands({
   closeTab,
   reopenTab,
+  selectTab,
 }: {
   closeTab: () => void;
   reopenTab: () => void;
+  selectTab: (index: number) => void;
 }) {
   const router = useRouter();
-  // The stream is opened once; what a close or a reopen means is read at the
-  // moment of the chord, off whatever screen is up then.
-  const latest = useRef({ closeTab, reopenTab });
+  // The stream is opened once; what a chord means is read at the moment it
+  // fires, off whatever screen is up then.
+  const latest = useRef({ closeTab, reopenTab, selectTab });
   useEffect(() => {
-    latest.current = { closeTab, reopenTab };
+    latest.current = { closeTab, reopenTab, selectTab };
   });
   useEffect(() => {
     const onMouseUp = (event: MouseEvent) => {
@@ -637,6 +648,10 @@ function useWindowCommands({
           { signal: controller.signal },
         );
         for await (const command of commands) {
+          if (typeof command === "object") {
+            latest.current.selectTab(command.index);
+            continue;
+          }
           switch (command) {
             case "back": {
               router.history.back();

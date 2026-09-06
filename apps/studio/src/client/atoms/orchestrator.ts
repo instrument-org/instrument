@@ -103,8 +103,25 @@ export const orchestratorTabsAtom = atomWithStorage<BrowserTabs>(
  * carry it before its tab is shown again.
  */
 export const siteFaviconsAtom = atomWithStorage<Record<string, string>>(
-  "orchestrator.site-favicons.v1",
+  "orchestrator.site-favicons.v2",
   {},
+  undefined,
+  { getOnInit: true },
+);
+
+/** A page the browser showed, for the new-tab page: newest first, one per address. */
+export interface VisitedPage {
+  at: number;
+  favicon?: string;
+  title: string;
+  url: string;
+}
+
+export const VISITED_MAX = 30;
+
+export const visitedPagesAtom = atomWithStorage<VisitedPage[]>(
+  "orchestrator.visited-pages.v1",
+  [],
   undefined,
   { getOnInit: true },
 );

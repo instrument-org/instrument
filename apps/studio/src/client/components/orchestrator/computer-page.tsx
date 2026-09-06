@@ -423,9 +423,16 @@ const THUMBNAIL_SCALE = 0.4;
 function DocumentThumbnail({ children }: { children: ReactNode }) {
   const inverse = `${100 / THUMBNAIL_SCALE}%`;
   return (
-    <div className="pointer-events-none aspect-[0.78] w-full overflow-hidden rounded-sm bg-card shadow-sm ring-1 ring-border">
+    // `contain-inline-size`: the box's own width says nothing about the
+    // document in it, so a wide line in the viewer cannot widen the column
+    // the thumbnail sits in.
+    <div className="pointer-events-none aspect-[0.78] w-full overflow-hidden rounded-sm bg-card shadow-sm ring-1 ring-border contain-inline-size">
+      {/* The viewer is laid out at the box's width divided by the scale and
+          drawn scaled back down, so it fills the box edge to edge; what it
+          lays out past the box's height is clipped, the way a page preview
+          is. Its own chrome rows are hidden: a thumbnail is the document. */}
       <div
-        className="origin-top-left"
+        className="origin-top-left [&_.viewer-chrome-stroke]:hidden"
         style={{
           height: inverse,
           transform: `scale(${THUMBNAIL_SCALE})`,

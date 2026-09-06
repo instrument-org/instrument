@@ -3,6 +3,9 @@ import {
   orchestratorTabsAtom,
   originOf,
   siteFaviconsAtom,
+  VISITED_MAX,
+  type VisitedPage,
+  visitedPagesAtom,
 } from "@/client/atoms/orchestrator";
 import { TaskBrowserPanel } from "@/client/components/task/browser-panel";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
@@ -40,6 +43,8 @@ export interface BrowserTabsHandle {
   readPage: () => Promise<PageContext | undefined>;
   /** Brings back the tab closed last, at the page it was on. */
   reopenClosed: () => void;
+  /** Shows the tab at that place, counting from one; nine is the last, as in a browser. */
+  selectTab: (index: number) => void;
 }
 
 /** What the page had on it that the words in a message can refer to. */
@@ -93,6 +98,7 @@ export function BrowserTabs({
   const { taskId } = useOrchestrator();
   const [{ activeId, tabs }, setTabs] = useAtom(orchestratorTabsAtom);
   const setSiteFavicons = useSetAtom(siteFaviconsAtom);
+  const [visited, setVisited] = useAtom(visitedPagesAtom);
   const attached = useBrowserTargets();
 
   // Holds every tab's guest for as long as the window is open, the way the
@@ -191,7 +197,15 @@ export function BrowserTabs({
         try {
           const url = webview.getURL();
           if (url && url !== "about:blank") {
-            patch(id, { title: webview.getTitle() || undefined, url });
+            const title = webview.getTitle() || undefined;
+            patch(id, { title, url });
+            // The new-tab page lists where the browser has been.
+            setVisited((current) =>
+              [
+                { at: Date.now(), title: title ?? "", url },
+                ...current.filter((page) => page.url !== url),
+              ].slice(0, VISITED_MAX),
+            );
           }
         } catch {
           // Not attached yet; the events that follow attachment re-run this.
@@ -201,6 +215,14 @@ export function BrowserTabs({
         const { title } = event as Event & { title?: string };
         if (title) {
           patch(id, { title });
+          const url = latest.current.tabs.find((tab) => tab.id === id)?.url;
+          if (url) {
+            setVisited((current) =>
+              current.map((page) =>
+                page.url === url ? { ...page, title } : page,
+              ),
+            );
+          }
         }
       };
       const onFavicon = (event: Event) => {
@@ -210,24 +232,24 @@ export function BrowserTabs({
         if (!favicon) {
           return;
         }
-        // Under the site's origin, and under the one the tab was opened at
-        // when the site moved it on, so a pin finds its icon either way.
-        setSiteFavicons((current) => {
-          const next = { ...current };
-          let url: string | undefined;
-          try {
-            url = webview.getURL();
-          } catch {
-            // Not attached: the tab's own record of its address will do.
-          }
-          const tab = latest.current.tabs.find((entry) => entry.id === id);
-          for (const origin of [originOf(url), originOf(tab?.openedUrl)]) {
-            if (origin) {
-              next[origin] = favicon;
-            }
-          }
-          return next;
-        });
+        // Under the site the page is on now, and nothing else: a tab that
+        // wandered off a pinned site must not hand the pin the icon of
+        // wherever it went.
+        let url: string | undefined;
+        try {
+          url = webview.getURL();
+        } catch {
+          url = latest.current.tabs.find((entry) => entry.id === id)?.url;
+        }
+        const origin = originOf(url);
+        if (origin) {
+          setSiteFavicons((current) => ({ ...current, [origin]: favicon }));
+          setVisited((current) =>
+            current.map((page) =>
+              page.url === url ? { ...page, favicon } : page,
+            ),
+          );
+        }
       };
       onNavigate();
       webview.addEventListener("did-navigate", onNavigate);
@@ -246,7 +268,7 @@ export function BrowserTabs({
         cleanup?.();
       }
     };
-  }, [attached, setSiteFavicons, setTabs, tabIds, taskId]);
+  }, [attached, setSiteFavicons, setTabs, setVisited, tabIds, taskId]);
 
   const activePage: BrowserPage | undefined = active?.url
     ? {
@@ -315,11 +337,14 @@ export function BrowserTabs({
         openTab(url);
       },
       openOrFocus: (url) => {
-        // The tab opened at that address, wherever the site has taken it
-        // since, or failing that one that is there now.
+        // A tab still on that site, by where it is now: a tab that was opened
+        // there and has since wandered off is not the site.
+        const origin = originOf(url);
         const existing =
-          latest.current.tabs.find((tab) => sameAddress(tab.openedUrl, url)) ??
-          latest.current.tabs.find((tab) => sameAddress(tab.url, url));
+          latest.current.tabs.find((tab) => sameAddress(tab.url, url)) ??
+          latest.current.tabs.find(
+            (tab) => origin !== undefined && originOf(tab.url) === origin,
+          );
         if (existing) {
           setTabs((current) => ({ ...current, activeId: existing.id }));
         } else {
@@ -380,6 +405,13 @@ export function BrowserTabs({
         };
       },
       reopenClosed,
+      selectTab: (index) => {
+        const all = latest.current.tabs;
+        const tab = index >= 9 ? all.at(-1) : all[index - 1];
+        if (tab) {
+          setTabs((current) => ({ ...current, activeId: tab.id }));
+        }
+      },
     }),
     // The handle reads the strip through `latest` at call time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -388,31 +420,33 @@ export function BrowserTabs({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <TabStrip
-        className="border-b border-border"
-        onClose={closeTab}
-        onNew={() => {
-          openTab();
-        }}
-        onReorder={(keys) => {
-          setTabs((current) => ({
-            ...current,
-            tabs: keys.flatMap((key) => {
-              const tab = current.tabs.find((entry) => entry.id === key);
-              return tab ? [tab] : [];
-            }),
-          }));
-        }}
-        onSelect={(id) => {
-          setTabs((current) => ({ ...current, activeId: id }));
-        }}
-        selectedKey={active?.id}
-        tabs={tabs.map((tab) => ({
-          icon: <TabIcon favicon={tab.favicon} />,
-          key: tab.id,
-          title: tab.title || tab.url || "New tab",
-        }))}
-      />
+      {tabs.length === 0 ? null : (
+        <TabStrip
+          className="border-b border-border"
+          onClose={closeTab}
+          onNew={() => {
+            openTab();
+          }}
+          onReorder={(keys) => {
+            setTabs((current) => ({
+              ...current,
+              tabs: keys.flatMap((key) => {
+                const tab = current.tabs.find((entry) => entry.id === key);
+                return tab ? [tab] : [];
+              }),
+            }));
+          }}
+          onSelect={(id) => {
+            setTabs((current) => ({ ...current, activeId: id }));
+          }}
+          selectedKey={active?.id}
+          tabs={tabs.map((tab) => ({
+            icon: <TabIcon favicon={tab.favicon} />,
+            key: tab.id,
+            title: tab.title || tab.url || "New tab",
+          }))}
+        />
+      )}
       <div className="relative min-h-0 flex-1">
         {active ? (
           <TaskBrowserPanel
@@ -423,21 +457,77 @@ export function BrowserTabs({
             taskId={taskId}
           />
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-            <GlobeIcon className="size-8" />
-            <p>Open a tab. What you are looking at goes with what you say.</p>
-            <button
-              className="rounded-md bg-foreground/10 px-3 py-1.5 text-foreground hover:bg-foreground/20"
-              onClick={() => {
-                openTab();
-              }}
-              type="button"
-            >
-              New tab
-            </button>
-          </div>
+          <NewTabPage
+            onNew={() => {
+              openTab();
+            }}
+            onOpen={(url) => {
+              openTab(url);
+            }}
+            visited={visited}
+          />
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * What the browser shows with no tab open: where it has been, newest first,
+ * each a click from coming back, and a way to start blank. Closing the last
+ * tab lands here rather than on another screen: the browser is still the
+ * screen the user was on.
+ */
+function NewTabPage({
+  onNew,
+  onOpen,
+  visited,
+}: {
+  onNew: () => void;
+  onOpen: (url: string) => void;
+  visited: VisitedPage[];
+}) {
+  return (
+    <div className="flex h-full min-h-0 flex-col items-center overflow-y-auto px-8 pt-16 pb-10">
+      <GlobeIcon className="size-8 text-muted-foreground" />
+      <button
+        className="mt-4 rounded-md bg-foreground/10 px-3 py-1.5 text-sm text-foreground hover:bg-foreground/20"
+        onClick={onNew}
+        type="button"
+      >
+        New tab
+      </button>
+      {visited.length > 0 ? (
+        <div className="mt-10 w-full max-w-2xl">
+          <p className="text-xs font-medium tracking-[0.12em] text-muted-foreground uppercase">
+            Recent pages
+          </p>
+          <ul className="mt-3 grid gap-1 sm:grid-cols-2">
+            {visited.map((page) => (
+              <li key={page.url}>
+                <button
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent/50"
+                  onClick={() => {
+                    onOpen(page.url);
+                  }}
+                  title={page.url}
+                  type="button"
+                >
+                  <TabIcon favicon={page.favicon} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">
+                      {page.title || page.url}
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {page.url}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

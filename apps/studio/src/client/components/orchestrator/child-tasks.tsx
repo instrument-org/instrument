@@ -1,4 +1,6 @@
 import { ChatStream } from "@/client/components/chat-stream";
+import { MacFolderIcon } from "@/client/components/icons/mac-folder";
+import { ModelPreview } from "@/client/components/tasks-data-table/model-preview";
 import {
   MessageScroller,
   MessageScrollerContent,
@@ -150,17 +152,24 @@ function TaskBrief({
     <details className="group shrink-0 border-b border-border px-4 py-2 text-xs">
       <summary className="flex cursor-default list-none flex-wrap items-center gap-1.5 select-none [&::-webkit-details-marker]:hidden">
         <CaretRightIcon className="size-3 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
-        <Chip label="Model">{model ?? "conversation's"}</Chip>
+        <span className="flex h-6 items-center rounded-md bg-foreground/5 px-1.5">
+          <ModelPreview id={taskId} />
+        </span>
         {folders.length === 0 ? (
           <Chip label="Folders">none</Chip>
         ) : (
           folders.map((folder) => (
-            <Chip
+            <span
+              className="flex h-6 max-w-64 items-center gap-1.5 rounded-md bg-foreground/5 px-1.5"
               key={folder.id}
-              label={folder.access === "read-write" ? "Read, write" : "Read"}
+              title={folder.path}
             >
-              {folder.mountName}
-            </Chip>
+              <MacFolderIcon className="size-4 shrink-0" />
+              <span className="truncate font-medium">{folder.mountName}</span>
+              <span className="text-muted-foreground">
+                {folder.access === "read-write" ? "read, write" : "read"}
+              </span>
+            </span>
           ))
         )}
         {state.data?.browserTargetId ? <Chip label="Tab">handed</Chip> : null}
@@ -181,10 +190,10 @@ function TaskBrief({
             </dd>
           </Fragment>
         ))}
-        {state.data?.selectedModelURI ? (
+        {model ? (
           <>
             <dt className="font-medium text-foreground/70">Model</dt>
-            <dd className="truncate">{state.data.selectedModelURI}</dd>
+            <dd className="truncate">{model}</dd>
           </>
         ) : null}
         {state.data?.browserTargetId ? (

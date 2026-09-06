@@ -27,9 +27,8 @@ const MIN_TAB = 28;
 const CLOSE_FITS = 60;
 // An icon at the head of the tab and a few characters of name after it.
 const NAME_FITS = 80;
-// The most a tab takes, so the row of tabs ends where the tabs do and the
-// control that adds one sits against the last of them rather than far off.
-const MAX_TAB = 192;
+// The control that adds a tab, and the gap it holds: room the tabs cannot use.
+const NEW_TAB_ROOM = 28 + GAP;
 // The `mr-3` holding a fixed tab off the rest, on top of the gap.
 const FIXED_MARGIN = 12;
 
@@ -103,6 +102,7 @@ export function TabStrip({
   /** Drawn at the right end, past the tabs. */
   trailing?: ReactNode;
 }) {
+  const hasNew = onNew !== undefined;
   const fixedTabs = tabs.filter((tab) => tab.isFixed);
   const movableTabs = tabs.filter((tab) => !tab.isFixed);
   const movableKeys = movableTabs.map((tab) => tab.key);
@@ -176,7 +176,11 @@ export function TabStrip({
         drawnCount,
         fixedCount,
       );
-      const files = stripLayout(area.clientWidth, drawnCount, 0);
+      const files = stripLayout(
+        area.clientWidth - (hasNew ? NEW_TAB_ROOM : 0),
+        drawnCount,
+        0,
+      );
       const next = { ...files, fixedIsNamed: row.density === "full" };
       setLayout((current) =>
         current.density === next.density &&
@@ -194,7 +198,7 @@ export function TabStrip({
     return () => {
       observer.disconnect();
     };
-  }, [drawnCount, fixedCount]);
+  }, [drawnCount, fixedCount, hasNew]);
 
   // The run of tabs there is room for, kept over the selection.
   const selectedIndex = movableKeys.indexOf(selectedKey ?? "");
@@ -278,7 +282,6 @@ export function TabStrip({
           }}
           ref={areaRef}
           role="none"
-          style={{ maxWidth: Math.max(1, drawnCount) * (MAX_TAB + GAP) }}
           values={drawnKeys}
         >
           {drawnTabs.map(({ isClosing, tab }, index) => (
@@ -314,17 +317,21 @@ export function TabStrip({
               value={tab.key}
             />
           ))}
+          {/* Inside the row rather than after it, so it sits against the last
+              tab while the tabs are short of the row and is pushed to the end
+              once they fill it. It is not one of the values, so the drag
+              never counts it. */}
+          {onNew ? (
+            <button
+              aria-label="New tab"
+              className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+              onClick={onNew}
+              type="button"
+            >
+              <PlusIcon className="size-4" />
+            </button>
+          ) : null}
         </Reorder.Group>
-        {onNew ? (
-          <button
-            aria-label="New tab"
-            className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-            onClick={onNew}
-            type="button"
-          >
-            <PlusIcon className="size-4" />
-          </button>
-        ) : null}
       </div>
       {trailing}
     </div>

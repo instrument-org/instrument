@@ -14,7 +14,6 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
-import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { HouseIcon } from "@phosphor-icons/react/House";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
@@ -88,9 +87,8 @@ export function ViewChip() {
   return (
     <span
       className="flex h-7 max-w-64 items-center gap-1.5 rounded-lg bg-foreground/5 px-2 text-xs text-muted-foreground"
-      title="Goes with what you send"
+      title="Instrument sees this when you send"
     >
-      <EyeIcon className="size-3.5 shrink-0" />
       <span className="flex size-3.5 shrink-0 items-center justify-center">
         {chip.icon}
       </span>

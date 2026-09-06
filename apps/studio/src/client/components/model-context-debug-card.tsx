@@ -18,9 +18,12 @@ const COLLAPSED_MAX_HEIGHT_PX = 56;
 
 export function ModelContextDebugCard({
   className,
+  compact = false,
   text,
 }: {
   className?: string;
+  /** One small line, the note's first, that opens to the whole note on a click: for a narrow transcript. */
+  compact?: boolean;
   text: string;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -57,6 +60,25 @@ export function ModelContextDebugCard({
   const toggle = () => {
     setIsExpanded((expanded) => !expanded);
   };
+
+  if (compact) {
+    const firstLine = body.split("\n").find((line) => line.trim()) ?? "";
+    return (
+      <button
+        className={cn(
+          // Developer mode's color on a dashed edge, so the line never reads as the agent's words.
+          "block w-full border-l-2 border-dashed border-dev-700/50 pl-2 text-left font-mono text-[10px] leading-4 text-dev-700/70 dark:border-dev-300/40 dark:text-dev-300/60",
+          isExpanded ? "whitespace-pre-wrap" : "truncate",
+          className,
+        )}
+        onClick={toggle}
+        title={isExpanded ? undefined : body}
+        type="button"
+      >
+        {isExpanded ? body : firstLine}
+      </button>
+    );
+  }
 
   return (
     <DevModeCard className={cn("relative", className)}>

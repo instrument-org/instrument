@@ -3,9 +3,13 @@ import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { isMediaFile } from "@/client/lib/get-file-type";
 import { parseFilesBlock } from "@/client/lib/parse-files-block";
 import { isAddressableTaskFilePath } from "@instrument-org/workspace/client";
+import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
 import { useContext } from "react";
 
+import { FileIcon } from "./file-icon";
+import { FileOpenContext } from "./file-open-context";
 import { FilesGrid } from "./files-grid";
+import { FilesLayoutContext } from "./files-layout-context";
 import { MarkdownTaskContext } from "./markdown-task-context";
 
 /**
@@ -80,6 +84,8 @@ export function FilePathsGrid({
 }) {
   const { assetBaseUrl, assetVersion, taskId } =
     useContext(MarkdownTaskContext);
+  const layout = useContext(FilesLayoutContext);
+  const openElsewhere = useContext(FileOpenContext);
 
   if (
     taskId === undefined ||
@@ -100,6 +106,30 @@ export function FilePathsGrid({
     }),
   }));
 
+  if (layout === "list") {
+    return (
+      <div className="not-prose my-2 flex flex-col gap-1">
+        {files.map((file) => (
+          <button
+            className="flex h-8 w-full items-center gap-2 rounded-md border border-border bg-card px-2 text-left text-xs hover:bg-accent/50"
+            key={file.filePath}
+            onClick={() => {
+              openElsewhere?.(file.filePath);
+            }}
+            type="button"
+          >
+            <FileIcon className="size-4 shrink-0" filename={file.filename} />
+            <span className="min-w-0 flex-1 truncate">{file.filename}</span>
+            <span className="shrink-0 text-[10px] text-muted-foreground">
+              {fileKind(file.filename)}
+            </span>
+            <ArrowUpRightIcon className="size-3 shrink-0 text-muted-foreground" />
+          </button>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="not-prose my-4">
       <FilesGrid
@@ -109,6 +139,12 @@ export function FilePathsGrid({
       />
     </div>
   );
+}
+
+/** The kind a row names beside the file: its extension, upper-cased, or "File". */
+function fileKind(filename: string) {
+  const extension = filename.includes(".") ? filename.split(".").at(-1) : "";
+  return extension ? extension.toUpperCase() : "File";
 }
 
 // Whether a line in the fence is worth drawing a card for: a path this app can

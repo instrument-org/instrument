@@ -45,6 +45,7 @@ import {
   isVisibleAssistantPart,
   planRow,
   type TranscriptGroup as TranscriptGroupData,
+  type TranscriptLayout,
   type TranscriptRow,
 } from "./transcript-layout";
 import { useHoldRowInPlace } from "./transcript-row-position";
@@ -273,12 +274,18 @@ export function ChatStream({
 
   // Precomputed over the whole transcript, since a group and the run edges
   // around it both cross message boundaries.
-  const layout = buildTranscriptLayout({
-    isAgentRunning,
-    isDeveloperMode,
-    isToolStreaming,
-    regularMessages,
-  });
+  // The conversation's transcript has no runs of steps to fold: its calls are
+  // not shown, and what is shown of them stands on its own as a row. A group
+  // headed by a copy of a hidden call would have no head line to shut it with.
+  const layout: TranscriptLayout =
+    presentation === "orchestrator"
+      ? { groups: new Map(), rows: new Map(), selfOpeningRowIds: [] }
+      : buildTranscriptLayout({
+          isAgentRunning,
+          isDeveloperMode,
+          isToolStreaming,
+          regularMessages,
+        });
 
   /**
    * Opens these steps, and the phases they sit in.
@@ -341,6 +348,7 @@ export function ChatStream({
     isToolStreaming,
     lastMessageId,
     onRetry,
+    presentation,
     task,
   };
 
@@ -676,7 +684,10 @@ export function ChatStream({
         const hasFooter =
           assistantMessages.length > 0 && visibleAssistantContentCount > 0;
 
-        if (hasFooter) {
+        if (
+          hasFooter && // The conversation's replies stand on their own: no footer of times and tokens under each.
+          presentation !== "orchestrator"
+        ) {
           messageElements.push(
             <AssistantMessagesFooter
               alwaysVisible={alwaysShowFooter}

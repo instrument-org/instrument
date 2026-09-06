@@ -111,8 +111,15 @@ export function renderDataPart({
     return null;
   }
 
+  // The narrow transcript draws a developer note as one line.
+  const compact = ctx.presentation === "orchestrator";
+  const noteClassName = compact ? "mt-1" : "mt-2";
+
   switch (part.type) {
     case "data-appEvent": {
+      if (ctx.presentation === "orchestrator") {
+        return null;
+      }
       return <AppEventNote data={part.data} key={part.metadata.id} />;
     }
     case "data-attachedFolderChanges": {
@@ -127,7 +134,8 @@ export function renderDataPart({
     case "data-backgroundProcesses": {
       return (
         <ModelContextDebugCard
-          className="mt-2"
+          className={noteClassName}
+          compact={compact}
           key={part.metadata.id}
           text={backgroundProcessesModelNote(part.data)}
         />
@@ -139,7 +147,8 @@ export function renderDataPart({
       }
       return (
         <ModelContextDebugCard
-          className="mt-2"
+          className={noteClassName}
+          compact={compact}
           key={part.metadata.id}
           text={browserStatusModelNote(part.data)}
         />
@@ -148,7 +157,8 @@ export function renderDataPart({
     case "data-contextRollover": {
       return (
         <ModelContextDebugCard
-          className="mt-2"
+          className={noteClassName}
+          compact={compact}
           key={part.metadata.id}
           text={`Context rollover: dropped ${part.data.droppedMessages} messages, retained ${part.data.retainedUserMessages} user messages`}
         />
@@ -157,7 +167,8 @@ export function renderDataPart({
     case "data-dateChange": {
       return (
         <ModelContextDebugCard
-          className="mt-2"
+          className={noteClassName}
+          compact={compact}
           key={part.metadata.id}
           text={dateChangeModelNote(part.data)}
         />
@@ -188,7 +199,8 @@ export function renderDataPart({
     case "data-intent": {
       return (
         <ModelContextDebugCard
-          className="mt-2"
+          className={noteClassName}
+          compact={compact}
           key={part.metadata.id}
           text={part.data.text}
         />
@@ -197,7 +209,8 @@ export function renderDataPart({
     case "data-maxSteps": {
       return (
         <ModelContextDebugCard
-          className="mt-2"
+          className={noteClassName}
+          compact={compact}
           key={part.metadata.id}
           text={maxStepsModelNote(part.data)}
         />
@@ -209,7 +222,8 @@ export function renderDataPart({
     case "data-paneTabs": {
       return (
         <ModelContextDebugCard
-          className="mt-2"
+          className={noteClassName}
+          compact={compact}
           key={part.metadata.id}
           text={paneTabsModelNote(part.data)}
         />
@@ -233,13 +247,18 @@ export function renderDataPart({
     case "data-skillMentions": {
       return (
         <ModelContextDebugCard
-          className="mt-2"
+          className={noteClassName}
+          compact={compact}
           key={part.metadata.id}
           text={`Skills mentioned: ${part.data.names.join(", ")}`}
         />
       );
     }
     case "data-taskEvent": {
+      // The conversation was woken by it; what it says about it is its reply.
+      if (ctx.presentation === "orchestrator") {
+        return null;
+      }
       return <TaskEventNote data={part.data} key={part.metadata.id} />;
     }
     case "data-unknown": {
@@ -248,7 +267,8 @@ export function renderDataPart({
       // cannot read, and the reason is the useful half.
       return (
         <ModelContextDebugCard
-          className="mt-2"
+          className={noteClassName}
+          compact={compact}
           key={part.metadata.id}
           text={`Could not read a ${part.data.originalType} part: ${part.data.reason}`}
         />
@@ -257,7 +277,8 @@ export function renderDataPart({
     case "data-viewContext": {
       return (
         <ModelContextDebugCard
-          className="mt-2"
+          className={noteClassName}
+          compact={compact}
           key={part.metadata.id}
           text={viewContextModelNote(part.data)}
         />

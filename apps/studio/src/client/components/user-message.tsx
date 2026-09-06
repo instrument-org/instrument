@@ -18,6 +18,8 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 interface UserMessageProps {
+  /** A tighter bubble with no footer under it, for a narrow transcript. */
+  compact?: boolean;
   part: SessionMessagePart.TextPart;
 }
 
@@ -30,6 +32,7 @@ interface UserMessageProps {
 const COLLAPSED_MAX_HEIGHT_PX = 216;
 
 export const UserMessage = memo(function UserMessage({
+  compact = false,
   part,
 }: UserMessageProps) {
   const releaseAutoScroll = useReleaseAutoScroll();
@@ -71,7 +74,12 @@ export const UserMessage = memo(function UserMessage({
 
   return (
     <div className="group flex w-full flex-col items-end">
-      <div className="relative max-w-[80%] rounded-tl-xl rounded-tr rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-3 text-foreground shadow-sm dark:from-card dark:to-card">
+      <div
+        className={cn(
+          "relative max-w-[80%] rounded-tl-xl rounded-tr rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 text-foreground shadow-sm dark:from-card dark:to-card",
+          compact ? "px-3 py-2" : "px-4 py-3",
+        )}
+      >
         <Collapsible
           onOpenChange={(open) => {
             releaseAutoScroll();
@@ -131,22 +139,24 @@ export const UserMessage = memo(function UserMessage({
           </CollapsibleContent>
         </Collapsible>
       </div>
-      <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground opacity-0 group-hover:opacity-100">
-        <RelativeTime
-          className="cursor-default"
-          date={part.metadata.createdAt}
-        />
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <CopyButton
-              className={SHARED.messageFooterButton}
-              iconSize={MESSAGE_FOOTER_ICON_SIZE}
-              onCopy={handleCopy}
-            />
-          </TooltipTrigger>
-          <TooltipContent>Copy message</TooltipContent>
-        </Tooltip>
-      </div>
+      {compact ? null : (
+        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground opacity-0 group-hover:opacity-100">
+          <RelativeTime
+            className="cursor-default"
+            date={part.metadata.createdAt}
+          />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <CopyButton
+                className={SHARED.messageFooterButton}
+                iconSize={MESSAGE_FOOTER_ICON_SIZE}
+                onCopy={handleCopy}
+              />
+            </TooltipTrigger>
+            <TooltipContent>Copy message</TooltipContent>
+          </Tooltip>
+        </div>
+      )}
     </div>
   );
 });

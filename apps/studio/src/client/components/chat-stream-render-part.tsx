@@ -13,6 +13,8 @@ import {
   isToolCallVisible,
   isToolPartRunning,
 } from "./message-part/tool-call-utils";
+import { createdTaskId } from "./orchestrator/created-task";
+import { CreatedTaskCard } from "./orchestrator/created-task-card";
 import { ReasoningMessage } from "./reasoning-message";
 import { isReasoningPartVisible } from "./reasoning-utils";
 import { isPartBeingWritten } from "./transcript-layout";
@@ -29,6 +31,12 @@ export interface RenderPartContext {
   ) => boolean;
   lastMessageId: string | undefined;
   onRetry: (prompt: string) => void;
+  /**
+   * The conversation the user talks to shows its words, its questions, and
+   * the tasks it started, and nothing of its machinery: no reasoning, no
+   * command rows, no notes from the harness.
+   */
+  presentation?: "orchestrator";
   task: Task;
 }
 
@@ -75,7 +83,13 @@ export function renderChatPart({
         );
       }
       case "user": {
-        return <UserMessage key={part.metadata.id} part={part} />;
+        return (
+          <UserMessage
+            compact={ctx.presentation === "orchestrator"}
+            key={part.metadata.id}
+            part={part}
+          />
+        );
       }
       // session-context messages are filtered out before this loop, so they
       // never reach here.
@@ -104,6 +118,24 @@ export function renderChatPart({
   }
 
   if (isToolPart(part)) {
+    if (ctx.presentation === "orchestrator") {
+      // What the conversation asks the user (a choice, a sign-in, a folder)
+      // and what it started (a task, as its card); every other call is its
+      // own business.
+      if (part.type === "tool-bash") {
+        const created = createdTaskId(part);
+        return created ? (
+          <CreatedTaskCard key={part.metadata.id} taskId={created} />
+        ) : null;
+      }
+      if (
+        part.type !== "tool-choose" &&
+        part.type !== "tool-connect_app" &&
+        part.type !== "tool-request_folder"
+      ) {
+        return null;
+      }
+    }
     const streaming = ctx.isToolStreaming(part, message);
     if (
       !isToolCallVisible({
@@ -136,6 +168,9 @@ export function renderChatPart({
   }
 
   if (part.type === "reasoning") {
+    if (ctx.presentation === "orchestrator") {
+      return null;
+    }
     // Whether the run is still writing into this block. Anything after it means
     // the model has moved on, whatever the part's own state says: a provider can
     // hold a reasoning block's end event until the step finishes, and a row that

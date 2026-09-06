@@ -9,8 +9,10 @@ import {
 
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 import { getPackageForProviderType } from "./bundled-providers";
+import { isWorkersAiProviderConfig } from "./fetch-models/parse-workers-ai-base-url";
 import { internalURL } from "./internal-url";
 import { internalAPIKey } from "./key-for-provider";
+import { repairWorkersAiStream } from "./workers-ai-stream-repair";
 
 export async function aiSDKForProviderConfig(
   config: AIGatewayProviderConfig.Type,
@@ -136,7 +138,14 @@ export async function createOpenAISDK(
   const baseURL = internalURL({ config, workspaceServerURL });
   const apiKey = internalAPIKey();
   const { createOpenAI } = await import("@ai-sdk/openai");
-  return createOpenAI({ apiKey, baseURL });
+  return createOpenAI({
+    apiKey,
+    baseURL,
+    // Workers AI streams what the SDK refuses; see the repair for what.
+    ...(isWorkersAiProviderConfig(config)
+      ? { fetch: repairWorkersAiStream() }
+      : {}),
+  });
 }
 
 export async function createOpenRouterSDK(

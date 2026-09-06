@@ -12,6 +12,12 @@ import { type Task } from "../../schemas/task";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { type BrowserTargetId, encodeBrowserTargetId } from "../../types";
 import { absolutePathJoin } from "../absolute-path-join";
+import {
+  describeConnection,
+  isConnected,
+  readConnection,
+} from "../apps/connection";
+import { loadApp } from "../apps/store";
 import { defaultTaskName } from "../default-task-name";
 import { getTask } from "../get-tasks";
 import { initializeTask } from "../initialize-task";
@@ -59,7 +65,7 @@ const MAX_WAIT_MS = ms("10 minutes");
 
 const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
 
-  ${TASK_COMMAND.name} new --name '<title>' [--model <uri>] [--folder <mount>[/<folder>][:rw|:ro]]... [--tab <id>] <<'EOF'
+  ${TASK_COMMAND.name} new --name '<title>' [--model <uri>] [--folder <mount>[/<folder>][:rw|:ro]]... [--app <slug>]... [--tab <id>] <<'EOF'
   <prompt>
   EOF
       Create a task and start it. The prompt is its whole brief: it knows nothing
@@ -68,10 +74,11 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       title takes single quotes for the same reason. Folders are mounts under
       ${MOUNT.attachedFolders} in this conversation, or a folder inside one, named with or
       without the prefix; a task sees none unless named here, with the access
-      this conversation has unless :ro narrows it. --tab hands the task
-      one of the user's browser tabs, by the id the note on their message gives;
-      its browser is then that tab, page and all. Prints the task id. You are
-      told when it finishes a turn; do not poll it.
+      this conversation has unless :ro narrows it. --app hands the task a
+      connected app, by slug; it gets the \`app\` command for that app and no
+      other. --tab hands the task one of the user's browser tabs, by the id the
+      note on their message gives; its browser is then that tab, page and all.
+      Prints the task id. You are told when it finishes a turn; do not poll it.
   ${TASK_COMMAND.name} send <id> <<'EOF'
   <message>
   EOF
@@ -222,6 +229,32 @@ async function requireChild(
     throw new Error(`no task "${rawId}" of yours. See \`task list\`.`);
   }
   return task.value;
+}
+
+/**
+ * The apps a task is handed, each checked to be connected now: a task given
+ * an app that cannot answer would fail on its first call and wake the
+ * orchestrator about it, which is a turn wasted on what this catches.
+ */
+async function resolveApps(slugs: string[]): Promise<string[]> {
+  const appsDir = getWorkspaceConfig().appsDir;
+  const apps: string[] = [];
+  for (const slug of slugs) {
+    const loaded = await loadApp(appsDir, slug);
+    if (loaded.isErr()) {
+      throw new Error(`--app ${slug}: ${loaded.error.message}`);
+    }
+    const connection = await readConnection(loaded.value.slug);
+    if (!isConnected(connection, loaded.value.manifestHash)) {
+      throw new Error(
+        `--app ${slug}: it is ${describeConnection(connection, loaded.value.manifestHash)}. Connect it first.`,
+      );
+    }
+    if (!apps.includes(loaded.value.slug)) {
+      apps.push(loaded.value.slug);
+    }
+  }
+  return apps;
 }
 
 async function resolveModel(rawURI: string) {
@@ -389,8 +422,8 @@ async function runNew(
   stdin: ByteString,
 ) {
   const { positional, values } = parseFlags(args, {
-    flags: ["folder", "model", "name", "tab"],
-    repeatable: ["folder"],
+    flags: ["app", "folder", "model", "name", "tab"],
+    repeatable: ["app", "folder"],
   });
   const prompt = promptFrom(positional.join(" "), stdin);
   if (!prompt) {
@@ -417,11 +450,13 @@ async function runNew(
   const tab = values.get("tab")?.[0];
   const browserTargetId =
     tab === undefined ? undefined : resolveTab(tab, context.orchestratorTaskId);
+  const apps = await resolveApps(values.get("app") ?? []);
 
   const taskId = await newTaskId({ prompt, workspaceConfig });
   const initialized = await initializeTask(
     {
       initialSettings: {
+        apps,
         kind: "task",
         name,
         parentTaskId: context.orchestratorTaskId,

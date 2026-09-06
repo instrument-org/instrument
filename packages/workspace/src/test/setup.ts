@@ -7,6 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { createMemoryAppsConfig } from "../lib/apps/memory-config";
 import { setWorkspaceConfig } from "../lib/workspace-config";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { unavailableWebSearchClient } from "../schemas/web-search";
@@ -32,6 +33,8 @@ const rejectBrowserTarget = () => {
 // runtime imports from `../types`, which would preload `store-id` before
 // `vi.mock(import("ulid"))` runs in snapshot tests.
 setWorkspaceConfig({
+  apps: createMemoryAppsConfig(),
+  appsDir: AbsolutePathSchema.parse(path.join(rootDir, "apps")),
   appVersion: "0.0.0-test",
   browser: {
     closeTarget: () => Promise.resolve(),

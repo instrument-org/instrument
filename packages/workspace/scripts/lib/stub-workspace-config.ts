@@ -1,6 +1,7 @@
 import { noopModelCache } from "@instrument-org/ai-gateway";
 import path from "node:path";
 
+import { createMemoryAppsConfig } from "../../src/lib/apps/memory-config";
 import {
   AbsolutePathSchema,
   WorkspaceDirSchema,
@@ -25,6 +26,8 @@ export function createStubWorkspaceConfig({
   const absoluteTasksDir = path.resolve(tasksDir);
 
   return {
+    apps: createMemoryAppsConfig(),
+    appsDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "apps")),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
     captureEvent: () => {

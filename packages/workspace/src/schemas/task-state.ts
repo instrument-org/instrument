@@ -25,6 +25,9 @@ import { TaskPane } from "./task-pane";
 // it.
 export const StoredTaskStateSchema = z
   .object({
+    // The apps whose guide this task has read, so `app request` hands the
+    // guide over once and then gets out of the way.
+    appGuidesRead: z.array(z.string()).optional(),
     attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
     browserTargetId: BrowserTargetIdSchema.optional(),
     // A pane this build cannot read costs the pane, not the folder list beside

@@ -14,8 +14,13 @@ type ViewContext = SessionMessageDataPart.ViewContextDataPart;
 export function viewContextModelNote(data: ViewContext) {
   switch (data.screen) {
     case "apps": {
+      if (data.app) {
+        return systemNote`
+          When the user sent this, the window showed the page of the app "${data.app.name}" (slug ${data.app.slug}), which is ${describeStanding(data.app.standing)}. "This app", "this", and "it" refer to it. A request about the service itself is answered with the app's tools or requests when it is connected; a request to connect it means writing its folder if it has none, then asking with connect_app.
+        `;
+      }
       return systemNote`
-        When the user sent this, the window showed the Apps screen, which has nothing on it yet. Nothing in particular is in view.
+        When the user sent this, the window showed the Apps screen: the directory of apps, connected ones first. Nothing in particular is in view unless they name an app.
       `;
     }
     case "browser": {
@@ -44,6 +49,36 @@ export function viewContextModelNote(data: ViewContext) {
     }
     case "tasks": {
       return tasksNote(data);
+    }
+  }
+}
+
+/** An app's standing, in the Apps screen's words, as a clause. */
+function describeStanding(standing: string) {
+  switch (standing) {
+    case "connected": {
+      return "connected and ready to use";
+    }
+    case "declined": {
+      return "not connected: the user declined the last ask";
+    }
+    case "failed": {
+      return "not connected: the last attempt failed";
+    }
+    case "needs-key": {
+      return "waiting for a key from the user";
+    }
+    case "needs-sign-in": {
+      return "waiting for the user to sign in";
+    }
+    case "not-set-up": {
+      return "listed in the directory but not set up: it has no folder yet";
+    }
+    case "stale": {
+      return "connected, but its manifest changed since it was tested";
+    }
+    default: {
+      return "set up but not tested yet";
     }
   }
 }

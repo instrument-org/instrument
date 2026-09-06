@@ -16,6 +16,15 @@
  */
 export const MOUNT = {
   /**
+   * The workspace's own `apps/` directory: one folder per app the agent has
+   * set up, each holding a manifest and a guide and never a secret.
+   *
+   * Writable for the orchestrator, which authors apps; a task reaches the
+   * apps it was handed through the `app` command rather than the folder.
+   */
+  apps: "/apps",
+
+  /**
    * Root of the attached-folder mounts (e.g. `/mnt/Photos`). Attached folders
    * live on the user's real disk and are surfaced under this prefix, read-only
    * or read-write according to the access the user granted each one. The path

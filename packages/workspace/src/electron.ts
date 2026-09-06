@@ -3,6 +3,36 @@ export {
   pruneExternalBrowserTmp,
 } from "./lib/agent-browser-cleanup";
 export {
+  type AppCatalogEntry,
+  catalogEntryMcpEndpoint,
+  catalogEntrySupportsApiKey,
+  getAppCatalog,
+} from "./lib/apps/catalog";
+export {
+  type AppConnection,
+  AppConnectionSchema,
+  type AppConnectionStore,
+  isConnected,
+  recordConnection,
+} from "./lib/apps/connection";
+export { type AppManifest, appSite, AppSlugSchema } from "./lib/apps/manifest";
+export {
+  callMcpTool,
+  listMcpTools,
+  withMcpClient,
+} from "./lib/apps/mcp/client";
+export { mcpConnectionConfig } from "./lib/apps/mcp/connection-config";
+export {
+  beginMcpOAuth,
+  cancelMcpOAuth,
+  completeMcpOAuth,
+  pendingMcpOAuthSlug,
+} from "./lib/apps/mcp/oauth-flow";
+export { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
+export { mcpAuthProviderForCommand } from "./lib/apps/mcp/tool-auth";
+export { listApps, loadApp, readAppGuide } from "./lib/apps/store";
+export { type AppTestReport, runAppTest } from "./lib/apps/test-app";
+export {
   BACKGROUND_PROCESS_TEARDOWN_MS,
   killAllBackgroundProcesses,
 } from "./lib/background-processes";
@@ -54,3 +84,7 @@ export {
   encodeBrowserTargetId,
   type WorkspaceConfig,
 } from "./types";
+export {
+  type OAuthClientInformationFull,
+  type OAuthTokens,
+} from "@modelcontextprotocol/sdk/shared/auth.js";

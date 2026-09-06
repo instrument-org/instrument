@@ -18,6 +18,7 @@ import { createActor } from "xstate";
 
 import { type TaskId } from "../src/client";
 import { workspaceMachine } from "../src/electron";
+import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { task as taskRoute } from "../src/rpc/routes/task";
 import { type StoreId } from "../src/schemas/store-id";
@@ -108,6 +109,7 @@ const registryDir = env.APP_REGISTRY_DIR_PATH
 const actor = createActor(workspaceMachine, {
   input: {
     aiGatewayApp,
+    apps: createMemoryAppsConfig(),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
     captureEvent: (...args: unknown[]) => {

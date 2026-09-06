@@ -17,6 +17,7 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { type AgentName } from "../../agents/types";
+import { appEventModelNote } from "../../lib/app-event-model-text";
 import { attachedFolderChangesModelNote } from "../../lib/attached-folder-changes-model-text";
 import { attachedFolderMountPoint } from "../../lib/attached-folder-mounts";
 import { backgroundProcessesModelNote } from "../../lib/background-processes-model-text";
@@ -505,6 +506,20 @@ export namespace SessionMessage {
         if (taskEventPart) {
           injectedParts.push({
             text: taskEventModelNote(taskEventPart.data),
+            type: "text",
+          });
+        }
+
+        const appEventPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-appEvent";
+          } => part.type === "data-appEvent",
+        );
+        if (appEventPart) {
+          injectedParts.push({
+            text: appEventModelNote(appEventPart.data),
             type: "text",
           });
         }

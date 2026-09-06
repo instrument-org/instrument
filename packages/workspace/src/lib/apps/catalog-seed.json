@@ -1,0 +1,474 @@
+{
+  "generatedFrom": "integrations.sh curated catalog",
+  "entries": [
+    {
+      "slug": "github",
+      "name": "GitHub",
+      "tagline": "Repos, issues, PRs, and Actions in every format agents speak.",
+      "description": "GitHub exposes more agent-callable surface area than almost any service: an official remote MCP server, a fully-specified REST API, a GraphQL API, and the `gh` CLI. Pick the format that fits your agent — they all reach the same data.",
+      "domain": "github.com",
+      "categories": ["developer-tools", "version-control"],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "The remote MCP server walks compatible clients through OAuth automatically."
+        },
+        {
+          "type": "pat",
+          "label": "Personal access token",
+          "note": "Fine-grained PATs let you scope access per-repo and per-permission."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "GitHub MCP Server",
+          "endpoint": "https://api.githubcopilot.com/mcp/",
+          "auth": "mixed"
+        },
+        {
+          "format": "openapi",
+          "name": "GitHub REST API",
+          "endpoint": "https://api.github.com",
+          "auth": "token"
+        },
+        {
+          "format": "graphql",
+          "name": "GitHub GraphQL API",
+          "endpoint": "https://api.github.com/graphql",
+          "auth": "token"
+        },
+        {
+          "format": "cli",
+          "name": "gh",
+          "auth": "oauth"
+        }
+      ],
+      "docsUrl": "https://docs.github.com"
+    },
+    {
+      "slug": "google-workspace",
+      "name": "Google Workspace",
+      "tagline": "Gmail, Calendar, Drive, Docs, and Sheets from one credential.",
+      "description": "Google Workspace exposes its services through per-product REST APIs built on the Google Discovery Service, a vendor-published CLI (`gws`), and a popular community CLI (`gog`). All of them authenticate through Google Cloud OAuth — the setup is the hard part, and it's shared across every interface.",
+      "domain": "workspace.google.com",
+      "categories": ["productivity", "email", "documents"],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0 (Desktop client)",
+          "note": "Bring your own Google Cloud project; both CLIs and the APIs use it."
+        },
+        {
+          "type": "token",
+          "label": "Service account",
+          "note": "For headless and Workspace-admin scenarios via domain-wide delegation."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "cli",
+          "name": "gws",
+          "auth": "oauth"
+        },
+        {
+          "format": "openapi",
+          "name": "Workspace REST APIs",
+          "endpoint": "https://gmail.googleapis.com",
+          "auth": "oauth"
+        },
+        {
+          "format": "cli",
+          "name": "gog",
+          "auth": "oauth"
+        }
+      ],
+      "docsUrl": "https://developers.google.com/workspace"
+    },
+    {
+      "slug": "linear",
+      "name": "Linear",
+      "tagline": "Issues, projects, and cycles — agent-native from day one.",
+      "description": "Linear's entire product runs on its public GraphQL API, and its hosted MCP server gives agents the same tools the official integrations use: create and update issues, manage projects, and coordinate cycles.",
+      "domain": "linear.app",
+      "categories": ["productivity", "project-management"],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Recommended for apps used by others; the MCP server uses it automatically."
+        },
+        {
+          "type": "api_key",
+          "label": "Personal API key",
+          "note": "Best for personal scripts. Sent without a Bearer prefix — a common gotcha."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Linear MCP",
+          "endpoint": "https://mcp.linear.app/mcp",
+          "auth": "oauth"
+        },
+        {
+          "format": "graphql",
+          "name": "Linear GraphQL API",
+          "endpoint": "https://api.linear.app/graphql",
+          "auth": "api_key"
+        }
+      ],
+      "docsUrl": "https://linear.app/developers"
+    },
+    {
+      "slug": "notion",
+      "name": "Notion",
+      "tagline": "Pages, databases, and comments as agent-editable workspace memory.",
+      "description": "Notion's hosted MCP server lets agents search, create, and reorganize workspace content. The REST API underneath uses internal integrations with explicit page-level sharing — a natural permission boundary for agents.",
+      "domain": "notion.so",
+      "categories": ["productivity", "knowledge-base"],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "The MCP server and public integrations use OAuth."
+        },
+        {
+          "type": "api_key",
+          "label": "Internal integration secret",
+          "note": "For personal/workspace automations; pages must be explicitly shared with the integration."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Notion MCP",
+          "endpoint": "https://mcp.notion.com/mcp",
+          "auth": "oauth"
+        },
+        {
+          "format": "openapi",
+          "name": "Notion REST API",
+          "endpoint": "https://api.notion.com/v1",
+          "auth": "api_key"
+        }
+      ],
+      "docsUrl": "https://developers.notion.com"
+    },
+    {
+      "slug": "posthog",
+      "name": "PostHog",
+      "tagline": "Product analytics an agent can query in natural language.",
+      "description": "PostHog's MCP server exposes 50+ tools: run HogQL, build insights and dashboards, manage feature flags. Agents can answer 'what changed in signups last week?' against real product data.",
+      "domain": "posthog.com",
+      "categories": ["analytics", "developer-tools"],
+      "authMethods": [
+        {
+          "type": "api_key",
+          "label": "Personal API key",
+          "note": "Scoped keys created per-use; used by both the MCP server and REST API."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "PostHog MCP",
+          "endpoint": "https://mcp.posthog.com/mcp",
+          "auth": "api_key"
+        },
+        {
+          "format": "openapi",
+          "name": "PostHog REST API",
+          "endpoint": "https://us.posthog.com/api",
+          "auth": "api_key"
+        }
+      ],
+      "docsUrl": "https://posthog.com/docs"
+    },
+    {
+      "slug": "resend",
+      "name": "Resend",
+      "tagline": "Send email from any agent with one API key.",
+      "description": "Resend is an email API built for developers. The official MCP server exposes sending, contacts, audiences, broadcasts, and domain management; the REST API is small enough for an agent to learn in one read.",
+      "domain": "resend.com",
+      "categories": ["email", "communication", "developer-tools"],
+      "authMethods": [
+        {
+          "type": "api_key",
+          "label": "API key",
+          "note": "One key, sent as a bearer header. Scoped keys can restrict to sending-only."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Resend MCP",
+          "auth": "api_key"
+        },
+        {
+          "format": "openapi",
+          "name": "Resend REST API",
+          "endpoint": "https://api.resend.com",
+          "auth": "api_key"
+        }
+      ],
+      "docsUrl": "https://resend.com/docs"
+    },
+    {
+      "slug": "sentry",
+      "name": "Sentry",
+      "tagline": "Errors, traces, and root-cause analysis for debugging agents.",
+      "description": "Sentry's hosted MCP server gives agents direct access to issues, events, releases, and Seer root-cause runs — the context a coding agent needs to fix what's actually broken in production.",
+      "domain": "sentry.io",
+      "categories": ["observability", "developer-tools"],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "The hosted MCP server authenticates via OAuth in supporting clients."
+        },
+        {
+          "type": "token",
+          "label": "Auth token",
+          "note": "Organization or personal tokens for the REST API and CI."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Sentry MCP",
+          "endpoint": "https://mcp.sentry.dev/mcp",
+          "auth": "oauth"
+        },
+        {
+          "format": "openapi",
+          "name": "Sentry Web API",
+          "endpoint": "https://sentry.io/api/0",
+          "auth": "token"
+        },
+        {
+          "format": "cli",
+          "name": "sentry-cli",
+          "auth": "token"
+        }
+      ],
+      "docsUrl": "https://docs.sentry.io"
+    },
+    {
+      "slug": "shopify",
+      "name": "Shopify",
+      "tagline": "Storefronts and commerce data, GraphQL-first.",
+      "description": "Shopify is GraphQL-first: the Admin API for store management and the Storefront API for shopping experiences. Agents authenticate with per-store access tokens from a custom app.",
+      "domain": "shopify.com",
+      "categories": ["commerce", "e-commerce"],
+      "authMethods": [
+        {
+          "type": "api_key",
+          "label": "Admin access token",
+          "note": "Per-store token from a custom app; sent via X-Shopify-Access-Token header."
+        },
+        {
+          "type": "api_key",
+          "label": "Storefront access token",
+          "note": "Public or private token for the Storefront API."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "graphql",
+          "name": "Admin API (GraphQL)",
+          "endpoint": "https://{store}.myshopify.com/admin/api/2025-04/graphql.json",
+          "auth": "api_key"
+        },
+        {
+          "format": "graphql",
+          "name": "Storefront API",
+          "endpoint": "https://{store}.myshopify.com/api/2025-04/graphql.json",
+          "auth": "api_key"
+        },
+        {
+          "format": "mcp",
+          "name": "Shopify MCP",
+          "endpoint": "https://setup.shopify.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "docsUrl": "https://shopify.dev"
+    },
+    {
+      "slug": "slack",
+      "name": "Slack",
+      "tagline": "Read, search, and send messages where your team already works.",
+      "description": "Slack's hosted MCP server covers messaging, search, and canvases. The underlying Web API is one of the most battle-tested REST surfaces anywhere — token-based, method-oriented, and fully documented.",
+      "domain": "slack.com",
+      "categories": ["communication", "productivity"],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "The MCP server and all Slack apps authenticate through OAuth with granular scopes."
+        },
+        {
+          "type": "token",
+          "label": "Bot / user token",
+          "note": "Issued after app install; sent as a bearer header to the Web API."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Slack MCP",
+          "endpoint": "https://mcp.slack.com/mcp",
+          "auth": "oauth"
+        },
+        {
+          "format": "openapi",
+          "name": "Slack Web API",
+          "endpoint": "https://slack.com/api",
+          "auth": "token"
+        }
+      ],
+      "docsUrl": "https://docs.slack.dev"
+    },
+    {
+      "slug": "spotify",
+      "name": "Spotify",
+      "tagline": "Playlists, search, and playback for music-aware agents.",
+      "description": "Spotify's Web API covers search, playlists, libraries, and playback control. OAuth is mandatory for anything user-specific, with the client-credentials flow available for catalog-only access.",
+      "domain": "spotify.com",
+      "categories": ["media", "entertainment"],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Authorization-code flow for user data; client-credentials for catalog-only access."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "openapi",
+          "name": "Spotify Web API",
+          "endpoint": "https://api.spotify.com/v1",
+          "auth": "oauth"
+        }
+      ],
+      "docsUrl": "https://developer.spotify.com"
+    },
+    {
+      "slug": "stripe",
+      "name": "Stripe",
+      "tagline": "Payments infrastructure with first-class agent tooling.",
+      "description": "Stripe ships an official MCP server with documentation search and account tools, a meticulously specified REST API, and the Stripe CLI. Restricted API keys make it one of the safest services to hand to an autonomous agent.",
+      "domain": "stripe.com",
+      "categories": ["payments", "financial-services"],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth (MCP)",
+          "note": "Granular, user-based, revocable from the Dashboard. Recommended for MCP clients."
+        },
+        {
+          "type": "api_key",
+          "label": "Restricted API key",
+          "note": "For autonomous agents and non-OAuth clients. Never hand an agent your full secret key."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Stripe MCP",
+          "endpoint": "https://mcp.stripe.com",
+          "auth": "mixed"
+        },
+        {
+          "format": "openapi",
+          "name": "Stripe REST API",
+          "endpoint": "https://api.stripe.com",
+          "auth": "api_key"
+        },
+        {
+          "format": "cli",
+          "name": "stripe",
+          "auth": "oauth"
+        }
+      ],
+      "docsUrl": "https://docs.stripe.com"
+    },
+    {
+      "slug": "todoist",
+      "name": "Todoist",
+      "tagline": "Tasks, projects, and reminders your agent can manage.",
+      "description": "Todoist is a task manager with a mature developer platform. Agents can create and complete tasks, organize projects, and query filters through the unified v1 REST API or the official hosted MCP server.",
+      "domain": "todoist.com",
+      "categories": ["productivity", "project-management"],
+      "authMethods": [
+        {
+          "type": "api_key",
+          "label": "Personal API token",
+          "note": "Best for personal scripts and single-user agents."
+        },
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Required for multi-user apps. Newer apps get expiring access tokens with rotating refresh tokens."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Todoist MCP",
+          "endpoint": "https://ai.todoist.net/mcp",
+          "auth": "oauth"
+        },
+        {
+          "format": "openapi",
+          "name": "Todoist API v1",
+          "endpoint": "https://api.todoist.com/api/v1",
+          "auth": "api_key"
+        }
+      ],
+      "docsUrl": "https://developer.todoist.com"
+    },
+    {
+      "slug": "vercel",
+      "name": "Vercel",
+      "tagline": "Deployments, projects, and logs your agent can ship with.",
+      "description": "Vercel's official MCP server covers documentation search, project management, and deployment analysis. The REST API and CLI give agents full control of the deploy loop — push, inspect, roll back.",
+      "domain": "vercel.com",
+      "categories": ["hosting", "developer-tools"],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "The hosted MCP server uses OAuth in supporting clients."
+        },
+        {
+          "type": "token",
+          "label": "Access token",
+          "note": "Account tokens for the REST API; scope to a team where possible."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Vercel MCP",
+          "endpoint": "https://mcp.vercel.com",
+          "auth": "oauth"
+        },
+        {
+          "format": "openapi",
+          "name": "Vercel REST API",
+          "endpoint": "https://api.vercel.com",
+          "auth": "token"
+        },
+        {
+          "format": "cli",
+          "name": "vercel",
+          "auth": "oauth"
+        }
+      ],
+      "docsUrl": "https://vercel.com/docs"
+    }
+  ]
+}

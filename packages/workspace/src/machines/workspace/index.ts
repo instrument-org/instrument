@@ -21,7 +21,11 @@ import {
 
 import { AGENTS } from "../../agents/all";
 import { type AgentName } from "../../agents/types";
-import { PROJECTS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
+import {
+  APPS_DIR_NAME,
+  PROJECTS_DIR_NAME,
+  TASKS_DIR_NAME,
+} from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
@@ -41,6 +45,7 @@ import { type WebSearchClient } from "../../schemas/web-search";
 import {
   type BrowserConfig,
   type BrowserTargetId,
+  type WorkspaceAppsConfig,
   type WorkspaceConfig,
 } from "../../types";
 import { type ToolCallUpdate } from "../agent";
@@ -426,6 +431,7 @@ export const workspaceMachine = setup({
     events: {} as WorkspaceEvent,
     input: {} as {
       aiGatewayApp: AIGatewayApp;
+      apps: WorkspaceAppsConfig;
       appVersion: string;
       browser: BrowserConfig;
       captureEvent: CaptureEventFunction;
@@ -452,6 +458,8 @@ export const workspaceMachine = setup({
   context: ({ input, self, spawn }) => {
     const rootDir = WorkspaceDirSchema.parse(input.rootDir);
     const workspaceConfig: WorkspaceConfig = {
+      apps: input.apps,
+      appsDir: absolutePathJoin(rootDir, APPS_DIR_NAME),
       appVersion: input.appVersion,
       browser: input.browser,
       captureEvent: input.captureEvent,

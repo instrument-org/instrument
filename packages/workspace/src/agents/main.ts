@@ -7,6 +7,7 @@ import {
   TASK_FOLDER_NAMES as F,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "../constants";
+import { buildTaskAppsText } from "../lib/apps/context";
 import { assignAttachedMounts } from "../lib/attached-folder-mounts";
 import { buildAvailableSkillsContext } from "../lib/available-skills-context";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
@@ -342,6 +343,7 @@ export const mainAgent = setupAgent({
             "The user has attached these folders to this task, mounted for direct access:",
         }),
         await buildAvailableSkillsContext(),
+        await buildTaskAppsText(taskId),
         taskLayout,
       ],
     });

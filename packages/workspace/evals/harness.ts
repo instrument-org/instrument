@@ -17,6 +17,7 @@ import { createActor } from "xstate";
 import type { Session } from "../src/schemas/session";
 
 import { attachOrchestrator, workspaceMachine } from "../src/electron";
+import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { isToolPart } from "../src/lib/is-tool-part";
 import { createProject } from "../src/lib/project";
 import { Store } from "../src/lib/store";
@@ -239,6 +240,7 @@ export async function runEvals(
   const actor = createActor(workspaceMachine, {
     input: {
       aiGatewayApp,
+      apps: createMemoryAppsConfig(),
       appVersion: "0.0.0-test",
       browser: createStubBrowserConfig(),
       captureEvent: () => {

@@ -17,6 +17,11 @@ import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking, latestStep, turnStartedAt } from "./activity";
 import { lastAssistantText, latestOrNewSessionId } from "./latest-session";
 
+/** What a wake carries: the part that starts the orchestrator's turn. */
+export type WakePart =
+  | { data: SessionMessageDataPart.AppEventDataPart; type: "data-appEvent" }
+  | { data: SessionMessageDataPart.TaskEventDataPart; type: "data-taskEvent" };
+
 type TaskEvent = SessionMessageDataPart.TaskEventDataPart["events"][number];
 
 /**
@@ -87,6 +92,29 @@ export function startOrchestratorWake(workspaceRef: WorkspaceActorRef): void {
   timer.unref();
 }
 
+/**
+ * Wake every orchestrator with the same part: what an app event does, since
+ * the user acted on the app rather than on any one conversation. An
+ * orchestrator that has never been messaged has no model to wake with and
+ * nothing waiting on the news, so it is left alone.
+ */
+export async function wakeOrchestrators(
+  part: WakePart,
+  workspaceRef: WorkspaceActorRef,
+): Promise<void> {
+  const { tasks } = await getTasks(getWorkspaceConfig());
+  for (const task of tasks) {
+    if (task.kind !== "orchestrator") {
+      continue;
+    }
+    const state = await getTaskState(taskDir(task.id));
+    if (!state.selectedModelURI) {
+      continue;
+    }
+    await wakeWith(task.id, part, workspaceRef);
+  }
+}
+
 async function checkOverdue(workspaceRef: WorkspaceActorRef) {
   const workspaceConfig = getWorkspaceConfig();
   const { tasks } = await getTasks(workspaceConfig);
@@ -126,67 +154,11 @@ async function deliver(
   events: TaskEvent[],
   workspaceRef: WorkspaceActorRef,
 ) {
-  const workspaceConfig = getWorkspaceConfig();
-  const state = await getTaskState(taskDir(orchestratorId));
-  if (!state.selectedModelURI) {
-    throw new Error(
-      `Orchestrator ${orchestratorId} has no model to wake with; it has never been messaged.`,
-    );
-  }
-  const modelResult = await fetchModel({
-    captureException: workspaceConfig.captureException,
-    configs: workspaceConfig.getAIProviderConfigs(),
-    modelCache: workspaceConfig.modelCache,
-    modelURI: AIGatewayModelURI.Schema.parse(state.selectedModelURI),
-  });
-  if (!modelResult.ok) {
-    throw modelResult.error;
-  }
-
-  const session = await latestOrNewSessionId(orchestratorId);
-  if (session.isErr()) {
-    throw session.error;
-  }
-  const sessionId = session.value;
-
-  const createdAt = new Date();
-  const messageId = StoreId.newMessageId();
-  const message: SessionMessage.UserWithParts = {
-    id: messageId,
-    metadata: { createdAt, sessionId },
-    parts: [
-      {
-        data: { events },
-        metadata: {
-          createdAt,
-          id: StoreId.newPartId(),
-          messageId,
-          sessionId,
-        },
-        type: "data-taskEvent",
-      },
-    ],
-    role: "user",
-  };
-
-  // Written now, so the note shows in the conversation the moment it fires,
-  // whatever the orchestrator is in the middle of.
-  const written = await Store.saveMessageWithParts(message, orchestratorId);
-  if (written.isErr()) {
-    throw new Error(written.error.message);
-  }
-  workspaceRef.send({
-    type: "addMessage",
-    value: {
-      agentName: "instrument",
-      id: orchestratorId,
-      message,
-      model: modelResult.value,
-      saved: true,
-      sessionId,
-    },
-  });
-  await recordTaskActivity(orchestratorId);
+  await wakeWith(
+    orchestratorId,
+    { data: { events }, type: "data-taskEvent" },
+    workspaceRef,
+  );
 }
 
 async function onSessionDone(
@@ -258,4 +230,71 @@ function schedule(
     );
   }, WAKE_DEBOUNCE_MS);
   pending.set(orchestratorId, { events, timer });
+}
+
+async function wakeWith(
+  orchestratorId: TaskId,
+  part: WakePart,
+  workspaceRef: WorkspaceActorRef,
+) {
+  const workspaceConfig = getWorkspaceConfig();
+  const state = await getTaskState(taskDir(orchestratorId));
+  if (!state.selectedModelURI) {
+    throw new Error(
+      `Orchestrator ${orchestratorId} has no model to wake with; it has never been messaged.`,
+    );
+  }
+  const modelResult = await fetchModel({
+    captureException: workspaceConfig.captureException,
+    configs: workspaceConfig.getAIProviderConfigs(),
+    modelCache: workspaceConfig.modelCache,
+    modelURI: AIGatewayModelURI.Schema.parse(state.selectedModelURI),
+  });
+  if (!modelResult.ok) {
+    throw modelResult.error;
+  }
+
+  const session = await latestOrNewSessionId(orchestratorId);
+  if (session.isErr()) {
+    throw session.error;
+  }
+  const sessionId = session.value;
+
+  const createdAt = new Date();
+  const messageId = StoreId.newMessageId();
+  const message: SessionMessage.UserWithParts = {
+    id: messageId,
+    metadata: { createdAt, sessionId },
+    parts: [
+      {
+        ...part,
+        metadata: {
+          createdAt,
+          id: StoreId.newPartId(),
+          messageId,
+          sessionId,
+        },
+      },
+    ],
+    role: "user",
+  };
+
+  // Written now, so the note shows in the conversation the moment it fires,
+  // whatever the orchestrator is in the middle of.
+  const written = await Store.saveMessageWithParts(message, orchestratorId);
+  if (written.isErr()) {
+    throw new Error(written.error.message);
+  }
+  workspaceRef.send({
+    type: "addMessage",
+    value: {
+      agentName: "instrument",
+      id: orchestratorId,
+      message,
+      model: modelResult.value,
+      saved: true,
+      sessionId,
+    },
+  });
+  await recordTaskActivity(orchestratorId);
 }

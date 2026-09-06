@@ -12,6 +12,7 @@ import { z } from "zod";
 
 import { env } from "../scripts/lib/env";
 import { PROJECTS_DIR_NAME, TASKS_DIR_NAME } from "../src/constants";
+import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
@@ -44,6 +45,8 @@ export function buildReportWorkspaceConfig(
   absoluteWorkspaceDir: string,
 ): WorkspaceConfig {
   return {
+    apps: createMemoryAppsConfig(),
+    appsDir: AbsolutePathSchema.parse(path.join(absoluteWorkspaceDir, "apps")),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
     captureEvent: () => {

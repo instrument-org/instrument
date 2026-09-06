@@ -22,6 +22,7 @@ import {
   agentBrowserCommandDescription,
   createAgentBrowserCommand,
 } from "./shell-commands/agent-browser";
+import { APP_COMMAND, createAppCommand } from "./shell-commands/app";
 import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
 import {
   createFgCommand,
@@ -477,6 +478,9 @@ export async function createBashEnv({
   // native-binary path bridge, and the dedicated file tools all route through
   // it so they agree on virtual<->real mapping.
   const layout = buildWorkspaceFsLayout({
+    // The orchestrator authors apps, so it gets their folders; a task reaches
+    // the apps it was handed through the command alone.
+    apps: orchestrator !== undefined,
     attachedFolders,
     extraMounts: orchestrator?.childMounts,
     projectFolderName,
@@ -491,15 +495,25 @@ export async function createBashEnv({
 
   // What sets the two shells apart: the orchestrator gets `task` and nothing
   // else beyond reading, the working agent gets `show` and the native hatches.
+  // Both get `app`, which does its network work host-side behind its own
+  // guards, so the orchestrator's shell stays network-free.
   const specializedCommands = orchestrator
-    ? [createTaskCommand({ orchestratorTaskId: taskId, remainingYieldMs })]
+    ? [
+        createTaskCommand({ orchestratorTaskId: taskId, remainingYieldMs }),
+        createAppCommand({ taskId }),
+      ]
     : [
         createShowCommand({ sessionId, taskId }),
+        createAppCommand({ taskId }),
         ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(taskId)),
       ];
   const specializedCommandNames = orchestrator
-    ? [TASK_COMMAND.name]
-    : [SHOW_COMMAND.name, ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.name)];
+    ? [TASK_COMMAND.name, APP_COMMAND.name]
+    : [
+        SHOW_COMMAND.name,
+        APP_COMMAND.name,
+        ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.name),
+      ];
 
   const bash = new Bash({
     commands: allowedCommands,
@@ -578,12 +592,13 @@ export async function createBashEnv({
  */
 function createOrchestratorBashDescription(builtins: string[]) {
   return dedent`
-    Run a bash command. This shell is for reading, for the \`${TASK_COMMAND.name}\` command, and for \`${AGENT_BROWSER_COMMAND.name}\`, which drives the browser tab the user has on screen and nothing else (\`${AGENT_BROWSER_COMMAND.name} --help\`; \`eval\`, \`click\`, \`fill\`, \`get text\` are the one-step ones). It has no python, node, package manager, or network, on purpose: long work is a task's.
+    Run a bash command. This shell is for reading, for the \`${TASK_COMMAND.name}\` and \`${APP_COMMAND.name}\` commands, and for \`${AGENT_BROWSER_COMMAND.name}\`, which drives the browser tab the user has on screen and nothing else (\`${AGENT_BROWSER_COMMAND.name} --help\`; \`eval\`, \`click\`, \`fill\`, \`get text\` are the one-step ones). It has no python, node, package manager, or network, on purpose: long work is a task's, and \`${APP_COMMAND.name}\` reaches connected services for you.
 
     What you can reach:
     - \`${MOUNT.task}\`: your own scratch folder and working directory. Keep notes here if you want them.
     - \`${MOUNT.attachedFolders}/<name>\`: folders the user attached to this conversation, read-only or writable as your context says. These are the user's real files.
     - \`${MOUNT.tasks}/<id>\`: the folder of each task you created, read-only. Its \`work/\` is scratch and its \`output/\` holds deliverables unless you pointed it at a folder under \`${MOUNT.attachedFolders}\`.
+    - \`${MOUNT.apps}/<slug>\`: the apps of this workspace, writable: each holds \`app.json\` and \`guide.md\`, and never a secret.
     Not a persistent terminal: every call starts fresh at \`${MOUNT.task}\`. Nothing else exists; writing elsewhere fails.
 
     Prefer \`rg\` for searching (\`rg -n 'pattern' ${MOUNT.tasks}/<id>\`, \`rg --files ${MOUNT.attachedFolders}/<name>\`) and the \`${TOOL_NAMES.readFile}\` tool for reading a file.
@@ -593,6 +608,7 @@ function createOrchestratorBashDescription(builtins: string[]) {
     Specialized commands:
       ${RG_COMMAND.name} - ${RG_COMMAND.description}
       ${TASK_COMMAND.name} - ${TASK_COMMAND.description}
+      ${APP_COMMAND.name} - ${APP_COMMAND.description}
       ${JOBS_COMMAND.name}, ${FG_COMMAND.name}, ${KILL_COMMAND.name} - a command that outlives \`yieldMs\` keeps running in the background under an id these manage; you will rarely need them here.
   `.trim();
 }

@@ -32,6 +32,7 @@ export namespace SessionMessageDataPart {
    * `fileChanges`.
    */
   export const NameSchema = z.enum([
+    "appEvent",
     "attachedFolderChanges",
     "attachments",
     "backgroundProcesses",
@@ -374,6 +375,29 @@ export namespace SessionMessageDataPart {
   export type TaskEventDataPart = z.output<typeof TaskEventDataPartSchema>;
 
   /**
+   * An app the user acted on outside the conversation: a sign-in finished in
+   * the browser, a key saved on a card, a decline, a disconnect from the
+   * app's page. Like a task event, it wakes the orchestrator on a text-less
+   * user message, so the agent learns without anyone typing, and it draws as
+   * a product-event line in the transcript.
+   */
+  export const AppEventDataPartSchema = z.object({
+    events: z
+      .array(
+        z.object({
+          /** A line of detail: how many tools, what went wrong. */
+          detail: z.string().optional(),
+          event: z.enum(["connected", "declined", "disconnected", "failed"]),
+          name: z.string(),
+          slug: z.string(),
+        }),
+      )
+      .min(1),
+  });
+
+  export type AppEventDataPart = z.output<typeof AppEventDataPartSchema>;
+
+  /**
    * What the user was looking at when they sent the message: the folder open
    * in the window's folder view and what was selected in it, as virtual paths.
    * Event cadence, written by the surface that sent the message and only when
@@ -408,6 +432,17 @@ export namespace SessionMessageDataPart {
    * against what the user was actually looking at and nothing else.
    */
   export const ViewContextDataPartSchema = z.object({
+    /** The app whose page is up on the Apps screen, and where it stands. */
+    app: z
+      .object({
+        name: z.string(),
+        /** The service's origin, for its icon. */
+        site: z.string().optional(),
+        slug: z.string(),
+        /** Connected, or what is missing, in the words the Apps screen uses. */
+        standing: z.string(),
+      })
+      .optional(),
     /** A file open on This Mac, as the person writes its path. */
     file: z
       .object({
@@ -533,6 +568,7 @@ export namespace SessionMessageDataPart {
 
   // oxlint-disable-next-line no-unused-vars
   const DataPartsSchema = z.object({
+    [NameSchema.enum.appEvent]: AppEventDataPartSchema,
     [NameSchema.enum.attachedFolderChanges]:
       AttachedFolderChangesDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,

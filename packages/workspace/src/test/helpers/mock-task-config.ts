@@ -19,6 +19,7 @@ import path from "node:path";
 import { noop } from "radashi";
 
 import { PROJECTS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
+import { createMemoryAppsConfig } from "../../lib/apps/memory-config";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -107,6 +108,8 @@ export function createMockTaskConfig(
   }
 
   const workspaceConfig: WorkspaceConfig = {
+    apps: createMemoryAppsConfig(),
+    appsDir: AbsolutePathSchema.parse([MOCK_WORKSPACE_DIR, "apps"].join("/")),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
     captureEvent: () => {

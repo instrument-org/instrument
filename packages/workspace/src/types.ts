@@ -11,6 +11,8 @@ import {
 import { z } from "zod";
 
 import { type TASK_STATUSES } from "./constants";
+import { type AppConnectionStore } from "./lib/apps/connection";
+import { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
 import { StoreId } from "./schemas/store-id";
 import { type TaskId, TaskIdSchema } from "./schemas/task-id";
@@ -114,7 +116,32 @@ export const BrowserTargetIdSchema = z
 
 export type BrowserTargetId = z.output<typeof BrowserTargetIdSchema>;
 
+/**
+ * What the host app keeps about apps, outside every mount: the credentials,
+ * the OAuth tokens, and the connection records. The workspace reads and
+ * writes them through this, never through a file the agent can reach.
+ */
+export interface WorkspaceAppsConfig {
+  connections: AppConnectionStore;
+  /** Take an app's credential, tokens, and connection away, and tell the UI. */
+  disconnect: (slug: string) => Promise<void>;
+  getCredential: (slug: string) => Promise<null | string>;
+  /** Called after a connection record changes, so every list of apps re-reads. */
+  notifyChanged?: () => void;
+  /**
+   * Present in the desktop app: backs OAuth MCP apps with the app's encrypted
+   * store. Optional so headless and test contexts run without sign-in. The
+   * redirect URL is read per sign-in, from the port the callback server bound.
+   */
+  oauth?: {
+    redirectUrl: () => string;
+    store: McpOAuthStore;
+  };
+}
+
 export interface WorkspaceConfig {
+  apps: WorkspaceAppsConfig;
+  appsDir: AbsolutePath;
   appVersion: string;
   browser: BrowserConfig;
   captureEvent: CaptureEventFunction;

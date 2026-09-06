@@ -7,6 +7,26 @@ import { type TaskId } from "../schemas/task-id";
 
 export const publisher = new EventPublisher<{
   /**
+   * The user acted on an app outside the conversation: finished a sign-in,
+   * saved a key, declined, disconnected. Published by the host app, which
+   * owns those surfaces; the orchestrator is woken with it.
+   */
+  "app.event": {
+    detail?: string;
+    event:
+      | "connected"
+      | "declined"
+      | "disconnected"
+      | "failed";
+    name: string;
+    slug: string;
+  };
+  /**
+   * An app's folder or connection record changed. Carries no payload because
+   * every listener re-reads the list.
+   */
+  "app.updated": null;
+  /**
    * A background process in this task appeared, ended, or was removed. Carries
    * no detail because every listener re-reads the list, and deliberately not
    * published per chunk of output: what a viewer needs is whether the process

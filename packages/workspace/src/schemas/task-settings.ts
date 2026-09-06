@@ -10,6 +10,10 @@ import { TaskKindSchema } from "./task-kind";
 // Making it strict would fail every task's settings at once and take every title
 // in the workspace with them.
 export const TaskSettingsSchema = z.object({
+  // The apps this task may reach through the `app` command, by slug. Set by
+  // the orchestrator when it creates the task (`--app`), possibly to none.
+  // Absent on a task a person created, which reaches every app.
+  apps: z.array(z.string()).optional(),
   // When the task was made, recorded for the same reason as `lastActivityAt`:
   // the observable answer is the session database's birth time, which is when
   // the task was first opened, and for a branched or imported task it is when

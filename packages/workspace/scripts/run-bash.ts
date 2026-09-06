@@ -30,6 +30,7 @@ import readline from "node:readline";
 import { ulid } from "ulid";
 
 import { TASK_FOLDER_NAMES } from "../src/constants";
+import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { assignMountNames } from "../src/lib/assign-mount-names";
 import { createBashEnv } from "../src/lib/create-bash-env";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
@@ -109,6 +110,8 @@ const uvBinPath = AbsolutePathSchema.parse(
 );
 
 setWorkspaceConfig({
+  apps: createMemoryAppsConfig(),
+  appsDir: AbsolutePathSchema.parse(path.join(rootDir, "apps")),
   appVersion: "0.0.0-repl",
   browser: createStubBrowserConfig(),
   captureEvent: () => {

@@ -82,6 +82,11 @@ const HOST_DEVICE_NAMES = new Set([
  * on what the agent can see and where.
  */
 export interface WorkspaceFsLayout {
+  /**
+   * The workspace's own apps directory, writable, for the agent that authors
+   * apps. Absent for a task, which reaches its apps through the `app` command.
+   */
+  apps?: WorkspaceFsMount & { readOnly: false };
   attached: WorkspaceFsMount[];
   /** Absent for a task that does not belong to a project. */
   project?: WorkspaceFsMount & { readOnly: false };
@@ -247,6 +252,16 @@ export async function buildBashFs(
     );
   }
 
+  // The apps directory is created on demand for the same reason the skills
+  // one is: the prompt advertises it before the first app is written.
+  if (layout.apps) {
+    await mkdir(layout.apps.hostRoot, { recursive: true });
+    fs.mount(
+      layout.apps.mountPoint,
+      new ReadWriteFs({ maxFileReadSize, root: layout.apps.hostRoot }),
+    );
+  }
+
   return fs;
 }
 
@@ -260,11 +275,14 @@ export async function buildBashFs(
  * config set can only build a layout whose folders are all read-only.
  */
 export function buildWorkspaceFsLayout({
+  apps = false,
   attachedFolders,
   extraMounts = [],
   projectFolderName,
   taskHostRoot,
 }: {
+  /** Whether the workspace's apps directory is mounted, writable, at `/apps`. */
+  apps?: boolean;
   attachedFolders?: Record<string, FolderAttachment.Type>;
   /**
    * Mounts the caller adds beside the attached folders, already resolved: an
@@ -296,6 +314,18 @@ export function buildWorkspaceFsLayout({
   ];
 
   return {
+    ...(apps
+      ? {
+          apps: {
+            hostRoot: getWorkspaceConfig().appsDir,
+            // Ours rather than a task's or a project's, and it holds no
+            // settings: an `.instrument` dir in it would be an ordinary one.
+            masksPrivateDir: false,
+            mountPoint: MOUNT.apps,
+            readOnly: false as const,
+          },
+        }
+      : {}),
     attached,
     // Writable, unlike an attached folder that overlaps the workspace (see
     // effectiveFolderAccess): this is the one directory inside the workspace the
@@ -426,6 +456,7 @@ export function nonTaskMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
     ...layout.attached,
     ...(layout.project ? [layout.project] : []),
     ...layout.skills,
+    ...(layout.apps ? [layout.apps] : []),
   ];
 }
 

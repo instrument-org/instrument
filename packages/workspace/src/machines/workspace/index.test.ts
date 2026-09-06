@@ -6,6 +6,7 @@ import { noop } from "radashi";
 import { describe, expect, it, vi } from "vitest";
 import { type AnyActorLogic, createActor, fromCallback } from "xstate";
 
+import { createMemoryAppsConfig } from "../../lib/apps/memory-config";
 import { taskDir } from "../../lib/task-dir-utils";
 import { getTaskSettings } from "../../lib/task-settings";
 import { type SessionMessage } from "../../schemas/session/message";
@@ -40,6 +41,7 @@ function createWorkspaceActor(rootDir = "/tmp/workspace") {
   return createActor(testMachine, {
     input: {
       aiGatewayApp,
+      apps: createMemoryAppsConfig(),
       appVersion: "0.0.0-test",
       browser: createStubBrowserConfig(),
       captureEvent: noop,

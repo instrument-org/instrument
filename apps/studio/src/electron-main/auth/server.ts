@@ -253,7 +253,10 @@ async function start() {
     const state = c.req.query("state");
     const oauthError = c.req.query("error");
     const appsDir = getAppsDir();
-    if (state !== undefined && (oauthError !== undefined || code === undefined)) {
+    if (
+      state !== undefined &&
+      (oauthError !== undefined || code === undefined)
+    ) {
       // Denied or abandoned in the provider's page: the flow is torn down and
       // the conversation hears a decline, the same as "Not now" on the card.
       const slug = pendingMcpOAuthSlug(state);

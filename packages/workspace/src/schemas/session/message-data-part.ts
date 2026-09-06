@@ -387,7 +387,13 @@ export namespace SessionMessageDataPart {
         z.object({
           /** A line of detail: how many tools, what went wrong. */
           detail: z.string().optional(),
-          event: z.enum(["connected", "declined", "disconnected", "failed"]),
+          event: z.enum([
+            "connected",
+            "declined",
+            "disconnected",
+            "failed",
+            "removed",
+          ]),
           name: z.string(),
           slug: z.string(),
         }),

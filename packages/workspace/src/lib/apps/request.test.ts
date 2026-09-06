@@ -1,11 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type ApiAppManifest, AppManifestSchema } from "./manifest";
-import {
-  buildAppUrl,
-  performAppRequest,
-  redactCredential,
-} from "./request";
+import { buildAppUrl, performAppRequest, redactCredential } from "./request";
 
 // The hop check resolves every hostname, so the suite owns what DNS answers
 // rather than depending on the machine's resolver (and on the network at all).
@@ -140,9 +136,7 @@ describe("AppManifestSchema baseUrl", () => {
     { baseUrl: "https://user:pass@api.example.com", ok: false },
     { baseUrl: "not-a-url", ok: false },
   ])("$baseUrl -> $ok", ({ baseUrl, ok }) => {
-    expect(AppManifestSchema.safeParse(manifest(baseUrl)).success).toBe(
-      ok,
-    );
+    expect(AppManifestSchema.safeParse(manifest(baseUrl)).success).toBe(ok);
   });
 });
 

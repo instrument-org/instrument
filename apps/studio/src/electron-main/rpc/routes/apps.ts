@@ -8,7 +8,7 @@ import {
 import { appOAuthStore } from "@/electron-main/stores/app-oauth";
 import {
   AppConnectionSchema,
-  appSite,
+  appSiteFor,
   AppSlugSchema,
   beginMcpOAuth,
   cancelMcpOAuth,
@@ -92,7 +92,7 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
           hasCredential: hasAppCredential(app.slug),
           hasGuide: (await readAppGuide(app.dir)) !== null,
           name: app.manifest.name,
-          site: appSite(app.manifest),
+          site: appSiteFor(app.slug, app.manifest),
           slug: app.slug,
           standing,
           type: app.manifest.type,
@@ -270,6 +270,7 @@ const remove = base
     const loaded = await loadApp(context.workspaceConfig.appsDir, input.slug);
     await disconnectApp(input.slug, {
       appsDir: context.workspaceConfig.appsDir,
+      event: "removed",
     });
     if (loaded.isOk()) {
       await context.workspaceConfig.trashItem(loaded.value.dir);

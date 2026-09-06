@@ -25,6 +25,9 @@ export function appEventModelNote(
       case "failed": {
         return `- Connecting ${event.name} (${event.slug}) failed${event.detail ? `: ${event.detail}` : ""}. Read \`${APP_COMMAND.name} list\`, fix what you can, and tell the user in a line what happened.`;
       }
+      case "removed": {
+        return `- ${event.name} (${event.slug}) was removed: its folder is gone along with its sign-in or key. Set it up again with \`${APP_COMMAND.name} new\` only if the user asks for it.`;
+      }
     }
   });
 

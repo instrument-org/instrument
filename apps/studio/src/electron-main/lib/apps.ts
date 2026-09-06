@@ -96,16 +96,19 @@ export function createAppsConfig(): WorkspaceConfig["apps"] {
  */
 export async function disconnectApp(
   slug: string,
-  { appsDir }: { appsDir?: WorkspaceConfig["appsDir"] } = {},
+  {
+    appsDir,
+    event = "disconnected",
+  }: {
+    appsDir?: WorkspaceConfig["appsDir"];
+    /** Whether the folder goes too, which the note to the orchestrator says. */
+    event?: "disconnected" | "removed";
+  } = {},
 ): Promise<void> {
   removeAppCredential(slug);
   clearAppOAuth(slug);
   await appConnectionStore.remove(slug);
   workspacePublisher.publish("app.updated", null);
   const name = appsDir ? await appName(appsDir, slug) : slug;
-  workspacePublisher.publish("app.event", {
-    event: "disconnected",
-    name,
-    slug,
-  });
+  workspacePublisher.publish("app.event", { event, name, slug });
 }

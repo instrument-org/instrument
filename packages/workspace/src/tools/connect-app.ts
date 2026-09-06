@@ -4,7 +4,7 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { recordConnection } from "../lib/apps/connection";
-import { appSite } from "../lib/apps/manifest";
+import { appSiteFor } from "../lib/apps/site";
 import { loadApp } from "../lib/apps/store";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { getWorkspaceConfig } from "../lib/workspace-config";
@@ -82,7 +82,7 @@ export const ConnectApp = setupTool({
     return ok({
       kind,
       name: manifest.name,
-      site: appSite(manifest),
+      site: appSiteFor(slug, manifest),
       slug,
       state: "asked" as const,
     });

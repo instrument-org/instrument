@@ -44,6 +44,7 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
+import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { pathsNamedInMessage } from "@/client/lib/paths-named-in-message";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -450,36 +451,44 @@ function OrchestratorLayout() {
                 </button>
               </header>
               <div className="min-h-0 flex-1">
-                <TaskChat
-                  alwaysSubmittable
-                  composerLead={<ViewChip />}
-                  navigateOnSend={false}
-                  presentation="orchestrator"
-                  promptDraft={state.data.promptDraft ?? ""}
-                  selectedModelURI={
-                    state.data.selectedModelURI ?? defaultModelURI
-                  }
-                  selectedSessionId={screens.sessionId}
-                  // What the screen that is up says it shows, plus the page's
-                  // words when that screen is the browser, read at the moment
-                  // of sending; a screen that registered nothing sends nothing.
-                  sendContext={async () => {
-                    if (!screenView) {
-                      return;
+                {/* Names the task and session for the links inside, so a page
+                    a reply names offers both the window's browser and the
+                    user's, the way a link in a task does. */}
+                <TaskSessionProvider
+                  sessionId={screens.sessionId}
+                  taskId={screens.taskId}
+                >
+                  <TaskChat
+                    alwaysSubmittable
+                    composerLead={<ViewChip />}
+                    navigateOnSend={false}
+                    presentation="orchestrator"
+                    promptDraft={state.data.promptDraft ?? ""}
+                    selectedModelURI={
+                      state.data.selectedModelURI ?? defaultModelURI
                     }
-                    const page =
-                      screenView.screen === "browser"
-                        ? await browser?.readPage()
-                        : undefined;
-                    return {
-                      ...screenView,
-                      ...(page ? { page } : {}),
-                      url: location.href,
-                    };
-                  }}
-                  task={task.data}
-                  transcriptTrailing={<TasksWorkingRow />}
-                />
+                    selectedSessionId={screens.sessionId}
+                    // What the screen that is up says it shows, plus the page's
+                    // words when that screen is the browser, read at the moment
+                    // of sending; a screen that registered nothing sends nothing.
+                    sendContext={async () => {
+                      if (!screenView) {
+                        return;
+                      }
+                      const page =
+                        screenView.screen === "browser"
+                          ? await browser?.readPage()
+                          : undefined;
+                      return {
+                        ...screenView,
+                        ...(page ? { page } : {}),
+                        url: location.href,
+                      };
+                    }}
+                    task={task.data}
+                    transcriptTrailing={<TasksWorkingRow />}
+                  />
+                </TaskSessionProvider>
               </div>
             </div>
           </StudioSidebarRail>

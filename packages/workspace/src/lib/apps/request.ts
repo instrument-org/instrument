@@ -1,10 +1,6 @@
 import { err, ok, type Result } from "neverthrow";
 
-import {
-  type ApiAppManifest,
-  type AppAuth,
-  isLoopbackHost,
-} from "./manifest";
+import { type ApiAppManifest, type AppAuth, isLoopbackHost } from "./manifest";
 import { checkPublicUrl } from "./safe-url";
 
 const MAX_REDIRECTS = 5;

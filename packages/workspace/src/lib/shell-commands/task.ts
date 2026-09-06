@@ -220,9 +220,11 @@ function promptFrom(inline: string, stdin: ByteString): string {
  */
 function requireAppsNamedInBrief(prompt: string, apps: string[]) {
   const named = new Set(
-    [...prompt.matchAll(/\bapp (?:call|request|tools|guide) ([a-z0-9][a-z0-9-]*)/g)].map(
-      (match) => match[1] ?? "",
-    ),
+    [
+      ...prompt.matchAll(
+        /\bapp (?:call|request|tools|guide) ([a-z0-9][a-z0-9-]*)/g,
+      ),
+    ].map((match) => match[1] ?? ""),
   );
   const missing = [...named].filter((slug) => slug && !apps.includes(slug));
   if (missing.length > 0) {

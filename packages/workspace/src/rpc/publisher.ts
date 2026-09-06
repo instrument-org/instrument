@@ -13,11 +13,7 @@ export const publisher = new EventPublisher<{
    */
   "app.event": {
     detail?: string;
-    event:
-      | "connected"
-      | "declined"
-      | "disconnected"
-      | "failed";
+    event: "connected" | "declined" | "disconnected" | "failed" | "removed";
     name: string;
     slug: string;
   };

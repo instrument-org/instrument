@@ -15,7 +15,7 @@ export {
   isConnected,
   recordConnection,
 } from "./lib/apps/connection";
-export { type AppManifest, appSite, AppSlugSchema } from "./lib/apps/manifest";
+export { type AppManifest, AppSlugSchema } from "./lib/apps/manifest";
 export {
   callMcpTool,
   listMcpTools,
@@ -30,6 +30,7 @@ export {
 } from "./lib/apps/mcp/oauth-flow";
 export { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
 export { mcpAuthProviderForCommand } from "./lib/apps/mcp/tool-auth";
+export { appSiteFor } from "./lib/apps/site";
 export { listApps, loadApp, readAppGuide } from "./lib/apps/store";
 export { type AppTestReport, runAppTest } from "./lib/apps/test-app";
 export {

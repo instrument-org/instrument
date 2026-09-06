@@ -4,12 +4,19 @@ import { GlyphButton } from "@/client/components/orchestrator/glyph-button";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { rpcClient } from "@/client/rpc/client";
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useContext, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "../ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 import { Input } from "../ui/input";
 import { ToolCard, ToolCardEmpty, ToolCardSection } from "./tool-card";
 
@@ -17,6 +24,9 @@ type ConnectAppPart = Extract<
   SessionMessagePart.ToolPart,
   { type: "tool-connect_app" }
 >;
+
+/** Where the sign-in page opens: the window's own browser, or the user's. */
+type SignInDestination = "app" | "external";
 
 /**
  * The card that asks the user for the one thing only they can give an app: a
@@ -73,10 +83,11 @@ function ConnectCard({
     standing === "failed" ||
     standing === "stale";
 
-  const openAuthorization = (url: string) => {
-    if (orchestrator?.browser) {
-      // The window's own browser, where the callback lands too, rather than
-      // the user's, which knows nothing about the agent driving beside it.
+  // The window's own browser by default, where the callback lands too and the
+  // agent can see the page; the user's browser is a choice, since a session
+  // they already hold there may be the one they want to sign in with.
+  const openAuthorization = (url: string, where: SignInDestination) => {
+    if (where === "app" && orchestrator?.browser) {
       orchestrator.browser.open(url);
       void navigate({ to: "/orchestrator/browser" });
     } else {
@@ -91,14 +102,21 @@ function ConnectCard({
           description: error.message,
         });
       },
-      onSuccess: (result) => {
-        if (result.status === "started") {
-          setWaiting(true);
-          openAuthorization(result.url);
-        }
-      },
     }),
   );
+  const signIn = (where: SignInDestination) => {
+    startOAuth.mutate(
+      { slug },
+      {
+        onSuccess: (result) => {
+          if (result.status === "started") {
+            setWaiting(true);
+            openAuthorization(result.url, where);
+          }
+        },
+      },
+    );
+  };
   const cancelOAuth = useMutation(
     rpcClient.apps.cancelOAuth.mutationOptions({
       onSuccess: () => {
@@ -153,14 +171,38 @@ function ConnectCard({
           </p>
         ) : kind === "sign-in" ? (
           <div className="mt-3 flex items-center gap-2">
-            <GlyphButton
-              disabled={busy || waiting}
-              onClick={() => {
-                startOAuth.mutate({ slug });
-              }}
-            >
-              {waiting ? "Waiting for the sign-in…" : `Sign in to ${name}`}
-            </GlyphButton>
+            <span className="flex items-center">
+              <GlyphButton
+                className="rounded-r-none"
+                disabled={busy || waiting}
+                onClick={() => {
+                  signIn("app");
+                }}
+              >
+                {waiting ? "Waiting for the sign-in…" : `Sign in to ${name}`}
+              </GlyphButton>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    aria-label="Where to sign in"
+                    className="flex h-9 items-center rounded-r-lg border border-l-0 border-border bg-card px-1.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                    disabled={busy || waiting}
+                    type="button"
+                  >
+                    <CaretDownIcon className="size-3.5" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      signIn("external");
+                    }}
+                  >
+                    Sign in in your browser
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </span>
             <Button
               disabled={busy}
               onClick={() => {

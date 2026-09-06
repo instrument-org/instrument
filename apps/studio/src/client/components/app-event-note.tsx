@@ -27,7 +27,9 @@ export function AppEventNote({
                 ? `${event.name} not connected`
                 : event.event === "disconnected"
                   ? `${event.name} disconnected`
-                  : `${event.name} could not connect`}
+                  : event.event === "removed"
+                    ? `${event.name} removed`
+                    : `${event.name} could not connect`}
           </span>
         </p>
       ))}

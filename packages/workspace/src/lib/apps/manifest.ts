@@ -163,13 +163,3 @@ API app (authenticated HTTP requests; auth kinds: bearer, header (with "header")
   "headers": { "Notion-Version": "2022-06-28" },
   "test": { "path": "/users/me" }
 }`;
-
-/** The site an app belongs to, for its icon and its page: the host of its endpoint. */
-export function appSite(manifest: AppManifest): string | undefined {
-  const endpoint = manifest.type === "api" ? manifest.baseUrl : manifest.url;
-  try {
-    return new URL(endpoint).origin;
-  } catch {
-    return undefined;
-  }
-}

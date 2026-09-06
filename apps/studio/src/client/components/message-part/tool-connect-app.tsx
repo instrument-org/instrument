@@ -53,8 +53,12 @@ function ConnectCard({
   // writes, which is what settles the card.
   const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const app = apps.data?.apps.find((entry) => entry.slug === slug);
+  // A card from an earlier session may outlive its app: removed, or renamed
+  // since. It says so rather than offering a sign-in to nothing.
+  const removed = apps.data !== undefined && app === undefined;
   const standing = app?.standing;
   const settled =
+    removed ||
     standing === "connected" ||
     standing === "declined" ||
     standing === "failed" ||
@@ -79,13 +83,15 @@ function ConnectCard({
 
         {settled ? (
           <p className="mt-3 text-xs text-muted-foreground">
-            {standing === "connected"
-              ? `Connected${app?.connection?.account ? ` as ${app.connection.account}` : ""}.`
-              : standing === "declined"
-                ? "Not now."
-                : standing === "stale"
-                  ? "Connected, then changed; Instrument will test it again."
-                  : `Could not connect${app?.connection?.error ? `: ${app.connection.error}` : "."}`}
+            {removed
+              ? `${name} was removed.`
+              : standing === "connected"
+                ? `Connected${app?.connection?.account ? ` as ${app.connection.account}` : ""}.`
+                : standing === "declined"
+                  ? "Not now."
+                  : standing === "stale"
+                    ? "Connected, then changed; Instrument will test it again."
+                    : `Could not connect${app?.connection?.error ? `: ${app.connection.error}` : "."}`}
           </p>
         ) : kind === "none" ? (
           <p className="mt-3 text-xs text-muted-foreground">

@@ -7,6 +7,7 @@ import {
   type VisitedPage,
   visitedPagesAtom,
 } from "@/client/atoms/orchestrator";
+import { Favicon } from "@/client/components/favicon";
 import { TaskBrowserPanel } from "@/client/components/task/browser-panel";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { WINDOW_BROWSER_HOST } from "@/client/lib/browser-host";
@@ -457,7 +458,7 @@ export function BrowserTabs({
           }}
           selectedKey={active?.id}
           tabs={tabs.map((tab) => ({
-            icon: <TabIcon favicon={tab.favicon} />,
+            icon: <TabIcon favicon={tab.favicon} url={tab.url} />,
             key: tab.id,
             title: tab.title || tab.url || "New tab",
           }))}
@@ -524,7 +525,7 @@ function NewTabPage({
                 title={page.url}
                 type="button"
               >
-                <TabIcon favicon={page.favicon} />
+                <TabIcon favicon={page.favicon} url={page.url} />
                 <span className="truncate">{page.title || page.url}</span>
               </button>
             </li>
@@ -540,22 +541,36 @@ function sameAddress(a: string | undefined, b: string) {
   return a !== undefined && trimAddress(a) === trimAddress(b);
 }
 
-/** The page's own icon when it has announced one and it loads, else the globe. */
-function TabIcon({ favicon }: { favicon: string | undefined }) {
+/**
+ * The page's own icon when it has announced one and it loads; else the site's,
+ * looked up by address, since a page that announced none or a stale one is
+ * still on a site with one; else the globe.
+ */
+function TabIcon({
+  favicon,
+  url,
+}: {
+  favicon: string | undefined;
+  url: string | undefined;
+}) {
   const [failed, setFailed] = useState<string | undefined>();
-  return favicon && failed !== favicon ? (
-    <img
-      alt=""
-      className="size-3.5 rounded-xs"
-      draggable={false}
-      onError={() => {
-        setFailed(favicon);
-      }}
-      src={favicon}
-    />
-  ) : (
-    <GlobeIcon className="size-3.5" />
-  );
+  if (favicon && failed !== favicon) {
+    return (
+      <img
+        alt=""
+        className="size-3.5 rounded-xs"
+        draggable={false}
+        onError={() => {
+          setFailed(favicon);
+        }}
+        src={favicon}
+      />
+    );
+  }
+  if (url && /^https?:/.test(url)) {
+    return <Favicon className="size-3.5 rounded-xs" url={url} />;
+  }
+  return <GlobeIcon className="size-3.5" />;
 }
 
 function trimAddress(url: string) {

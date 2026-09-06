@@ -121,7 +121,7 @@ export function ViewChip() {
           return;
         }
         return {
-          icon: <SiteIcon favicon={tab.favicon} />,
+          icon: <SiteIcon favicon={tab.favicon} url={tab.url} />,
           title: tab.title || tab.url || "New tab",
         };
       }

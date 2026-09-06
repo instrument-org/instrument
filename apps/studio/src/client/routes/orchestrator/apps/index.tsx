@@ -4,6 +4,7 @@ import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { GlyphButton } from "@/client/components/orchestrator/glyph-button";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { RelativeTime } from "@/client/components/relative-time";
+import { Button } from "@/client/components/ui/button";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -75,16 +76,7 @@ function AppsRoute() {
           <Block label="Connected">
             {connected.map((app) => (
               <AppRow
-                action={
-                  <GlyphButton
-                    onClick={() => {
-                      openApp(app.slug);
-                    }}
-                    size="sm"
-                  >
-                    Ask
-                  </GlyphButton>
-                }
+                action={null}
                 app={app}
                 key={app.slug}
                 line={connectedLine(app)}
@@ -108,18 +100,18 @@ function AppsRoute() {
                       kind="sign-in"
                       label="Sign in"
                       name={app.name}
-                      size="sm"
                       slug={app.slug}
                     />
                   ) : app.standing === "needs-key" ? (
-                    <GlyphButton
+                    <Button
                       onClick={() => {
                         openApp(app.slug);
                       }}
                       size="sm"
+                      variant="outline"
                     >
                       Enter key
-                    </GlyphButton>
+                    </Button>
                   ) : (
                     <GlyphButton
                       onClick={() => {

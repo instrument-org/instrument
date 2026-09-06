@@ -6,18 +6,29 @@ import { GlyphButton } from "@/client/components/orchestrator/glyph-button";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { RelativeTime } from "@/client/components/relative-time";
 import { Button } from "@/client/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
 import { Spinner } from "@/client/components/ui/spinner";
 import { rpcClient } from "@/client/rpc/client";
+import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { type ReactNode } from "react";
 import { toast } from "sonner";
 
+/** How many placeholder rows stand in for a tool list still on its way. */
+const TOOL_PLACEHOLDER_ROWS = 6;
+
 /**
  * An app's page. Before it is connected, a listing: what the directory says
- * it is and what connecting takes, with the one button that starts that.
- * Connected, it is a connection: whose, since when, what it can do, and the
- * way to ask about it or take it away.
+ * it is and what connecting takes, with the one control that finishes that.
+ * Connected, it is a connection: the service itself a click away, the way to
+ * ask about it, whose it is and since when, what it can do, and a menu by its
+ * name for taking it away.
  */
 export const Route = createFileRoute("/orchestrator/apps/$slug")({
   component: AppRoute,
@@ -33,6 +44,7 @@ function AppRoute() {
   const entry = catalog.data?.find((candidate) => candidate.slug === slug);
   const name = app?.name ?? entry?.name ?? slug;
   const site = app?.site ?? (entry ? `https://${entry.domain}` : undefined);
+  const home = app?.home ?? entry?.home ?? site;
   const isConnected = app?.standing === "connected";
   useOnScreen({
     app: {
@@ -68,6 +80,23 @@ function AppRoute() {
       },
     }),
   );
+  const test = useMutation(
+    rpcClient.apps.test.mutationOptions({
+      onError: (error) => {
+        toast.error("Could not test the app", { description: error.message });
+      },
+      onSuccess: (report) => {
+        if (!report.passed) {
+          const failure = report.checks.find(
+            (check) => check.status === "fail",
+          );
+          toast.error(`${name} did not connect`, {
+            description: failure?.detail.split("\n")[0],
+          });
+        }
+      },
+    }),
+  );
 
   if (list.isPending || catalog.isPending) {
     return (
@@ -87,16 +116,8 @@ function AppRoute() {
     );
   }
 
-  const domain = site ? new URL(site).host : undefined;
+  const domain = home ? new URL(home).host : undefined;
   const description = entry?.description ?? entry?.tagline;
-  const canDo: string[] =
-    isConnected && app.type === "mcp"
-      ? (tools.data ?? []).map((tool) => tool.name)
-      : (entry?.interfaces ?? []).map((surface) =>
-          surface.endpoint
-            ? `${surface.name} (${surface.format})`
-            : surface.name,
-        );
   const needs = app
     ? app.type === "mcp" && app.authKind === "oauth"
       ? `A sign-in with ${name}, once.`
@@ -104,6 +125,12 @@ function AppRoute() {
         ? "Nothing: it is open."
         : `A key from ${name}, which Instrument stores encrypted on this Mac.`
     : (entry?.authMethods ?? []).map((method) => method.label).join(", ");
+  const openHome = () => {
+    if (home && browser) {
+      browser.openOrFocus(home);
+      void navigate({ to: "/orchestrator/browser" });
+    }
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-6 pb-10">
@@ -116,20 +143,72 @@ function AppRoute() {
       <div className="mt-2 flex items-center gap-4">
         <AppIcon site={site} size="lg" />
         <div className="min-w-0">
-          <h1 className="text-lg font-semibold">{name}</h1>
+          <div className="flex items-center gap-1">
+            <h1 className="text-lg font-semibold">{name}</h1>
+            {app ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    aria-label={`More for ${name}`}
+                    className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                    type="button"
+                  >
+                    <DotsThreeIcon className="size-5" weight="bold" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem
+                    disabled={test.isPending}
+                    onSelect={() => {
+                      test.mutate({ slug });
+                    }}
+                  >
+                    Test the connection
+                  </DropdownMenuItem>
+                  {isConnected || app.hasCredential ? (
+                    <DropdownMenuItem
+                      disabled={disconnect.isPending}
+                      onSelect={() => {
+                        disconnect.mutate({ slug });
+                      }}
+                    >
+                      Disconnect
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuItem
+                    disabled={remove.isPending}
+                    onSelect={() => {
+                      remove.mutate({ slug });
+                    }}
+                    variant="destructive"
+                  >
+                    Remove
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+          </div>
           <p className="text-xs text-muted-foreground">
             {domain ?? (app ? app.endpoint : "")}
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           {isConnected ? (
-            <GlyphButton
-              onClick={() => {
-                ask(`What can you do with ${name} for me?`);
-              }}
-            >
-              Ask about {name}
-            </GlyphButton>
+            <>
+              {home && browser ? (
+                <Button onClick={openHome} size="sm">
+                  Open {domain}
+                </Button>
+              ) : null}
+              <GlyphButton
+                onClick={() => {
+                  ask(`What can you do with ${name} for me?`);
+                }}
+                size="sm"
+              >
+                Ask about {name}
+              </GlyphButton>
+            </>
           ) : app?.standing === "needs-sign-in" ? (
             <ConnectControls kind="sign-in" name={name} slug={slug} />
           ) : app?.standing === "needs-key" ? (
@@ -143,6 +222,7 @@ function AppRoute() {
                     : `Connect ${name}`,
                 );
               }}
+              size="sm"
             >
               Connect {name}
             </GlyphButton>
@@ -179,10 +259,43 @@ function AppRoute() {
           </Block>
         ) : null}
 
-        {canDo.length > 0 ? (
-          <Block label={isConnected ? "What it can do" : "How it is reached"}>
-            {canDo.map((item) => (
-              <Line key={item}>{item}</Line>
+        {isConnected && app.type === "mcp" ? (
+          <Block label="What it can do">
+            {tools.data ? (
+              tools.data.map((tool) => <Line key={tool.name}>{tool.name}</Line>)
+            ) : tools.isError ? (
+              <Line>Could not list its tools: {tools.error.message}</Line>
+            ) : (
+              // The list takes a moment to come back from the service; rows
+              // the size of the ones on their way keep the page from jumping
+              // when it lands. The count the connection recorded says how
+              // many, when it does.
+              Array.from(
+                {
+                  length: Math.min(
+                    app.connection?.toolCount ?? TOOL_PLACEHOLDER_ROWS,
+                    TOOL_PLACEHOLDER_ROWS,
+                  ),
+                },
+                (_, index) => (
+                  <div className="px-3 py-2" key={index}>
+                    <div
+                      className="h-5 animate-pulse rounded bg-muted"
+                      style={{ width: `${40 + ((index * 23) % 35)}%` }}
+                    />
+                  </div>
+                ),
+              )
+            )}
+          </Block>
+        ) : (entry?.interfaces ?? []).length > 0 ? (
+          <Block label="How it is reached">
+            {(entry?.interfaces ?? []).map((surface) => (
+              <Line key={surface.name}>
+                {surface.endpoint
+                  ? `${surface.name} (${surface.format})`
+                  : surface.name}
+              </Line>
             ))}
           </Block>
         ) : null}
@@ -192,45 +305,6 @@ function AppRoute() {
             <Line>{needs}</Line>
           </Block>
         ) : null}
-
-        <div className="flex flex-wrap items-center gap-2 px-1">
-          {site && browser ? (
-            <Button
-              onClick={() => {
-                browser.openOrFocus(site);
-                void navigate({ to: "/orchestrator/browser" });
-              }}
-              size="sm"
-              variant="outline"
-            >
-              Open {domain}
-            </Button>
-          ) : null}
-          {app && (isConnected || app.hasCredential) ? (
-            <Button
-              disabled={disconnect.isPending}
-              onClick={() => {
-                disconnect.mutate({ slug });
-              }}
-              size="sm"
-              variant="ghost"
-            >
-              Disconnect
-            </Button>
-          ) : null}
-          {app ? (
-            <Button
-              disabled={remove.isPending}
-              onClick={() => {
-                remove.mutate({ slug });
-              }}
-              size="sm"
-              variant="ghost"
-            >
-              Remove
-            </Button>
-          ) : null}
-        </div>
       </div>
     </div>
   );

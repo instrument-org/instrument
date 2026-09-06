@@ -147,7 +147,13 @@ const presence = base
  * client can tell "nothing has happened here" from its first real tick.
  */
 const agentActivity = base
-  .input(z.object({ id: TaskIdSchema }))
+  .input(
+    z.object({
+      id: TaskIdSchema,
+      /** One guest of the task's rather than all of them: a tab of the window's, driven by whichever task was handed it. */
+      targetId: BrowserTargetIdSchema.optional(),
+    }),
+  )
   .output(eventIterator(z.object({ revision: z.number() })))
   .handler(async function* ({ input, signal }) {
     let revision = 0;
@@ -155,7 +161,10 @@ const agentActivity = base
     for await (const event of publisher.subscribe("browser.agentActivity", {
       signal,
     })) {
-      if (event.id === input.id) {
+      if (
+        event.id === input.id &&
+        (input.targetId === undefined || event.targetId === input.targetId)
+      ) {
         revision += 1;
         yield { revision };
       }

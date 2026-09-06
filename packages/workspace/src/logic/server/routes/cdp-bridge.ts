@@ -248,7 +248,7 @@ function handleCdpClient(
         },
       });
       if (!SILENT_COMMANDS.has(method)) {
-        publisher.publish("browser.agentActivity", { id: meta.id });
+        publisher.publish("browser.agentActivity", { id: meta.id, targetId });
       }
     }
 

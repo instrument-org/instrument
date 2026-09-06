@@ -4,6 +4,7 @@ import { type WorkspaceSnapshot } from "../machines/workspace";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
+import { type BrowserTargetId } from "../types";
 
 export const publisher = new EventPublisher<{
   /**
@@ -39,6 +40,8 @@ export const publisher = new EventPublisher<{
    */
   "browser.agentActivity": {
     id: TaskId;
+    /** The guest the command went to: a task's own, or a tab of the window's it was handed. */
+    targetId: BrowserTargetId;
   };
   "message.removed": {
     id: TaskId;

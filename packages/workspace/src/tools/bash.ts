@@ -47,6 +47,71 @@ const MAX_YIELD_MS = ms("10 minutes");
  */
 const YIELD_TIMEOUT_SLACK_MS = ms("30 seconds");
 
+/** What the orchestrator's shell runs: the two commands that are its job, and filters to read their output with. */
+const ORCHESTRATOR_COMMANDS = new Set(["app", "task"]);
+const ORCHESTRATOR_FILTERS = new Set([
+  "awk",
+  "cut",
+  "echo",
+  "grep",
+  "head",
+  "jq",
+  "rg",
+  "sed",
+  "sort",
+  "tail",
+  "true",
+  "uniq",
+  "wc",
+]);
+
+/**
+ * The first word of every command in a script, heredoc bodies skipped: a
+ * command that starts with a quoted heredoc marker owns the lines up to the
+ * marker, and those lines are a brief, not commands.
+ */
+export function leadingWords(script: string): string[] {
+  const words: string[] = [];
+  const lines = script.split("\n");
+  let terminator: string | undefined;
+  for (const line of lines) {
+    if (terminator !== undefined) {
+      if (line.trim() === terminator) {
+        terminator = undefined;
+      }
+      continue;
+    }
+    for (const segment of line.split(/\|\||&&|[;|]/)) {
+      const word = segment.trim().split(/\s+/)[0];
+      if (word) {
+        words.push(word);
+      }
+    }
+    const heredoc = /<<-?\s*['"]?(\w+)['"]?/.exec(line);
+    if (heredoc) {
+      terminator = heredoc[1];
+    }
+  }
+  return words;
+}
+
+/**
+ * The conversation's agent does no work of its own: it runs `task` and `app`,
+ * reads their output through a filter, and nothing else. A command outside
+ * that is refused with the way to do it instead, so the agent never becomes
+ * busy doing what a task exists for.
+ */
+export function orchestratorRefusal(script: string): string | undefined {
+  const outside = leadingWords(script).find(
+    (word) =>
+      !ORCHESTRATOR_COMMANDS.has(word) && !ORCHESTRATOR_FILTERS.has(word),
+  );
+  if (outside === undefined) {
+    return;
+  }
+  return `\`${outside}\` is not yours to run: this shell runs \`task\` and \`app\` and a filter on their output (${[...ORCHESTRATOR_FILTERS].join(", ")}), nothing else. Work that needs a shell, a file, a page, or the web is a task's: start one with \`task new\`.`;
+}
+
 function bashToolCallTimeoutMs(yieldMs: number) {
   return clampYieldMs(yieldMs) + YIELD_TIMEOUT_SLACK_MS;
 }
@@ -133,6 +198,12 @@ export const BashTool = setupTool({
   description: ({ agentName }) =>
     createBashDescription({ orchestrator: agentName === "instrument" }),
   async execute({ agentName, input, partId, sessionId, signal, taskId }) {
+    if (agentName === "instrument") {
+      const refused = orchestratorRefusal(input.command);
+      if (refused) {
+        return executeError(refused);
+      }
+    }
     const taskState = await getTaskState(taskDir(taskId));
     const yieldMs = clampYieldMs(input.yieldMs);
     const startedAt = performance.now();

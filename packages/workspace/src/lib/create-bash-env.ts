@@ -590,25 +590,14 @@ export async function createBashEnv({
  * what keeps every turn short, and what keeps the host paths of the user's
  * folders out of a process that could act on them.
  */
-function createOrchestratorBashDescription(builtins: string[]) {
+function createOrchestratorBashDescription(_builtins: string[]) {
   return dedent`
-    Run a bash command. This shell is for reading, for the \`${TASK_COMMAND.name}\` and \`${APP_COMMAND.name}\` commands, and for \`${AGENT_BROWSER_COMMAND.name}\`, which drives the browser tab the user has on screen and nothing else (\`${AGENT_BROWSER_COMMAND.name} --help\`; \`eval\`, \`click\`, \`fill\`, \`get text\` are the one-step ones). It has no python, node, package manager, or network, on purpose: long work is a task's, and \`${APP_COMMAND.name}\` reaches connected services for you.
+    Run one of the two commands that are your job: \`${TASK_COMMAND.name}\` and \`${APP_COMMAND.name}\`. Their output may go through a filter (head, tail, rg, grep, wc, sort, cut, sed, awk, jq). Nothing else runs here, on purpose: no file reading or writing, no python or node, no browser, no network. Anything that touches a file, a page, or the web is a task's job, and you start the task instead.
 
-    What you can reach:
-    - \`${MOUNT.task}\`: your own scratch folder and working directory. Keep notes here if you want them.
-    - \`${MOUNT.attachedFolders}/<name>\`: folders the user attached to this conversation, read-only or writable as your context says. These are the user's real files.
-    - \`${MOUNT.tasks}/<id>\`: the folder of each task you created, read-only. Its \`work/\` is scratch and its \`output/\` holds deliverables unless you pointed it at a folder under \`${MOUNT.attachedFolders}\`.
-    - \`${MOUNT.apps}/<slug>\`: the apps of this workspace, writable: each holds \`app.json\` and \`guide.md\`, and never a secret.
-    Not a persistent terminal: every call starts fresh at \`${MOUNT.task}\`. Nothing else exists; writing elsewhere fails.
-
-    Prefer \`rg\` for searching (\`rg -n 'pattern' ${MOUNT.tasks}/<id>\`, \`rg --files ${MOUNT.attachedFolders}/<name>\`) and the \`${TOOL_NAMES.readFile}\` tool for reading a file.
-
-    Available commands (the complete set; anything not listed is NOT available): ${builtins.join(", ")}
+    Not a persistent terminal: every call starts fresh. Pass a brief or a message through a quoted heredoc (\`<<'EOF'\`), never as a double-quoted argument.
 
     Specialized commands:
-      ${RG_COMMAND.name} - ${RG_COMMAND.description}
       ${TASK_COMMAND.name} - ${TASK_COMMAND.description}
       ${APP_COMMAND.name} - ${APP_COMMAND.description}
-      ${JOBS_COMMAND.name}, ${FG_COMMAND.name}, ${KILL_COMMAND.name} - a command that outlives \`yieldMs\` keeps running in the background under an id these manage; you will rarely need them here.
   `.trim();
 }

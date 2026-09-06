@@ -6,6 +6,7 @@ import {
   type ActorRefFrom,
   type AnyMachineSnapshot,
   assign,
+  enqueueActions,
   fromPromise,
   log,
   setup,
@@ -74,6 +75,17 @@ type SessionMachineEvent =
       type: "updateInteractiveToolCall";
       value: ToolCallUpdate;
     };
+
+/**
+ * Whether a message is the user's own words rather than a note the harness
+ * wrote for the agent: a task finishing, an app changing. Only the user's own
+ * words supersede a reply in flight.
+ */
+function isTypedByUser(message: SessionMessage.UserWithParts) {
+  return !message.parts.some(
+    (part) => part.type === "data-taskEvent" || part.type === "data-appEvent",
+  );
+}
 
 export const sessionMachine = setup({
   actions: {
@@ -404,16 +416,29 @@ export const sessionMachine = setup({
         // A running agent hears it at its next point between steps and then
         // says so, which is what takes it back out of the queue. Until then it
         // stays queued, so a turn that ends first runs it as a turn of its own.
-        ({ context, event }) => {
+        // The conversation's own agent is superseded instead: a message the
+        // user typed while it was composing stops the turn, and the queue runs
+        // the message as a turn of its own, over everything said so far. A
+        // note from a task or an app steers, since the reply in flight is
+        // still the reply to what the user said.
+        enqueueActions(({ context, enqueue, event }) => {
           const agentRef = context.agentRef;
-          if (agentRef?.getSnapshot().status === "active") {
-            agentRef.send({
-              saved: event.saved,
-              type: "steer",
-              value: event.value,
-            });
+          if (agentRef?.getSnapshot().status !== "active") {
+            return;
           }
-        },
+          if (
+            context.agent.name === "instrument" &&
+            isTypedByUser(event.value)
+          ) {
+            enqueue.raise({ type: "stop" });
+            return;
+          }
+          agentRef.send({
+            saved: event.saved,
+            type: "steer",
+            value: event.value,
+          });
+        }),
       ],
     },
     "agent.consumedSteer": {

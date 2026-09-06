@@ -27,10 +27,11 @@ export {
   cancelMcpOAuth,
   completeMcpOAuth,
   pendingMcpOAuthSlug,
+  type SignInOpensIn,
 } from "./lib/apps/mcp/oauth-flow";
 export { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
 export { mcpAuthProviderForCommand } from "./lib/apps/mcp/tool-auth";
-export { appSiteFor } from "./lib/apps/site";
+export { appHomeFor, appSiteFor } from "./lib/apps/site";
 export { listApps, loadApp, readAppGuide } from "./lib/apps/store";
 export { type AppTestReport, runAppTest } from "./lib/apps/test-app";
 export {

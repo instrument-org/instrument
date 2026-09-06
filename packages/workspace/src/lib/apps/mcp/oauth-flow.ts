@@ -23,9 +23,13 @@ import { createMcpOAuthProvider, type McpOAuthStore } from "./oauth-provider";
  * The in-flight transport is parked here between `begin` and `complete`,
  * keyed by the OAuth `state`, so the callback only needs `{ state, code }`.
  */
+/** Where the authorization page was opened: the window's own browser, or the user's. */
+export type SignInOpensIn = "app" | "external";
+
 interface PendingFlow {
   appsDir: AbsolutePath;
   expiresAt: number;
+  opensIn: SignInOpensIn;
   provider: ReturnType<typeof createMcpOAuthProvider>;
   slug: string;
   store: McpOAuthStore;
@@ -49,11 +53,13 @@ const pendingFlows = new Map<string, PendingFlow>();
  */
 export async function beginMcpOAuth({
   appsDir,
+  opensIn = "app",
   redirectUrl,
   slug,
   store,
 }: {
   appsDir: AbsolutePath;
+  opensIn?: SignInOpensIn;
   redirectUrl: string;
   slug: string;
   store: McpOAuthStore;
@@ -140,6 +146,7 @@ export async function beginMcpOAuth({
     pendingFlows.set(state, {
       appsDir,
       expiresAt: now + PENDING_FLOW_TTL_MS,
+      opensIn,
       provider,
       slug,
       store,
@@ -171,7 +178,12 @@ export async function completeMcpOAuth({
 }: {
   code: string;
   state: string;
-}): Promise<Result<{ slug: string; toolCount: number }, McpConnectionError>> {
+}): Promise<
+  Result<
+    { opensIn: SignInOpensIn; slug: string; toolCount: number },
+    McpConnectionError
+  >
+> {
   const flow = pendingFlows.get(state);
   if (!flow) {
     return err({
@@ -209,7 +221,11 @@ export async function completeMcpOAuth({
       status: "connected",
       toolCount: tools.tools.length,
     });
-    return ok({ slug: flow.slug, toolCount: tools.tools.length });
+    return ok({
+      opensIn: flow.opensIn,
+      slug: flow.slug,
+      toolCount: tools.tools.length,
+    });
   } catch (error) {
     return err({
       message: error instanceof Error ? error.message : String(error),

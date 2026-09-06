@@ -5,14 +5,14 @@
       "slug": "cloudflare",
       "name": "Cloudflare",
       "tagline": "The whole Cloudflare API, DNS to Workers, from one MCP server.",
-      "description": "Cloudflare hosts one MCP server for its entire API, over 2,500 endpoints, plus product-scoped servers (documentation, Workers bindings and builds, observability, Radar, AI Gateway, audit logs and more), all signing in with OAuth in the browser. The REST API takes an API token.",
+      "description": "Cloudflare hosts one MCP server for its entire API, over 2,500 endpoints, but that server only accepts clients registered with Cloudflare, which Instrument does not hold yet, so a sign-in there fails with an invalid client id. Its product-scoped servers (Workers bindings, documentation, observability, Radar and more) accept a client registered on the spot and sign in with OAuth in the browser. The REST API takes an API token.",
       "domain": "cloudflare.com",
       "categories": ["infrastructure", "developer-tools", "dns"],
       "authMethods": [
         {
           "type": "oauth2",
           "label": "OAuth 2.0",
-          "note": "Every hosted MCP server signs in with the Cloudflare account in the browser."
+          "note": "The product-scoped MCP servers register a client on the spot; the whole-API server needs one registered with Cloudflare in advance."
         },
         {
           "type": "token",
@@ -21,12 +21,6 @@
         }
       ],
       "interfaces": [
-        {
-          "format": "mcp",
-          "name": "Cloudflare API MCP server",
-          "endpoint": "https://mcp.cloudflare.com/mcp",
-          "auth": "oauth"
-        },
         {
           "format": "mcp",
           "name": "Workers Bindings MCP server",
@@ -40,13 +34,20 @@
           "auth": "none"
         },
         {
+          "format": "mcp",
+          "name": "Cloudflare API MCP server (needs a client registered with Cloudflare)",
+          "endpoint": "https://mcp.cloudflare.com/mcp",
+          "auth": "oauth-registered"
+        },
+        {
           "format": "openapi",
           "name": "Cloudflare REST API",
           "endpoint": "https://api.cloudflare.com/client/v4",
           "auth": "token"
         }
       ],
-      "docsUrl": "https://developers.cloudflare.com/agents/model-context-protocol/mcp-servers-for-cloudflare/"
+      "docsUrl": "https://developers.cloudflare.com/agents/model-context-protocol/mcp-servers-for-cloudflare/",
+      "home": "https://dash.cloudflare.com"
     },
     {
       "slug": "github",
@@ -92,7 +93,8 @@
           "auth": "oauth"
         }
       ],
-      "docsUrl": "https://docs.github.com"
+      "docsUrl": "https://docs.github.com",
+      "home": "https://github.com"
     },
     {
       "slug": "google-workspace",
@@ -131,7 +133,8 @@
           "auth": "oauth"
         }
       ],
-      "docsUrl": "https://developers.google.com/workspace"
+      "docsUrl": "https://developers.google.com/workspace",
+      "home": "https://mail.google.com"
     },
     {
       "slug": "linear",
@@ -166,7 +169,8 @@
           "auth": "api_key"
         }
       ],
-      "docsUrl": "https://linear.app/developers"
+      "docsUrl": "https://linear.app/developers",
+      "home": "https://linear.app"
     },
     {
       "slug": "notion",
@@ -201,7 +205,8 @@
           "auth": "api_key"
         }
       ],
-      "docsUrl": "https://developers.notion.com"
+      "docsUrl": "https://developers.notion.com",
+      "home": "https://www.notion.so"
     },
     {
       "slug": "posthog",
@@ -231,7 +236,8 @@
           "auth": "api_key"
         }
       ],
-      "docsUrl": "https://posthog.com/docs"
+      "docsUrl": "https://posthog.com/docs",
+      "home": "https://app.posthog.com"
     },
     {
       "slug": "resend",
@@ -260,7 +266,8 @@
           "auth": "api_key"
         }
       ],
-      "docsUrl": "https://resend.com/docs"
+      "docsUrl": "https://resend.com/docs",
+      "home": "https://resend.com/emails"
     },
     {
       "slug": "sentry",
@@ -300,7 +307,8 @@
           "auth": "token"
         }
       ],
-      "docsUrl": "https://docs.sentry.io"
+      "docsUrl": "https://docs.sentry.io",
+      "home": "https://sentry.io"
     },
     {
       "slug": "shopify",
@@ -341,7 +349,8 @@
           "auth": "oauth"
         }
       ],
-      "docsUrl": "https://shopify.dev"
+      "docsUrl": "https://shopify.dev",
+      "home": "https://admin.shopify.com"
     },
     {
       "slug": "slack",
@@ -376,7 +385,8 @@
           "auth": "token"
         }
       ],
-      "docsUrl": "https://docs.slack.dev"
+      "docsUrl": "https://docs.slack.dev",
+      "home": "https://app.slack.com"
     },
     {
       "slug": "spotify",
@@ -400,7 +410,8 @@
           "auth": "oauth"
         }
       ],
-      "docsUrl": "https://developer.spotify.com"
+      "docsUrl": "https://developer.spotify.com",
+      "home": "https://open.spotify.com"
     },
     {
       "slug": "stripe",
@@ -440,7 +451,8 @@
           "auth": "oauth"
         }
       ],
-      "docsUrl": "https://docs.stripe.com"
+      "docsUrl": "https://docs.stripe.com",
+      "home": "https://dashboard.stripe.com"
     },
     {
       "slug": "todoist",
@@ -475,7 +487,8 @@
           "auth": "api_key"
         }
       ],
-      "docsUrl": "https://developer.todoist.com"
+      "docsUrl": "https://developer.todoist.com",
+      "home": "https://app.todoist.com"
     },
     {
       "slug": "vercel",
@@ -515,7 +528,8 @@
           "auth": "oauth"
         }
       ],
-      "docsUrl": "https://vercel.com/docs"
+      "docsUrl": "https://vercel.com/docs",
+      "home": "https://vercel.com/dashboard"
     }
   ]
 }

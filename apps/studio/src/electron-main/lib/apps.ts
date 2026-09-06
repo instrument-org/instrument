@@ -7,6 +7,7 @@ import {
 import { appOAuthStore, clearAppOAuth } from "@/electron-main/stores/app-oauth";
 import { PORTS } from "@instrument-org/shared";
 import {
+  appHomeFor,
   loadApp,
   type WorkspaceConfig,
   workspacePublisher,
@@ -49,6 +50,15 @@ export async function announceConnected(
     name: await appName(appsDir, slug),
     slug,
   });
+}
+
+/** The service's signed-in web app, for a sign-in that finished in the window's browser to land on. */
+export async function appHome(
+  appsDir: WorkspaceConfig["appsDir"],
+  slug: string,
+): Promise<string | undefined> {
+  const loaded = await loadApp(appsDir, slug);
+  return loaded.isOk() ? appHomeFor(slug, loaded.value.manifest) : undefined;
 }
 
 /** The app's own name for a note, falling back to the slug when the folder is gone. */

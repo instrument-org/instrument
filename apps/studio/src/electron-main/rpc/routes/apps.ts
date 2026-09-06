@@ -8,6 +8,7 @@ import {
 import { appOAuthStore } from "@/electron-main/stores/app-oauth";
 import {
   AppConnectionSchema,
+  appHomeFor,
   appSiteFor,
   AppSlugSchema,
   beginMcpOAuth,
@@ -54,6 +55,8 @@ const AppListItemSchema = z.object({
   endpoint: z.string(),
   hasCredential: z.boolean(),
   hasGuide: z.boolean(),
+  /** The signed-in web app, for the page's primary action. */
+  home: z.string().optional(),
   name: z.string(),
   /** The service's origin, for its icon. */
   site: z.string().optional(),
@@ -91,6 +94,7 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
               : app.manifest.url,
           hasCredential: hasAppCredential(app.slug),
           hasGuide: (await readAppGuide(app.dir)) !== null,
+          home: appHomeFor(app.slug, app.manifest),
           name: app.manifest.name,
           site: appSiteFor(app.slug, app.manifest),
           slug: app.slug,
@@ -170,7 +174,13 @@ const tools = base
  * lands too.
  */
 const startOAuth = base
-  .input(z.object({ slug: AppSlugSchema }))
+  .input(
+    z.object({
+      /** Where the page opens, so the callback can land the right way. */
+      opensIn: z.enum(["app", "external"]).default("app"),
+      slug: AppSlugSchema,
+    }),
+  )
   .output(
     z.discriminatedUnion("status", [
       z.object({ status: z.literal("connected") }),
@@ -183,6 +193,7 @@ const startOAuth = base
     await startAuthCallbackServer();
     const result = await beginMcpOAuth({
       appsDir: context.workspaceConfig.appsDir,
+      opensIn: input.opensIn,
       redirectUrl: appOAuthRedirectUrl(),
       slug: input.slug,
       store: appOAuthStore,

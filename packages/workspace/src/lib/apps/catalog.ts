@@ -20,6 +20,8 @@ const AppCatalogEntrySchema = z.object({
   description: z.string(),
   docsUrl: z.string().optional(),
   domain: z.string(),
+  /** The signed-in web app, when it is not the domain's front page. */
+  home: z.string().optional(),
   interfaces: z.array(
     z.object({
       auth: z.string().optional(),

@@ -9,6 +9,7 @@ import { setAuthServerPort } from "@/electron-main/auth/state";
 import {
   announceConnected,
   APP_OAUTH_CALLBACK_PATH,
+  appHome,
   appName,
   getAppsDir,
 } from "@/electron-main/lib/apps";
@@ -297,10 +298,23 @@ async function start() {
       }
       return c.html(renderAuthPage({ isError: true }), 400);
     }
+    const name = appsDir
+      ? await appName(appsDir, result.value.slug)
+      : result.value.slug;
     if (appsDir) {
       await announceConnected(appsDir, result.value.slug);
     }
-    return c.html(renderAuthPage({}));
+    // A sign-in that ran in the window's own browser lands on the service
+    // itself, signed in: the connection is visible where it matters, and no
+    // page of ours is left in the tab. One that ran in the user's browser
+    // gets a page that says what happened and the way back into the app.
+    const home = appsDir
+      ? await appHome(appsDir, result.value.slug)
+      : undefined;
+    if (result.value.opensIn === "app" && home) {
+      return c.redirect(home);
+    }
+    return c.html(renderAuthPage({ signedInTo: name }));
   });
 
   app.get("/test", (c) =>

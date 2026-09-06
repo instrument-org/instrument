@@ -43,6 +43,31 @@ export function TasksWorkingRow() {
   }
   const latest = running.find((entry) => entry.step) ?? running[0];
   const doing = latest?.step ?? latest?.title ?? "Working";
+  // One task has nothing to fold: the banner is that task's row, and a click
+  // is a way to its screen.
+  const only = running.length === 1 ? running[0] : undefined;
+  if (only) {
+    return (
+      <div className="mx-auto w-full max-w-3xl px-3 pb-1">
+        <button
+          className="flex w-full items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-left text-sm hover:bg-accent/50"
+          onClick={() => {
+            openScreen(`/orchestrator/tasks/${only.taskId}`);
+          }}
+          type="button"
+        >
+          <PlanningDotIcon />
+          <span className="min-w-0 flex-1 truncate">
+            <span className="font-medium">{only.title}</span>
+            <span className="brand-shiny-text">
+              {" "}
+              · {only.step ?? "Working"}
+            </span>
+          </span>
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="mx-auto w-full max-w-3xl px-3 pb-1">
       <div className="rounded-lg border border-border bg-background text-sm">
@@ -189,7 +214,9 @@ export function ViewChip() {
 function Chip({ icon, title }: { icon: ReactNode; title: string }) {
   return (
     <span
-      className="flex h-7 max-w-64 items-center gap-1.5 rounded-lg bg-foreground/5 px-2 text-xs text-muted-foreground"
+      // `min-w-0`: a flex item's floor is its content, and a chip that cannot
+      // shrink walks over whatever shares its row.
+      className="flex h-7 max-w-64 min-w-0 items-center gap-1.5 rounded-lg bg-foreground/5 px-2 text-xs text-muted-foreground"
       title="Instrument sees this when you send"
     >
       <span className="flex size-3.5 shrink-0 items-center justify-center">

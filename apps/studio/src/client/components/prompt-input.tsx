@@ -964,10 +964,10 @@ export const PromptInput = ({
                   projectId={selectedProjectId}
                 />
               )}
-              <div className="flex min-w-0 flex-1 items-center gap-1">
+              <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
                 {lead}
               </div>
-              <div className="flex min-w-0 flex-1 items-center justify-end gap-1 [&_[data-slot=model-picker]]:max-w-full">
+              <div className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-hidden [&_[data-slot=model-picker]]:max-w-full">
                 {features.context_ring && id && selectedSessionId && (
                   <SessionContextRing
                     id={id}

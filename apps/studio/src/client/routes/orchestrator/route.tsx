@@ -12,6 +12,7 @@ import {
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
 } from "@/client/atoms/orchestrator";
+import { openSettings } from "@/client/atoms/settings-modal";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { FilesLayoutContext } from "@/client/components/files-layout-context";
 import {
@@ -33,6 +34,7 @@ import {
 import { ViewChip } from "@/client/components/orchestrator/conversation-chrome";
 import { fileHref } from "@/client/components/orchestrator/file-tabs";
 import { NewChannelDialog } from "@/client/components/orchestrator/new-channel-dialog";
+import { Omnibar } from "@/client/components/orchestrator/omnibar";
 import {
   screenLocation,
   screenPresentation,
@@ -50,6 +52,7 @@ import {
   useWindowTabs,
 } from "@/client/components/orchestrator/window-tabs";
 import { PageOpenContext } from "@/client/components/page-open-context";
+import { StudioModals } from "@/client/components/studio-modals/studio-modals";
 import {
   type RailBounds,
   StudioSidebarRail,
@@ -135,6 +138,7 @@ function Frame({ bar, children }: { bar?: ReactNode; children: ReactNode }) {
         <div className="h-10 shrink-0 border-b border-border [-webkit-app-region:drag]" />
       )}
       <div className="flex min-h-0 flex-1">{children}</div>
+      <StudioModals />
       <Toaster position="top-center" />
     </div>
   );
@@ -441,12 +445,23 @@ function OrchestratorLayout() {
       { name: app.name, site: app.site },
     ]),
   );
-  const tabLocation: TabLocation =
-    active?.kind === "page"
-      ? { kind: "page", url: active.url ?? "" }
-      : active?.kind === "screen"
-        ? screenLocation(active.href, appsBySlug)
-        : { kind: "newTab" };
+  // The address says what kind of place this is; the screen itself says where
+  // it is on the Mac, since only it has resolved a mount to a real path.
+  const tabLocation: TabLocation = (() => {
+    const fromTab: TabLocation =
+      active?.kind === "page"
+        ? { kind: "page", url: active.url ?? "" }
+        : active?.kind === "screen"
+          ? screenLocation(active.href, appsBySlug)
+          : { kind: "newTab" };
+    if (fromTab.kind === "file" && screenView?.file) {
+      return { ...fromTab, path: screenView.file.path };
+    }
+    if (fromTab.kind === "folder" && screenView?.folder) {
+      return { ...fromTab, path: screenView.folder.display };
+    }
+    return fromTab;
+  })();
 
   const openers = useRef({ openPage, openScreen });
   useEffect(() => {
@@ -813,6 +828,11 @@ function OrchestratorLayout() {
               <TabLocationRow
                 canGoBack={canGoBack}
                 canGoForward={canGoForward}
+                // The box lives here on a new tab, keyed by the tab so a
+                // second new tab starts empty rather than with the first's words.
+                {...(tabLocation.kind === "newTab" && active
+                  ? { field: <Omnibar key={active.id} /> }
+                  : {})}
                 location={tabLocation}
                 onBack={goBack}
                 onForward={goForward}
@@ -1085,6 +1105,10 @@ function useWindowCommands(handlers: {
             }
             case "nextTab": {
               latest.current.selectRelative(1);
+              break;
+            }
+            case "openSettings": {
+              openSettings({ tab: "General" });
               break;
             }
             case "previousTab": {

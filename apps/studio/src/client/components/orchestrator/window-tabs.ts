@@ -90,7 +90,7 @@ export function useWindowTabs() {
         if (
           tab.id !== current.activeId ||
           tab.kind !== "screen" ||
-          tab.href === href
+          sameHref(tab.href, href)
         ) {
           return tab;
         }

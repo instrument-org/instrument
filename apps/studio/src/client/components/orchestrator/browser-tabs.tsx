@@ -578,6 +578,7 @@ export function BrowserTabs({
       {active ? (
         <TaskBrowserPanel
           active={attached.has(targetOf(active))}
+          chrome={false}
           className="h-full"
           key={active.id}
           sessionId={StoreId.SessionSchema.parse(active.id)}

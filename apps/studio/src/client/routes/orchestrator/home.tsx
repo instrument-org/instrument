@@ -1,47 +1,25 @@
-import {
-  orchestratorRecentsAtom,
-  pinsAtom,
-  selectedChannelAtom,
-  visitedPagesAtom,
-} from "@/client/atoms/orchestrator";
+import { pinsAtom, selectedChannelAtom } from "@/client/atoms/orchestrator";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { computerName } from "@/client/components/orchestrator/computer-name";
 import {
   ComputerPage,
+  type FolderOnScreen,
   RECENTS_ROOT,
 } from "@/client/components/orchestrator/computer-page";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOpenFileTab } from "@/client/components/orchestrator/file-tabs";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { useQuickLook } from "@/client/components/orchestrator/quick-look";
-import { RecentIcon, SiteIcon } from "@/client/components/orchestrator/sidebar";
+import { SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { ScreenIcon } from "@/client/components/orchestrator/window-tab-strip";
 import { InstrumentGlyph } from "@/client/components/wordmark";
-import { isTypingTarget } from "@/client/lib/is-typing-target";
-import { siteFromWords } from "@/client/lib/site-from-words";
-import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import uFuzzy from "@leeoniya/ufuzzy";
-import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
-import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { LaptopIcon } from "@phosphor-icons/react/Laptop";
-import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
-import {
-  createFileRoute,
-  useNavigate,
-  useRouter,
-} from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import ms from "ms";
-import {
-  type ComponentType,
-  type ReactNode,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { useState } from "react";
 
 /**
  * A new tab: the apps this workspace reaches, then one box that reaches every
@@ -52,32 +30,6 @@ import {
 export const Route = createFileRoute("/orchestrator/home")({
   component: HomeRoute,
 });
-
-const SCREENS: {
-  icon: ComponentType<{ className?: string }>;
-  name: string;
-  open: (navigate: ReturnType<typeof useNavigate>) => void;
-}[] = [
-  {
-    icon: LaptopIcon,
-    name: computerName(),
-    open: (navigate) =>
-      void navigate({
-        search: { path: "", root: "~" },
-        to: "/orchestrator/computer",
-      }),
-  },
-  {
-    icon: InstrumentGlyph,
-    name: "Tasks",
-    open: (navigate) => void navigate({ to: "/orchestrator/tasks" }),
-  },
-  {
-    icon: AppWindowIcon,
-    name: "Apps",
-    open: (navigate) => void navigate({ to: "/orchestrator/apps" }),
-  },
-];
 
 /**
  * How many apps and how many bookmarks the page shows before the rest are
@@ -92,10 +44,6 @@ const PINS_SHOWN = 8;
 const SECTION_LABEL =
   "mb-1 text-[10px] font-medium tracking-wide text-muted-foreground uppercase";
 
-const RECENTS_SHOWN = 6;
-const TASKS_SHOWN = 5;
-const SCREENS_SHOWN = 4;
-
 /**
  * How often the Finder in the box re-reads what it is showing. Slower than the
  * screen's own clock: this page can sit open all day beside the work, and what
@@ -103,52 +51,35 @@ const SCREENS_SHOWN = 4;
  */
 const FINDER_REFRESH_MS = ms("30 seconds");
 
-const fuzzy = new uFuzzy({ intraMode: 1 });
-
-interface OmniRow {
-  group: string;
-  icon: ReactNode;
-  name: string;
-  note: string;
-  run: () => void;
-}
-
 function HomeRoute() {
-  const { ask, openPage, openScreen, taskId } = useOrchestrator();
-  useOnScreen({ screen: "home" });
+  const { openPage, openScreen, taskId } = useOrchestrator();
   const navigate = useNavigate();
-  const router = useRouter();
   const openFileTab = useOpenFileTab();
   const quickLook = useQuickLook({ openFile: openFileTab });
-  const recents = useAtomValue(orchestratorRecentsAtom);
   const selectedChannel = useAtomValue(selectedChannelAtom);
   const pins = useAtomValue(pinsAtom);
-  const visited = useAtomValue(visitedPagesAtom);
-  const [query, setQuery] = useState("");
-  const [highlight, setHighlight] = useState(0);
-  const words = query.trim().toLowerCase();
   // The folder the Finder in the box has open. Held here rather than in the
   // address, so walking the folders leaves this tab a new tab. It opens on
   // what was touched last, which is what a tab opened to find something is
   // most often opened to find.
   const [finderAt, setFinderAt] = useState({ path: "", root: RECENTS_ROOT });
-  const omnibox = useRef<HTMLInputElement>(null);
-  // A new tab the user opened should be ready to type in, but this page also
-  // appears when a channel with no tabs is switched to, and there the caret
-  // belongs in that channel's composer. So the box takes the keyboard as the
-  // page arrives and only while nothing else is holding it; from then on
-  // whatever the user gives it to, the Finder included, keeps it.
-  useEffect(() => {
-    if (!isTypingTarget(document.activeElement)) {
-      omnibox.current?.focus();
-    }
-  }, []);
+  // What the box is showing, for the conversation: a new tab with a folder
+  // view on it has that folder in view, and what is selected in it.
+  const [folder, setFolder] = useState<FolderOnScreen | null>(null);
+  useOnScreen({
+    ...(folder
+      ? {
+          folder: {
+            ...(folder.access === undefined ? {} : { access: folder.access }),
+            display: folder.display,
+            ...(folder.mount === undefined ? {} : { mount: folder.mount }),
+            selected: folder.selected,
+          },
+        }
+      : {}),
+    screen: "home",
+  });
 
-  const children = useQuery(
-    rpcClient.workspace.orchestrator.children.queryOptions({
-      input: { id: taskId },
-    }),
-  );
   const channels = useQuery(
     rpcClient.workspace.orchestrator.channels.list.queryOptions({
       input: { id: taskId },
@@ -161,272 +92,15 @@ function HomeRoute() {
     channels.data?.[0]?.id !== undefined &&
     channels.data[0].id === selectedChannel;
   const appList = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
-  const catalog = useQuery(rpcClient.apps.catalog.queryOptions());
   const appsBySlug = new Map(
     (appList.data?.apps ?? []).map((app) => [
       app.slug,
       { name: app.name, site: app.site },
     ]),
   );
-  // The matcher the model picker uses: typed letters in order, close
-  // together, so "lsbn" finds lisbon.md and "pel news" the pelican task.
-  const matches = (name: string) =>
-    !words || (fuzzy.filter([name], query.trim())?.length ?? 0) > 0;
-  const typedSite = siteFromWords(query.trim());
-
-  const screens = SCREENS.filter((screen) => matches(screen.name)).slice(
-    0,
-    words ? SCREENS_SHOWN : SCREENS.length,
-  );
-  // The apps this workspace has, each opening its page; then what the
-  // directory knows, each a request to connect it.
-  const known = new Set((appList.data?.apps ?? []).map((app) => app.slug));
-  const apps = [
-    ...(appList.data?.apps ?? []).map((app) => ({
-      name: app.name,
-      note: app.standing === "connected" ? "App" : "Setting up",
-      run: () => {
-        void navigate({
-          params: { slug: app.slug },
-          to: "/orchestrator/apps/$slug",
-        });
-      },
-      site: app.site,
-    })),
-    ...(catalog.data ?? [])
-      .filter((entry) => !known.has(entry.slug))
-      .map((entry) => ({
-        name: entry.name,
-        note: "Connect",
-        run: () => {
-          ask(`Connect ${entry.name}`);
-          setQuery("");
-        },
-        site: `https://${entry.domain}`,
-      })),
-  ].filter((app) => matches(app.name));
-  // A task's id is made from its brief, so words in the brief find it too.
-  const tasks = (children.data ?? [])
-    .filter(
-      (child) => matches(child.title) || matches(child.id.replaceAll("-", " ")),
-    )
-    .slice(0, words ? TASKS_SHOWN : 0);
-  const openSite = (url: string) => {
-    openPage(url);
-  };
-  // Where the window has been: the screens it landed on and the pages the
-  // browser showed, newest first, as one list.
-  const wasAt = [
-    ...recents.map((entry) => ({
-      at: entry.at,
-      hint: entry.title,
-      icon: <RecentIcon recent={entry} />,
-      note: { browser: "Page", file: "File", folder: "Folder", task: "Task" }[
-        entry.kind
-      ],
-      run: () => {
-        router.history.push(entry.href);
-      },
-      title: entry.title,
-    })),
-    ...visited.map((page) => ({
-      at: page.at,
-      hint: page.url,
-      icon: <SiteIcon favicon={page.favicon} url={page.url} />,
-      note: "Page",
-      run: () => {
-        openSite(page.url);
-      },
-      title: page.title || page.url,
-    })),
-  ].sort((a, b) => b.at - a.at);
-  const recentRows = wasAt
-    .filter((entry) => matches(entry.title))
-    .slice(0, words ? RECENTS_SHOWN : 0);
-  const rows: OmniRow[] = [
-    ...(typedSite
-      ? [
-          {
-            group: "Site",
-            icon: <GlobeIcon className="size-4" />,
-            name: `Open ${typedSite.host}`,
-            note: "Site",
-            run: () => {
-              openSite(typedSite.url);
-            },
-          },
-        ]
-      : []),
-    // What the words can be used with, first: searching the web and asking
-    // the conversation are what typed words most often mean, and the rows
-    // that matched them follow.
-    ...(words
-      ? [
-          {
-            group: `Use “${query.trim()}” with`,
-            icon: <MagnifyingGlassIcon className="size-4" />,
-            name: "Search the web",
-            note: "Browser",
-            run: () => {
-              openSite(
-                `https://www.google.com/search?q=${encodeURIComponent(query.trim())}`,
-              );
-              setQuery("");
-            },
-          },
-          {
-            group: `Use “${query.trim()}” with`,
-            icon: <InstrumentGlyph className="size-4" />,
-            name: "Ask Instrument",
-            note: "Agent",
-            run: () => {
-              ask(query.trim());
-              setQuery("");
-            },
-          },
-        ]
-      : []),
-    ...screens.map((screen) => ({
-      group: "Screens",
-      icon: <screen.icon className="size-4" />,
-      name: screen.name,
-      note: "Screen",
-      run: () => {
-        screen.open(navigate);
-      },
-    })),
-    ...tasks.map((child) => ({
-      group: "Tasks",
-      icon: <InstrumentGlyph className="size-4" />,
-      name: child.title,
-      note: "Task",
-      run: () => {
-        void navigate({
-          params: { id: child.id },
-          to: "/orchestrator/tasks/$id",
-        });
-      },
-    })),
-    ...recentRows.map((entry) => ({
-      group: "Recent",
-      icon: entry.icon,
-      name: entry.title,
-      note: entry.note,
-      run: entry.run,
-    })),
-    ...apps.map((app) => ({
-      group: "Apps",
-      icon: <AppIcon site={app.site} size="sm" />,
-      name: app.name,
-      note: app.note,
-      run: app.run,
-    })),
-  ];
-  const current = Math.min(highlight, Math.max(0, rows.length - 1));
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden px-8 pt-5 pb-5">
-      {/* The box stays in the middle of the page. The rows under it start at
-        the column's left edge, which is where a list of things belongs; the
-        one control the page is for does not. */}
-      <div className="mx-auto w-full max-w-5xl">
-        <div className="relative mx-auto max-w-xl">
-          <div className="flex h-11 items-center gap-2 rounded-full border border-border bg-card px-4 shadow-sm focus-within:border-foreground/30">
-            <MagnifyingGlassIcon className="size-4 shrink-0 text-muted-foreground" />
-            <input
-              aria-label="Search or ask"
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setHighlight(0);
-              }}
-              onKeyDown={(event) => {
-                switch (event.key) {
-                  case "ArrowDown": {
-                    event.preventDefault();
-                    setHighlight((value) =>
-                      Math.min(rows.length - 1, value + 1),
-                    );
-
-                    break;
-                  }
-                  case "ArrowUp": {
-                    event.preventDefault();
-                    setHighlight((value) => Math.max(0, value - 1));
-
-                    break;
-                  }
-                  case "Enter": {
-                    event.preventDefault();
-                    rows[current]?.run();
-
-                    break;
-                  }
-                  case "Escape": {
-                    setQuery("");
-
-                    break;
-                  }
-                  // No default
-                }
-              }}
-              placeholder="Search, open, or ask Instrument"
-              ref={omnibox}
-              spellCheck={false}
-              type="text"
-              value={query}
-            />
-          </div>
-          {words ? (
-            <div className="absolute inset-x-0 top-full z-10 mt-2 max-h-[calc(60vh/var(--app-zoom))] overflow-y-auto rounded-xl border border-border bg-popover shadow-lg">
-              {rows.length === 0 ? (
-                <p className="px-4 py-3 text-sm text-muted-foreground">
-                  Nothing by that name.
-                </p>
-              ) : (
-                rows.map((row, index) => (
-                  <div key={`${row.group}:${row.name}`}>
-                    {index === 0 || rows[index - 1]?.group !== row.group ? (
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-medium tracking-[0.12em] text-muted-foreground uppercase">
-                        {row.group}
-                      </p>
-                    ) : null}
-                    <button
-                      className={cn(
-                        "flex w-full items-center gap-3 px-4 py-2 text-left text-sm",
-                        index === current ? "bg-accent" : "hover:bg-accent/50",
-                      )}
-                      onClick={row.run}
-                      onMouseEnter={() => {
-                        setHighlight(index);
-                      }}
-                      // The arrows move the highlight past the list's fold; the
-                      // list follows, so the row picked is the row seen.
-                      ref={(element) => {
-                        if (index === current) {
-                          element?.scrollIntoView({ block: "nearest" });
-                        }
-                      }}
-                      type="button"
-                    >
-                      <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-                        {row.icon}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate">
-                        {row.name}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {row.note}
-                      </span>
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          ) : null}
-        </div>
-      </div>
-
       {/* The services the workspace reaches, under the box: marks with names,
           small enough that the row reads as a strip of faces rather than as
           cards. One line and never two, since a page that grows a row per
@@ -548,6 +222,13 @@ function HomeRoute() {
         <p className={SECTION_LABEL}>{computerName()}</p>
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-md">
           <ComputerPage
+            onFolderChange={(next) => {
+              setFolder((current) =>
+                JSON.stringify(current) === JSON.stringify(next)
+                  ? current
+                  : next,
+              );
+            }}
             onLocationChange={setFinderAt}
             onOpenFile={openFileTab}
             path={finderAt.path}

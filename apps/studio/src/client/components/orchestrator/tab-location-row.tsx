@@ -1,7 +1,6 @@
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { FileIcon } from "@/client/components/file-icon";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
-import { computerName } from "@/client/components/orchestrator/computer-name";
 import { SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { cn } from "@/client/lib/utils";
@@ -36,6 +35,7 @@ export type TabLocation =
 export function TabLocationRow({
   canGoBack,
   canGoForward,
+  field,
   location,
   onBack,
   onForward,
@@ -43,6 +43,8 @@ export function TabLocationRow({
 }: {
   canGoBack: boolean;
   canGoForward: boolean;
+  /** What fills the field instead of the location: the box, on a new tab. */
+  field?: ReactNode;
   location: TabLocation;
   onBack: () => void;
   onForward: () => void;
@@ -63,8 +65,8 @@ export function TabLocationRow({
         label="Forward"
         onClick={onForward}
       />
-      <div className="mx-1 flex h-7 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border bg-card px-2.5 text-xs shadow-sm">
-        <Field location={location} />
+      <div className="relative mx-1 flex h-7 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border bg-card px-2.5 text-xs shadow-sm focus-within:border-foreground/30">
+        {field ?? <Field location={location} />}
       </div>
       {trailing}
     </div>
@@ -126,9 +128,14 @@ function Field({ location }: { location: TabLocation }) {
     );
   }
   if (location.kind === "file" || location.kind === "folder") {
+    // The path as it is on the Mac, the parent quiet and the name loud. Never
+    // a path relative to a mount: the field tells the truth about where a
+    // thing is, which is the one thing a location field is for.
     const parts = location.path.split("/").filter(Boolean);
     const name = location.kind === "file" ? location.name : parts.at(-1);
-    const lead = [computerName(), ...parts.slice(0, -1)];
+    const lead = location.path.startsWith("/")
+      ? ["", ...parts.slice(0, -1)]
+      : parts.slice(0, -1);
     return (
       <>
         {/* A file wears its own type's mark, the way a site wears a favicon:
@@ -140,7 +147,7 @@ function Field({ location }: { location: TabLocation }) {
         )}
         <span className="min-w-0 flex-1 truncate select-text">
           <span className="text-muted-foreground">
-            {lead.map((part) => `${part} / `).join("")}
+            {lead.length > 0 ? `${lead.join("/")}/` : ""}
           </span>
           {name}
         </span>
